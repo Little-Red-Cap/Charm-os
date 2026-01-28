@@ -5,6 +5,11 @@ import <type_traits>;
 import util.core;
 
 export namespace kernel {
+    struct NoopTimeSource {
+        using Tick = util::u64;
+        static constexpr Tick now() noexcept { return 0; }
+    };
+
     struct NoopIrqGuard {
         struct Token { };
         static constexpr Token enter() noexcept { return {}; }
@@ -17,6 +22,12 @@ export namespace kernel {
 
     struct NoopSwiTrigger {
         static constexpr void trigger(util::usize) noexcept { }
+    };
+
+    template <typename T>
+    concept TimeSource = requires {
+        typename T::Tick;
+        { T::now() } -> std::same_as<typename T::Tick>;
     };
 
     template <typename T>
@@ -37,11 +48,13 @@ export namespace kernel {
     };
 
     template <typename Caps>
-    concept Capabilities = IrqGuard<typename Caps::IrqGuard>
+    concept Capabilities = TimeSource<typename Caps::TimeSource>
+        && IrqGuard<typename Caps::IrqGuard>
         && Wakeup<typename Caps::Wakeup>
         && SwiTrigger<typename Caps::SwiTrigger>;
 
     struct NoopCapabilities {
+        using TimeSource = NoopTimeSource;
         using IrqGuard = NoopIrqGuard;
         using Wakeup = NoopWakeup;
         using SwiTrigger = NoopSwiTrigger;

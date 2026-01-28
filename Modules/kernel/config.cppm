@@ -1,6 +1,8 @@
-export module kernel.config;
+module;
 
-import <cstddef>;
+#include <cstddef>
+
+export module kernel.config;
 
 export namespace kernel {
     struct KernelConfig {

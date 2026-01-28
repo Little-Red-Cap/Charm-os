@@ -25,6 +25,7 @@ export namespace kernel {
     public:
         Scheduler(Registry& registry, Caps& caps) : registry_(&registry), caps_(&caps) {
             validate_config<Config>();
+            static_assert(Capabilities<Caps>);
         }
 
     private:
@@ -102,9 +103,10 @@ export namespace kernel {
         Caps* caps_{nullptr};
         std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels> queues_{};
         using Tick = typename Caps::TimeSource::Tick;
+        using TimerPolicy = typename TimerPolicySelector<Config>::type;
         using TimerStorage = std::conditional_t<
             Config::enable_timer,
-            TimerQueue<Tick, Config::timer_capacity>,
+            TimerQueue<Tick, Config::timer_capacity, TimerPolicy>,
             NoopTimerQueue<Tick>>;
         TimerStorage timers_{};
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();

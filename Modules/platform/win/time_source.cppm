@@ -1,6 +1,9 @@
+module;
+
+#include <chrono>
+
 export module platform.win.time_source;
 
-import <chrono>;
 import util.core;
 
 export namespace platform::win {

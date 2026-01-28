@@ -1,6 +1,8 @@
-export module util.expected;
+module;
 
-import <expected>;
+#include <expected>
+
+export module util.expected;
 
 export namespace util {
     using std::expected;

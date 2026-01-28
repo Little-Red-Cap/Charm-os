@@ -1,9 +1,11 @@
-export module util.core;
+module;
 
-import <cstddef>;
-import <cstdint>;
-import <cstdlib>;
-import <type_traits>;
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <type_traits>
+
+export module util.core;
 
 export namespace util {
     using u8 = std::uint8_t;

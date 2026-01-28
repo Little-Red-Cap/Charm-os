@@ -1,6 +1,9 @@
+module;
+
+#include <cstddef>
+
 export module kernel.sync;
 
-import <cstddef>;
 import kernel.capabilities;
 import util.core;
 

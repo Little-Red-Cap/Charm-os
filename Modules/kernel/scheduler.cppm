@@ -2,6 +2,7 @@ export module kernel.scheduler;
 
 import <array>;
 import <cstddef>;
+import <type_traits>;
 import <utility>;
 import kernel.capabilities;
 import kernel.config;
@@ -9,6 +10,7 @@ import kernel.eda;
 import kernel.evt;
 import kernel.evt_queue;
 import kernel.task_state;
+import kernel.timer;
 import util.core;
 
 export namespace kernel {
@@ -64,10 +66,44 @@ export namespace kernel {
             return false;
         }
 
+        [[nodiscard]] bool tick(typename Caps::TimeSource::Tick now) noexcept {
+            if constexpr (!Config::enable_timer) {
+                (void)now;
+                return false;
+            } else {
+                auto entry = timers_.pop_due(now);
+                if (!entry.has_value()) {
+                    return false;
+                }
+                post(entry->task, entry->event);
+                return true;
+            }
+        }
+
+        [[nodiscard]] bool schedule_at(
+            typename Caps::TimeSource::Tick due,
+            TaskId task,
+            Event evt) noexcept {
+            if constexpr (!Config::enable_timer) {
+                (void)due;
+                (void)task;
+                (void)evt;
+                return false;
+            } else {
+                return timers_.schedule(TimerEntry<typename Caps::TimeSource::Tick>{due, task, evt});
+            }
+        }
+
     private:
         Registry* registry_{nullptr};
         Caps* caps_{nullptr};
         std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels> queues_{};
+        using Tick = typename Caps::TimeSource::Tick;
+        using TimerStorage = std::conditional_t<
+            Config::enable_timer,
+            TimerQueue<Tick, Config::timer_capacity>,
+            NoopTimerQueue<Tick>>;
+        TimerStorage timers_{};
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();
 
         void post_init_events() noexcept {

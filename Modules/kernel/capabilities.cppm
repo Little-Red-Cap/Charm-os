@@ -1,7 +1,11 @@
+module;
+
+#include <cstddef>
+#include <concepts>
+#include <type_traits>
+
 export module kernel.capabilities;
 
-import <cstddef>;
-import <type_traits>;
 import util.core;
 
 export namespace kernel {

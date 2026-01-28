@@ -1,9 +1,12 @@
+module;
+
+#include <array>
+#include <cstddef>
+#include <type_traits>
+#include <utility>
+
 export module kernel.scheduler;
 
-import <array>;
-import <cstddef>;
-import <type_traits>;
-import <utility>;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
@@ -75,7 +78,7 @@ export namespace kernel {
                 if (!entry.has_value()) {
                     return false;
                 }
-                post(entry->task, entry->event);
+                (void)post(entry->task, entry->event);
                 return true;
             }
         }
@@ -108,7 +111,7 @@ export namespace kernel {
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {
-                post(TaskId{i}, Event{EventId::init, 0});
+                (void)post(TaskId{i}, Event{EventId::init, 0});
             }
         }
     };

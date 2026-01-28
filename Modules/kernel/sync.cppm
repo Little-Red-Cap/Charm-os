@@ -9,6 +9,7 @@ import util.core;
 
 export namespace kernel {
     template <typename Caps>
+        requires Capabilities<Caps>
     class Mutex {
     public:
         [[nodiscard]] bool try_lock() noexcept {
@@ -32,6 +33,7 @@ export namespace kernel {
     };
 
     template <typename Caps, util::usize MaxCount>
+        requires Capabilities<Caps>
     class Semaphore {
     public:
         static_assert(MaxCount >= 1);

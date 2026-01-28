@@ -1,3 +1,5 @@
+module;
+
 export module platform.win.wakeup;
 
 export namespace platform::win {

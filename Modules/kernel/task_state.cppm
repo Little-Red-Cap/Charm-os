@@ -1,3 +1,5 @@
+module;
+
 export module kernel.task_state;
 
 export namespace kernel::state {

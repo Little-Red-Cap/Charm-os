@@ -7,13 +7,17 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
+import platform.win.irq_guard;
+import platform.win.time_source;
+import platform.win.wakeup;
 
 namespace demo {
     struct Config {
-        static constexpr bool enable_timer = false;
+        static constexpr bool enable_timer = true;
         static constexpr bool enable_dynamic_priority = false;
         static constexpr std::size_t priority_levels = 2;
         static constexpr std::size_t evtq_capacity = 16;
+        static constexpr std::size_t timer_capacity = 8;
     };
 
     struct Heartbeat {
@@ -51,7 +55,15 @@ namespace demo {
 int main() {
     using Registry = kernel::TaskRegistry<demo::Heartbeat, demo::Logger>;
     Registry registry{};
-    kernel::NoopCapabilities caps{};
+
+    struct Caps {
+        using TimeSource = platform::win::SteadyClock;
+        using IrqGuard = platform::win::NoopIrqGuard;
+        using Wakeup = platform::win::NoopWakeup;
+        using SwiTrigger = kernel::NoopSwiTrigger;
+    };
+
+    Caps caps{};
 
     auto created = kernel::make_scheduler<demo::Config>(registry, caps);
     auto running = kernel::start(std::move(created));
@@ -60,10 +72,14 @@ int main() {
     const auto logger_id = Registry::id_of<demo::Logger>();
 
     for (std::uint32_t i = 1; i <= 5; ++i) {
-        running.post(heartbeat_id, kernel::Event{kernel::EventId::tick, i});
-        running.post(logger_id, kernel::Event{kernel::EventId::tick, i});
+        const auto now = Caps::TimeSource::now();
+        running.schedule_at(now, heartbeat_id, kernel::Event{kernel::EventId::tick, i});
+        running.schedule_at(now, logger_id, kernel::Event{kernel::EventId::tick, i});
 
         while (running.run_once()) {
+        }
+
+        while (running.tick(now)) {
         }
     }
 

@@ -1,3 +1,5 @@
+module;
+
 export module platform.win.irq_guard;
 
 export namespace platform::win {

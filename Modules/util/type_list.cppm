@@ -1,7 +1,9 @@
-export module util.type_list;
+module;
 
-import <cstddef>;
-import <type_traits>;
+#include <cstddef>
+#include <type_traits>
+
+export module util.type_list;
 
 export namespace util {
     template <typename... Ts>

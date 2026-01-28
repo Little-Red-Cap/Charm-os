@@ -1,14 +1,16 @@
 ﻿#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
+import kernel.sync;
 import platform.win.irq_guard;
-import platform.win.time_source;
+import platform.win.manual_time_source;
 import platform.win.wakeup;
 
 namespace demo {
@@ -57,7 +59,7 @@ int main() {
     Registry registry{};
 
     struct Caps {
-        using TimeSource = platform::win::SteadyClock;
+        using TimeSource = platform::win::ManualTimeSource;
         using IrqGuard = platform::win::NoopIrqGuard;
         using Wakeup = platform::win::NoopWakeup;
         using SwiTrigger = kernel::NoopSwiTrigger;
@@ -71,16 +73,26 @@ int main() {
     const auto heartbeat_id = Registry::id_of<demo::Heartbeat>();
     const auto logger_id = Registry::id_of<demo::Logger>();
 
+    kernel::Semaphore<Caps, 2> sem{};
+    kernel::Mutex<Caps> lock{};
+
     for (std::uint32_t i = 1; i <= 5; ++i) {
         const auto now = Caps::TimeSource::now();
-        running.schedule_at(now, heartbeat_id, kernel::Event{kernel::EventId::tick, i});
-        running.schedule_at(now, logger_id, kernel::Event{kernel::EventId::tick, i});
+        (void)running.schedule_at(now, heartbeat_id, kernel::Event{kernel::EventId::tick, i});
+        (void)running.schedule_at(now, logger_id, kernel::Event{kernel::EventId::tick, i});
 
         while (running.run_once()) {
         }
 
         while (running.tick(now)) {
         }
+
+        if (sem.release() && lock.try_lock()) {
+            std::printf("[Sync] released=%u locked=1\n", i);
+            lock.unlock();
+        }
+
+        Caps::TimeSource::advance(1000);
     }
 
     return 0;

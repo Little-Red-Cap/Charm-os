@@ -1,6 +1,8 @@
-export module kernel.evt;
+module;
 
-import <cstdint>;
+#include <cstdint>
+
+export module kernel.evt;
 
 export namespace kernel {
     enum class EventId : std::uint16_t {

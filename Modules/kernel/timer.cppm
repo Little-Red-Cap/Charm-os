@@ -1,8 +1,11 @@
+module;
+
+#include <array>
+#include <cstddef>
+#include <optional>
+
 export module kernel.timer;
 
-import <array>;
-import <cstddef>;
-import <optional>;
 import kernel.evt;
 import kernel.eda;
 import util.core;
@@ -15,7 +18,36 @@ export namespace kernel {
         Event event{};
     };
 
-    template <typename Tick, util::usize Capacity>
+    struct LinearTimerPolicy {
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static std::optional<util::usize> select_index(
+            const std::array<TimerEntry<Tick>, Capacity>& entries,
+            util::usize count,
+            Tick now) noexcept {
+            if (count == 0) {
+                return std::nullopt;
+            }
+
+            util::usize best_index = Capacity;
+            Tick best_due{};
+            for (util::usize i = 0; i < count; ++i) {
+                const auto due = entries[i].due;
+                if (due <= now) {
+                    if (best_index == Capacity || due < best_due) {
+                        best_index = i;
+                        best_due = due;
+                    }
+                }
+            }
+
+            if (best_index == Capacity) {
+                return std::nullopt;
+            }
+            return best_index;
+        }
+    };
+
+    template <typename Tick, util::usize Capacity, typename Policy = LinearTimerPolicy>
     class TimerQueue {
     public:
         static_assert(Capacity >= 1);
@@ -29,28 +61,13 @@ export namespace kernel {
         }
 
         [[nodiscard]] std::optional<TimerEntry<Tick>> pop_due(Tick now) noexcept {
-            if (count_ == 0) {
+            const auto index = Policy::template select_index<Tick, Capacity>(entries_, count_, now);
+            if (!index.has_value()) {
                 return std::nullopt;
             }
 
-            util::usize best_index = Capacity;
-            Tick best_due{};
-            for (util::usize i = 0; i < count_; ++i) {
-                const auto due = entries_[i].due;
-                if (due <= now) {
-                    if (best_index == Capacity || due < best_due) {
-                        best_index = i;
-                        best_due = due;
-                    }
-                }
-            }
-
-            if (best_index == Capacity) {
-                return std::nullopt;
-            }
-
-            TimerEntry<Tick> result = entries_[best_index];
-            entries_[best_index] = entries_[count_ - 1];
+            TimerEntry<Tick> result = entries_[*index];
+            entries_[*index] = entries_[count_ - 1];
             --count_;
             return result;
         }

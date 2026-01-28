@@ -1,8 +1,11 @@
+module;
+
+#include <array>
+#include <cstddef>
+#include <optional>
+
 export module kernel.evt_queue;
 
-import <array>;
-import <cstddef>;
-import <optional>;
 import kernel.evt;
 import kernel.eda;
 import util.core;

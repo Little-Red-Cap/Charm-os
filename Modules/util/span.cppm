@@ -1,6 +1,8 @@
-export module util.span;
+module;
 
-import <span>;
+#include <span>
+
+export module util.span;
 
 export namespace util {
     using std::span;

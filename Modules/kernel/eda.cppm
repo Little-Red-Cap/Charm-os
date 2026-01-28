@@ -1,9 +1,12 @@
+module;
+
+#include <array>
+#include <cstddef>
+#include <tuple>
+#include <type_traits>
+
 export module kernel.eda;
 
-import <array>;
-import <cstddef>;
-import <tuple>;
-import <type_traits>;
 import util.core;
 import util.type_list;
 import kernel.evt;

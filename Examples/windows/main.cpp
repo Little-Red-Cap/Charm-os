@@ -9,6 +9,7 @@ import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
 import kernel.sync;
+import kernel.timer;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -20,6 +21,7 @@ namespace demo {
         static constexpr std::size_t priority_levels = 2;
         static constexpr std::size_t evtq_capacity = 16;
         static constexpr std::size_t timer_capacity = 8;
+        using timer_policy = kernel::HeapTimerPolicy;
     };
 
     struct Heartbeat {
@@ -76,23 +78,33 @@ int main() {
     kernel::Semaphore<Caps, 2> sem{};
     kernel::Mutex<Caps> lock{};
 
-    for (std::uint32_t i = 1; i <= 5; ++i) {
-        const auto now = Caps::TimeSource::now();
-        (void)running.schedule_at(now, heartbeat_id, kernel::Event{kernel::EventId::tick, i});
-        (void)running.schedule_at(now, logger_id, kernel::Event{kernel::EventId::tick, i});
+    for (std::uint32_t i = 1; i <= 3; ++i) {
+        const auto base = Caps::TimeSource::now();
+        (void)running.schedule_at(base + 2000, heartbeat_id, kernel::Event{kernel::EventId::tick, i});
+        (void)running.schedule_at(base + 1000, logger_id, kernel::Event{kernel::EventId::tick, i});
 
+        Caps::TimeSource::advance(1000);
+        const auto t1 = Caps::TimeSource::now();
+        while (running.tick(t1)) {
+        }
         while (running.run_once()) {
         }
 
-        while (running.tick(now)) {
-        }
-
-        if (sem.release() && lock.try_lock()) {
-            std::printf("[Sync] released=%u locked=1\n", i);
-            lock.unlock();
-        }
-
         Caps::TimeSource::advance(1000);
+        const auto t2 = Caps::TimeSource::now();
+        while (running.tick(t2)) {
+        }
+        while (running.run_once()) {
+        }
+
+        const bool released = sem.release();
+        const bool acquired = sem.try_acquire();
+        if (released && acquired && lock.try_lock()) {
+            std::printf("[Sync] released=%u acquired=1 locked=1\n", i);
+            lock.unlock();
+        } else {
+            std::printf("[Sync] released=%u acquired=%u locked=0\n", i, acquired ? 1u : 0u);
+        }
     }
 
     return 0;

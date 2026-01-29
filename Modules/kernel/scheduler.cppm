@@ -48,7 +48,7 @@ export namespace kernel {
             if (task.value >= Registry::count) {
                 return false;
             }
-            const auto prio_index = priority_table_[task.value];
+            const auto prio_index = current_priorities_[task.value];
             auto guard = Caps::IrqGuard::enter();
             const bool ok = queues_[prio_index].push(EventNode{task, evt});
             Caps::IrqGuard::leave(guard);
@@ -57,6 +57,23 @@ export namespace kernel {
                 Caps::Wakeup::signal();
             }
             return ok;
+        }
+
+        [[nodiscard]] bool set_priority(TaskId task, Priority prio) noexcept {
+            if constexpr (!Config::enable_dynamic_priority) {
+                (void)task;
+                (void)prio;
+                return false;
+            } else {
+                if (task.value >= Registry::count) {
+                    return false;
+                }
+                if (prio.value >= Config::priority_levels) {
+                    return false;
+                }
+                current_priorities_[task.value] = static_cast<std::size_t>(prio.value);
+                return true;
+            }
         }
 
         [[nodiscard]] bool run_once() noexcept {
@@ -94,7 +111,8 @@ export namespace kernel {
                 (void)evt;
                 return false;
             } else {
-                return timers_.schedule(TimerEntry<typename Caps::TimeSource::Tick>{due, task, evt});
+                const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, timer_seq_++};
+                return timers_.schedule(entry);
             }
         }
 
@@ -109,11 +127,13 @@ export namespace kernel {
             TimerQueue<Tick, Config::timer_capacity, TimerPolicy>,
             NoopTimerQueue<Tick>>;
         TimerStorage timers_{};
+        util::u64 timer_seq_{0};
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();
+        std::array<std::size_t, Registry::count> current_priorities_{priority_table_};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {
-                (void)post(TaskId{i}, Event{EventId::init, 0});
+                (void)post(TaskId{i}, make_event(EventId::init));
             }
         }
     };

@@ -251,9 +251,11 @@ int main() {
         if (i == 2) {
             (void)running.set_priority(heartbeat_id, kernel::Priority{2});
             (void)task_api.stop_task(heartbeat_id);
+            std::printf("[Heartbeat] state=%u\n", static_cast<unsigned>(task_api.state_of(heartbeat_id)));
         }
         if (i == 3) {
             (void)task_api.restart_task(heartbeat_id);
+            std::printf("[Heartbeat] state=%u\n", static_cast<unsigned>(task_api.state_of(heartbeat_id)));
         }
 
         bitmap.set(i);

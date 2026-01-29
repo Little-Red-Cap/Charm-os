@@ -9,6 +9,7 @@ export module kernel.timer;
 
 import kernel.evt;
 import kernel.eda;
+import kernel.event_token;
 import util.core;
 
 export namespace kernel {
@@ -18,6 +19,7 @@ export namespace kernel {
         TaskId task{};
         Event event{};
         util::u64 order{0};
+        util::u64 tag{0};
     };
 
     template <typename Policy, typename Tick, util::usize Capacity>

@@ -71,6 +71,21 @@ export namespace kernel {
             return scheduler_->disable_task(current_task());
         }
 
+        [[nodiscard]] bool stop_task(TaskId task) noexcept {
+            return scheduler_->stop_task(task);
+        }
+
+        [[nodiscard]] bool stop_current() noexcept {
+            if (!has_current()) {
+                return false;
+            }
+            return scheduler_->stop_task(current_task());
+        }
+
+        [[nodiscard]] bool restart_task(TaskId task) noexcept {
+            return scheduler_->restart_task(task);
+        }
+
     private:
         Scheduler* scheduler_{nullptr};
         ThreadApi<Scheduler> thread_api_;

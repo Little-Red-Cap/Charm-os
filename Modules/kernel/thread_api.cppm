@@ -5,6 +5,7 @@ module;
 export module kernel.thread_api;
 
 import kernel.evt;
+import kernel.eda;
 import kernel.scheduler;
 import kernel.timer;
 import kernel.sync_base;

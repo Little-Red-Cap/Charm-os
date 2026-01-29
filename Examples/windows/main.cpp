@@ -11,12 +11,17 @@ import kernel.ipc;
 import kernel.scheduler;
 import kernel.sync;
 import kernel.sync_object;
+import kernel.sync_base;
 import kernel.thread;
 import kernel.thread_blocking;
 import kernel.thread_api;
 import kernel.timer;
 import kernel.timer_wheel;
 import kernel.wait_list;
+import kernel.wait_token;
+import kernel.wait_set;
+import kernel.sync_unified;
+import kernel.task_api;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -178,10 +183,13 @@ int main() {
     kernel::SemaphoreIpc<Caps, 2, decltype(running)> sem_ipc(running);
     kernel::SyncObject<decltype(running)> sync_object(running);
     kernel::ThreadApi<decltype(running)> thread_api(running);
+    kernel::SyncUnified<decltype(running), 4> sync_unified(running);
+    kernel::TaskApi<decltype(running)> task_api(running);
 
     (void)msg_queue.send(logger_id, 42);
     (void)sem_ipc.wait(heartbeat_id);
     (void)sync_object.pend(blocking_id);
+    (void)sync_unified.wait(blocking_id, kernel::WaitToken{1});
 
     for (std::uint32_t i = 1; i <= 3; ++i) {
         const auto base = Caps::TimeSource::now();
@@ -190,6 +198,7 @@ int main() {
         (void)running.schedule_at(base + 1000, thread_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 2000, heartbeat_id, kernel::make_event(kernel::EventId::tick, i));
         (void)thread_api.sleep(blocking_id, base + 1500);
+        (void)task_api.sleep(blocking_id, base + 1700);
 
         Caps::TimeSource::advance(1000);
         const auto t1 = Caps::TimeSource::now();
@@ -248,6 +257,7 @@ int main() {
 
         (void)sem_ipc.post();
         (void)sync_object.post_one();
+        (void)sync_unified.notify_one(kernel::WaitResult::ok);
 
         Caps::TimeSource::advance(1000);
     }

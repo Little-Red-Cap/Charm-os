@@ -1,0 +1,68 @@
+module;
+
+#include <cstddef>
+
+export module kernel.ipc;
+
+import kernel.evt;
+import kernel.eda;
+import kernel.scheduler;
+import kernel.sync;
+import kernel.sync_object;
+import service.ring_queue;
+import util.core;
+
+export namespace kernel {
+    template <typename Caps, util::usize MaxCount, typename Scheduler>
+    class SemaphoreIpc {
+    public:
+        explicit SemaphoreIpc(Scheduler& scheduler) : scheduler_(&scheduler), sync_(scheduler) { }
+
+        [[nodiscard]] bool wait(TaskId task) noexcept {
+            if (sem_.try_acquire()) {
+                return true;
+            }
+            return sync_.pend(task);
+            return false;
+        }
+
+        [[nodiscard]] bool post() noexcept {
+            if (!sem_.release()) {
+                return false;
+            }
+            return sync_.post(SyncStatus::success);
+        }
+
+    private:
+        Scheduler* scheduler_{nullptr};
+        Semaphore<Caps, MaxCount> sem_{};
+        SyncObject<Scheduler> sync_;
+    };
+
+    template <typename Scheduler, typename T, util::usize Capacity>
+    class QueueIpc {
+    public:
+        explicit QueueIpc(Scheduler& scheduler, service::RingQueue<T, Capacity>& queue)
+            : scheduler_(&scheduler), queue_(&queue) { }
+
+        [[nodiscard]] bool send(TaskId task, T value) noexcept {
+            if (!queue_->push(value)) {
+                return false;
+            }
+            return scheduler_->post(task, make_event(EventId::message, util::usize(1)));
+        }
+
+        [[nodiscard]] bool recv(T& out) noexcept {
+            auto value = queue_->pop();
+            if (!value.has_value()) {
+                return false;
+            }
+            out = *value;
+            return true;
+        }
+
+    private:
+        Scheduler* scheduler_{nullptr};
+        service::RingQueue<T, Capacity>* queue_{nullptr};
+    };
+}

@@ -139,6 +139,13 @@ namespace demo {
         }
         if (evt.id == kernel::EventId::sync) {
             std::printf("[Blocking] sync status=%u\n", kernel::payload_u32(evt));
+            if (state.control != nullptr) {
+                if (kernel::payload_u32(evt) == static_cast<std::uint32_t>(kernel::WaitResult::timeout)) {
+                    state.control->block();
+                } else {
+                    state.control->resume();
+                }
+            }
             return;
         }
     }
@@ -233,6 +240,10 @@ int main() {
 
         if (i == 2) {
             (void)running.set_priority(heartbeat_id, kernel::Priority{2});
+            (void)task_api.stop_task(heartbeat_id);
+        }
+        if (i == 3) {
+            (void)task_api.restart_task(heartbeat_id);
         }
 
         bitmap.set(i);

@@ -10,9 +10,26 @@ export namespace kernel {
     struct RunningState { };
     struct BlockedState { };
 
+    struct ThreadBlockingControl {
+        bool blocked{false};
+
+        void block() noexcept {
+            blocked = true;
+        }
+
+        void resume() noexcept {
+            blocked = false;
+        }
+
+        [[nodiscard]] bool is_blocked() const noexcept {
+            return blocked;
+        }
+    };
+
     template <typename Context>
     struct ThreadState {
         Context* ctx{nullptr};
+        ThreadBlockingControl* control{nullptr};
     };
 
     template <typename Context>
@@ -21,9 +38,16 @@ export namespace kernel {
     template <typename Context, ThreadHandler<Context> Handler, Priority Prio>
     struct ThreadBlockingTask {
         static constexpr Priority priority{Prio};
+        Context context{};
+        ThreadBlockingControl control{};
         ThreadState<Context> state{};
 
         void on_event(Event evt) {
+            state.ctx = &context;
+            state.control = &control;
+            if (control.blocked && evt.id != EventId::sync && evt.id != EventId::init) {
+                return;
+            }
             Handler(state, evt);
         }
     };

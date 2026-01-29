@@ -50,6 +50,11 @@ export namespace kernel {
             return std::array<std::size_t, count>{Tasks::priority.value...};
         }
 
+        template <typename T>
+        T& get() {
+            return std::get<T>(tasks);
+        }
+
         void dispatch(TaskId id, Event evt) {
             if (id.value >= count) {
                 util::halt();

@@ -15,6 +15,7 @@ import kernel.sync_base;
 import kernel.sync_object;
 import kernel.sync_unified;
 import kernel.task_api;
+import kernel.task_decl;
 import kernel.thread;
 import kernel.thread_blocking;
 import kernel.thread_api;
@@ -61,11 +62,10 @@ namespace demo {
         }
     };
 
-    struct Heartbeat {
-        static constexpr kernel::Priority priority{1};
+    struct HeartbeatHandler {
         std::uint32_t ticks{0};
 
-        void on_event(kernel::Event evt) {
+        void operator()(kernel::Event evt) {
             if (evt.id == kernel::EventId::init) {
                 ticks = 0;
                 std::printf("[Heartbeat] init\n");
@@ -80,6 +80,8 @@ namespace demo {
             }
         }
     };
+
+    using Heartbeat = kernel::EdaTaskDecl<HeartbeatHandler, kernel::Priority{1}>;
 
     struct Logger {
         static constexpr kernel::Priority priority{0};
@@ -194,13 +196,17 @@ int main() {
 
     for (std::uint32_t i = 1; i <= 3; ++i) {
         const auto base = Caps::TimeSource::now();
-        (void)running.schedule_at(base + 1000, logger_id, kernel::make_event(kernel::EventId::tick, i));
+        const auto cancel_token = running.schedule_at_token(base + 1000, logger_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 1000, urgent_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 1000, thread_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 2000, heartbeat_id, kernel::make_event(kernel::EventId::tick, i));
         (void)thread_api.sleep(blocking_id, base + 1500);
         (void)task_api.sleep(blocking_id, base + 1700);
         (void)task_api.wait_timeout(sync_unified, blocking_id, kernel::WaitToken{2}, base + 1800);
+
+        if (i == 2) {
+            (void)running.cancel_event(cancel_token);
+        }
 
         Caps::TimeSource::advance(1000);
         const auto t1 = Caps::TimeSource::now();

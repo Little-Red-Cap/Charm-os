@@ -53,6 +53,7 @@ export namespace kernel {
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
             task_enabled_.fill(true);
+            task_states_.fill(TaskState::ready);
             registry_->init_all();
             post_init_events();
         }
@@ -110,6 +111,7 @@ export namespace kernel {
                 return false;
             }
             task_enabled_[task.value] = true;
+            task_states_[task.value] = TaskState::ready;
             return true;
         }
 
@@ -118,6 +120,7 @@ export namespace kernel {
                 return false;
             }
             task_enabled_[task.value] = false;
+            task_states_[task.value] = TaskState::stopped;
             if constexpr (Config::enable_dynamic_priority) {
                 (void)queues_.drop_task(task);
             } else {
@@ -141,8 +144,23 @@ export namespace kernel {
                 return false;
             }
             task_enabled_[task.value] = true;
+            task_states_[task.value] = TaskState::ready;
             registry_->start(task);
             return post(task, make_event(EventId::init));
+        }
+
+        [[nodiscard]] TaskState state_of(TaskId task) const noexcept {
+            if (task.value >= Registry::count) {
+                return TaskState::stopped;
+            }
+            return task_states_[task.value];
+        }
+
+        [[nodiscard]] bool is_enabled(TaskId task) const noexcept {
+            if (task.value >= Registry::count) {
+                return false;
+            }
+            return task_enabled_[task.value];
         }
 
         [[nodiscard]] bool run_once() noexcept {
@@ -157,9 +175,11 @@ export namespace kernel {
                     if (!task_enabled_[node->task.value]) {
                         return true;
                     }
+                    task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
                     clear_current();
+                    task_states_[node->task.value] = TaskState::ready;
                     return true;
                 }
             }
@@ -240,6 +260,7 @@ export namespace kernel {
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();
         std::array<std::size_t, Registry::count> current_priorities_{priority_table_};
         std::array<bool, Registry::count> task_enabled_{};
+        std::array<TaskState, Registry::count> task_states_{};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {

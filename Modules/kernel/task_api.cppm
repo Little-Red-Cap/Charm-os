@@ -5,9 +5,11 @@
 export module kernel.task_api;
 
 import kernel.eda;
+import kernel.evt;
 import kernel.scheduler;
 import kernel.sync_unified;
 import kernel.thread_api;
+import kernel.sync_base;
 import kernel.wait_token;
 import util.core;
 
@@ -23,6 +25,16 @@ export namespace kernel {
 
         [[nodiscard]] bool wait(SyncUnified<Scheduler>& sync, TaskId task, WaitToken token) noexcept {
             return sync.wait(task, token);
+        }
+
+        [[nodiscard]] bool wait_timeout(
+            SyncUnified<Scheduler>& sync,
+            TaskId task,
+            WaitToken token,
+            typename Scheduler::TimeSource::Tick due) noexcept {
+            (void)sync.wait(task, token);
+            (void)scheduler_->schedule_at_token(due, task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
+            return true;
         }
 
     private:

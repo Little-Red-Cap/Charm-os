@@ -11,7 +11,7 @@ import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
 import kernel.evt;
-import kernel.evt_queue;
+import kernel.event_queue;
 import kernel.task_state;
 import kernel.timer;
 import util.core;
@@ -51,7 +51,7 @@ export namespace kernel {
             }
             const auto prio_index = current_priorities_[task.value];
             auto guard = Caps::IrqGuard::enter();
-            const bool ok = queues_[prio_index].push(EventNode{task, evt});
+            const bool ok = queues_[prio_index].push(EventNode{task, evt, evt_seq_++});
             Caps::IrqGuard::leave(guard);
             if (ok) {
                 Caps::SwiTrigger::trigger(prio_index);
@@ -86,6 +86,14 @@ export namespace kernel {
                 }
             }
             return false;
+        }
+
+        [[nodiscard]] bool cancel_event(util::u64 tag) noexcept {
+            bool removed = false;
+            for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                removed = queues_[i].cancel(tag) || removed;
+            }
+            return removed;
         }
 
         [[nodiscard]] bool tick(typename Caps::TimeSource::Tick now) noexcept {
@@ -129,6 +137,7 @@ export namespace kernel {
             NoopTimerQueue<Tick>>;
         TimerStorage timers_{};
         util::u64 timer_seq_{0};
+        util::u64 evt_seq_{0};
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();
         std::array<std::size_t, Registry::count> current_priorities_{priority_table_};
 

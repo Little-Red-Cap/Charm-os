@@ -116,6 +116,24 @@ export namespace kernel {
             return true;
         }
 
+        [[nodiscard]] bool drop_task(TaskId task) noexcept {
+            if (task.value >= TaskCount) {
+                return false;
+            }
+            bool removed = false;
+            int current = evt_head_[task.value];
+            while (current != -1) {
+                const auto next = next_[static_cast<util::usize>(current)];
+                release_node(current);
+                current = next;
+                removed = true;
+            }
+            evt_head_[task.value] = -1;
+            evt_tail_[task.value] = -1;
+            remove_ready(task);
+            return removed;
+        }
+
     private:
         std::array<EventNode, Capacity> nodes_{};
         std::array<int, Capacity> next_{};

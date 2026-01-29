@@ -52,12 +52,16 @@ export namespace kernel {
         using TimeSource = typename Caps::TimeSource;
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
+            task_enabled_.fill(true);
             registry_->init_all();
             post_init_events();
         }
 
         [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
             if (task.value >= Registry::count) {
+                return EventToken{0};
+            }
+            if (!task_enabled_[task.value]) {
                 return EventToken{0};
             }
             const auto prio_index = current_priorities_[task.value];
@@ -101,6 +105,29 @@ export namespace kernel {
             }
         }
 
+        [[nodiscard]] bool enable_task(TaskId task) noexcept {
+            if (task.value >= Registry::count) {
+                return false;
+            }
+            task_enabled_[task.value] = true;
+            return true;
+        }
+
+        [[nodiscard]] bool disable_task(TaskId task) noexcept {
+            if (task.value >= Registry::count) {
+                return false;
+            }
+            task_enabled_[task.value] = false;
+            if constexpr (Config::enable_dynamic_priority) {
+                (void)queues_.drop_task(task);
+            } else {
+                for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                    (void)queues_[i].drop_task(task);
+                }
+            }
+            return true;
+        }
+
         [[nodiscard]] bool run_once() noexcept {
             for (std::size_t i = Config::priority_levels; i-- > 0;) {
                 std::optional<EventNode> node{};
@@ -110,6 +137,9 @@ export namespace kernel {
                     node = queues_[i].pop();
                 }
                 if (node.has_value()) {
+                    if (!task_enabled_[node->task.value]) {
+                        return true;
+                    }
                     set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
                     clear_current();
@@ -192,6 +222,7 @@ export namespace kernel {
         util::u64 evt_seq_{0};
         static constexpr auto priority_table_ = Registry::template priority_table<Config>();
         std::array<std::size_t, Registry::count> current_priorities_{priority_table_};
+        std::array<bool, Registry::count> task_enabled_{};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {

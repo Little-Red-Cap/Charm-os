@@ -12,6 +12,7 @@ import kernel.sync_base;
 import kernel.sync_unified;
 import kernel.thread_api;
 import kernel.wait_token;
+import kernel.context;
 import util.core;
 
 export namespace kernel {
@@ -53,6 +54,21 @@ export namespace kernel {
 
         [[nodiscard]] bool on_timeout(SyncUnified<Scheduler>& sync, WaitToken token) noexcept {
             return sync.on_timeout(token);
+        }
+
+        [[nodiscard]] bool enable_task(TaskId task) noexcept {
+            return scheduler_->enable_task(task);
+        }
+
+        [[nodiscard]] bool disable_task(TaskId task) noexcept {
+            return scheduler_->disable_task(task);
+        }
+
+        [[nodiscard]] bool disable_current() noexcept {
+            if (!has_current()) {
+                return false;
+            }
+            return scheduler_->disable_task(current_task());
         }
 
     private:

@@ -13,7 +13,7 @@ import service.ring_queue;
 import util.core;
 
 export namespace kernel {
-    template <typename Caps, util::usize MaxCount, typename Scheduler>
+    template <typename Caps, util::usize MaxCount, typename Scheduler, util::usize MaxWaiters = 4>
     class SemaphoreIpc {
     public:
         explicit SemaphoreIpc(Scheduler& scheduler) : scheduler_(&scheduler), sync_(scheduler) { }
@@ -27,16 +27,16 @@ export namespace kernel {
         }
 
         [[nodiscard]] bool post() noexcept {
-            if (!sem_.release()) {
-                return false;
+            if (sync_.waiting()) {
+                return sync_.post_one(WaitResult::ok);
             }
-            return sync_.post(WaitResult::ok);
+            return sem_.release();
         }
 
     private:
         Scheduler* scheduler_{nullptr};
         Semaphore<Caps, MaxCount> sem_{};
-        SyncBase<Scheduler> sync_;
+        SyncBase<Scheduler, MaxWaiters> sync_;
     };
 
     template <typename Scheduler, typename T, util::usize Capacity>
@@ -66,7 +66,7 @@ export namespace kernel {
         service::RingQueue<T, Capacity>* queue_{nullptr};
     };
 
-    template <typename Scheduler>
+    template <typename Scheduler, util::usize MaxWaiters = 4>
     class TriggerIpc {
     public:
         explicit TriggerIpc(Scheduler& scheduler) : sync_(scheduler) { }
@@ -76,10 +76,10 @@ export namespace kernel {
         }
 
         [[nodiscard]] bool set() noexcept {
-            return sync_.post(WaitResult::ok);
+            return sync_.post_all(WaitResult::ok);
         }
 
     private:
-        SyncBase<Scheduler> sync_;
+        SyncBase<Scheduler, MaxWaiters> sync_;
     };
 }

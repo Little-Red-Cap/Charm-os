@@ -8,7 +8,7 @@ import kernel.evt;
 import kernel.eda;
 import kernel.scheduler;
 import kernel.sync;
-import kernel.sync_object;
+import kernel.sync_base;
 import service.ring_queue;
 import util.core;
 
@@ -30,13 +30,13 @@ export namespace kernel {
             if (!sem_.release()) {
                 return false;
             }
-            return sync_.post(SyncStatus::success);
+            return sync_.post(WaitResult::ok);
         }
 
     private:
         Scheduler* scheduler_{nullptr};
         Semaphore<Caps, MaxCount> sem_{};
-        SyncObject<Scheduler> sync_;
+        SyncBase<Scheduler> sync_;
     };
 
     template <typename Scheduler, typename T, util::usize Capacity>
@@ -64,5 +64,22 @@ export namespace kernel {
     private:
         Scheduler* scheduler_{nullptr};
         service::RingQueue<T, Capacity>* queue_{nullptr};
+    };
+
+    template <typename Scheduler>
+    class TriggerIpc {
+    public:
+        explicit TriggerIpc(Scheduler& scheduler) : sync_(scheduler) { }
+
+        [[nodiscard]] bool wait(TaskId task) noexcept {
+            return sync_.pend(task);
+        }
+
+        [[nodiscard]] bool set() noexcept {
+            return sync_.post(WaitResult::ok);
+        }
+
+    private:
+        SyncBase<Scheduler> sync_;
     };
 }

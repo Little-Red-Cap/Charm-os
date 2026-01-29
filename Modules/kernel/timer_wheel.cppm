@@ -101,5 +101,35 @@ export namespace kernel {
         [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
             return storage.count;
         }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel(Storage<Tick, Capacity>& storage, util::u64 tag) noexcept {
+            if (storage.count == 0) {
+                return false;
+            }
+            for (util::usize level = 0; level < Levels; ++level) {
+                for (util::usize slot = 0; slot < Slots; ++slot) {
+                    int current = storage.head[level][slot];
+                    int prev = -1;
+                    while (current != -1) {
+                        const auto idx = static_cast<util::usize>(current);
+                        if (storage.entries[idx].tag == tag) {
+                            const int next = storage.next[idx];
+                            if (prev == -1) {
+                                storage.head[level][slot] = next;
+                            } else {
+                                storage.next[static_cast<util::usize>(prev)] = next;
+                            }
+                            storage.free[storage.free_count++] = current;
+                            --storage.count;
+                            return true;
+                        }
+                        prev = current;
+                        current = storage.next[idx];
+                    }
+                }
+            }
+            return false;
+        }
     };
 }

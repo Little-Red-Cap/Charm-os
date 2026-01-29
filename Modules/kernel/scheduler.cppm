@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -12,12 +13,19 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_queue;
+import kernel.event_queue_list;
 import kernel.event_token;
 import kernel.task_state;
 import kernel.timer;
 import util.core;
 
 export namespace kernel {
+    template <typename Config, typename Registry>
+    using SchedulerQueueStorage = std::conditional_t<
+        Config::enable_dynamic_priority,
+        EventQueueList<Config::evtq_capacity, Registry::count, Config::priority_levels>,
+        std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels>>;
+
     template <typename Config, typename Registry, typename Caps, typename State>
     class Scheduler;
 
@@ -32,7 +40,7 @@ export namespace kernel {
     private:
         Registry* registry_{nullptr};
         Caps* caps_{nullptr};
-        std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels> queues_{};
+        SchedulerQueueStorage<Config, Registry> queues_{};
 
         friend class Scheduler<Config, Registry, Caps, state::Running>;
     };
@@ -54,7 +62,12 @@ export namespace kernel {
             const auto prio_index = current_priorities_[task.value];
             auto guard = Caps::IrqGuard::enter();
             const auto tag = ++evt_seq_;
-            const bool ok = queues_[prio_index].push(EventNode{task, evt, tag});
+            bool ok = false;
+            if constexpr (Config::enable_dynamic_priority) {
+                ok = queues_.push(task, evt, tag, prio_index);
+            } else {
+                ok = queues_[prio_index].push(EventNode{task, evt, tag});
+            }
             Caps::IrqGuard::leave(guard);
             if (ok) {
                 Caps::SwiTrigger::trigger(prio_index);
@@ -80,13 +93,21 @@ export namespace kernel {
                     return false;
                 }
                 current_priorities_[task.value] = static_cast<std::size_t>(prio.value);
+                if constexpr (Config::enable_dynamic_priority) {
+                    (void)queues_.update_ready_priority(task, static_cast<std::size_t>(prio.value));
+                }
                 return true;
             }
         }
 
         [[nodiscard]] bool run_once() noexcept {
             for (std::size_t i = Config::priority_levels; i-- > 0;) {
-                auto node = queues_[i].pop();
+                std::optional<EventNode> node{};
+                if constexpr (Config::enable_dynamic_priority) {
+                    node = queues_.pop(i);
+                } else {
+                    node = queues_[i].pop();
+                }
                 if (node.has_value()) {
                     registry_->dispatch(node->task, node->event);
                     return true;
@@ -97,8 +118,12 @@ export namespace kernel {
 
         [[nodiscard]] bool cancel_event(util::u64 tag) noexcept {
             bool removed = false;
-            for (std::size_t i = 0; i < Config::priority_levels; ++i) {
-                removed = queues_[i].cancel(tag) || removed;
+            if constexpr (Config::enable_dynamic_priority) {
+                removed = queues_.cancel(tag);
+            } else {
+                for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                    removed = queues_[i].cancel(tag) || removed;
+                }
             }
             if constexpr (Config::enable_timer) {
                 removed = timers_.cancel(tag) || removed;
@@ -152,7 +177,7 @@ export namespace kernel {
     private:
         Registry* registry_{nullptr};
         Caps* caps_{nullptr};
-        std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels> queues_{};
+        SchedulerQueueStorage<Config, Registry> queues_{};
         using Tick = typename Caps::TimeSource::Tick;
         using TimerPolicy = typename TimerPolicySelector<Config>::type;
         using TimerStorage = std::conditional_t<

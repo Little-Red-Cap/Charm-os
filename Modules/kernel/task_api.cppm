@@ -10,6 +10,7 @@ import kernel.event_token;
 import kernel.scheduler;
 import kernel.sync_base;
 import kernel.sync_unified;
+import kernel.task_state;
 import kernel.thread_api;
 import kernel.wait_token;
 import kernel.context;
@@ -84,6 +85,14 @@ export namespace kernel {
 
         [[nodiscard]] bool restart_task(TaskId task) noexcept {
             return scheduler_->restart_task(task);
+        }
+
+        [[nodiscard]] TaskState state_of(TaskId task) const noexcept {
+            return scheduler_->state_of(task);
+        }
+
+        [[nodiscard]] bool is_enabled(TaskId task) const noexcept {
+            return scheduler_->is_enabled(task);
         }
 
     private:

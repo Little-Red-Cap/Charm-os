@@ -102,6 +102,10 @@ export namespace kernel {
             return removed;
         }
 
+        [[nodiscard]] bool cancel_event(EventToken token) noexcept {
+            return cancel_event(token.value);
+        }
+
         [[nodiscard]] bool tick(typename Caps::TimeSource::Tick now) noexcept {
             if constexpr (!Config::enable_timer) {
                 (void)now;

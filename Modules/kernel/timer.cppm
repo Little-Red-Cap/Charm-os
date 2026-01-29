@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstddef>
@@ -17,48 +17,53 @@ export namespace kernel {
         Tick due{};
         TaskId task{};
         Event event{};
+        util::u64 order{0};
     };
 
     template <typename Policy, typename Tick, util::usize Capacity>
     concept TimerPolicy = requires(
-        std::array<TimerEntry<Tick>, Capacity>& entries,
-        util::usize& count,
+        typename Policy::template Storage<Tick, Capacity> storage,
         TimerEntry<Tick> entry,
         Tick now) {
-        { Policy::insert(entries, count, entry) } -> std::same_as<bool>;
-        { Policy::pop_due(entries, count, now) } -> std::same_as<std::optional<TimerEntry<Tick>>>;
+        { Policy::template insert<Tick, Capacity>(storage, entry) } -> std::same_as<bool>;
+        { Policy::template pop_due<Tick, Capacity>(storage, now) } -> std::same_as<std::optional<TimerEntry<Tick>>>;
+        { Policy::template size<Tick, Capacity>(storage) } -> std::same_as<util::usize>;
     };
 
     struct LinearTimerPolicy {
         template <typename Tick, util::usize Capacity>
-        [[nodiscard]] static bool insert(
-            std::array<TimerEntry<Tick>, Capacity>& entries,
-            util::usize& count,
-            TimerEntry<Tick> entry) noexcept {
-            if (count >= Capacity) {
+        struct Storage {
+            std::array<TimerEntry<Tick>, Capacity> entries{};
+            util::usize count{0};
+        };
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool insert(Storage<Tick, Capacity>& storage, TimerEntry<Tick> entry) noexcept {
+            if (storage.count >= Capacity) {
                 return false;
             }
-            entries[count++] = entry;
+            storage.entries[storage.count++] = entry;
             return true;
         }
 
         template <typename Tick, util::usize Capacity>
-        [[nodiscard]] static std::optional<TimerEntry<Tick>> pop_due(
-            std::array<TimerEntry<Tick>, Capacity>& entries,
-            util::usize& count,
-            Tick now) noexcept {
-            if (count == 0) {
+        [[nodiscard]] static std::optional<TimerEntry<Tick>> pop_due(Storage<Tick, Capacity>& storage, Tick now) noexcept {
+            if (storage.count == 0) {
                 return std::nullopt;
             }
 
             util::usize best_index = Capacity;
             Tick best_due{};
-            for (util::usize i = 0; i < count; ++i) {
-                const auto due = entries[i].due;
+            util::u64 best_order{};
+            for (util::usize i = 0; i < storage.count; ++i) {
+                const auto due = storage.entries[i].due;
                 if (due <= now) {
-                    if (best_index == Capacity || due < best_due) {
+                    const auto order = storage.entries[i].order;
+                    if (best_index == Capacity || due < best_due
+                        || (due == best_due && order < best_order)) {
                         best_index = i;
                         best_due = due;
+                        best_order = order;
                     }
                 }
             }
@@ -67,74 +72,183 @@ export namespace kernel {
                 return std::nullopt;
             }
 
-            TimerEntry<Tick> result = entries[best_index];
-            entries[best_index] = entries[count - 1];
-            --count;
+            TimerEntry<Tick> result = storage.entries[best_index];
+            storage.entries[best_index] = storage.entries[storage.count - 1];
+            --storage.count;
             return result;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
+            return storage.count;
         }
     };
 
     struct HeapTimerPolicy {
         template <typename Tick, util::usize Capacity>
-        [[nodiscard]] static bool insert(
-            std::array<TimerEntry<Tick>, Capacity>& entries,
-            util::usize& count,
-            TimerEntry<Tick> entry) noexcept {
-            if (count >= Capacity) {
+        struct Storage {
+            std::array<TimerEntry<Tick>, Capacity> entries{};
+            util::usize count{0};
+        };
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool insert(Storage<Tick, Capacity>& storage, TimerEntry<Tick> entry) noexcept {
+            if (storage.count >= Capacity) {
                 return false;
             }
-            util::usize idx = count++;
-            entries[idx] = entry;
+            util::usize idx = storage.count++;
+            storage.entries[idx] = entry;
             while (idx > 0) {
                 const util::usize parent = (idx - 1) / 2;
-                if (entries[parent].due <= entries[idx].due) {
+                const auto& parent_entry = storage.entries[parent];
+                const auto& current_entry = storage.entries[idx];
+                if (parent_entry.due < current_entry.due
+                    || (parent_entry.due == current_entry.due
+                        && parent_entry.order <= current_entry.order)) {
                     break;
                 }
-                auto tmp = entries[parent];
-                entries[parent] = entries[idx];
-                entries[idx] = tmp;
+                auto tmp = storage.entries[parent];
+                storage.entries[parent] = storage.entries[idx];
+                storage.entries[idx] = tmp;
                 idx = parent;
             }
             return true;
         }
 
         template <typename Tick, util::usize Capacity>
-        [[nodiscard]] static std::optional<TimerEntry<Tick>> pop_due(
-            std::array<TimerEntry<Tick>, Capacity>& entries,
-            util::usize& count,
-            Tick now) noexcept {
-            if (count == 0) {
+        [[nodiscard]] static std::optional<TimerEntry<Tick>> pop_due(Storage<Tick, Capacity>& storage, Tick now) noexcept {
+            if (storage.count == 0) {
                 return std::nullopt;
             }
-            if (entries[0].due > now) {
+            if (storage.entries[0].due > now) {
                 return std::nullopt;
             }
 
-            TimerEntry<Tick> result = entries[0];
-            entries[0] = entries[count - 1];
-            --count;
+            TimerEntry<Tick> result = storage.entries[0];
+            storage.entries[0] = storage.entries[storage.count - 1];
+            --storage.count;
 
             util::usize idx = 0;
             while (true) {
                 const util::usize left = idx * 2 + 1;
                 const util::usize right = left + 1;
-                if (left >= count) {
+                if (left >= storage.count) {
                     break;
                 }
                 util::usize smallest = left;
-                if (right < count && entries[right].due < entries[left].due) {
-                    smallest = right;
+                if (right < storage.count) {
+                    const auto& left_entry = storage.entries[left];
+                    const auto& right_entry = storage.entries[right];
+                    if (right_entry.due < left_entry.due
+                        || (right_entry.due == left_entry.due
+                            && right_entry.order < left_entry.order)) {
+                        smallest = right;
+                    }
                 }
-                if (entries[idx].due <= entries[smallest].due) {
+                const auto& current = storage.entries[idx];
+                const auto& next = storage.entries[smallest];
+                if (current.due < next.due || (current.due == next.due && current.order <= next.order)) {
                     break;
                 }
-                auto tmp = entries[idx];
-                entries[idx] = entries[smallest];
-                entries[smallest] = tmp;
+                auto tmp = storage.entries[idx];
+                storage.entries[idx] = storage.entries[smallest];
+                storage.entries[smallest] = tmp;
                 idx = smallest;
             }
 
             return result;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
+            return storage.count;
+        }
+    };
+
+    struct WheelTimerPolicy {
+        template <typename Tick, util::usize Capacity>
+        struct Storage {
+            std::array<TimerEntry<Tick>, Capacity> entries{};
+            std::array<int, Capacity> head{};
+            std::array<int, Capacity> next{};
+            std::array<int, Capacity> free{};
+            util::usize free_count{0};
+            util::usize count{0};
+
+            Storage() noexcept {
+                for (util::usize i = 0; i < Capacity; ++i) {
+                    head[i] = -1;
+                    next[i] = -1;
+                    free[i] = static_cast<int>(Capacity - 1 - i);
+                }
+                free_count = Capacity;
+            }
+        };
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool insert(Storage<Tick, Capacity>& storage, TimerEntry<Tick> entry) noexcept {
+            if (storage.free_count == 0) {
+                return false;
+            }
+            const auto slot = static_cast<util::usize>(entry.due % Capacity);
+            const int idx = storage.free[--storage.free_count];
+            storage.entries[idx] = entry;
+            storage.next[idx] = storage.head[slot];
+            storage.head[slot] = idx;
+            ++storage.count;
+            return true;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static std::optional<TimerEntry<Tick>> pop_due(
+            Storage<Tick, Capacity>& storage,
+            Tick now) noexcept {
+            if (storage.count == 0) {
+                return std::nullopt;
+            }
+            const auto slot = static_cast<util::usize>(now % Capacity);
+            int current = storage.head[slot];
+            int prev = -1;
+            int best = -1;
+            int best_prev = -1;
+            Tick best_due{};
+            util::u64 best_order{};
+
+            while (current != -1) {
+                const auto& entry = storage.entries[static_cast<util::usize>(current)];
+                if (entry.due <= now) {
+                    if (best == -1 || entry.due < best_due
+                        || (entry.due == best_due && entry.order < best_order)) {
+                        best = current;
+                        best_prev = prev;
+                        best_due = entry.due;
+                        best_order = entry.order;
+                    }
+                }
+                prev = current;
+                current = storage.next[static_cast<util::usize>(current)];
+            }
+
+            if (best == -1) {
+                return std::nullopt;
+            }
+
+            const int best_next = storage.next[static_cast<util::usize>(best)];
+            if (best_prev == -1) {
+                storage.head[slot] = best_next;
+            } else {
+                storage.next[static_cast<util::usize>(best_prev)] = best_next;
+            }
+
+            TimerEntry<Tick> result = storage.entries[static_cast<util::usize>(best)];
+            storage.free[storage.free_count++] = best;
+            --storage.count;
+            return result;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
+            return storage.count;
         }
     };
 
@@ -156,20 +270,19 @@ export namespace kernel {
         static_assert(TimerPolicy<Policy, Tick, Capacity>);
 
         [[nodiscard]] bool schedule(TimerEntry<Tick> entry) noexcept {
-            return Policy::template insert<Tick, Capacity>(entries_, count_, entry);
+            return Policy::template insert<Tick, Capacity>(storage_, entry);
         }
 
         [[nodiscard]] std::optional<TimerEntry<Tick>> pop_due(Tick now) noexcept {
-            return Policy::template pop_due<Tick, Capacity>(entries_, count_, now);
+            return Policy::template pop_due<Tick, Capacity>(storage_, now);
         }
 
         [[nodiscard]] util::usize size() const noexcept {
-            return count_;
+            return Policy::template size<Tick, Capacity>(storage_);
         }
 
     private:
-        std::array<TimerEntry<Tick>, Capacity> entries_{};
-        util::usize count_{0};
+        typename Policy::template Storage<Tick, Capacity> storage_{};
     };
 
     template <typename Tick>

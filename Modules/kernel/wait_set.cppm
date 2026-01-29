@@ -5,9 +5,7 @@
 
 export module kernel.wait_set;
 
-import kernel.evt;
 import kernel.eda;
-import kernel.sync_base;
 import kernel.wait_token;
 import util.core;
 
@@ -16,6 +14,11 @@ export namespace kernel {
     class WaitSet {
     public:
         static_assert(Capacity >= 1);
+
+        struct Entry {
+            TaskId task{};
+            WaitToken token{};
+        };
 
         [[nodiscard]] bool add(TaskId task, WaitToken token) noexcept {
             if (count_ >= Capacity) {
@@ -39,26 +42,29 @@ export namespace kernel {
             return true;
         }
 
-        [[nodiscard]] bool cancel(WaitToken token) noexcept {
+        [[nodiscard]] bool erase(WaitToken token, TaskId& task) noexcept {
             if (count_ == 0) {
                 return false;
             }
             std::array<Entry, Capacity> new_entries{};
             util::usize new_count = 0;
             util::usize idx = head_;
+            bool found = false;
             for (util::usize i = 0; i < count_; ++i) {
                 const auto& entry = entries_[idx];
-                if (entry.token.value != token.value) {
+                if (!found && entry.token.value == token.value) {
+                    task = entry.task;
+                    found = true;
+                } else {
                     new_entries[new_count++] = entry;
                 }
                 idx = (idx + 1) % Capacity;
             }
-            const bool removed = new_count != count_;
             entries_ = new_entries;
             head_ = 0;
             tail_ = new_count % Capacity;
             count_ = new_count;
-            return removed;
+            return found;
         }
 
         [[nodiscard]] bool empty() const noexcept {
@@ -70,11 +76,6 @@ export namespace kernel {
         }
 
     private:
-        struct Entry {
-            TaskId task{};
-            WaitToken token{};
-        };
-
         std::array<Entry, Capacity> entries_{};
         util::usize head_{0};
         util::usize tail_{0};

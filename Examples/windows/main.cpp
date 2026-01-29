@@ -24,6 +24,7 @@ import service.ring_queue;
 import service.static_pool;
 import service.fixed_vector;
 import service.handle_table;
+import service.slab;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
@@ -164,6 +165,7 @@ int main() {
     service::FixedVector<std::uint32_t, 4> vec{};
     service::HandleTable<std::uint32_t, 4> handles{};
     service::HandleTable<std::uint32_t, 4>::Handle handle{};
+    service::Slab<16, 4> slab{};
 
     demo::g_queue = &queue;
 
@@ -223,9 +225,17 @@ int main() {
             handles.get(handle) = i;
             handles.release(handle);
         }
+        const auto slab_index = slab.allocate();
+        if (slab_index.has_value()) {
+            auto block = slab.block(*slab_index);
+            if (!block.empty()) {
+                block[0] = std::byte{static_cast<unsigned char>(i)};
+            }
+            slab.release(*slab_index);
+        }
 
         (void)sem_ipc.post();
-        (void)sync_object.post();
+        (void)sync_object.post_one();
 
         Caps::TimeSource::advance(1000);
     }

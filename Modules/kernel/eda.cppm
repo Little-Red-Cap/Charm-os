@@ -55,6 +55,10 @@ export namespace kernel {
             return std::get<T>(tasks);
         }
 
+        void init_all() {
+            (init_one<Tasks>(), ...);
+        }
+
         void dispatch(TaskId id, Event evt) {
             if (id.value >= count) {
                 util::halt();
@@ -63,6 +67,13 @@ export namespace kernel {
         }
 
     private:
+        template <typename T>
+        void init_one() {
+            if constexpr (requires(T& t) { t.on_start(); }) {
+                std::get<T>(tasks).on_start();
+            }
+        }
+
         template <std::size_t I>
         void dispatch_by_index(std::size_t index, Event evt) {
             if (index == I) {

@@ -59,6 +59,20 @@ export namespace kernel {
             (init_one<Tasks>(), ...);
         }
 
+        void start(TaskId id) {
+            if (id.value >= count) {
+                util::halt();
+            }
+            start_by_index<0>(id.value);
+        }
+
+        void stop(TaskId id) {
+            if (id.value >= count) {
+                util::halt();
+            }
+            stop_by_index<0>(id.value);
+        }
+
         void dispatch(TaskId id, Event evt) {
             if (id.value >= count) {
                 util::halt();
@@ -71,6 +85,42 @@ export namespace kernel {
         void init_one() {
             if constexpr (requires(T& t) { t.on_start(); }) {
                 std::get<T>(tasks).on_start();
+            }
+        }
+
+        template <typename T>
+        void start_one() {
+            if constexpr (requires(T& t) { t.on_start(); }) {
+                std::get<T>(tasks).on_start();
+            }
+        }
+
+        template <typename T>
+        void stop_one() {
+            if constexpr (requires(T& t) { t.on_stop(); }) {
+                std::get<T>(tasks).on_stop();
+            }
+        }
+
+        template <std::size_t I>
+        void start_by_index(std::size_t index) {
+            if (index == I) {
+                start_one<std::tuple_element_t<I, std::tuple<Tasks...>>>();
+                return;
+            }
+            if constexpr (I + 1 < count) {
+                start_by_index<I + 1>(index);
+            }
+        }
+
+        template <std::size_t I>
+        void stop_by_index(std::size_t index) {
+            if (index == I) {
+                stop_one<std::tuple_element_t<I, std::tuple<Tasks...>>>();
+                return;
+            }
+            if constexpr (I + 1 < count) {
+                stop_by_index<I + 1>(index);
             }
         }
 

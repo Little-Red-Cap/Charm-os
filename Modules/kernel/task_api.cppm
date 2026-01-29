@@ -47,6 +47,14 @@ export namespace kernel {
             return true;
         }
 
+        [[nodiscard]] bool cancel_wait(SyncUnified<Scheduler>& sync, WaitToken token) noexcept {
+            return sync.cancel(token);
+        }
+
+        [[nodiscard]] bool on_timeout(SyncUnified<Scheduler>& sync, WaitToken token) noexcept {
+            return sync.on_timeout(token);
+        }
+
     private:
         Scheduler* scheduler_{nullptr};
         ThreadApi<Scheduler> thread_api_;

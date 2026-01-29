@@ -7,6 +7,7 @@ export module kernel.sync_base;
 import kernel.evt;
 import kernel.eda;
 import kernel.scheduler;
+import kernel.wait_list;
 import util.core;
 
 export namespace kernel {
@@ -16,35 +17,43 @@ export namespace kernel {
         failed = 3
     };
 
-    template <typename Scheduler>
+    template <typename Scheduler, util::usize MaxWaiters = 4>
     class SyncBase {
     public:
         explicit SyncBase(Scheduler& scheduler) : scheduler_(&scheduler) { }
 
         [[nodiscard]] bool pend(TaskId task) noexcept {
-            if (waiting_) {
-                return false;
-            }
-            waiting_ = true;
-            waiter_ = task;
-            return true;
+            return waiters_.push(task);
         }
 
-        [[nodiscard]] bool post(WaitResult result = WaitResult::ok) noexcept {
-            if (!waiting_) {
+        [[nodiscard]] bool post_one(WaitResult result = WaitResult::ok) noexcept {
+            TaskId task{};
+            if (!waiters_.pop(task)) {
                 return false;
             }
-            waiting_ = false;
-            return scheduler_->post(waiter_, make_event(EventId::sync, util::u32(result)));
+            return scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+        }
+
+        [[nodiscard]] bool post_all(WaitResult result = WaitResult::ok) noexcept {
+            bool any = false;
+            TaskId task{};
+            while (waiters_.pop(task)) {
+                (void)scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+                any = true;
+            }
+            return any;
         }
 
         [[nodiscard]] bool waiting() const noexcept {
-            return waiting_;
+            return !waiters_.empty();
+        }
+
+        [[nodiscard]] util::usize waiters() const noexcept {
+            return waiters_.size();
         }
 
     private:
         Scheduler* scheduler_{nullptr};
-        TaskId waiter_{};
-        bool waiting_{false};
+        WaitList<MaxWaiters> waiters_{};
     };
 }

@@ -65,6 +65,14 @@ namespace demo {
     struct HeartbeatHandler {
         std::uint32_t ticks{0};
 
+        void on_start() {
+            std::printf("[Heartbeat] on_start\n");
+        }
+
+        void on_stop() {
+            std::printf("[Heartbeat] on_stop\n");
+        }
+
         void operator()(kernel::Event evt) {
             if (evt.id == kernel::EventId::init) {
                 ticks = 0;
@@ -142,8 +150,10 @@ namespace demo {
             if (state.control != nullptr) {
                 if (kernel::payload_u32(evt) == static_cast<std::uint32_t>(kernel::WaitResult::timeout)) {
                     state.control->block();
+                    std::printf("[Blocking] blocked\n");
                 } else {
                     state.control->resume();
+                    std::printf("[Blocking] resumed\n");
                 }
             }
             return;

@@ -6,10 +6,11 @@ export module kernel.task_api;
 
 import kernel.eda;
 import kernel.evt;
+import kernel.event_token;
 import kernel.scheduler;
+import kernel.sync_base;
 import kernel.sync_unified;
 import kernel.thread_api;
-import kernel.sync_base;
 import kernel.wait_token;
 import util.core;
 
@@ -32,8 +33,17 @@ export namespace kernel {
             TaskId task,
             WaitToken token,
             typename Scheduler::TimeSource::Tick due) noexcept {
-            (void)sync.wait(task, token);
-            (void)scheduler_->schedule_at_token(due, task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
+            const auto timeout_token = scheduler_->schedule_at_token(
+                due,
+                task,
+                make_event(EventId::sync, util::u32(WaitResult::timeout)));
+            if (timeout_token.value == 0) {
+                return false;
+            }
+            if (!sync.wait_timeout(task, token, timeout_token)) {
+                (void)scheduler_->cancel_event(timeout_token);
+                return false;
+            }
             return true;
         }
 

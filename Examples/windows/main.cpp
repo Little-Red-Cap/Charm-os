@@ -16,6 +16,7 @@ import kernel.thread_blocking;
 import kernel.thread_api;
 import kernel.timer;
 import kernel.timer_wheel;
+import kernel.wait_list;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -25,6 +26,8 @@ import service.static_pool;
 import service.fixed_vector;
 import service.handle_table;
 import service.slab;
+import service.fixed_allocator;
+import service.slot_pool;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
@@ -166,6 +169,8 @@ int main() {
     service::HandleTable<std::uint32_t, 4> handles{};
     service::HandleTable<std::uint32_t, 4>::Handle handle{};
     service::Slab<16, 4> slab{};
+    service::FixedAllocator<32> allocator{};
+    service::SlotPool<std::uint32_t, 4> slot_pool{};
 
     demo::g_queue = &queue;
 
@@ -232,6 +237,13 @@ int main() {
                 block[0] = std::byte{static_cast<unsigned char>(i)};
             }
             slab.release(*slab_index);
+        }
+        if (auto addr = allocator.allocate(8); addr.has_value()) {
+            allocator.release();
+        }
+        if (auto slot = slot_pool.acquire(); slot.has_value()) {
+            slot_pool.get(*slot) = i;
+            slot_pool.release(*slot);
         }
 
         (void)sem_ipc.post();

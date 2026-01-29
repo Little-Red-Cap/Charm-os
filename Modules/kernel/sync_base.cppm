@@ -14,7 +14,8 @@ export namespace kernel {
     enum class WaitResult : util::u32 {
         ok = 1,
         timeout = 2,
-        failed = 3
+        canceled = 3,
+        failed = 4
     };
 
     template <typename Scheduler, util::usize MaxWaiters = 4>

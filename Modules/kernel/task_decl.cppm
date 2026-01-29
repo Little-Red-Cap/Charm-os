@@ -14,6 +14,18 @@ export namespace kernel {
         static constexpr Priority priority{Prio};
         Handler handler{};
 
+        void on_start() {
+            if constexpr (requires(Handler& h) { h.on_start(); }) {
+                handler.on_start();
+            }
+        }
+
+        void on_stop() {
+            if constexpr (requires(Handler& h) { h.on_stop(); }) {
+                handler.on_stop();
+            }
+        }
+
         void on_event(Event evt) {
             handler(evt);
         }
@@ -23,6 +35,18 @@ export namespace kernel {
     struct TedaTaskDecl {
         static constexpr Priority priority{Prio};
         Handler handler{};
+
+        void on_start() {
+            if constexpr (requires(Handler& h) { h.on_start(); }) {
+                handler.on_start();
+            }
+        }
+
+        void on_stop() {
+            if constexpr (requires(Handler& h) { h.on_stop(); }) {
+                handler.on_stop();
+            }
+        }
 
         void on_event(Event evt) {
             handler(evt);

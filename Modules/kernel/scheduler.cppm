@@ -43,6 +43,7 @@ export namespace kernel {
         using TimeSource = typename Caps::TimeSource;
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
+            registry_->init_all();
             post_init_events();
         }
 
@@ -99,6 +100,9 @@ export namespace kernel {
             for (std::size_t i = 0; i < Config::priority_levels; ++i) {
                 removed = queues_[i].cancel(tag) || removed;
             }
+            if constexpr (Config::enable_timer) {
+                removed = timers_.cancel(tag) || removed;
+            }
             return removed;
         }
 
@@ -130,8 +134,9 @@ export namespace kernel {
                 (void)evt;
                 return EventToken{0};
             } else {
-                const auto tag = ++timer_seq_;
-                const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, timer_seq_++, tag};
+                const auto order = ++timer_seq_;
+                const auto tag = order;
+                const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, order, tag};
                 (void)timers_.schedule(entry);
                 return EventToken{tag};
             }

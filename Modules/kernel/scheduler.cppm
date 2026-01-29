@@ -10,6 +10,7 @@ export module kernel.scheduler;
 
 import kernel.capabilities;
 import kernel.config;
+import kernel.context;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_queue;
@@ -109,7 +110,9 @@ export namespace kernel {
                     node = queues_[i].pop();
                 }
                 if (node.has_value()) {
+                    set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
+                    clear_current();
                     return true;
                 }
             }

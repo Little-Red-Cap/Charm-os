@@ -26,10 +26,12 @@ export namespace kernel {
     concept TimerPolicy = requires(
         typename Policy::template Storage<Tick, Capacity> storage,
         TimerEntry<Tick> entry,
-        Tick now) {
+        Tick now,
+        util::u64 tag) {
         { Policy::template insert<Tick, Capacity>(storage, entry) } -> std::same_as<bool>;
         { Policy::template pop_due<Tick, Capacity>(storage, now) } -> std::same_as<std::optional<TimerEntry<Tick>>>;
         { Policy::template size<Tick, Capacity>(storage) } -> std::same_as<util::usize>;
+        { Policy::template cancel<Tick, Capacity>(storage, tag) } -> std::same_as<bool>;
     };
 
     struct LinearTimerPolicy {
@@ -83,6 +85,18 @@ export namespace kernel {
         template <typename Tick, util::usize Capacity>
         [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
             return storage.count;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel(Storage<Tick, Capacity>& storage, util::u64 tag) noexcept {
+            for (util::usize i = 0; i < storage.count; ++i) {
+                if (storage.entries[i].tag == tag) {
+                    storage.entries[i] = storage.entries[storage.count - 1];
+                    --storage.count;
+                    return true;
+                }
+            }
+            return false;
         }
     };
 
@@ -164,6 +178,60 @@ export namespace kernel {
         template <typename Tick, util::usize Capacity>
         [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
             return storage.count;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel(Storage<Tick, Capacity>& storage, util::u64 tag) noexcept {
+            auto less = [](const TimerEntry<Tick>& a, const TimerEntry<Tick>& b) {
+                return a.due < b.due || (a.due == b.due && a.order < b.order);
+            };
+            util::usize idx = storage.count;
+            for (util::usize i = 0; i < storage.count; ++i) {
+                if (storage.entries[i].tag == tag) {
+                    idx = i;
+                    break;
+                }
+            }
+            if (idx == storage.count) {
+                return false;
+            }
+            storage.entries[idx] = storage.entries[storage.count - 1];
+            --storage.count;
+            if (idx >= storage.count) {
+                return true;
+            }
+
+            while (idx > 0) {
+                const util::usize parent = (idx - 1) / 2;
+                if (!less(storage.entries[idx], storage.entries[parent])) {
+                    break;
+                }
+                auto tmp = storage.entries[parent];
+                storage.entries[parent] = storage.entries[idx];
+                storage.entries[idx] = tmp;
+                idx = parent;
+            }
+
+            while (true) {
+                const util::usize left = idx * 2 + 1;
+                const util::usize right = left + 1;
+                if (left >= storage.count) {
+                    break;
+                }
+                util::usize smallest = left;
+                if (right < storage.count && less(storage.entries[right], storage.entries[left])) {
+                    smallest = right;
+                }
+                if (!less(storage.entries[smallest], storage.entries[idx])) {
+                    break;
+                }
+                auto tmp = storage.entries[idx];
+                storage.entries[idx] = storage.entries[smallest];
+                storage.entries[smallest] = tmp;
+                idx = smallest;
+            }
+
+            return true;
         }
     };
 
@@ -252,6 +320,34 @@ export namespace kernel {
         [[nodiscard]] static util::usize size(const Storage<Tick, Capacity>& storage) noexcept {
             return storage.count;
         }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel(Storage<Tick, Capacity>& storage, util::u64 tag) noexcept {
+            if (storage.count == 0) {
+                return false;
+            }
+            for (util::usize slot = 0; slot < Capacity; ++slot) {
+                int current = storage.head[slot];
+                int prev = -1;
+                while (current != -1) {
+                    const auto idx = static_cast<util::usize>(current);
+                    if (storage.entries[idx].tag == tag) {
+                        const int next = storage.next[idx];
+                        if (prev == -1) {
+                            storage.head[slot] = next;
+                        } else {
+                            storage.next[static_cast<util::usize>(prev)] = next;
+                        }
+                        storage.free[storage.free_count++] = current;
+                        --storage.count;
+                        return true;
+                    }
+                    prev = current;
+                    current = storage.next[idx];
+                }
+            }
+            return false;
+        }
     };
 
     template <typename Config>
@@ -279,6 +375,10 @@ export namespace kernel {
             return Policy::template pop_due<Tick, Capacity>(storage_, now);
         }
 
+        [[nodiscard]] bool cancel(util::u64 tag) noexcept {
+            return Policy::template cancel<Tick, Capacity>(storage_, tag);
+        }
+
         [[nodiscard]] util::usize size() const noexcept {
             return Policy::template size<Tick, Capacity>(storage_);
         }
@@ -296,6 +396,10 @@ export namespace kernel {
 
         [[nodiscard]] std::optional<TimerEntry<Tick>> pop_due(Tick) noexcept {
             return std::nullopt;
+        }
+
+        [[nodiscard]] bool cancel(util::u64) noexcept {
+            return false;
         }
     };
 }

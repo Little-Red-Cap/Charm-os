@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstddef>
@@ -12,6 +12,7 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_queue;
+import kernel.event_token;
 import kernel.task_state;
 import kernel.timer;
 import util.core;
@@ -45,19 +46,24 @@ export namespace kernel {
             post_init_events();
         }
 
-        [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
+        [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
             if (task.value >= Registry::count) {
-                return false;
+                return EventToken{0};
             }
             const auto prio_index = current_priorities_[task.value];
             auto guard = Caps::IrqGuard::enter();
-            const bool ok = queues_[prio_index].push(EventNode{task, evt, evt_seq_++});
+            const auto tag = ++evt_seq_;
+            const bool ok = queues_[prio_index].push(EventNode{task, evt, tag});
             Caps::IrqGuard::leave(guard);
             if (ok) {
                 Caps::SwiTrigger::trigger(prio_index);
                 Caps::Wakeup::signal();
             }
-            return ok;
+            return ok ? EventToken{tag} : EventToken{0};
+        }
+
+        [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
+            return post_token(task, evt).value != 0;
         }
 
         [[nodiscard]] bool set_priority(TaskId task, Priority prio) noexcept {
@@ -105,12 +111,12 @@ export namespace kernel {
                 if (!entry.has_value()) {
                     return false;
                 }
-                (void)post(entry->task, entry->event);
+                (void)post_token(entry->task, entry->event);
                 return true;
             }
         }
 
-        [[nodiscard]] bool schedule_at(
+        [[nodiscard]] EventToken schedule_at_token(
             typename Caps::TimeSource::Tick due,
             TaskId task,
             Event evt) noexcept {
@@ -118,11 +124,20 @@ export namespace kernel {
                 (void)due;
                 (void)task;
                 (void)evt;
-                return false;
+                return EventToken{0};
             } else {
-                const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, timer_seq_++};
-                return timers_.schedule(entry);
+                const auto tag = ++timer_seq_;
+                const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, timer_seq_++, tag};
+                (void)timers_.schedule(entry);
+                return EventToken{tag};
             }
+        }
+
+        [[nodiscard]] bool schedule_at(
+            typename Caps::TimeSource::Tick due,
+            TaskId task,
+            Event evt) noexcept {
+            return schedule_at_token(due, task, evt).value != 0;
         }
 
     private:

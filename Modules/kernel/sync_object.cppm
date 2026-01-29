@@ -5,8 +5,9 @@ module;
 export module kernel.sync_object;
 
 import kernel.sync_base;
+import util.core;
 
 export namespace kernel {
-    template <typename Scheduler>
-    using SyncObject = SyncBase<Scheduler>;
+    template <typename Scheduler, util::usize MaxWaiters = 4>
+    using SyncObject = SyncBase<Scheduler, MaxWaiters>;
 }

@@ -128,6 +128,23 @@ export namespace kernel {
             return true;
         }
 
+        [[nodiscard]] bool stop_task(TaskId task) noexcept {
+            if (!disable_task(task)) {
+                return false;
+            }
+            registry_->stop(task);
+            return true;
+        }
+
+        [[nodiscard]] bool restart_task(TaskId task) noexcept {
+            if (task.value >= Registry::count) {
+                return false;
+            }
+            task_enabled_[task.value] = true;
+            registry_->start(task);
+            return post(task, make_event(EventId::init));
+        }
+
         [[nodiscard]] bool run_once() noexcept {
             for (std::size_t i = Config::priority_levels; i-- > 0;) {
                 std::optional<EventNode> node{};

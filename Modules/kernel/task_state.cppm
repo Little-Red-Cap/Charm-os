@@ -8,3 +8,11 @@ export namespace kernel::state {
     struct Running { };
     struct Stopped { };
 }
+
+export namespace kernel {
+    enum class TaskState : unsigned char {
+        ready,
+        running,
+        stopped
+    };
+}

@@ -39,6 +39,7 @@ export namespace kernel {
     template <typename Config, typename Registry, typename Caps>
     class Scheduler<Config, Registry, Caps, state::Running> {
     public:
+        using TimeSource = typename Caps::TimeSource;
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
             post_init_events();

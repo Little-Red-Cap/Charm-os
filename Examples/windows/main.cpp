@@ -13,6 +13,7 @@ import kernel.sync;
 import kernel.sync_object;
 import kernel.thread;
 import kernel.thread_blocking;
+import kernel.thread_api;
 import kernel.timer;
 import kernel.timer_wheel;
 import platform.win.irq_guard;
@@ -21,6 +22,8 @@ import platform.win.wakeup;
 import service.bitmap;
 import service.ring_queue;
 import service.static_pool;
+import service.fixed_vector;
+import service.handle_table;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
@@ -158,12 +161,16 @@ int main() {
     service::Bitmap<32> bitmap{};
     service::RingQueue<std::uint32_t, 4> queue{};
     service::StaticPool<std::uint32_t, 4> pool{};
+    service::FixedVector<std::uint32_t, 4> vec{};
+    service::HandleTable<std::uint32_t, 4> handles{};
+    service::HandleTable<std::uint32_t, 4>::Handle handle{};
 
     demo::g_queue = &queue;
 
     kernel::QueueIpc<decltype(running), std::uint32_t, 4> msg_queue(running, queue);
     kernel::SemaphoreIpc<Caps, 2, decltype(running)> sem_ipc(running);
     kernel::SyncObject<decltype(running)> sync_object(running);
+    kernel::ThreadApi<decltype(running)> thread_api(running);
 
     (void)msg_queue.send(logger_id, 42);
     (void)sem_ipc.wait(heartbeat_id);
@@ -175,6 +182,7 @@ int main() {
         (void)running.schedule_at(base + 1000, urgent_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 1000, thread_id, kernel::make_event(kernel::EventId::tick, i));
         (void)running.schedule_at(base + 2000, heartbeat_id, kernel::make_event(kernel::EventId::tick, i));
+        (void)thread_api.sleep(blocking_id, base + 1500);
 
         Caps::TimeSource::advance(1000);
         const auto t1 = Caps::TimeSource::now();
@@ -209,6 +217,11 @@ int main() {
         if (slot.has_value()) {
             pool.get(*slot) = i;
             pool.free(*slot);
+        }
+        (void)vec.push_back(i);
+        if (handles.allocate(handle)) {
+            handles.get(handle) = i;
+            handles.release(handle);
         }
 
         (void)sem_ipc.post();

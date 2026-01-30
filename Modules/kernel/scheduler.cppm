@@ -55,6 +55,7 @@ export namespace kernel {
             util::u64 dropped{0};
             util::u64 dispatched{0};
             util::u64 filtered{0};
+            util::u64 budget_limited{0};
         };
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
@@ -219,7 +220,13 @@ export namespace kernel {
                 return false;
             }
             std::size_t dispatched = 0;
-            for (std::size_t i = Config::priority_levels; i-- > 0;) {
+            const std::size_t top = Config::priority_levels - 1;
+            std::size_t level = top;
+            if (Config::priority_levels > 1 && starve_.stall[top] >= 4) {
+                level = top - 1;
+            }
+            for (std::size_t iter = 0; iter < Config::priority_levels; ++iter) {
+                const std::size_t i = (level + Config::priority_levels - iter) % Config::priority_levels;
                 std::optional<EventNode> node{};
                 if constexpr (Config::enable_dynamic_priority) {
                     node = queues_.pop(i);
@@ -240,6 +247,11 @@ export namespace kernel {
                     registry_->dispatch(node->task, node->event);
                     clear_current();
                     ++stats_.dispatched;
+                    if (i == top) {
+                        starve_.stall[top]++;
+                    } else {
+                        starve_.stall[top] = 0;
+                    }
                     if (node->event.id == EventId::terminate) {
                         task_states_[node->task.value] = TaskState::terminated;
                         if constexpr (requires(Registry& r, TaskId t) { r.unregister(t); }) {
@@ -249,6 +261,7 @@ export namespace kernel {
                         task_states_[node->task.value] = TaskState::ready;
                     }
                     if (++dispatched >= budget) {
+                        ++stats_.budget_limited;
                         return true;
                     }
                 }
@@ -269,6 +282,14 @@ export namespace kernel {
                     total += queues_[i].size();
                 }
                 return total;
+            }
+        }
+
+        [[nodiscard]] std::size_t timer_depth() const noexcept {
+            if constexpr (Config::enable_timer) {
+                return timers_.size();
+            } else {
+                return 0;
             }
         }
 
@@ -370,6 +391,11 @@ export namespace kernel {
         std::array<bool, Registry::count> task_enabled_{};
         std::array<TaskState, Registry::count> task_states_{};
         Stats stats_{};
+
+        struct StarveState {
+            std::array<std::size_t, Config::priority_levels> stall{};
+        };
+        StarveState starve_{};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {

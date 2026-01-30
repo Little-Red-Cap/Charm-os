@@ -178,7 +178,13 @@ export namespace kernel {
                 if (evt.id == EventId::terminate) {
                     return true;
                 }
-                return (mask & event_mask(evt.id)) != 0;
+                if ((mask & event_mask(evt.id)) == 0) {
+                    return false;
+                }
+                if constexpr (requires(Task& t, Event e) { t.should_accept(e); }) {
+                    return std::get<I>(tasks).should_accept(evt);
+                }
+                return true;
             }
             if constexpr (I + 1 < count) {
                 return accept_event_by_index<I + 1>(index, evt);

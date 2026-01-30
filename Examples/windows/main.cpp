@@ -111,6 +111,13 @@ namespace demo {
             | kernel::event_mask(kernel::EventId::tick)
             | kernel::event_mask(kernel::EventId::sync);
 
+        bool should_accept(kernel::Event evt) const {
+            if (evt.id == kernel::EventId::tick) {
+                return (kernel::payload_u32(evt) % 2u) == 1u;
+            }
+            return true;
+        }
+
         void on_start() {
             std::printf("[Heartbeat] on_start\n");
         }
@@ -454,11 +461,16 @@ int main() {
     }
 
     const auto stats = running.stats();
-    std::printf("[Stats] posted=%llu dropped=%llu dispatched=%llu filtered=%llu\n",
+    std::printf("[Stats] posted=%llu dropped=%llu dispatched=%llu filtered=%llu budget=%llu\n",
         static_cast<unsigned long long>(stats.posted),
         static_cast<unsigned long long>(stats.dropped),
         static_cast<unsigned long long>(stats.dispatched),
-        static_cast<unsigned long long>(stats.filtered));
+        static_cast<unsigned long long>(stats.filtered),
+        static_cast<unsigned long long>(stats.budget_limited));
+    std::printf("[Stats] queue=%llu timers=%llu active=%llu\n",
+        static_cast<unsigned long long>(running.queue_depth()),
+        static_cast<unsigned long long>(running.timer_depth()),
+        static_cast<unsigned long long>(dyn_registry.active_count()));
 
     return 0;
 }

@@ -30,6 +30,7 @@ export namespace kernel {
             void (*on_event)(void*, Event),
             void (*on_start)(void*),
             void (*on_stop)(void*),
+            bool (*should_accept)(void*, Event) = nullptr,
             EventMask mask = EventMask{0xFFFF'FFFFu}) noexcept {
             if (free_count_ == 0 || instance == nullptr || on_event == nullptr) {
                 return std::nullopt;
@@ -40,6 +41,7 @@ export namespace kernel {
             slot.on_event = on_event;
             slot.on_start = on_start;
             slot.on_stop = on_stop;
+            slot.should_accept = should_accept;
             slot.prio = prio;
             slot.mask = mask;
             slot.active = true;
@@ -60,6 +62,13 @@ export namespace kernel {
                 [](void* ptr) {
                     if constexpr (requires(T& t) { t.on_stop(); }) {
                         static_cast<T*>(ptr)->on_stop();
+                    }
+                },
+                [] (void* ptr, Event evt) {
+                    if constexpr (requires(T& t, Event e) { t.should_accept(e); }) {
+                        return static_cast<T*>(ptr)->should_accept(evt);
+                    } else {
+                        return true;
                     }
                 },
                 []() {
@@ -122,6 +131,11 @@ export namespace kernel {
             if ((slot.mask & event_mask(evt.id)) == 0 && evt.id != EventId::terminate) {
                 return;
             }
+            if (slot.should_accept != nullptr && evt.id != EventId::terminate) {
+                if (!slot.should_accept(slot.instance, evt)) {
+                    return;
+                }
+            }
             slot.on_event(slot.instance, evt);
         }
 
@@ -148,6 +162,7 @@ export namespace kernel {
             void (*on_event)(void*, Event){nullptr};
             void (*on_start)(void*){nullptr};
             void (*on_stop)(void*){nullptr};
+            bool (*should_accept)(void*, Event){nullptr};
             Priority prio{};
             EventMask mask{0xFFFF'FFFFu};
             bool active{false};

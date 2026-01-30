@@ -87,6 +87,17 @@ export namespace kernel {
             return scheduler_->restart_task(task);
         }
 
+        [[nodiscard]] bool terminate_task(TaskId task) noexcept {
+            return scheduler_->terminate_task(task);
+        }
+
+        [[nodiscard]] bool terminate_current() noexcept {
+            if (!has_current()) {
+                return false;
+            }
+            return scheduler_->terminate_task(current_task());
+        }
+
         [[nodiscard]] TaskState state_of(TaskId task) const noexcept {
             return scheduler_->state_of(task);
         }

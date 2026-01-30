@@ -1,4 +1,5 @@
-﻿#include <cstddef>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <utility>
@@ -78,6 +79,27 @@ namespace demo {
         static constexpr std::size_t timer_capacity = 8;
         static constexpr std::size_t dispatch_budget = 2;
         using timer_policy = kernel::HierWheelTimerPolicy<8, 2>;
+        static constexpr bool enable_event_boost = true;
+        static constexpr std::uint32_t boost_mask = kernel::event_mask(kernel::EventId::sync);
+        static constexpr bool enable_timer_merge = true;
+        static constexpr bool enable_event_dedup = true;
+        static constexpr std::size_t wakeup_batch = 2;
+        static constexpr bool enable_event_debounce = true;
+        static constexpr std::size_t debounce_window = 1;
+        static constexpr bool enable_prio_stats = true;
+        static constexpr bool enable_event_coalesce = true;
+        static constexpr bool enable_trace = true;
+        static constexpr std::size_t trace_capacity = 8;
+        static constexpr bool enable_rate_limit = true;
+        static constexpr bool enable_task_boost = true;
+        static constexpr bool enable_alert = true;
+        static constexpr std::size_t alert_queue_warn = 1;
+        static constexpr std::size_t alert_timer_warn = 4;
+        static constexpr std::size_t alert_filtered_warn = 10;
+        static constexpr std::size_t alert_queue_err = 2;
+        static constexpr std::size_t alert_timer_err = 6;
+        static constexpr std::size_t alert_filtered_err = 15;
+        static constexpr bool drop_oldest = true;
 
         template <typename Task>
         static consteval bool enable_task() {
@@ -277,6 +299,30 @@ int main() {
     const auto thread_id = Registry::id_of<demo::ThreadTask>();
     const auto blocking_id = Registry::id_of<demo::BlockingTask>();
 
+    using PostItem = decltype(running)::PostItem;
+    std::array<PostItem, 4> batch{
+        PostItem{urgent_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(7))},
+        PostItem{heartbeat_id, kernel::make_event(kernel::EventId::sync, static_cast<std::uint32_t>(1))},
+        PostItem{heartbeat_id, kernel::make_event(kernel::EventId::sync, static_cast<std::uint32_t>(2))},
+        PostItem{urgent_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(8))}
+    };
+    (void)running.post_many_dedup(batch.data(), batch.size());
+    (void)running.dispatch_batch(2);
+    (void)running.set_task_cap(heartbeat_id, 1);
+    (void)running.set_task_event_cap(heartbeat_id, kernel::EventId::tick, 1);
+    using AlertType = decltype(running)::AlertType;
+    using AlertLevel = decltype(running)::AlertLevel;
+    running.set_alert_hook([](AlertType type, AlertLevel level, std::size_t value) {
+        const char* name = type == AlertType::queue ? "queue"
+            : (type == AlertType::timer ? "timer" : "filtered");
+        const char* lvl = level == AlertLevel::warning ? "warn" : "error";
+        std::printf("[Alert] %s %s=%u\n", lvl, name, static_cast<unsigned>(value));
+    });
+    (void)running.set_task_boost(heartbeat_id,
+        kernel::event_mask(kernel::EventId::sync),
+        2,
+        2);
+
     kernel::Semaphore<Caps, 2> sem{};
     kernel::Mutex<Caps> lock{};
     service::Bitmap<32> bitmap{};
@@ -421,6 +467,16 @@ int main() {
     while (dyn_running.run_auto()) {
     }
     if (dyn_id.has_value()) {
+        demo::DynTask dyn_task2{};
+        (void)dyn_registry.replace(*dyn_id, dyn_task2, kernel::Priority{1});
+        (void)dyn_running.activate_task(*dyn_id, kernel::Priority{1});
+        (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *dyn_id, kernel::make_event(kernel::EventId::tick));
+        Caps::TimeSource::advance(1);
+        const auto dtr = Caps::TimeSource::now();
+        while (dyn_running.tick(dtr)) {
+        }
+        while (dyn_running.run_auto()) {
+        }
         (void)dyn_running.terminate_task(*dyn_id);
     }
     while (dyn_running.run_auto()) {
@@ -460,17 +516,37 @@ int main() {
     while (dyn_running.run_auto()) {
     }
 
-    const auto stats = running.stats();
-    std::printf("[Stats] posted=%llu dropped=%llu dispatched=%llu filtered=%llu budget=%llu\n",
-        static_cast<unsigned long long>(stats.posted),
-        static_cast<unsigned long long>(stats.dropped),
-        static_cast<unsigned long long>(stats.dispatched),
-        static_cast<unsigned long long>(stats.filtered),
-        static_cast<unsigned long long>(stats.budget_limited));
-    std::printf("[Stats] queue=%llu timers=%llu active=%llu\n",
-        static_cast<unsigned long long>(running.queue_depth()),
-        static_cast<unsigned long long>(running.timer_depth()),
-        static_cast<unsigned long long>(dyn_registry.active_count()));
+    char stats_buf[256]{};
+    char stats_json[256]{};
+    char tasks_json[512]{};
+    char trace_json[512]{};
+    char events_json[512]{};
+    char source_json[128]{};
+    char diff_buf[128]{};
+    (void)running.format_snapshot(stats_buf, sizeof(stats_buf));
+    (void)running.format_snapshot_json(stats_json, sizeof(stats_json));
+    (void)running.format_tasks_json(tasks_json, sizeof(tasks_json));
+    (void)running.format_trace_json(trace_json, sizeof(trace_json));
+    (void)running.format_event_stats_json(events_json, sizeof(events_json));
+    (void)running.format_event_source_json(source_json, sizeof(source_json));
+    (void)running.format_snapshot_diff(diff_buf, sizeof(diff_buf));
+    std::printf("[Stats] %s\n", stats_buf);
+    std::printf("[Stats.json] %s\n", stats_json);
+    std::printf("[Tasks.json] %s\n", tasks_json);
+    std::printf("[Trace.json] %s\n", trace_json);
+    std::printf("[Events.json] %s\n", events_json);
+    std::printf("[Source.json] %s\n", source_json);
+    std::printf("[Stats.diff] %s\n", diff_buf);
+    std::printf("[Replay] %llu\n", static_cast<unsigned long long>(running.replay_recent(3)));
+    const auto task_snap = running.task_snapshot();
+    std::printf("[Task] urgent state=%u enabled=%u prio=%u\n",
+        static_cast<unsigned>(task_snap[urgent_id.value].state),
+        task_snap[urgent_id.value].enabled ? 1u : 0u,
+        static_cast<unsigned>(task_snap[urgent_id.value].priority));
+    std::printf("[Task] heartbeat state=%u enabled=%u prio=%u\n",
+        static_cast<unsigned>(task_snap[heartbeat_id.value].state),
+        task_snap[heartbeat_id.value].enabled ? 1u : 0u,
+        static_cast<unsigned>(task_snap[heartbeat_id.value].priority));
 
     return 0;
 }

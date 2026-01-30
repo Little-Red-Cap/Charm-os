@@ -22,6 +22,7 @@ import kernel.task_decl;
 import kernel.thread;
 import kernel.thread_blocking;
 import kernel.thread_api;
+import kernel.task_pool;
 import kernel.timer;
 import kernel.timer_wheel;
 import kernel.wait_list;
@@ -46,10 +47,12 @@ namespace demo {
     struct ServiceConfig {
         static constexpr bool use_ring_queue = true;
         static constexpr bool use_static_pool = true;
+        static constexpr bool use_slot_pool = true;
     };
 
     struct ComponentConfig {
         static constexpr bool use_demo_component = true;
+        static constexpr bool use_pool_component = true;
     };
 
     inline void service_hook_a() {
@@ -374,7 +377,12 @@ int main() {
 
     std::printf("[Demo] dynamic registry\n");
     kernel::DynamicTaskRegistry<2> dyn_registry{};
-    demo::DynTask dyn_task{};
+    kernel::TaskPool<demo::DynTask, 2> dyn_pool{};
+    auto dyn_handle = dyn_pool.acquire();
+    if (!dyn_handle.has_value()) {
+        return 0;
+    }
+    auto& dyn_task = dyn_pool.get(*dyn_handle);
     auto dyn_id = dyn_registry.register_task(dyn_task, kernel::Priority{1});
     auto dyn_created = kernel::make_scheduler<demo::Config>(dyn_registry, caps);
     auto dyn_running = kernel::start(std::move(dyn_created));
@@ -387,6 +395,9 @@ int main() {
         (void)dyn_running.terminate_task(*dyn_id);
     }
     while (dyn_running.run_once()) {
+    }
+    if (dyn_handle.has_value()) {
+        dyn_pool.release(*dyn_handle);
     }
     auto dyn_id2 = dyn_registry.register_task(dyn_task, kernel::Priority{1});
     if (dyn_id2.has_value()) {

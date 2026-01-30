@@ -13,6 +13,7 @@ export namespace kernel {
     enum class TaskState : unsigned char {
         ready,
         running,
-        stopped
+        stopped,
+        terminated
     };
 }

@@ -11,6 +11,7 @@ export namespace kernel {
         static constexpr std::size_t priority_levels = 4;
         static constexpr std::size_t evtq_capacity = 64;
         static constexpr std::size_t timer_capacity = 16;
+        static constexpr std::size_t dispatch_budget = 0;
     };
 
     template <typename Config>

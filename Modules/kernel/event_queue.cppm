@@ -86,6 +86,28 @@ export namespace kernel {
             return removed;
         }
 
+        [[nodiscard]] bool drop_task_with_tag(TaskId task, util::u64 tag) noexcept {
+            if (count_ == 0) {
+                return false;
+            }
+            std::array<EventNode, Capacity> new_nodes{};
+            util::usize new_count = 0;
+            util::usize idx = head_;
+            for (util::usize i = 0; i < count_; ++i) {
+                const auto& node = nodes_[idx];
+                if (node.task.value != task.value || node.tag != tag) {
+                    new_nodes[new_count++] = node;
+                }
+                idx = (idx + 1) % Capacity;
+            }
+            nodes_ = new_nodes;
+            head_ = 0;
+            tail_ = new_count % Capacity;
+            const bool removed = new_count != count_;
+            count_ = new_count;
+            return removed;
+        }
+
         [[nodiscard]] util::usize size() const noexcept {
             return count_;
         }

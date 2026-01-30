@@ -50,6 +50,12 @@ export namespace kernel {
     class Scheduler<Config, Registry, Caps, state::Running> {
     public:
         using TimeSource = typename Caps::TimeSource;
+        struct Stats {
+            util::u64 posted{0};
+            util::u64 dropped{0};
+            util::u64 dispatched{0};
+            util::u64 filtered{0};
+        };
         Scheduler(Scheduler<Config, Registry, Caps, state::Created>&& created)
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
             task_enabled_.fill(true);
@@ -61,12 +67,15 @@ export namespace kernel {
 
         [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
             if (task.value >= Registry::count) {
+                ++stats_.dropped;
                 return EventToken{0};
             }
             if (!task_enabled_[task.value] && evt.id != EventId::terminate) {
+                ++stats_.dropped;
                 return EventToken{0};
             }
             if (!registry_->template is_active<Config>(task)) {
+                ++stats_.dropped;
                 return EventToken{0};
             }
             const auto prio_index = current_priorities_[task.value];
@@ -80,8 +89,11 @@ export namespace kernel {
             }
             Caps::IrqGuard::leave(guard);
             if (ok) {
+                ++stats_.posted;
                 Caps::SwiTrigger::trigger(prio_index);
                 Caps::Wakeup::signal();
+            } else {
+                ++stats_.dropped;
             }
             return ok ? EventToken{tag} : EventToken{0};
         }
@@ -199,6 +211,14 @@ export namespace kernel {
         }
 
         [[nodiscard]] bool run_once() noexcept {
+            return run_budget(1);
+        }
+
+        [[nodiscard]] bool run_budget(std::size_t budget) noexcept {
+            if (budget == 0) {
+                return false;
+            }
+            std::size_t dispatched = 0;
             for (std::size_t i = Config::priority_levels; i-- > 0;) {
                 std::optional<EventNode> node{};
                 if constexpr (Config::enable_dynamic_priority) {
@@ -208,15 +228,18 @@ export namespace kernel {
                 }
                 if (node.has_value()) {
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
+                        ++stats_.filtered;
                         return true;
                     }
                     if (!registry_->template is_active<Config>(node->task)) {
+                        ++stats_.filtered;
                         return true;
                     }
                     task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
                     clear_current();
+                    ++stats_.dispatched;
                     if (node->event.id == EventId::terminate) {
                         task_states_[node->task.value] = TaskState::terminated;
                         if constexpr (requires(Registry& r, TaskId t) { r.unregister(t); }) {
@@ -225,10 +248,36 @@ export namespace kernel {
                     } else {
                         task_states_[node->task.value] = TaskState::ready;
                     }
-                    return true;
+                    if (++dispatched >= budget) {
+                        return true;
+                    }
                 }
             }
             return false;
+        }
+
+        [[nodiscard]] const Stats& stats() const noexcept {
+            return stats_;
+        }
+
+        [[nodiscard]] std::size_t queue_depth() const noexcept {
+            std::size_t total = 0;
+            if constexpr (Config::enable_dynamic_priority) {
+                return 0;
+            } else {
+                for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                    total += queues_[i].size();
+                }
+                return total;
+            }
+        }
+
+        [[nodiscard]] bool run_auto() noexcept {
+            if constexpr (Config::dispatch_budget == 0) {
+                return run_once();
+            } else {
+                return run_budget(Config::dispatch_budget);
+            }
         }
 
         [[nodiscard]] bool cancel_event(util::u64 tag) noexcept {
@@ -320,6 +369,7 @@ export namespace kernel {
         std::array<std::size_t, Registry::count> current_priorities_{};
         std::array<bool, Registry::count> task_enabled_{};
         std::array<TaskState, Registry::count> task_states_{};
+        Stats stats_{};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {

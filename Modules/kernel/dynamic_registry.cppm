@@ -92,6 +92,45 @@ export namespace kernel {
             free_[free_count_++] = id.value;
         }
 
+        template <typename T>
+        [[nodiscard]] bool replace(TaskId id, T& task, Priority prio) noexcept {
+            if (id.value >= Capacity) {
+                return false;
+            }
+            auto& slot = slots_[id.value];
+            if (!slot.active) {
+                return false;
+            }
+            slot.instance = static_cast<void*>(&task);
+            slot.on_event = [](void* ptr, Event evt) { static_cast<T*>(ptr)->on_event(evt); };
+            slot.on_start = [](void* ptr) {
+                if constexpr (requires(T& t) { t.on_start(); }) {
+                    static_cast<T*>(ptr)->on_start();
+                }
+            };
+            slot.on_stop = [](void* ptr) {
+                if constexpr (requires(T& t) { t.on_stop(); }) {
+                    static_cast<T*>(ptr)->on_stop();
+                }
+            };
+            slot.should_accept = [](void* ptr, Event evt) {
+                if constexpr (requires(T& t, Event e) { t.should_accept(e); }) {
+                    return static_cast<T*>(ptr)->should_accept(evt);
+                } else {
+                    return true;
+                }
+            };
+            slot.prio = prio;
+            slot.mask = []() {
+                if constexpr (requires { T::mask; }) {
+                    return T::mask;
+                } else {
+                    return EventMask{0xFFFF'FFFFu};
+                }
+            }();
+            return true;
+        }
+
         void init_all() {
             for (std::size_t i = 0; i < Capacity; ++i) {
                 if (slots_[i].active && slots_[i].on_start != nullptr) {

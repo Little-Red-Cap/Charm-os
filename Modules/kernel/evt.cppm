@@ -1,5 +1,6 @@
 module;
 
+#include <cstddef>
 #include <cstdint>
 
 export module kernel.evt;
@@ -23,6 +24,8 @@ export namespace kernel {
     constexpr EventMask event_mask(EventId id) noexcept {
         return EventMask{1u} << static_cast<std::uint32_t>(id);
     }
+
+    constexpr std::size_t event_id_count = static_cast<std::size_t>(EventId::user1) + 1;
 
     using EventPayload = util::variant<util::monostate, util::u32, util::u64>;
 
@@ -55,6 +58,11 @@ export namespace kernel {
             return *value;
         }
         return fallback;
+    }
+
+    inline util::u64 event_signature(const Event& evt) {
+        const auto id_part = static_cast<util::u64>(evt.id) << 48;
+        return id_part ^ payload_u64(evt, 0);
     }
 
     inline util::usize payload_usize(const Event& evt, util::usize fallback = 0) {

@@ -20,6 +20,7 @@ import kernel.sync_object;
 import kernel.sync_unified;
 import kernel.task_api;
 import kernel.task_decl;
+import kernel.task_auto;
 import kernel.thread;
 import kernel.thread_blocking;
 import kernel.thread_api;
@@ -75,6 +76,7 @@ namespace demo {
         static constexpr std::size_t priority_levels = 3;
         static constexpr std::size_t evtq_capacity = 16;
         static constexpr std::size_t timer_capacity = 8;
+        static constexpr std::size_t dispatch_budget = 2;
         using timer_policy = kernel::HierWheelTimerPolicy<8, 2>;
 
         template <typename Task>
@@ -103,6 +105,11 @@ namespace demo {
 
     struct HeartbeatHandler {
         std::uint32_t ticks{0};
+
+        static constexpr kernel::EventMask event_mask =
+            kernel::event_mask(kernel::EventId::init)
+            | kernel::event_mask(kernel::EventId::tick)
+            | kernel::event_mask(kernel::EventId::sync);
 
         void on_start() {
             std::printf("[Heartbeat] on_start\n");
@@ -307,14 +314,14 @@ int main() {
         const auto t1 = Caps::TimeSource::now();
         while (running.tick(t1)) {
         }
-        while (running.run_once()) {
+        while (running.run_auto()) {
         }
 
         Caps::TimeSource::advance(1000);
         const auto t2 = Caps::TimeSource::now();
         while (running.tick(t2)) {
         }
-        while (running.run_once()) {
+        while (running.run_auto()) {
         }
 
         const bool released = sem.release();
@@ -374,7 +381,7 @@ int main() {
         const auto t3 = Caps::TimeSource::now();
         while (running.tick(t3)) {
         }
-        while (running.run_once()) {
+        while (running.run_auto()) {
         }
     }
 
@@ -383,7 +390,7 @@ int main() {
     const auto t4 = Caps::TimeSource::now();
     while (running.tick(t4)) {
     }
-    while (running.run_once()) {
+    while (running.run_auto()) {
     }
 
     std::printf("[Demo] dynamic registry\n");
@@ -404,12 +411,12 @@ int main() {
     const auto dt1 = Caps::TimeSource::now();
     while (dyn_running.tick(dt1)) {
     }
-    while (dyn_running.run_once()) {
+    while (dyn_running.run_auto()) {
     }
     if (dyn_id.has_value()) {
         (void)dyn_running.terminate_task(*dyn_id);
     }
-    while (dyn_running.run_once()) {
+    while (dyn_running.run_auto()) {
     }
     if (dyn_handle.has_value()) {
         dyn_pool.release(*dyn_handle);
@@ -423,8 +430,35 @@ int main() {
     const auto dt2 = Caps::TimeSource::now();
     while (dyn_running.tick(dt2)) {
     }
-    while (dyn_running.run_once()) {
+    while (dyn_running.run_auto()) {
     }
+
+    std::printf("[Demo] auto register\n");
+    demo::DynTask dyn_a{};
+    demo::DynTask dyn_b{};
+    auto dyn_tasks = std::tuple<demo::DynTask&, demo::DynTask&>{dyn_a, dyn_b};
+    auto auto_ids = kernel::register_enabled<demo::Config>(dyn_registry, dyn_tasks);
+    for (std::size_t i = 0; i < auto_ids.size(); ++i) {
+        if (auto_ids[i].has_value()) {
+            (void)dyn_running.activate_task(*auto_ids[i], kernel::Priority{1});
+            (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *auto_ids[i], kernel::make_event(kernel::EventId::tick));
+        } else {
+            std::printf("[Auto] task %u disabled\n", static_cast<unsigned>(i));
+        }
+    }
+    Caps::TimeSource::advance(1);
+    const auto dt3 = Caps::TimeSource::now();
+    while (dyn_running.tick(dt3)) {
+    }
+    while (dyn_running.run_auto()) {
+    }
+
+    const auto stats = running.stats();
+    std::printf("[Stats] posted=%llu dropped=%llu dispatched=%llu filtered=%llu\n",
+        static_cast<unsigned long long>(stats.posted),
+        static_cast<unsigned long long>(stats.dropped),
+        static_cast<unsigned long long>(stats.dispatched),
+        static_cast<unsigned long long>(stats.filtered));
 
     return 0;
 }

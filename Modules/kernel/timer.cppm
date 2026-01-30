@@ -27,11 +27,13 @@ export namespace kernel {
         typename Policy::template Storage<Tick, Capacity> storage,
         TimerEntry<Tick> entry,
         Tick now,
-        util::u64 tag) {
+        util::u64 tag,
+        TaskId task) {
         { Policy::template insert<Tick, Capacity>(storage, entry) } -> std::same_as<bool>;
         { Policy::template pop_due<Tick, Capacity>(storage, now) } -> std::same_as<std::optional<TimerEntry<Tick>>>;
         { Policy::template size<Tick, Capacity>(storage) } -> std::same_as<util::usize>;
         { Policy::template cancel<Tick, Capacity>(storage, tag) } -> std::same_as<bool>;
+        { Policy::template cancel_task<Tick, Capacity>(storage, task) } -> std::same_as<bool>;
     };
 
     struct LinearTimerPolicy {
@@ -97,6 +99,21 @@ export namespace kernel {
                 }
             }
             return false;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel_task(Storage<Tick, Capacity>& storage, TaskId task) noexcept {
+            bool removed = false;
+            for (util::usize i = 0; i < storage.count;) {
+                if (storage.entries[i].task.value == task.value) {
+                    storage.entries[i] = storage.entries[storage.count - 1];
+                    --storage.count;
+                    removed = true;
+                    continue;
+                }
+                ++i;
+            }
+            return removed;
         }
     };
 
@@ -233,6 +250,57 @@ export namespace kernel {
 
             return true;
         }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel_task(Storage<Tick, Capacity>& storage, TaskId task) noexcept {
+            auto less = [](const TimerEntry<Tick>& a, const TimerEntry<Tick>& b) {
+                return a.due < b.due || (a.due == b.due && a.order < b.order);
+            };
+            bool removed = false;
+            for (util::usize idx = 0; idx < storage.count;) {
+                if (storage.entries[idx].task.value != task.value) {
+                    ++idx;
+                    continue;
+                }
+                storage.entries[idx] = storage.entries[storage.count - 1];
+                --storage.count;
+                removed = true;
+                if (idx >= storage.count) {
+                    continue;
+                }
+
+                util::usize fix = idx;
+                while (fix > 0) {
+                    const util::usize parent = (fix - 1) / 2;
+                    if (!less(storage.entries[fix], storage.entries[parent])) {
+                        break;
+                    }
+                    auto tmp = storage.entries[parent];
+                    storage.entries[parent] = storage.entries[fix];
+                    storage.entries[fix] = tmp;
+                    fix = parent;
+                }
+                while (true) {
+                    const util::usize left = fix * 2 + 1;
+                    const util::usize right = left + 1;
+                    if (left >= storage.count) {
+                        break;
+                    }
+                    util::usize smallest = left;
+                    if (right < storage.count && less(storage.entries[right], storage.entries[left])) {
+                        smallest = right;
+                    }
+                    if (!less(storage.entries[smallest], storage.entries[fix])) {
+                        break;
+                    }
+                    auto tmp = storage.entries[fix];
+                    storage.entries[fix] = storage.entries[smallest];
+                    storage.entries[smallest] = tmp;
+                    fix = smallest;
+                }
+            }
+            return removed;
+        }
     };
 
     struct WheelTimerPolicy {
@@ -348,6 +416,36 @@ export namespace kernel {
             }
             return false;
         }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel_task(Storage<Tick, Capacity>& storage, TaskId task) noexcept {
+            if (storage.count == 0) {
+                return false;
+            }
+            bool removed = false;
+            for (util::usize slot = 0; slot < Capacity; ++slot) {
+                int current = storage.head[slot];
+                int prev = -1;
+                while (current != -1) {
+                    const auto idx = static_cast<util::usize>(current);
+                    const auto next = storage.next[idx];
+                    if (storage.entries[idx].task.value == task.value) {
+                        if (prev == -1) {
+                            storage.head[slot] = next;
+                        } else {
+                            storage.next[static_cast<util::usize>(prev)] = next;
+                        }
+                        storage.free[storage.free_count++] = current;
+                        --storage.count;
+                        removed = true;
+                    } else {
+                        prev = current;
+                    }
+                    current = next;
+                }
+            }
+            return removed;
+        }
     };
 
     template <typename Config>
@@ -379,6 +477,10 @@ export namespace kernel {
             return Policy::template cancel<Tick, Capacity>(storage_, tag);
         }
 
+        [[nodiscard]] bool cancel_task(TaskId task) noexcept {
+            return Policy::template cancel_task<Tick, Capacity>(storage_, task);
+        }
+
         [[nodiscard]] util::usize size() const noexcept {
             return Policy::template size<Tick, Capacity>(storage_);
         }
@@ -399,6 +501,10 @@ export namespace kernel {
         }
 
         [[nodiscard]] bool cancel(util::u64) noexcept {
+            return false;
+        }
+
+        [[nodiscard]] bool cancel_task(TaskId) noexcept {
             return false;
         }
     };

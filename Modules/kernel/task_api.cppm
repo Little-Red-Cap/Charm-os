@@ -72,6 +72,10 @@ export namespace kernel {
             return scheduler_->disable_task(current_task());
         }
 
+        [[nodiscard]] bool activate_task(TaskId task, Priority prio) noexcept {
+            return scheduler_->activate_task(task, prio);
+        }
+
         [[nodiscard]] bool stop_task(TaskId task) noexcept {
             return scheduler_->stop_task(task);
         }

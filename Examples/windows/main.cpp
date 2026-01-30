@@ -8,6 +8,7 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_token;
+import kernel.init_list;
 import kernel.ipc;
 import kernel.scheduler;
 import kernel.sync;
@@ -39,6 +40,18 @@ import service.slot_pool;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
+
+    inline void service_hook_a() {
+        std::printf("[Service] init A\n");
+    }
+
+    inline void hal_hook_a() {
+        std::printf("[HAL] init A\n");
+    }
+
+    inline void component_hook_a() {
+        std::printf("[Component] init A\n");
+    }
 
     struct Config {
         static constexpr bool enable_timer = true;
@@ -181,7 +194,14 @@ int main() {
 
     Caps caps{};
 
-    auto running = kernel::boot<demo::Config>(registry, caps);
+    kernel::InitList<2> services{};
+    kernel::InitList<2> hals{};
+    kernel::InitList<2> components{};
+    (void)services.add(demo::service_hook_a);
+    (void)hals.add(demo::hal_hook_a);
+    (void)components.add(demo::component_hook_a);
+
+    auto running = kernel::boot<demo::Config>(registry, caps, services, hals, components);
 
     const auto urgent_id = Registry::id_of<demo::Urgent>();
     const auto heartbeat_id = Registry::id_of<demo::Heartbeat>();

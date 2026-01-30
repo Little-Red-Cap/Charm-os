@@ -54,6 +54,7 @@ export namespace kernel {
             : registry_(created.registry_), caps_(created.caps_), queues_(std::move(created.queues_)) {
             task_enabled_.fill(true);
             task_states_.fill(TaskState::ready);
+            registry_->template fill_priorities<Config>(current_priorities_);
             registry_->init_all();
             post_init_events();
         }
@@ -113,6 +114,17 @@ export namespace kernel {
             task_enabled_[task.value] = true;
             task_states_[task.value] = TaskState::ready;
             return true;
+        }
+
+        [[nodiscard]] bool activate_task(TaskId task, Priority prio) noexcept {
+            if (task.value >= Registry::count || prio.value >= Config::priority_levels) {
+                return false;
+            }
+            task_enabled_[task.value] = true;
+            task_states_[task.value] = TaskState::ready;
+            current_priorities_[task.value] = static_cast<std::size_t>(prio.value);
+            registry_->start(task);
+            return post(task, make_event(EventId::init));
         }
 
         [[nodiscard]] bool disable_task(TaskId task) noexcept {
@@ -201,6 +213,9 @@ export namespace kernel {
                     clear_current();
                     if (node->event.id == EventId::terminate) {
                         task_states_[node->task.value] = TaskState::terminated;
+                        if constexpr (requires(Registry& r, TaskId t) { r.unregister(t); }) {
+                            registry_->unregister(node->task);
+                        }
                     } else {
                         task_states_[node->task.value] = TaskState::ready;
                     }
@@ -296,14 +311,17 @@ export namespace kernel {
         TimerStorage timers_{};
         util::u64 timer_seq_{0};
         util::u64 evt_seq_{0};
-        static constexpr auto priority_table_ = Registry::template priority_table<Config>();
-        std::array<std::size_t, Registry::count> current_priorities_{priority_table_};
+        std::array<std::size_t, Registry::count> current_priorities_{};
         std::array<bool, Registry::count> task_enabled_{};
         std::array<TaskState, Registry::count> task_states_{};
 
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {
-                (void)post(TaskId{i}, make_event(EventId::init));
+                const TaskId task{i};
+                if (!registry_->is_active(task)) {
+                    continue;
+                }
+                (void)post(task, make_event(EventId::init));
             }
         }
     };

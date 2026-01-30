@@ -13,6 +13,7 @@ export namespace kernel {
         tick,
         sync,
         message,
+        terminate,
         user0,
         user1
     };

@@ -28,6 +28,15 @@ export namespace kernel {
         { task.on_event(evt) } -> std::same_as<void>;
     };
 
+    template <typename Task>
+    constexpr EventMask task_mask() noexcept {
+        if constexpr (requires { Task::mask; }) {
+            return Task::mask;
+        } else {
+            return EventMask{0xFFFF'FFFFu};
+        }
+    }
+
     template <typename Task, typename Config>
     consteval void validate_task_priority() {
         static_assert(Task::priority.value < Config::priority_levels);
@@ -100,6 +109,9 @@ export namespace kernel {
             if (id.value >= count) {
                 util::halt();
             }
+            if (!accept_event(id, evt)) {
+                return;
+            }
             dispatch_by_index<0>(id.value, evt);
         }
 
@@ -156,6 +168,27 @@ export namespace kernel {
             if constexpr (I + 1 < count) {
                 dispatch_by_index<I + 1>(index, evt);
             }
+        }
+
+        template <std::size_t I>
+        bool accept_event_by_index(std::size_t index, Event evt) const {
+            if (index == I) {
+                using Task = std::tuple_element_t<I, std::tuple<Tasks...>>;
+                const auto mask = task_mask<Task>();
+                if (evt.id == EventId::terminate) {
+                    return true;
+                }
+                return (mask & event_mask(evt.id)) != 0;
+            }
+            if constexpr (I + 1 < count) {
+                return accept_event_by_index<I + 1>(index, evt);
+            } else {
+                return false;
+            }
+        }
+
+        bool accept_event(TaskId id, Event evt) const {
+            return accept_event_by_index<0>(id.value, evt);
         }
     };
 }

@@ -5,9 +5,11 @@
 
 import kernel.capabilities;
 import kernel.config;
+import kernel.deps;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_token;
+import kernel.dynamic_registry;
 import kernel.init_list;
 import kernel.ipc;
 import kernel.scheduler;
@@ -40,6 +42,15 @@ import service.slot_pool;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
+
+    struct ServiceConfig {
+        static constexpr bool use_ring_queue = true;
+        static constexpr bool use_static_pool = true;
+    };
+
+    struct ComponentConfig {
+        static constexpr bool use_demo_component = true;
+    };
 
     inline void service_hook_a() {
         std::printf("[Service] init A\n");
@@ -179,6 +190,33 @@ namespace demo {
     }
 
     using BlockingTask = kernel::ThreadBlockingTask<BlockingContext, blocking_handler, kernel::Priority{0}>;
+
+    struct DynTask {
+        std::uint32_t ticks{0};
+
+        void on_start() {
+            std::printf("[Dyn] on_start\n");
+        }
+
+        void on_stop() {
+            std::printf("[Dyn] on_stop\n");
+        }
+
+        void on_event(kernel::Event evt) {
+            if (evt.id == kernel::EventId::init) {
+                std::printf("[Dyn] init\n");
+                return;
+            }
+            if (evt.id == kernel::EventId::tick) {
+                ++ticks;
+                std::printf("[Dyn] tick=%u\n", ticks);
+                return;
+            }
+            if (evt.id == kernel::EventId::terminate) {
+                std::printf("[Dyn] terminate\n");
+            }
+        }
+    };
 }
 
 struct Caps {
@@ -189,6 +227,8 @@ struct Caps {
 };
 
 int main() {
+    kernel::validate_deps<demo::ServiceConfig, demo::ComponentConfig>();
+
     using Registry = kernel::TaskRegistry<demo::Urgent, demo::Heartbeat, demo::Logger, demo::ThreadTask, demo::BlockingTask>;
     Registry registry{};
 
@@ -330,6 +370,30 @@ int main() {
     while (running.tick(t4)) {
     }
     while (running.run_once()) {
+    }
+
+    std::printf("[Demo] dynamic registry\n");
+    kernel::DynamicTaskRegistry<2> dyn_registry{};
+    demo::DynTask dyn_task{};
+    auto dyn_id = dyn_registry.register_task(dyn_task, kernel::Priority{1});
+    auto dyn_created = kernel::make_scheduler<demo::Config>(dyn_registry, caps);
+    auto dyn_running = kernel::start(std::move(dyn_created));
+    if (dyn_id.has_value()) {
+        (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *dyn_id, kernel::make_event(kernel::EventId::tick));
+    }
+    while (dyn_running.run_once()) {
+    }
+    if (dyn_id.has_value()) {
+        (void)dyn_running.terminate_task(*dyn_id);
+    }
+    while (dyn_running.run_once()) {
+    }
+    auto dyn_id2 = dyn_registry.register_task(dyn_task, kernel::Priority{1});
+    if (dyn_id2.has_value()) {
+        (void)dyn_running.activate_task(*dyn_id2, kernel::Priority{1});
+        (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *dyn_id2, kernel::make_event(kernel::EventId::tick));
+    }
+    while (dyn_running.run_once()) {
     }
 
     return 0;

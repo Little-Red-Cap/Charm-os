@@ -66,6 +66,9 @@ export namespace kernel {
             if (!task_enabled_[task.value] && evt.id != EventId::terminate) {
                 return EventToken{0};
             }
+            if (!registry_->template is_active<Config>(task)) {
+                return EventToken{0};
+            }
             const auto prio_index = current_priorities_[task.value];
             auto guard = Caps::IrqGuard::enter();
             const auto tag = ++evt_seq_;
@@ -207,6 +210,9 @@ export namespace kernel {
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         return true;
                     }
+                    if (!registry_->template is_active<Config>(node->task)) {
+                        return true;
+                    }
                     task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
@@ -318,7 +324,7 @@ export namespace kernel {
         void post_init_events() noexcept {
             for (std::size_t i = 0; i < Registry::count; ++i) {
                 const TaskId task{i};
-                if (!registry_->is_active(task)) {
+                if (!registry_->template is_active<Config>(task)) {
                     continue;
                 }
                 (void)post(task, make_event(EventId::init));

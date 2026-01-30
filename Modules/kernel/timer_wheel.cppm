@@ -7,6 +7,7 @@ module;
 export module kernel.timer_wheel;
 
 import kernel.timer;
+import kernel.eda;
 import util.core;
 
 export namespace kernel {
@@ -130,6 +131,38 @@ export namespace kernel {
                 }
             }
             return false;
+        }
+
+        template <typename Tick, util::usize Capacity>
+        [[nodiscard]] static bool cancel_task(Storage<Tick, Capacity>& storage, TaskId task) noexcept {
+            if (storage.count == 0) {
+                return false;
+            }
+            bool removed = false;
+            for (util::usize level = 0; level < Levels; ++level) {
+                for (util::usize slot = 0; slot < Slots; ++slot) {
+                    int current = storage.head[level][slot];
+                    int prev = -1;
+                    while (current != -1) {
+                        const auto idx = static_cast<util::usize>(current);
+                        const auto next = storage.next[idx];
+                        if (storage.entries[idx].task.value == task.value) {
+                            if (prev == -1) {
+                                storage.head[level][slot] = next;
+                            } else {
+                                storage.next[static_cast<util::usize>(prev)] = next;
+                            }
+                            storage.free[storage.free_count++] = current;
+                            --storage.count;
+                            removed = true;
+                        } else {
+                            prev = current;
+                        }
+                        current = next;
+                    }
+                }
+            }
+            return removed;
         }
     };
 }

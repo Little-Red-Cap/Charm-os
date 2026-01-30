@@ -50,6 +50,15 @@ export namespace kernel {
             return std::array<std::size_t, count>{Tasks::priority.value...};
         }
 
+        template <typename Config>
+        static consteval auto active_table() {
+            if constexpr (requires { Config::template enable_task<std::tuple_element_t<0, std::tuple<Tasks...>>>(); }) {
+                return std::array<bool, count>{Config::template enable_task<Tasks>()...};
+            } else {
+                return std::array<bool, count>{((void)sizeof(Tasks), true)...};
+            }
+        }
+
         template <typename T>
         T& get() {
             return std::get<T>(tasks);
@@ -60,8 +69,13 @@ export namespace kernel {
             out = priority_table<Config>();
         }
 
-        [[nodiscard]] bool is_active(TaskId) const noexcept {
-            return true;
+        template <typename Config>
+        [[nodiscard]] bool is_active(TaskId id) const noexcept {
+            if (id.value >= count) {
+                return false;
+            }
+            constexpr auto table = active_table<Config>();
+            return table[id.value];
         }
 
         void init_all() {

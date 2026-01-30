@@ -5,7 +5,10 @@ set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
 
 add_executable(${target_name}
-        main.cpp
+#        main.cpp
+        main_m1.cpp
+#        main_m2.cpp
+#        main_m3.cpp
 )
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS

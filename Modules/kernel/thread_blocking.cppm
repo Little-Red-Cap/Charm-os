@@ -38,6 +38,7 @@ export namespace kernel {
     template <typename Context, ThreadHandler<Context> Handler, Priority Prio>
     struct ThreadBlockingTask {
         static constexpr Priority priority{Prio};
+        static constexpr EventMask mask{0xFFFF'FFFFu};
         Context context{};
         ThreadBlockingControl control{};
         ThreadState<Context> state{};

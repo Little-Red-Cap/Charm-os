@@ -16,10 +16,21 @@ export namespace kernel {
     public:
         static constexpr std::size_t count = Capacity;
 
+        [[nodiscard]] std::size_t active_count() const noexcept {
+            std::size_t total = 0;
+            for (std::size_t i = 0; i < Capacity; ++i) {
+                if (slots_[i].active) {
+                    ++total;
+                }
+            }
+            return total;
+        }
+
         [[nodiscard]] std::optional<TaskId> register_task(void* instance, Priority prio,
             void (*on_event)(void*, Event),
             void (*on_start)(void*),
-            void (*on_stop)(void*)) noexcept {
+            void (*on_stop)(void*),
+            EventMask mask = EventMask{0xFFFF'FFFFu}) noexcept {
             if (free_count_ == 0 || instance == nullptr || on_event == nullptr) {
                 return std::nullopt;
             }
@@ -30,6 +41,7 @@ export namespace kernel {
             slot.on_start = on_start;
             slot.on_stop = on_stop;
             slot.prio = prio;
+            slot.mask = mask;
             slot.active = true;
             return TaskId{index};
         }
@@ -49,7 +61,14 @@ export namespace kernel {
                     if constexpr (requires(T& t) { t.on_stop(); }) {
                         static_cast<T*>(ptr)->on_stop();
                     }
-                });
+                },
+                []() {
+                    if constexpr (requires { T::mask; }) {
+                        return T::mask;
+                    } else {
+                        return EventMask{0xFFFF'FFFFu};
+                    }
+                }());
         }
 
         void unregister(TaskId id) noexcept {
@@ -100,6 +119,9 @@ export namespace kernel {
             if (!slot.active || slot.on_event == nullptr) {
                 util::halt();
             }
+            if ((slot.mask & event_mask(evt.id)) == 0 && evt.id != EventId::terminate) {
+                return;
+            }
             slot.on_event(slot.instance, evt);
         }
 
@@ -127,6 +149,7 @@ export namespace kernel {
             void (*on_start)(void*){nullptr};
             void (*on_stop)(void*){nullptr};
             Priority prio{};
+            EventMask mask{0xFFFF'FFFFu};
             bool active{false};
         };
 

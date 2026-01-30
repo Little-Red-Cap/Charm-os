@@ -42,10 +42,18 @@ export namespace kernel {
         ThreadBlockingControl control{};
         ThreadState<Context> state{};
 
+        void on_start() noexcept {
+            control.resume();
+        }
+
+        void on_stop() noexcept {
+            control.block();
+        }
+
         void on_event(Event evt) {
             state.ctx = &context;
             state.control = &control;
-            if (control.blocked && evt.id != EventId::sync && evt.id != EventId::init) {
+            if (control.blocked && evt.id != EventId::sync && evt.id != EventId::init && evt.id != EventId::terminate) {
                 return;
             }
             Handler(state, evt);

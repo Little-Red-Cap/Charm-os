@@ -114,7 +114,9 @@ export namespace kernel {
             }
         }
 
+        template <typename Config>
         [[nodiscard]] bool is_active(TaskId id) const noexcept {
+            (void)static_cast<const Config*>(nullptr);
             return id.value < Capacity && slots_[id.value].active;
         }
 

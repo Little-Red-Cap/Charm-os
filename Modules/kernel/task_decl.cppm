@@ -14,6 +14,14 @@ export namespace kernel {
         static constexpr Priority priority{Prio};
         Handler handler{};
 
+        static constexpr EventMask mask = [] {
+            if constexpr (requires { Handler::event_mask; }) {
+                return Handler::event_mask;
+            } else {
+                return EventMask{0xFFFF'FFFFu};
+            }
+        }();
+
         void on_start() {
             if constexpr (requires(Handler& h) { h.on_start(); }) {
                 handler.on_start();
@@ -35,6 +43,14 @@ export namespace kernel {
     struct TedaTaskDecl {
         static constexpr Priority priority{Prio};
         Handler handler{};
+
+        static constexpr EventMask mask = [] {
+            if constexpr (requires { Handler::event_mask; }) {
+                return Handler::event_mask;
+            } else {
+                return EventMask{0xFFFF'FFFFu};
+            }
+        }();
 
         void on_start() {
             if constexpr (requires(Handler& h) { h.on_start(); }) {

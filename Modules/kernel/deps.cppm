@@ -11,5 +11,8 @@ export namespace kernel {
         if constexpr (ComponentCfg::use_demo_component) {
             static_assert(ServiceCfg::use_static_pool, "demo component requires static_pool service");
         }
+        if constexpr (ComponentCfg::use_pool_component) {
+            static_assert(ServiceCfg::use_slot_pool, "pool component requires slot_pool service");
+        }
     }
 }

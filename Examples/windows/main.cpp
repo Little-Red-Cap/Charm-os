@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <utility>
+#include <type_traits>
 
 import kernel.capabilities;
 import kernel.config;
@@ -43,6 +44,7 @@ import service.slot_pool;
 
 namespace demo {
     inline service::RingQueue<std::uint32_t, 4>* g_queue = nullptr;
+    struct Logger;
 
     struct ServiceConfig {
         static constexpr bool use_ring_queue = true;
@@ -74,6 +76,15 @@ namespace demo {
         static constexpr std::size_t evtq_capacity = 16;
         static constexpr std::size_t timer_capacity = 8;
         using timer_policy = kernel::HierWheelTimerPolicy<8, 2>;
+
+        template <typename Task>
+        static consteval bool enable_task() {
+            if constexpr (std::is_same_v<Task, Logger>) {
+                return false;
+            } else {
+                return true;
+            }
+        }
     };
 
     struct Urgent {
@@ -389,6 +400,10 @@ int main() {
     if (dyn_id.has_value()) {
         (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *dyn_id, kernel::make_event(kernel::EventId::tick));
     }
+    Caps::TimeSource::advance(1);
+    const auto dt1 = Caps::TimeSource::now();
+    while (dyn_running.tick(dt1)) {
+    }
     while (dyn_running.run_once()) {
     }
     if (dyn_id.has_value()) {
@@ -403,6 +418,10 @@ int main() {
     if (dyn_id2.has_value()) {
         (void)dyn_running.activate_task(*dyn_id2, kernel::Priority{1});
         (void)dyn_running.schedule_at(Caps::TimeSource::now() + 1, *dyn_id2, kernel::make_event(kernel::EventId::tick));
+    }
+    Caps::TimeSource::advance(1);
+    const auto dt2 = Caps::TimeSource::now();
+    while (dyn_running.tick(dt2)) {
     }
     while (dyn_running.run_once()) {
     }

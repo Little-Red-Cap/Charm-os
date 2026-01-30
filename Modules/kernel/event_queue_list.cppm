@@ -12,6 +12,7 @@ import kernel.event_queue;
 import util.core;
 
 export namespace kernel {
+
     struct ReadyLink {
         int prev{-1};
         int next{-1};
@@ -26,12 +27,30 @@ export namespace kernel {
         static_assert(TaskCount >= 1);
         static_assert(PriorityLevels >= 1);
 
-        [[nodiscard]] bool push(TaskId task, Event event, util::u64 tag, std::size_t prio) noexcept {
+        [[nodiscard]] bool push(TaskId task, Event event, util::u64 tag, std::size_t prio,
+            DropPolicy policy = DropPolicy::drop_newest) noexcept {
             if (task.value >= TaskCount || prio >= PriorityLevels) {
                 return false;
             }
             const int node = alloc_node();
             if (node == -1) {
+                if (policy == DropPolicy::drop_oldest) {
+                    const int drop_task = ready_head_[prio];
+                    if (drop_task == -1) {
+                        return false;
+                    }
+                    const int drop_node = evt_head_[static_cast<std::size_t>(drop_task)];
+                    if (drop_node == -1) {
+                        return false;
+                    }
+                    evt_head_[static_cast<std::size_t>(drop_task)] = next_[static_cast<util::usize>(drop_node)];
+                    if (evt_head_[static_cast<std::size_t>(drop_task)] == -1) {
+                        evt_tail_[static_cast<std::size_t>(drop_task)] = -1;
+                        remove_ready(TaskId{static_cast<std::size_t>(drop_task)});
+                    }
+                    release_node(drop_node);
+                    return push(task, event, tag, prio, policy);
+                }
                 return false;
             }
             nodes_[static_cast<util::usize>(node)] = EventNode{task, event, tag};
@@ -164,6 +183,48 @@ export namespace kernel {
                 remove_ready(task);
             }
             return removed;
+        }
+
+        [[nodiscard]] bool coalesce(TaskId task, EventId id, Event evt, util::u64 tag) noexcept {
+            if (task.value >= TaskCount) {
+                return false;
+            }
+            bool removed = false;
+            int prev = -1;
+            int current = evt_head_[task.value];
+            while (current != -1) {
+                const auto idx = static_cast<util::usize>(current);
+                const auto next = next_[idx];
+                if (nodes_[idx].event.id == id) {
+                    if (prev == -1) {
+                        evt_head_[task.value] = next;
+                    } else {
+                        next_[static_cast<util::usize>(prev)] = next;
+                    }
+                    if (evt_tail_[task.value] == current) {
+                        evt_tail_[task.value] = prev;
+                    }
+                    release_node(current);
+                    removed = true;
+                } else {
+                    prev = current;
+                }
+                current = next;
+            }
+            if (removed) {
+                const int node = alloc_node();
+                if (node == -1) {
+                    return false;
+                }
+                nodes_[static_cast<util::usize>(node)] = EventNode{task, evt, tag};
+                next_[static_cast<util::usize>(node)] = -1;
+                append_event(task, node);
+                if (!ready_[task.value].in_list) {
+                    add_ready(task, ready_[task.value].prio);
+                }
+                return true;
+            }
+            return false;
         }
 
     private:

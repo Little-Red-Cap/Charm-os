@@ -10,6 +10,8 @@ export namespace kernel {
     struct ThreadControl {
         bool done{false};
         void finish() noexcept { done = true; }
+        void reset() noexcept { done = false; }
+        [[nodiscard]] bool is_done() const noexcept { return done; }
     };
 
     template <typename Context>
@@ -21,9 +23,20 @@ export namespace kernel {
         Context context{};
         ThreadControl control{};
 
+        void on_start() noexcept {
+            control.reset();
+        }
+
+        void on_stop() noexcept {
+            control.finish();
+        }
+
         void on_event(Event evt) {
-            if (control.done) {
+            if (control.done && evt.id != EventId::terminate) {
                 return;
+            }
+            if (evt.id == EventId::init) {
+                control.reset();
             }
             StepFn(context, control, evt);
         }

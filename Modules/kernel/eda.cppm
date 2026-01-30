@@ -55,6 +55,15 @@ export namespace kernel {
             return std::get<T>(tasks);
         }
 
+        template <typename Config>
+        void fill_priorities(std::array<std::size_t, count>& out) const noexcept {
+            out = priority_table<Config>();
+        }
+
+        [[nodiscard]] bool is_active(TaskId) const noexcept {
+            return true;
+        }
+
         void init_all() {
             (init_one<Tasks>(), ...);
         }

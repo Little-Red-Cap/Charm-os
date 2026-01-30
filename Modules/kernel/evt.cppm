@@ -8,6 +8,8 @@ import util.core;
 import util.variant;
 
 export namespace kernel {
+    using EventMask = std::uint32_t;
+
     enum class EventId : std::uint16_t {
         init,
         tick,
@@ -17,6 +19,10 @@ export namespace kernel {
         user0,
         user1
     };
+
+    constexpr EventMask event_mask(EventId id) noexcept {
+        return EventMask{1u} << static_cast<std::uint32_t>(id);
+    }
 
     using EventPayload = util::variant<util::monostate, util::u32, util::u64>;
 

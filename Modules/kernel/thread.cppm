@@ -20,6 +20,7 @@ export namespace kernel {
     template <typename Context, ThreadStep<Context> StepFn, Priority Prio>
     struct ThreadTask {
         static constexpr Priority priority{Prio};
+        static constexpr EventMask mask{0xFFFF'FFFFu};
         Context context{};
         ThreadControl control{};
 

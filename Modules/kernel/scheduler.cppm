@@ -62,7 +62,7 @@ export namespace kernel {
             if (task.value >= Registry::count) {
                 return EventToken{0};
             }
-            if (!task_enabled_[task.value]) {
+            if (!task_enabled_[task.value] && evt.id != EventId::terminate) {
                 return EventToken{0};
             }
             const auto prio_index = current_priorities_[task.value];
@@ -149,6 +149,26 @@ export namespace kernel {
             return post(task, make_event(EventId::init));
         }
 
+        [[nodiscard]] bool terminate_task(TaskId task) noexcept {
+            if (task.value >= Registry::count) {
+                return false;
+            }
+            task_enabled_[task.value] = false;
+            task_states_[task.value] = TaskState::terminated;
+            if constexpr (Config::enable_dynamic_priority) {
+                (void)queues_.drop_task(task);
+            } else {
+                for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                    (void)queues_[i].drop_task(task);
+                }
+            }
+            if constexpr (Config::enable_timer) {
+                (void)timers_.cancel_task(task);
+            }
+            registry_->stop(task);
+            return post(task, make_event(EventId::terminate));
+        }
+
         [[nodiscard]] TaskState state_of(TaskId task) const noexcept {
             if (task.value >= Registry::count) {
                 return TaskState::stopped;
@@ -172,14 +192,18 @@ export namespace kernel {
                     node = queues_[i].pop();
                 }
                 if (node.has_value()) {
-                    if (!task_enabled_[node->task.value]) {
+                    if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         return true;
                     }
                     task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);
                     registry_->dispatch(node->task, node->event);
                     clear_current();
-                    task_states_[node->task.value] = TaskState::ready;
+                    if (node->event.id == EventId::terminate) {
+                        task_states_[node->task.value] = TaskState::terminated;
+                    } else {
+                        task_states_[node->task.value] = TaskState::ready;
+                    }
                     return true;
                 }
             }
@@ -193,6 +217,21 @@ export namespace kernel {
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {
                     removed = queues_[i].cancel(tag) || removed;
+                }
+            }
+            if constexpr (Config::enable_timer) {
+                removed = timers_.cancel(tag) || removed;
+            }
+            return removed;
+        }
+
+        [[nodiscard]] bool cancel_event(TaskId task, util::u64 tag) noexcept {
+            bool removed = false;
+            if constexpr (Config::enable_dynamic_priority) {
+                removed = queues_.drop_task_with_tag(task, tag);
+            } else {
+                for (std::size_t i = 0; i < Config::priority_levels; ++i) {
+                    removed = queues_[i].drop_task_with_tag(task, tag) || removed;
                 }
             }
             if constexpr (Config::enable_timer) {

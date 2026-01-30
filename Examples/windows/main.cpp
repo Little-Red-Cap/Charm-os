@@ -24,6 +24,7 @@ import kernel.timer_wheel;
 import kernel.wait_list;
 import kernel.wait_set;
 import kernel.wait_token;
+import kernel.startup;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -97,6 +98,10 @@ namespace demo {
         void on_event(kernel::Event evt) {
             if (evt.id == kernel::EventId::init) {
                 std::printf("[Logger] init\n");
+                return;
+            }
+            if (evt.id == kernel::EventId::terminate) {
+                std::printf("[Logger] terminate\n");
                 return;
             }
             if (evt.id == kernel::EventId::tick) {
@@ -176,8 +181,7 @@ int main() {
 
     Caps caps{};
 
-    auto created = kernel::make_scheduler<demo::Config>(registry, caps);
-    auto running = kernel::start(std::move(created));
+    auto running = kernel::boot<demo::Config>(registry, caps);
 
     const auto urgent_id = Registry::id_of<demo::Urgent>();
     const auto heartbeat_id = Registry::id_of<demo::Heartbeat>();
@@ -254,8 +258,10 @@ int main() {
             std::printf("[Heartbeat] state=%u\n", static_cast<unsigned>(task_api.state_of(heartbeat_id)));
         }
         if (i == 3) {
+            (void)running.schedule_at(base + 4000, logger_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(99)));
             (void)task_api.restart_task(heartbeat_id);
             std::printf("[Heartbeat] state=%u\n", static_cast<unsigned>(task_api.state_of(heartbeat_id)));
+            (void)task_api.terminate_task(logger_id);
         }
 
         bitmap.set(i);
@@ -291,6 +297,19 @@ int main() {
         (void)sync_unified.notify_one(kernel::WaitResult::ok);
 
         Caps::TimeSource::advance(1000);
+        const auto t3 = Caps::TimeSource::now();
+        while (running.tick(t3)) {
+        }
+        while (running.run_once()) {
+        }
+    }
+
+    std::printf("[Demo] drain after terminate\n");
+    Caps::TimeSource::advance(5000);
+    const auto t4 = Caps::TimeSource::now();
+    while (running.tick(t4)) {
+    }
+    while (running.run_once()) {
     }
 
     return 0;

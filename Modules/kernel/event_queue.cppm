@@ -11,6 +11,10 @@ import kernel.eda;
 import util.core;
 
 export namespace kernel {
+    enum class DropPolicy : unsigned char {
+        drop_newest,
+        drop_oldest
+    };
     struct EventNode {
         TaskId task{};
         Event event{};
@@ -22,13 +26,46 @@ export namespace kernel {
     public:
         static_assert(Capacity >= 1);
 
-        [[nodiscard]] bool push(EventNode node) noexcept {
+        [[nodiscard]] bool push(EventNode node, DropPolicy policy = DropPolicy::drop_newest) noexcept {
             if (count_ >= Capacity) {
-                return false;
+                if (policy == DropPolicy::drop_oldest) {
+                    head_ = (head_ + 1) % Capacity;
+                    --count_;
+                } else {
+                    return false;
+                }
             }
             nodes_[tail_] = node;
             tail_ = (tail_ + 1) % Capacity;
             ++count_;
+            return true;
+        }
+
+        [[nodiscard]] bool coalesce(TaskId task, EventId id, Event evt, util::u64 tag) noexcept {
+            if (count_ == 0) {
+                return false;
+            }
+            std::array<EventNode, Capacity> new_nodes{};
+            util::usize new_count = 0;
+            util::usize idx = head_;
+            bool removed = false;
+            for (util::usize i = 0; i < count_; ++i) {
+                const auto& node = nodes_[idx];
+                if (node.task.value == task.value && node.event.id == id) {
+                    removed = true;
+                } else {
+                    new_nodes[new_count++] = node;
+                }
+                idx = (idx + 1) % Capacity;
+            }
+            if (!removed) {
+                return false;
+            }
+            new_nodes[new_count++] = EventNode{task, evt, tag};
+            nodes_ = new_nodes;
+            head_ = 0;
+            tail_ = new_count % Capacity;
+            count_ = new_count;
             return true;
         }
 

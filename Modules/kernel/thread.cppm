@@ -33,6 +33,7 @@ export namespace kernel {
         }
 
         void on_event(Event evt) {
+            // terminate is always delivered even when done
             if (control.done && evt.id != EventId::terminate) {
                 return;
             }

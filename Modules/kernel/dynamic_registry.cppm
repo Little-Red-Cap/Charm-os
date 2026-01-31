@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: dynamic task registry.
 #include <array>
 #include <cstddef>
 #include <optional>

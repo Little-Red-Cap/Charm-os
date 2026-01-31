@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: current execution context helpers.
 export module kernel.context;
 
 import kernel.eda;

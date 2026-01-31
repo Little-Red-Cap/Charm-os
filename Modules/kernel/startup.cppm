@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: startup hooks.
 #include <utility>
 
 export module kernel.startup;

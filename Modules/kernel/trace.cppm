@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: trace buffer.
 #include <array>
 #include <cstddef>
 

@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: compile-time dependency checks.
 export module kernel.deps;
 
 export namespace kernel {

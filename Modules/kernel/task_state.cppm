@@ -2,6 +2,7 @@ module;
 
 export module kernel.task_state;
 
+// Optional/experimental module: task state tracking.
 export namespace kernel::state {
     struct Created { };
     struct Ready { };

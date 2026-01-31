@@ -54,6 +54,7 @@ export namespace kernel {
         void on_event(Event evt) {
             state.ctx = &context;
             state.control = &control;
+            // sync/init/terminate pass through even when blocked
             if (control.blocked && evt.id != EventId::sync && evt.id != EventId::init && evt.id != EventId::terminate) {
                 return;
             }

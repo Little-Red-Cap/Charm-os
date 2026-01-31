@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: list-based event queue (dynamic priority).
 #include <array>
 #include <cstddef>
 #include <optional>

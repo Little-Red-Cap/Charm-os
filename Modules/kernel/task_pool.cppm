@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: task pool wrapper.
 #include <optional>
 
 export module kernel.task_pool;

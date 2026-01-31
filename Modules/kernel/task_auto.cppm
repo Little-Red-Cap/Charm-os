@@ -1,5 +1,6 @@
 module;
 
+// Optional/experimental module: auto register tasks by Config.
 #include <array>
 #include <cstddef>
 #include <optional>

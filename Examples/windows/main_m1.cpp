@@ -11,6 +11,7 @@ import kernel.scheduler;
 import kernel.sync_unified;
 import kernel.sync_base;
 import kernel.wait_token;
+import kernel.event_token;
 import kernel.ipc;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
@@ -84,6 +85,15 @@ int main() {
 
     // Scenario 3: wait_timeout + timeout => timeout
     (void)sync.wait_timeout(consumer_id, kernel::WaitToken{3}, kernel::EventToken{running.schedule_at_token(Caps::TimeSource::now() + 1000, consumer_id, kernel::make_event(kernel::EventId::sync, static_cast<std::uint32_t>(kernel::WaitResult::timeout))).value});
+
+    // Scenario 4: wait_timeout + notify before due => ok
+    (void)sync.wait_timeout(consumer_id, kernel::WaitToken{4}, kernel::EventToken{running.schedule_at_token(Caps::TimeSource::now() + 2000, consumer_id, kernel::make_event(kernel::EventId::sync, static_cast<std::uint32_t>(kernel::WaitResult::timeout))).value});
+    (void)sync.notify_one(kernel::WaitResult::ok);
+
+    // Scenario 5: notify_all wakes two waiters
+    (void)sync.wait(consumer_id, kernel::WaitToken{5});
+    (void)sync.wait(consumer_id, kernel::WaitToken{6});
+    (void)sync.notify_all(kernel::WaitResult::ok);
 
     // Producer tick
     (void)running.schedule_at(Caps::TimeSource::now() + 1000, producer_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(1)));

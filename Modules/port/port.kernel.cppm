@@ -20,11 +20,12 @@ export namespace port {
             static Tick now() noexcept { return now_ms(); }
         };
         struct IrqGuard {
+            using Token = int;
             static int enter() noexcept {
                 irq_disable();
                 return 1;
             }
-            static void leave(int) noexcept {
+            static void leave(Token) noexcept {
                 irq_enable();
             }
         };

@@ -57,6 +57,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-Og -g3" CACHE STRING "" FORCE)
 #)
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
+        "../../Modules/*.cppm"
         "../app/*.cppm"
         "./*.cppm"
 )
@@ -80,7 +81,7 @@ target_sources(${CMAKE_PROJECT_NAME}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/../"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../.."
         FILES
             ${MODULE_INTERFACE_UNITS}
 )
@@ -98,15 +99,19 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
         OUT_ENABLE_FLOAT
 )
 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../.." "${CMAKE_BINARY_DIR}/Charm-ink")
-#target_compile_options(Charm-ink PRIVATE
-#        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions -fmodules-ts>
-#)
+if(NOT CHARM_MCU_KERNEL_DEMO)
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../.." "${CMAKE_BINARY_DIR}/Charm-ink")
+    #target_compile_options(Charm-ink PRIVATE
+    #        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions -fmodules-ts>
+    #)
+endif()
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-    Charm-ink
     # Add user defined libraries
 )
+if(NOT CHARM_MCU_KERNEL_DEMO)
+    target_link_libraries(${CMAKE_PROJECT_NAME} Charm-ink)
+endif()
 

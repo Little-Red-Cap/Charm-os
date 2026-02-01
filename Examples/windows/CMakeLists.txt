@@ -9,6 +9,7 @@ add_executable(${target_name}
         main_m1.cpp
 #        main_m2.cpp
 #        main_m3.cpp
+        port.kernel.windows.cpp
 )
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS

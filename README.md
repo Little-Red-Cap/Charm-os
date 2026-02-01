@@ -27,3 +27,15 @@
 ## M3 Optional
 - Draft/m3_observability_plan.md (observability/perf optional plan)
 
+
+## STM32 Demo
+- Location: `Examples/stm32f103c8`
+- Demo entry: `main_mcu_stub.cpp` (off by default)
+- Enable in CMake: `-DCHARM_MCU_KERNEL_DEMO=ON`
+- Port layer is chip-agnostic; STM32 binding is in `Core/Src/kernel.port.stm32.cpp`.
+
+## Platform Port
+- Interface: `Modules/port/port.kernel.cppm`
+- Template: `Modules/port/port.kernel.template.cpp`
+- Windows binding: `Examples/windows/port.kernel.windows.cpp`
+

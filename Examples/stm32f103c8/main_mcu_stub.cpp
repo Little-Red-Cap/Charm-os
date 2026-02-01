@@ -1,11 +1,13 @@
-﻿#include <cstddef>
+#include <cstddef>
 #include <cstdint>
+#include <utility>
 
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
+import port.kernel;
 
 namespace demo {
     struct Config : kernel::KernelConfig {
@@ -26,32 +28,14 @@ namespace demo {
     };
 }
 
-struct Caps {
-    struct TimeSource {
-        using Tick = std::uint32_t;
-        static Tick now() noexcept { return 0; }
-    };
-    struct IrqGuard {
-        static int enter() noexcept { return 0; }
-        static void leave(int) noexcept { }
-    };
-    struct Wakeup {
-        static void signal() noexcept { }
-    };
-    struct SwiTrigger {
-        static void trigger(std::size_t) noexcept { }
-    };
-};
-
-int main() {
+extern "C" void application() {
     using Registry = kernel::TaskRegistry<demo::TaskA, demo::TaskB>;
-    Registry registry{};
-    Caps caps{};
+    static auto running = []() {
+        static Registry registry{};
+        static port::KernelCaps caps{};
+        auto created = kernel::make_scheduler<demo::Config>(registry, caps);
+        return kernel::start(std::move(created));
+    }();
 
-    auto created = kernel::make_scheduler<demo::Config>(registry, caps);
-    auto running = kernel::start(std::move(created));
-    (void)running;
-
-    for (;;) {
-    }
+    (void)running.run_auto();
 }

@@ -29,6 +29,8 @@ include("cmake/gcc-arm-none-eabi.cmake")
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
+option(CHARM_MCU_KERNEL_DEMO "Use Charm kernel demo application" OFF)
+
 # Core project settings
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
@@ -59,10 +61,21 @@ file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "./*.cppm"
 )
 # Add sources to executable
+if(CHARM_MCU_KERNEL_DEMO)
+    set(APP_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/main_mcu_stub.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/kernel.port.stm32.cpp"
+    )
+else()
+    set(APP_SOURCES
+        Core/Src/application.cpp
+    )
+endif()
+
 target_sources(${CMAKE_PROJECT_NAME}
         PRIVATE
     # Add user sources here
-            Core/Src/application.cpp
+            ${APP_SOURCES}
 
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES

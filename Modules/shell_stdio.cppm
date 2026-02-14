@@ -12,7 +12,7 @@ export namespace shell {
     inline Result write(Console& c, std::string_view sv) noexcept {
         if (!c.write) return err(Errno::nosys);
         Buffer buf{sv.data(), sv.size()};
-        (void)c.write(buf);
+        (void)c.write(c.ctx, buf);
         return ok();
     }
 }

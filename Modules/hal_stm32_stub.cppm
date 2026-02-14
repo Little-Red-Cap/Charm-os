@@ -1,0 +1,43 @@
+module;
+
+#include <span>
+
+export module hal_stm32_stub;
+
+import hal_core;
+import hal_time;
+import hal_gpio;
+import hal_uart;
+import hal_timer;
+import util.core;
+
+// Stub implementations to keep the build/link pipeline working.
+export namespace hal::stm32_stub {
+    struct Time {
+        using Tick = tick_t;
+        static Tick now() noexcept { return 0; }
+    };
+
+    struct Delay {
+        static void delay_ms(tick_t) noexcept {}
+    };
+
+    struct Gpio {
+        static Result init(GpioPin, GpioConfig) noexcept { return ok(); }
+        static Result write(GpioPin, GpioLevel) noexcept { return ok(); }
+        static GpioLevel read(GpioPin) noexcept { return GpioLevel::low; }
+    };
+
+    struct Uart {
+        static Result init(UartHandle, UartConfig) noexcept { return ok(); }
+        static Result write(UartHandle, std::span<const util::u8>) noexcept { return ok(); }
+        static Result read(UartHandle, std::span<util::u8>) noexcept { return err(Status::unsupported); }
+    };
+
+    struct Timer {
+        static Result init(TimerHandle, TimerConfig) noexcept { return ok(); }
+        static Result start(TimerHandle) noexcept { return ok(); }
+        static Result stop(TimerHandle) noexcept { return ok(); }
+        static Result set_callback(TimerHandle, TimerCallback) noexcept { return ok(); }
+    };
+}

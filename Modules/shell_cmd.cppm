@@ -18,7 +18,8 @@ export namespace shell {
         std::string_view name{};
         Result (*run)(Console&, int, std::span<std::string_view>) noexcept { nullptr };
         std::string_view help{};
-        std::span<const Command> children{};
+        const Command* children{nullptr};
+        util::usize child_count{0};
         util::u32 caps_required{0};
     };
 
@@ -80,13 +81,14 @@ export namespace shell {
                 (void)write(con, cmd.help);
             }
             (void)write(con, "\n");
-            if (!cmd.children.empty()) {
+            if (cmd.children && cmd.child_count > 0) {
                 std::array<char, 64> next{};
                 const auto n = cmd.name.size() < next.size() - 2 ? cmd.name.size() : next.size() - 2;
                 std::memcpy(next.data(), cmd.name.data(), n);
                 next[n] = ' ';
                 next[n + 1] = '\0';
-                (void)emit_help(con, cmd.children, caps, std::string_view{next.data(), n + 1});
+                (void)emit_help(con, std::span<const Command>(cmd.children, cmd.child_count),
+                    caps, std::string_view{next.data(), n + 1});
             }
         }
         return ok();
@@ -105,11 +107,13 @@ export namespace shell {
                 (void)write(con, "permission denied\n");
                 return err(Errno::perm);
             }
-            if (!cmd.children.empty()) {
+            if (cmd.children && cmd.child_count > 0) {
                 if (argv.size() <= 1) {
-                    return emit_help(con, cmd.children, caps);
+                    return emit_help(con, std::span<const Command>(cmd.children, cmd.child_count), caps);
                 }
-                return run_argv(con, cmd.children, argv.subspan(1), caps);
+                return run_argv(con,
+                    std::span<const Command>(cmd.children, cmd.child_count),
+                    argv.subspan(1), caps);
             }
             if (cmd.run) {
                 return cmd.run(con, static_cast<int>(argv.size()), argv);

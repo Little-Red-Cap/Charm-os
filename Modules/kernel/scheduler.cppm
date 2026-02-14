@@ -439,14 +439,18 @@ export namespace kernel {
                             node->task,
                             node->event.id,
                             payload_u64(node->event),
-                            1
+                            1,
+                            TraceKind::event
                         };
                         const auto& data = trace_.data();
                         const auto head = trace_.head();
                         if (trace_.size() > 0) {
                             const auto last_idx = (head + Config::trace_capacity - 1) % Config::trace_capacity;
                             const auto& last = data[last_idx];
-                            if (last.task.value == rec.task.value && last.id == rec.id && last.payload == rec.payload) {
+                            if (last.task.value == rec.task.value
+                                && last.id == rec.id
+                                && last.payload == rec.payload
+                                && last.kind == rec.kind) {
                                 auto& mut = const_cast<TraceRecord<Tick>&>(data[last_idx]);
                                 mut.count += 1;
                             } else {
@@ -633,13 +637,14 @@ export namespace kernel {
                         offset += static_cast<std::size_t>(std::snprintf(
                         out + offset,
                         max - offset,
-                        "%s{\"t\":%llu,\"task\":%llu,\"id\":%u,\"payload\":%llu,\"count\":%u}",
+                        "%s{\"t\":%llu,\"task\":%llu,\"id\":%u,\"payload\":%llu,\"count\":%u,\"kind\":%u}",
                         i == 0 ? "" : ",",
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
                         static_cast<unsigned>(rec.id),
                         static_cast<unsigned long long>(rec.payload),
-                        static_cast<unsigned>(rec.count)));
+                        static_cast<unsigned>(rec.count),
+                        static_cast<unsigned>(rec.kind)));
                 }
                 offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "]"));
                 return offset;

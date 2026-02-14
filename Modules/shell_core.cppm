@@ -33,9 +33,14 @@ export namespace shell {
         util::usize size{0};
     };
 
-    using WriteFn = util::usize (*)(Buffer) noexcept;
+    using WriteFn = util::usize (*)(void*, Buffer) noexcept;
 
     struct Console {
+        void* ctx{nullptr};
         WriteFn write{nullptr};
     };
+
+    inline Console make_console(WriteFn fn, void* ctx = nullptr) noexcept {
+        return Console{ctx, fn};
+    }
 }

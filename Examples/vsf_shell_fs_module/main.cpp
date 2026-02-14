@@ -203,13 +203,21 @@ static shell::Result cmd_modinfo(shell::Console& con, int, std::span<std::string
     return shell::ok();
 }
 
-static const std::array<shell::Command, 7> cmds{{
+static const std::array<shell::Command, 5> fs_cmds{{
     {"write", &cmd_write, "write <path> <text>"},
     {"cat", &cmd_cat, "cat <path>"},
     {"rm", &cmd_rm, "rm <path>"},
     {"mv", &cmd_mv, "mv <from> <to>"},
     {"trunc", &cmd_trunc, "trunc <path> <size>"},
-    {"modinfo", &cmd_modinfo, "module demo info"},
+}};
+
+static const std::array<shell::Command, 1> mod_cmds{{
+    {"info", &cmd_modinfo, "module demo info"},
+}};
+
+static const std::array<shell::Command, 3> cmds{{
+    {"fs", nullptr, "filesystem commands", std::span<const shell::Command>(fs_cmds.data(), fs_cmds.size())},
+    {"mod", nullptr, "module commands", std::span<const shell::Command>(mod_cmds.data(), mod_cmds.size())},
     {"help",
      +[](shell::Console& c, int, std::span<std::string_view>) noexcept {
          return shell::emit_help(c, std::span<const shell::Command>(cmds.data(), cmds.size()));
@@ -232,13 +240,13 @@ int main() {
     shell::Console con = shell::make_console(&console_write);
     (void)shell::write(con, "[shell] fs+module demo\n");
     (void)shell::run_line<8>(con, cmds, "help");
-    (void)shell::run_line<8>(con, cmds, "write /demo.txt \"hello modulex\"");
-    (void)shell::run_line<8>(con, cmds, "cat /demo.txt");
-    (void)shell::run_line<8>(con, cmds, "trunc /demo.txt 5");
-    (void)shell::run_line<8>(con, cmds, "cat /demo.txt");
-    (void)shell::run_line<8>(con, cmds, "mv /demo.txt /moved.txt");
-    (void)shell::run_line<8>(con, cmds, "cat /moved.txt");
-    (void)shell::run_line<8>(con, cmds, "rm /moved.txt");
-    (void)shell::run_line<8>(con, cmds, "modinfo");
+    (void)shell::run_line<8>(con, cmds, "fs write /demo.txt \"hello modulex\"");
+    (void)shell::run_line<8>(con, cmds, "fs cat /demo.txt");
+    (void)shell::run_line<8>(con, cmds, "fs trunc /demo.txt 5");
+    (void)shell::run_line<8>(con, cmds, "fs cat /demo.txt");
+    (void)shell::run_line<8>(con, cmds, "fs mv /demo.txt /moved.txt");
+    (void)shell::run_line<8>(con, cmds, "fs cat /moved.txt");
+    (void)shell::run_line<8>(con, cmds, "fs rm /moved.txt");
+    (void)shell::run_line<8>(con, cmds, "mod info");
     return 0;
 }

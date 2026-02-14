@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <compare>
 #include <tuple>
 #include <type_traits>
 

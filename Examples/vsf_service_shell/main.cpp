@@ -11,6 +11,8 @@ import service_trace;
 import service_json;
 import shell_core;
 import shell_stdio;
+import shell_cmd;
+import shell_stream;
 
 struct TestStream {
     std::array<char, 64> buf{};
@@ -36,9 +38,27 @@ struct TestStream {
     }
 };
 
-static util::usize console_write(shell::Buffer buf) noexcept {
+static util::usize console_write(void*, shell::Buffer buf) noexcept {
     return std::fwrite(buf.data, 1, buf.size, stdout);
 }
+
+static const std::array<shell::Command, 2> cmds{{
+    {"echo",
+     +[](shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
+         for (int i = 1; i < argc; ++i) {
+             (void)shell::write(con, argv[static_cast<std::size_t>(i)]);
+             if (i + 1 < argc) (void)shell::write(con, " ");
+         }
+         (void)shell::write(con, "\n");
+         return shell::ok();
+     },
+     "echo arguments"},
+    {"help",
+     +[](shell::Console& c, int, std::span<std::string_view>) noexcept {
+         return shell::emit_help(c, std::span<const shell::Command>(cmds.data(), cmds.size()));
+     },
+     "show help"},
+}};
 
 int main() {
     service::RingBuffer<int, 4> rb;
@@ -55,8 +75,18 @@ int main() {
     (void)json.write_kv("v", 42);
     (void)json.push('}');
 
-    shell::Console con{&console_write};
+    shell::Console con = shell::make_console(&console_write);
     (void)shell::write(con, "[shell] ok\n");
+
+    (void)shell::run_line<8>(con, cmds, "echo hello shell");
+    (void)shell::run_line<8>(con, cmds, "echo \"hello quoted world\"");
+    (void)shell::run_line<8>(con, cmds, "echo \"hello \\\"escape\\\" world\"");
+    (void)shell::run_line<8>(con, cmds, "help");
+
+    TestStream ts{};
+    shell::StreamConsole<TestStream> sc{&ts};
+    auto scon = sc.make();
+    (void)shell::write(scon, "[shell] stream console ok\n");
 
     return 0;
 }

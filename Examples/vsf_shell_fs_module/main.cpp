@@ -216,8 +216,8 @@ static const std::array<shell::Command, 1> mod_cmds{{
 }};
 
 static const std::array<shell::Command, 3> cmds{{
-    {"fs", nullptr, "filesystem commands", std::span<const shell::Command>(fs_cmds.data(), fs_cmds.size())},
-    {"mod", nullptr, "module commands", std::span<const shell::Command>(mod_cmds.data(), mod_cmds.size())},
+    {"fs", nullptr, "filesystem commands", fs_cmds.data(), fs_cmds.size()},
+    {"mod", nullptr, "module commands", mod_cmds.data(), mod_cmds.size()},
     {"help",
      +[](shell::Console& c, int, std::span<std::string_view>) noexcept {
          return shell::emit_help(c, std::span<const shell::Command>(cmds.data(), cmds.size()));

@@ -21,7 +21,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set the project name
-set(CMAKE_PROJECT_NAME vivid-example-stm32)
+set(CMAKE_PROJECT_NAME os-example-stm32)
 
 # Include toolchain file
 include("cmake/gcc-arm-none-eabi.cmake")

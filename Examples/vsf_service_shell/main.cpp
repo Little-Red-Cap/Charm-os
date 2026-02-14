@@ -87,6 +87,12 @@ int main() {
     shell::StreamConsole<TestStream> sc{&ts};
     auto scon = sc.make();
     (void)shell::write(scon, "[shell] stream console ok\n");
+    std::printf("[shell] stream bytes=%zu\n", ts.pos);
+
+    service::BufferedStream<TestStream, 16> buffered{ts};
+    (void)service::write(buffered, "buffered stream");
+    (void)buffered.flush();
+    std::printf("[shell] buffered bytes=%zu\n", ts.pos);
 
     return 0;
 }

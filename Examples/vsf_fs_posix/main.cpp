@@ -43,5 +43,25 @@ int main() {
     if (r < 0) return 1;
 
     std::printf("[fs_posix] %s\n", buf);
+    std::printf("[fs_posix] clock=%u\n", Posix::clock_ms());
+    Posix::sleep_ms(1);
+
+    Posix::Mutex mtx{};
+    (void)Posix::mutex_init(mtx);
+    (void)Posix::mutex_lock(mtx);
+    (void)Posix::mutex_unlock(mtx);
+
+    Posix::Sem sem{};
+    (void)Posix::sem_init(sem, 1);
+    (void)Posix::sem_wait(sem);
+    (void)Posix::sem_post(sem);
+
+    Posix::Pipe pipe{};
+    (void)Posix::pipe_create(pipe);
+    const char* pmsg = "pipe";
+    (void)Posix::pipe_write(pipe, pmsg, std::strlen(pmsg));
+    char pbuf[8]{};
+    (void)Posix::pipe_read(pipe, pbuf, sizeof(pbuf));
+    std::printf("[fs_posix] pipe=%s\n", pbuf);
     return 0;
 }

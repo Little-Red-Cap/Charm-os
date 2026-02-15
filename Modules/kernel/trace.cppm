@@ -68,26 +68,30 @@ export namespace kernel {
         void observe(const TraceRecord<Tick>& rec) noexcept {
             switch (rec.kind) {
             case TraceKind::event:
-                ++totals_.events;
+                trace::observe_totals(totals_, TraceKind::event);
                 break;
             case TraceKind::counter:
-                ++totals_.counters;
+                trace::observe_totals(totals_, TraceKind::counter);
+                break;
+            case TraceKind::counter_delta:
+                trace::observe_totals(totals_, TraceKind::counter_delta);
                 break;
             case TraceKind::span_begin:
-                ++totals_.span_begin;
+                trace::observe_totals(totals_, TraceKind::span_begin);
                 in_span_ = true;
                 last_span_begin_ = rec.time;
                 break;
             case TraceKind::span_end:
-                ++totals_.span_end;
                 if (in_span_) {
                     const auto dur = rec.time - last_span_begin_;
-                    totals_.span_total += static_cast<util::u64>(dur);
-                    if (static_cast<util::u64>(dur) > totals_.span_max) {
-                        totals_.span_max = static_cast<util::u64>(dur);
-                    }
+                    trace::observe_totals(totals_, TraceKind::span_end, static_cast<util::u64>(dur));
                     in_span_ = false;
+                } else {
+                    trace::observe_totals(totals_, TraceKind::span_end);
                 }
+                break;
+            case TraceKind::span_pair:
+                trace::observe_totals(totals_, TraceKind::span_pair, rec.payload);
                 break;
             }
         }

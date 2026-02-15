@@ -9,12 +9,19 @@ import util.core;
 
 export namespace modulex {
     constexpr util::u32 k_magic = 0x43484D4D; // 'CHMM'
-    constexpr util::u16 k_version = 1;
+    constexpr util::u16 k_version = 2;
 
     enum class RelocType : util::u32 {
         none = 0,
         abs_addr = 1,
         rel32 = 2
+    };
+
+    enum class ImageFlags : util::u16 {
+        none = 0,
+        xip_text = 1 << 0,
+        xip_ro = 1 << 1,
+        xip_data = 1 << 2
     };
 
     struct ImageHeader {
@@ -37,6 +44,7 @@ export namespace modulex {
         util::u32 bss_size{0};
         util::u32 rel_size{0};
         util::u32 sym_size{0};
+        util::u32 image_size{0};
     };
 
     struct Reloc {

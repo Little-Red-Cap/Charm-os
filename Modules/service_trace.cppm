@@ -60,6 +60,7 @@ export namespace service {
         bool used{false};
         util::u32 events{0};
         util::u32 counters{0};
+        util::u32 counter_delta{0};
         util::u32 spans{0};
         util::u32 event_count{0};
         util::u64 counter_value{0};
@@ -72,6 +73,7 @@ export namespace service {
         util::u32 span_count{0};
         util::u64 span_total{0};
         util::u64 span_max{0};
+        util::u32 span_pair{0};
     };
 
     template <typename Tick, util::usize MaxIds>
@@ -89,12 +91,12 @@ export namespace service {
             auto& stat = find_or_alloc(rec.id);
             switch (rec.kind) {
             case TraceKind::event:
-                ++totals_.events;
+                trace::observe_totals(totals_, TraceKind::event);
                 ++stat.events;
                 ++stat.event_count;
                 break;
             case TraceKind::counter:
-                ++totals_.counters;
+                trace::observe_totals(totals_, TraceKind::counter);
                 ++stat.counters;
                 stat.counter_value = rec.payload;
                 stat.counter_sum += rec.payload;
@@ -103,25 +105,44 @@ export namespace service {
                 }
                 if (rec.payload > stat.counter_max) stat.counter_max = rec.payload;
                 break;
+            case TraceKind::counter_delta:
+                trace::observe_totals(totals_, TraceKind::counter_delta);
+                ++stat.counters;
+                ++stat.counter_delta;
+                stat.counter_value += rec.payload;
+                stat.counter_sum += rec.payload;
+                if (stat.counters == 1 || stat.counter_value < stat.counter_min) {
+                    stat.counter_min = stat.counter_value;
+                }
+                if (stat.counter_value > stat.counter_max) stat.counter_max = stat.counter_value;
+                break;
             case TraceKind::span_begin:
-                ++totals_.span_begin;
+                trace::observe_totals(totals_, TraceKind::span_begin);
                 ++stat.spans;
                 stat.in_span = true;
                 stat.last_span_begin = rec.time;
                 break;
             case TraceKind::span_end:
-                ++totals_.span_end;
                 if (stat.in_span) {
                     stat.in_span = false;
                     stat.last_span_duration = rec.time - stat.last_span_begin;
                     stat.span_total += stat.last_span_duration;
                     if (stat.last_span_duration > stat.span_max) stat.span_max = stat.last_span_duration;
-                    totals_.span_total += static_cast<util::u64>(stat.last_span_duration);
-                    if (static_cast<util::u64>(stat.last_span_duration) > totals_.span_max) {
-                        totals_.span_max = static_cast<util::u64>(stat.last_span_duration);
-                    }
+                    trace::observe_totals(totals_, TraceKind::span_end,
+                        static_cast<util::u64>(stat.last_span_duration));
                     ++stat.span_count;
+                } else {
+                    trace::observe_totals(totals_, TraceKind::span_end);
                 }
+                break;
+            case TraceKind::span_pair:
+                ++stat.spans;
+                ++stat.span_pair;
+                stat.last_span_duration = static_cast<Tick>(rec.payload);
+                stat.span_total += stat.last_span_duration;
+                if (stat.last_span_duration > stat.span_max) stat.span_max = stat.last_span_duration;
+                trace::observe_totals(totals_, TraceKind::span_pair, static_cast<util::u64>(rec.payload));
+                ++stat.span_count;
                 break;
             }
         }

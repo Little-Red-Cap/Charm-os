@@ -29,4 +29,17 @@ export namespace hal {
     struct ClockInfo {
         util::u32 hz{0};
     };
+
+    struct DefaultCaps {
+        struct TimeSource {
+            using Tick = tick_t;
+            static Tick now() noexcept { return 0; }
+        };
+        struct DelayProvider {
+            static void delay_ms(tick_t) noexcept {}
+        };
+        struct SleepProvider {
+            static void sleep_ms(tick_t) noexcept {}
+        };
+    };
 }

@@ -13,6 +13,8 @@ import fs_vfs;
 import fs_core;
 import fs_stream;
 import fs_errno;
+import hal_core;
+import hal_time;
 
 export namespace shell_posix {
     enum OpenFlags : int {
@@ -34,7 +36,7 @@ export namespace shell_posix {
         fs::File file{};
     };
 
-    template <std::size_t MaxFd>
+    template <std::size_t MaxFd, typename Caps = hal::DefaultCaps>
     class PosixApi {
     public:
         static int open(const char* path) noexcept {
@@ -127,6 +129,20 @@ export namespace shell_posix {
             return static_cast<int>(file.node.offset);
         }
 
+        static std::uint32_t clock_ms() noexcept {
+            return static_cast<std::uint32_t>(Caps::TimeSource::now());
+        }
+
+        static void sleep_ms(std::uint32_t ms) noexcept {
+            if constexpr (hal::SleepProvider<typename Caps::SleepProvider>) {
+                Caps::SleepProvider::sleep_ms(static_cast<hal::tick_t>(ms));
+            } else if constexpr (hal::DelayProvider<typename Caps::DelayProvider>) {
+                Caps::DelayProvider::delay_ms(static_cast<hal::tick_t>(ms));
+            } else {
+                (void)ms;
+            }
+        }
+
         static int unlink(const char* path) noexcept {
             if (!path) return -static_cast<int>(fs::Err::inval);
             auto st = fs::vfs_unlink(path);
@@ -146,6 +162,83 @@ export namespace shell_posix {
             auto st = fs::vfs_truncate(path, size);
             if (!st) return static_cast<int>(st.err);
             return 0;
+        }
+
+        struct Mutex {
+            bool locked{false};
+        };
+
+        static int mutex_init(Mutex& m) noexcept {
+            m.locked = false;
+            return 0;
+        }
+
+        static int mutex_lock(Mutex& m) noexcept {
+            if (m.locked) return -static_cast<int>(fs::Err::busy);
+            m.locked = true;
+            return 0;
+        }
+
+        static int mutex_unlock(Mutex& m) noexcept {
+            if (!m.locked) return -static_cast<int>(fs::Err::inval);
+            m.locked = false;
+            return 0;
+        }
+
+        struct Sem {
+            std::int32_t count{0};
+        };
+
+        static int sem_init(Sem& s, std::int32_t v) noexcept {
+            s.count = v;
+            return 0;
+        }
+
+        static int sem_post(Sem& s) noexcept {
+            ++s.count;
+            return 0;
+        }
+
+        static int sem_wait(Sem& s) noexcept {
+            if (s.count <= 0) return -static_cast<int>(fs::Err::again);
+            --s.count;
+            return 0;
+        }
+
+        struct Pipe {
+            std::array<util::u8, 64> buf{};
+            util::usize head{0};
+            util::usize tail{0};
+            util::usize size{0};
+        };
+
+        static int pipe_create(Pipe& p) noexcept {
+            p.head = 0;
+            p.tail = 0;
+            p.size = 0;
+            return 0;
+        }
+
+        static int pipe_write(Pipe& p, const void* data, std::size_t n) noexcept {
+            const auto* in = reinterpret_cast<const util::u8*>(data);
+            for (std::size_t i = 0; i < n; ++i) {
+                if (p.size >= p.buf.size()) return static_cast<int>(i);
+                p.buf[p.tail] = in[i];
+                p.tail = (p.tail + 1) % p.buf.size();
+                ++p.size;
+            }
+            return static_cast<int>(n);
+        }
+
+        static int pipe_read(Pipe& p, void* out, std::size_t n) noexcept {
+            auto* dst = reinterpret_cast<util::u8*>(out);
+            std::size_t read = 0;
+            while (read < n && p.size > 0) {
+                dst[read++] = p.buf[p.head];
+                p.head = (p.head + 1) % p.buf.size();
+                --p.size;
+            }
+            return static_cast<int>(read);
         }
 
     private:

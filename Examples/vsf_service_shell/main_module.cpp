@@ -64,6 +64,7 @@ int main() {
     img.hdr.str_size = static_cast<util::u32>(sizeof(img.strtab));
     img.hdr.dep_offset = static_cast<util::u32>(offsetof(DemoImage, deps));
     img.hdr.dep_size = static_cast<util::u32>(sizeof(img.deps));
+    img.hdr.image_size = static_cast<util::u32>(sizeof(DemoImage));
 
     img.rels[0].offset = static_cast<util::u32>(offsetof(DemoImage, data_entry));
     img.rels[0].type = modulex::RelocType::abs_addr;

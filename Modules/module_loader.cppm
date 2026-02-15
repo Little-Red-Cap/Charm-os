@@ -7,6 +7,7 @@
 export module module_loader;
 
 import module_core;
+import module_view;
 import util.core;
 
 export namespace modulex {
@@ -62,6 +63,32 @@ export namespace modulex {
                 ? (base + img->dep_offset)
                 : (str_base + img->str_size);
             const auto dep_count = static_cast<util::u32>(img->dep_size / sizeof(Dependency));
+            return {true, entry, reinterpret_cast<const Symbol*>(sym_base), sym_count, reader,
+                    reinterpret_cast<const Dependency*>(dep_base), dep_count};
+        }
+
+        static LoadResult load(const ImageView& view) noexcept {
+            const auto bases = default_bases(view);
+            return load(view, bases);
+        }
+
+        static LoadResult load(const ImageView& view, const SegmentBases& bases) noexcept {
+            const auto status = validate(view);
+            if (!status.ok) {
+                return {false, 0};
+            }
+            const auto& img = *view.header;
+            const auto base = reinterpret_cast<util::usize>(view.base);
+            const auto entry = bases.text_base + img.entry_offset;
+            const auto sym_base = base + layout_sym(img);
+            const auto sym_count = static_cast<util::u32>(img.sym_size / sizeof(Symbol));
+            SymReader reader{};
+            reader.img = &img;
+            const auto str_base = base + layout_str(img);
+            reader.strtab = reinterpret_cast<const char*>(str_base);
+            reader.str_size = img.str_size;
+            const auto dep_base = base + layout_dep(img);
+            const auto dep_count = static_cast<util::u32>(img.dep_size / sizeof(Dependency));
             return {true, entry, reinterpret_cast<const Symbol*>(sym_base), sym_count, reader,
                     reinterpret_cast<const Dependency*>(dep_base), dep_count};
         }

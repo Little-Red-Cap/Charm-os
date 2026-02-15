@@ -16,6 +16,7 @@ export namespace fs {
     enum class NodeType : util::u8 { file, dir, device };
 
     struct Node;
+    struct Mount;
 
     struct NodeOps {
         Status (*read)(Node&, std::span<util::u8>) noexcept { nullptr };
@@ -34,9 +35,8 @@ export namespace fs {
 
     struct File {
         Node node{};
+        Mount* mount{nullptr};
     };
-
-    struct Mount;
 
     struct MountOps {
         Status (*open)(std::string_view path, File&) noexcept { nullptr };
@@ -45,12 +45,33 @@ export namespace fs {
         Status (*unlink)(Mount*, std::string_view path) noexcept { nullptr };
         Status (*rename)(Mount*, std::string_view from, std::string_view to) noexcept { nullptr };
         Status (*truncate)(Mount*, std::string_view path, util::u64 size) noexcept { nullptr };
+        Status (*mkdir)(Mount*, std::string_view path) noexcept { nullptr };
+        struct ListEntry {
+            std::string_view name{};
+            NodeType type{NodeType::file};
+            util::u64 size{0};
+        };
+        using ListFn = Status (*)(void* ctx, const ListEntry& entry) noexcept;
+        Status (*list)(Mount*, std::string_view path, void* ctx, ListFn fn) noexcept { nullptr };
     };
 
     struct Mount {
         MountOps* ops{nullptr};
         void* data{nullptr};
+        bool dirty{false};
     };
+
+    inline void mark_dirty(Mount* m) noexcept {
+        if (m) m->dirty = true;
+    }
+
+    inline void clear_dirty(Mount* m) noexcept {
+        if (m) m->dirty = false;
+    }
+
+    [[nodiscard]] inline bool is_dirty(const Mount* m) noexcept {
+        return m && m->dirty;
+    }
 
     inline Status read(File& f, std::span<util::u8> buf) noexcept {
         if (!f.node.ops || !f.node.ops->read) return Status{Err::nosys};
@@ -74,6 +95,7 @@ export namespace fs {
             }
             if (f.node.offset > f.node.size) f.node.size = f.node.offset;
         }
+        if (st) mark_dirty(f.mount);
         return st;
     }
 

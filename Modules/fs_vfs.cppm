@@ -63,10 +63,23 @@ export namespace fs {
             if (g_mounts[i].prefix == pre) {
                 auto* m = g_mounts[i].mount;
                 if (!m || !m->ops || !m->ops->flush) return Status{Err::nosys};
-                return m->ops->flush(m);
+                auto st = m->ops->flush(m);
+                if (st) clear_dirty(m);
+                return st;
             }
         }
         return Status{Err::noent};
+    }
+
+    inline bool vfs_is_dirty(std::string_view prefix) noexcept {
+        auto norm = normalize(prefix);
+        std::string_view pre{norm.data, norm.size};
+        for (std::size_t i = 0; i < g_mount_count; ++i) {
+            if (g_mounts[i].prefix == pre) {
+                return is_dirty(g_mounts[i].mount);
+            }
+        }
+        return false;
     }
 
     inline Status vfs_unmount(std::string_view prefix, bool force = false) noexcept {
@@ -134,7 +147,11 @@ export namespace fs {
         std::string_view rest = p.substr(prefix.size());
         auto rest_norm = normalize(rest);
         std::string_view rest_view{rest_norm.data, rest_norm.size};
-        return chosen->ops->open(rest_view, f);
+        auto st = chosen->ops->open(rest_view, f);
+        if (st) {
+            f.mount = chosen;
+        }
+        return st;
     }
 
     inline Status vfs_unlink(std::string_view path) noexcept {
@@ -146,7 +163,9 @@ export namespace fs {
         std::string_view rest = p.substr(prefix.size());
         auto rest_norm = normalize(rest);
         std::string_view rest_view{rest_norm.data, rest_norm.size};
-        return chosen->ops->unlink(chosen, rest_view);
+        auto st = chosen->ops->unlink(chosen, rest_view);
+        if (st) mark_dirty(chosen);
+        return st;
     }
 
     inline Status vfs_truncate(std::string_view path, util::u64 size) noexcept {
@@ -158,7 +177,23 @@ export namespace fs {
         std::string_view rest = p.substr(prefix.size());
         auto rest_norm = normalize(rest);
         std::string_view rest_view{rest_norm.data, rest_norm.size};
-        return chosen->ops->truncate(chosen, rest_view, size);
+        auto st = chosen->ops->truncate(chosen, rest_view, size);
+        if (st) mark_dirty(chosen);
+        return st;
+    }
+
+    inline Status vfs_mkdir(std::string_view path) noexcept {
+        std::string_view prefix{};
+        auto* chosen = find_mount(path, prefix);
+        if (!chosen || !chosen->ops || !chosen->ops->mkdir) return Status{Err::nosys};
+        auto norm = normalize(path);
+        std::string_view p{norm.data, norm.size};
+        std::string_view rest = p.substr(prefix.size());
+        auto rest_norm = normalize(rest);
+        std::string_view rest_view{rest_norm.data, rest_norm.size};
+        auto st = chosen->ops->mkdir(chosen, rest_view);
+        if (st) mark_dirty(chosen);
+        return st;
     }
 
     inline Status vfs_rename(std::string_view from, std::string_view to) noexcept {
@@ -179,6 +214,21 @@ export namespace fs {
         std::string_view rest_to = pto.substr(prefix_to.size());
         auto rest_to_norm = normalize(rest_to);
         std::string_view rest_to_view{rest_to_norm.data, rest_to_norm.size};
-        return src->ops->rename(src, rest_from_view, rest_to_view);
+        auto st = src->ops->rename(src, rest_from_view, rest_to_view);
+        if (st) mark_dirty(src);
+        return st;
+    }
+
+    inline Status vfs_list(std::string_view path, void* ctx, MountOps::ListFn fn) noexcept {
+        if (!fn) return Status{Err::inval};
+        std::string_view prefix{};
+        auto* chosen = find_mount(path, prefix);
+        if (!chosen || !chosen->ops || !chosen->ops->list) return Status{Err::nosys};
+        auto norm = normalize(path);
+        std::string_view p{norm.data, norm.size};
+        std::string_view rest = p.substr(prefix.size());
+        auto rest_norm = normalize(rest);
+        std::string_view rest_view{rest_norm.data, rest_norm.size};
+        return chosen->ops->list(chosen, rest_view, ctx, fn);
     }
 }

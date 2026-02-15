@@ -167,6 +167,27 @@ export namespace fs {
             return Status{Err::ok};
         }
 
+        Status list(std::string_view path, void* ctx, MountOps::ListFn fn) noexcept {
+            if (!fn) return Status{Err::inval};
+            util::usize dir_idx = root_index;
+            auto st = resolve_dir(path, dir_idx);
+            if (!st) return st;
+            for (const auto& f : files_) {
+                if (!f.used || f.parent != dir_idx) continue;
+                MountOps::ListEntry entry{};
+                entry.name = f.name();
+                entry.type = f.is_dir ? NodeType::dir : NodeType::file;
+                entry.size = f.is_dir ? 0 : static_cast<util::u64>(f.size);
+                st = fn(ctx, entry);
+                if (!st) return st;
+            }
+            return Status{Err::ok};
+        }
+
+        Status mkdir_mount(std::string_view path) noexcept {
+            return mkdir(path);
+        }
+
         Status read(Node& n, std::span<util::u8> buf) noexcept {
             auto* fe = static_cast<FileEntry*>(n.data);
             return read_impl(fe, n, buf);
@@ -213,6 +234,27 @@ export namespace fs {
             }
             parent_out = cur_idx;
             leaf_out = base;
+            return Status{Err::ok};
+        }
+
+        Status resolve_dir(std::string_view path, util::usize& dir_out) noexcept {
+            auto norm = normalize(path);
+            auto trimmed = rstrip_seps(norm);
+            if (trimmed.size == 0) {
+                dir_out = root_index;
+                return Status{Err::ok};
+            }
+            PathView pv{trimmed.data, trimmed.size};
+            util::usize cur_idx = root_index;
+            while (pv.size > 0) {
+                auto [head, rest] = split_first(pv);
+                if (head.size == 0) return Status{Err::inval};
+                auto* fe = find_child(cur_idx, head);
+                if (!fe || !fe->is_dir) return Status{Err::noent};
+                cur_idx = static_cast<util::usize>(fe - files_.data());
+                pv = rest;
+            }
+            dir_out = cur_idx;
             return Status{Err::ok};
         }
 

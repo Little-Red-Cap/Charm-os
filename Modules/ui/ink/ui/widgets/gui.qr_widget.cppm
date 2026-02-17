@@ -12,6 +12,8 @@ import gui.core;
 import gui.qr_encode;
 
 export namespace gui::qr {
+    using alg::qr::Encoder;
+    using alg::qr::EncoderState;
     constexpr std::int16_t kMaxSize = 33;
     constexpr std::int16_t kMaxStride = (kMaxSize + 7) / 8;
 
@@ -45,7 +47,7 @@ export namespace gui::qr {
 
     template <class R>
     void draw_qr(R& r,
-                 const Rect& rc,
+                 const ::gui::Rect& rc,
                  std::span<const std::uint8_t> buffer,
                  std::int16_t size,
                  bool on = true) noexcept
@@ -72,7 +74,7 @@ export namespace gui::qr {
                 if ((data >> bit_index) & 0x1) {
                     const int px = x0 + x * scale;
                     const int py = y0 + y * scale;
-                    r.fillRect(Rect{(std::int16_t)px, (std::int16_t)py,
+                    r.fillRect(::gui::Rect{(std::int16_t)px, (std::int16_t)py,
                                     (std::int16_t)scale, (std::int16_t)scale}, on);
                 }
             }
@@ -92,7 +94,7 @@ export namespace gui::qr {
         }
 
         template <class R>
-        void draw(R& r, const Rect& rc, bool on = true) const noexcept
+        void draw(R& r, const ::gui::Rect& rc, bool on = true) const noexcept
         {
             if (!valid || size <= 0) return;
             draw_qr(r, rc, std::span<const std::uint8_t>{buffer.data(), buffer.size()}, size, on);

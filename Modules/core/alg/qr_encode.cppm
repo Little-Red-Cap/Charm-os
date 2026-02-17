@@ -74,39 +74,16 @@ inline thread_local State* current_state = nullptr;
 inline State& state() noexcept { return *current_state; }
 inline State* set_current(State* st) noexcept { State* prev = current_state; current_state = st; return prev; }
 inline void restore_current(State* prev) noexcept { current_state = prev; }
-
-#define symbol_size (state().symbol_size)
-#define module_data_buf (state().module_data_buf)
-#define data_codeword_bit (state().data_codeword_bit)
-#define data_codewords_buf (state().data_codewords_buf)
-#define data_block_count (state().data_block_count)
-#define block_modes_buf (state().block_modes_buf)
-#define block_lengths_buf (state().block_lengths_buf)
-#define all_codeword_count (state().all_codeword_count)
-#define all_codewords_buf (state().all_codewords_buf)
-#define rs_work_buf (state().rs_work_buf)
-#define qr_level (state().qr_level)
-#define qr_version (state().qr_version)
-#define auto_extent (state().auto_extent)
-#define masking_no (state().masking_no)
-inline std::uint8_t& module_at(int x, int y) noexcept { return module_data_buf[x][y]; }
-inline bool module_reserved(int x, int y) noexcept { return (module_at(x, y) & 0x20) != 0; }
-inline void module_set(int x, int y, std::uint8_t v) noexcept { module_at(x, y) = v; }
-inline auto data_codewords() noexcept -> std::span<std::uint8_t> { return {data_codewords_buf, kMaxDataCodeword}; }
-inline auto block_modes() noexcept -> std::span<std::uint8_t> { return {block_modes_buf, kMaxDataCodeword}; }
-inline auto block_lengths() noexcept -> std::span<std::uint8_t> { return {block_lengths_buf, kMaxDataCodeword}; }
-inline auto all_codewords() noexcept -> std::span<std::uint8_t> { return {all_codewords_buf, (std::size_t)all_codeword_count}; }
-inline auto rs_work() noexcept -> std::span<std::uint8_t> { return {rs_work_buf, kMaxCodeBlock}; }
 struct rs_block_info
 {
 	std::uint16_t rs_block_count;
-	std::uint16_t all_codeword_count;
+	std::uint16_t total_codeword_count;
 	std::uint16_t data_codeword_count;
 };
 struct qr_version_info
 {
 	std::uint16_t version_id;
-	std::uint16_t all_codeword_count;
+	std::uint16_t total_codeword_count;
 	std::uint16_t data_codeword_count[4];
 	std::uint16_t align_point_count;
 	std::uint16_t align_points_buf[6];
@@ -125,7 +102,7 @@ bool is_chinese_data(std::uint8_t c1, std::uint8_t c2);
 std::uint8_t	 alphabet_to_binary(std::uint8_t c);
 std::uint16_t kanji_to_binary(std::uint16_t wc);
 std::uint16_t chinese_to_binary(std::uint16_t wc);
-void get_rs_codeword(std::uint8_t	 *rs_work_buf, int data_codeword_count, int rs_codeword_count);
+void get_rs_codeword(std::uint8_t	 *rs_work_buffer, int data_codeword_count, int rs_codeword_count);
 void format_module();
 void set_function_module();
 void set_finder_pattern(int x, int y);
@@ -900,6 +877,27 @@ const qr_version_info qr_version_info_data[] = {
         }
     }
 };
+
+#define symbol_size (state().symbol_size)
+#define module_data_buf (state().module_data_buf)
+#define data_codeword_bit (state().data_codeword_bit)
+#define data_codewords_buf (state().data_codewords_buf)
+#define data_block_count (state().data_block_count)
+#define all_codeword_count (state().all_codeword_count)
+#define all_codewords_buf (state().all_codewords_buf)
+#define rs_work_buf (state().rs_work_buf)
+#define qr_level (state().qr_level)
+#define qr_version (state().qr_version)
+#define auto_extent (state().auto_extent)
+#define masking_no (state().masking_no)
+inline std::uint8_t& module_at(int x, int y) noexcept { return module_data_buf[x][y]; }
+inline bool module_reserved(int x, int y) noexcept { return (module_at(x, y) & 0x20) != 0; }
+inline void module_set(int x, int y, std::uint8_t v) noexcept { module_at(x, y) = v; }
+inline auto data_codewords() noexcept -> std::span<std::uint8_t> { return {data_codewords_buf, kMaxDataCodeword}; }
+inline auto block_modes() noexcept -> std::span<std::uint8_t> { return {state().block_modes_buf, kMaxDataCodeword}; }
+inline auto block_lengths() noexcept -> std::span<std::uint8_t> { return {state().block_lengths_buf, kMaxDataCodeword}; }
+inline auto all_codewords() noexcept -> std::span<std::uint8_t> { return {all_codewords_buf, (std::size_t)all_codeword_count}; }
+inline auto rs_work() noexcept -> std::span<std::uint8_t> { return {rs_work_buf, kMaxCodeBlock}; }
 const std::uint8_t exp_to_int_table_data[] = {
       1,   2,   4,   8,  16,  32,  64, 128,  29,  58, 116, 232, 205, 135,  19,  38,
      76, 152,  45,  90, 180, 117, 234, 201, 143,   3,   6,  12,  24,  48,  96, 192,
@@ -1065,7 +1063,7 @@ bool                                    encode_data(char *source)
 		data_cw[i]    = padding_code;
 		padding_code = (std::uint8_t)(padding_code == 0xec ? 0x11 : 0xec);
 	}
-        all_codeword_count = qr_version_info_data[qr_version].all_codeword_count;
+        all_codeword_count = qr_version_info_data[qr_version].total_codeword_count;
 	auto all_cw = all_codewords();
 	auto rs_buf = rs_work();
 	std::fill(all_cw.begin(), all_cw.end(), 0);
@@ -1090,8 +1088,8 @@ bool                                    encode_data(char *source)
 		}
 		++block_no;
 	}
-	const int rs_cw_count1 = qr_version_info_data[qr_version].rs_block_info1[qr_level].all_codeword_count - data_cw_count1;
-	const int rs_cw_count2 = qr_version_info_data[qr_version].rs_block_info2[qr_level].all_codeword_count - data_cw_count2;
+	const int rs_cw_count1 = qr_version_info_data[qr_version].rs_block_info1[qr_level].total_codeword_count - data_cw_count1;
+	const int rs_cw_count2 = qr_version_info_data[qr_version].rs_block_info2[qr_level].total_codeword_count - data_cw_count2;
 	data_cw_index      = 0;
 	block_no          = 0;
 	for (block_no = 0; block_no < rs_block_count1; ++block_no) {
@@ -1141,9 +1139,9 @@ int encode_source_data(char *source, int source_len, int ver_group)
 	int           block     = 0;
 	int           complete_len = 0;
 	std::uint16_t bin_code;
-	auto block_modes_buf = block_modes();
-	auto block_lengths_buf = block_lengths();
-	std::fill(block_lengths_buf.begin(), block_lengths_buf.end(), 0);
+	auto block_modes_view = block_modes();
+	auto block_lengths_view = block_lengths();
+	std::fill(block_lengths_view.begin(), block_lengths_view.end(), 0);
 	data_block_count = 0;
 	for (auto i : std::views::iota(0, source_len)) {
 		std::uint8_t byMode;
@@ -1156,39 +1154,39 @@ int encode_source_data(char *source, int source_len, int ver_group)
 		else
 			byMode = k_qr_mode_8bit;
 		if (i == 0)
-			block_modes_buf[0] = byMode;
-		if (block_modes_buf[data_block_count] != byMode)
-			block_modes_buf[++data_block_count] = byMode;
-		++block_lengths_buf[data_block_count];
+			block_modes_view[0] = byMode;
+		if (block_modes_view[data_block_count] != byMode)
+			block_modes_view[++data_block_count] = byMode;
+		++block_lengths_view[data_block_count];
 		if (byMode == k_qr_mode_kanji) {
-			++block_lengths_buf[data_block_count];
+			++block_lengths_view[data_block_count];
 			++i;
 		}
 	}
 	++data_block_count;
 	while (block < data_block_count - 1) {
-		if ((block_modes_buf[block] == k_qr_mode_numeral && block_modes_buf[block + 1] == k_qr_mode_alphabet) ||
-			(block_modes_buf[block] == k_qr_mode_alphabet && block_modes_buf[block + 1] == k_qr_mode_numeral)) {
-			src_bits = get_bit_length(block_modes_buf[block], block_lengths_buf[block], ver_group) +
-				get_bit_length(block_modes_buf[block + 1], block_lengths_buf[block + 1], ver_group);
-			dst_bits = get_bit_length(k_qr_mode_alphabet, block_lengths_buf[block] + block_lengths_buf[block + 1], ver_group);
+		if ((block_modes_view[block] == k_qr_mode_numeral && block_modes_view[block + 1] == k_qr_mode_alphabet) ||
+			(block_modes_view[block] == k_qr_mode_alphabet && block_modes_view[block + 1] == k_qr_mode_numeral)) {
+			src_bits = get_bit_length(block_modes_view[block], block_lengths_view[block], ver_group) +
+				get_bit_length(block_modes_view[block + 1], block_lengths_view[block + 1], ver_group);
+			dst_bits = get_bit_length(k_qr_mode_alphabet, block_lengths_view[block] + block_lengths_view[block + 1], ver_group);
 			if (src_bits > dst_bits) {
 				int join_position = 0;
 				int join_front;
 				int join_behind;
-				if (block >= 1 && block_modes_buf[block - 1] == k_qr_mode_8bit) {
-					join_front = get_bit_length(k_qr_mode_8bit, block_lengths_buf[block - 1] + block_lengths_buf[block],
+				if (block >= 1 && block_modes_view[block - 1] == k_qr_mode_8bit) {
+					join_front = get_bit_length(k_qr_mode_8bit, block_lengths_view[block - 1] + block_lengths_view[block],
 					                           ver_group) +
-						get_bit_length(block_modes_buf[block + 1], block_lengths_buf[block + 1], ver_group);
-					if (join_front > dst_bits + get_bit_length(k_qr_mode_8bit, block_lengths_buf[block - 1], ver_group))
+						get_bit_length(block_modes_view[block + 1], block_lengths_view[block + 1], ver_group);
+					if (join_front > dst_bits + get_bit_length(k_qr_mode_8bit, block_lengths_view[block - 1], ver_group))
 						join_front = 0;
 				}
 				else
 					join_front = 0;
-				if (block < data_block_count - 2 && block_modes_buf[block + 2] == k_qr_mode_8bit) {
-					join_behind = get_bit_length(block_modes_buf[block], block_lengths_buf[block], ver_group) +
-						get_bit_length(k_qr_mode_8bit, block_lengths_buf[block + 1] + block_lengths_buf[block + 2], ver_group);
-					if (join_behind > dst_bits + get_bit_length(k_qr_mode_8bit, block_lengths_buf[block + 2], ver_group))
+				if (block < data_block_count - 2 && block_modes_view[block + 2] == k_qr_mode_8bit) {
+					join_behind = get_bit_length(block_modes_view[block], block_lengths_view[block], ver_group) +
+						get_bit_length(k_qr_mode_8bit, block_lengths_view[block + 1] + block_lengths_view[block + 2], ver_group);
+					if (join_behind > dst_bits + get_bit_length(k_qr_mode_8bit, block_lengths_view[block + 2], ver_group))
 						join_behind = 0;
 				}
 				else
@@ -1201,43 +1199,43 @@ int encode_source_data(char *source, int source_len, int ver_group)
 				}
 				if (join_position != 0) {
 					if (join_position == -1) {
-						block_lengths_buf[block - 1] += block_lengths_buf[block];
+						block_lengths_view[block - 1] += block_lengths_view[block];
 						for (auto i = block; i < data_block_count - 1; ++i) {
-							block_modes_buf[i]  = block_modes_buf[i + 1];
-							block_lengths_buf[i] = block_lengths_buf[i + 1];
+							block_modes_view[i]  = block_modes_view[i + 1];
+							block_lengths_view[i] = block_lengths_view[i + 1];
 						}
 					}
 					else {
-						block_modes_buf[block + 1]  = k_qr_mode_8bit;
-						block_lengths_buf[block + 1] += block_lengths_buf[block + 2];
+						block_modes_view[block + 1]  = k_qr_mode_8bit;
+						block_lengths_view[block + 1] += block_lengths_view[block + 2];
 						for (auto i = block + 2; i < data_block_count - 1; ++i) {
-							block_modes_buf[i]  = block_modes_buf[i + 1];
-							block_lengths_buf[i] = block_lengths_buf[i + 1];
+							block_modes_view[i]  = block_modes_view[i + 1];
+							block_lengths_view[i] = block_lengths_view[i + 1];
 						}
 					}
 					--data_block_count;
 				}
 				else {
-					if (block < data_block_count - 2 && block_modes_buf[block + 2] == k_qr_mode_alphabet) {
-						block_lengths_buf[block + 1] += block_lengths_buf[block + 2];
+					if (block < data_block_count - 2 && block_modes_view[block + 2] == k_qr_mode_alphabet) {
+						block_lengths_view[block + 1] += block_lengths_view[block + 2];
 						for (auto i = block + 2; i < data_block_count - 1; ++i) {
-							block_modes_buf[i]  = block_modes_buf[i + 1];
-							block_lengths_buf[i] = block_lengths_buf[i + 1];
+							block_modes_view[i]  = block_modes_view[i + 1];
+							block_lengths_view[i] = block_lengths_view[i + 1];
 						}
 						--data_block_count;
 					}
-					block_modes_buf[block]  = k_qr_mode_alphabet;
-					block_lengths_buf[block] += block_lengths_buf[block + 1];
+					block_modes_view[block]  = k_qr_mode_alphabet;
+					block_lengths_view[block] += block_lengths_view[block + 1];
 					for (auto i = block + 1; i < data_block_count - 1; ++i) {
-						block_modes_buf[i]  = block_modes_buf[i + 1];
-						block_lengths_buf[i] = block_lengths_buf[i + 1];
+						block_modes_view[i]  = block_modes_view[i + 1];
+						block_lengths_view[i] = block_lengths_view[i + 1];
 					}
 					--data_block_count;
-					if (block >= 1 && block_modes_buf[block - 1] == k_qr_mode_alphabet) {
-						block_lengths_buf[block - 1] += block_lengths_buf[block];
+					if (block >= 1 && block_modes_view[block - 1] == k_qr_mode_alphabet) {
+						block_lengths_view[block - 1] += block_lengths_view[block];
 						for (auto i = block; i < data_block_count - 1; ++i) {
-							block_modes_buf[i]  = block_modes_buf[i + 1];
-							block_lengths_buf[i] = block_lengths_buf[i + 1];
+							block_modes_view[i]  = block_modes_view[i + 1];
+							block_lengths_view[i] = block_lengths_view[i + 1];
 						}
 						--data_block_count;
 					}
@@ -1249,36 +1247,36 @@ int encode_source_data(char *source, int source_len, int ver_group)
 	}
 	block = 0;
 	while (block < data_block_count - 1) {
-		src_bits = get_bit_length(block_modes_buf[block], block_lengths_buf[block], ver_group)
-			+ get_bit_length(block_modes_buf[block + 1], block_lengths_buf[block + 1], ver_group);
-		dst_bits = get_bit_length(k_qr_mode_8bit, block_lengths_buf[block] + block_lengths_buf[block + 1], ver_group);
-		if (block >= 1 && block_modes_buf[block - 1] == k_qr_mode_8bit)
+		src_bits = get_bit_length(block_modes_view[block], block_lengths_view[block], ver_group)
+			+ get_bit_length(block_modes_view[block + 1], block_lengths_view[block + 1], ver_group);
+		dst_bits = get_bit_length(k_qr_mode_8bit, block_lengths_view[block] + block_lengths_view[block + 1], ver_group);
+		if (block >= 1 && block_modes_view[block - 1] == k_qr_mode_8bit)
 			dst_bits -= (4 + indicator_len_8bit[ver_group]);
-		if (block < data_block_count - 2 && block_modes_buf[block + 2] == k_qr_mode_8bit)
+		if (block < data_block_count - 2 && block_modes_view[block + 2] == k_qr_mode_8bit)
 			dst_bits -= (4 + indicator_len_8bit[ver_group]);
 		if (src_bits > dst_bits) {
-			if (block >= 1 && block_modes_buf[block - 1] == k_qr_mode_8bit) {
-				block_lengths_buf[block - 1] += block_lengths_buf[block];
+			if (block >= 1 && block_modes_view[block - 1] == k_qr_mode_8bit) {
+				block_lengths_view[block - 1] += block_lengths_view[block];
 				for (auto i = block; i < data_block_count - 1; ++i) {
-					block_modes_buf[i]  = block_modes_buf[i + 1];
-					block_lengths_buf[i] = block_lengths_buf[i + 1];
+					block_modes_view[i]  = block_modes_view[i + 1];
+					block_lengths_view[i] = block_lengths_view[i + 1];
 				}
 				--data_block_count;
 				--block;
 			}
-			if (block < data_block_count - 2 && block_modes_buf[block + 2] == k_qr_mode_8bit) {
-				block_lengths_buf[block + 1] += block_lengths_buf[block + 2];
+			if (block < data_block_count - 2 && block_modes_view[block + 2] == k_qr_mode_8bit) {
+				block_lengths_view[block + 1] += block_lengths_view[block + 2];
 				for (auto i = block + 2; i < data_block_count - 1; ++i) {
-					block_modes_buf[i]  = block_modes_buf[i + 1];
-					block_lengths_buf[i] = block_lengths_buf[i + 1];
+					block_modes_view[i]  = block_modes_view[i + 1];
+					block_lengths_view[i] = block_lengths_view[i + 1];
 				}
 				--data_block_count;
 			}
-			block_modes_buf[block]  = k_qr_mode_8bit;
-			block_lengths_buf[block] += block_lengths_buf[block + 1];
+			block_modes_view[block]  = k_qr_mode_8bit;
+			block_lengths_view[block] += block_lengths_view[block + 1];
 			for (auto i = block + 1; i < data_block_count - 1; ++i) {
-				block_modes_buf[i]  = block_modes_buf[i + 1];
-				block_lengths_buf[i] = block_lengths_buf[i + 1];
+				block_modes_view[i]  = block_modes_view[i + 1];
+				block_lengths_view[i] = block_lengths_view[i + 1];
 			}
 			--data_block_count;
 			if (block >= 1)
@@ -1292,39 +1290,39 @@ int encode_source_data(char *source, int source_len, int ver_group)
 	for (auto i : std::views::iota(0, data_block_count)) {
 		if (data_codeword_bit == -1)
 			break;
-		if (block_modes_buf[i] == k_qr_mode_numeral) {
+		if (block_modes_view[i] == k_qr_mode_numeral) {
 			data_codeword_bit = set_bit_stream(data_codeword_bit, 1, 4);
-			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_buf[i],
+			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_view[i],
 			                                   indicator_len_numeral[ver_group]);
-			for (auto j : std::views::iota(0, (int)block_lengths_buf[i])) {
+			for (auto j : std::views::iota(0, (int)block_lengths_view[i])) {
 				if ((j % 3) != 0)
 					continue;
-				if (j < block_lengths_buf[i] - 2) {
+				if (j < block_lengths_view[i] - 2) {
 					bin_code = (std::uint16_t)(((source[complete_len + j] - '0') * 100) +
 						((source[complete_len + j + 1] - '0') * 10) +
 						(source[complete_len + j + 2] - '0'));
 					data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 10);
 				}
-				else if (j == block_lengths_buf[i] - 2) {
+				else if (j == block_lengths_view[i] - 2) {
 					bin_code = (std::uint16_t)(((source[complete_len + j] - '0') * 10) +
 						(source[complete_len + j + 1] - '0'));
 					data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 7);
 				}
-				else if (j == block_lengths_buf[i] - 1) {
+				else if (j == block_lengths_view[i] - 1) {
 					bin_code            = (std::uint16_t)(source[complete_len + j] - '0');
 					data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 4);
 				}
 			}
-			complete_len += block_lengths_buf[i];
+			complete_len += block_lengths_view[i];
 		}
-		else if (block_modes_buf[i] == k_qr_mode_alphabet) {
+		else if (block_modes_view[i] == k_qr_mode_alphabet) {
 			data_codeword_bit = set_bit_stream(data_codeword_bit, 2, 4);
-			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_buf[i],
+			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_view[i],
 			                                   indicator_len_alphabet[ver_group]);
-			for (auto j : std::views::iota(0, (int)block_lengths_buf[i])) {
+			for (auto j : std::views::iota(0, (int)block_lengths_view[i])) {
 				if ((j % 2) != 0)
 					continue;
-				if (j < block_lengths_buf[i] - 1) {
+				if (j < block_lengths_view[i] - 1) {
 					bin_code = (std::uint16_t)((alphabet_to_binary(source[complete_len + j]) * 45) +
 						alphabet_to_binary(source[complete_len + j + 1]));
 					data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 11);
@@ -1334,28 +1332,28 @@ int encode_source_data(char *source, int source_len, int ver_group)
 					data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 6);
 				}
 			}
-			complete_len += block_lengths_buf[i];
+			complete_len += block_lengths_view[i];
 		}
-		else if (block_modes_buf[i] == k_qr_mode_8bit) {
+		else if (block_modes_view[i] == k_qr_mode_8bit) {
 			data_codeword_bit = set_bit_stream(data_codeword_bit, 4, 4);
-			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_buf[i],
+			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)block_lengths_view[i],
 			                                   indicator_len_8bit[ver_group]);
-			for (auto j : std::views::iota(0, (int)block_lengths_buf[i])) {
+			for (auto j : std::views::iota(0, (int)block_lengths_view[i])) {
 				data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)source[complete_len + j], 8);
 			}
-			complete_len += block_lengths_buf[i];
+			complete_len += block_lengths_view[i];
 		}
 		else {
 			data_codeword_bit = set_bit_stream(data_codeword_bit, 8, 4);
-			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)(block_lengths_buf[i] / 2),
+			data_codeword_bit = set_bit_stream(data_codeword_bit, (std::uint16_t)(block_lengths_view[i] / 2),
 			                                   indicator_len_kanji[ver_group]);
-			for (auto j : std::views::iota(0, (int)(block_lengths_buf[i] / 2))) {
+			for (auto j : std::views::iota(0, (int)(block_lengths_view[i] / 2))) {
 				bin_code = kanji_to_binary(
 					(std::uint16_t)(((std::uint8_t)source[complete_len + (j * 2)] << 8) + (std::uint8_t)source[
 						complete_len + (j * 2) + 1]));
 				data_codeword_bit = set_bit_stream(data_codeword_bit, bin_code, 13);
 			}
-			complete_len += block_lengths_buf[i];
+			complete_len += block_lengths_view[i];
 		}
 	}
 	return (data_codeword_bit != -1);
@@ -1460,24 +1458,24 @@ std::uint16_t chinese_to_binary(std::uint16_t wc)
 	}
 	return (std::uint16_t)((((wc >> 8) - 0xa6) * 0x60) + ((wc & 0x00ff) - 0xa1));
 }
-void get_rs_codeword(std::uint8_t *rs_work_buf, int data_codeword_count, int rs_codeword_count)
+void get_rs_codeword(std::uint8_t *rs_work_buffer, int data_codeword_count, int rs_codeword_count)
 {
 	const auto exp_table = rs_exp_table[rs_codeword_count];
 	for (int remaining = data_codeword_count; remaining > 0; --remaining) {
-		if (rs_work_buf[0] != 0) {
-			std::uint8_t exp_first = int_to_exp_table[rs_work_buf[0]];
+		if (rs_work_buffer[0] != 0) {
+			std::uint8_t exp_first = int_to_exp_table[rs_work_buffer[0]];
 			int          j         = 0;
 			for (std::uint8_t exp : exp_table) {
 				std::uint8_t exp_element = (std::uint8_t)((exp + exp_first) % 255);
-				rs_work_buf[j]            = (std::uint8_t)(rs_work_buf[j + 1] ^ exp_to_int_table[exp_element]);
+				rs_work_buffer[j]            = (std::uint8_t)(rs_work_buffer[j + 1] ^ exp_to_int_table[exp_element]);
 				++j;
 			}
 			for (auto j : std::views::iota(rs_codeword_count, data_codeword_count + rs_codeword_count - 1))
-				rs_work_buf[j] = rs_work_buf[j + 1];
+				rs_work_buffer[j] = rs_work_buffer[j + 1];
 		}
 		else {
 			for (auto j : std::views::iota(0, data_codeword_count + rs_codeword_count - 1))
-				rs_work_buf[j] = rs_work_buf[j + 1];
+				rs_work_buffer[j] = rs_work_buffer[j + 1];
 		}
 	}
 }
@@ -1865,8 +1863,6 @@ void print_2d_code()
 #undef data_codeword_bit
 #undef data_codewords_buf
 #undef data_block_count
-#undef block_modes_buf
-#undef block_lengths_buf
 #undef all_codeword_count
 #undef all_codewords_buf
 #undef rs_work_buf

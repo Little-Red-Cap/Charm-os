@@ -6,6 +6,7 @@ module;
 #include <cstdio>
 #include <cmath>
 #include <cstring>
+#include <expected>
 #include <span>
 #include <string_view>
 
@@ -17,6 +18,7 @@ import gui.layout;
 import gui.font;
 import gui.chart_scope;
 import gui.image_1bpp;
+import out.core;
 import out.format;
 
 namespace gui::detail

@@ -411,15 +411,19 @@ sequenceDiagram
 
 **实测 baseline（FLAC@44.1kHz）**
 - `cb_frames≈441`（period≈10ms）
-- `water range≈50..106ms`
 - `underrun=0`
+- `water range≈40..200ms`（启动峰值≈200ms，稳态≈40..140ms）
 
 ### 3) 推荐参数表
 
 **A) 稳定优先（默认）**
 - `low_water_ms = 40ms`（≈ 4 * period）
-- `high_water_ms = 120~150ms`（≈ 12~15 * period）
-- `chunk_frames = 4096`（≈ 92.9ms @44.1k）
+- `high_water_ms = 150ms`（启动预填目标 / Buffering→Playing 阈值）
+- `chunk_frames = 4410`（≈ 100ms @44.1k）
+
+稳定档 baseline（含预填）：
+- 启动预填峰值：`water_peak≈200ms`
+- 稳态水位范围：`water_range≈40..140ms`
 
 **B) 延迟优先（当前实测接近）**
 - `low_water_ms = 30~40ms`
@@ -450,7 +454,7 @@ water_ms = water_bytes / bytes_per_ms
 | Profile                 | low_water_ms | high_water_ms | chunk_ms (≈) | FIFO capacity (ms) | 适用场景 |
 | ----------------------- | -----------: | ------------: | -----------: | -----------------: | -------- |
 | Low-latency             |           40 |           120 |       ~40–50 |            **200** | PC 交互、快速响应、underrun 已稳定为 0 |
-| Stable-default          |           40 |           150 |      ~80–100 |            **300** | 默认工程配置、IO/调度偶发抖动更抗 |
+| Stable-default          |           40 |           150 |      ~100    |            **300** | 默认工程配置、IO/调度偶发抖动更抗 |
 | Extra-stable (optional) |        50–80 |           200 |         ~100 |            **500** | 极端 IO 抖动、网络/大缓存需求（非首选） |
 
 推导规则（便于移植）：
@@ -713,3 +717,351 @@ private:
 - `high_water_ms` 不宜过大，否则 Buffering->Playing 语义会变弱。
 - `chunk_frames` 越大波动越大但 refill 次数更少；越小延迟更低但 refill 更频繁。
 - FIFO 容量建议至少 `>= high_water + 2*chunk`（以 frames 或 ms 维度计算），避免 refill 溢出。
+
+---
+
+## 回归/基准（Profiles + 示例输出）
+
+### 1) Low-latency 示例（可复现行为）
+
+推荐参数：
+- `low=25~30ms`
+- `high=110~120ms`（用于启动预填/语义阈值）
+- `chunk≈40ms`（≈ 4×period）
+- `fifo=200ms`
+
+示例命令：
+
+```bash
+sdl3-wav-demo --profile lowlat --stress 5 --seconds 6 sample.flac
+```
+
+预期特征：
+- water 更低（如 20..70ms 区间）
+- refill 更频繁
+- 延迟更低，抗抖动能力略弱于 stable
+
+### 2) 回归样本格式（字段顺序固定）
+
+> Regression sample（stable, stress=5ms, 6s, 44.1kHz FLAC）
+
+```text
+[audio] profile=stable stress_ms=5 seconds=6 file=sample.flac
+[audio] fmt=44100Hz 2ch s16 period=10ms cb_frames=441 low/high/chunk=40/150/100ms
+[audio] expect: underrun=0, water_steady≈40..140ms
+t=1.0s rate=44100 cb_frames=441 cb_dt(ms)=9.56/10.01/21.20 water(ms)=0..200 underrun=0 refill=11 refill_ms=0.19/0.27/0.33
+```
+
+> Regression sample（lowlat, stress=5ms, 6s, 44.1kHz FLAC）
+
+```text
+[audio] profile=lowlat stress_ms=5 seconds=6 file=sample.flac
+[audio] fmt=44100Hz 2ch s16 period=10ms cb_frames=441 low/high/chunk=40/120/40ms
+[audio] expect: underrun=0, water_steady≈40..80ms
+t=1.0s rate=44100 cb_frames=441 cb_dt(ms)=9.96/9.90/10.06 water(ms)=0..120 underrun=0 refill=27 refill_ms=0.04/0.14/0.92
+```
+
+> Regression sample（lowlat, fixed-rate=48k, stress=5ms, 6s, 44.1kHz FLAC）
+
+```text
+[audio] profile=lowlat fixed_rate=48000 stress_ms=5 seconds=6 file=sample.flac
+[audio] fmt=44100Hz->48000Hz 2ch s16 period=10ms cb_frames=480 low/high/chunk=40/120/40ms
+[audio] expect: underrun=0, water_steady≈40..80ms
+t=1.0s rate=48000 cb_frames=480 cb_dt(ms)=9.34/9.90/10.63 water(ms)=0..120 underrun=0 refill=27 refill_ms=0.07/0.14/0.27
+```
+
+> Regression sample（stable, force-mono=1, follow-input, 6s, 44.1kHz FLAC）
+
+```text
+[audio] input_rate=44100 output_rate=44100 in_ch=2 out_ch=1 profile=stable
+[audio] expect: underrun=0, cb_frames≈441, force-mono=1
+t=1.0s rate=44100 cb_frames=441 cb_dt(ms)=9.47/10.01/21.11 water(ms)=0..200 underrun=0 refill=11 refill_ms=0.06/0.18/0.30
+```
+
+> Regression sample（stable, force-mono=1, fixed-rate=48k, 6s, 44.1kHz FLAC）
+
+```text
+[audio] input_rate=44100 output_rate=48000 in_ch=2 out_ch=1 profile=stable
+[audio] expect: underrun=0, cb_frames≈480, force-mono=1
+t=1.0s rate=48000 cb_frames=480 cb_dt(ms)=9.50/10.02/21.11 water(ms)=0..160 underrun=0 refill=13 refill_ms=0.09/0.25/0.68
+```
+
+用途：
+- 以后改 SRC/Player/动态重配时，按同一命令输出对比即可判断是否退化。
+
+---
+
+## 动态重配与格式协商（format_changed / output reconfigure）
+
+### 目标
+
+- PC/MCU 同构行为（SDL3 callback == I2S DMA ISR）
+- 实时路径不变（回调/ISR 只做 FIFO 拉取 + 不足补零 + underrun 计数/flag）
+- 重配在非实时线程事务化执行：stop → flush → (reopen) → prefill → start
+- 可选：重配后 fade-in，降低爆音概率（非实时路径执行）
+
+---
+
+### 触发场景
+
+- format_changed（decoder 报告输入格式变化）
+- OutputMode 变化（FollowInput ↔ FixedRate）
+- 曲目切换 / seek 触发的 decoder 重建
+- 用户通过控制接口显式触发重配（demo/测试）
+
+---
+
+### 重配事务（Reconfigure Transaction）
+
+重配在事件线程/Player 线程执行，必须满足以下顺序：
+
+1) Stop（停止输出）
+- sink.stop() 或 pause，确保后续不会再进入 FillCallback
+
+2) Flush（清理状态）
+- fifo.clear()
+- underrun_flag.exchange(false)（清 underrun 标志）
+- reset/flush pipeline（decoder flush 或 close+open）
+- 若启用 FixedRate：resampler.reset()
+
+3) Reopen（如需）
+当输出 AudioFormat 发生变化（rate/channels/sample_type）时：
+- sink.close() → sink.open(new_cfg) → sink.set_fill_callback(...)
+
+4) Prefill（启动预填）
+- 进入 Buffering
+- 循环 refill：decode(S32) → (SRC S32, optional) → quantize(S32→S16) → write FIFO
+- 直到 water_ms >= high_water_ms（high 作为“启动预填阈值/Buffering→Playing 语义阈值”）
+
+5) Start（恢复输出）
+- sink.start()
+- 状态进入 Playing
+
+6) Optional Fade-in（可选淡入）
+- 在 quantize 前对 S32 乘 ramp（0→1，持续 fade_in_ms）
+- 必须在非实时路径执行，回调/ISR 不参与
+
+---
+
+### 实测验证（Timed Reconfigure Demo）
+
+提供 CLI 触发路径，用于端到端验证重配事务在回调压力下可稳定执行。
+
+CLI 参数
+- --reconfig-at SEC：到时触发重配（秒）
+- --reconfig-fixed-rate N：切换输出采样率，0 表示 FollowInput
+- --reconfig-fade-in MS：重配后淡入时长
+
+示例命令（FollowInput → FixedRate=48k）
+
+```bash
+sdl3-wav-demo --profile stable --seconds 8 --stress 5 \
+  --reconfig-at 3 --reconfig-fixed-rate 48000 --reconfig-fade-in 10 \
+  sample.flac
+```
+
+示例日志（实测）
+
+```
+[reconfig] begin at 3.00s fixed_rate=48000 fade_in=10
+[reconfig] done in 90.69ms out_rate=48000 cb_frames=480 peak=160ms
+```
+
+反向切换示例（FixedRate → FollowInput）
+
+```
+[reconfig] begin at 3.00s fixed_rate=0 fade_in=10
+[reconfig] done in 90.89ms out_rate=44100 cb_frames=441 peak=160ms
+```
+
+判定标准
+- underrun 在重配前后保持为 0（或不出现持续增长）
+- prefill 峰值 peak >= high_water_ms（例如 high=150ms，peak≈160ms）
+- 输出回调帧数随 out_rate 变化（44.1k→cb≈441；48k→cb≈480）
+
+---
+
+### 约束与注意事项
+
+- 重配事务必须在非实时线程执行；禁止在 FillCallback/ISR 内触发 stop/reopen/flush/seek
+- 事务失败必须进入安全状态（sink 已 stop，资源可释放），并向上报告错误
+- water(ms) 换算必须使用 output_rate（FIFO 存的是输出 S16）
+
+---
+
+## 格式协商错误路径与回退策略
+
+### 目标
+
+- 任意失败都保证：回调不再读失效资源、FIFO 状态可控、状态机可预测
+- 支持“可回退失败”的事务化处理
+
+---
+
+### 失败分类（最小覆盖）
+
+可回退失败：
+- sink.open 失败（设备不可用/格式不支持）
+- SRC 初始化失败（参数非法/内存不足）
+- channel convert 不支持（>2ch）
+- decoder.open 失败（格式不支持/损坏）
+
+不可回退失败：
+- 持续 IO 错误（连续读失败）
+- 内部一致性错误（bad_state）
+
+---
+
+### 事务化错误处理（二阶段建议）
+
+阶段 1：Prepare（尽量不打断播放）
+- 计算新 output_fmt
+- 初始化/检查：SRC、channel convert、输出格式合法性
+- Prepare 失败：不改变现有播放，返回错误
+
+阶段 2：Commit（实际切换）
+- stop → flush → reopen → prefill → start
+
+Commit 任一步失败 → Rollback：
+- 确保 sink 已 stop
+- FIFO 清空（避免残留噪音）
+- 释放/复位新管线资源
+- 进入 Error（或 Idle，由上层策略决定）
+
+---
+
+### Demo 故障注入（仅测试）
+
+- --fail-reconfig-open：在重配时模拟 open 失败
+
+期望结果：
+- sink 停止，FIFO 清空
+- Player 进入 Error 或 Idle
+- underrun 不持续增长
+
+---
+
+## TODO（音频主线后续补齐）
+
+### TODO-1：not_supported + --force-mono=2 最小验证（demo-only）
+
+目标
+- 覆盖 mono→stereo upmix（1→2）
+- 覆盖不支持声道（>2ch）触发 not_supported 并走安全事务
+
+建议实现
+- CLI：
+  - --force-in-ch N（注入输入声道数）
+  - --force-out-ch N 或沿用 --force-mono 2
+- 用例：
+  - --force-in-ch 1 --force-mono 2：验证 upmix
+  - --force-in-ch 6：验证 not_supported（进入 Error，sink stopped）
+
+验收
+- upmix：underrun=0
+- not_supported：打印 Errc::not_supported，并且 stop→flush→Error 可复现
+
+---
+
+### TODO-2：声道 >2 的回退策略（实现层）
+
+目标
+- 当 decoder 报告 in_ch>2 时：按文档策略安全落地，并支持可选回退
+
+建议策略
+- 默认：stop→flush→Error（最安全）
+- 可选：若处于 Playing 且 reconfig 是“尝试切换输出模式”，rollback 到上一可用配置（需二阶段缓存）
+
+验收
+- 任意时刻触发都不崩、不死锁
+- 回调不读取失效资源
+- 日志可诊断（建议 ext 编码 in/out ch）
+
+---
+
+## 声道变化退化策略（mono ↔ stereo）
+
+### 目标
+
+- 输入声道数变化时保证事务化重配仍成立（stop→flush→reopen→prefill→start）
+- 实时路径不变（回调/ISR 只拉 FIFO S16）
+- 声道转换在非实时路径、S32 域完成（与 SRC/量化解耦）
+
+---
+
+### 支持范围（MVP）
+
+| 输入 channels | 输出 channels | 支持 | 策略 |
+| ----------: | ----------: | :-: | ---- |
+| 1 | 1 | ✅ | 直通 |
+| 2 | 2 | ✅ | 直通 |
+| 1 | 2 | ✅ | Upmix：复制到 L/R |
+| 2 | 1 | ✅ | Downmix：(L+R)/2 |
+| >2 | 任意 | ❌ | not_supported |
+| 任意 | >2 | ❌ | not_supported |
+
+说明：MVP 阶段只做 mono/stereo。未来需要 5.1/7.1 时再扩展矩阵与权重。
+
+---
+
+### 处理位置（与 SRC/量化的相对顺序）
+
+FollowInput（输出跟随输入）：
+
+```
+Decoder(S32 @ in_rate, in_ch)
+  -> ChannelConvert(S32 @ in_rate, out_ch)
+  -> Quantize(S32->S16)
+  -> FIFO(S16 @ out_rate=in_rate, out_ch)
+  -> Sink(out_rate, out_ch)
+```
+
+FixedRate（输出固定采样率，例如 48k）：
+
+```
+Decoder(S32 @ in_rate, in_ch)
+  -> ChannelConvert(S32 @ in_rate, out_ch)
+  -> SRC(S32 @ in_rate -> out_rate)
+  -> Quantize(S32->S16)
+  -> FIFO(S16 @ out_rate, out_ch)
+  -> Sink(out_rate, out_ch)
+```
+
+注：MVP 先固定此顺序，避免组合爆炸；未来引入 Mixer 后再讨论放置位置。
+
+---
+
+### 最小实现规则（S32 interleaved）
+
+Upmix（1→2）：
+- 输入：[m0, m1, ...]
+- 输出：[m0, m0, m1, m1, ...]
+
+Downmix（2→1）：
+- 输入：[L0, R0, L1, R1, ...]
+- 输出：[(L0+R0)/2, (L1+R1)/2, ...]
+- 64-bit 中间量避免溢出：
+  - s = (int64_t)L + (int64_t)R
+  - y = clamp(s/2)
+
+---
+
+### not_supported 的落地路径
+
+当输入/输出声道不在支持范围（例如 >2ch）：
+
+1) 进入重配事务（非实时线程）
+2) sink.stop()（确保回调停止）
+3) fifo.clear()，清 underrun 标志
+4) 返回 Errc::not_supported（可带 ext=channels）
+5) state = Error（或回到 Idle，由上层策略决定）
+
+关键：失败也必须安全停输出，禁止“半重配”后继续播放。
+
+---
+
+### 回归/测试建议（可选）
+
+- 若短期内无真实 mono 文件，可提供 --force-mono 测试开关（仅 demo）：
+  - 在 ChannelConvert 阶段强制 2→1 或 1→2
+  - 验证重配事务与水位/underrun 行为不退化

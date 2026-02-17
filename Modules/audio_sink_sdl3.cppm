@@ -108,6 +108,10 @@ export namespace audio {
             return underrun_flag_.exchange(0, std::memory_order_acq_rel) != 0;
         }
 
+        void clear_underrun_flag() noexcept {
+            underrun_flag_.store(0, std::memory_order_relaxed);
+        }
+
         CallbackStats callback_stats() const noexcept {
             CallbackStats out{};
             out.count = cb_count_.load(std::memory_order_relaxed);

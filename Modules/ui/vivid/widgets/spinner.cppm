@@ -33,9 +33,9 @@ public:
 
         // animated spinner: draw 8 short arcs with alpha falloff
         for (int i = 0; i < 8; ++i) {
-            const float base = static_cast<float>(i) * 3.14159f / 4.0f + phase_;
+            const float base = static_cast<float>(i) * alg::arc::kPi / 4.0f + phase_;
             const float a0 = base;
-            const float a1 = base + 3.14159f / 12.0f;
+            const float a1 = base + alg::arc::kPi / 12.0f;
             const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius, a0);
             const auto p1 = alg::arc::point_on_circle_rad(cx, cy, radius - thickness_, a1);
             rgba seg = col;

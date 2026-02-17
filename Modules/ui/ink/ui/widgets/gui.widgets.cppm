@@ -324,8 +324,8 @@ export namespace gui
         int rad = (rc.w / 2);
         if (rc.h < rad) rad = rc.h;
         if (rad < 4) rad = 4;
-        const float a0 = 3.14159265f * 0.75f;
-        const float a1 = 3.14159265f * 0.25f;
+        const float a0 = alg::arc::kPi * 0.75f;
+        const float a1 = alg::arc::kPi * 0.25f;
         draw_arc(r, cx, cy, rad, a0, a1, on);
         draw_arc(r, cx, cy, rad - 1, a0, a1, on);
         for (int i = 0; i <= 4; ++i) {
@@ -471,8 +471,8 @@ export namespace gui
         if (rad < 4) rad = 4;
         draw_circle(r, cx, cy, rad, on);
         draw_circle(r, cx, cy, rad - 1, on);
-        const float a0 = 3.14159265f * 0.75f;
-        const float a1 = 3.14159265f * 2.25f;
+        const float a0 = alg::arc::kPi * 0.75f;
+        const float a1 = alg::arc::kPi * 2.25f;
         for (int i = 0; i < 6; ++i) {
             const float t = (float)i / 5.0f;
             const float a = a0 + (a1 - a0) * t;

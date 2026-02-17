@@ -28,7 +28,7 @@ public:
 
         // simple 12 ticks
         for (int i = 0; i < 12; ++i) {
-            const float ang = (3.1415926f * 2.0f * i) / 12.0f;
+            const float ang = (alg::arc::kPi * 2.0f * i) / 12.0f;
             const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius - 6, ang);
             const auto p1 = alg::arc::point_on_circle_rad(cx, cy, radius - 2, ang);
             draw_line(cvs, p0.x, p0.y, p1.x, p1.y, tick_);

@@ -1,10 +1,10 @@
 module;
-#include <cmath>
 export module charm.widgets.dial;
 
 import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -29,11 +29,9 @@ public:
         // simple 12 ticks
         for (int i = 0; i < 12; ++i) {
             const float ang = (3.1415926f * 2.0f * i) / 12.0f;
-            const int x0 = static_cast<int>(cx + (radius - 6) * std::cos(ang));
-            const int y0 = static_cast<int>(cy + (radius - 6) * std::sin(ang));
-            const int x1 = static_cast<int>(cx + (radius - 2) * std::cos(ang));
-            const int y1 = static_cast<int>(cy + (radius - 2) * std::sin(ang));
-            draw_line(cvs, x0, y0, x1, y1, tick_);
+            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius - 6, ang);
+            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, radius - 2, ang);
+            draw_line(cvs, p0.x, p0.y, p1.x, p1.y, tick_);
         }
     }
 

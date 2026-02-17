@@ -9,6 +9,7 @@ export import charm.gfx.pixel_format;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
+import alg_arc;
 
 namespace ui::render {
 
@@ -132,19 +133,18 @@ void draw_arc(Canvas<PF, W, H>& cvs,
     if (end_deg < start_deg) {
         std::swap(start_deg, end_deg);
     }
-    const float step = 1.0f;
-    const float r_inner = static_cast<float>(radius - thickness);
-    const float r_outer = static_cast<float>(radius);
-    for (float deg = start_deg; deg <= end_deg; deg += step) {
-        const float rad = deg * 3.1415926f / 180.0f;
-        const float cs = std::cos(rad);
-        const float sn = std::sin(rad);
-        const int x0 = static_cast<int>(cx + cs * r_inner);
-        const int y0 = static_cast<int>(cy + sn * r_inner);
-        const int x1 = static_cast<int>(cx + cs * r_outer);
-        const int y1 = static_cast<int>(cy + sn * r_outer);
-        draw_line(cvs, x0, y0, x1, y1, color);
-    }
+    const int r_inner = radius - thickness;
+    const int r_outer = radius;
+    const int span_deg = static_cast<int>(end_deg - start_deg);
+    const int steps = (span_deg > 0) ? span_deg : 1;
+    alg::arc::sample_arc_rad(alg::arc::deg_to_rad(start_deg),
+                             alg::arc::deg_to_rad(end_deg),
+                             steps,
+                             [&](float rad) noexcept {
+        const auto p0 = alg::arc::point_on_circle_rad(cx, cy, r_inner, rad);
+        const auto p1 = alg::arc::point_on_circle_rad(cx, cy, r_outer, rad);
+        draw_line(cvs, p0.x, p0.y, p1.x, p1.y, color);
+    });
 }
 
 export template<PixelFormat PF, std::size_t W, std::size_t H>

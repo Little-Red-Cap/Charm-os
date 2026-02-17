@@ -8,6 +8,7 @@ import charm.core.object;
 import charm.core.style;
 import charm.gfx.color;
 import charm.gfx.render;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -116,8 +117,9 @@ private:
         }
         case 5: { // animated diagonal
             const float t = time_;
-            const int dx = static_cast<int>(std::sin(t) * (w / 4));
-            const int dy = static_cast<int>(std::cos(t) * (h / 4));
+            const auto wobble = alg::arc::point_on_ellipse_rad(0, 0, w / 4, h / 4, t);
+            const int dx = wobble.x;
+            const int dy = wobble.y;
             draw_thick_line(cvs, x + 12 + dx, y + 12, x + w - 12, y + h - 12 + dy, 4, main);
             break;
         }

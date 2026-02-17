@@ -1,0 +1,211 @@
+﻿module;
+
+#include <SDL3/SDL.h>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <expected>
+#include <span>
+#include <vector>
+
+export module audio.sink.sdl3;
+
+import audio.format;
+import audio.result;
+
+export namespace audio {
+    using FillCallback = std::size_t(*)(std::span<std::byte>, void*) noexcept;
+
+    struct SinkConfig {
+        AudioFormat fmt{};
+        std::uint32_t preferred_period_frames{0};
+    };
+
+    struct CallbackStats {
+        std::uint64_t count{0};
+        std::uint64_t dt_min_ns{0};
+        std::uint64_t dt_max_ns{0};
+        double dt_avg_ms{0.0};
+        std::uint32_t last_request_frames{0};
+    };
+
+    class Sdl3AudioSink {
+    public:
+        Result<void> open(const SinkConfig& cfg) {
+            fmt_ = cfg.fmt;
+            const std::uint32_t period = cfg.preferred_period_frames != 0
+                ? cfg.preferred_period_frames
+                : (fmt_.rate / 100);
+            callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
+            period_frames_ = period;
+            scratch_.resize(callback_bytes_);
+
+            if (!SDL_Init(SDL_INIT_AUDIO)) {
+                return std::unexpected(Err{Errc::io_error, 1});
+            }
+
+            spec_.freq = static_cast<int>(fmt_.rate);
+            spec_.format = SDL_AUDIO_S16;
+            spec_.channels = static_cast<int>(fmt_.channels);
+
+            stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, &Sdl3AudioSink::sdl_audio_callback, this);
+            if (!stream_) {
+                return std::unexpected(Err{Errc::io_error, 2});
+            }
+
+            if (spec_.freq > 0) {
+                latency_sec_ = static_cast<double>(period_frames_) / static_cast<double>(spec_.freq);
+            }
+
+            cb_dt_min_ns_.store(0, std::memory_order_relaxed);
+            cb_dt_max_ns_.store(0, std::memory_order_relaxed);
+            cb_dt_sum_ns_.store(0, std::memory_order_relaxed);
+            cb_count_.store(0, std::memory_order_relaxed);
+            cb_last_ns_.store(0, std::memory_order_relaxed);
+            cb_last_request_frames_.store(0, std::memory_order_relaxed);
+
+            return {};
+        }
+
+        Result<void> start() {
+            if (!stream_) return std::unexpected(Err{Errc::io_error, 3});
+            SDL_ResumeAudioStreamDevice(stream_);
+            return {};
+        }
+
+        Result<void> stop() {
+            if (!stream_) return std::unexpected(Err{Errc::io_error, 3});
+            SDL_PauseAudioStreamDevice(stream_);
+            return {};
+        }
+
+        void close() {
+            if (stream_) {
+                SDL_DestroyAudioStream(stream_);
+                stream_ = nullptr;
+            }
+            SDL_Quit();
+        }
+
+        void set_fill_callback(FillCallback cb, void* user) {
+            fill_cb_ = cb;
+            fill_user_ = user;
+        }
+
+        AudioFormat format() const noexcept { return fmt_; }
+        std::uint32_t actual_period_frames() const noexcept { return period_frames_; }
+        double output_latency_seconds() const noexcept { return latency_sec_; }
+
+        std::uint64_t underrun_count() const noexcept {
+            return underrun_count_.load(std::memory_order_relaxed);
+        }
+
+        bool consume_underrun_flag() noexcept {
+            return underrun_flag_.exchange(0, std::memory_order_acq_rel) != 0;
+        }
+
+        CallbackStats callback_stats() const noexcept {
+            CallbackStats out{};
+            out.count = cb_count_.load(std::memory_order_relaxed);
+            out.dt_min_ns = cb_dt_min_ns_.load(std::memory_order_relaxed);
+            out.dt_max_ns = cb_dt_max_ns_.load(std::memory_order_relaxed);
+            const auto sum = cb_dt_sum_ns_.load(std::memory_order_relaxed);
+            if (out.count > 0) {
+                out.dt_avg_ms = (static_cast<double>(sum) / static_cast<double>(out.count)) / 1e6;
+            }
+            out.last_request_frames = cb_last_request_frames_.load(std::memory_order_relaxed);
+            return out;
+        }
+
+    private:
+        static std::uint64_t now_ns() {
+            return static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count());
+        }
+
+        static void update_min(std::atomic<std::uint64_t>& dst, std::uint64_t value) {
+            auto cur = dst.load(std::memory_order_relaxed);
+            if (cur == 0 || value < cur) {
+                while (!dst.compare_exchange_weak(cur, value, std::memory_order_relaxed)) {
+                    if (cur != 0 && cur <= value) break;
+                }
+            }
+        }
+
+        static void update_max(std::atomic<std::uint64_t>& dst, std::uint64_t value) {
+            auto cur = dst.load(std::memory_order_relaxed);
+            if (value > cur) {
+                while (!dst.compare_exchange_weak(cur, value, std::memory_order_relaxed)) {
+                    if (cur >= value) break;
+                }
+            }
+        }
+
+        static void sdl_audio_callback(void* userdata, SDL_AudioStream* stream, int additional_amount, int) {
+            auto* self = static_cast<Sdl3AudioSink*>(userdata);
+            const auto now = now_ns();
+            const auto last = self->cb_last_ns_.exchange(now, std::memory_order_relaxed);
+            if (last != 0) {
+                const auto dt = now - last;
+                update_min(self->cb_dt_min_ns_, dt);
+                update_max(self->cb_dt_max_ns_, dt);
+                self->cb_dt_sum_ns_.fetch_add(dt, std::memory_order_relaxed);
+            }
+            self->cb_count_.fetch_add(1, std::memory_order_relaxed);
+
+            std::size_t request = additional_amount > 0
+                ? static_cast<std::size_t>(additional_amount)
+                : self->callback_bytes_;
+
+            if (request == 0) return;
+
+            const std::size_t frames = request / self->fmt_.frame_size();
+            self->cb_last_request_frames_.store(static_cast<std::uint32_t>(frames), std::memory_order_relaxed);
+
+            std::size_t remaining = request;
+            while (remaining > 0) {
+                const std::size_t chunk = std::min(remaining, self->scratch_.size());
+                std::size_t written = 0;
+                if (self->fill_cb_) {
+                    written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
+                }
+
+                if (written < chunk) {
+                    std::memset(self->scratch_.data() + written, 0, chunk - written);
+                    self->underrun_flag_.store(1, std::memory_order_relaxed);
+                    self->underrun_count_.fetch_add(1, std::memory_order_relaxed);
+                }
+
+                SDL_PutAudioStreamData(stream, self->scratch_.data(), static_cast<int>(chunk));
+                remaining -= chunk;
+            }
+        }
+
+        FillCallback fill_cb_{nullptr};
+        void* fill_user_{nullptr};
+
+        SDL_AudioStream* stream_{nullptr};
+        SDL_AudioSpec spec_{};
+        AudioFormat fmt_{};
+        std::uint32_t period_frames_{0};
+        double latency_sec_{0.0};
+        std::size_t callback_bytes_{0};
+
+        std::vector<std::byte> scratch_{};
+
+        std::atomic<std::uint8_t> underrun_flag_{0};
+        std::atomic<std::uint64_t> underrun_count_{0};
+
+        std::atomic<std::uint64_t> cb_count_{0};
+        std::atomic<std::uint64_t> cb_dt_min_ns_{0};
+        std::atomic<std::uint64_t> cb_dt_max_ns_{0};
+        std::atomic<std::uint64_t> cb_dt_sum_ns_{0};
+        std::atomic<std::uint64_t> cb_last_ns_{0};
+        std::atomic<std::uint32_t> cb_last_request_frames_{0};
+    };
+}

@@ -14,8 +14,9 @@ int main() {
     service::Fifo<int, 4> fifo{};
     (void)fifo.push(1);
     (void)fifo.push(2);
-    auto f = fifo.pop();
-    std::printf("[fifo] %d\n", f.has_value() ? f.value() : -1);
+    int f = -1;
+    (void)fifo.pop(f);
+    std::printf("[fifo] %d\n", f);
 
     service::Queue<int, 4> queue{};
     (void)queue.push(7);

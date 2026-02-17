@@ -7,7 +7,7 @@
 export module service.slab;
 
 import util.core;
-import util.span;
+import util.alias;
 
 export namespace service {
     template <util::usize BlockSize, util::usize BlockCount>

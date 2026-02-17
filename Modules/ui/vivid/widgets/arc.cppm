@@ -1,0 +1,44 @@
+module;
+export module charm.widgets.arc;
+
+import charm.core.object;
+import charm.gfx.color;
+import charm.gfx.render;
+import charm.core.style;
+
+using namespace ui::render;
+
+export
+class Arc : public ObjectBase {
+public:
+    void set_start_angle(float deg) noexcept { start_deg_ = deg; }
+    void set_end_angle(float deg) noexcept { end_deg_ = deg; }
+    void set_thickness(int t) noexcept { thickness_ = (t > 0) ? t : 1; }
+    void set_color(const rgba& c) noexcept { color_ = c; }
+
+    void set_value(float v) noexcept {
+        if (v < 0.0f) v = 0.0f;
+        if (v > 1.0f) v = 1.0f;
+        value_ = v;
+    }
+
+    void draw(DefaultCanvas& cvs) override {
+        const auto r = get_rect();
+        const int cx = r.x + r.w / 2;
+        const int cy = r.y + r.h / 2;
+        const int radius = (r.w < r.h ? r.w : r.h) / 2;
+        const float end = start_deg_ + (end_deg_ - start_deg_) * value_;
+        rgba use = color_;
+        if (use.a == 0) {
+            use = Theme::instance().get<Arc>().border_color;
+        }
+        draw_arc(cvs, cx, cy, radius, thickness_, start_deg_, end, use);
+    }
+
+private:
+    float start_deg_{-90.0f};
+    float end_deg_{270.0f};
+    float value_{1.0f};
+    int thickness_{6};
+    rgba color_{0, 0, 0, 0};
+};

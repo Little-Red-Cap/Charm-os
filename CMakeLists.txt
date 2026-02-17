@@ -23,5 +23,5 @@ target_sources(${target_name}
         BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Modules"
         FILES ${MODULE_INTERFACE_UNITS})
 
-message(STATUS "${target_name} Examples: Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/windows")
-message(STATUS "${target_name} Examples: STM32   -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/stm32f103c8")
+message(STATUS "${target_name} Draft Examples: Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Draft/Examples/windows")
+message(STATUS "${target_name} Draft Examples: STM32   -> ${CMAKE_CURRENT_SOURCE_DIR}/Draft/Examples/stm32f103c8")

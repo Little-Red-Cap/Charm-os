@@ -1,0 +1,103 @@
+﻿// gui.perf.cppm
+// Simple FPS counter based on real time (ms). Portable across platforms.
+
+module;
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <string_view>
+
+export module gui.perf;
+
+import out.format;
+
+namespace gui::detail
+{
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept
+        {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    template <out::fixed_string Fmt, class... Args>
+    inline std::string_view format_to(char* buf, std::size_t size, Args&&... args) noexcept
+    {
+        if (!buf || size == 0) return {};
+        trunc_sink sink{buf, size - 1u, 0u};
+        (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
+        const std::size_t n = sink.pos;
+        buf[n] = '\0';
+        return {buf, n};
+    }
+}
+
+export namespace gui::perf
+{
+    struct TickSource {
+        void* ctx{nullptr};
+        std::uint32_t (*now_ms)(void*){nullptr};
+
+        [[nodiscard]] inline std::uint32_t now() const noexcept
+        {
+            return now_ms ? now_ms(ctx) : 0u;
+        }
+    };
+
+    [[nodiscard]] inline TickSource make_tick_source(std::uint32_t (*fn)(void*), void* ctx) noexcept
+    {
+        TickSource out{};
+        out.ctx = ctx;
+        out.now_ms = fn;
+        return out;
+    }
+
+    struct FpsCounter {
+        std::uint32_t last_ms{0};
+        std::uint32_t frames{0};
+        double fps{0.0};
+
+        // Returns true when fps has been updated (about once per second).
+        bool update(std::uint32_t now_ms) noexcept
+        {
+            ++frames;
+            if (last_ms == 0) {
+                last_ms = now_ms;
+                return false;
+            }
+            const std::uint32_t span = now_ms - last_ms;
+            if (span < 1000) return false;
+            fps = span ? (frames * 1000.0 / (double)span) : 0.0;
+            frames = 0;
+            last_ms = now_ms;
+            return true;
+        }
+
+        // Update using an injected time source (portable across platforms).
+        bool update(const TickSource& clock) noexcept
+        {
+            return update(clock.now());
+        }
+
+        [[nodiscard]] inline double value() const noexcept { return fps; }
+
+        void format(char* out, std::size_t out_size, const char* label) const noexcept
+        {
+            if (!out || out_size == 0) return;
+            const char* name = label ? label : "FPS";
+            (void)detail::format_to<"{}: {:.1f}">(out, out_size, name, fps);
+        }
+    };
+} // namespace gui::perf

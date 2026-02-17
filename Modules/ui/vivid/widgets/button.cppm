@@ -1,0 +1,111 @@
+module;
+export module charm.widgets.button;
+
+import charm.core.object;
+import charm.gfx.color;
+import charm.gfx.render;
+import charm.core.event;
+import charm.widgets.label;
+import charm.core.style;
+import charm.gfx.image;
+
+using namespace ui::render;
+
+export
+class Button : public ObjectBase {
+public:
+    explicit Button(const char* txt = "") : label_(txt) {
+        const Style& st = Theme::instance().get<Button>();
+        label_.set_font(resolve_font(st));
+        update_size();
+        set_focusable(true);
+    }
+
+    void set_on_click(Callback cb) noexcept { callback_ = cb; }
+
+    void set_style(const Style& s) noexcept {
+        style_ = s;
+        has_local_style_ = true;
+        label_.set_font(resolve_font(style_));
+        update_size();
+    }
+
+    void set_skin(const ImageView& img, int left, int top, int right, int bottom) noexcept {
+        skin_ = img;
+        slice_left_ = left;
+        slice_top_ = top;
+        slice_right_ = right;
+        slice_bottom_ = bottom;
+        has_skin_ = true;
+    }
+
+    void draw(DefaultCanvas& cvs) override {
+        const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        const auto r = get_rect();
+
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        resolve_colors(st,
+                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
+                       bg, border, font);
+
+        const bool draw_focus = has_state(State::Focused);
+        if (has_skin_) {
+            draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
+                                  slice_left_, slice_top_, slice_right_, slice_bottom_);
+            const rgba edge = has_state(State::Focused) ? st.border_focus : border;
+            for (int i = 0; i < st.border_width; ++i) {
+                draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, edge, false);
+            }
+        } else {
+            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
+            for (int i = 0; i < st.border_width; ++i) {
+                draw_round_rect(cvs,
+                                r.x + i, r.y + i,
+                                r.w - 2 * i, r.h - 2 * i,
+                                st.corner_radius,
+                                border,
+                                false);
+            }
+        }
+        if (draw_focus && !has_skin_) {
+            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, st.border_focus, false);
+        }
+
+        const auto lr = label_.get_rect();
+        const int lx = r.x + (r.w - lr.w) / 2;
+        const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
+        label_.set_color(font);
+        label_.set_baseline_pos(lx, baseline_y);
+        label_.draw(cvs);
+    }
+
+    bool on_event(const Event& e) override {
+        if (e.type == Event::Type::Click) {
+            if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
+                if (callback_) callback_();
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    void update_size() {
+        const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        const auto lr = label_.get_rect();
+        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+    }
+
+    Label label_;
+    Callback callback_{};
+    Style style_{};
+    bool has_local_style_{false};
+    ImageView skin_{};
+    bool has_skin_{false};
+    int slice_left_{0};
+    int slice_top_{0};
+    int slice_right_{0};
+    int slice_bottom_{0};
+};

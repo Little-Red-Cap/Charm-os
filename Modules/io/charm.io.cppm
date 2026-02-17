@@ -9,6 +9,7 @@ export import hal_time;
 export import hal_timer;
 export import hal_uart;
 export import hal_win;
+export import input.raw;
 
 export import port.kernel;
 
@@ -29,6 +30,9 @@ export import shell_service;
 export import shell_stdio;
 export import shell_stream;
 export import shell_time;
+export import input.encoder_decoder;
+export import input.events;
+export import input.intent;
 
 export import out.ansi;
 export import out.api;

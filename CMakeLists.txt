@@ -7,7 +7,7 @@ option(CHARM_ENABLE_SDL3 "Enable SDL3-backed modules" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
-option(CHARM_USE_ETL "Use ETL for core util aliases" OFF)
+option(CHARM_USE_ETL "Use ETL for core util aliases" ON)
 
 add_library(${target_name})
 

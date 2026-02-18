@@ -22,8 +22,8 @@ import fs_stream;
 import fs_path;
 import fs_block;
 
-export namespace fs {
 #if CHARM_USE_FATFS
+export namespace fs {
     struct FatFsFileSlot {
         bool used{false};
         FIL file{};

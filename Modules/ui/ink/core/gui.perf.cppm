@@ -125,7 +125,10 @@ export namespace gui::perf
         {
             if (!out || out_size == 0) return;
             const char* name = label ? label : "FPS";
-            (void)format_to<"{}: {:.1f}">(out, out_size, name, fps);
+            const auto fps_x10 = static_cast<std::uint32_t>(fps * 10.0f + 0.5f);
+            const auto whole = fps_x10 / 10;
+            const auto frac = fps_x10 % 10;
+            (void)format_to<"{}: {}.{}">(out, out_size, name, whole, frac);
         }
     };
 } // namespace gui::perf

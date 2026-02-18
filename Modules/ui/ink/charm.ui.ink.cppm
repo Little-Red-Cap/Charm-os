@@ -19,6 +19,7 @@ export import input.events;
 export import input.intent;
 export import input.queue;
 export import input.raw;
+export import input.raw_event;
 export import input.sampler;
 
 export import gui.qr_widget;
@@ -42,6 +43,7 @@ export import gui.ui_focus_bookmark;
 export import gui.ui_highlight;
 export import gui.ui_hit_test;
 export import gui.ui_input_policy;
+export import gui.ui_input_adapter;
 export import gui.ui_nav;
 export import gui.ui_semantics;
 export import gui.ui_settings;

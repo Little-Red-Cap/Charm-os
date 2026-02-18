@@ -10,6 +10,7 @@ export import hal_timer;
 export import hal_uart;
 export import hal_win;
 export import input.raw;
+export import input.raw_event;
 
 export import port.kernel;
 

@@ -6,7 +6,6 @@ module;
 #include <SDL3/SDL.h>
 
 #include <cstdint>
-#include <cstdio>
 #include <vector>
 #include <array>
 #include <algorithm>
@@ -17,6 +16,7 @@ export module backend.sdl3;
 import gui.canvas_1bpp;
 import gui.core;
 import input.events;
+import out.api;
 
 export namespace backend {
 
@@ -217,8 +217,8 @@ public:
     static int n = 0;
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-      // if (n++ < 50) std::fprintf(stderr, "event type=%u\n", (unsigned)e.type);
-      std::fprintf(stderr, "KEY event: keycode=%d scancode=%d down=%d repeat=%d\n",
+      // if (n++ < 50) out::trace<"event type={}">((unsigned)e.type);
+      out::trace<"KEY event: keycode={} scancode={} down={} repeat={}">(
           (int)e.key.key, (int)e.key.scancode, (int)e.key.down, (int)e.key.repeat);
 
 

@@ -5,6 +5,7 @@ import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -17,9 +18,7 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
 
     void set_value(float v) noexcept {
-        if (v < 0.0f) v = 0.0f;
-        if (v > 1.0f) v = 1.0f;
-        value_ = v;
+        value_ = alg::arc::clamp01(v);
     }
 
     void draw(DefaultCanvas& cvs) override {
@@ -27,7 +26,7 @@ public:
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         const int radius = (r.w < r.h ? r.w : r.h) / 2;
-        const float end = start_deg_ + (end_deg_ - start_deg_) * value_;
+        const float end = alg::arc::lerp(start_deg_, end_deg_, value_);
         rgba use = color_;
         if (use.a == 0) {
             use = Theme::instance().get<Arc>().border_color;

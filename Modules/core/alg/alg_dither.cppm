@@ -18,8 +18,19 @@ export namespace alg {
         floyd_steinberg
     };
 
+    enum class DitherOperator : util::u8 {
+        ordered,
+        error_diffusion
+    };
+
     struct DitherParams {
         util::u8 threshold{128};
+    };
+
+    struct DitherConfig {
+        DitherOperator op{DitherOperator::ordered};
+        DitherMode ordered_mode{DitherMode::bayer4};
+        DitherParams params{};
     };
 
     inline std::size_t bytes_for_1bit(std::size_t width, std::size_t height) noexcept {
@@ -100,6 +111,10 @@ export namespace alg {
         return (width + 2u) * 2u;
     }
 
+    inline std::size_t scratch_words_for_1bit(std::size_t width, DitherOperator op) noexcept {
+        return (op == DitherOperator::error_diffusion) ? floyd_scratch_words(width) : 0u;
+    }
+
     inline void floyd_steinberg_1bit(std::span<const util::u8> gray,
                                      std::size_t width,
                                      std::size_t height,
@@ -138,5 +153,18 @@ export namespace alg {
             curr = next;
             next = tmp;
         }
+    }
+
+    inline void dither_1bit(std::span<const util::u8> gray,
+                            std::size_t width,
+                            std::size_t height,
+                            const DitherConfig& cfg,
+                            std::span<util::u8> out,
+                            std::span<util::i16> scratch = {}) noexcept {
+        if (cfg.op == DitherOperator::error_diffusion) {
+            floyd_steinberg_1bit(gray, width, height, cfg.params, out, scratch);
+            return;
+        }
+        ordered_dither_1bit(gray, width, height, cfg.ordered_mode, cfg.params, out);
     }
 }

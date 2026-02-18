@@ -21,6 +21,7 @@ import gui.image_1bpp;
 import out.core;
 import out.format;
 import alg_arc;
+import alg_line;
 
 namespace gui::detail
 {
@@ -135,18 +136,9 @@ export namespace gui
     template <class R>
     void draw_line(R& r, int x0, int y0, int x1, int y1, bool on) noexcept
     {
-        int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
-        int sx = (x0 < x1) ? 1 : -1;
-        int dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
-        int sy = (y0 < y1) ? 1 : -1;
-        int err = (dx > dy ? dx : -dy) / 2;
-        while (true) {
-            r.setPixel(x0, y0, on);
-            if (x0 == x1 && y0 == y1) break;
-            const int e2 = err;
-            if (e2 > -dx) { err -= dy; x0 += sx; }
-            if (e2 < dy)  { err += dx; y0 += sy; }
-        }
+        alg::line::raster(x0, y0, x1, y1, [&](int x, int y) noexcept {
+            r.setPixel(x, y, on);
+        });
     }
 
     template <class R>

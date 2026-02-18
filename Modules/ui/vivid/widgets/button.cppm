@@ -82,6 +82,7 @@ public:
     }
 
     bool on_event(const Event& e) override {
+        if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
                 if (callback_) callback_();

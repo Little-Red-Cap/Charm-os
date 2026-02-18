@@ -1,6 +1,5 @@
 module;
 #include <cstddef>
-#include <cstdio>
 export module charm.core.gui;
 
 export import charm.gfx.canvas;
@@ -10,6 +9,7 @@ export import charm.core.handle;
 export import charm.core.factory;
 export import charm.core.layout;
 export import charm.widgets.scroll_container;
+import out.api;
 
 
 export
@@ -27,33 +27,32 @@ public:
     // 渲染一帧
     void render() {
         static int frame_no = 0;
-        static std::FILE* log_file = nullptr;
-        if (!log_file) {
-            log_file = std::fopen("G:\\Project\\Charm-vivid\\Draft\\crash_log.txt", "a");
-            if (log_file) {
-                std::fprintf(log_file, "[gui] log start\n");
-                std::fflush(log_file);
-            }
+#ifndef NDEBUG
+        if (frame_no == 0) {
+            out::debug<"[gui] log start">();
         }
+#endif
         factory_.sanitize_tree(root_);
         const WidgetHandle ov = factory_.overlay();
         if (ov) factory_.sanitize_tree(ov);
         const auto& rep = factory_.last_sanitize_report();
         if (rep.removed > 0) {
+#ifndef NDEBUG
             static int frame_mod = 0;
             frame_mod = (frame_mod + 1) % 60;
             if (frame_mod == 0) {
-                std::printf("[sanitize] removed=%d missing=%d self=%d invalid_parent=%d cycle=%d last_parent=(%u,%u) last_child=(%u,%u)\n",
-                            rep.removed,
-                            rep.missing,
-                            rep.self_ref,
-                            rep.invalid_parent,
-                            rep.cycle,
-                            static_cast<unsigned>(rep.last_parent.kind),
-                            static_cast<unsigned>(rep.last_parent.index),
-                            static_cast<unsigned>(rep.last_child.kind),
-                            static_cast<unsigned>(rep.last_child.index));
+                out::debug<"[sanitize] removed={} missing={} self={} invalid_parent={} cycle={} last_parent=({}, {}) last_child=({}, {})">(
+                    rep.removed,
+                    rep.missing,
+                    rep.self_ref,
+                    rep.invalid_parent,
+                    rep.cycle,
+                    static_cast<unsigned>(rep.last_parent.kind),
+                    static_cast<unsigned>(rep.last_parent.index),
+                    static_cast<unsigned>(rep.last_child.kind),
+                    static_cast<unsigned>(rep.last_child.index));
             }
+#endif
         }
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
@@ -61,11 +60,10 @@ public:
         WidgetHandle stack[kMaxDepth]{};
         draw_recursive(root_, 0, stack);
 
-        if (log_file) {
-            std::fprintf(log_file, "[frame %d] nodes=%d depth_hits=%d cycle_hits=%d\n",
-                         frame_no, debug_nodes_, debug_depth_hits_, debug_cycle_hits_);
-            std::fflush(log_file);
-        }
+#ifndef NDEBUG
+        out::trace<"[frame {}] nodes={} depth_hits={} cycle_hits={}">(
+            frame_no, debug_nodes_, debug_depth_hits_, debug_cycle_hits_);
+#endif
         frame_no++;
     }
 

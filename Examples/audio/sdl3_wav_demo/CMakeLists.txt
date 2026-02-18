@@ -27,9 +27,6 @@ target_sources(${target_name}
         ../../../Modules/media/audio/audio_player.cppm
 )
 
-find_package(SDL3 CONFIG REQUIRED)
-
-target_link_libraries(${target_name}
-    PRIVATE
-        SDL3::SDL3
-)
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+include("${CHARM_ROOT}/cmake/SDL3.cmake")
+charm_link_sdl3(${target_name})

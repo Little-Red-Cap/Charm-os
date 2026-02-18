@@ -42,8 +42,20 @@ Modules/
   ui/vivid/    # Charm-vivid UI
   platform/    # win/... 及后续 MCU 平台
 
-Draft/Examples/    # 历史示例与杂项
+Examples/     # 示例工程
+docs/         # 架构与协作文档
+Draft/        # 计划/草案（可变动）
 ```
+
+## 1.1.1 组件文档入口
+
+- Audio：`Modules/media/audio/audio_design.md`
+- HAL：`Modules/io/hal/charm_hal_design.md`
+- FS：`Modules/io/fs/fs_migration_notes.md`
+- Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
+- Service：`Modules/core/service/vsf_migration_service_detail.md`
+- ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
+- Kernel：`Modules/system/kernel/docs/`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -143,6 +155,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 解码：WAV/FLAC/MP3
 - 模式：FollowInput / FixedRate（含重配事务）
 - 回归：stable/lowlat、fixed-rate、reconfig、force-mono
+- 文档：`Modules/media/audio/audio_design.md`
 
 ### Service
 - ring_buffer/fifo/heap/pool/json/trace/distbus

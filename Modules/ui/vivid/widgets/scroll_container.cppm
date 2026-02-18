@@ -214,6 +214,7 @@ private:
     static constexpr std::size_t kMax = 64;
     int base_x_[kMax]{};
     int base_y_[kMax]{};
+    std::size_t base_count_{0};
     int content_height_{0};
 
     int scroll_y_{0};

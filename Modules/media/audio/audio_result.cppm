@@ -12,6 +12,7 @@ export namespace audio {
         not_supported,
         io_error,
         decode_error,
+        end_of_stream,
         bad_state,
         timeout
     };

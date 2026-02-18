@@ -35,11 +35,17 @@ export namespace audio {
         fixed_rate
     };
 
+    enum class PauseMode : std::uint8_t {
+        hard,
+        soft
+    };
+
     enum class PlayerState : std::uint8_t {
         idle,
         opening,
         buffering,
         playing,
+        paused,
         stopping,
         error
     };
@@ -104,6 +110,38 @@ export namespace audio {
         Result<void> stop() {
             Command cmd{};
             cmd.type = CommandType::stop;
+            queue_.push_back(cmd);
+            return {};
+        }
+
+        Result<void> pause(PauseMode mode = PauseMode::hard) {
+            if (state_ == PlayerState::idle || state_ == PlayerState::opening || state_ == PlayerState::error) {
+                return std::unexpected(Err{Errc::bad_state, 0});
+            }
+            if (state_ == PlayerState::paused) {
+                pause_mode_ = mode;
+                paused_soft_ = (mode == PauseMode::soft);
+                return {};
+            }
+            Command cmd{};
+            cmd.type = CommandType::pause;
+            cmd.pause_mode = mode;
+            queue_.push_back(cmd);
+            return {};
+        }
+
+        Result<void> resume() {
+            if (state_ == PlayerState::idle || state_ == PlayerState::opening || state_ == PlayerState::error) {
+                if (eos_reached_) {
+                    return std::unexpected(Err{Errc::end_of_stream, 0});
+                }
+                return std::unexpected(Err{Errc::bad_state, 0});
+            }
+            if (state_ != PlayerState::paused) {
+                return {};
+            }
+            Command cmd{};
+            cmd.type = CommandType::resume;
             queue_.push_back(cmd);
             return {};
         }
@@ -184,6 +222,10 @@ export namespace audio {
                 return;
             }
 
+            if (state_ == PlayerState::paused) {
+                return;
+            }
+
             if (state_ == PlayerState::playing) {
                 if (water <= low_water_ || stats_.underrun_count != last_underrun_seen_) {
                     last_underrun_seen_ = stats_.underrun_count;
@@ -195,7 +237,7 @@ export namespace audio {
             }
 
             if (!has_more_data_ && fifo_ && fifo_->size_bytes() == 0) {
-                stop_internal();
+                stop_internal(StopReason::eof);
             }
         }
 
@@ -226,13 +268,15 @@ export namespace audio {
         }
 
     private:
-        enum class CommandType : std::uint8_t { play, stop, seek_ms, reconfigure };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure };
+        enum class StopReason : std::uint8_t { user, eof };
 
         struct Command {
             CommandType type{};
             std::string path{};
             std::uint64_t seek_ms{0};
             AudioFormat fmt{};
+            PauseMode pause_mode{PauseMode::hard};
         };
 
         static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
@@ -271,7 +315,11 @@ export namespace audio {
                 if (cmd.type == CommandType::play) {
                     handle_play(cmd.path.c_str());
                 } else if (cmd.type == CommandType::stop) {
-                    stop_internal();
+                    stop_internal(StopReason::user);
+                } else if (cmd.type == CommandType::pause) {
+                    handle_pause(cmd.pause_mode);
+                } else if (cmd.type == CommandType::resume) {
+                    handle_resume();
                 } else if (cmd.type == CommandType::seek_ms) {
                     handle_seek(cmd.seek_ms);
                 } else if (cmd.type == CommandType::reconfigure) {
@@ -281,8 +329,9 @@ export namespace audio {
         }
 
         void handle_play(const char* path) {
-            stop_internal();
+            stop_internal(StopReason::user);
             state_ = PlayerState::opening;
+            eos_reached_ = false;
 
             if (!src_.open(path)) {
                 state_ = PlayerState::error;
@@ -394,6 +443,30 @@ export namespace audio {
             state_ = PlayerState::buffering;
         }
 
+        void handle_pause(PauseMode mode) {
+            if (state_ == PlayerState::idle || state_ == PlayerState::opening || state_ == PlayerState::error) {
+                return;
+            }
+            pause_mode_ = mode;
+            paused_soft_ = (mode == PauseMode::soft);
+            if (mode == PauseMode::hard) {
+                (void)sink_.stop();
+            }
+            state_ = PlayerState::paused;
+        }
+
+        void handle_resume() {
+            if (state_ != PlayerState::paused) {
+                return;
+            }
+            if (!has_more_data_ && fifo_ && fifo_->size_bytes() == 0) {
+                stop_internal(StopReason::eof);
+                return;
+            }
+            paused_soft_ = false;
+            state_ = PlayerState::buffering;
+        }
+
         void handle_seek(std::uint64_t ms) {
             if (!is_wav_ || state_ == PlayerState::idle) return;
             (void)sink_.stop();
@@ -478,7 +551,7 @@ export namespace audio {
             state_ = PlayerState::buffering;
         }
 
-        void stop_internal() {
+        void stop_internal(StopReason reason) {
             if (state_ == PlayerState::idle) return;
             state_ = PlayerState::stopping;
             (void)sink_.stop();
@@ -497,6 +570,7 @@ export namespace audio {
             remaining_bytes_ = 0;
             resample_enabled_ = false;
             resample_cache_frames_ = 0;
+            eos_reached_ = (reason == StopReason::eof);
             state_ = PlayerState::idle;
         }
 
@@ -843,5 +917,9 @@ export namespace audio {
         std::uint32_t stress_ms_{0};
         std::mt19937 rng_{static_cast<std::uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count())};
         std::uniform_int_distribution<int> stress_dist_{0, 0};
+
+        PauseMode pause_mode_{PauseMode::hard};
+        bool paused_soft_{false};
+        bool eos_reached_{false};
     };
 }

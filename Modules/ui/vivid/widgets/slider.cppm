@@ -54,10 +54,16 @@ public:
         const int track_y = r.y + r.h / 2 - track_h / 2;
         const int track_x = r.x + pad;
         const int track_w = r.w - pad * 2;
+        if (track_w <= 0) {
+            if (has_state(State::Focused)) {
+                draw_rect(cvs, r.x, r.y, r.w, r.h, focus, false);
+            }
+            return;
+        }
         draw_rect(cvs, track_x, track_y, track_w, track_h, track, true);
 
-        const int range = (max_ - min_) ? (max_ - min_) : 1;
-        const int fill_w = (track_w * (value_ - min_)) / range;
+        const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
+        const int fill_w = static_cast<int>(track_w * ratio);
         draw_rect(cvs, track_x, track_y, fill_w, track_h, fill, true);
 
         const int knob_r = (r.h / 2 > 6) ? (r.h / 2) : 6;
@@ -107,11 +113,12 @@ private:
         const int pad = st.padding;
         const int track_x = r.x + pad;
         const int track_w = r.w - pad * 2;
+        if (track_w <= 0) return;
         int local = px - track_x;
         if (local < 0) local = 0;
         if (local > track_w) local = track_w;
-        const int range = (max_ - min_) ? (max_ - min_) : 1;
-        const int v = min_ + (local * range) / track_w;
+        const float ratio = static_cast<float>(local) / static_cast<float>(track_w);
+        const int v = alg::arc::value_from_ratio(ratio, min_, max_);
         set_value(v);
     }
 

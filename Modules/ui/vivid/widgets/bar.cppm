@@ -17,7 +17,11 @@ public:
     }
 
     void set_range(int min_v, int max_v) noexcept {
-        if (max_v <= min_v) return;
+        if (min_v > max_v) {
+            const int tmp = min_v;
+            min_v = max_v;
+            max_v = tmp;
+        }
         min_ = min_v;
         max_ = max_v;
         set_value(value_);
@@ -44,10 +48,12 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int range = (max_ > min_) ? (max_ - min_) : 1;
-        const int filled = (r.w - 2) * (value_ - min_) / range;
+        const int inner_w = r.w - 2;
+        if (inner_w <= 0) return;
+        const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
+        const int filled = static_cast<int>(inner_w * ratio);
         const int secondary_filled = (secondary_ >= min_ && secondary_ <= max_) ?
-            (r.w - 2) * (secondary_ - min_) / range : 0;
+            static_cast<int>(inner_w * alg::arc::ratio_from_range(secondary_, min_, max_)) : 0;
 
         if (secondary_filled > 0) {
             const int w = reverse_ ? secondary_filled : secondary_filled;

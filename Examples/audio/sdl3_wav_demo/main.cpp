@@ -10,6 +10,7 @@ import audio.player;
 
 using audio::AudioPlayer;
 using audio::OutputMode;
+using audio::PauseMode;
 using audio::PlayerConfig;
 using audio::PlayerProfile;
 using audio::PlayerSnapshot;
@@ -42,7 +43,7 @@ static double bytes_to_ms(std::size_t bytes, const audio::AudioFormat& fmt) {
 }
 
 static void print_usage() {
-    std::printf("usage: sdl3-wav-demo [--profile lowlat|stable] [--seconds N] [--stress[=ms]] [--fixed-rate N] [--force-mono 1|2] [--reconfig-at SEC] [--reconfig-fixed-rate N] [--reconfig-fade-in MS] [--fail-reconfig-open] <file.wav|file.flac|file.mp3>\n");
+    std::printf("usage: sdl3-wav-demo [--profile lowlat|stable] [--seconds N] [--stress[=ms]] [--fixed-rate N] [--force-mono 1|2] [--pause-at SEC] [--resume-at SEC] [--pause-mode hard|soft] [--reconfig-at SEC] [--reconfig-fixed-rate N] [--reconfig-fade-in MS] [--fail-reconfig-open] <file.wav|file.flac|file.mp3>\n");
 }
 
 int main(int argc, char** argv) {
@@ -55,6 +56,9 @@ int main(int argc, char** argv) {
     std::uint32_t stress_ms = 0;
     std::uint32_t fixed_rate = 0;
     std::uint32_t force_mono = 0;
+    double pause_at = -1.0;
+    double resume_at = -1.0;
+    PauseMode pause_mode = PauseMode::hard;
     double reconfig_at = -1.0;
     std::uint32_t reconfig_fixed_rate = 0;
     std::uint32_t reconfig_fade_in_ms = 0;
@@ -89,6 +93,22 @@ int main(int argc, char** argv) {
             force_mono = parse_u32(argv[++i], 0);
         } else if (arg.rfind("--force-mono=", 0) == 0) {
             force_mono = parse_u32(arg.c_str() + std::strlen("--force-mono="), 0);
+        } else if (arg == "--pause-at" && i + 1 < argc) {
+            pause_at = parse_f64(argv[++i], -1.0);
+        } else if (arg.rfind("--pause-at=", 0) == 0) {
+            pause_at = parse_f64(arg.c_str() + std::strlen("--pause-at="), -1.0);
+        } else if (arg == "--resume-at" && i + 1 < argc) {
+            resume_at = parse_f64(argv[++i], -1.0);
+        } else if (arg.rfind("--resume-at=", 0) == 0) {
+            resume_at = parse_f64(arg.c_str() + std::strlen("--resume-at="), -1.0);
+        } else if (arg == "--pause-mode" && i + 1 < argc) {
+            const std::string value = argv[++i];
+            if (value == "soft") pause_mode = PauseMode::soft;
+            else pause_mode = PauseMode::hard;
+        } else if (arg.rfind("--pause-mode=", 0) == 0) {
+            const std::string value = arg.substr(std::strlen("--pause-mode="));
+            if (value == "soft") pause_mode = PauseMode::soft;
+            else pause_mode = PauseMode::hard;
         } else if (arg == "--reconfig-at" && i + 1 < argc) {
             reconfig_at = parse_f64(argv[++i], -1.0);
         } else if (arg.rfind("--reconfig-at=", 0) == 0) {
@@ -167,6 +187,8 @@ int main(int argc, char** argv) {
     const auto start_time = std::chrono::steady_clock::now();
     auto last_log = start_time;
     bool stop_requested = false;
+    bool pause_requested = false;
+    bool resume_requested = false;
     bool reconfig_pending = false;
     bool reconfig_done = false;
     PlayerState prev_state = player.state();
@@ -185,6 +207,24 @@ int main(int argc, char** argv) {
         }
 
         const double elapsed = std::chrono::duration<double>(now - start_time).count();
+        if (!pause_requested && pause_at >= 0.0 && elapsed >= pause_at) {
+            auto res = player.pause(pause_mode);
+            if (!res) {
+                std::printf("[pause] failed\n");
+            } else {
+                std::printf("[pause] at %.2fs mode=%s\n", elapsed, pause_mode == PauseMode::soft ? "soft" : "hard");
+            }
+            pause_requested = true;
+        }
+        if (!resume_requested && resume_at >= 0.0 && elapsed >= resume_at) {
+            auto res = player.resume();
+            if (!res) {
+                std::printf("[resume] failed\n");
+            } else {
+                std::printf("[resume] at %.2fs\n", elapsed);
+            }
+            resume_requested = true;
+        }
         if (!reconfig_done && reconfig_at >= 0.0 && elapsed >= reconfig_at && !reconfig_pending) {
             reconfig_pending = true;
             reconfig_start = now;

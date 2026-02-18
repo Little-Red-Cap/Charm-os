@@ -71,35 +71,5 @@ set(SDL_SHARED OFF)
 set(SDL_STATIC ON)
 set(SDL3_DISABLE_WINDOWS_MAIN ON)
 
-# ---- SDL3 selection ----
-set(SDL3_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/SDL3")
-
-if (EXISTS "${SDL3_SRC_DIR}/CMakeLists.txt")
-    message(STATUS "Using local SDL3 source: ${SDL3_SRC_DIR}")
-    add_subdirectory("${SDL3_SRC_DIR}" EXCLUDE_FROM_ALL)
-    target_link_libraries(${target_name} PRIVATE SDL3::SDL3)
-    target_link_libraries(Charm-os PRIVATE SDL3::SDL3)
-else()
-    option(USE_SYSTEM_SDL3 "Use system-installed SDL3 if available" ON)
-    if (USE_SYSTEM_SDL3)
-        find_package(SDL3 QUIET CONFIG)
-    endif()
-
-    if (SDL3_FOUND)
-        message(STATUS "Using system SDL3")
-        target_link_libraries(${target_name} PRIVATE SDL3::SDL3)
-        target_link_libraries(Charm-os PRIVATE SDL3::SDL3)
-    else()
-        message(STATUS "Fetching SDL3")
-        include(FetchContent)
-        FetchContent_Declare(
-                SDL3
-                GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-                GIT_TAG origin/main
-                SOURCE_DIR "${SDL3_SRC_DIR}"
-        )
-        FetchContent_MakeAvailable(SDL3)
-        target_link_libraries(${target_name} PRIVATE SDL3::SDL3)
-        target_link_libraries(Charm-os PRIVATE SDL3::SDL3)
-    endif()
-endif()
+include("${CHARM_ROOT}/cmake/SDL3.cmake")
+charm_link_sdl3(${target_name})

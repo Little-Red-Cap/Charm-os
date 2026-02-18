@@ -1,4 +1,4 @@
-name: Windows (Clang)
+﻿name: Windows (Clang)
 
 on:
   push:
@@ -25,25 +25,43 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
 
       - name: Configure
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --version
           clang --version
           ninja --version
+          ccache --version
 
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-exceptions -fno-rtti -ffreestanding" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
       - name: Build
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --build build
+          ccache --show-stats
 
       - name: Test
         shell: msys2 {0}
@@ -68,21 +86,38 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
 
       - name: Configure (Kernel Windows example)
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake -G Ninja -S Examples/kernel/windows -B build-win \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
       - name: Build (Kernel Windows example)
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --build build-win
+          ccache --show-stats
 
   build-examples:
     runs-on: windows-latest
@@ -118,14 +153,28 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
 
       - name: Configure (${{ matrix.example.name }})
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake -G Ninja -S ${{ matrix.example.path }} -B build-${{ matrix.example.name }} \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
             -DCHARM_USE_SYSTEM_SDL3=OFF \
@@ -134,6 +183,8 @@ jobs:
 
       - name: Build (${{ matrix.example.name }})
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --build build-${{ matrix.example.name }} --target ${{ matrix.example.target }}
-
+          ccache --show-stats

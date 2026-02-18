@@ -44,6 +44,11 @@
 - 临时修复：改为 `service::TraceKind::counter`
 - 建议：统一 trace 的导出与命名约定
 
+9) `gui.trace`/`input.trace` 的导出常量与命名冲突
+- 现象：`TraceKind` 在 `gui::trace`/`input::trace` 命名空间内被遮蔽，且 `static constexpr` 导致导出报错
+- 临时修复：使用 `service::TraceKind::*`，并将常量改为 `inline constexpr`
+- 建议：trace 子模块命名与全局 `trace` 保持区分，避免二义性
+
 ## 架构改进建议（待你确认推进方向）
 
 1) VFS 桥接缺口

@@ -19,7 +19,7 @@ export namespace input::trace {
         RawEncoder = 20,
     };
 
-    static constexpr util::usize kTraceCapacity = 256;
+    inline constexpr util::usize kTraceCapacity = 256;
     using TraceRecord = service::TraceRecord<util::u32, kTraceCapacity>;
     using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
 
@@ -48,7 +48,7 @@ export namespace input::trace {
         rec.id = static_cast<util::u32>(id);
         rec.payload = delta;
         rec.count = 1;
-        rec.kind = trace::TraceKind::counter_delta;
+        rec.kind = service::TraceKind::counter_delta;
         buffer_mut().push(rec);
     }
 }

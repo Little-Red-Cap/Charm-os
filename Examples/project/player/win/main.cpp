@@ -21,18 +21,23 @@ import util.core;
 
 #include <array>
 #include <chrono>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <vector>
 
 namespace {
     constexpr const char* kDefaultHostTrack = "../../assets/beautiful-trick.flac";
     constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+
+    bool setup_vfs_from_host(const char* host_path, std::string_view vfs_path);
 
     struct UiHandles {
         WidgetHandle root{};
@@ -42,7 +47,10 @@ namespace {
         WidgetHandle status{};
         WidgetHandle progress{};
         WidgetHandle time{};
+        WidgetHandle btn_prev{};
         WidgetHandle btn_play{};
+        WidgetHandle btn_pause{};
+        WidgetHandle btn_next{};
         WidgetHandle btn_stop{};
     };
 
@@ -60,6 +68,11 @@ namespace {
         int drag_target_sec{0};
         int pending_seek_sec{-1};
         const char* track_path{nullptr};
+        std::vector<std::string>* tracks{nullptr};
+        int track_index{0};
+        std::string title_text{};
+        std::string subtitle_text{};
+        bool paused{false};
         bool updating{false};
 
         void set_label(WidgetHandle h, const char* text) {
@@ -109,7 +122,7 @@ namespace {
         bool is_seek_ready() const {
             if (!player) return false;
             const auto st = player->state();
-            return st != audio::PlayerState::idle && st != audio::PlayerState::opening;
+            return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
         }
 
         bool request_seek(int target_sec) {
@@ -145,6 +158,7 @@ namespace {
                 return;
             }
             playing = true;
+            paused = false;
             start = std::chrono::steady_clock::now();
             set_status("Playing");
             set_time_label(0);
@@ -152,14 +166,97 @@ namespace {
             apply_pending_seek();
         }
 
+        void pause_playback() {
+            if (!player || !playing) return;
+            auto res = player->pause();
+            if (!res) {
+                set_status("Pause failed");
+                return;
+            }
+            playing = false;
+            paused = true;
+            set_status("Paused");
+        }
+
+        void resume_playback() {
+            if (!player || !paused) return;
+            auto res = player->resume();
+            if (!res) {
+                set_status("Resume failed");
+                return;
+            }
+            paused = false;
+            playing = true;
+            start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
+            set_status("Playing");
+        }
+
         void stop_playback() {
             if (player) {
                 (void)player->stop();
             }
             playing = false;
+            paused = false;
             set_status("Stopped");
             set_time_label(0);
             sync_progress_value(0);
+        }
+
+        void set_track_labels(std::string_view host_path) {
+            auto base = host_path;
+            const auto pos = host_path.find_last_of("/\\");
+            if (pos != std::string_view::npos) base = host_path.substr(pos + 1);
+            title_text.assign(base.begin(), base.end());
+            if (title_text.empty()) title_text = "Unknown Track";
+
+            std::string_view ext{};
+            const auto dot = base.find_last_of('.');
+            if (dot != std::string_view::npos && dot + 1 < base.size()) {
+                ext = base.substr(dot + 1);
+            }
+            subtitle_text.clear();
+            if (!ext.empty()) {
+                subtitle_text.assign(ext.begin(), ext.end());
+                for (auto& ch : subtitle_text) {
+                    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+                }
+            } else {
+                subtitle_text = "UNKNOWN";
+            }
+
+            set_label(handles.title, title_text.c_str());
+            set_label(handles.subtitle, subtitle_text.c_str());
+        }
+
+        bool load_track_index(int idx) {
+            if (!tracks || tracks->empty()) return false;
+            if (idx < 0) idx = 0;
+            if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
+            track_index = idx;
+            const auto& host_path = (*tracks)[track_index];
+            track_ready = setup_vfs_from_host(host_path.c_str(), kDefaultVfsTrack);
+            set_track_labels(host_path);
+            set_status(track_ready ? "Ready" : "Load failed");
+            set_time_label(0);
+            sync_progress_value(0);
+            pending_seek_sec = -1;
+            playing = false;
+            paused = false;
+            return track_ready;
+        }
+
+        void switch_track(int delta) {
+            if (!tracks || tracks->empty()) return;
+            const int count = static_cast<int>(tracks->size());
+            int next = track_index + delta;
+            if (next < 0) next = count - 1;
+            if (next >= count) next = 0;
+            const bool was_active = playing || paused;
+            stop_playback();
+            load_track_index(next);
+            if (was_active && track_ready) {
+                start_playback();
+            }
         }
 
         bool begin_drag(int x, int y) {
@@ -222,10 +319,29 @@ namespace {
         app->start_playback();
     }
 
+    void on_pause_clicked(void* ctx) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (app->playing) app->pause_playback();
+        else if (app->paused) app->resume_playback();
+    }
+
     void on_stop_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         app->stop_playback();
+    }
+
+    void on_prev_clicked(void* ctx) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->switch_track(-1);
+    }
+
+    void on_next_clicked(void* ctx) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->switch_track(1);
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -271,8 +387,17 @@ namespace {
             return true;
         case SDL_EVENT_KEY_DOWN:
             if (evt.key.key == SDLK_SPACE) {
-                if (ctx.playing) ctx.stop_playback();
+                if (ctx.playing) ctx.pause_playback();
+                else if (ctx.paused) ctx.resume_playback();
                 else ctx.start_playback();
+                return true;
+            }
+            if (evt.key.key == SDLK_N) {
+                ctx.switch_track(1);
+                return true;
+            }
+            if (evt.key.key == SDLK_P) {
+                ctx.switch_track(-1);
                 return true;
             }
             gui.dispatch_event(Event::key(Event::Type::KeyDown, map_key(evt.key.key)));
@@ -329,17 +454,44 @@ namespace {
             status->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 150);
         }
 
+        constexpr int button_w = 120;
+        constexpr int button_h = 48;
+        constexpr int gap = 12;
+        const int row1_y = screen_height - 140;
+        const int row2_y = screen_height - 80;
+
+        h.btn_prev = factory.create_button("Prev");
+        if (auto* prev = factory.get_button(h.btn_prev)) {
+            prev->set_pos(kUiPadding, row1_y);
+            prev->set_size(button_w, button_h);
+            prev->set_on_click(Callback{&on_prev_clicked, &ctx});
+        }
+
+        h.btn_next = factory.create_button("Next");
+        if (auto* next = factory.get_button(h.btn_next)) {
+            next->set_pos(screen_width - kUiPadding - button_w, row1_y);
+            next->set_size(button_w, button_h);
+            next->set_on_click(Callback{&on_next_clicked, &ctx});
+        }
+
         h.btn_play = factory.create_button("Play");
         if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_pos(kUiPadding, screen_height - 140);
-            play->set_size(140, 48);
+            play->set_pos(kUiPadding, row2_y);
+            play->set_size(button_w, button_h);
             play->set_on_click(Callback{&on_play_clicked, &ctx});
+        }
+
+        h.btn_pause = factory.create_button("Pause");
+        if (auto* pause = factory.get_button(h.btn_pause)) {
+            pause->set_pos((screen_width - button_w) / 2, row2_y);
+            pause->set_size(button_w, button_h);
+            pause->set_on_click(Callback{&on_pause_clicked, &ctx});
         }
 
         h.btn_stop = factory.create_button("Stop");
         if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_pos(screen_width - kUiPadding - 140, screen_height - 140);
-            stop->set_size(140, 48);
+            stop->set_pos(screen_width - kUiPadding - button_w, row2_y);
+            stop->set_size(button_w, button_h);
             stop->set_on_click(Callback{&on_stop_clicked, &ctx});
         }
 
@@ -349,7 +501,10 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
+        factory.link(h.root, h.btn_prev);
         factory.link(h.root, h.btn_play);
+        factory.link(h.root, h.btn_pause);
+        factory.link(h.root, h.btn_next);
         factory.link(h.root, h.btn_stop);
 
         return h;
@@ -357,7 +512,14 @@ namespace {
 
     bool write_file_to_vfs(std::string_view vfs_path, const char* host_path) {
         if (!host_path || !*host_path) return false;
+#if defined(_MSC_VER)
+        std::FILE* fp = nullptr;
+        if (fopen_s(&fp, host_path, "rb") != 0) {
+            fp = nullptr;
+        }
+#else
         std::FILE* fp = std::fopen(host_path, "rb");
+#endif
         if (!fp) return false;
 
         fs::File f{};
@@ -406,7 +568,15 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    const char* host_track = (argc >= 2) ? argv[1] : kDefaultHostTrack;
+    std::vector<std::string> host_tracks;
+    if (argc >= 2) {
+        for (int i = 1; i < argc; ++i) {
+            if (argv[i] && *argv[i]) host_tracks.emplace_back(argv[i]);
+        }
+    }
+    if (host_tracks.empty()) {
+        host_tracks.emplace_back(kDefaultHostTrack);
+    }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         std::printf("[player] SDL_Init failed\n");
@@ -449,17 +619,12 @@ int main(int argc, char** argv) {
     ctx.player = &player;
     ctx.factory = &factory;
     ctx.track_path = kDefaultVfsTrack;
+    ctx.tracks = &host_tracks;
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
 
-    if (setup_vfs_from_host(host_track, kDefaultVfsTrack)) {
-        ctx.track_ready = true;
-        ctx.set_status("Ready");
-    } else {
-        ctx.track_ready = false;
-        ctx.set_status("Load failed");
-    }
+    ctx.load_track_index(0);
 
     Gui gui(canvas, factory, ctx.handles.root);
 
@@ -477,6 +642,7 @@ int main(int argc, char** argv) {
         player.tick();
         if (ctx.playing && !player.is_running()) {
             ctx.playing = false;
+            ctx.paused = false;
             ctx.set_status("Stopped");
         }
         ctx.apply_pending_seek();

@@ -130,6 +130,7 @@ export namespace audio {
         opening,
         buffering,
         playing,
+        paused,
         stopping,
         error
     };
@@ -204,6 +205,24 @@ export namespace audio {
             return {};
         }
 
+        Result<void> pause() {
+            Command cmd{};
+            cmd.type = CommandType::pause;
+            if (!queue_.push(cmd)) {
+                return unexpected(Err{Errc::timeout, 0});
+            }
+            return {};
+        }
+
+        Result<void> resume() {
+            Command cmd{};
+            cmd.type = CommandType::resume;
+            if (!queue_.push(cmd)) {
+                return unexpected(Err{Errc::timeout, 0});
+            }
+            return {};
+        }
+
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
                 return unexpected(Err{Errc::bad_state, 0});
@@ -260,7 +279,7 @@ export namespace audio {
         void tick() {
             process_commands();
 
-            if (state_ == PlayerState::idle || state_ == PlayerState::error) {
+            if (state_ == PlayerState::idle || state_ == PlayerState::error || state_ == PlayerState::paused) {
                 return;
             }
 
@@ -332,7 +351,7 @@ export namespace audio {
         }
 
     private:
-        enum class CommandType : std::uint8_t { play, stop, seek_ms, reconfigure };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure };
 
         struct Command {
             CommandType type{};
@@ -378,6 +397,10 @@ export namespace audio {
                     handle_play(cmd->path.c_str());
                 } else if (cmd->type == CommandType::stop) {
                     stop_internal();
+                } else if (cmd->type == CommandType::pause) {
+                    handle_pause();
+                } else if (cmd->type == CommandType::resume) {
+                    handle_resume();
                 } else if (cmd->type == CommandType::seek_ms) {
                     handle_seek(cmd->seek_ms);
                 } else if (cmd->type == CommandType::reconfigure) {
@@ -528,6 +551,27 @@ export namespace audio {
             }
             fade_in_remaining_frames_ = fade_in_total_frames();
             state_ = PlayerState::buffering;
+        }
+
+        void handle_pause() {
+            if (state_ == PlayerState::playing || state_ == PlayerState::buffering) {
+                (void)sink_.stop();
+                running_ = false;
+                state_ = PlayerState::paused;
+            }
+        }
+
+        void handle_resume() {
+            if (state_ != PlayerState::paused) return;
+            running_ = true;
+            state_ = PlayerState::buffering;
+            if (fifo_capacity_ && fifo_.size_bytes() >= high_water_) {
+                if (!sink_.start()) {
+                    state_ = PlayerState::error;
+                    return;
+                }
+                state_ = PlayerState::playing;
+            }
         }
 
         void handle_reconfigure(const AudioFormat& input_fmt) {

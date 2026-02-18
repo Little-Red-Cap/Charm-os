@@ -17,7 +17,7 @@ export namespace gui::trace {
         InputIntentBase = 200,
     };
 
-    static constexpr util::usize kTraceCapacity = 512;
+    inline constexpr util::usize kTraceCapacity = 512;
     using TraceRecord = service::TraceRecord<util::u32, kTraceCapacity>;
     using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
 
@@ -41,7 +41,7 @@ export namespace gui::trace {
         rec.id = static_cast<util::u32>(id);
         rec.payload = payload;
         rec.count = 1;
-        rec.kind = trace::TraceKind::counter;
+        rec.kind = service::TraceKind::counter;
         buffer_mut().push(rec);
     }
 
@@ -52,7 +52,7 @@ export namespace gui::trace {
         rec.id = static_cast<util::u32>(id);
         rec.payload = delta;
         rec.count = 1;
-        rec.kind = trace::TraceKind::counter_delta;
+        rec.kind = service::TraceKind::counter_delta;
         buffer_mut().push(rec);
     }
 }

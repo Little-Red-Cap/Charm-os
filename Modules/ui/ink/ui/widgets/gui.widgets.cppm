@@ -1,4 +1,4 @@
-// Reusable widget drawing helpers (no list state or viewport).
+﻿// Reusable widget drawing helpers (no list state or viewport).
 // Keeps rendering details in one place for UI pages and list views.
 
 module;
@@ -21,6 +21,7 @@ import gui.image_1bpp;
 import out.core;
 import out.format;
 import alg_arc;
+import alg_circle;
 import alg_line;
 
 namespace gui::detail
@@ -286,27 +287,9 @@ export namespace gui
     template <class R>
     void draw_circle(R& r, int cx, int cy, int rad, bool on) noexcept
     {
-        int x = rad;
-        int y = 0;
-        int err = 0;
-        while (x >= y) {
-            r.setPixel(cx + x, cy + y, on);
-            r.setPixel(cx + y, cy + x, on);
-            r.setPixel(cx - y, cy + x, on);
-            r.setPixel(cx - x, cy + y, on);
-            r.setPixel(cx - x, cy - y, on);
-            r.setPixel(cx - y, cy - x, on);
-            r.setPixel(cx + y, cy - x, on);
-            r.setPixel(cx + x, cy - y, on);
-            if (err <= 0) {
-                ++y;
-                err += 2 * y + 1;
-            }
-            if (err > 0) {
-                --x;
-                err -= 2 * x + 1;
-            }
-        }
+        alg::circle::outline(cx, cy, rad, [&](int x, int y) noexcept {
+            r.setPixel(x, y, on);
+        });
     }
 
     template <class R>
@@ -852,13 +835,13 @@ export namespace gui
             r.drawText(*th.font_default, rc.x + th.pad_xs, base, label ? label : "", true);
         }
 
-        // 进度条区域
+        // 杩涘害鏉″尯鍩?
         const int barX = rc.x + 54;
         const int barY = rc.y + (rc.h - 9) / 2;
         const int barW = rc.w - 58;
         const int barH = 9;
 
-        // 边框与文本一致：使用 !focused，使反色/非反色都清晰
+        // 杈规涓庢枃鏈竴鑷达細浣跨敤 !focused锛屼娇鍙嶈壊/闈炲弽鑹查兘娓呮櫚
         r.drawRect(Rect{(int16_t)barX, (int16_t)barY, (int16_t)barW, (int16_t)barH}, true);
 
 

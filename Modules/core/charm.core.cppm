@@ -44,12 +44,14 @@ export import service_stream;
 export import service_fifo;
 
 export import alg_arc;
+export import alg_circle;
 export import alg_color;
 export import alg_compress;
 export import alg_fft;
 export import alg_filters;
 export import alg_heatshrink;
 export import alg_line;
+export import alg_round_rect;
 export import alg_lz4;
 export import alg_packbits;
 export import alg.qr_encode;

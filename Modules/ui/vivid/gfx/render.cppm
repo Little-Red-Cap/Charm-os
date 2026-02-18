@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <cmath>
 #include <utility>
 #include <cstddef>
@@ -10,11 +10,13 @@ export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
 import alg_arc;
+import alg_circle;
 import alg_line;
+import alg_round_rect;
 
 namespace ui::render {
 
-// Bresenham 直线
+// Bresenham 鐩寸嚎
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_line(Canvas<PF, W, H>& cvs,
                int x0, int y0,
@@ -26,7 +28,7 @@ void draw_line(Canvas<PF, W, H>& cvs,
     });
 }
 
-// 矩形（填充或描边）
+// 鐭╁舰锛堝～鍏呮垨鎻忚竟锛?
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_rect(Canvas<PF, W, H>& cvs,
                int x, int y,
@@ -46,7 +48,7 @@ void draw_rect(Canvas<PF, W, H>& cvs,
 }
 
 
-// 中点圆算法
+// 涓偣鍦嗙畻娉?
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_circle(Canvas<PF, W, H>& cvs,
                  int cx, int cy,
@@ -54,51 +56,15 @@ void draw_circle(Canvas<PF, W, H>& cvs,
                  const rgba& color,
                  bool fill = false) noexcept
 {
-    int x = 0;
-    int y = radius;
-    int d = 1 - radius;
-    auto plot8 = [&](int px, int py) {
-        cvs.set_pixel(cx + px, cy + py, color);
-        cvs.set_pixel(cx - px, cy + py, color);
-        cvs.set_pixel(cx + px, cy - py, color);
-        cvs.set_pixel(cx - px, cy - py, color);
-        cvs.set_pixel(cx + py, cy + px, color);
-        cvs.set_pixel(cx - py, cy + px, color);
-        cvs.set_pixel(cx + py, cy - px, color);
-        cvs.set_pixel(cx - py, cy - px, color);
-    };
-
-    if (fill) {
-        // 扫描填充：每行画水平线
-        while (y >= x) {
-            cvs.draw_hline(cx - x, cx + x + 1, cy + y, color);
-            cvs.draw_hline(cx - x, cx + x + 1, cy - y, color);
-            cvs.draw_hline(cx - y, cx + y + 1, cy + x, color);
-            cvs.draw_hline(cx - y, cx + y + 1, cy - x, color);
-            ++x;
-            if (d < 0) {
-                d += 2 * x + 1;
-            } else {
-                --y;
-                d += 2 * (x - y) + 1;
-            }
-        }
-    } else {
-        // 仅描边
-        while (y >= x) {
-            plot8(x, y);
-            ++x;
-            if (d < 0) {
-                d += 2 * x + 1;
-            } else {
-                --y;
-                d += 2 * (x - y) + 1;
-            }
-        }
-    }
+    alg::circle::draw(cx, cy, radius, fill,
+        [&](int x, int y) noexcept {
+            cvs.set_pixel(x, y, color);
+        },
+        [&](int x0, int x1, int y) noexcept {
+            cvs.draw_hline(x0, x1, y, color);
+        });
 }
 
-// Arc with thickness (degrees).
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_arc(Canvas<PF, W, H>& cvs,
               int cx, int cy,
@@ -378,7 +344,7 @@ void draw_image_nine_slice(Canvas<PF, W, H>& cvs,
 }
 
 
-// 圆角矩形绘制：radius=r，fill=true 填充，fill=false 描边
+// 鍦嗚鐭╁舰缁樺埗锛歳adius=r锛宖ill=true 濉厖锛宖ill=false 鎻忚竟
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_round_rect(Canvas<PF, W, H>& cvs,
                      int x, int y, int w, int h,
@@ -386,117 +352,16 @@ void draw_round_rect(Canvas<PF, W, H>& cvs,
                      const rgba& color,
                      bool fill = false) noexcept
 {
-    // 限制圆角半径不超过矩形一半
-    radius = std::fmin(radius, std::fmin(w/2, h/2));
-
-    // 准备引用 h-1, w-1 末端
-    int x2 = x + w - 1;
-    int y2 = y + h - 1;
-
-    if (fill) {
-        // --- 填充部分 ---
-        // 1) 中心矩形
-        for (int yy = y + radius; yy <= y2 - radius; ++yy) {
-            cvs.draw_hline(x, x + w, yy, color);
-        }
-        // 2) 顶部和底部的四个弧线区域
-        for (int dy = 0; dy < radius; ++dy) {
-            // 使用标准圆方程计算 dx
-            const int dx = static_cast<int>(std::sqrt(radius*radius - dy*dy));
-            // 顶部
-            cvs.draw_hline(x + radius - dx, x2 - (radius - dx), y + dy, color);
-            // 底部
-            cvs.draw_hline(x + radius - dx, x2 - (radius - dx), y2 - dy, color);
-        }
-    } else {
-        // --- 描边部分 ---
-        // 1) 四条直边（不含圆角区域）
-        cvs.draw_hline(x + radius, x2 - radius, y,    color); // 顶部
-        cvs.draw_hline(x + radius, x2 - radius, y2,   color); // 底部
-        cvs.draw_vline(x,             y + radius, y2 - radius, color); // 左
-        cvs.draw_vline(x2,            y + radius, y2 - radius, color); // 右
-
-        // 2) 四个圆角 - 使用中点圆算法绘制90度圆弧
-        if (radius > 0) {
-            // 定义四个圆角圆心
-            const int cx1 = x + radius;      // 左上角圆心
-            const int cy1 = y + radius;
-            const int cx2 = x2 - radius;     // 右上角圆心
-            const int cy2 = y + radius;
-            const int cx3 = x + radius;      // 左下角圆心
-            const int cy3 = y2 - radius;
-            const int cx4 = x2 - radius;     // 右下角圆心
-            const int cy4 = y2 - radius;
-
-            // 左上角圆弧
-            {
-                int xc = 0, yc = radius;
-                int d = 1 - radius;
-                while (xc <= yc) {
-                cvs.set_pixel(cx1 - xc, cy1 - yc, color);
-                cvs.set_pixel(cx1 - yc, cy1 - xc, color);
-                    if (d < 0) {
-                        d += 2 * xc + 1;
-                    } else {
-                        d += 2 * (xc - yc) + 1;
-                        yc--;
-                    }
-                    xc++;
-                }
-            }
-
-            // 右上角圆弧
-            {
-                int xc = 0, yc = radius;
-                int d = 1 - radius;
-                while (xc <= yc) {
-                    cvs.set_pixel(cx2 + xc, cy2 - yc, color);
-                    cvs.set_pixel(cx2 + yc, cy2 - xc, color);
-                    if (d < 0) {
-                        d += 2 * xc + 1;
-                    } else {
-                        d += 2 * (xc - yc) + 1;
-                        yc--;
-                    }
-                    xc++;
-                }
-            }
-
-            // 左下角圆弧
-            {
-                int xc = 0, yc = radius;
-                int d = 1 - radius;
-                while (xc <= yc) {
-                    cvs.set_pixel(cx3 - xc, cy3 + yc, color);
-                    cvs.set_pixel(cx3 - yc, cy3 + xc, color);
-                    if (d < 0) {
-                        d += 2 * xc + 1;
-                    } else {
-                        d += 2 * (xc - yc) + 1;
-                        yc--;
-                    }
-                    xc++;
-                }
-            }
-
-            // 右下角圆弧
-            {
-                int xc = 0, yc = radius;
-                int d = 1 - radius;
-                while (xc <= yc) {
-                    cvs.set_pixel(cx4 + xc, cy4 + yc, color);
-                    cvs.set_pixel(cx4 + yc, cy4 + xc, color);
-                    if (d < 0) {
-                        d += 2 * xc + 1;
-                    } else {
-                        d += 2 * (xc - yc) + 1;
-                        yc--;
-                    }
-                    xc++;
-                }
-            }
-        }
-    }
+    alg::round_rect::draw(x, y, w, h, radius, fill,
+        [&](int px, int py) noexcept {
+            cvs.set_pixel(px, py, color);
+        },
+        [&](int x0, int x1, int yy) noexcept {
+            cvs.draw_hline(x0, x1, yy, color);
+        },
+        [&](int xx, int y0, int y1) noexcept {
+            cvs.draw_vline(xx, y0, y1, color);
+        });
 }
 
 } // namespace ui::render

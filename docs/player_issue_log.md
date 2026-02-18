@@ -24,6 +24,11 @@
 - 临时修复：补 `<cstddef>`、`<expected>`、`import out.core;`
 - 建议：平台端口模板应可直接编译通过
 
+5) `AudioPlayer::seek_ms` 仅支持 WAV
+- 现象：FLAC/MP3 返回 `Errc::not_supported`，示例里只能提示“不支持 seek”
+- 临时处理：示例限制拖拽仅在播放期触发 seek，失败则回滚
+- 建议：补 FLAC/MP3 的 seek 能力或提供统一的“是否可 seek”查询
+
 ## 架构改进建议（待你确认推进方向）
 
 1) VFS 桥接缺口

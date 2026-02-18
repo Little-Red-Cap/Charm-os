@@ -52,8 +52,13 @@ namespace {
         UiHandles handles{};
         bool playing{false};
         bool track_ready{false};
+        bool dragging{false};
         std::chrono::steady_clock::time_point start{};
         int duration_sec{180};
+        int current_sec{0};
+        int drag_origin_sec{0};
+        int drag_target_sec{0};
+        int pending_seek_sec{-1};
         const char* track_path{nullptr};
         bool updating{false};
 
@@ -69,6 +74,7 @@ namespace {
         }
 
         void set_time_label(int elapsed_sec) {
+            current_sec = elapsed_sec;
             char buf[32]{};
             const int total = duration_sec;
             const int cur_m = elapsed_sec / 60;
@@ -94,6 +100,42 @@ namespace {
             set_time_label(clamped);
         }
 
+        void sync_progress_value(int value) {
+            if (auto* bar = factory->get_progress(handles.progress)) {
+                bar->set_value(value);
+            }
+        }
+
+        bool is_seek_ready() const {
+            if (!player) return false;
+            const auto st = player->state();
+            return st != audio::PlayerState::idle && st != audio::PlayerState::opening;
+        }
+
+        bool request_seek(int target_sec) {
+            if (!player || target_sec < 0) return false;
+            const auto res = player->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
+            if (!res) {
+                set_status("Seek unsupported");
+                return false;
+            }
+            set_status("Playing");
+            return true;
+        }
+
+        void apply_pending_seek() {
+            if (pending_seek_sec < 0) return;
+            if (!is_seek_ready()) return;
+            const int target = pending_seek_sec;
+            pending_seek_sec = -1;
+            if (request_seek(target)) {
+                start = std::chrono::steady_clock::now() - std::chrono::seconds(target);
+                set_time_label(target);
+                const int value = (duration_sec > 0) ? static_cast<int>((target * 100) / duration_sec) : 0;
+                sync_progress_value(value);
+            }
+        }
+
         void start_playback() {
             if (!player || !track_path || !track_ready) return;
             (void)player->stop();
@@ -106,9 +148,8 @@ namespace {
             start = std::chrono::steady_clock::now();
             set_status("Playing");
             set_time_label(0);
-            if (auto* bar = factory->get_progress(handles.progress)) {
-                bar->set_value(0);
-            }
+            sync_progress_value(0);
+            apply_pending_seek();
         }
 
         void stop_playback() {
@@ -117,6 +158,61 @@ namespace {
             }
             playing = false;
             set_status("Stopped");
+            set_time_label(0);
+            sync_progress_value(0);
+        }
+
+        bool begin_drag(int x, int y) {
+            if (!factory) return false;
+            auto* bar = factory->get_progress(handles.progress);
+            if (!bar) return false;
+            const auto r = bar->get_rect();
+            if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return false;
+            drag_origin_sec = current_sec;
+            dragging = true;
+            updating = true;
+            return update_drag(x);
+        }
+
+        bool update_drag(int x) {
+            if (!factory) return false;
+            auto* bar = factory->get_progress(handles.progress);
+            if (!bar) return false;
+            const auto r = bar->get_rect();
+            if (r.w <= 0) return false;
+            int clamped = x;
+            if (clamped < r.x) clamped = r.x;
+            if (clamped > r.x + r.w) clamped = r.x + r.w;
+            const int value = static_cast<int>(((clamped - r.x) * 100) / r.w);
+            bar->set_value(value);
+            drag_target_sec = (duration_sec > 0) ? static_cast<int>((value * duration_sec) / 100) : 0;
+            set_time_label(drag_target_sec);
+            return true;
+        }
+
+        void end_drag() {
+            if (!dragging) return;
+            dragging = false;
+            updating = false;
+            if (!playing) {
+                set_time_label(drag_origin_sec);
+                const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
+                sync_progress_value(value);
+                set_status("Seek only during play");
+                return;
+            }
+            if (is_seek_ready()) {
+                if (request_seek(drag_target_sec)) {
+                    start = std::chrono::steady_clock::now() - std::chrono::seconds(drag_target_sec);
+                } else {
+                    set_time_label(drag_origin_sec);
+                    const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
+                    sync_progress_value(value);
+                }
+            } else {
+                pending_seek_sec = drag_target_sec;
+                set_status("Seek queued");
+            }
         }
     };
 
@@ -146,21 +242,39 @@ namespace {
         }
     }
 
-    bool dispatch_sdl_event(Gui& gui, const SDL_Event& evt) {
+    bool dispatch_sdl_event(Gui& gui, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION:
+            if (ctx.dragging) {
+                ctx.update_drag(evt.motion.x);
+                return true;
+            }
             gui.dispatch_event(Event::mouse(Event::Type::MouseMove, evt.motion.x, evt.motion.y));
             return true;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (evt.button.button == SDL_BUTTON_LEFT) {
+                if (ctx.begin_drag(evt.button.x, evt.button.y)) {
+                    return true;
+                }
+            }
             gui.dispatch_event(Event::mouse(Event::Type::MouseDown, evt.button.x, evt.button.y, evt.button.button));
             return true;
         case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (evt.button.button == SDL_BUTTON_LEFT && ctx.dragging) {
+                ctx.end_drag();
+                return true;
+            }
             gui.dispatch_event(Event::mouse(Event::Type::MouseUp, evt.button.x, evt.button.y, evt.button.button));
             return true;
         case SDL_EVENT_MOUSE_WHEEL:
             gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
             return true;
         case SDL_EVENT_KEY_DOWN:
+            if (evt.key.key == SDLK_SPACE) {
+                if (ctx.playing) ctx.stop_playback();
+                else ctx.start_playback();
+                return true;
+            }
             gui.dispatch_event(Event::key(Event::Type::KeyDown, map_key(evt.key.key)));
             return true;
         case SDL_EVENT_KEY_UP:
@@ -357,10 +471,15 @@ int main(int argc, char** argv) {
                 running = false;
                 break;
             }
-            dispatch_sdl_event(gui, evt);
+            dispatch_sdl_event(gui, ctx, evt);
         }
 
         player.tick();
+        if (ctx.playing && !player.is_running()) {
+            ctx.playing = false;
+            ctx.set_status("Stopped");
+        }
+        ctx.apply_pending_seek();
         ctx.update_progress();
 
         canvas.clear({18, 20, 28, 255});

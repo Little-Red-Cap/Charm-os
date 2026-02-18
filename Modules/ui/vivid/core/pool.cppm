@@ -1,4 +1,8 @@
 module;
+
+#include <cstddef>
+
+module;
 #include <cstddef>
 
 export module charm.core.pool;

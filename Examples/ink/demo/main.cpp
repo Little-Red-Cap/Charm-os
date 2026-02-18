@@ -16,7 +16,12 @@ import gui.layout;
 import gui.font;
 import gui.image_1bpp;
 import gui.qr_widget;
+import gui.perf;
 import backend.sdl3;
+import out.api;
+import service_trace;
+import trace_core;
+import util.core;
 
 using Canvas = gui::Canvas1bpp<128, 64>;
 using Renderer = gui::Renderer<Canvas>;
@@ -519,10 +524,67 @@ int main() try {
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
 
+    constexpr std::uint32_t kTraceFpsId = 1001;
+    constexpr std::uint32_t kTraceFrameId = 1002;
+    constexpr util::usize kTraceCap = 128;
+
+    struct TraceSink {
+        service::TraceBuffer<util::u32, kTraceCap> buffer{};
+        util::u32 now_ms{0};
+
+        void emit(trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+            service::TraceRecord<util::u32, kTraceCap> rec{};
+            rec.time = now_ms;
+            rec.id = id;
+            rec.payload = payload;
+            rec.count = 1;
+            rec.kind = kind;
+            buffer.push(rec);
+        }
+    };
+
+    auto trace_emit = [](void* ctx, trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+        auto* sink = static_cast<TraceSink*>(ctx);
+        if (!sink) return;
+        sink->emit(kind, id, payload);
+    };
+
+    auto trace_latest = [](const TraceSink& sink,
+                           std::uint32_t id,
+                           trace::TraceKind kind,
+                           std::uint64_t& out) noexcept -> bool {
+        const auto total = sink.buffer.size();
+        if (total == 0) return false;
+        const auto cap = sink.buffer.capacity();
+        const auto head = sink.buffer.head();
+        const auto& data = sink.buffer.data();
+        for (util::usize i = 0; i < total; ++i) {
+            const auto idx = (head + cap - 1 - i) % cap;
+            const auto& rec = data[idx];
+            if (rec.id == id && rec.kind == kind) {
+                out = rec.payload;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    TraceSink trace{};
+    gui::perf::FpsCounter fps{};
+    fps.set_trace_hook(gui::perf::TraceHook{&trace, trace_emit, kTraceFpsId, kTraceFrameId});
+
     std::size_t index = 0;
     while (true) {
         const auto now = clock::now();
         const auto ms = (std::uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - t0).count();
+        trace.now_ms = ms;
+        if (fps.update(ms)) {
+            std::uint64_t fps_x1000 = 0;
+            std::uint64_t frames = 0;
+            (void)trace_latest(trace, kTraceFpsId, trace::TraceKind::counter, fps_x1000);
+            (void)trace_latest(trace, kTraceFrameId, trace::TraceKind::counter_delta, frames);
+            (void)out::raw().template try_println<"trace_fps,{},{}">(fps_x1000, frames);
+        }
 
         const auto& demo = demo::kDemos[index];
         const std::uint32_t t_in = ms % demo.duration_ms;

@@ -33,7 +33,7 @@ public:
         const auto& data = trace_.data();
         const auto start = (head + cap - total) % cap;
         auto out = out::raw();
-        (void)out.template try_println<"t,id,kind,payload,count">();
+        (void)out.template try_println<"trace_v1,t,id,kind,payload,count">();
         for (util::usize i = 0; i < total; ++i) {
             const auto idx = (start + i) % cap;
             const auto& rec = data[idx];

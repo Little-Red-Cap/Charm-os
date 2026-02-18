@@ -7,6 +7,7 @@ module;
 export module gui.ui_tree;
 
 import gui.core;
+import gui.trace;
 import service.fixed_store;
 import util.core;
 
@@ -71,6 +72,7 @@ export namespace gui::ui {
         void begin_frame() noexcept {
             count_ = 0;
             depth_ = 0;
+            gui::trace::trace_counter_delta(gui::trace::TraceId::TreeBeginFrame, 1);
         }
 
         NodeIndex begin(NodeId id) noexcept {
@@ -79,6 +81,7 @@ export namespace gui::ui {
             Node& n = nodes_[idx];
             n = Node{};
             n.id = id;
+            gui::trace::trace_counter_delta(gui::trace::TraceId::TreeNodeBegin, 1);
             n.parent = (depth_ > 0) ? stack_[depth_ - 1] : kNullIndex;
             if (n.parent != kNullIndex) {
                 append_child(n.parent, idx);

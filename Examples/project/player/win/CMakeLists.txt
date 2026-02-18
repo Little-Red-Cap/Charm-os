@@ -21,7 +21,7 @@ include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
 charm_example_sdl3_options()
 set(SDL_AUDIO ON)
 charm_example_sources(${target_name} "${CHARM_ROOT}"
-    "${CHARM_ROOT}/Modules/**/*.cppm"
+    "${CHARM_ROOT}/Modules/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/*.cppm"
 )
 

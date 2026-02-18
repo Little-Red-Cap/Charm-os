@@ -1,5 +1,7 @@
 export module charm.ui.ink;
 
+export import ui.common;
+
 export import gui.canvas_1bpp;
 export import gui.chart_scope;
 export import gui.core;

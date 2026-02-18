@@ -1,5 +1,7 @@
 export module charm.ui.vivid;
 
+export import ui.common;
+
 export import charm.core.config;
 export import charm.core.container;
 export import charm.core.event;

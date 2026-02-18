@@ -1,14 +1,16 @@
 module;
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vector>
 
 export module audio.resampler.linear;
 
 export namespace audio {
+    constexpr std::size_t kResamplerMaxChannels = 2;
+
     struct ResampleResult {
         std::size_t in_used{0};
         std::size_t out_frames{0};
@@ -20,6 +22,9 @@ export namespace audio {
             src_rate_ = src_rate;
             dst_rate_ = dst_rate;
             channels_ = channels;
+            if (channels_ > kResamplerMaxChannels) {
+                channels_ = 0;
+            }
             if (dst_rate_ == 0) {
                 step_ = 0;
             } else {
@@ -31,7 +36,9 @@ export namespace audio {
         void reset() {
             phase_ = 0;
             have_carry_ = false;
-            carry_.assign(channels_, 0);
+            for (std::size_t c = 0; c < kResamplerMaxChannels; ++c) {
+                carry_[c] = 0;
+            }
         }
 
         ResampleResult process(std::span<const std::int32_t> in, std::size_t in_frames,
@@ -46,7 +53,6 @@ export namespace audio {
             std::size_t in_used = 0;
             if (!have_carry_) {
                 if (in_frames == 0) return res;
-                if (carry_.size() != channels) carry_.assign(channels, 0);
                 for (std::size_t c = 0; c < channels; ++c) {
                     carry_[c] = in[c];
                 }
@@ -92,7 +98,6 @@ export namespace audio {
             if (advance > max_advance) advance = max_advance;
 
             if (advance > 0) {
-                if (carry_.size() != channels) carry_.assign(channels, 0);
                 for (std::size_t ch = 0; ch < channels; ++ch) {
                     carry_[ch] = frame_at(advance, ch);
                 }
@@ -113,6 +118,6 @@ export namespace audio {
         std::uint64_t step_{0};
         std::uint64_t phase_{0};
         bool have_carry_{false};
-        std::vector<std::int32_t> carry_{};
+        std::array<std::int32_t, kResamplerMaxChannels> carry_{};
     };
 }

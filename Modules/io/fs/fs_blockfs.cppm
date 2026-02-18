@@ -540,6 +540,7 @@ export namespace fs {
             n.offset = off;
             return Status{Err::ok};
         },
-        .flush = [](Node&) noexcept { return Status{Err::ok}; }
+        .flush = [](Node&) noexcept { return Status{Err::ok}; },
+        .close = [](Node&) noexcept { return Status{Err::ok}; }
     };
 }

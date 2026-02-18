@@ -23,6 +23,7 @@ export namespace fs {
         Status (*write)(Node&, std::span<const util::u8>) noexcept { nullptr };
         Status (*seek)(Node&, util::i64) noexcept { nullptr };
         Status (*flush)(Node&) noexcept { nullptr };
+        Status (*close)(Node&) noexcept { nullptr };
     };
 
     struct Node {
@@ -108,5 +109,15 @@ export namespace fs {
     inline Status flush(File& f) noexcept {
         if (!f.node.ops || !f.node.ops->flush) return Status{Err::nosys};
         return f.node.ops->flush(f.node);
+    }
+
+    inline Status close(File& f) noexcept {
+        if (!f.node.ops || !f.node.ops->close) return Status{Err::nosys};
+        auto st = f.node.ops->close(f.node);
+        if (st) {
+            f.node = {};
+            f.mount = nullptr;
+        }
+        return st;
     }
 }

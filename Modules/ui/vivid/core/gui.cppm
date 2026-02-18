@@ -330,7 +330,7 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         }
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {
-                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
+                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); }, true);
             }
         }
         obj->draw(canvas);
@@ -373,7 +373,7 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         if (!obj->is_enabled()) return {};
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {
-                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
+                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); }, false);
             }
         }
 

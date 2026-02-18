@@ -41,7 +41,8 @@ public:
     void sync_child_bases(Resolver&& resolve) {
         const auto r = get_rect();
         content_height_ = 0;
-        for (std::size_t i = 0; i < child_count(); ++i) {
+        const std::size_t count = (child_count() > kMax) ? kMax : child_count();
+        for (std::size_t i = 0; i < count; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
@@ -52,7 +53,7 @@ public:
             if (bottom > content_height_) content_height_ = bottom;
         }
         update_scroll_bounds();
-        apply_scroll(resolve);
+        apply_scroll(resolve, false);
     }
 
     void draw(DefaultCanvas& cvs) override {
@@ -151,15 +152,16 @@ public:
     }
 
     template<typename Resolver>
-    void apply_scroll(Resolver&& resolve) {
+    void apply_scroll(Resolver&& resolve, bool advance = true) {
         const auto r = get_rect();
-        for (std::size_t i = 0; i < child_count(); ++i) {
+        const std::size_t count = (child_count() > kMax) ? kMax : child_count();
+        for (std::size_t i = 0; i < count; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
             ch->set_pos(r.x + base_x_[i], r.y + base_y_[i] - scroll_y_);
         }
-        if (!dragging_ && velocity_ != 0) {
+        if (advance && !dragging_ && velocity_ != 0) {
             add_scroll_y(velocity_);
             velocity_ = static_cast<int>(static_cast<float>(velocity_) * decel_);
             if (std::abs(velocity_) < 1) velocity_ = 0;

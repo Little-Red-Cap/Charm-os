@@ -61,6 +61,8 @@ Draft/        # 计划/草案（可变动）
 - 输入分层决策：`docs/input_layering_decision.md`
 - 输入协议映射：`docs/input_protocol_map.md`
 - 能力回收规则：`docs/capability_recovery_rules.md`
+- VSF USB 映射：`docs/vsf_usb_map.md`
+- VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
 
 ## 1.2 依赖红线（单向依赖）
 

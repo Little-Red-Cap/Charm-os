@@ -7,6 +7,7 @@ module;
 export module gui.input;
 
 import input.raw;
+import input.raw_event;
 import input.intent;
 import input.events;
 import input.queue;
@@ -25,9 +26,13 @@ export namespace gui::input {
     using ::input::IntentType;
     using ::input::Key;
     using ::input::PointerRaw;
+    using ::input::PointerAction;
+    using ::input::RawInputEvent;
+    using ::input::RawInputEventType;
     using ::input::RawSource;
     using ::input::RepeatCfg;
     using ::input::RingQueue;
+    using ::input::RawSampler;
     using ::input::Sampler;
     using ::input::SamplerCfg;
     using ::input::Type;

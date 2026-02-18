@@ -39,12 +39,16 @@ endif()
 if (CHARM_AUDIO_USE_VFS)
     target_compile_definitions(${target_name} PRIVATE CHARM_AUDIO_USE_VFS=1)
 endif()
+if (CHARM_ENABLE_SDL3)
+    target_compile_definitions(${target_name} PRIVATE CHARM_ENABLE_SDL3=1)
+endif()
 
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS "Modules/*.cppm")
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_player.cppm"
     )
 endif()
 if (NOT CHARM_ENABLE_MEDIA)

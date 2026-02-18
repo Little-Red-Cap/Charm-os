@@ -487,8 +487,8 @@ public:
     }
 
 private:
-    template <typename Pool>
-    static WidgetHandle make_handle(std::optional<typename Pool::Handle> h, WidgetKind kind) noexcept {
+    template <typename Handle>
+    static WidgetHandle make_handle(std::optional<Handle> h, WidgetKind kind) noexcept {
         if (!h) return {};
         return WidgetHandle{kind, h->index, h->generation};
     }

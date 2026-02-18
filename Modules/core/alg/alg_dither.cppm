@@ -4,6 +4,7 @@ module;
 #include <cstdint>
 #include <span>
 #include <cstring>
+#include <span>
 
 export module alg_dither;
 

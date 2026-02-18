@@ -1,3 +1,6 @@
+module;
+#include <cstddef>
+
 export module charm.core.pool;
 
 import service.object_pool;

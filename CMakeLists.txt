@@ -10,6 +10,7 @@ option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
 option(CHARM_USE_ETL "Use ETL for core util aliases" ON)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_USE_ETL_EXPECTED "Use ETL expected instead of std::expected" OFF)
+option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 
 add_library(${target_name})
 
@@ -34,6 +35,11 @@ if (CHARM_USE_ETL)
     if (CHARM_USE_ETL_EXPECTED)
         target_compile_definitions(${target_name} PRIVATE CHARM_USE_ETL_EXPECTED=1)
     endif()
+endif()
+
+if (CHARM_ENABLE_FATFS)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")
+    charm_link_fatfs(${target_name})
 endif()
 
 if (CHARM_AUDIO_USE_VFS)

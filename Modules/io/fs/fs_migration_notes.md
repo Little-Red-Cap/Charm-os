@@ -1,24 +1,24 @@
-# FS Ç¨ÒÆ¼ÇÂ¼ (Draft)
+ï»¿# FS è¿ç§»è®°å½• (Draft)
 
-## Ä¿±ê
-- ÄÚºË²ã×ß node+stream ·ç¸ñ£¨ÀàËÆ VSF£©£¬ÉÏ²ã¿É×ö POSIX fa?ade¡£
-- ÏÖ½×¶Î²»×öÍâ²¿ÊÊÅä£¨FatFS/FlashFS£©£¬ÏÈÍê³É VFS + RAMFS + Block ³éÏó¡£
+## ç›®æ ‡
+- å†…æ ¸å±‚èµ° node+stream é£æ ¼ï¼ˆç±»ä¼¼ VSFï¼‰ï¼Œä¸Šå±‚å¯åš POSIX fa?adeã€‚
+- ç°é˜¶æ®µä¸åšå¤–éƒ¨é€‚é…ï¼ˆFatFS/FlashFSï¼‰ï¼Œå…ˆå®Œæˆ VFS + RAMFS + Block æŠ½è±¡ã€‚
 
-## ÒÑÇ¨ÒÆÄ£¿é
-- fs_errno: ´íÎóÂë
-- fs_stream: Í³Ò»Á÷¸ÅÄî
-- fs_core: node/file/mount »ù´¡½á¹¹
-- fs_path: ÇáÁ¿ path ¸¨Öú£¨Õ¼Î»£©
-- fs_block: ¿éÉè±¸³éÏó
-- fs_ramfs: RAMFS Õ¼Î»ÊµÏÖ£¨¼ò»¯°æ£©
+## å·²è¿ç§»æ¨¡å—
+- fs_errno: é”™è¯¯ç 
+- fs_stream: ç»Ÿä¸€æµæ¦‚å¿µ
+- fs_core: node/file/mount åŸºç¡€ç»“æ„
+- fs_path: è½»é‡ path è¾…åŠ©ï¼ˆå ä½ï¼‰
+- fs_block: å—è®¾å¤‡æŠ½è±¡
+- fs_ramfs: RAMFS å ä½å®ç°ï¼ˆç®€åŒ–ç‰ˆï¼‰
+- fs_fatfs: FatFs é€‚é…å…¥å£ï¼ˆéœ€ CHARM_ENABLE_FATFS + FatFs æºç ï¼‰
 
-## Ê¾Àı
+## ç¤ºä¾‹
 - Draft/Examples/vsf_fs_demo
 
-## ´ı°ì
-- ÍêÉÆ VFS µ÷¶È£ºmount/open/close/read/write/seek/flush ×ß NodeOps
-- Block cache£¨¿ÉÑ¡£©
-- POSIX fa?ade ÇÅ½Ó
-- RAMFS ÍêÕûÊµÏÖ£¨¶à¿é/Ä¿Â¼£©
-- ºóĞøÊÊÅä²ã£ºFatFS/ROMFS/FlashFS
-
+## å¾…åŠ
+- å®Œå–„ VFS è°ƒåº¦ï¼šmount/open/close/read/write/seek/flush èµ° NodeOps
+- Block cacheï¼ˆå¯é€‰ï¼‰
+- POSIX fa?ade æ¡¥æ¥
+- RAMFS å®Œæ•´å®ç°ï¼ˆå¤šå—/ç›®å½•ï¼‰
+- åç»­é€‚é…å±‚ï¼šROMFS/FlashFS

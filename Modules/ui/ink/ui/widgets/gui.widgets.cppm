@@ -284,7 +284,7 @@ export namespace gui
     template <class R>
     void draw_arc(R& r, int cx, int cy, int rad, float a0, float a1, bool on) noexcept
     {
-        const int steps = (rad < 8) ? 12 : 24;
+        const int steps = alg::arc::arc_steps_for_radius(rad);
         alg::arc::sample_arc_rad(a0, a1, steps, [&](float a) noexcept {
             const auto p = alg::arc::point_on_circle_rad(cx, cy, rad, a);
             r.setPixel(p.x, p.y, on);

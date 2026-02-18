@@ -7,6 +7,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -22,15 +23,13 @@ public:
         if (min_v > max_v) std::swap(min_v, max_v);
         min_ = min_v;
         max_ = max_v;
-        if (value_ < min_) value_ = min_;
-        if (value_ > max_) value_ = max_;
+        value_ = alg::arc::clamp_to_range(value_, min_, max_);
     }
 
     void set_value(int v) noexcept {
-        if (v < min_) v = min_;
-        if (v > max_) v = max_;
-        if (value_ == v) return;
-        value_ = v;
+        const int clamped = alg::arc::clamp_to_range(v, min_, max_);
+        if (value_ == clamped) return;
+        value_ = clamped;
         if (on_change_) on_change_();
     }
 

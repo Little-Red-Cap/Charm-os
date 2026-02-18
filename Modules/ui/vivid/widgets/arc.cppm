@@ -26,7 +26,7 @@ public:
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         const int radius = (r.w < r.h ? r.w : r.h) / 2;
-        const float end = alg::arc::lerp(start_deg_, end_deg_, value_);
+        const float end = alg::arc::sweep_deg_from_value(start_deg_, end_deg_, value_);
         rgba use = color_;
         if (use.a == 0) {
             use = Theme::instance().get<Arc>().border_color;

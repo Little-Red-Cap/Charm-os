@@ -5,6 +5,7 @@ import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -23,9 +24,7 @@ public:
     }
 
     void set_value(int v) noexcept {
-        if (v < min_) v = min_;
-        if (v > max_) v = max_;
-        value_ = v;
+        value_ = alg::arc::clamp_to_range(v, min_, max_);
     }
 
     int value() const noexcept { return value_; }

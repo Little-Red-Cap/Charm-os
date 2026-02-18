@@ -31,6 +31,44 @@ export namespace alg::arc {
         return deg * (kPi / 180.0f);
     }
 
+
+    [[nodiscard]] constexpr int clamp_to_range(int value, int min_v, int max_v) noexcept
+    {
+        if (min_v > max_v) {
+            const int tmp = min_v;
+            min_v = max_v;
+            max_v = tmp;
+        }
+        if (value < min_v) return min_v;
+        if (value > max_v) return max_v;
+        return value;
+    }
+
+    [[nodiscard]] constexpr float ratio_from_range(int value, int min_v, int max_v) noexcept
+    {
+        const int span = (max_v > min_v) ? (max_v - min_v) : 1;
+        return clamp01(static_cast<float>(value - min_v) / static_cast<float>(span));
+    }
+
+    [[nodiscard]] constexpr int value_from_ratio(float ratio01, int min_v, int max_v) noexcept
+    {
+        const float t = clamp01(ratio01);
+        return min_v + static_cast<int>(static_cast<float>(max_v - min_v) * t);
+    }
+
+
+    [[nodiscard]] constexpr int arc_steps_for_radius(int radius) noexcept
+    {
+        return (radius < 8) ? 12 : 24;
+    }
+
+    [[nodiscard]] constexpr float sweep_deg_from_value(float start_deg,
+                                                       float end_deg,
+                                                       float value01) noexcept
+    {
+        return lerp(start_deg, end_deg, clamp01(value01));
+    }
+
     struct Point {
         int x{0};
         int y{0};

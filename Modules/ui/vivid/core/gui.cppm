@@ -27,19 +27,22 @@ public:
     // 渲染一帧
     void render() {
         static int frame_no = 0;
+#ifndef NDEBUG
         static std::FILE* log_file = nullptr;
         if (!log_file) {
-            log_file = std::fopen("G:\\Project\\Charm-vivid\\Draft\\crash_log.txt", "a");
+            log_file = std::fopen("crash_log.txt", "a");
             if (log_file) {
                 std::fprintf(log_file, "[gui] log start\n");
                 std::fflush(log_file);
             }
         }
+#endif
         factory_.sanitize_tree(root_);
         const WidgetHandle ov = factory_.overlay();
         if (ov) factory_.sanitize_tree(ov);
         const auto& rep = factory_.last_sanitize_report();
         if (rep.removed > 0) {
+#ifndef NDEBUG
             static int frame_mod = 0;
             frame_mod = (frame_mod + 1) % 60;
             if (frame_mod == 0) {
@@ -54,6 +57,7 @@ public:
                             static_cast<unsigned>(rep.last_child.kind),
                             static_cast<unsigned>(rep.last_child.index));
             }
+#endif
         }
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
@@ -61,11 +65,13 @@ public:
         WidgetHandle stack[kMaxDepth]{};
         draw_recursive(root_, 0, stack);
 
+#ifndef NDEBUG
         if (log_file) {
             std::fprintf(log_file, "[frame %d] nodes=%d depth_hits=%d cycle_hits=%d\n",
                          frame_no, debug_nodes_, debug_depth_hits_, debug_cycle_hits_);
             std::fflush(log_file);
         }
+#endif
         frame_no++;
     }
 
@@ -330,7 +336,7 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         }
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {
-                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
+                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); }, true);
             }
         }
         obj->draw(canvas);
@@ -373,7 +379,7 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         if (!obj->is_enabled()) return {};
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {
-                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
+                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); }, false);
             }
         }
 

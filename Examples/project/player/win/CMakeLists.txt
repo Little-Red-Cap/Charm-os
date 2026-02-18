@@ -20,14 +20,17 @@ include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
 
 charm_example_sdl3_options()
 set(SDL_AUDIO ON)
+
+set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_MEDIA ON CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_USE_VFS ON CACHE BOOL "" FORCE)
+
 charm_example_sources(${target_name} "${CHARM_ROOT}"
-    "${CHARM_ROOT}/Modules/*.cppm"
-    "${CHARM_ROOT}/Modules/*/*.cppm"
-    "${CHARM_ROOT}/Modules/*/*/*.cppm"
-    "${CHARM_ROOT}/Modules/*/*/*/*.cppm"
-    "${CHARM_ROOT}/Modules/*/*/*/*/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/*.cppm"
 )
+charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"

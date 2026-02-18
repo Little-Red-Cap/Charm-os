@@ -8,6 +8,10 @@ option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
 option(CHARM_USE_ETL "Use ETL for core util aliases" OFF)
+option(CHARM_FETCHCONTENT_ETL "Fetch ETL via FetchContent when not found" ON)
+
+set(CHARM_ETL_GIT_REPOSITORY "https://github.com/ETLCPP/etl.git" CACHE STRING "ETL git repository")
+set(CHARM_ETL_GIT_TAG "master" CACHE STRING "ETL git tag")
 
 add_library(${target_name})
 
@@ -21,11 +25,30 @@ target_compile_options(${target_name} PRIVATE
 )
 
 if (CHARM_USE_ETL)
-    set(CHARM_ETL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/etl")
+    if (NOT DEFINED CHARM_ETL_ROOT)
+        set(CHARM_ETL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/etl")
+    endif()
+
     if (EXISTS "${CHARM_ETL_ROOT}/include/etl/etl.h")
         set(CHARM_ETL_INCLUDE "${CHARM_ETL_ROOT}/include")
     elseif (EXISTS "${CHARM_ETL_ROOT}/etl/etl.h")
         set(CHARM_ETL_INCLUDE "${CHARM_ETL_ROOT}")
+    elseif (CHARM_FETCHCONTENT_ETL)
+        include(FetchContent)
+        message(STATUS "Fetching ETL via FetchContent")
+        FetchContent_Declare(
+            etl
+            GIT_REPOSITORY ${CHARM_ETL_GIT_REPOSITORY}
+            GIT_TAG ${CHARM_ETL_GIT_TAG}
+        )
+        FetchContent_MakeAvailable(etl)
+        if (EXISTS "${etl_SOURCE_DIR}/include/etl/etl.h")
+            set(CHARM_ETL_INCLUDE "${etl_SOURCE_DIR}/include")
+        elseif (EXISTS "${etl_SOURCE_DIR}/etl/etl.h")
+            set(CHARM_ETL_INCLUDE "${etl_SOURCE_DIR}")
+        else()
+            message(FATAL_ERROR "ETL headers not found in FetchContent source at ${etl_SOURCE_DIR}")
+        endif()
     else()
         message(FATAL_ERROR "CHARM_USE_ETL is ON, but ETL headers were not found under ${CHARM_ETL_ROOT}")
     endif()

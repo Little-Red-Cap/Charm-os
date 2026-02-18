@@ -7,6 +7,7 @@
 - `kernel/windows`：内核 M0–M3 主线
 - `boot/bootloader_demo`：bootloader 示例
 - `audio/sdl3_wav_demo`：SDL3 音频示例
+- `project/player`：播放器项目化示例（win 子目录）
 - `fs/`：VFS/BlockFS/POSIX 示例
 - `shell/`：Shell/ModuleX 组合示例
 - `service/`：Service 核心与 DS 示例
@@ -27,6 +28,10 @@ cmake --build Examples/boot/bootloader_demo/build
 # Audio (SDL3)
 cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
 cmake --build Examples/audio/sdl3_wav_demo/build
+
+# Player (Windows)
+cmake -S Examples/project/player -B Examples/project/player/build -G Ninja
+cmake --build Examples/project/player/build
 
 # FS (VFS / BlockFS / POSIX)
 cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja

@@ -13,8 +13,7 @@ export module gui.perf;
 import out.core;
 import out.format;
 
-namespace gui::detail
-{
+namespace {
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -99,7 +98,7 @@ export namespace gui::perf
         {
             if (!out || out_size == 0) return;
             const char* name = label ? label : "FPS";
-            (void)detail::format_to<"{}: {:.1f}">(out, out_size, name, fps);
+            (void)format_to<"{}: {:.1f}">(out, out_size, name, fps);
         }
     };
 } // namespace gui::perf

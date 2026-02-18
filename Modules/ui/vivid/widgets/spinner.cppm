@@ -1,4 +1,6 @@
 module;
+#include <cstdint>
+
 export module charm.widgets.spinner;
 
 import charm.core.object;

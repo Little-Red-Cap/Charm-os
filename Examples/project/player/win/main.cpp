@@ -1,87 +1,314 @@
-﻿import player.app;
+﻿import audio.player;
+import charm.core.config;
+import charm.core.container;
+import charm.core.event;
+import charm.core.factory;
+import charm.core.gui;
+import charm.gfx.canvas;
+import charm.gfx.framebuffer;
+import charm.gfx.color;
+import charm.widgets.button;
+import charm.widgets.label;
+import charm.widgets.progress;
 
 #include <SDL3/SDL.h>
 
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+#include <cstring>
+#include <string>
 #include <thread>
 
-static std::uint32_t parse_u32(const char* value, std::uint32_t fallback) {
-    if (!value || !*value) return fallback;
-    char* end = nullptr;
-    const auto parsed = std::strtoul(value, &end, 10);
-    if (!end || *end != '\0') return fallback;
-    return static_cast<std::uint32_t>(parsed);
-}
+namespace {
+    constexpr const char* kDefaultTrack = "../../assets/beautiful-trick.flac";
+    constexpr int kUiPadding = 24;
+    constexpr int kCoverSize = 320;
 
-static void print_usage() {
-    std::printf("usage: charm-player-win [file.wav|file.flac|file.mp3] [seconds]\n");
+    struct UiHandles {
+        WidgetHandle root{};
+        WidgetHandle cover{};
+        WidgetHandle title{};
+        WidgetHandle subtitle{};
+        WidgetHandle status{};
+        WidgetHandle progress{};
+        WidgetHandle time{};
+        WidgetHandle btn_play{};
+        WidgetHandle btn_stop{};
+    };
+
+    struct PlayerUiContext {
+        audio::AudioPlayer* player{nullptr};
+        UiFactory* factory{nullptr};
+        UiHandles handles{};
+        bool playing{false};
+        std::chrono::steady_clock::time_point start{};
+        int duration_sec{180};
+        const char* track_path{nullptr};
+        bool updating{false};
+
+        void set_label(WidgetHandle h, const char* text) {
+            if (!factory) return;
+            if (auto* label = factory->get_label(h)) {
+                label->set_text(text);
+            }
+        }
+
+        void set_status(const char* text) {
+            set_label(handles.status, text);
+        }
+
+        void set_time_label(int elapsed_sec) {
+            char buf[32]{};
+            const int total = duration_sec;
+            const int cur_m = elapsed_sec / 60;
+            const int cur_s = elapsed_sec % 60;
+            const int total_m = total / 60;
+            const int total_s = total % 60;
+            std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
+            set_label(handles.time, buf);
+        }
+
+        void update_progress() {
+            if (!playing || updating) return;
+            const auto now = std::chrono::steady_clock::now();
+            const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
+            const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
+            const int value = (duration_sec > 0)
+                ? static_cast<int>((clamped * 100) / duration_sec)
+                : 0;
+
+            if (auto* bar = factory->get_progress(handles.progress)) {
+                bar->set_value(value);
+            }
+            set_time_label(clamped);
+        }
+
+        void start_playback() {
+            if (!player || !track_path) return;
+            (void)player->stop();
+            auto res = player->play(track_path);
+            if (!res) {
+                set_status("Play failed");
+                return;
+            }
+            playing = true;
+            start = std::chrono::steady_clock::now();
+            set_status("Playing");
+            set_time_label(0);
+            if (auto* bar = factory->get_progress(handles.progress)) {
+                bar->set_value(0);
+            }
+        }
+
+        void stop_playback() {
+            if (player) {
+                (void)player->stop();
+            }
+            playing = false;
+            set_status("Stopped");
+        }
+    };
+
+    void on_play_clicked(void* ctx) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->start_playback();
+    }
+
+    void on_stop_clicked(void* ctx) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->stop_playback();
+    }
+
+    Event::Key map_key(SDL_Keycode key) {
+        switch (key) {
+        case SDLK_TAB: return Event::Key::Tab;
+        case SDLK_RETURN: return Event::Key::Enter;
+        case SDLK_SPACE: return Event::Key::Space;
+        case SDLK_ESCAPE: return Event::Key::Escape;
+        case SDLK_UP: return Event::Key::Up;
+        case SDLK_DOWN: return Event::Key::Down;
+        case SDLK_LEFT: return Event::Key::Left;
+        case SDLK_RIGHT: return Event::Key::Right;
+        default: return Event::Key::Unknown;
+        }
+    }
+
+    bool dispatch_sdl_event(Gui& gui, const SDL_Event& evt) {
+        switch (evt.type) {
+        case SDL_EVENT_MOUSE_MOTION:
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, evt.motion.x, evt.motion.y));
+            return true;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, evt.button.x, evt.button.y, evt.button.button));
+            return true;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, evt.button.x, evt.button.y, evt.button.button));
+            return true;
+        case SDL_EVENT_MOUSE_WHEEL:
+            gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
+            return true;
+        case SDL_EVENT_KEY_DOWN:
+            gui.dispatch_event(Event::key(Event::Type::KeyDown, map_key(evt.key.key)));
+            return true;
+        case SDL_EVENT_KEY_UP:
+            gui.dispatch_event(Event::key(Event::Type::KeyUp, map_key(evt.key.key)));
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    UiHandles build_ui(UiFactory& factory, PlayerUiContext& ctx) {
+        UiHandles h{};
+        h.root = factory.create_container();
+        auto* root = factory.get_container(h.root);
+        root->set_rect({0, 0, screen_width, screen_height});
+        root->set_background({18, 20, 28, 255});
+
+        h.cover = factory.create_container();
+        if (auto* cover = factory.get_container(h.cover)) {
+            cover->set_rect({(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
+            cover->set_background({40, 44, 60, 255});
+        }
+
+        h.title = factory.create_label("Beautiful Trick");
+        if (auto* title = factory.get_label(h.title)) {
+            title->set_color({236, 238, 246, 255});
+            title->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 20);
+        }
+
+        h.subtitle = factory.create_label("FELT · FLAC");
+        if (auto* sub = factory.get_label(h.subtitle)) {
+            sub->set_color({156, 162, 188, 255});
+            sub->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 46);
+        }
+
+        h.progress = factory.create_progress();
+        if (auto* bar = factory.get_progress(h.progress)) {
+            bar->set_rect({kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
+            bar->set_range(0, 100);
+            bar->set_value(0);
+        }
+
+        h.time = factory.create_label("0:00 / 3:00");
+        if (auto* time = factory.get_label(h.time)) {
+            time->set_color({136, 142, 166, 255});
+            time->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 120);
+        }
+
+        h.status = factory.create_label("Stopped");
+        if (auto* status = factory.get_label(h.status)) {
+            status->set_color({120, 200, 170, 255});
+            status->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 150);
+        }
+
+        h.btn_play = factory.create_button("Play");
+        if (auto* play = factory.get_button(h.btn_play)) {
+            play->set_pos(kUiPadding, screen_height - 140);
+            play->set_size(140, 48);
+            play->set_on_click(Callback{&on_play_clicked, &ctx});
+        }
+
+        h.btn_stop = factory.create_button("Stop");
+        if (auto* stop = factory.get_button(h.btn_stop)) {
+            stop->set_pos(screen_width - kUiPadding - 140, screen_height - 140);
+            stop->set_size(140, 48);
+            stop->set_on_click(Callback{&on_stop_clicked, &ctx});
+        }
+
+        factory.link(h.root, h.cover);
+        factory.link(h.root, h.title);
+        factory.link(h.root, h.subtitle);
+        factory.link(h.root, h.progress);
+        factory.link(h.root, h.time);
+        factory.link(h.root, h.status);
+        factory.link(h.root, h.btn_play);
+        factory.link(h.root, h.btn_stop);
+
+        return h;
+    }
 }
 
 int main(int argc, char** argv) {
-    const char* path = nullptr;
-    std::uint32_t duration_sec = 0;
-    if (argc >= 2) {
-        path = argv[1];
-    }
-    if (argc >= 3) {
-        duration_sec = parse_u32(argv[2], 0);
-    }
+    const char* track = (argc >= 2) ? argv[1] : kDefaultTrack;
 
-    player::AppConfig config{};
-    player::App app(config);
-
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::printf("[player] SDL_Init(video) failed\n");
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        std::printf("[player] SDL_Init failed\n");
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Charm Player", 480, 960, 0);
+    SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, 0);
     if (!window) {
         std::printf("[player] SDL_CreateWindow failed\n");
         SDL_Quit();
         return 1;
     }
 
-    if (path && *path != '\0') {
-        auto res = app.play(path);
-        if (!res) {
-            std::printf("[player] play failed\n");
-            SDL_DestroyWindow(window);
-            SDL_Quit();
-            return 1;
-        }
-    } else {
-        print_usage();
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer) {
+        std::printf("[player] SDL_CreateRenderer failed\n");
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
     }
 
-    const auto start = std::chrono::steady_clock::now();
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
+                                             screen_width, screen_height);
+    if (!texture) {
+        std::printf("[player] SDL_CreateTexture failed\n");
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    DefaultFrameBuffer fb;
+    DefaultCanvas canvas(fb);
+
+    UiFactory factory;
+    audio::PlayerConfig cfg{};
+    audio::AudioPlayer player(cfg);
+
+    PlayerUiContext ctx{};
+    ctx.player = &player;
+    ctx.factory = &factory;
+    ctx.track_path = track;
+
+    ctx.handles = build_ui(factory, ctx);
+    ctx.set_time_label(0);
+
+    Gui gui(canvas, factory, ctx.handles.root);
+
     bool running = true;
     while (running) {
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_EVENT_QUIT) {
                 running = false;
+                break;
             }
+            dispatch_sdl_event(gui, evt);
         }
 
-        if (app.is_running()) {
-            app.tick();
-        }
+        player.tick();
+        ctx.update_progress();
 
-        if (duration_sec > 0) {
-            const auto now = std::chrono::steady_clock::now();
-            const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
-            if (elapsed >= duration_sec) {
-                (void)app.stop();
-            }
-        }
+        canvas.clear({18, 20, 28, 255});
+        gui.render();
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
+        SDL_RenderClear(renderer);
+        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;

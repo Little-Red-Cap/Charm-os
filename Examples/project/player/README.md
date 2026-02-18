@@ -19,3 +19,7 @@ Examples/project/player/
 - `player.app.cppm`：平台无关的最小应用封装，便于后续扩展为完整播放器子项目。
 - `win/`：PC 端实现（SDL3 / Windows）相关代码。
 - 后续移植到 MCU 时，在 `stm32/` 下新增平台实现即可。
+
+## 资源
+
+- 示例音频：`Examples/project/player/assets/beautiful-trick.flac`

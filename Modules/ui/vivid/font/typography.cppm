@@ -4,6 +4,7 @@ export module charm.font.typography;
 
 export import charm.font;
 import charm.font.font_12;
+import charm.font.lv_font_montserrat_12;
 import charm.font.lv_font_montserrat_16;
 
 export enum class FontId : uint8_t {

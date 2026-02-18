@@ -24,7 +24,8 @@ target_compile_options(${target_name} PRIVATE
 
 set(CHARM_DR_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/dr_libs")
 if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
-    target_include_directories(${target_name} PRIVATE "${CHARM_DR_LIBS_DIR}")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DRLibs.cmake")
+    charm_link_dr_libs(${target_name})
 endif()
 
 if (CHARM_USE_ETL)

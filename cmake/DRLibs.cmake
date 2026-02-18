@@ -1,0 +1,11 @@
+if (NOT DEFINED CHARM_DR_LIBS_DIR)
+    set(CHARM_DR_LIBS_DIR "${CMAKE_SOURCE_DIR}/Modules/thirdparty/dr_libs")
+endif()
+
+function(charm_link_dr_libs target)
+    if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
+        target_include_directories(${target} PRIVATE "${CHARM_DR_LIBS_DIR}")
+    else()
+        message(FATAL_ERROR "dr_libs headers not found under ${CHARM_DR_LIBS_DIR}")
+    endif()
+endfunction()

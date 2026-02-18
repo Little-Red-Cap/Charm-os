@@ -37,3 +37,6 @@ charm_link_sdl3(${target_name})
 
 include("${CHARM_ROOT}/cmake/ETL.cmake")
 charm_link_etl(${target_name})
+
+include("${CHARM_ROOT}/cmake/DRLibs.cmake")
+charm_link_dr_libs(${target_name})

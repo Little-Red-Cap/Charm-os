@@ -57,6 +57,10 @@ Draft/        # 计划/草案（可变动）
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
+- IO 分层总览：`docs/io_layering_overview.md`
+- 输入分层决策：`docs/input_layering_decision.md`
+- 输入协议映射：`docs/input_protocol_map.md`
+- 能力回收规则：`docs/capability_recovery_rules.md`
 
 ## 1.2 依赖红线（单向依赖）
 

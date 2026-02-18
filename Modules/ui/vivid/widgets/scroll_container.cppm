@@ -41,15 +41,19 @@ public:
     void sync_child_bases(Resolver&& resolve) {
         const auto r = get_rect();
         content_height_ = 0;
-        const std::size_t count = (child_count() > kMax) ? kMax : child_count();
-        for (std::size_t i = 0; i < count; ++i) {
+        const std::size_t total = child_count();
+        overflow_ = total > kMax;
+        for (std::size_t i = 0; i < total; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
             const auto r = ch->get_rect();
-            base_x_[i] = r.x - get_rect().x;
-            base_y_[i] = r.y - get_rect().y;
-            const int bottom = base_y_[i] + r.h;
+            if (i < kMax) {
+                base_x_[i] = r.x - get_rect().x;
+                base_y_[i] = r.y - get_rect().y;
+            }
+            const int base_y = (i < kMax) ? base_y_[i] : (r.y - get_rect().y + scroll_y_);
+            const int bottom = base_y + r.h;
             if (bottom > content_height_) content_height_ = bottom;
         }
         update_scroll_bounds();
@@ -134,10 +138,12 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;
         } else if (e.type == Event::Type::DragEnd) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;
@@ -154,12 +160,15 @@ public:
     template<typename Resolver>
     void apply_scroll(Resolver&& resolve, bool advance = true) {
         const auto r = get_rect();
-        const std::size_t count = (child_count() > kMax) ? kMax : child_count();
-        for (std::size_t i = 0; i < count; ++i) {
+        const std::size_t total = child_count();
+        overflow_ = total > kMax;
+        for (std::size_t i = 0; i < total; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
-            ch->set_pos(r.x + base_x_[i], r.y + base_y_[i] - scroll_y_);
+            const int base_x = (i < kMax) ? base_x_[i] : (ch->get_rect().x - r.x);
+            const int base_y = (i < kMax) ? base_y_[i] : (ch->get_rect().y - r.y + scroll_y_);
+            ch->set_pos(r.x + base_x, r.y + base_y - scroll_y_);
         }
         if (advance && !dragging_ && velocity_ != 0) {
             add_scroll_y(velocity_);
@@ -225,4 +234,5 @@ private:
     int slice_top_{0};
     int slice_right_{0};
     int slice_bottom_{0};
+    bool overflow_{false};
 };

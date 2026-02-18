@@ -273,6 +273,15 @@ export namespace fs {
             return status_from_fr(f_sync(&slot->file));
         }
 
+        static Status close_impl(Node& n) noexcept {
+            auto* slot = static_cast<FatFsFileSlot*>(n.data);
+            if (!slot || !slot->used) return Status{Err::inval};
+            const auto fr = f_close(&slot->file);
+            slot->used = false;
+            std::memset(&slot->file, 0, sizeof(slot->file));
+            return status_from_fr(fr);
+        }
+
         FatFsFileSlot* alloc_slot() noexcept {
             for (auto& slot : files_) {
                 if (!slot.used) {
@@ -306,7 +315,13 @@ export namespace fs {
         FATFS fs_{};
         std::array<FatFsFileSlot, max_files> files_{};
         Mount mount_{};
-        NodeOps node_ops_{ .read = &read_impl, .write = &write_impl, .seek = &seek_impl, .flush = &file_flush_impl };
+        NodeOps node_ops_{
+            .read = &read_impl,
+            .write = &write_impl,
+            .seek = &seek_impl,
+            .flush = &file_flush_impl,
+            .close = &close_impl
+        };
     };
 
     inline MountOps FatFsMount::ops_{

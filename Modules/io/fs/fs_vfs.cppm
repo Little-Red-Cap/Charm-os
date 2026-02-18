@@ -154,6 +154,10 @@ export namespace fs {
         return st;
     }
 
+    inline Status vfs_close(File& f) noexcept {
+        return close(f);
+    }
+
     inline Status vfs_unlink(std::string_view path) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);

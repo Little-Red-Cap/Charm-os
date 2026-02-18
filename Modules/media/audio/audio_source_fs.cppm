@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <cstddef>
 #include <cstdint>
@@ -39,7 +39,7 @@ export namespace audio {
         ~FsDataSource() { close(); }
 
         Result<std::size_t> read(std::span<std::byte> out) {
-            if (!opened_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             std::size_t to_read = out.size();
             if (file_.node.size > 0 && file_.node.offset >= 0) {
                 const auto remaining = static_cast<std::int64_t>(file_.node.size - file_.node.offset);
@@ -52,24 +52,24 @@ export namespace audio {
             }
             const auto st = fs::read(file_, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
-            if (!st) return std::unexpected(Err{Errc::io_error, 0});
+            if (!st) return unexpected(Err{Errc::io_error, 0});
             return to_read;
         }
 
         Result<std::int64_t> seek(std::int64_t offset, int) {
-            if (!opened_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             const auto st = fs::seek(file_, static_cast<util::i64>(offset));
-            if (!st) return std::unexpected(Err{Errc::io_error, 0});
+            if (!st) return unexpected(Err{Errc::io_error, 0});
             return tell();
         }
 
         Result<std::int64_t> tell() {
-            if (!opened_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return static_cast<std::int64_t>(file_.node.offset);
         }
 
         Result<std::int64_t> size() {
-            if (!opened_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return static_cast<std::int64_t>(file_.node.size);
         }
 

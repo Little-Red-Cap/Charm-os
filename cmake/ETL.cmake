@@ -23,13 +23,17 @@ function(charm_find_etl out_var)
         return()
     endif()
 
-    if (EXISTS "${CHARM_ETL_ROOT}/include/etl/etl.h")
+    if (EXISTS "${CHARM_ETL_ROOT}/include/etl/expected.h" OR
+        EXISTS "${CHARM_ETL_ROOT}/include/etl/etl.h" OR
+        EXISTS "${CHARM_ETL_ROOT}/include/etl/etl.hpp")
         message(STATUS "Using local ETL headers: ${CHARM_ETL_ROOT}")
         set(${out_var} "${CHARM_ETL_ROOT}/include" PARENT_SCOPE)
         return()
     endif()
 
-    if (EXISTS "${CHARM_ETL_ROOT}/etl/etl.h")
+    if (EXISTS "${CHARM_ETL_ROOT}/etl/expected.h" OR
+        EXISTS "${CHARM_ETL_ROOT}/etl/etl.h" OR
+        EXISTS "${CHARM_ETL_ROOT}/etl/etl.hpp")
         message(STATUS "Using local ETL headers: ${CHARM_ETL_ROOT}")
         set(${out_var} "${CHARM_ETL_ROOT}" PARENT_SCOPE)
         return()
@@ -44,11 +48,15 @@ function(charm_find_etl out_var)
             GIT_TAG ${CHARM_ETL_GIT_TAG}
         )
         FetchContent_MakeAvailable(etl)
-        if (EXISTS "${etl_SOURCE_DIR}/include/etl/etl.h")
+        if (EXISTS "${etl_SOURCE_DIR}/include/etl/expected.h" OR
+            EXISTS "${etl_SOURCE_DIR}/include/etl/etl.h" OR
+            EXISTS "${etl_SOURCE_DIR}/include/etl/etl.hpp")
             set(${out_var} "${etl_SOURCE_DIR}/include" PARENT_SCOPE)
             return()
         endif()
-        if (EXISTS "${etl_SOURCE_DIR}/etl/etl.h")
+        if (EXISTS "${etl_SOURCE_DIR}/etl/expected.h" OR
+            EXISTS "${etl_SOURCE_DIR}/etl/etl.h" OR
+            EXISTS "${etl_SOURCE_DIR}/etl/etl.hpp")
             set(${out_var} "${etl_SOURCE_DIR}" PARENT_SCOPE)
             return()
         endif()

@@ -5,13 +5,11 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <expected>
 #include <span>
 
 export module audio.decoder.flac;
 
 import audio.result;
-import audio.source.file;
 
 export namespace audio {
     struct FlacInfo {
@@ -20,31 +18,34 @@ export namespace audio {
     };
 
     namespace detail {
-        std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
-            auto* src = static_cast<FileDataSource*>(user);
-            auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
-            if (!res) return 0;
-            return *res;
-        }
-
-        drflac_bool32 on_seek(void* user, int offset, drflac_seek_origin origin) {
-            auto* src = static_cast<FileDataSource*>(user);
-            int whence = SEEK_SET;
-            if (origin == DRFLAC_SEEK_CUR) whence = SEEK_CUR;
-            if (origin == DRFLAC_SEEK_END) whence = SEEK_END;
-            auto res = src->seek(static_cast<std::int64_t>(offset), whence);
-            return res.has_value() ? DRFLAC_TRUE : DRFLAC_FALSE;
-        }
-
-        drflac_bool32 on_tell(void* user, drflac_int64* cursor) {
-            auto* src = static_cast<FileDataSource*>(user);
-            auto res = src->tell();
-            if (!res) return DRFLAC_FALSE;
-            if (cursor) {
-                *cursor = static_cast<drflac_int64>(*res);
+        template <typename Source>
+        struct SourceOps {
+            static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
+                auto* src = static_cast<Source*>(user);
+                auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
+                if (!res) return 0;
+                return *res;
             }
-            return DRFLAC_TRUE;
-        }
+
+            static drflac_bool32 on_seek(void* user, int offset, drflac_seek_origin origin) {
+                auto* src = static_cast<Source*>(user);
+                int whence = SEEK_SET;
+                if (origin == DRFLAC_SEEK_CUR) whence = SEEK_CUR;
+                if (origin == DRFLAC_SEEK_END) whence = SEEK_END;
+                auto res = src->seek(static_cast<std::int64_t>(offset), whence);
+                return res.has_value() ? DRFLAC_TRUE : DRFLAC_FALSE;
+            }
+
+            static drflac_bool32 on_tell(void* user, drflac_int64* cursor) {
+                auto* src = static_cast<Source*>(user);
+                auto res = src->tell();
+                if (!res) return DRFLAC_FALSE;
+                if (cursor) {
+                    *cursor = static_cast<drflac_int64>(*res);
+                }
+                return DRFLAC_TRUE;
+            }
+        };
     }
 
     class FlacDecoder {
@@ -55,12 +56,17 @@ export namespace audio {
         FlacDecoder(const FlacDecoder&) = delete;
         FlacDecoder& operator=(const FlacDecoder&) = delete;
 
-        Result<FlacInfo> open(FileDataSource& src) {
+        template <typename Source>
+        Result<FlacInfo> open(Source& src) {
             close();
             src_ = &src;
-            flac_ = drflac_open(detail::on_read, detail::on_seek, detail::on_tell, src_, nullptr);
+            flac_ = drflac_open(
+                detail::SourceOps<Source>::on_read,
+                detail::SourceOps<Source>::on_seek,
+                detail::SourceOps<Source>::on_tell,
+                src_, nullptr);
             if (!flac_) {
-                return std::unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Err{Errc::invalid_arg, 0});
             }
             FlacInfo info{};
             info.sample_rate = flac_->sampleRate;
@@ -69,7 +75,7 @@ export namespace audio {
         }
 
         Result<std::size_t> read_s32(std::int32_t* out, std::size_t frames) {
-            if (!flac_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
             const auto read = drflac_read_pcm_frames_s32(flac_, frames, out);
             return static_cast<std::size_t>(read);
         }
@@ -84,6 +90,6 @@ export namespace audio {
 
     private:
         drflac* flac_{nullptr};
-        FileDataSource* src_{nullptr};
+        void* src_{nullptr};
     };
 }

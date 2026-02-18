@@ -9,6 +9,7 @@ option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
 option(CHARM_USE_ETL "Use ETL for core util aliases" ON)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
+option(CHARM_USE_ETL_EXPECTED "Use ETL expected instead of std::expected" OFF)
 
 add_library(${target_name})
 
@@ -24,6 +25,9 @@ target_compile_options(${target_name} PRIVATE
 if (CHARM_USE_ETL)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ETL.cmake")
     charm_link_etl(${target_name})
+    if (CHARM_USE_ETL_EXPECTED)
+        target_compile_definitions(${target_name} PRIVATE CHARM_USE_ETL_EXPECTED=1)
+    endif()
 endif()
 
 if (CHARM_AUDIO_USE_VFS)

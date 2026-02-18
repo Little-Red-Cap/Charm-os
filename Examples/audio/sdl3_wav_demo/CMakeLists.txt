@@ -14,6 +14,10 @@ target_sources(${target_name}
     BASE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
     FILES
+        ../../../Modules/core/util/core.cppm
+        ../../../Modules/core/util/expected.cppm
+        ../../../Modules/core/service/ring_queue.cppm
+        ../../../Modules/core/service/queue.cppm
         ../../../Modules/media/audio/audio_result.cppm
         ../../../Modules/media/audio/audio_format.cppm
         ../../../Modules/media/audio/audio_fifo.cppm
@@ -30,3 +34,6 @@ target_sources(${target_name}
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 include("${CHARM_ROOT}/cmake/SDL3.cmake")
 charm_link_sdl3(${target_name})
+
+include("${CHARM_ROOT}/cmake/ETL.cmake")
+charm_link_etl(${target_name})

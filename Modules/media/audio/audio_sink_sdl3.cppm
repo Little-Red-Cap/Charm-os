@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <expected>
 #include <span>
 
 export module audio.sink.sdl3;
@@ -55,12 +54,12 @@ export namespace audio {
             callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
             period_frames_ = period;
             if (callback_bytes_ > scratch_.size()) {
-                return std::unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Err{Errc::invalid_arg, 0});
             }
             scratch_size_ = callback_bytes_;
 
             if (!SDL_Init(SDL_INIT_AUDIO)) {
-                return std::unexpected(Err{Errc::io_error, 1});
+                return unexpected(Err{Errc::io_error, 1});
             }
 
             spec_.freq = static_cast<int>(fmt_.rate);
@@ -69,7 +68,7 @@ export namespace audio {
 
             stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, &Sdl3AudioSink::sdl_audio_callback, this);
             if (!stream_) {
-                return std::unexpected(Err{Errc::io_error, 2});
+                return unexpected(Err{Errc::io_error, 2});
             }
 
             if (spec_.freq > 0) {
@@ -87,13 +86,13 @@ export namespace audio {
         }
 
         Result<void> start() {
-            if (!stream_) return std::unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_ResumeAudioStreamDevice(stream_);
             return {};
         }
 
         Result<void> stop() {
-            if (!stream_) return std::unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_PauseAudioStreamDevice(stream_);
             return {};
         }

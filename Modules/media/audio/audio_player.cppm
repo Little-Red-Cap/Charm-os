@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,6 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <expected>
 #include <span>
 
 #ifndef CHARM_AUDIO_ENABLE_STRESS
@@ -184,14 +183,14 @@ export namespace audio {
         ~AudioPlayer() { stop_internal(); }
 
         Result<void> play(const char* path) {
-            if (!path || !*path) return std::unexpected(Err{Errc::invalid_arg, 0});
+            if (!path || !*path) return unexpected(Err{Errc::invalid_arg, 0});
             Command cmd{};
             cmd.type = CommandType::play;
             if (!cmd.path.assign(path)) {
-                return std::unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Err{Errc::invalid_arg, 0});
             }
             if (!queue_.push(cmd)) {
-                return std::unexpected(Err{Errc::timeout, 0});
+                return unexpected(Err{Errc::timeout, 0});
             }
             return {};
         }
@@ -200,43 +199,43 @@ export namespace audio {
             Command cmd{};
             cmd.type = CommandType::stop;
             if (!queue_.push(cmd)) {
-                return std::unexpected(Err{Errc::timeout, 0});
+                return unexpected(Err{Errc::timeout, 0});
             }
             return {};
         }
 
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return std::unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Err{Errc::bad_state, 0});
             }
             if (!is_wav_) {
-                return std::unexpected(Err{Errc::not_supported, 0});
+                return unexpected(Err{Errc::not_supported, 0});
             }
             Command cmd{};
             cmd.type = CommandType::seek_ms;
             cmd.seek_ms = ms;
             if (!queue_.push(cmd)) {
-                return std::unexpected(Err{Errc::timeout, 0});
+                return unexpected(Err{Errc::timeout, 0});
             }
             return {};
         }
 
         Result<void> reconfigure_format(const AudioFormat& input_fmt) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return std::unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Err{Errc::bad_state, 0});
             }
             Command cmd{};
             cmd.type = CommandType::reconfigure;
             cmd.fmt = input_fmt;
             if (!queue_.push(cmd)) {
-                return std::unexpected(Err{Errc::timeout, 0});
+                return unexpected(Err{Errc::timeout, 0});
             }
             return {};
         }
 
         Result<void> reconfigure_output(std::uint32_t fixed_rate, std::uint32_t fade_in_ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return std::unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Err{Errc::bad_state, 0});
             }
             config_.fade_in_ms = fade_in_ms;
             if (fixed_rate == 0) {

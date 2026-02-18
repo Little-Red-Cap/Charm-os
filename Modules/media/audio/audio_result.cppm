@@ -1,9 +1,10 @@
 ﻿module;
 
 #include <cstdint>
-#include <expected>
 
 export module audio.result;
+
+import util.expected;
 
 export namespace audio {
     enum class Errc : std::uint16_t {
@@ -22,5 +23,7 @@ export namespace audio {
     };
 
     template <typename T>
-    using Result = std::expected<T, Err>;
+    using Result = util::expected<T, Err>;
+
+    using util::unexpected;
 }

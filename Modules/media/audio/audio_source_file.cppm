@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <cstdio>
-#include <expected>
 #include <span>
 
 export module audio.source.file;
@@ -32,38 +31,38 @@ export namespace audio {
         ~FileDataSource() { close(); }
 
         Result<std::size_t> read(std::span<std::byte> out) {
-            if (!file_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto n = std::fread(out.data(), 1, out.size(), file_);
             if (n == 0 && std::ferror(file_)) {
-                return std::unexpected(Err{Errc::io_error, 0});
+                return unexpected(Err{Errc::io_error, 0});
             }
             return n;
         }
 
         Result<std::int64_t> seek(std::int64_t offset, int whence) {
-            if (!file_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Err{Errc::bad_state, 0});
             if (std::fseek(file_, static_cast<long>(offset), whence) != 0) {
-                return std::unexpected(Err{Errc::io_error, 0});
+                return unexpected(Err{Errc::io_error, 0});
             }
             return tell();
         }
 
         Result<std::int64_t> tell() {
-            if (!file_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const long pos = std::ftell(file_);
-            if (pos < 0) return std::unexpected(Err{Errc::io_error, 0});
+            if (pos < 0) return unexpected(Err{Errc::io_error, 0});
             return static_cast<std::int64_t>(pos);
         }
 
         Result<std::int64_t> size() {
-            if (!file_) return std::unexpected(Err{Errc::bad_state, 0});
+            if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto cur = tell();
-            if (!cur) return std::unexpected(cur.error());
+            if (!cur) return unexpected(cur.error());
             if (std::fseek(file_, 0, SEEK_END) != 0) {
-                return std::unexpected(Err{Errc::io_error, 0});
+                return unexpected(Err{Errc::io_error, 0});
             }
             const auto end = tell();
-            if (!end) return std::unexpected(end.error());
+            if (!end) return unexpected(end.error());
             (void)seek(*cur, SEEK_SET);
             return end;
         }

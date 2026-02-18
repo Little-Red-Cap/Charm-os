@@ -79,6 +79,18 @@ export namespace audio {
             return static_cast<std::size_t>(read);
         }
 
+        Result<void> seek_pcm_frame(std::uint64_t frame) {
+            if (!src_) return unexpected(Err{Errc::bad_state, 0});
+            const auto ok = drmp3_seek_to_pcm_frame(&mp3_, static_cast<drmp3_uint64>(frame));
+            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+        }
+
+        std::uint64_t total_frames() const noexcept {
+            if (!src_) return 0;
+            const auto frames = drmp3_get_pcm_frame_count(const_cast<drmp3*>(&mp3_));
+            return static_cast<std::uint64_t>(frames);
+        }
+
         void close() {
             if (src_) {
                 drmp3_uninit(&mp3_);

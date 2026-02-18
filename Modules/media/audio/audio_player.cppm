@@ -227,7 +227,7 @@ export namespace audio {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
                 return unexpected(Err{Errc::bad_state, 0});
             }
-            if (!is_wav_) {
+            if (!is_wav_ && !is_flac_ && !is_mp3_) {
                 return unexpected(Err{Errc::not_supported, 0});
             }
             Command cmd{};
@@ -437,6 +437,7 @@ export namespace audio {
                 input_fmt_.channels = info->channels;
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
+                total_frames_ = flac_.total_frames();
             } else if (is_mp3_) {
                 const auto info = mp3_.open(src_);
                 if (!info) {
@@ -447,6 +448,7 @@ export namespace audio {
                 input_fmt_.channels = info->channels;
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
+                total_frames_ = mp3_.total_frames();
             } else {
                 const auto info = parse_wav(src_);
                 if (!info) {
@@ -464,6 +466,7 @@ export namespace audio {
                 data_size_ = info->data_size;
                 remaining_bytes_ = info->data_size;
                 has_more_data_ = remaining_bytes_ > 0;
+                total_frames_ = data_size_ / input_fmt_.frame_size();
             }
 
             output_fmt_ = input_fmt_;
@@ -530,17 +533,38 @@ export namespace audio {
         }
 
         void handle_seek(std::uint64_t ms) {
-            if (!is_wav_ || state_ == PlayerState::idle) return;
+            if (state_ == PlayerState::idle) return;
             (void)sink_.stop();
             if (fifo_capacity_) fifo_.clear();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
-            const std::uint64_t offset = frames * input_fmt_.frame_size();
-            const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
-            remaining_bytes_ = static_cast<std::size_t>(data_size_ - clamped);
-            has_more_data_ = remaining_bytes_ > 0;
-            auto res = src_.seek(static_cast<std::int64_t>(data_offset_ + clamped), SEEK_SET);
-            if (!res) {
-                state_ = PlayerState::error;
+            const std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
+            if (is_wav_) {
+                const std::uint64_t offset = clamped_frames * input_fmt_.frame_size();
+                const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
+                remaining_bytes_ = static_cast<std::size_t>(data_size_ - clamped);
+                has_more_data_ = remaining_bytes_ > 0;
+                auto res = src_.seek(static_cast<std::int64_t>(data_offset_ + clamped), SEEK_SET);
+                if (!res) {
+                    state_ = PlayerState::error;
+                    return;
+                }
+            } else if (is_flac_) {
+                auto res = flac_.seek_pcm_frame(clamped_frames);
+                if (!res) {
+                    state_ = PlayerState::error;
+                    running_ = false;
+                    return;
+                }
+                has_more_data_ = true;
+            } else if (is_mp3_) {
+                auto res = mp3_.seek_pcm_frame(clamped_frames);
+                if (!res) {
+                    state_ = PlayerState::error;
+                    running_ = false;
+                    return;
+                }
+                has_more_data_ = true;
+            } else {
                 return;
             }
             stats_.min_water = fifo_capacity_;
@@ -657,6 +681,7 @@ export namespace audio {
             data_offset_ = 0;
             data_size_ = 0;
             remaining_bytes_ = 0;
+            total_frames_ = 0;
             resample_enabled_ = false;
             resample_cache_frames_ = 0;
             state_ = PlayerState::idle;
@@ -1030,6 +1055,7 @@ export namespace audio {
         std::size_t data_offset_{0};
         std::size_t data_size_{0};
         std::size_t remaining_bytes_{0};
+        std::uint64_t total_frames_{0};
 
         bool is_flac_{false};
         bool is_wav_{false};

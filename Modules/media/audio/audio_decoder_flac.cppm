@@ -80,6 +80,17 @@ export namespace audio {
             return static_cast<std::size_t>(read);
         }
 
+        Result<void> seek_pcm_frame(std::uint64_t frame) {
+            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            const auto ok = drflac_seek_to_pcm_frame(flac_, static_cast<drflac_uint64>(frame));
+            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+        }
+
+        std::uint64_t total_frames() const noexcept {
+            if (!flac_) return 0;
+            return static_cast<std::uint64_t>(flac_->totalPCMFrameCount);
+        }
+
         void close() {
             if (flac_) {
                 drflac_close(flac_);

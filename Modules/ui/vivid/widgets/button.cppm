@@ -23,6 +23,10 @@ public:
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
+    void set_text(const char* text) noexcept {
+        label_.set_text(text);
+    }
+
     void set_style(const Style& s) noexcept {
         style_ = s;
         has_local_style_ = true;

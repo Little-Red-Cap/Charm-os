@@ -86,6 +86,20 @@ namespace {
             set_label(handles.status, text);
         }
 
+        void set_status_color(const rgba& color) {
+            if (!factory) return;
+            if (auto* label = factory->get_label(handles.status)) {
+                label->set_color(color);
+            }
+        }
+
+        void set_pause_button_text(const char* text) {
+            if (!factory) return;
+            if (auto* btn = factory->get_button(handles.btn_pause)) {
+                btn->set_text(text);
+            }
+        }
+
         void set_time_label(int elapsed_sec) {
             current_sec = elapsed_sec;
             char buf[32]{};
@@ -161,6 +175,8 @@ namespace {
             paused = false;
             start = std::chrono::steady_clock::now();
             set_status("Playing");
+            set_status_color({120, 200, 170, 255});
+            set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
             apply_pending_seek();
@@ -176,6 +192,8 @@ namespace {
             playing = false;
             paused = true;
             set_status("Paused");
+            set_status_color({230, 185, 90, 255});
+            set_pause_button_text("Resume");
         }
 
         void resume_playback() {
@@ -189,6 +207,8 @@ namespace {
             playing = true;
             start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
             set_status("Playing");
+            set_status_color({120, 200, 170, 255});
+            set_pause_button_text("Pause");
         }
 
         void stop_playback() {
@@ -198,6 +218,8 @@ namespace {
             playing = false;
             paused = false;
             set_status("Stopped");
+            set_status_color({140, 150, 175, 255});
+            set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
         }
@@ -237,6 +259,8 @@ namespace {
             track_ready = setup_vfs_from_host(host_path.c_str(), kDefaultVfsTrack);
             set_track_labels(host_path);
             set_status(track_ready ? "Ready" : "Load failed");
+            set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
+            set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
             pending_seek_sec = -1;
@@ -450,7 +474,7 @@ namespace {
 
         h.status = factory.create_label("Stopped");
         if (auto* status = factory.get_label(h.status)) {
-            status->set_color({120, 200, 170, 255});
+            status->set_color({140, 150, 175, 255});
             status->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 150);
         }
 
@@ -644,6 +668,8 @@ int main(int argc, char** argv) {
             ctx.playing = false;
             ctx.paused = false;
             ctx.set_status("Stopped");
+            ctx.set_status_color({140, 150, 175, 255});
+            ctx.set_pause_button_text("Pause");
         }
         ctx.apply_pending_seek();
         ctx.update_progress();

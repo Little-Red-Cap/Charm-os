@@ -4,6 +4,7 @@ export module charm.core.layout;
 
 import charm.core.object;
 import charm.core.factory;
+import ui.common;
 
 export
 class Layout {
@@ -202,12 +203,6 @@ inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
         auto* ch = factory.get(h);
         if (!ch) continue;
         auto r = ch->get_rect();
-
-        auto clamp_size = [](int value, int min_v, int max_v) {
-            if (min_v > 0 && value < min_v) return min_v;
-            if (max_v > 0 && value > max_v) return max_v;
-            return value;
-        };
 
         if (ch->has_percent_size()) {
             if (ch->percent_width() >= 0) {

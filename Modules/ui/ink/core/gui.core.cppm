@@ -6,11 +6,12 @@ module;
 #include <cstdint>
 export module gui.core;
 
+export import ui.common;
 
 export namespace gui {
-    struct Point { std::int16_t x{}, y{}; };
-    struct Size  { std::int16_t w{}, h{}; };
-    struct Rect  { std::int16_t x{}, y{}, w{}, h{}; };
+    using Point = ui::PointT<std::int16_t>;
+    using Size = ui::SizeT<std::int16_t>;
+    using Rect = ui::RectT<std::int16_t>;
 
     [[nodiscard]] inline std::uint32_t hash_text(const char* s) noexcept {
         if (!s) return 0;
@@ -23,6 +24,6 @@ export namespace gui {
     }
 
     [[nodiscard]] constexpr bool contains(const Rect& r, std::int16_t px, std::int16_t py) noexcept {
-        return (px >= r.x) && (py >= r.y) && (px < r.x + r.w) && (py < r.y + r.h);
+        return ui::contains(r, px, py);
     }
 }

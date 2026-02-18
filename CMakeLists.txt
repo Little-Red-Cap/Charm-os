@@ -52,4 +52,6 @@ message(STATUS "${target_name} Examples: FS/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/E
 message(STATUS "${target_name} Examples: Shell/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/shell/vsf_service_shell")
 message(STATUS "${target_name} Examples: Shell/FS+Module -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/shell/vsf_shell_fs_module")
 message(STATUS "${target_name} Examples: Service/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/vsf_service_core")
+message(STATUS "${target_name} Examples: Service/DS -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/service_ds_demo")
 message(STATUS "${target_name} Examples: HAL/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/hal/hal_demo")
+message(STATUS "${target_name} Examples: Alg/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/alg/alg_demo")

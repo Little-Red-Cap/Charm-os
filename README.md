@@ -31,6 +31,38 @@
 - `docs/` —— 架构与协作文档
 - `Draft/` —— 计划/草案（可变动）
 
+## 🎯 参与入口（按方向快速上手）
+
+### Audio
+1. 读文档：`Modules/media/audio/audio_design.md`
+2. 看实现：`Modules/media/audio/`（player/sink/decoder/fifo/src/convert）
+3. 跑示例：`Examples/audio/sdl3_wav_demo`
+
+### Kernel
+1. 读文档：`Modules/system/kernel/docs/`
+2. 看实现：`Modules/system/kernel/`
+3. 跑示例：`Examples/kernel/windows`
+
+### FS/VFS
+1. 读文档：`Modules/io/fs/fs_migration_notes.md`
+2. 看实现：`Modules/io/fs/`
+3. 跑示例：`Examples/fs/`
+
+### HAL/Port
+1. 读文档：`Modules/io/hal/charm_hal_design.md`、`Modules/io/hal/hal_platform_binding_guide.md`
+2. 看实现：`Modules/io/hal/`、`Modules/io/port/`
+3. 跑示例：`Examples/hal/hal_demo`
+
+### Shell/Service
+1. 读文档：`Modules/io/shell/vsf_migration_service_shell_module.md`、`Modules/core/service/vsf_migration_service_detail.md`
+2. 看实现：`Modules/io/shell/`、`Modules/core/service/`
+3. 跑示例：`Examples/shell/`、`Examples/service/`
+
+### ModuleX
+1. 读文档：`Modules/system/modulex/ModuleX_格式草案.md`
+2. 看实现：`Modules/system/modulex/`
+3. 跑示例：`Examples/shell/vsf_shell_fs_module`
+
 ## 🚀 主线 Demos（Windows）
 - **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
 - **M1** `Examples/kernel/windows/main_m1.cpp` ：sync + IPC
@@ -149,6 +181,13 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 - 协作认知：`docs/《现代 C++ 单片机代码协作认知》.md`
 - 推进与分工：`docs/推进TODO与分工.md`、`docs/refactor_todo_ownership.md`
 - 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`Modules/io/fs/fs_migration_notes.md`、Shell=`Modules/io/shell/vsf_migration_service_shell_module.md`、Service=`Modules/core/service/vsf_migration_service_detail.md`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
+
+## 🧰 新示例模板（CMake）
+
+快速创建新示例工程：
+- 模板：`Examples/cmake/ExampleTemplate.cmake`
+- 推荐用法：在新示例 `CMakeLists.txt` 中 `include(...)`，然后调用 `charm_example_*` 系列函数
+- SDL3 统一入口：`cmake/SDL3.cmake`（优先 `find_package`，回退到 `Examples/ThirdParty/SDL3`）
 
 ## 🗺 路线图（摘要）
 - **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、shim 最小 POSIX time/sleep

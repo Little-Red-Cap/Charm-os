@@ -2,9 +2,9 @@ name: Windows (Clang)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
 
 jobs:
   build-clang:
@@ -69,17 +69,17 @@ jobs:
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
 
-      - name: Configure (Windows example)
+      - name: Configure (Kernel Windows example)
         shell: msys2 {0}
         run: |
-          cmake -G Ninja -S Examples/windows -B build-win \
+          cmake -G Ninja -S Examples/kernel/windows -B build-win \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
-      - name: Build (Windows example)
+      - name: Build (Kernel Windows example)
         shell: msys2 {0}
         run: |
           cmake --build build-win

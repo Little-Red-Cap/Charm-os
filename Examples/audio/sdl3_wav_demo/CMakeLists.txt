@@ -35,6 +35,12 @@ set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 include("${CHARM_ROOT}/cmake/SDL3.cmake")
 charm_link_sdl3(${target_name})
 
+set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")
+if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
+    include("${CHARM_ROOT}/cmake/DRLibs.cmake")
+    charm_link_dr_libs(${target_name})
+endif()
+
 include("${CHARM_ROOT}/cmake/ETL.cmake")
 charm_link_etl(${target_name})
 

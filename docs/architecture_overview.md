@@ -40,6 +40,7 @@ Modules/
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
+  thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
 Examples/     # 示例工程
@@ -206,6 +207,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Algorithms
 - FFT/滤波/统计
 - 颜色空间转换与像素打包
+- 抖动算法（Bayer/Floyd-Steinberg）
 - 压缩（RLE/PackBits/Heatshrink/LZ4）
 
 ## 3. 典型运行路径（简图）

@@ -1,0 +1,33 @@
+﻿cmake_minimum_required(VERSION 4.0)
+project(charm-player-win)
+
+set(target_name ${PROJECT_NAME})
+set(CMAKE_CXX_STANDARD 26)
+
+add_executable(${target_name}
+    main.cpp
+)
+
+target_compile_definitions(${target_name} PRIVATE OUT_ENABLE_FLOAT)
+
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
+
+charm_example_sdl3_options()
+set(SDL_AUDIO ON)
+charm_example_sources(${target_name} "${CHARM_ROOT}"
+    "${CHARM_ROOT}/Modules/**/*.cppm"
+    "${CHARM_ROOT}/Examples/project/player/*.cppm"
+)
+
+target_sources(${target_name} PRIVATE
+    "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
+)
+
+set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")
+if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
+    include("${CHARM_ROOT}/cmake/DRLibs.cmake")
+    charm_link_dr_libs(${target_name})
+endif()
+
+charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")

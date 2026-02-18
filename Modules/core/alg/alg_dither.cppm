@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <cstring>
 #include <span>
 

@@ -29,6 +29,21 @@
 - 临时处理：示例限制拖拽仅在播放期触发 seek，失败则回滚
 - 建议：补 FLAC/MP3 的 seek 能力或提供统一的“是否可 seek”查询
 
+6) `charm.core.pool` 缺少 `<cstddef>` 引用
+- 现象：`std::size_t` 未声明导致模块编译失败
+- 临时修复：在模块全局片段补 `#include <cstddef>`
+- 建议：基础容器模块做一次 “头文件自检”
+
+7) `UiFactory::make_handle` 模板推导失败
+- 现象：`make_handle(containers_.create(), ...)` 无法推导 `Pool`
+- 临时修复：改为 `template <typename Handle> make_handle(std::optional<Handle>, ...)`
+- 建议：避免在非推导上下文中使用 `Pool::Handle`
+
+8) `Gui` 使用 `trace::TraceKind` 未导入命名空间
+- 现象：`trace` 未声明
+- 临时修复：改为 `service::TraceKind::counter`
+- 建议：统一 trace 的导出与命名约定
+
 ## 架构改进建议（待你确认推进方向）
 
 1) VFS 桥接缺口

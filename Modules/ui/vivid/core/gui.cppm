@@ -229,7 +229,7 @@ private:
         rec.id = static_cast<util::u32>(id);
         rec.payload = payload;
         rec.count = 1;
-        rec.kind = trace::TraceKind::counter;
+        rec.kind = service::TraceKind::counter;
         trace_.push(rec);
     }
 

@@ -743,7 +743,7 @@ namespace app::detail
     void draw_qr_ui(R& r, AppState& s) noexcept
     {
         auto& qr = s.qr_page;
-        if (!qr.code.valid) {
+        if (!qr.code.valid()) {
             char text[] = "https://www.baidu.com/";
             (void)qr.code.encode(text);
         }

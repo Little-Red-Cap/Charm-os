@@ -10,6 +10,8 @@ export module gui.ui_input_policy;
 
 import gui.input;
 import gui.ui_input_adapter;
+import gui.trace;
+import util.core;
 
 export namespace gui::ui {
     enum class InputPolicyId : std::uint8_t {
@@ -29,7 +31,13 @@ export namespace gui::ui {
 
         [[nodiscard]] std::optional<gui::input::Intent> poll_intent(std::uint32_t now_ms) const noexcept {
             if (!poll) return std::nullopt;
-            return poll(ctx, now_ms);
+            auto it = poll(ctx, now_ms);
+            if (it) {
+                const auto id = static_cast<util::u32>(gui::trace::TraceId::InputIntentBase)
+                    + static_cast<util::u32>(it->type);
+                gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
+            }
+            return it;
         }
     };
 

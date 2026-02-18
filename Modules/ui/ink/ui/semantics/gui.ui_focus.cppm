@@ -8,6 +8,7 @@ export module gui.ui_focus;
 
 import gui.ui_tree;
 import gui.ui_semantics;
+import gui.trace;
 import service.fixed_list;
 import util.core;
 
@@ -182,6 +183,12 @@ export namespace gui::ui {
             focus.target_id = domain.at(new_index);
         }
 
+        if (out.reason != FocusSyncReason::None) {
+            const auto id = static_cast<util::u32>(gui::trace::TraceId::FocusSyncReasonBase)
+                + static_cast<util::u32>(out.reason);
+            gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
+        }
+
         out.changed = (focus.domain_id != prev_domain)
             || (focus.count != prev_count)
             || (focus.index != prev_index)
@@ -230,6 +237,12 @@ export namespace gui::ui {
             focus.count = count;
             focus.index = (std::int16_t)new_index;
             focus.target_id = domain.at(new_index);
+        }
+
+        if (out.reason != FocusSyncReason::None) {
+            const auto id = static_cast<util::u32>(gui::trace::TraceId::FocusSyncReasonBase)
+                + static_cast<util::u32>(out.reason);
+            gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
         }
 
         out.changed = (focus.domain_id != prev_domain)

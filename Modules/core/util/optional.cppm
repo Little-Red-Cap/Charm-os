@@ -11,11 +11,11 @@ export module util.optional;
 export namespace util {
 #if defined(CHARM_USE_ETL)
     using etl::optional;
-    using etl::nullopt;
     using etl::nullopt_t;
+    inline constexpr nullopt_t nullopt{0};
 #else
     using std::optional;
-    using std::nullopt;
     using std::nullopt_t;
+    inline constexpr nullopt_t nullopt = std::nullopt;
 #endif
 }

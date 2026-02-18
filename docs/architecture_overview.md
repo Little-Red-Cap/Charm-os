@@ -40,6 +40,7 @@ Modules/
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
+  thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
 Examples/     # 示例工程

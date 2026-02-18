@@ -337,7 +337,7 @@ export namespace gui
             const auto p1 = alg::arc::point_on_circle_rad(cx, cy, rad, a);
             draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
         }
-        const float v = alg::arc::clamp01((float)value_0_100 / 100.0f);
+        const float v = alg::arc::ratio_from_range(value_0_100, 0, 100);
         const float a = alg::arc::lerp(a0, a1, v);
         const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
         draw_line(r, cx, cy, needle.x, needle.y, on);
@@ -480,7 +480,7 @@ export namespace gui
             const auto p1 = alg::arc::point_on_circle_rad(cx, cy, rad, a);
             draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
         }
-        const float v = alg::arc::clamp01((float)value_0_100 / 100.0f);
+        const float v = alg::arc::ratio_from_range(value_0_100, 0, 100);
         const float a = alg::arc::lerp(a0, a1, v);
         const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
         draw_line(r, cx, cy, needle.x, needle.y, on);

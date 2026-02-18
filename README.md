@@ -27,21 +27,22 @@
 - `Modules/ui/ink/` —— Charm-ink UI
 - `Modules/ui/vivid/` —— Charm-vivid UI
 - `Modules/platform/` —— 平台适配（win/未来 MCU）
-- `Draft/Examples/` —— 历史示例与杂项（已统一迁移）
-- `Draft/` —— 计划、规范与架构草案
+- `Examples/` —— 示例工程（内核/boot/audio/fs/shell/service/alg/hal）
+- `docs/` —— 架构与协作文档
+- `Draft/` —— 计划/草案（可变动）
 
 ## 🚀 主线 Demos（Windows）
-- **M0** `Draft/Examples/windows/main.cpp` ：kernel + timer + event queue
-- **M1** `Draft/Examples/windows/main_m1.cpp` ：sync + IPC
-- **M2** `Draft/Examples/windows/main_m2.cpp` ：thread + blocking
-- **M3** `Draft/Examples/windows/main_m3.cpp` ：trace + stats
+- **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
+- **M1** `Examples/kernel/windows/main_m1.cpp` ：sync + IPC
+- **M2** `Examples/kernel/windows/main_m2.cpp` ：thread + blocking
+- **M3** `Examples/kernel/windows/main_m3.cpp` ：trace + stats
 > 实验性 demo 故意不进主线，保持核心纯净。
 
 ### ⚡ 快速构建（Windows）
 ```bash
-cmake -S Draft/Examples/windows -B Draft/Examples/windows/build -G Ninja
-cmake --build Draft/Examples/windows/build
-Draft/Examples/windows/build/os-example-win.exe
+cmake -S Examples/kernel/windows -B Examples/kernel/windows/build -G Ninja
+cmake --build Examples/kernel/windows/build
+Examples/kernel/windows/build/os-example-win.exe
 ```
 
 ## 🧩 可选模块（默认关闭）
@@ -51,7 +52,7 @@ Draft/Examples/windows/build/os-example-win.exe
 - 事件策略：dedup / debounce / coalesce / boost，丢弃策略
 
 ## 🛰 MCU Demo
-- 位置：`Draft/Examples/stm32f103c8`
+- 位置：`Draft/Examples/stm32f103c8`（待迁移）
 - 开关：`-DCHARM_MCU_KERNEL_DEMO=ON`（preset 默认开启）
 - 入口：`main_mcu_stub.cpp`（`application()` -> `run_auto`）
 - 平台绑定：`Core/Src/kernel.port.stm32.cpp`
@@ -66,7 +67,7 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 ## 🌉 Port 层（平台无关）
 - 接口：`Modules/io/port/port.kernel.cppm`
 - 模板：`Modules/io/port/port.kernel.template.cpp`
-- Windows：`Draft/Examples/windows/port.kernel.windows.cpp`
+- Windows：`Examples/kernel/windows/port.kernel.windows.cpp`
 - STM32：`Draft/Examples/stm32f103c8/Core/Src/kernel.port.stm32.cpp`
 
 ## 🧰 VSF 迁移模块
@@ -76,53 +77,61 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 - Module/XIP：`Modules/system/modulex/*`
 - FS：`Modules/io/fs/*`
 
-独立示例（已迁移至 Draft/Examples）：
-- `Draft/Examples/hal_demo`：HAL 接口最小示例
-- `Draft/Examples/vsf_service_shell`：Service + Shell + Module 示例
-- `Draft/Examples/vsf_service_core`：Service 基础示例
-- `Draft/Examples/vsf_fs_demo`：VFS + RAMFS 试验
+独立示例（Examples）：
+- `Examples/hal/hal_demo`：HAL 接口最小示例
+- `Examples/shell/vsf_service_shell`：Service + Shell + Module 示例
+- `Examples/service/vsf_service_core`：Service 基础示例
+- `Examples/service/service_ds_demo`：Service DS 示例
+- `Examples/fs/vsf_fs_demo`：VFS + RAMFS 试验
+- `Examples/fs/vsf_fs_block_demo`：BlockFS 试验
+- `Examples/fs/vsf_fs_vfs_demo`：VFS 组合示例
+- `Examples/fs/vsf_fs_posix`：POSIX 封装示例
+- `Examples/shell/vsf_shell_fs_module`：Shell + FS + ModuleX 示例
+- `Examples/alg/alg_demo`：算法/压缩示例
+- `Examples/boot/bootloader_demo`：bootloader 示例
+- `Examples/audio/sdl3_wav_demo`：SDL3 音频示例
 
 ### 示例构建
 ```bash
 # HAL demo
-cmake -S Draft/Examples/hal_demo -B Draft/Examples/hal_demo/build -G Ninja
-cmake --build Draft/Examples/hal_demo/build
-Draft/Examples/hal_demo/build/hal-demo
+cmake -S Examples/hal/hal_demo -B Examples/hal/hal_demo/build -G Ninja
+cmake --build Examples/hal/hal_demo/build
+Examples/hal/hal_demo/build/hal-demo
 
 # Service/Shell/Module demo
-cmake -S Draft/Examples/vsf_service_shell -B Draft/Examples/vsf_service_shell/build -G Ninja
-cmake --build Draft/Examples/vsf_service_shell/build
-Draft/Examples/vsf_service_shell/build/vsf-service-shell-demo
+cmake -S Examples/shell/vsf_service_shell -B Examples/shell/vsf_service_shell/build -G Ninja
+cmake --build Examples/shell/vsf_service_shell/build
+Examples/shell/vsf_service_shell/build/vsf-service-shell-demo
 
 # Service core demo
-cmake -S Draft/Examples/vsf_service_core -B Draft/Examples/vsf_service_core/build -G Ninja
-cmake --build Draft/Examples/vsf_service_core/build
-Draft/Examples/vsf_service_core/build/vsf-service-core-demo
+cmake -S Examples/service/vsf_service_core -B Examples/service/vsf_service_core/build -G Ninja
+cmake --build Examples/service/vsf_service_core/build
+Examples/service/vsf_service_core/build/vsf-service-core-demo
 
 # FS demo
-cmake -S Draft/Examples/vsf_fs_demo -B Draft/Examples/vsf_fs_demo/build -G Ninja
-cmake --build Draft/Examples/vsf_fs_demo/build
-Draft/Examples/vsf_fs_demo/build/vsf-fs-demo
+cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja
+cmake --build Examples/fs/vsf_fs_demo/build
+Examples/fs/vsf_fs_demo/build/vsf-fs-demo
 
 # Alg demo
-cmake -S Draft/Examples/alg_demo -B Draft/Examples/alg_demo/build -G Ninja
-cmake --build Draft/Examples/alg_demo/build
-Draft/Examples/alg_demo/build/alg-demo
+cmake -S Examples/alg/alg_demo -B Examples/alg/alg_demo/build -G Ninja
+cmake --build Examples/alg/alg_demo/build
+Examples/alg/alg_demo/build/alg-demo
 
 # Service DS demo
-cmake -S Draft/Examples/service_ds_demo -B Draft/Examples/service_ds_demo/build -G Ninja
-cmake --build Draft/Examples/service_ds_demo/build
-Draft/Examples/service_ds_demo/build/service-ds-demo
+cmake -S Examples/service/service_ds_demo -B Examples/service/service_ds_demo/build -G Ninja
+cmake --build Examples/service/service_ds_demo/build
+Examples/service/service_ds_demo/build/service-ds-demo
 
 # Bootloader demo
-cmake -S Draft/Examples/bootloader_demo -B Draft/Examples/bootloader_demo/build -G Ninja
-cmake --build Draft/Examples/bootloader_demo/build
-Draft/Examples/bootloader_demo/build/bootloader-demo
+cmake -S Examples/boot/bootloader_demo -B Examples/boot/bootloader_demo/build -G Ninja
+cmake --build Examples/boot/bootloader_demo/build
+Examples/boot/bootloader_demo/build/bootloader-demo
 
 # SDL3 WAV demo
-cmake -S Draft/Examples/sdl3_wav_demo -B Draft/Examples/sdl3_wav_demo/build -G Ninja
-cmake --build Draft/Examples/sdl3_wav_demo/build
-Draft/Examples/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
+cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
+cmake --build Examples/audio/sdl3_wav_demo/build
+Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 ```
 
 ## ✅ 收敛状态
@@ -130,19 +139,16 @@ Draft/Examples/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 - HAL demo：已通过（[hal_demo] ok）
 - Service/Shell/Module demo：已通过（[shell] / [shell_time] / [module_demo]）
 - Service core demo：已通过（[distbus] / [service_core] ok）
-- FS demo：待验证
+- FS demo：已构建（待运行验证）
 - STM32：编译通过（待烧录验证）
 
-## 📚 文档（Draft）
-- 主线：Draft/main_route_alignment.md, Draft/main_route_plan.md
-- M1/M2/M3：Draft/m1_sync_spec.md, Draft/m1_tests.md, Draft/m2_thread_spec.md, Draft/m2_api_freeze.md, Draft/m3_observability_plan.md
-- HAL/生态：Draft/charm_hal_design.md, Draft/charm_ecosystem_layers.md, Draft/vsf_feature_mapping.md
-- 迁移范围：Draft/migration_scope_prune.md
-- 迁移总览：Draft/vsf_migration_index.md
-- HAL 绑定：Draft/hal_platform_binding_guide.md
-- Service 细化：Draft/vsf_migration_service_detail.md
-- FS 迁移：Draft/fs_migration_notes.md
-- 收敛总结：Draft/convergence_summary.md
+## 📚 文档
+- 架构总览：`docs/architecture_overview.md`
+- 输入分层：`docs/input_layering_decision.md`
+- 协作规范：`docs/《协作期待与规范》.md`
+- 协作认知：`docs/《现代 C++ 单片机代码协作认知》.md`
+- 推进与分工：`docs/推进TODO与分工.md`、`docs/refactor_todo_ownership.md`
+- 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`Modules/io/fs/fs_migration_notes.md`、Shell=`Modules/io/shell/vsf_migration_service_shell_module.md`、Service=`Modules/core/service/vsf_migration_service_detail.md`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
 
 ## 🗺 路线图（摘要）
 - **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、shim 最小 POSIX time/sleep

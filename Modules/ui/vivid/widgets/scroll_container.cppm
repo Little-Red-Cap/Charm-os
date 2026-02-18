@@ -39,16 +39,18 @@ public:
 
     template<typename Resolver>
     void sync_child_bases(Resolver&& resolve) {
-        const auto r = get_rect();
+        const auto container = get_rect();
         content_height_ = 0;
-        for (std::size_t i = 0; i < child_count(); ++i) {
+        const std::size_t total = child_count();
+        base_count_ = (total < kMax) ? total : kMax;
+        for (std::size_t i = 0; i < base_count_; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
-            const auto r = ch->get_rect();
-            base_x_[i] = r.x - get_rect().x;
-            base_y_[i] = r.y - get_rect().y;
-            const int bottom = base_y_[i] + r.h;
+            const auto child_rect = ch->get_rect();
+            base_x_[i] = child_rect.x - container.x;
+            base_y_[i] = child_rect.y - container.y;
+            const int bottom = base_y_[i] + child_rect.h;
             if (bottom > content_height_) content_height_ = bottom;
         }
         update_scroll_bounds();
@@ -153,7 +155,7 @@ public:
     template<typename Resolver>
     void apply_scroll(Resolver&& resolve) {
         const auto r = get_rect();
-        for (std::size_t i = 0; i < child_count(); ++i) {
+        for (std::size_t i = 0; i < base_count_; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
@@ -204,6 +206,7 @@ private:
     static constexpr std::size_t kMax = 64;
     int base_x_[kMax]{};
     int base_y_[kMax]{};
+    std::size_t base_count_{0};
     int content_height_{0};
 
     int scroll_y_{0};

@@ -10,18 +10,27 @@ import charm.gfx.color;
 import charm.widgets.button;
 import charm.widgets.label;
 import charm.widgets.progress;
+import fs_core;
+import fs_errno;
+import fs_stream;
+import fs_ramfs;
+import fs_vfs;
+import util.core;
 
 #include <SDL3/SDL.h>
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <span>
 #include <string>
 #include <thread>
 
 namespace {
-    constexpr const char* kDefaultTrack = "../../assets/beautiful-trick.flac";
+    constexpr const char* kDefaultHostTrack = "../../assets/beautiful-trick.flac";
+    constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
 
@@ -42,6 +51,7 @@ namespace {
         UiFactory* factory{nullptr};
         UiHandles handles{};
         bool playing{false};
+        bool track_ready{false};
         std::chrono::steady_clock::time_point start{};
         int duration_sec{180};
         const char* track_path{nullptr};
@@ -85,7 +95,7 @@ namespace {
         }
 
         void start_playback() {
-            if (!player || !track_path) return;
+            if (!player || !track_path || !track_ready) return;
             (void)player->stop();
             auto res = player->play(track_path);
             if (!res) {
@@ -230,10 +240,59 @@ namespace {
 
         return h;
     }
+
+    bool write_file_to_vfs(std::string_view vfs_path, const char* host_path) {
+        if (!host_path || !*host_path) return false;
+        std::FILE* fp = std::fopen(host_path, "rb");
+        if (!fp) return false;
+
+        fs::File f{};
+        auto st = fs::vfs_open(vfs_path, f);
+        if (!st) {
+            std::fclose(fp);
+            return false;
+        }
+
+        std::array<util::u8, 4096> buf{};
+        while (true) {
+            const std::size_t n = std::fread(buf.data(), 1, buf.size(), fp);
+            if (n == 0) break;
+            auto w = fs::write(f, std::span<const util::u8>(buf.data(), n));
+            if (!w) {
+                std::fclose(fp);
+                return false;
+            }
+        }
+        (void)fs::flush(f);
+        std::fclose(fp);
+        return true;
+    }
+
+    bool setup_vfs_from_host(const char* host_path, std::string_view vfs_path) {
+        static fs::RamFs<4096, 64, 4096> ramfs;
+        static fs::MountOps ops{
+            .open = +[](std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
+            .flush = +[](fs::Mount*) noexcept { return fs::Status{fs::Err::ok}; },
+            .unmount = +[](fs::Mount*, bool) noexcept { return fs::Status{fs::Err::ok}; },
+            .unlink = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.unlink(path); },
+            .rename = +[](fs::Mount*, std::string_view from, std::string_view to) noexcept { return ramfs.rename(from, to); },
+            .truncate = +[](fs::Mount*, std::string_view path, util::u64 size) noexcept { return ramfs.truncate(path, size); },
+            .mkdir = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.mkdir(path); },
+            .list = +[](fs::Mount*, std::string_view path, void* ctx, fs::MountOps::ListFn fn) noexcept {
+                return ramfs.list(path, ctx, fn);
+            }
+        };
+        static fs::Mount mount{&ops, &ramfs};
+
+        fs::clear_mounts();
+        (void)fs::add_mount("/", &mount);
+
+        return write_file_to_vfs(vfs_path, host_path);
+    }
 }
 
 int main(int argc, char** argv) {
-    const char* track = (argc >= 2) ? argv[1] : kDefaultTrack;
+    const char* host_track = (argc >= 2) ? argv[1] : kDefaultHostTrack;
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         std::printf("[player] SDL_Init failed\n");
@@ -275,10 +334,18 @@ int main(int argc, char** argv) {
     PlayerUiContext ctx{};
     ctx.player = &player;
     ctx.factory = &factory;
-    ctx.track_path = track;
+    ctx.track_path = kDefaultVfsTrack;
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
+
+    if (setup_vfs_from_host(host_track, kDefaultVfsTrack)) {
+        ctx.track_ready = true;
+        ctx.set_status("Ready");
+    } else {
+        ctx.track_ready = false;
+        ctx.set_status("Load failed");
+    }
 
     Gui gui(canvas, factory, ctx.handles.root);
 

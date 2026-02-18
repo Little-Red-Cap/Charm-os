@@ -10,6 +10,7 @@ add_executable(${target_name}
 
 target_compile_definitions(${target_name} PRIVATE
     OUT_ENABLE_FLOAT
+    CHARM_AUDIO_USE_VFS=1
     CHARM_VIVID_SCREEN_WIDTH=480
     CHARM_VIVID_SCREEN_HEIGHT=960
 )

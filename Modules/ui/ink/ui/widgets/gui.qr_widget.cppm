@@ -2,52 +2,30 @@
 // QR encode + draw helpers (no allocation, user-provided buffer).
 
 module;
-#include <array>
 #include <cstdint>
 #include <span>
 
 export module gui.qr_widget;
 
 import gui.core;
-import gui.qr_encode;
+import alg.qr_encode;
+import service_qr_bitmap;
 
 export namespace gui::qr {
-    using alg::qr::Encoder;
-    using alg::qr::EncoderState;
-    constexpr std::int16_t kMaxSize = 33;
-    constexpr std::int16_t kMaxStride = (kMaxSize + 7) / 8;
+    constexpr std::int16_t kMaxSize = service::qr::kMaxSize;
+    constexpr std::int16_t kMaxStride = service::qr::kMaxStride;
 
     [[nodiscard]] inline bool encode_to_bitmap(const char* text,
-                                               EncoderState& st,
+                                               alg::qr::EncoderState& st,
                                                std::span<std::uint8_t> buffer,
                                                std::int16_t& size_out) noexcept
     {
-        if (!text || buffer.empty()) return false;
-        if (!Encoder::encode(st, text)) return false;
-        int qr_size = Encoder::size(st);
-        if (qr_size <= 0) return false;
-        if (qr_size > kMaxSize) qr_size = kMaxSize;
-        size_out = (std::int16_t)qr_size;
-        const int stride = (qr_size + 7) / 8;
-        const std::size_t need = (std::size_t)stride * (std::size_t)qr_size;
-        if (buffer.size() < need) return false;
-        for (std::size_t i = 0; i < need; ++i) buffer[i] = 0;
-        for (int y = 0; y < qr_size; ++y) {
-            const int row = y * stride;
-            for (int x = 0; x < qr_size; ++x) {
-                if (Encoder::module_on(st, x, y)) {
-                    const int byte_index = x / 8;
-                    const int bit_index = 7 - (x % 8);
-                    buffer[(std::size_t)row + (std::size_t)byte_index] |= (std::uint8_t)(1u << bit_index);
-                }
-            }
-        }
-        return true;
+        return service::qr::encode_to_bitmap(text, st, buffer, size_out);
     }
 
     template <class R>
     void draw_qr(R& r,
-                 const ::gui::Rect& rc,
+                 const Rect& rc,
                  std::span<const std::uint8_t> buffer,
                  std::int16_t size,
                  bool on = true) noexcept
@@ -74,7 +52,7 @@ export namespace gui::qr {
                 if ((data >> bit_index) & 0x1) {
                     const int px = x0 + x * scale;
                     const int py = y0 + y * scale;
-                    r.fillRect(::gui::Rect{(std::int16_t)px, (std::int16_t)py,
+                    r.fillRect(Rect{(std::int16_t)px, (std::int16_t)py,
                                     (std::int16_t)scale, (std::int16_t)scale}, on);
                 }
             }
@@ -82,22 +60,22 @@ export namespace gui::qr {
     }
 
     struct QrCode {
-        std::array<std::uint8_t, (std::size_t)kMaxSize * (std::size_t)kMaxStride> buffer{};
-        EncoderState state{};
-        std::int16_t size{0};
-        bool valid{false};
+        service::qr::Bitmap bitmap{};
 
         [[nodiscard]] bool encode(const char* text) noexcept
         {
-            valid = encode_to_bitmap(text, state, std::span<std::uint8_t>{buffer.data(), buffer.size()}, size);
-            return valid;
+            return service::qr::encode(bitmap, text);
         }
 
         template <class R>
-        void draw(R& r, const ::gui::Rect& rc, bool on = true) const noexcept
+        void draw(R& r, const Rect& rc, bool on = true) const noexcept
         {
-            if (!valid || size <= 0) return;
-            draw_qr(r, rc, std::span<const std::uint8_t>{buffer.data(), buffer.size()}, size, on);
+            if (!bitmap.valid || bitmap.size <= 0) return;
+            draw_qr(r,
+                    rc,
+                    std::span<const std::uint8_t>{bitmap.buffer.data(), bitmap.buffer.size()},
+                    bitmap.size,
+                    on);
         }
     };
 } // namespace gui::qr

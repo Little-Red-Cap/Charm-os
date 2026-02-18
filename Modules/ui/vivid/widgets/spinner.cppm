@@ -1,11 +1,11 @@
 module;
-#include <cmath>
 export module charm.widgets.spinner;
 
 import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -33,16 +33,14 @@ public:
 
         // animated spinner: draw 8 short arcs with alpha falloff
         for (int i = 0; i < 8; ++i) {
-            const float base = static_cast<float>(i) * 3.14159f / 4.0f + phase_;
+            const float base = static_cast<float>(i) * alg::arc::kPi / 4.0f + phase_;
             const float a0 = base;
-            const float a1 = base + 3.14159f / 12.0f;
-            const int x0 = cx + static_cast<int>(radius * std::cos(a0));
-            const int y0 = cy + static_cast<int>(radius * std::sin(a0));
-            const int x1 = cx + static_cast<int>((radius - thickness_) * std::cos(a1));
-            const int y1 = cy + static_cast<int>((radius - thickness_) * std::sin(a1));
+            const float a1 = base + alg::arc::kPi / 12.0f;
+            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius, a0);
+            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, radius - thickness_, a1);
             rgba seg = col;
             seg.a = static_cast<std::uint8_t>(255 - i * 20);
-            draw_line(cvs, x0, y0, x1, y1, seg);
+            draw_line(cvs, p0.x, p0.y, p1.x, p1.y, seg);
         }
     }
 

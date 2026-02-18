@@ -979,6 +979,49 @@ Commit 任一步失败 → Rollback：
 
 ---
 
+## MCU 约束与替代方案（必须落地）
+
+### 1) 动态分配替代（Player 侧）
+
+现状：`audio.player` 使用 `std::vector/std::string/std::deque/unique_ptr`，PC 端可行，但 MCU 不可接受。  
+目标：替换为固定容量 + 静态池，避免运行期堆分配。
+
+建议方案：
+- 容器：`core/service` 中的 `fixed_vector/small_vector/ring_queue/slot_pool`
+- 命令队列：固定容量 ring（预先定义最大命令数）
+- 缓冲块：固定数量的 buffer pool（定义最大 block 数）
+
+落地步骤（建议）：
+1) 定义 PlayerConfig 中的最大容量上限（命令数/缓冲块/工作区大小）
+2) 将动态容器替换为固定容量实现
+3) 对超限行为明确策略（丢弃/返回 error）
+
+### 2) 调度替代 sleep_for（Player 驱动）
+
+现状：`audio.player` 使用 `std::this_thread::sleep_for` 进行 PC 端轮询。  
+目标：MCU 端必须由调度/EDA 驱动，禁止阻塞 sleep。
+
+建议方案：
+- PC 端保留 sleep 作为 demo 轮询手段
+- MCU 端改为：`tick()` 由 scheduler 定时事件触发
+- “等待”逻辑统一走事件队列，不走线程 sleep
+
+### 3) FileSource → VFS 适配
+
+现状：`audio.source.file` 使用 `FILE*`。  
+目标：MCU 端通过 `fs_vfs` / `fs_stream` 实现 `IDataSource`。
+
+建议方案：
+- 新增 `FsDataSource`（或 `audio.source.fs`）
+- 通过 `fs_open/read/seek/tell` 实现 IDataSource
+- PC 端继续保留 `FILE*` 版本
+
+里程碑：
+- 提供 `FsDataSource` 头文件与最小实现
+- 在 Player 中支持按平台选择数据源
+
+---
+
 ## 声道变化退化策略（mono ↔ stereo）
 
 ### 目标

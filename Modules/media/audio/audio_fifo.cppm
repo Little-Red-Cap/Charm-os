@@ -16,10 +16,26 @@ export namespace audio {
 
     class PcmFifo {
     public:
-        explicit PcmFifo(std::size_t capacity_bytes)
-            : storage_(capacity_bytes) {}
+        PcmFifo() = default;
 
-        std::size_t capacity_bytes() const noexcept { return storage_.size(); }
+        explicit PcmFifo(std::size_t capacity_bytes)
+            : owned_(capacity_bytes) {
+            storage_ = owned_.data();
+            capacity_ = owned_.size();
+        }
+
+        explicit PcmFifo(std::span<std::byte> storage) {
+            reset(storage);
+        }
+
+        void reset(std::span<std::byte> storage) noexcept {
+            owned_.clear();
+            storage_ = storage.data();
+            capacity_ = storage.size();
+            clear();
+        }
+
+        std::size_t capacity_bytes() const noexcept { return capacity_; }
 
         std::size_t size_bytes() const noexcept {
             return size_.load(std::memory_order_acquire);
@@ -30,40 +46,44 @@ export namespace audio {
         }
 
         PcmFifoView writable_view() noexcept {
-            const std::size_t cap = storage_.size();
+            const std::size_t cap = capacity_;
+            if (cap == 0) return {};
             const std::size_t head = head_.load(std::memory_order_relaxed);
             const std::size_t free = free_bytes();
             const std::size_t a_len = std::min(free, cap - head);
             const std::size_t b_len = free - a_len;
             return {
-                std::span<std::byte>(storage_.data() + head, a_len),
-                std::span<std::byte>(storage_.data(), b_len)
+                std::span<std::byte>(storage_ + head, a_len),
+                std::span<std::byte>(storage_, b_len)
             };
         }
 
         void commit_write(std::size_t bytes) noexcept {
             if (bytes == 0) return;
-            const std::size_t cap = storage_.size();
+            const std::size_t cap = capacity_;
+            if (cap == 0) return;
             const std::size_t head = head_.load(std::memory_order_relaxed);
             head_.store((head + bytes) % cap, std::memory_order_release);
             size_.fetch_add(bytes, std::memory_order_release);
         }
 
         PcmFifoView readable_view() noexcept {
-            const std::size_t cap = storage_.size();
+            const std::size_t cap = capacity_;
+            if (cap == 0) return {};
             const std::size_t tail = tail_.load(std::memory_order_relaxed);
             const std::size_t size = size_bytes();
             const std::size_t a_len = std::min(size, cap - tail);
             const std::size_t b_len = size - a_len;
             return {
-                std::span<std::byte>(storage_.data() + tail, a_len),
-                std::span<std::byte>(storage_.data(), b_len)
+                std::span<std::byte>(storage_ + tail, a_len),
+                std::span<std::byte>(storage_, b_len)
             };
         }
 
         void commit_read(std::size_t bytes) noexcept {
             if (bytes == 0) return;
-            const std::size_t cap = storage_.size();
+            const std::size_t cap = capacity_;
+            if (cap == 0) return;
             const std::size_t tail = tail_.load(std::memory_order_relaxed);
             tail_.store((tail + bytes) % cap, std::memory_order_release);
             size_.fetch_sub(bytes, std::memory_order_release);
@@ -76,7 +96,9 @@ export namespace audio {
         }
 
     private:
-        std::vector<std::byte> storage_;
+        std::vector<std::byte> owned_{};
+        std::byte* storage_{nullptr};
+        std::size_t capacity_{0};
         std::atomic<std::size_t> head_{0};
         std::atomic<std::size_t> tail_{0};
         std::atomic<std::size_t> size_{0};

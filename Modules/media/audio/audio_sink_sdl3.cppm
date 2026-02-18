@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -10,7 +11,6 @@
 #include <cstring>
 #include <expected>
 #include <span>
-#include <vector>
 
 export module audio.sink.sdl3;
 
@@ -18,6 +18,18 @@ import audio.format;
 import audio.result;
 
 export namespace audio {
+#ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
+#define CHARM_AUDIO_MAX_PERIOD_FRAMES 480
+#endif
+#ifndef CHARM_AUDIO_MAX_CHANNELS
+#define CHARM_AUDIO_MAX_CHANNELS 2
+#endif
+
+    constexpr std::size_t kMaxScratchBytes =
+        static_cast<std::size_t>(CHARM_AUDIO_MAX_PERIOD_FRAMES) *
+        static_cast<std::size_t>(CHARM_AUDIO_MAX_CHANNELS) *
+        sizeof(std::int16_t);
+
     using FillCallback = std::size_t(*)(std::span<std::byte>, void*) noexcept;
 
     struct SinkConfig {
@@ -42,7 +54,10 @@ export namespace audio {
                 : (fmt_.rate / 100);
             callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
             period_frames_ = period;
-            scratch_.resize(callback_bytes_);
+            if (callback_bytes_ > scratch_.size()) {
+                return std::unexpected(Err{Errc::invalid_arg, 0});
+            }
+            scratch_size_ = callback_bytes_;
 
             if (!SDL_Init(SDL_INIT_AUDIO)) {
                 return std::unexpected(Err{Errc::io_error, 1});
@@ -173,7 +188,8 @@ export namespace audio {
 
             std::size_t remaining = request;
             while (remaining > 0) {
-                const std::size_t chunk = std::min(remaining, self->scratch_.size());
+                const std::size_t chunk = std::min(remaining, self->scratch_size_);
+                if (chunk == 0) break;
                 std::size_t written = 0;
                 if (self->fill_cb_) {
                     written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
@@ -200,7 +216,8 @@ export namespace audio {
         double latency_sec_{0.0};
         std::size_t callback_bytes_{0};
 
-        std::vector<std::byte> scratch_{};
+        std::array<std::byte, kMaxScratchBytes> scratch_{};
+        std::size_t scratch_size_{0};
 
         std::atomic<std::uint8_t> underrun_flag_{0};
         std::atomic<std::uint64_t> underrun_count_{0};

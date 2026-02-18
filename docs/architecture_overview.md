@@ -133,6 +133,20 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 2. 依赖验证：非法 import 必须在编译期失败
 3. 最小回归：编译 + 一个行为验证（不要求完整测试）
 
+## 1.4 第三方依赖与可替换策略
+
+统一策略：**系统优先 → 本地目录 → FetchContent**。这样 PC/CI/MCU 三端行为一致，且便于替换。
+
+### 依赖清单（当前）
+- SDL3：`cmake/SDL3.cmake`（PC 音频/窗口）
+- ETL：`cmake/ETL.cmake`（可切换实现）
+- dr_mp3 / dr_flac：`cmake/DRLibs.cmake`（音频解码头文件）
+
+### 关键开关
+- `CHARM_USE_SYSTEM_SDL3` / `CHARM_FETCHCONTENT_SDL3`
+- `CHARM_USE_ETL` / `CHARM_FETCHCONTENT_ETL`
+- `CHARM_USE_ETL_EXPECTED`（默认 OFF，避免编译器模块兼容问题）
+
 ## 2. 当前已具备的拼图
 
 ### Kernel

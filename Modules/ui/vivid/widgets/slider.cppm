@@ -72,6 +72,7 @@ public:
     }
 
     bool on_event(const Event& e) override {
+        if (!is_enabled()) return false;
         if (e.type == Event::Type::MouseDown) {
             if (get_rect().contains(e.x, e.y)) {
                 dragging_ = true;
@@ -84,6 +85,7 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             return true;
         } else if (e.type == Event::Type::KeyDown) {

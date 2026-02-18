@@ -50,6 +50,7 @@ public:
     }
 
     bool on_event(const Event& e) override {
+        if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             const auto r = get_rect();
             const bool hit_box = (e.x >= r.x && e.x < r.x + r.h && e.y >= r.y && e.y < r.y + r.h);

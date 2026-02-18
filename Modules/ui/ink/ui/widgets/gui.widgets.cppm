@@ -23,6 +23,7 @@ import out.format;
 import alg_arc;
 import alg_circle;
 import alg_line;
+import alg_round_rect;
 
 namespace gui::detail
 {
@@ -240,38 +241,34 @@ export namespace gui
     inline void fill_round_rect(auto& r, const Rect& rc) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
-        r.fillRect(rc, true);
-        if (rc.w < 3 || rc.h < 3) return;
-        r.setPixel(rc.x, rc.y, false);
-        r.setPixel(rc.x + rc.w - 1, rc.y, false);
-        r.setPixel(rc.x, rc.y + rc.h - 1, false);
-        r.setPixel(rc.x + rc.w - 1, rc.y + rc.h - 1, false);
+        constexpr int kRoundRadius = 2;
+        alg::round_rect::fill(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
+            [&](int x0, int x1, int y) noexcept {
+                for (int x = x0; x < x1; ++x) {
+                    r.setPixel(x, y, true);
+                }
+            });
     }
 
     template <class R>
     void draw_round_rect(R& r, const Rect& rc, bool on) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
-        if (rc.w < 4 || rc.h < 4) {
-            r.drawRect(rc, on);
-            return;
-        }
-        const int x0 = rc.x;
-        const int y0 = rc.y;
-        const int x1 = rc.x + rc.w - 1;
-        const int y1 = rc.y + rc.h - 1;
-        for (int x = x0 + 2; x <= x1 - 2; ++x) {
-            r.setPixel(x, y0, on);
-            r.setPixel(x, y1, on);
-        }
-        for (int y = y0 + 2; y <= y1 - 2; ++y) {
-            r.setPixel(x0, y, on);
-            r.setPixel(x1, y, on);
-        }
-        r.setPixel(x0 + 1, y0 + 1, on);
-        r.setPixel(x1 - 1, y0 + 1, on);
-        r.setPixel(x0 + 1, y1 - 1, on);
-        r.setPixel(x1 - 1, y1 - 1, on);
+        constexpr int kRoundRadius = 2;
+        alg::round_rect::outline(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
+            [&](int x, int y) noexcept {
+                r.setPixel(x, y, on);
+            },
+            [&](int x0, int x1, int y) noexcept {
+                for (int x = x0; x < x1; ++x) {
+                    r.setPixel(x, y, on);
+                }
+            },
+            [&](int x, int y0, int y1) noexcept {
+                for (int y = y0; y < y1; ++y) {
+                    r.setPixel(x, y, on);
+                }
+            });
     }
 
     template <class R>

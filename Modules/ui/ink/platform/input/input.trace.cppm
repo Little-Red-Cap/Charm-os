@@ -48,7 +48,7 @@ export namespace input::trace {
         rec.id = static_cast<util::u32>(id);
         rec.payload = delta;
         rec.count = 1;
-        rec.kind = service::TraceKind::counter_delta;
+        rec.kind = ::trace::TraceKind::counter_delta;
         buffer_mut().push(rec);
     }
 }

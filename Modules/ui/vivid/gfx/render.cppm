@@ -10,6 +10,7 @@ export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
 import alg_arc;
+import alg_line;
 
 namespace ui::render {
 
@@ -20,31 +21,9 @@ void draw_line(Canvas<PF, W, H>& cvs,
                int x1, int y1,
                const rgba& color) noexcept
 {
-    const bool steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
-    if (steep) {
-        std::swap(x0, y0);
-        std::swap(x1, y1);
-    }
-    if (x0 > x1) {
-        std::swap(x0, x1);
-        std::swap(y0, y1);
-    }
-    const int dx = x1 - x0;
-    const int dy = std::abs(y1 - y0);
-    int err = dx / 2;
-    const int y_step = (y0 < y1) ? 1 : -1;
-    int y = y0;
-    for (int x = x0; x <= x1; ++x) {
-        if (steep)
-            cvs.set_pixel(y, x, color);
-        else
-            cvs.set_pixel(x, y, color);
-        err -= dy;
-        if (err < 0) {
-            y += y_step;
-            err += dx;
-        }
-    }
+    alg::line::raster(x0, y0, x1, y1, [&](int x, int y) noexcept {
+        cvs.set_pixel(x, y, color);
+    });
 }
 
 // 矩形（填充或描边）

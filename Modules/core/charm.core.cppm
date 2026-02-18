@@ -49,6 +49,7 @@ export import alg_compress;
 export import alg_fft;
 export import alg_filters;
 export import alg_heatshrink;
+export import alg_line;
 export import alg_lz4;
 export import alg_packbits;
 export import alg.qr_encode;

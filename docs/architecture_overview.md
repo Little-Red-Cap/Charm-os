@@ -42,7 +42,9 @@ Modules/
   ui/vivid/    # Charm-vivid UI
   platform/    # win/... 及后续 MCU 平台
 
-Draft/Examples/    # 历史示例与杂项
+Examples/     # 示例工程
+docs/         # 架构与协作文档
+Draft/        # 计划/草案（可变动）
 ```
 
 ## 1.2 依赖红线（单向依赖）
@@ -143,6 +145,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 解码：WAV/FLAC/MP3
 - 模式：FollowInput / FixedRate（含重配事务）
 - 回归：stable/lowlat、fixed-rate、reconfig、force-mono
+- 文档：`Modules/media/audio/audio_design.md`
 
 ### Service
 - ring_buffer/fifo/heap/pool/json/trace/distbus

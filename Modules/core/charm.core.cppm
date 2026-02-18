@@ -34,10 +34,12 @@ export import service_distbus;
 export import service_heap;
 export import service_json;
 export import service_pool;
+export import service_qr_bitmap;
 export import service_ring_buffer;
 export import service_stream;
 export import service_fifo;
 
+export import alg_arc;
 export import alg_color;
 export import alg_compress;
 export import alg_fft;

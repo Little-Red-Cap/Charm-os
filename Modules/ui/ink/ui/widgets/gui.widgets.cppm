@@ -18,6 +18,7 @@ import gui.font;
 import gui.chart_scope;
 import gui.image_1bpp;
 import out.format;
+import alg_arc;
 
 namespace gui::detail
 {
@@ -281,14 +282,11 @@ export namespace gui
     template <class R>
     void draw_arc(R& r, int cx, int cy, int rad, float a0, float a1, bool on) noexcept
     {
-        const int steps = (rad < 8) ? 12 : 24;
-        for (int i = 0; i <= steps; ++i) {
-            const float t = (float)i / (float)steps;
-            const float a = a0 + (a1 - a0) * t;
-            const int x = cx + (int)(std::cos(a) * (float)rad);
-            const int y = cy + (int)(std::sin(a) * (float)rad);
-            r.setPixel(x, y, on);
-        }
+        const int steps = alg::arc::arc_steps_for_radius(rad);
+        alg::arc::sample_arc_rad(a0, a1, steps, [&](float a) noexcept {
+            const auto p = alg::arc::point_on_circle_rad(cx, cy, rad, a);
+            r.setPixel(p.x, p.y, on);
+        });
     }
 
     template <class R>
@@ -326,26 +324,21 @@ export namespace gui
         int rad = (rc.w / 2);
         if (rc.h < rad) rad = rc.h;
         if (rad < 4) rad = 4;
-        const float a0 = 3.14159265f * 0.75f;
-        const float a1 = 3.14159265f * 0.25f;
+        const float a0 = alg::arc::kPi * 0.75f;
+        const float a1 = alg::arc::kPi * 0.25f;
         draw_arc(r, cx, cy, rad, a0, a1, on);
         draw_arc(r, cx, cy, rad - 1, a0, a1, on);
         for (int i = 0; i <= 4; ++i) {
             const float t = (float)i / 4.0f;
             const float a = a0 + (a1 - a0) * t;
-            const int x0 = cx + (int)(std::cos(a) * (float)(rad - 3));
-            const int y0 = cy + (int)(std::sin(a) * (float)(rad - 3));
-            const int x1 = cx + (int)(std::cos(a) * (float)(rad));
-            const int y1 = cy + (int)(std::sin(a) * (float)(rad));
-            draw_line(r, x0, y0, x1, y1, on);
+            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, rad - 3, a);
+            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, rad, a);
+            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
         }
-        float v = (float)value_0_100 / 100.0f;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 1.0f) v = 1.0f;
-        const float a = a0 + (a1 - a0) * v;
-        const int nx = cx + (int)(std::cos(a) * (float)(rad - 4));
-        const int ny = cy + (int)(std::sin(a) * (float)(rad - 4));
-        draw_line(r, cx, cy, nx, ny, on);
+        const float v = alg::arc::clamp01((float)value_0_100 / 100.0f);
+        const float a = alg::arc::lerp(a0, a1, v);
+        const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
+        draw_line(r, cx, cy, needle.x, needle.y, on);
     }
 
     template <class R>
@@ -476,24 +469,19 @@ export namespace gui
         if (rad < 4) rad = 4;
         draw_circle(r, cx, cy, rad, on);
         draw_circle(r, cx, cy, rad - 1, on);
-        const float a0 = 3.14159265f * 0.75f;
-        const float a1 = 3.14159265f * 2.25f;
+        const float a0 = alg::arc::kPi * 0.75f;
+        const float a1 = alg::arc::kPi * 2.25f;
         for (int i = 0; i < 6; ++i) {
             const float t = (float)i / 5.0f;
             const float a = a0 + (a1 - a0) * t;
-            const int x0 = cx + (int)(std::cos(a) * (float)(rad - 2));
-            const int y0 = cy + (int)(std::sin(a) * (float)(rad - 2));
-            const int x1 = cx + (int)(std::cos(a) * (float)rad);
-            const int y1 = cy + (int)(std::sin(a) * (float)rad);
-            draw_line(r, x0, y0, x1, y1, on);
+            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, rad - 2, a);
+            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, rad, a);
+            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
         }
-        float v = (float)value_0_100 / 100.0f;
-        if (v < 0.0f) v = 0.0f;
-        if (v > 1.0f) v = 1.0f;
-        const float a = a0 + (a1 - a0) * v;
-        const int nx = cx + (int)(std::cos(a) * (float)(rad - 4));
-        const int ny = cy + (int)(std::sin(a) * (float)(rad - 4));
-        draw_line(r, cx, cy, nx, ny, on);
+        const float v = alg::arc::clamp01((float)value_0_100 / 100.0f);
+        const float a = alg::arc::lerp(a0, a1, v);
+        const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
+        draw_line(r, cx, cy, needle.x, needle.y, on);
     }
 
     [[nodiscard]] inline std::int16_t marquee_offset(std::int16_t text_w,

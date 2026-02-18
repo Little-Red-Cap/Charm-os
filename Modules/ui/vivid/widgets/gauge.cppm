@@ -7,6 +7,7 @@ import charm.core.style;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
+import alg_arc;
 
 using namespace ui::render;
 
@@ -19,9 +20,7 @@ public:
     }
 
     void set_value(int v) noexcept {
-        if (v < 0) v = 0;
-        if (v > 100) v = 100;
-        value_ = v;
+        value_ = alg::arc::clamp_to_range(v, 0, 100);
     }
 
     int value() const noexcept { return value_; }
@@ -41,7 +40,9 @@ public:
         const int radius = (r.w < r.h ? r.w : r.h) / 2 - 6;
         const int start = 135;
         const int end = 405;
-        const int sweep = start + (end - start) * value_ / 100;
+        const float sweep = alg::arc::sweep_deg_from_value(static_cast<float>(start),
+                                                           static_cast<float>(end),
+                                                           alg::arc::ratio_from_range(value_, 0, 100));
         draw_arc(cvs, cx, cy, radius, 6, start, end, border);
         draw_arc(cvs, cx, cy, radius, 6, start, sweep, font);
     }

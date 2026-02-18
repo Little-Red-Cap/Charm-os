@@ -50,3 +50,4 @@ message(STATUS "${target_name} Examples: Boot/Demo -> ${CMAKE_CURRENT_SOURCE_DIR
 message(STATUS "${target_name} Examples: Audio/SDL3 -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/audio/sdl3_wav_demo")
 message(STATUS "${target_name} Examples: FS/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/fs")
 message(STATUS "${target_name} Examples: Shell/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/shell/vsf_service_shell")
+message(STATUS "${target_name} Examples: Service/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/vsf_service_core")

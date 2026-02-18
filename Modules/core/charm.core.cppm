@@ -17,6 +17,8 @@ export import service.bitmap;
 export import service.fifo;
 export import service.fixed_allocator;
 export import service.fixed_hash_map;
+export import service.fixed_list;
+export import service.fixed_store;
 export import service.fixed_vector;
 export import service.handle_pool;
 export import service.handle_table;

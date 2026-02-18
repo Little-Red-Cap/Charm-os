@@ -7,6 +7,8 @@ module;
 export module gui.ui_tree;
 
 import gui.core;
+import service.fixed_store;
+import util.core;
 
 export namespace gui::ui {
 
@@ -117,39 +119,6 @@ export namespace gui::ui {
     };
 
     template<class T, int N>
-    class StateStore {
-    public:
-        void clear() noexcept {
-            for (auto& e : entries_) e.used = false;
-        }
-
-        [[nodiscard]] T* find(NodeId id) noexcept {
-            for (auto& e : entries_) {
-                if (e.used && e.id == id) return &e.state;
-            }
-            return nullptr;
-        }
-
-        [[nodiscard]] T* get_or_create(NodeId id, const T& init = {}) noexcept {
-            if (auto* s = find(id)) return s;
-            for (auto& e : entries_) {
-                if (!e.used) {
-                    e.used = true;
-                    e.id = id;
-                    e.state = init;
-                    return &e.state;
-                }
-            }
-            return nullptr;
-        }
-
-    private:
-        struct Entry {
-            NodeId id{};
-            T state{};
-            bool used{false};
-        };
-        Entry entries_[N]{};
-    };
+    using StateStore = service::FixedStore<NodeId, T, static_cast<util::usize>(N)>;
 
 } // namespace gui::ui

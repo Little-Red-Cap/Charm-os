@@ -27,7 +27,6 @@ import charm.widgets.roller;
 import charm.widgets.spinner;
 import charm.widgets.bar;
 import charm.widgets.popup_layer;
-import charm.widgets.popup_layer;
 import charm.widgets.menu;
 import charm.widgets.menu_item;
 import charm.widgets.radio;

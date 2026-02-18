@@ -1,10 +1,7 @@
 ﻿name: STM32 (arm-none-eabi 15.2.rel1)
 
 on:
-  push:
-    branches: ["main", "dev"]
-  pull_request:
-    branches: ["main", "dev"]
+  workflow_dispatch:
 
 jobs:
   stm32:

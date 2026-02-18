@@ -7,6 +7,7 @@ option(CHARM_ENABLE_SDL3 "Enable SDL3-backed modules" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
+option(CHARM_USE_ETL "Use ETL for core util aliases" OFF)
 
 add_library(${target_name})
 
@@ -18,6 +19,19 @@ target_compile_options(${target_name} PRIVATE
         #        -ffreestanding
         #        -nostdlib
 )
+
+if (CHARM_USE_ETL)
+    set(CHARM_ETL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/etl")
+    if (EXISTS "${CHARM_ETL_ROOT}/include/etl/etl.h")
+        set(CHARM_ETL_INCLUDE "${CHARM_ETL_ROOT}/include")
+    elseif (EXISTS "${CHARM_ETL_ROOT}/etl/etl.h")
+        set(CHARM_ETL_INCLUDE "${CHARM_ETL_ROOT}")
+    else()
+        message(FATAL_ERROR "CHARM_USE_ETL is ON, but ETL headers were not found under ${CHARM_ETL_ROOT}")
+    endif()
+    target_include_directories(${target_name} PRIVATE "${CHARM_ETL_INCLUDE}")
+    target_compile_definitions(${target_name} PRIVATE CHARM_USE_ETL=1)
+endif()
 
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS "Modules/*.cppm")

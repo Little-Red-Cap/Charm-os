@@ -39,7 +39,6 @@ public:
 
     template<typename Resolver>
     void sync_child_bases(Resolver&& resolve) {
-        const auto r = get_rect();
         content_height_ = 0;
         const std::size_t total = child_count();
         overflow_ = total > kMax;

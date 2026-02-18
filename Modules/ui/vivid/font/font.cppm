@@ -62,6 +62,7 @@ export constexpr const Glyph* find_glyph(const Font& font, const uint32_t code) 
 
 export constexpr int get_glyph_kern(const Font& font, uint16_t left_gid, uint16_t right_gid) noexcept {
     if (!font.kern_class_values || !font.kern_left_class_map || !font.kern_right_class_map) return 0;
+    if (left_gid >= font.table.size() || right_gid >= font.table.size()) return 0;
     const uint16_t lc = font.kern_left_class_map[left_gid];
     const uint16_t rc = font.kern_right_class_map[right_gid];
     if (lc == 0 || rc == 0) return 0;
@@ -73,6 +74,11 @@ export constexpr int get_glyph_kern(const Font& font, uint16_t left_gid, uint16_
 export constexpr bool validate_font(const Font& f) {
     if (f.baseline < 0 || f.baseline > f.line_height)
         return false;
+    if (f.fallback_glyph) {
+        const auto* base = f.table.data();
+        const auto* end = base + f.table.size();
+        if (f.fallback_glyph < base || f.fallback_glyph >= end) return false;
+    }
     // TODO: Use std::ranges::all_of when available
     for (const auto& g : f.table) {
         if (g.y_offset < 0 || g.y_offset > f.line_height)

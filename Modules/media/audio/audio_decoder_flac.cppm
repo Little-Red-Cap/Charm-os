@@ -1,7 +1,7 @@
 ﻿module;
 
 #define DR_FLAC_IMPLEMENTATION
-#include "../../../Examples/ThirdParty/dr_flac/dr_flac.h"
+#include <dr_flac.h>
 
 #include <cstdint>
 #include <cstdio>

@@ -1,7 +1,7 @@
 ﻿module;
 
 #define DR_MP3_IMPLEMENTATION
-#include "../../../Examples/ThirdParty/dr_mp3/dr_mp3.h"
+#include <dr_mp3.h>
 
 #include <cstdint>
 #include <cstdio>

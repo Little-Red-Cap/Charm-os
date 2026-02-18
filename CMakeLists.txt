@@ -22,6 +22,11 @@ target_compile_options(${target_name} PRIVATE
         #        -nostdlib
 )
 
+set(CHARM_DR_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/dr_libs")
+if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
+    target_include_directories(${target_name} PRIVATE "${CHARM_DR_LIBS_DIR}")
+endif()
+
 if (CHARM_USE_ETL)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ETL.cmake")
     charm_link_etl(${target_name})

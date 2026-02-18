@@ -68,3 +68,28 @@ cmake --build Examples/alg/alg_demo/build
 
 - 示例默认关闭 UI/Media/SDL3 依赖（仅在对应示例中启用）。
 - 运行方式与输出说明请参考根目录 `README.md`。
+
+## SDL3 安装与配置（PC 验证用）
+
+优先使用系统安装的 SDL3（CMake `find_package(SDL3 CONFIG)`）。
+
+### 方式 A：本机安装（推荐）
+
+1. 从 SDL3 源码编译并安装：
+   ```bash
+   cmake -S <SDL3_SOURCE> -B <SDL3_BUILD> -G Ninja -DCMAKE_INSTALL_PREFIX=<SDL3_PREFIX>
+   cmake --build <SDL3_BUILD>
+   cmake --install <SDL3_BUILD>
+   ```
+2. 设置环境变量（或 CMake cache）：
+   - `SDL3_DIR=<SDL3_PREFIX>/lib/cmake/SDL3`
+
+### 方式 B：项目内源码
+
+把 SDL3 源码放到：
+
+```
+Examples/ThirdParty/SDL3
+```
+
+示例会自动优先 `find_package`，找不到时回退到本地源码目录。

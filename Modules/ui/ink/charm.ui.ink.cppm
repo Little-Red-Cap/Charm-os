@@ -11,6 +11,7 @@ export import gui.layout;
 export import gui.motion;
 export import gui.perf;
 export import gui.qr_encode;
+export import gui.trace;
 
 export import gui.renderer;
 
@@ -21,6 +22,7 @@ export import input.queue;
 export import input.raw;
 export import input.raw_event;
 export import input.sampler;
+export import input.trace;
 
 export import gui.qr_widget;
 export import gui.widgets;

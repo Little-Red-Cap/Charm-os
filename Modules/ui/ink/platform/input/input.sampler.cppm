@@ -12,6 +12,7 @@ import input.raw;
 import input.raw_event;
 import input.intent;
 import input.encoder_decoder;
+import input.trace;
 
 
 export namespace input
@@ -96,6 +97,7 @@ export namespace input
                 st.down_since   = now_ms;
                 st.last_repeat  = now_ms;
                 st.repeating    = false;
+                trace::trace_counter_delta(trace::raw_button_id(b), 1);
                 return RawInputEvent{
                     .type = RawInputEventType::Button,
                     .ms = now_ms,
@@ -116,6 +118,7 @@ export namespace input
                     if (held >= cfg_.repeat.delay_ms) {
                         st.repeating   = true;
                         st.last_repeat = now_ms;
+                        trace::trace_counter_delta(trace::raw_button_id(b), 1);
                         return RawInputEvent{
                             .type = RawInputEventType::Button,
                             .ms = now_ms,
@@ -127,6 +130,7 @@ export namespace input
                 else {
                     if ((now_ms - st.last_repeat) >= cfg_.repeat.interval_ms) {
                         st.last_repeat = now_ms;
+                        trace::trace_counter_delta(trace::raw_button_id(b), 1);
                         return RawInputEvent{
                             .type = RawInputEventType::Button,
                             .ms = now_ms,
@@ -147,6 +151,7 @@ export namespace input
             if (p.x < 0 || p.y < 0) {
                 if (ptr_prev_down_) {
                     ptr_prev_down_ = false;
+                    trace::trace_counter_delta(trace::TraceId::RawPointerUp, 1);
                     return RawInputEvent{
                         .type = RawInputEventType::Pointer,
                         .ms = now_ms,
@@ -161,6 +166,7 @@ export namespace input
                 ptr_prev_down_ = true;
                 ptr_prev_x_    = p.x;
                 ptr_prev_y_    = p.y;
+                trace::trace_counter_delta(trace::TraceId::RawPointerDown, 1);
                 return RawInputEvent{
                     .type = RawInputEventType::Pointer,
                     .ms = now_ms,
@@ -172,6 +178,7 @@ export namespace input
                 if (p.x != ptr_prev_x_ || p.y != ptr_prev_y_) {
                     ptr_prev_x_ = p.x;
                     ptr_prev_y_ = p.y;
+                    trace::trace_counter_delta(trace::TraceId::RawPointerMove, 1);
                     return RawInputEvent{
                         .type = RawInputEventType::Pointer,
                         .ms = now_ms,
@@ -184,6 +191,7 @@ export namespace input
                 ptr_prev_down_ = false;
                 ptr_prev_x_    = p.x;
                 ptr_prev_y_    = p.y;
+                trace::trace_counter_delta(trace::TraceId::RawPointerUp, 1);
                 return RawInputEvent{
                     .type = RawInputEventType::Pointer,
                     .ms = now_ms,
@@ -195,6 +203,7 @@ export namespace input
                 if (p.x != ptr_prev_x_ || p.y != ptr_prev_y_) {
                     ptr_prev_x_ = p.x;
                     ptr_prev_y_ = p.y;
+                    trace::trace_counter_delta(trace::TraceId::RawPointerMove, 1);
                     return RawInputEvent{
                         .type = RawInputEventType::Pointer,
                         .ms = now_ms,
@@ -214,6 +223,7 @@ export namespace input
             while (auto ab = src.pop_encoder_ab()) {
                 phases_in_this_poll++;
                 if (auto d = enc_.update(*ab)) {
+                    trace::trace_counter_delta(trace::TraceId::RawEncoder, 1);
                     return RawInputEvent{
                         .type = RawInputEventType::Encoder,
                         .ms = now_ms,

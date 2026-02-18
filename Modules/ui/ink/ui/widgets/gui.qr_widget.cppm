@@ -31,8 +31,7 @@ export namespace gui::qr {
                  bool on = true) noexcept
     {
         if (size <= 0 || rc.w <= 0 || rc.h <= 0) return;
-        const int stride = (size + 7) / 8;
-        const std::size_t need = (std::size_t)stride * (std::size_t)size;
+        const std::size_t need = service::qr::required_bytes(size);
         if (buffer.size() < need) return;
 
         int scale = rc.w / size;
@@ -44,17 +43,12 @@ export namespace gui::qr {
         const int y0 = rc.y + (rc.h - draw_h) / 2;
 
         for (int y = 0; y < size; ++y) {
-            const int row = y * stride;
             for (int x = 0; x < size; ++x) {
-                const int byte_index = x / 8;
-                const int bit_index = 7 - (x % 8);
-                const std::uint8_t data = buffer[(std::size_t)row + (std::size_t)byte_index];
-                if ((data >> bit_index) & 0x1) {
-                    const int px = x0 + x * scale;
-                    const int py = y0 + y * scale;
-                    r.fillRect(Rect{(std::int16_t)px, (std::int16_t)py,
-                                    (std::int16_t)scale, (std::int16_t)scale}, on);
-                }
+                if (!service::qr::module_on(buffer, size, x, y)) continue;
+                const int px = x0 + x * scale;
+                const int py = y0 + y * scale;
+                r.fillRect(Rect{(std::int16_t)px, (std::int16_t)py,
+                                (std::int16_t)scale, (std::int16_t)scale}, on);
             }
         }
     }

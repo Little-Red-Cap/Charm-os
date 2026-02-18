@@ -28,8 +28,7 @@ public:
         const int radius = (r.w < r.h ? r.w : r.h) / 2 - thickness_;
         const rgba col = color_.a ? color_ : st.border_pressed;
 
-        phase_ += speed_;
-        if (phase_ > 6.28318f) phase_ -= 6.28318f;
+        phase_ = alg::arc::wrap_angle_0_2pi(phase_ + speed_);
 
         // animated spinner: draw 8 short arcs with alpha falloff
         for (int i = 0; i < 8; ++i) {

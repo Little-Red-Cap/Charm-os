@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 
 export module alg_dither;
 

@@ -7,7 +7,7 @@ module;
 
 export module input.raw_event;
 
-import input.raw;
+export import input.raw;
 
 export namespace input {
     enum class RawInputEventType : std::uint8_t {

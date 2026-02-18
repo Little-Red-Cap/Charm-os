@@ -56,6 +56,11 @@ export namespace gui::qr {
     struct QrCode {
         service::qr::Bitmap bitmap{};
 
+        [[nodiscard]] bool valid() const noexcept
+        {
+            return bitmap.valid;
+        }
+
         [[nodiscard]] bool encode(const char* text) noexcept
         {
             return service::qr::encode(bitmap, text);

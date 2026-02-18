@@ -16,7 +16,8 @@ export enum class FontId : uint8_t {
 export
 const Font& get_font(const FontId id) noexcept {
     switch (id) {
-    case FontId::Small: return font_montserrat_12;
+    // case FontId::Small: return font_montserrat_12;
+    case FontId::Small: return font_montserrat_16;
     case FontId::Normal: return font_montserrat_16;
     case FontId::Large: return font_montserrat_16;
     case FontId::Mono: return font_12;

@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <cstdint>
 #include <cstddef>
 #include <cmath>

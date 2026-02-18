@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <cstdint>
 export module charm.core.gui;
 
 export import charm.gfx.canvas;
@@ -9,7 +10,8 @@ export import charm.core.handle;
 export import charm.core.factory;
 export import charm.core.layout;
 export import charm.widgets.scroll_container;
-import out.api;
+import service_trace;
+import util.core;
 
 
 export
@@ -26,33 +28,21 @@ public:
 
     // 渲染一帧
     void render() {
-        static int frame_no = 0;
-#ifndef NDEBUG
-        if (frame_no == 0) {
-            out::debug<"[gui] log start">();
-        }
-#endif
+        static util::u32 frame_no = 0;
         factory_.sanitize_tree(root_);
         const WidgetHandle ov = factory_.overlay();
         if (ov) factory_.sanitize_tree(ov);
         const auto& rep = factory_.last_sanitize_report();
         if (rep.removed > 0) {
-#ifndef NDEBUG
             static int frame_mod = 0;
             frame_mod = (frame_mod + 1) % 60;
             if (frame_mod == 0) {
-                out::debug<"[sanitize] removed={} missing={} self={} invalid_parent={} cycle={} last_parent=({}, {}) last_child=({}, {})">(
-                    rep.removed,
-                    rep.missing,
-                    rep.self_ref,
-                    rep.invalid_parent,
-                    rep.cycle,
-                    static_cast<unsigned>(rep.last_parent.kind),
-                    static_cast<unsigned>(rep.last_parent.index),
-                    static_cast<unsigned>(rep.last_child.kind),
-                    static_cast<unsigned>(rep.last_child.index));
+                trace_counter(GuiTraceId::SanitizeRemoved, (util::u64)rep.removed, frame_no);
+                trace_counter(GuiTraceId::SanitizeMissing, (util::u64)rep.missing, frame_no);
+                trace_counter(GuiTraceId::SanitizeSelf, (util::u64)rep.self_ref, frame_no);
+                trace_counter(GuiTraceId::SanitizeInvalidParent, (util::u64)rep.invalid_parent, frame_no);
+                trace_counter(GuiTraceId::SanitizeCycle, (util::u64)rep.cycle, frame_no);
             }
-#endif
         }
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
@@ -60,10 +50,9 @@ public:
         WidgetHandle stack[kMaxDepth]{};
         draw_recursive(root_, 0, stack);
 
-#ifndef NDEBUG
-        out::trace<"[frame {}] nodes={} depth_hits={} cycle_hits={}">(
-            frame_no, debug_nodes_, debug_depth_hits_, debug_cycle_hits_);
-#endif
+        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, frame_no);
+        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, frame_no);
+        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, frame_no);
         frame_no++;
     }
 
@@ -199,7 +188,31 @@ public:
     }
 
 private:
-    
+    enum class GuiTraceId : util::u32 {
+        FrameNodes = 1,
+        FrameDepthHits = 2,
+        FrameCycleHits = 3,
+        SanitizeRemoved = 10,
+        SanitizeMissing = 11,
+        SanitizeSelf = 12,
+        SanitizeInvalidParent = 13,
+        SanitizeCycle = 14,
+    };
+
+    static constexpr util::usize kTraceCapacity = 256;
+    using TraceRecord = service::TraceRecord<util::u32, kTraceCapacity>;
+    using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
+
+    void trace_counter(GuiTraceId id, util::u64 payload, util::u32 frame) noexcept {
+        TraceRecord rec{};
+        rec.time = frame;
+        rec.id = static_cast<util::u32>(id);
+        rec.payload = payload;
+        rec.count = 1;
+        rec.kind = trace::TraceKind::counter;
+        trace_.push(rec);
+    }
+
     void sanitize_handles() {
         auto invalid = [&](WidgetHandle h) -> bool {
             auto* obj = factory_.get(h);
@@ -407,4 +420,5 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
     int debug_nodes_{0};
     int debug_depth_hits_{0};
     int debug_cycle_hits_{0};
+    TraceBuffer trace_{};
 };

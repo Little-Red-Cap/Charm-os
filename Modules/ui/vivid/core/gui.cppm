@@ -12,6 +12,7 @@ export import charm.core.layout;
 export import charm.widgets.scroll_container;
 import service_trace;
 import util.core;
+import out.api;
 
 
 export
@@ -25,6 +26,25 @@ public:
     WidgetHandle pressed() const noexcept { return pressed_; }
     WidgetHandle captured() const noexcept { return captured_; }
     bool dragging() const noexcept { return dragging_; }
+    void dump_trace() const noexcept {
+        const auto total = trace_.size();
+        const auto cap = trace_.capacity();
+        const auto head = trace_.head();
+        const auto& data = trace_.data();
+        const auto start = (head + cap - total) % cap;
+        auto out = out::raw();
+        (void)out.template try_println<"t,id,kind,payload,count">();
+        for (util::usize i = 0; i < total; ++i) {
+            const auto idx = (start + i) % cap;
+            const auto& rec = data[idx];
+            (void)out.template try_println<"{},{},{},{},{}">(
+                rec.time,
+                rec.id,
+                static_cast<unsigned>(rec.kind),
+                rec.payload,
+                rec.count);
+        }
+    }
 
     // 渲染一帧
     void render() {

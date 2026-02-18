@@ -148,7 +148,7 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 - 协作规范：`docs/《协作期待与规范》.md`
 - 协作认知：`docs/《现代 C++ 单片机代码协作认知》.md`
 - 推进与分工：`docs/推进TODO与分工.md`、`docs/refactor_todo_ownership.md`
-- Audio 设计：`Modules/media/audio/audio_design.md`
+- 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`Modules/io/fs/fs_migration_notes.md`、Shell=`Modules/io/shell/vsf_migration_service_shell_module.md`、Service=`Modules/core/service/vsf_migration_service_detail.md`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
 
 ## 🗺 路线图（摘要）
 - **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、shim 最小 POSIX time/sleep

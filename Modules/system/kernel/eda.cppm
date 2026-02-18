@@ -15,12 +15,14 @@ import kernel.evt;
 export namespace kernel {
     struct Priority {
         std::size_t value{0};
-        constexpr auto operator<=>(const Priority&) const = default;
+        constexpr bool operator==(const Priority&) const = default;
+        constexpr bool operator<(const Priority& other) const noexcept { return value < other.value; }
     };
 
     struct TaskId {
         std::size_t value{0};
-        constexpr auto operator<=>(const TaskId&) const = default;
+        constexpr bool operator==(const TaskId&) const = default;
+        constexpr bool operator<(const TaskId& other) const noexcept { return value < other.value; }
     };
 
     template <typename Task>

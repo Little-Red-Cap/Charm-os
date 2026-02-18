@@ -4,6 +4,7 @@
 module;
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <string_view>
 
 export module gui.ui_perf;
@@ -12,6 +13,7 @@ import gui.core;
 import gui.layout;
 import gui.font;
 import gui.theme;
+import out.core;
 import out.format;
 
 namespace gui::detail

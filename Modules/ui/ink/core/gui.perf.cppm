@@ -5,10 +5,12 @@ module;
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <expected>
 #include <string_view>
 
 export module gui.perf;
 
+import out.core;
 import out.format;
 
 namespace gui::detail
@@ -67,7 +69,7 @@ export namespace gui::perf
     struct FpsCounter {
         std::uint32_t last_ms{0};
         std::uint32_t frames{0};
-        double fps{0.0};
+        float fps{0.0f};
 
         // Returns true when fps has been updated (about once per second).
         bool update(std::uint32_t now_ms) noexcept
@@ -79,7 +81,7 @@ export namespace gui::perf
             }
             const std::uint32_t span = now_ms - last_ms;
             if (span < 1000) return false;
-            fps = span ? (frames * 1000.0 / (double)span) : 0.0;
+            fps = span ? (static_cast<float>(frames) * 1000.0f / static_cast<float>(span)) : 0.0f;
             frames = 0;
             last_ms = now_ms;
             return true;
@@ -91,7 +93,7 @@ export namespace gui::perf
             return update(clock.now());
         }
 
-        [[nodiscard]] inline double value() const noexcept { return fps; }
+        [[nodiscard]] inline float value() const noexcept { return fps; }
 
         void format(char* out, std::size_t out_size, const char* label) const noexcept
         {

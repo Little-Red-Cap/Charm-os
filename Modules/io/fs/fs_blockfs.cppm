@@ -73,7 +73,7 @@ export namespace fs {
         Status mount() noexcept {
             if (!dev_ || dev_->block_size != BlockSize || dev_->block_count < data_start + 1) return Status{Err::inval};
             std::array<util::u8, BlockSize> buf{};
-            auto st = dev_->read(0, std::span<util::u8>(buf.data(), buf.size()));
+            auto st = dev_->read(dev_->ctx, 0, std::span<util::u8>(buf.data(), buf.size()));
             if (!st) return st;
             const auto* sup = reinterpret_cast<const Super*>(buf.data());
             if (sup->magic != Super{}.magic || sup->block_size != BlockSize || sup->map_blocks != map_blocks) {
@@ -312,7 +312,7 @@ export namespace fs {
                 de.is_dir = entries_[i].is_dir;
                 std::memcpy(buf.data() + sizeof(Super) + sizeof(DiskEntry) * i, &de, sizeof(DiskEntry));
             }
-            auto st = dev_->write(0, std::span<const util::u8>(buf.data(), buf.size()));
+            auto st = dev_->write(dev_->ctx, 0, std::span<const util::u8>(buf.data(), buf.size()));
             if (!st) return st;
             st = flush_fat();
             if (st) dirty_ = false;
@@ -328,7 +328,7 @@ export namespace fs {
                 const util::usize chunk = remaining > BlockSize ? BlockSize : remaining;
                 std::array<util::u8, BlockSize> buf{};
                 std::memcpy(buf.data(), src, chunk);
-                auto st = dev_->write(block, std::span<const util::u8>(buf.data(), buf.size()));
+                auto st = dev_->write(dev_->ctx, block, std::span<const util::u8>(buf.data(), buf.size()));
                 if (!st) return st;
                 src += chunk;
                 remaining -= chunk;
@@ -344,7 +344,7 @@ export namespace fs {
             util::u32 block = 1;
             while (remaining > 0) {
                 std::array<util::u8, BlockSize> buf{};
-                auto st = dev_->read(block, std::span<util::u8>(buf.data(), buf.size()));
+                auto st = dev_->read(dev_->ctx, block, std::span<util::u8>(buf.data(), buf.size()));
                 if (!st) return st;
                 const util::usize chunk = remaining > BlockSize ? BlockSize : remaining;
                 std::memcpy(dst, buf.data(), chunk);
@@ -468,7 +468,7 @@ export namespace fs {
             std::array<util::u8, BlockSize> block{};
             while (remaining > 0) {
                 if (block_idx == invalid_block) break;
-                auto st = dev_->read(block_idx, std::span<util::u8>(block.data(), block.size()));
+                auto st = dev_->read(dev_->ctx, block_idx, std::span<util::u8>(block.data(), block.size()));
                 if (!st) return st;
                 const util::usize chunk = (block_off + remaining > BlockSize) ? (BlockSize - block_off) : remaining;
                 std::memcpy(buf.data() + out_pos, block.data() + block_off, chunk);
@@ -496,10 +496,10 @@ export namespace fs {
             util::usize block_off = off % BlockSize;
             while (remaining > 0) {
                 if (block_idx == invalid_block) return Status{Err::io};
-                (void)dev_->read(block_idx, std::span<util::u8>(block.data(), block.size()));
+                (void)dev_->read(dev_->ctx, block_idx, std::span<util::u8>(block.data(), block.size()));
                 const util::usize chunk = (block_off + remaining > BlockSize) ? (BlockSize - block_off) : remaining;
                 std::memcpy(block.data() + block_off, buf.data() + in_pos, chunk);
-                auto st = dev_->write(block_idx, std::span<const util::u8>(block.data(), block.size()));
+                auto st = dev_->write(dev_->ctx, block_idx, std::span<const util::u8>(block.data(), block.size()));
                 if (!st) return st;
                 in_pos += chunk;
                 remaining -= chunk;

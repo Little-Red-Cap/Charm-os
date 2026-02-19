@@ -42,6 +42,9 @@ public:
     void set_style_mode(StyleMode m) noexcept { mode_ = m; }
     StyleMode style_mode() const noexcept { return mode_; }
 
+    void set_animation_enabled(bool on) noexcept { anim_enabled_ = on; }
+    void set_animation_speed(float s) noexcept { set_wave_speed(s); }
+
     void set_wave_speed(float s) noexcept { wave_speed_ = s; }
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
@@ -90,9 +93,11 @@ public:
             return;
         }
 
-        wave_phase_ += wave_speed_;
-        if (wave_phase_ > 6.2831853f) wave_phase_ -= 6.2831853f;
-        if (wave_phase_ < 0.0f) wave_phase_ += 6.2831853f;
+        if (anim_enabled_) {
+            wave_phase_ += wave_speed_;
+            if (wave_phase_ > 6.2831853f) wave_phase_ -= 6.2831853f;
+            if (wave_phase_ < 0.0f) wave_phase_ += 6.2831853f;
+        }
 
         const int wave_base = inner_y + (inner_h - fill_h);
         for (int x = 0; x < inner_w; ++x) {
@@ -113,6 +118,7 @@ private:
     int value_{60};
     Status status_{Status::Idle};
     StyleMode mode_{StyleMode::Liquid};
+    bool anim_enabled_{true};
     float wave_speed_{0.2f};
     float wave_phase_{0.0f};
     int wave_amplitude_{2};

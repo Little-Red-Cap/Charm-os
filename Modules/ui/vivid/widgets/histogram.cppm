@@ -71,6 +71,56 @@ public:
         ctx_ = ctx;
         fn_ = fn;
         count_ = (count < 0) ? 0 : ((count > static_cast<int>(kMax)) ? static_cast<int>(kMax) : count);
+        if (!fn_ || count_ <= 0) {
+            mark_dirty_hint(get_rect());
+            return;
+        }
+        for (int i = 0; i < count_; ++i) {
+            values_[i] = fn_(ctx_, i);
+            prev_values_[i] = values_[i];
+        }
+        mark_dirty_hint(get_rect());
+    }
+
+    void notify_bins_changed(int start, int count) noexcept {
+        if (count_ <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > count_) range_end = count_;
+        if (range_start >= range_end) return;
+
+        for (int i = range_start; i < range_end; ++i) {
+            prev_values_[i] = values_[i];
+            if (fn_) {
+                values_[i] = fn_(ctx_, i);
+            }
+        }
+
+        if (!has_range_) {
+            int old_min = prev_values_[0];
+            int old_max = prev_values_[0];
+            int new_min = values_[0];
+            int new_max = values_[0];
+            for (int i = 1; i < count_; ++i) {
+                if (prev_values_[i] < old_min) old_min = prev_values_[i];
+                if (prev_values_[i] > old_max) old_max = prev_values_[i];
+                if (values_[i] < new_min) new_min = values_[i];
+                if (values_[i] > new_max) new_max = values_[i];
+            }
+            if ((!support_negative_ && (old_min < 0 || new_min < 0)) || old_min != new_min || old_max != new_max) {
+                mark_dirty_hint(get_rect());
+                return;
+            }
+        }
+
+        Rect dirty{};
+        bool has_dirty = false;
+        for (int i = range_start; i < range_end; ++i) {
+            if (values_[i] == prev_values_[i]) continue;
+            mark_bar_dirty(dirty, has_dirty, i);
+        }
+        if (has_dirty) mark_dirty_hint(dirty);
     }
 
     void set_range(int min_v, int max_v) noexcept {
@@ -161,7 +211,6 @@ private:
     GetBinValueFn fn_{nullptr};
 
     int get_value(int index) const noexcept {
-        if (fn_) return fn_(ctx_, index);
         return values_[index];
     }
 

@@ -92,6 +92,18 @@ public:
         }
     }
 
+    template <typename RecycleFn, typename Predicate>
+    void recycle_if(RecycleFn&& on_recycle, Predicate&& predicate) {
+        for (std::size_t i = 0; i < kMax; ++i) {
+            auto& s = slots_[i];
+            if (s.index >= 0 && predicate(s.index)) {
+                on_recycle(static_cast<int>(i), s.index);
+                s.index = -1;
+                s.touched = false;
+            }
+        }
+    }
+
     const Slot& slot(int index) const noexcept { return slots_[index]; }
 
 private:

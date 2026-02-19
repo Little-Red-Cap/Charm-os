@@ -30,7 +30,7 @@ public:
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,
                                       this);
-        add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
+        enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
         const int old = scroll_y_;
@@ -53,6 +53,15 @@ public:
     void set_inertia_fast_ratio(float v) noexcept { inertia_fast_ratio_ = clamp_ratio(v); }
     void set_inertia_medium_ratio(float v) noexcept { inertia_medium_ratio_ = clamp_ratio(v); }
     void set_inertia_extra_ratio(float v) noexcept { inertia_extra_ratio_ = clamp_ratio(v); }
+    void set_pinch_enabled(bool on) noexcept {
+        pinch_strategy_.set_enabled(on);
+        if (on) {
+            enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
+        } else {
+            disable_interaction(&pinch_strategy_);
+        }
+    }
+    void set_scroll_hint_enabled(bool on) noexcept { show_scroll_hint_ = on; }
 
     template<typename Resolver>
     void sync_child_bases(Resolver&& resolve) {
@@ -114,7 +123,7 @@ public:
             draw_rect(cvs, track_x, thumb_y, track_w, thumb_h, thumb, true);
         }
 
-        if (dragging_) {
+        if (show_scroll_hint_ && dragging_) {
             Rect hint{r.x + 8, r.y + 4, r.w - 16, 18};
             draw_text_box(cvs, hint, "Dragging", {60, 60, 70, 255},
                           resolve_font(st),
@@ -400,6 +409,7 @@ private:
     bool swipe_active_{false};
     bool pinch_active_{false};
     PinchScrollStrategy pinch_strategy_{};
+    bool show_scroll_hint_{true};
     int last_y_{0};
     int velocity_{0};
 

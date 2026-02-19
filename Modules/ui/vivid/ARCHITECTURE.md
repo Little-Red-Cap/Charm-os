@@ -29,7 +29,7 @@ flowchart TB
   Widgets --> Font
   Core --> Gfx
   Gfx --> PLATFORM
-``````
+```
 
 ## 2. 渲染与更新
 
@@ -107,11 +107,11 @@ flowchart LR
     RList[ListView (virtual)]
     RRow1[Row 1]
     RRow2[Row 2]
-  RRoot --> RHeader
-  RRoot --> RList
-  RList --> RRow1
-  RList --> RRow2
-end
+    RRoot --> RHeader
+    RRoot --> RList
+    RList --> RRow1
+    RList --> RRow2
+  end
 ```
 
 ```mermaid
@@ -168,7 +168,7 @@ flowchart TB
   Widgets --> Font
   Core --> Gfx
   Gfx --> PLATFORM
-``````
+```
 
 ## 5. 文本与字体
 
@@ -209,12 +209,9 @@ flowchart TB
   Widgets --> Font
   Core --> Gfx
   Gfx --> PLATFORM
-``````
+```
 
 ## 8. 示例与验证
 
 - 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
 - 当前示例含 ListView/ScrollBar/TableView/TreeView、Stepper/Timeline、MenuTree、RichText/CodeBlock、Image 变换等最小配置。
-
-
-

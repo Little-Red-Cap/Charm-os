@@ -65,7 +65,7 @@ public:
         row_height_ = (h > 4) ? h : 4;
         row_height_fn_ = nullptr;
         row_height_ctx_ = nullptr;
-        clear_cache();
+        invalidate_cache_from(0);
         update_scroll_bounds();
         window_valid_ = false;
         mark_dirty_hint(get_rect());
@@ -76,7 +76,7 @@ public:
     void set_row_height_fn(RowHeightFn fn, void* ctx = nullptr) noexcept {
         row_height_fn_ = fn;
         row_height_ctx_ = ctx;
-        clear_cache();
+        invalidate_cache_from(0);
         update_scroll_bounds();
         window_valid_ = false;
         mark_dirty_hint(get_rect());
@@ -120,6 +120,32 @@ public:
         clear_cache();
         window_valid_ = false;
         mark_dirty_hint(get_rect());
+    }
+
+    void notify_rows_changed(int start, int count) noexcept {
+        const int total = item_count_for_render();
+        if (total <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > total) range_end = total;
+        if (range_start >= range_end) return;
+        invalidate_cache_range(range_start, range_end);
+        mark_dirty_rows_range(range_start, range_end);
+    }
+
+    void notify_row_height_changed(int start, int count) noexcept {
+        const int total = item_count_for_render();
+        if (total <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > total) range_end = total;
+        if (range_start >= range_end) return;
+        invalidate_cache_from(range_start);
+        update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_from_row(range_start);
     }
 
     void set_selected(int index) noexcept {
@@ -419,6 +445,19 @@ private:
         mark_dirty_hint(clipped);
     }
 
+    void mark_dirty_rows_range(int start, int end) noexcept {
+        const auto range = row_range_rect(start, end);
+        if (range.w <= 0 || range.h <= 0) return;
+        const auto clipped = intersect_rect(range, get_rect());
+        if (clipped.w <= 0 || clipped.h <= 0) return;
+        mark_dirty_hint(clipped);
+    }
+
+    void mark_dirty_from_row(int start) noexcept {
+        const int end = item_count_for_render();
+        mark_dirty_rows_range(start, end);
+    }
+
     Rect row_rect_for_index(int index) const noexcept {
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
@@ -435,6 +474,35 @@ private:
             r.y + pad + row_top - scroll_y_,
             r.w - pad * 2,
             row_h
+        };
+    }
+
+    Rect row_range_rect(int start, int end) const noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        if (start < 0) start = 0;
+        if (end < start) end = start;
+        const int count = item_count_for_render();
+        if (end > count) end = count;
+        if (start >= end) return {};
+        const int pad = st.padding;
+        int row_top = 0;
+        int range_h = 0;
+        if (row_height_fn_) {
+            row_top = offset_for_index(start);
+            for (int i = start; i < end; ++i) {
+                range_h += row_height_for_index(i);
+            }
+        } else {
+            const int row_h = row_height_for_render();
+            row_top = start * row_h;
+            range_h = (end - start) * row_h;
+        }
+        return Rect{
+            r.x + pad,
+            r.y + pad + row_top - scroll_y_,
+            r.w - pad * 2,
+            range_h
         };
     }
 
@@ -543,6 +611,22 @@ private:
     void clear_cache() noexcept {
         cache_.clear([&](int slot, int index) {
             if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        });
+    }
+
+    void invalidate_cache_range(int start, int end) noexcept {
+        cache_.recycle_if([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        }, [&](int index) {
+            return index >= start && index < end;
+        });
+    }
+
+    void invalidate_cache_from(int start) noexcept {
+        cache_.recycle_if([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        }, [&](int index) {
+            return index >= start;
         });
     }
 

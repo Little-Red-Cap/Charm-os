@@ -15,12 +15,15 @@ export
 class Chart : public ObjectBase {
 public:
     static constexpr std::size_t kMax = 32;
+    using GetPointFn = int (*)(void* ctx, int index) noexcept;
 
     Chart() {
         set_size(200, 120);
     }
 
     void set_points(const int* values, int count) {
+        ctx_ = nullptr;
+        fn_ = nullptr;
         const int old_count = count_;
         for (int i = 0; i < old_count; ++i) prev_points_[i] = points_[i];
         if (!values || count <= 0) {
@@ -66,6 +69,64 @@ public:
         }
     }
 
+    void set_data_source(void* ctx, GetPointFn fn, int count) noexcept {
+        ctx_ = ctx;
+        fn_ = fn;
+        count_ = (count < 0) ? 0 : ((count > static_cast<int>(kMax)) ? static_cast<int>(kMax) : count);
+        if (!fn_ || count_ <= 0) {
+            mark_dirty_hint(get_rect());
+            return;
+        }
+        for (int i = 0; i < count_; ++i) {
+            points_[i] = fn_(ctx_, i);
+            prev_points_[i] = points_[i];
+        }
+        mark_dirty_hint(get_rect());
+    }
+
+    void notify_points_changed(int start, int count) noexcept {
+        if (count_ <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > count_) range_end = count_;
+        if (range_start >= range_end) return;
+        if (fn_) {
+            for (int i = range_start; i < range_end; ++i) {
+                prev_points_[i] = points_[i];
+                points_[i] = fn_(ctx_, i);
+            }
+        }
+        if (count_ < 2) {
+            mark_dirty_hint(get_rect());
+            return;
+        }
+        int old_min = prev_points_[0];
+        int old_max = prev_points_[0];
+        int new_min = points_[0];
+        int new_max = points_[0];
+        for (int i = 1; i < count_; ++i) {
+            if (prev_points_[i] < old_min) old_min = prev_points_[i];
+            if (prev_points_[i] > old_max) old_max = prev_points_[i];
+            if (points_[i] < new_min) new_min = points_[i];
+            if (points_[i] > new_max) new_max = points_[i];
+        }
+        if (old_min != new_min || old_max != new_max) {
+            mark_dirty_hint(get_rect());
+            return;
+        }
+        Rect dirty{};
+        bool has_dirty = false;
+        for (int i = range_start; i < range_end; ++i) {
+            if (points_[i] == prev_points_[i]) continue;
+            if (i > 0) mark_segment_dirty(dirty, has_dirty, i - 1, i, old_min, old_max);
+            if (i + 1 < count_) mark_segment_dirty(dirty, has_dirty, i, i + 1, old_min, old_max);
+        }
+        if (has_dirty) {
+            mark_dirty_hint(dirty);
+        }
+    }
+
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<Chart>();
         const auto r = get_rect();
@@ -100,6 +161,8 @@ private:
     int points_[kMax]{};
     int prev_points_[kMax]{};
     int count_{0};
+    void* ctx_{nullptr};
+    GetPointFn fn_{nullptr};
 
     void mark_segment_dirty(Rect& dirty, bool& has_dirty,
                             int i0, int i1, int min_v, int max_v) const noexcept {

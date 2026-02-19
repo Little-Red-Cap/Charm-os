@@ -230,6 +230,15 @@ public:
         return interactions_.remove(strategy);
     }
 
+    bool enable_interaction(InteractionStrategy* strategy,
+                            InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
+        return interactions_.add(strategy, mask);
+    }
+
+    bool disable_interaction(InteractionStrategy* strategy) noexcept {
+        return interactions_.remove(strategy);
+    }
+
     bool dispatch_interactions(const Event& e) {
         return interactions_.on_event(e);
     }

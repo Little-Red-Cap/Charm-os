@@ -1,9 +1,6 @@
 #include <cstdint>
 
-import device.desc;
-import device.driver;
-import device.registry;
-import out.print;
+import charm.runtime;
 
 namespace {
     bool probe(device::Device& dev) noexcept {

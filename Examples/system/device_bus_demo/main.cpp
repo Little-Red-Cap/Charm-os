@@ -1,11 +1,6 @@
 #include <cstdint>
 
-import device.desc;
-import device.driver;
-import device.registry;
-import device.bus;
-import device.manager;
-import out.print;
+import charm.runtime;
 
 namespace {
     bool demo_enumerate(void*, device::RegistryBase& reg) noexcept {

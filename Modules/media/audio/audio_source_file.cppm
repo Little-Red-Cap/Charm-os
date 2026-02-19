@@ -43,7 +43,7 @@ export namespace audio {
 
         Result<std::int64_t> seek(std::int64_t offset, int whence) {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
-            if (std::fseek(file_, static_cast<long>(offset), whence) != 0) {
+            if (!seek_impl(file_, offset, whence)) {
                 return unexpected(Err{Errc::io_error, 0});
             }
             return tell();
@@ -67,7 +67,7 @@ export namespace audio {
 
         Result<std::int64_t> tell() noexcept override {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
-            const long pos = std::ftell(file_);
+            const auto pos = tell_impl(file_);
             if (pos < 0) return unexpected(Err{Errc::io_error, 0});
             return static_cast<std::int64_t>(pos);
         }
@@ -76,7 +76,7 @@ export namespace audio {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto cur = tell();
             if (!cur) return unexpected(cur.error());
-            if (std::fseek(file_, 0, SEEK_END) != 0) {
+            if (!seek_impl(file_, 0, SEEK_END)) {
                 return unexpected(Err{Errc::io_error, 0});
             }
             const auto end = tell();
@@ -86,6 +86,22 @@ export namespace audio {
         }
 
     private:
+        static bool seek_impl(std::FILE* file, std::int64_t offset, int whence) noexcept {
+#if defined(_WIN32)
+            return _fseeki64(file, static_cast<__int64>(offset), whence) == 0;
+#else
+            return std::fseeko(file, static_cast<off_t>(offset), whence) == 0;
+#endif
+        }
+
+        static std::int64_t tell_impl(std::FILE* file) noexcept {
+#if defined(_WIN32)
+            return static_cast<std::int64_t>(_ftelli64(file));
+#else
+            return static_cast<std::int64_t>(std::ftello(file));
+#endif
+        }
+
         std::FILE* file_{nullptr};
     };
 }

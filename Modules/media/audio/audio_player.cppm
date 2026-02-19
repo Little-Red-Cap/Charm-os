@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <complex>
+#include <cmath>
 #include <span>
 
 #ifndef CHARM_AUDIO_ENABLE_STRESS
@@ -30,8 +32,10 @@ import audio.format;
 import audio.resampler.linear;
 import audio.result;
 import audio.sink.sdl3;
+import alg_fft;
 import media.stream.filter;
 import media.stream.source;
+import media.stream.types;
 import service.queue;
 import util.span;
 
@@ -172,6 +176,19 @@ export namespace audio {
         std::uint8_t fail_reconfig_step{0};
     };
 
+    struct EqBand {
+        std::uint32_t freq_hz{1000};
+        float gain_db{0.0f};
+        float q{1.0f};
+    };
+
+    struct EqConfig {
+        static constexpr std::size_t max_bands = 8;
+        bool enabled{false};
+        std::uint8_t band_count{0};
+        std::array<EqBand, max_bands> bands{};
+    };
+
     struct PlayerStats {
         std::uint64_t underrun_count{0};
         std::size_t min_water{0};
@@ -199,7 +216,9 @@ export namespace audio {
     class AudioPlayer {
     public:
         explicit AudioPlayer(PlayerConfig config)
-            : config_(config) {}
+            : config_(config) {
+            init_spectrum_window();
+        }
 
         ~AudioPlayer() { stop_internal(); }
 
@@ -237,6 +256,16 @@ export namespace audio {
         Result<void> resume() {
             Command cmd{};
             cmd.type = CommandType::resume;
+            if (!queue_.push(cmd)) {
+                return unexpected(Err{Errc::timeout, 0});
+            }
+            return {};
+        }
+
+        Result<void> set_eq(const EqConfig& eq) {
+            Command cmd{};
+            cmd.type = CommandType::set_eq;
+            cmd.eq = eq;
             if (!queue_.push(cmd)) {
                 return unexpected(Err{Errc::timeout, 0});
             }
@@ -359,6 +388,28 @@ export namespace audio {
 
         Err last_error() const noexcept { return last_err_; }
 
+        EqConfig eq_config() const noexcept { return eq_; }
+
+        static constexpr std::size_t spectrum_bins = 32;
+        static constexpr std::size_t spectrum_fft_size = 256;
+
+        void enable_spectrum(bool on) noexcept {
+            spectrum_enabled_.store(on, std::memory_order_relaxed);
+            if (!on) {
+                spectrum_ready_.store(false, std::memory_order_relaxed);
+            }
+        }
+
+        bool read_spectrum(std::span<float> out) const noexcept {
+            if (!spectrum_ready_.load(std::memory_order_acquire)) return false;
+            if (out.size() < spectrum_bins) return false;
+            const std::uint32_t idx = spectrum_index_.load(std::memory_order_acquire) & 1u;
+            for (std::size_t i = 0; i < spectrum_bins; ++i) {
+                out[i] = spectrum_[idx][i];
+            }
+            return true;
+        }
+
         PlayerSnapshot snapshot(bool reset_window) {
             PlayerSnapshot snap{};
             snap.stats = stats_;
@@ -380,13 +431,14 @@ export namespace audio {
         }
 
     private:
-        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
 
         struct Command {
             CommandType type{};
             FixedString<kMaxPath> path{};
             std::uint64_t seek_ms{0};
             AudioFormat fmt{};
+            EqConfig eq{};
         };
 
         static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
@@ -415,7 +467,77 @@ export namespace audio {
                 else if (!v.b.empty()) copy_one(v.b);
             }
 
+            if (filled > 0) {
+                self->push_spectrum_samples(dst.first(filled));
+            }
             return filled;
+        }
+
+        void init_spectrum_window() noexcept {
+            constexpr float kPi = 3.14159265358979323846f;
+            for (std::size_t i = 0; i < spectrum_fft_size; ++i) {
+                const float phase = static_cast<float>(i) / static_cast<float>(spectrum_fft_size - 1);
+                spectrum_window_[i] = 0.5f - 0.5f * std::cos(phase * 2.0f * kPi);
+            }
+        }
+
+        static media::StreamFormat to_stream_format(const AudioFormat& fmt) noexcept {
+            media::StreamFormat out{};
+            out.kind = media::StreamKind::audio;
+            out.rate = fmt.rate;
+            out.channels = fmt.channels;
+            out.bits_per_sample = static_cast<std::uint16_t>(fmt.bytes_per_sample() * 8u);
+            return out;
+        }
+
+        void push_spectrum_samples(std::span<const std::byte> data) noexcept {
+            if (!spectrum_enabled_.load(std::memory_order_relaxed)) return;
+            const std::size_t channels = output_fmt_.channels ? output_fmt_.channels : 1;
+            if (channels == 0) return;
+            const auto* samples = reinterpret_cast<const std::int16_t*>(data.data());
+            const std::size_t sample_count = data.size() / sizeof(std::int16_t);
+            const std::size_t frames = sample_count / channels;
+            for (std::size_t i = 0; i < frames; ++i) {
+                const std::int16_t s = samples[i * channels];
+                spectrum_time_[spectrum_pos_++] = static_cast<float>(s) / 32768.0f;
+                if (spectrum_pos_ >= spectrum_fft_size) {
+                    spectrum_pos_ = 0;
+                    compute_spectrum();
+                }
+            }
+        }
+
+        void compute_spectrum() noexcept {
+            for (std::size_t i = 0; i < spectrum_fft_size; ++i) {
+                spectrum_fft_[i] = std::complex<double>(
+                    static_cast<double>(spectrum_time_[i] * spectrum_window_[i]), 0.0);
+            }
+            alg::fft_inplace<spectrum_fft_size>(spectrum_fft_, false);
+
+            constexpr std::size_t half = spectrum_fft_size / 2;
+            constexpr std::size_t band = (half / spectrum_bins) > 0 ? (half / spectrum_bins) : 1;
+
+            std::array<float, spectrum_bins> out{};
+            for (std::size_t b = 0; b < spectrum_bins; ++b) {
+                const std::size_t start = b * band;
+                const std::size_t end = std::min(half, start + band);
+                double sum = 0.0;
+                std::size_t count = 0;
+                for (std::size_t i = start; i < end; ++i) {
+                    sum += std::abs(spectrum_fft_[i]);
+                    ++count;
+                }
+                const double avg = (count > 0) ? (sum / static_cast<double>(count)) : 0.0;
+                float norm = static_cast<float>(std::log10(1.0 + avg) / 3.0);
+                if (norm < 0.0f) norm = 0.0f;
+                if (norm > 1.0f) norm = 1.0f;
+                out[b] = norm;
+            }
+
+            const std::uint32_t next = (spectrum_index_.load(std::memory_order_relaxed) + 1u) & 1u;
+            spectrum_[next] = out;
+            spectrum_index_.store(next, std::memory_order_release);
+            spectrum_ready_.store(true, std::memory_order_release);
         }
 
         void process_commands() {
@@ -434,6 +556,11 @@ export namespace audio {
                     handle_seek(cmd->seek_ms);
                 } else if (cmd->type == CommandType::reconfigure) {
                     handle_reconfigure(cmd->fmt);
+                } else if (cmd->type == CommandType::set_eq) {
+                    eq_ = cmd->eq;
+                    if (eq_.band_count > EqConfig::max_bands) {
+                        eq_.band_count = EqConfig::max_bands;
+                    }
                 }
             }
         }
@@ -536,8 +663,8 @@ export namespace audio {
             }
 
             SinkConfig cfg{};
-            cfg.fmt = output_fmt_;
-            cfg.preferred_period_frames = config_.preferred_period_frames;
+            cfg.format = to_stream_format(output_fmt_);
+            cfg.period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
@@ -684,8 +811,8 @@ export namespace audio {
             }
 
             SinkConfig cfg{};
-            cfg.fmt = output_fmt_;
-            cfg.preferred_period_frames = config_.preferred_period_frames;
+            cfg.format = to_stream_format(output_fmt_);
+            cfg.period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
@@ -734,6 +861,8 @@ export namespace audio {
             resample_cache_frames_ = 0;
             last_decode_eos_ = false;
             last_err_ = Err{};
+            spectrum_pos_ = 0;
+            spectrum_ready_.store(false, std::memory_order_relaxed);
             state_ = PlayerState::idle;
         }
 
@@ -1115,6 +1244,16 @@ export namespace audio {
         std::size_t remaining_bytes_{0};
         std::uint64_t total_frames_{0};
         Err last_err_{};
+        EqConfig eq_{};
+
+        std::array<float, spectrum_fft_size> spectrum_time_{};
+        std::array<float, spectrum_fft_size> spectrum_window_{};
+        std::array<std::complex<double>, spectrum_fft_size> spectrum_fft_{};
+        std::array<float, spectrum_bins> spectrum_[2]{};
+        std::atomic<std::uint32_t> spectrum_index_{0};
+        std::atomic<bool> spectrum_ready_{false};
+        std::atomic<bool> spectrum_enabled_{false};
+        std::size_t spectrum_pos_{0};
 
         bool is_flac_{false};
         bool is_wav_{false};

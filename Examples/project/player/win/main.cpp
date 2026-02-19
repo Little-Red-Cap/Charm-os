@@ -1,10 +1,14 @@
-#ifndef CHARM_PLAYER_DEBUG_UI
+﻿#ifndef CHARM_PLAYER_DEBUG_UI
 #define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
 import audio.player;
 import audio.result;
-import audio.source.fs;
+import player.controller;
+import player.fs_utils;
+import player.ui_builder;
+import player.ui_debug;
+import player.ui;
 import charm.core.config;
 import charm.core.container;
 import charm.core.event;
@@ -12,8 +16,6 @@ import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
 import charm.core.style;
-import charm.core.style_sheet;
-import charm.core.theme_preset;
 import charm.gfx.canvas;
 import charm.gfx.assets.render;
 import charm.gfx.framebuffer;
@@ -23,17 +25,19 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
+import charm.widgets.segmented_control;
+import charm.widgets.chart;
 import charm.widgets.perf_overlay;
 import charm.widgets.ring_indication;
 import charm.widgets.text_box;
 #if CHARM_PLAYER_DEBUG_UI
-import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
 import charm.widgets.table_view;
+import charm.widgets.tree_view;
 import charm.widgets.progress_wheel;
 import charm.widgets.waveform_view;
 import charm.widgets.battery_gauge;
@@ -47,15 +51,14 @@ import charm.widgets.text_tracking_list;
 import charm.widgets.text_list;
 import charm.widgets.progress_bar_round;
 import charm.widgets.spin_zoom_widget;
+import charm.widgets.popup_layer;
+import charm.widgets.modal_dialog;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
 import fs_core;
 import fs_errno;
-import fs_block;
 import fs_stream;
-import fs_block_file;
-import fs_fatfs;
 import fs_vfs;
 import util.core;
 
@@ -76,6 +79,8 @@ import util.core;
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -83,49 +88,21 @@ import util.core;
 
 namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
-    constexpr int kUiPadding = 24;
-    constexpr int kCoverSize = 320;
-    constexpr int kDemoGap = 16;
-    struct MbrPartition {
-        std::uint8_t status;
-        std::uint8_t chs_first[3];
-        std::uint8_t type;
-        std::uint8_t chs_last[3];
-        std::uint32_t lba_first;
-        std::uint32_t sectors;
-    };
+    constexpr bool kEnableSpectrumDefault = true;
+    constexpr bool kLowLoadDefault = false;
+    using namespace player::fs_utils;
+    using namespace player::ui;
+#if CHARM_PLAYER_DEBUG_UI
+    using namespace player::ui_debug;
+#endif
 
-    std::uint32_t find_fat_partition_lba(const std::array<std::uint8_t, 512>& sector0) {
-        if (sector0[510] != 0x55 || sector0[511] != 0xAA) return 0;
-        const auto* parts = reinterpret_cast<const MbrPartition*>(sector0.data() + 446);
-        for (int i = 0; i < 4; ++i) {
-            const auto& p = parts[i];
-            if (p.type == 0x0B || p.type == 0x0C) {
-                return p.lba_first;
-            }
-        }
-        return 0;
-    }
-
-    const char* fs_err_text(fs::Err err) {
-        switch (err) {
-        case fs::Err::ok: return "ok";
-        case fs::Err::perm: return "perm";
-        case fs::Err::noent: return "noent";
-        case fs::Err::exist: return "exist";
-        case fs::Err::io: return "io";
-        case fs::Err::busy: return "busy";
-        case fs::Err::inval: return "inval";
-        case fs::Err::nametoolong: return "nametoolong";
-        case fs::Err::nosys: return "nosys";
-        case fs::Err::nomem: return "nomem";
-        case fs::Err::notsup: return "notsup";
-        case fs::Err::rofs: return "rofs";
-        case fs::Err::timeout: return "timeout";
-        case fs::Err::again: return "again";
-        }
-        return "unknown";
-    }
+    static DefaultFrameBuffer g_framebuffer{};
+    static DefaultCanvas g_canvas(g_framebuffer);
+    static UiFactory g_factory{};
+    static audio::PlayerConfig g_player_cfg{};
+    static audio::AudioPlayer g_player(g_player_cfg);
+    static std::vector<std::string> g_vfs_tracks{};
+    
 
     const char* audio_err_text(audio::Errc err) {
         switch (err) {
@@ -331,6 +308,36 @@ namespace {
         .order = {},
         .sort_asc = true,
     };
+
+    struct ModalDemoContext {
+        UiFactory* factory{nullptr};
+        WidgetHandle popup{};
+        WidgetHandle dialog{};
+    };
+
+    ModalDemoContext g_modal_demo{};
+
+    void modal_set_visible(ModalDemoContext& ctx, bool on) noexcept {
+        if (!ctx.factory) return;
+        if (auto* popup = ctx.factory->get(ctx.popup)) {
+            popup->set_visible(on);
+        }
+        if (auto* dialog = ctx.factory->get(ctx.dialog)) {
+            dialog->set_visible(on);
+        }
+    }
+
+    void on_modal_ok(void* ptr) {
+        auto* ctx = static_cast<ModalDemoContext*>(ptr);
+        if (!ctx) return;
+        modal_set_visible(*ctx, false);
+    }
+
+    void on_modal_cancel(void* ptr) {
+        auto* ctx = static_cast<ModalDemoContext*>(ptr);
+        if (!ctx) return;
+        modal_set_visible(*ctx, false);
+    }
 
     void table_rebuild_order(TableDemo& demo) noexcept {
         for (int i = 0; i < TableDemo::kRows; ++i) {
@@ -542,6 +549,8 @@ namespace {
         WidgetHandle text_list{};
         WidgetHandle progress_round{};
         WidgetHandle spin_zoom{};
+        WidgetHandle popup{};
+        WidgetHandle modal{};
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
         WidgetHandle cloudy_glass{};
@@ -569,457 +578,10 @@ namespace {
         int cycle_hits{0};
     };
 
-    struct PlayerUiContext {
-        audio::AudioPlayer* player{nullptr};
-        UiFactory* factory{nullptr};
-        UiHandles handles{};
-        bool playing{false};
-        bool track_ready{false};
-        bool dragging{false};
-        std::chrono::steady_clock::time_point start{};
-        int duration_sec{180};
-        int current_sec{0};
-        int drag_origin_sec{0};
-        int drag_target_sec{0};
-        int pending_seek_sec{-1};
-        const char* track_path{nullptr};
-        std::vector<std::string>* tracks{nullptr};
-        std::vector<std::string> track_labels{};
-        int track_index{0};
-        std::string title_text{};
-        std::string subtitle_text{};
-        bool paused{false};
-        bool updating{false};
-        bool fs_ready{false};
-        bool duration_ready{false};
-        bool ignore_list_select{false};
-        std::string mount_status{};
-        bool syncing_scrollbar{false};
-#if CHARM_PLAYER_DEBUG_UI
-        bool show_debug{false};
-        MenuTree menu_tree{};
-#endif
-        struct ListCacheEntry {
-            int index{-1};
-            int width{0};
-            std::string text{};
-        };
-        std::array<ListCacheEntry, 32> list_cache{};
+    using PlayerUiContext = player::PlayerController;
+    using UiHandles = player::UiHandles;
 
-        void set_label(WidgetHandle h, const char* text) {
-            if (!factory) return;
-            if (auto* label = factory->get_label(h)) {
-                label->set_text(text);
-            }
-        }
-
-        void set_status(const char* text) {
-            set_label(handles.status, text);
-        }
-
-        void set_cover_color(const rgba& color) {
-            if (!factory) return;
-            if (auto* cover = factory->get_container(handles.cover)) {
-                cover->set_background(color);
-            }
-        }
-
-        void set_status_color(const rgba& color) {
-            if (!factory) return;
-            if (auto* label = factory->get_label(handles.status)) {
-                label->set_color(color);
-            }
-        }
-
-        void set_pause_button_text(const char* text) {
-            if (!factory) return;
-            if (auto* btn = factory->get_button(handles.btn_pause)) {
-                btn->set_text(text);
-            }
-        }
-
-        void set_time_label(int elapsed_sec) {
-            current_sec = elapsed_sec;
-            char buf[32]{};
-            const int total = duration_sec;
-            const int cur_m = elapsed_sec / 60;
-            const int cur_s = elapsed_sec % 60;
-            const int total_m = total / 60;
-            const int total_s = total % 60;
-            std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
-            set_label(handles.time, buf);
-        }
-
-        void reset_duration() {
-            duration_ready = false;
-            duration_sec = 180;
-        }
-
-        void rebuild_track_labels() {
-            track_labels.clear();
-            if (!tracks) return;
-            track_labels.reserve(tracks->size());
-            for (const auto& path : *tracks) {
-                auto base = std::string_view{path};
-                const auto pos = base.find_last_of("/\\");
-                if (pos != std::string_view::npos) base = base.substr(pos + 1);
-                track_labels.emplace_back(base);
-            }
-        }
-
-        void sync_list_selection() {
-            if (!factory) return;
-            auto* list = factory->get_list_view(handles.list);
-            if (!list) return;
-            if (track_index < 0 || track_index >= static_cast<int>(track_labels.size())) return;
-            ignore_list_select = true;
-            list->set_selected(track_index);
-            ignore_list_select = false;
-        }
-
-        void refresh_list_view() {
-            if (!factory) return;
-            auto* list = factory->get_list_view(handles.list);
-            if (!list) return;
-            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
-            list->set_item_count(count);
-            list->set_row_height(32);
-            list->set_wheel_step(32);
-            if (count > 0) {
-                sync_list_selection();
-            }
-        }
-
-        void set_debug_visible(bool on) {
-#if CHARM_PLAYER_DEBUG_UI
-            show_debug = on;
-            if (!factory) return;
-            if (auto* list = factory->get_list_view(handles.list)) {
-                list->set_visible(!on);
-            }
-            if (auto* bar = factory->get_scroll_bar(handles.list_scroll)) {
-                bar->set_visible(!on);
-            }
-            if (auto* grid = factory->get_container(handles.debug_grid)) {
-                grid->set_visible(on);
-            }
-#else
-            (void)on;
-#endif
-        }
-
-        void toggle_debug_view() {
-#if CHARM_PLAYER_DEBUG_UI
-            set_debug_visible(!show_debug);
-#endif
-        }
-
-        void update_duration_from_player() {
-            if (duration_ready || !player) return;
-            const auto total = player->total_frames();
-            const auto fmt = player->input_format();
-            if (total == 0 || fmt.rate == 0) return;
-            const auto secs = static_cast<int>(total / fmt.rate);
-            duration_sec = (secs > 0) ? secs : 1;
-            duration_ready = true;
-            if (current_sec > duration_sec) {
-                set_time_label(duration_sec);
-                sync_progress_value(100);
-            } else {
-                set_time_label(current_sec);
-            }
-        }
-
-        void update_progress() {
-            if (!playing || updating) return;
-            const auto now = std::chrono::steady_clock::now();
-            const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
-            const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
-            const int value = (duration_sec > 0)
-                ? static_cast<int>((clamped * 100) / duration_sec)
-                : 0;
-
-            if (auto* bar = factory->get_progress(handles.progress)) {
-                bar->set_value(value);
-            }
-            set_time_label(clamped);
-        }
-
-        void sync_progress_value(int value) {
-            if (auto* bar = factory->get_progress(handles.progress)) {
-                bar->set_value(value);
-            }
-        }
-
-        bool is_seek_ready() const {
-            if (!player) return false;
-            const auto st = player->state();
-            return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
-        }
-
-        bool request_seek(int target_sec) {
-            if (!player || target_sec < 0) return false;
-            const auto res = player->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
-            if (!res) {
-                set_status("Seek unsupported");
-                return false;
-            }
-            set_status("Playing");
-            return true;
-        }
-
-        void apply_pending_seek() {
-            if (pending_seek_sec < 0) return;
-            if (!is_seek_ready()) return;
-            const int target = pending_seek_sec;
-            pending_seek_sec = -1;
-            if (request_seek(target)) {
-                start = std::chrono::steady_clock::now() - std::chrono::seconds(target);
-                set_time_label(target);
-                const int value = (duration_sec > 0) ? static_cast<int>((target * 100) / duration_sec) : 0;
-                sync_progress_value(value);
-            }
-        }
-
-        void start_playback() {
-            if (!fs_ready) {
-                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
-                return;
-            }
-            if (!player || !track_path) {
-                set_status("No track");
-                set_status_color({220, 120, 120, 255});
-                return;
-            }
-            if (!track_ready) {
-                set_status("Track not ready");
-                set_status_color({220, 120, 120, 255});
-                return;
-            }
-            (void)player->stop();
-            auto res = player->play(track_path);
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error().code));
-                set_status(buf);
-                return;
-            }
-            playing = true;
-            paused = false;
-            start = std::chrono::steady_clock::now();
-            set_status("Opening");
-            set_status_color({140, 150, 175, 255});
-            set_pause_button_text("Pause");
-            set_time_label(0);
-            sync_progress_value(0);
-            apply_pending_seek();
-        }
-
-        void pause_playback() {
-            if (!player || !playing) return;
-            auto res = player->pause();
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error().code));
-                set_status(buf);
-                return;
-            }
-            playing = false;
-            paused = true;
-            set_status("Paused");
-            set_status_color({230, 185, 90, 255});
-            set_pause_button_text("Resume");
-        }
-
-        void resume_playback() {
-            if (!player || !paused) return;
-            auto res = player->resume();
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error().code));
-                set_status(buf);
-                return;
-            }
-            paused = false;
-            playing = true;
-            start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
-            set_status("Playing");
-            set_status_color({120, 200, 170, 255});
-            set_pause_button_text("Pause");
-        }
-
-        void stop_playback() {
-            if (player) {
-                (void)player->stop();
-            }
-            playing = false;
-            paused = false;
-            pending_seek_sec = -1;
-            set_status("Stopped");
-            set_status_color({140, 150, 175, 255});
-            set_pause_button_text("Pause");
-            set_time_label(0);
-            sync_progress_value(0);
-        }
-
-        void set_track_labels(std::string_view vfs_path) {
-            auto base = vfs_path;
-            const auto pos = vfs_path.find_last_of("/\\");
-            if (pos != std::string_view::npos) base = vfs_path.substr(pos + 1);
-            title_text.assign(base.begin(), base.end());
-            if (title_text.empty()) title_text = "Unknown Track";
-
-            std::string_view ext{};
-            const auto dot = base.find_last_of('.');
-            if (dot != std::string_view::npos && dot + 1 < base.size()) {
-                ext = base.substr(dot + 1);
-            }
-            subtitle_text.clear();
-            if (!ext.empty()) {
-                subtitle_text.assign(ext.begin(), ext.end());
-                for (auto& ch : subtitle_text) {
-                    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-                }
-            } else {
-                subtitle_text = "UNKNOWN";
-            }
-
-            set_label(handles.title, title_text.c_str());
-            set_label(handles.subtitle, subtitle_text.c_str());
-        }
-
-        bool load_track_index(int idx) {
-            if (!fs_ready) {
-                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
-                return false;
-            }
-            if (!tracks || tracks->empty()) return false;
-            if (idx < 0) idx = 0;
-            if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
-            track_index = idx;
-            const auto& vfs_path = (*tracks)[track_index];
-            track_path = vfs_path.c_str();
-            set_track_labels(vfs_path);
-            fs::File f{};
-            auto st = fs::vfs_open(vfs_path, f);
-            if (st) {
-                (void)fs::vfs_close(f);
-                track_ready = true;
-            } else {
-                track_ready = false;
-            }
-            if (track_ready) {
-                set_status("Ready");
-            } else {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
-                set_status(buf);
-            }
-            set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
-            set_pause_button_text("Pause");
-            set_time_label(0);
-            sync_progress_value(0);
-            pending_seek_sec = -1;
-            playing = false;
-            paused = false;
-            reset_duration();
-            sync_list_selection();
-            return track_ready;
-        }
-
-        void switch_track(int delta) {
-            if (!fs_ready) {
-                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
-                return;
-            }
-            if (!tracks || tracks->empty()) return;
-            const int count = static_cast<int>(tracks->size());
-            int next = track_index + delta;
-            if (next < 0) next = count - 1;
-            if (next >= count) next = 0;
-            const bool was_active = playing || paused;
-            stop_playback();
-            load_track_index(next);
-            if (was_active && track_ready) {
-                start_playback();
-            }
-        }
-
-        void select_track_index(int idx) {
-            if (!fs_ready) {
-                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
-                return;
-            }
-            if (!tracks || tracks->empty()) return;
-            const bool was_playing = playing;
-            const bool was_paused = paused;
-            stop_playback();
-            load_track_index(idx);
-            if (was_playing && track_ready) {
-                start_playback();
-            } else if (was_paused && track_ready) {
-                start_playback();
-                pause_playback();
-            }
-        }
-
-        bool begin_drag(int x, int y) {
-            if (!factory) return false;
-            auto* bar = factory->get_progress(handles.progress);
-            if (!bar) return false;
-            const auto r = bar->get_rect();
-            if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return false;
-            drag_origin_sec = current_sec;
-            dragging = true;
-            updating = true;
-            return update_drag(x);
-        }
-
-        bool update_drag(int x) {
-            if (!factory) return false;
-            auto* bar = factory->get_progress(handles.progress);
-            if (!bar) return false;
-            const auto r = bar->get_rect();
-            if (r.w <= 0) return false;
-            int clamped = x;
-            if (clamped < r.x) clamped = r.x;
-            if (clamped > r.x + r.w) clamped = r.x + r.w;
-            const int value = static_cast<int>(((clamped - r.x) * 100) / r.w);
-            bar->set_value(value);
-            drag_target_sec = (duration_sec > 0) ? static_cast<int>((value * duration_sec) / 100) : 0;
-            set_time_label(drag_target_sec);
-            return true;
-        }
-
-        void end_drag() {
-            if (!dragging) return;
-            dragging = false;
-            updating = false;
-            if (!playing) {
-                set_time_label(drag_origin_sec);
-                const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
-                sync_progress_value(value);
-                set_status("Seek only during play");
-                return;
-            }
-            if (is_seek_ready()) {
-                if (request_seek(drag_target_sec)) {
-                    start = std::chrono::steady_clock::now() - std::chrono::seconds(drag_target_sec);
-                } else {
-                    set_time_label(drag_origin_sec);
-                    const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
-                    sync_progress_value(value);
-                }
-            } else {
-                pending_seek_sec = drag_target_sec;
-                set_status("Seek queued");
-            }
-        }
-    };
+    static PlayerUiContext g_ctx{};
 
     void on_play_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
@@ -1137,6 +699,14 @@ namespace {
         list->set_scroll_y(bar->value());
     }
 
+    void on_play_mode_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* mode = app->factory->get_segmented_control(app->handles.play_mode);
+        if (!mode) return;
+        app->play_mode = mode->selected();
+    }
+
     Event::Key map_key(SDL_Keycode key) {
         switch (key) {
         case SDLK_TAB: return Event::Key::Tab;
@@ -1248,22 +818,6 @@ namespace {
         }
     }
 
-    UiHandles build_ui(UiFactory& factory, PlayerUiContext& ctx) {
-        auto anchor_pos = [](auto* obj, int x, int y) {
-            if (!obj) return;
-            obj->set_pos(x, y);
-            obj->set_anchor(x, y, -1, -1);
-        };
-        auto anchor_rect = [](auto* obj, const Rect& r) {
-            if (!obj) return;
-            obj->set_rect(r);
-            obj->set_anchor(r.x, r.y, -1, -1);
-        };
-        UiHandles h{};
-        h.root = factory.create_container();
-        auto* root = factory.get_container(h.root);
-        root->set_rect({0, 0, screen_width, screen_height});
-        root->set_background({18, 20, 28, 255});
 
         h.cover = factory.create_container();
         if (auto* cover = factory.get_container(h.cover)) {
@@ -1277,7 +831,7 @@ namespace {
             anchor_pos(title, kUiPadding, kUiPadding * 2 + kCoverSize + 20);
         }
 
-        h.subtitle = factory.create_label("FELT · FLAC");
+        h.subtitle = factory.create_label("FELT 路 FLAC");
         if (auto* sub = factory.get_label(h.subtitle)) {
             sub->set_color({156, 162, 188, 255});
             anchor_pos(sub, kUiPadding, kUiPadding * 2 + kCoverSize + 46);
@@ -1547,6 +1101,33 @@ namespace {
             spin->set_size(160, 160);
         }
 
+        h.popup = factory.create_popup_layer();
+        if (auto* popup = factory.get(h.popup)) {
+            popup->set_rect({0, 0, screen_width, screen_height});
+            popup->set_visible(true);
+        }
+        if (auto* popup = static_cast<PopupLayer*>(factory.get(h.popup))) {
+            popup->set_background({0, 0, 0, 160});
+        }
+
+        h.modal = factory.create_modal_dialog();
+        if (auto* modal = factory.get_modal_dialog(h.modal)) {
+            const int w = 360;
+            const int hgt = 220;
+            modal->set_rect({(screen_width - w) / 2, (screen_height - hgt) / 2, w, hgt});
+            modal->set_title("Confirm Action");
+            modal->set_message("Replace local cache with refreshed data?\nThis will discard unsaved changes.");
+            modal->set_ok_label("Apply");
+            modal->set_cancel_label("Cancel");
+            modal->set_show_cancel(true);
+            modal->set_visible(true);
+            g_modal_demo.factory = &factory;
+            g_modal_demo.popup = h.popup;
+            g_modal_demo.dialog = h.modal;
+            modal->set_on_ok(Callback{&on_modal_ok, &g_modal_demo});
+            modal->set_on_cancel(Callback{&on_modal_cancel, &g_modal_demo});
+        }
+
         h.fold_panel = factory.create_foldable_panel("Foldable Panel");
         if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
             panel->set_body("Tap header to expand or collapse.");
@@ -1653,6 +1234,8 @@ namespace {
         factory.link(h.debug_side, h.text_list);
         factory.link(h.debug_side, h.progress_round);
         factory.link(h.debug_side, h.spin_zoom);
+        factory.link(h.root, h.popup);
+        factory.link(h.popup, h.modal);
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);
@@ -1674,7 +1257,6 @@ int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
     const char* vhd_path = kDefaultVhdPath;
-    std::vector<std::string> vfs_tracks;
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -1702,74 +1284,24 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    static DefaultFrameBuffer fb;
-    DefaultCanvas canvas(fb);
+    g_ctx.player = &g_player;
+    g_ctx.factory = &g_factory;
+    g_ctx.track_path = nullptr;
+    g_ctx.tracks = &g_vfs_tracks;
+    g_ctx.set_spectrum_enabled(kEnableSpectrumDefault);
+    g_ctx.set_low_load(kLowLoadDefault);
 
-    static UiFactory factory;
-    static audio::PlayerConfig cfg{};
-    static audio::AudioPlayer player(cfg);
-
-    PlayerUiContext ctx{};
-    ctx.player = &player;
-    ctx.factory = &factory;
-    ctx.track_path = nullptr;
-    ctx.tracks = &vfs_tracks;
-
-    auto& theme = Theme::instance();
-    ThemePreset preset{};
-    preset.has_label = true;
-    preset.label = theme.get<Label>();
-    preset.label.font_color = {230, 234, 246, 255};
-    preset.has_button = true;
-    preset.button = theme.get<Button>();
-    preset.button.bg_color = {26, 30, 44, 255};
-    preset.button.border_color = {70, 90, 120, 255};
-    preset.button.padding = 6;
-    preset.has_progress = true;
-    preset.progress = theme.get<Progress>();
-    preset.progress.bg_color = {28, 32, 46, 255};
-    preset.progress.border_color = {90, 110, 150, 255};
-    preset.has_perf_overlay = true;
-    preset.perf_overlay = theme.get<PerfOverlay>();
-    preset.perf_overlay.bg_color = {24, 26, 36, 230};
-    preset.perf_overlay.border_color = {70, 90, 120, 255};
-    preset.perf_overlay.font_color = {220, 228, 242, 255};
-    preset.perf_overlay.padding = 6;
-    preset.has_foldable_panel = true;
-    preset.foldable_panel = theme.get<FoldablePanel>();
-    preset.foldable_panel.header_padding = 10;
-    preset.foldable_panel.content_padding = 10;
-    preset.has_cloudy_glass = true;
-    preset.cloudy_glass = theme.get<CloudyGlass>();
-    preset.cloudy_glass.glass_highlight_pos = 12;
-    preset.cloudy_glass.glass_highlight_alpha = 90;
-    preset.cloudy_glass.glass_shadow_alpha = 50;
-    preset.cloudy_glass.glass_opacity_min = 60;
-    preset.cloudy_glass.glass_opacity_max = 200;
-    apply_theme_preset(preset);
-
-    auto& sheet = StyleSheet::instance();
-    sheet.clear();
-    StylePatch btn_base{};
-    btn_base.has_bg_color = true;
-    btn_base.bg_color = {34, 40, 58, 255};
-    btn_base.has_border_color = true;
-    btn_base.border_color = {90, 120, 160, 255};
-    sheet.add_rule({WidgetKind::Button, 0}, btn_base);
-
-    StylePatch btn_hover{};
-    btn_hover.has_bg_color = true;
-    btn_hover.bg_color = {44, 60, 82, 255};
-    sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
+    apply_player_theme();
 
 #if CHARM_PLAYER_DEBUG_UI
+    auto& theme = Theme::instance();
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
     table_patch.has_bg_color = true;
-    table_patch.bg_color = {22, 24, 34, 255};
+    table_patch.bg_color = kUiListBg;
     table_patch.has_border_color = true;
-    table_patch.border_color = {60, 70, 90, 255};
+    table_patch.border_color = kUiListBorder;
     table_patch.has_padding = true;
     table_patch.padding = 6;
     theme.patch<TableView>(table_patch);
@@ -1778,77 +1310,109 @@ int main(int argc, char** argv) {
     theme.patch<TreeView>(tree_patch);
 #endif
 
-    ctx.handles = build_ui(factory, ctx);
-    ctx.set_time_label(0);
+    player::UiCallbacks ui_cb{};
+    ui_cb.list_draw = &on_list_draw;
+    ui_cb.list_select = &on_list_selected;
+    ui_cb.list_pool_create = &on_list_pool_create;
+    ui_cb.list_pool_bind = &on_list_pool_bind;
+    ui_cb.list_pool_recycle = &on_list_pool_recycle;
+    ui_cb.list_ctx = &g_ctx;
+    ui_cb.list_scroll_change = Callback{&on_list_scrollbar_change, &g_ctx};
+    ui_cb.play_mode_change = Callback{&on_play_mode_change, &g_ctx};
+    ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
+    ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
+    ui_cb.play_click = Callback{&on_play_clicked, &g_ctx};
+    ui_cb.pause_click = Callback{&on_pause_clicked, &g_ctx};
+    ui_cb.stop_click = Callback{&on_stop_clicked, &g_ctx};
+
+    g_ctx.handles = build_ui(g_factory, g_ctx, ui_cb);
+    g_ctx.set_time_label(0);
+    g_ctx.mount_status = "Mounting VHD...";
+    g_ctx.set_status("Mounting");
+    g_ctx.set_status_color(kUiStatus);
+    g_ctx.update_list_placeholder();
 
     const auto mount_st = mount_fatfs_from_vhd(vhd_path);
-    ctx.fs_ready = static_cast<bool>(mount_st);
-    if (!ctx.fs_ready) {
+    g_ctx.fs_ready = static_cast<bool>(mount_st);
+    if (!g_ctx.fs_ready) {
         char buf[64]{};
         std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
-        ctx.set_status(buf);
-        ctx.set_status_color({220, 120, 120, 255});
-        ctx.mount_status = buf;
-        vfs_tracks.clear();
-        ctx.rebuild_track_labels();
-        ctx.refresh_list_view();
-        ctx.track_ready = false;
-        ctx.track_path = nullptr;
-        ctx.set_pause_button_text("Pause");
-        ctx.set_time_label(0);
-        ctx.sync_progress_value(0);
-        ctx.reset_duration();
+        g_ctx.set_status(buf);
+        g_ctx.set_status_color(kUiError);
+        g_ctx.mount_status = std::string(buf) + ". Unmount VHD in Windows";
+        g_vfs_tracks.clear();
+        g_ctx.rebuild_track_labels();
+        g_ctx.refresh_list_view();
+        g_ctx.track_ready = false;
+        g_ctx.track_path = nullptr;
+        g_ctx.set_pause_button_text("Pause");
+        g_ctx.set_time_label(0);
+        g_ctx.sync_progress_value(0);
+        g_ctx.reset_duration();
+        g_ctx.update_list_placeholder();
     } else {
-        ctx.mount_status = "Mounted";
-        vfs_tracks.clear();
+        g_ctx.mount_status = "Mounted";
+        g_ctx.update_list_placeholder();
+        g_vfs_tracks.clear();
         fs::Status list_st{fs::Err::ok};
-        if (!collect_tracks_from_dir("/music", vfs_tracks, nullptr, list_st)) {
+        g_ctx.mount_status = "Scanning /music...";
+        if (!collect_tracks_from_dir("/music", g_vfs_tracks, nullptr, list_st)) {
             std::vector<std::string> subdirs;
-            const bool root_has = collect_tracks_from_dir("/", vfs_tracks, &subdirs, list_st);
+            g_ctx.mount_status = "Scanning /...";
+            const bool root_has = collect_tracks_from_dir("/", g_vfs_tracks, &subdirs, list_st);
             if (list_st) {
                 for (const auto& dir : subdirs) {
-                    collect_tracks_from_dir(dir, vfs_tracks, nullptr, list_st);
+                    collect_tracks_from_dir(dir, g_vfs_tracks, nullptr, list_st);
                 }
             }
             if (!list_st) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
-                ctx.set_status(buf);
-                ctx.set_status_color({220, 120, 120, 255});
-            } else if (!root_has && vfs_tracks.empty()) {
-                ctx.set_status("No tracks found");
-                ctx.set_status_color({220, 120, 120, 255});
+                g_ctx.set_status(buf);
+                g_ctx.set_status_color(kUiError);
+                g_ctx.mount_status = buf;
+            } else if (!root_has && g_vfs_tracks.empty()) {
+                g_ctx.set_status("No tracks found");
+                g_ctx.set_status_color(kUiError);
+                g_ctx.mount_status = "No tracks in /music or /";
             }
         }
         bool should_load = true;
-        if (vfs_tracks.empty()) {
+        if (g_vfs_tracks.empty()) {
             char buf[64]{};
             std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
-            ctx.set_status(buf);
-            ctx.set_status_color({220, 120, 120, 255});
+            g_ctx.set_status(buf);
+            g_ctx.set_status_color(kUiError);
+            if (g_ctx.mount_status == "Mounted") {
+                g_ctx.mount_status = "No tracks in /music or /";
+            }
             should_load = false;
         }
-        ctx.rebuild_track_labels();
-        ctx.refresh_list_view();
+        g_ctx.rebuild_track_labels();
+        g_ctx.refresh_list_view();
         if (should_load) {
-            ctx.load_track_index(0);
-            if (ctx.track_ready && !fs_seek_selftest(ctx.track_path)) {
-                ctx.set_status("Fs seek selftest failed");
-                ctx.set_status_color({220, 120, 120, 255});
+            g_ctx.load_track_index(0);
+            if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
+                g_ctx.set_status("Fs seek selftest failed");
+                g_ctx.set_status_color(kUiError);
+            }
+            if (g_ctx.track_ready) {
+                g_ctx.mount_status = "Ready";
             }
         } else {
-            ctx.track_ready = false;
-            ctx.track_path = nullptr;
-            ctx.set_pause_button_text("Pause");
-            ctx.set_time_label(0);
-            ctx.sync_progress_value(0);
-            ctx.reset_duration();
+            g_ctx.track_ready = false;
+            g_ctx.track_path = nullptr;
+            g_ctx.set_pause_button_text("Pause");
+            g_ctx.set_time_label(0);
+            g_ctx.sync_progress_value(0);
+            g_ctx.reset_duration();
         }
+        g_ctx.update_list_placeholder();
     }
 
-    Gui gui(canvas, factory, ctx.handles.root);
-    gui.set_dirty_tracking(true);
-    gui.set_layer_cache(true);
+    auto gui = std::make_unique<Gui>(g_canvas, g_factory, g_ctx.handles.root);
+    gui->set_dirty_tracking(true);
+    gui->set_layer_cache(true);
 
     const auto start_time = std::chrono::steady_clock::now();
 
@@ -1860,62 +1424,72 @@ int main(int argc, char** argv) {
                 running = false;
                 break;
             }
-            dispatch_sdl_event(gui, ctx, evt);
+            dispatch_sdl_event(*gui, g_ctx, evt);
         }
 
-        player.tick();
-        if (ctx.playing && !player.is_running()) {
-            ctx.playing = false;
-            ctx.paused = false;
-            ctx.set_status("Stopped");
-            ctx.set_status_color({140, 150, 175, 255});
-            ctx.set_pause_button_text("Pause");
-        }
-        if (!ctx.paused) {
-            const auto st = player.state();
-            if (st == audio::PlayerState::opening) {
-                ctx.set_status("Opening");
-                ctx.set_status_color({140, 150, 175, 255});
-            } else if (st == audio::PlayerState::buffering) {
-                ctx.set_status("Buffering");
-                ctx.set_status_color({140, 150, 175, 255});
-            } else if (st == audio::PlayerState::playing) {
-                ctx.set_status("Playing");
-                ctx.set_status_color({120, 200, 170, 255});
+        g_player.tick();
+        if (g_ctx.playing && !g_player.is_running()) {
+            if (g_player.state() == audio::PlayerState::error) {
+                g_ctx.playing = false;
+                g_ctx.paused = false;
+                g_ctx.set_status("Stopped");
+                g_ctx.set_status_color(kUiStatus);
+                g_ctx.set_pause_button_text("Pause");
+            } else {
+                g_ctx.handle_track_end();
             }
         }
-        if (player.state() == audio::PlayerState::error) {
-            ctx.playing = false;
-            ctx.paused = false;
-            const auto err = player.last_error();
+        if (!g_ctx.paused) {
+            const auto st = g_player.state();
+            if (st == audio::PlayerState::opening) {
+                g_ctx.set_status("Opening");
+                g_ctx.set_status_color(kUiStatus);
+            } else if (st == audio::PlayerState::buffering) {
+                g_ctx.set_status("Buffering");
+                g_ctx.set_status_color(kUiStatus);
+            } else if (st == audio::PlayerState::playing) {
+                g_ctx.set_status("Playing");
+                g_ctx.set_status_color(kUiOk);
+            }
+        }
+        if (g_player.state() == audio::PlayerState::error) {
+            g_ctx.playing = false;
+            g_ctx.paused = false;
+            const auto err = g_player.last_error();
             const auto stage = static_cast<audio::PlayerErrorStage>(err.ext);
             char buf[96]{};
             std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
                           audio_err_text(err.code), audio_stage_text(stage));
-            ctx.set_status(buf);
-            ctx.set_status_color({220, 120, 120, 255});
-            ctx.set_pause_button_text("Pause");
+            g_ctx.set_status(buf);
+            g_ctx.set_status_color(kUiError);
+            g_ctx.set_pause_button_text("Pause");
         }
-        ctx.update_duration_from_player();
-        ctx.apply_pending_seek();
-        ctx.update_progress();
+        g_ctx.update_duration_from_player();
+        g_ctx.apply_pending_seek();
+        g_ctx.update_progress();
+        g_ctx.update_spectrum();
 
         const auto now = std::chrono::steady_clock::now();
         const auto ms = static_cast<std::uint32_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
         const float phase = static_cast<float>(ms % 2000) / 2000.0f;
         const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
-        apply_cover_pulse(&ctx, v);
+        apply_cover_pulse(&g_ctx, v);
 
-        canvas.clear({18, 20, 28, 255});
-        gui.render();
+        g_canvas.clear(kUiBackground);
+        gui->render();
 
-        SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
+        SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);
+    }
+
+    (void)g_player.stop();
+    for (int i = 0; i < 8 && g_player.is_running(); ++i) {
+        g_player.tick();
     }
 
     SDL_DestroyTexture(texture);

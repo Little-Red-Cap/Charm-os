@@ -9,8 +9,60 @@ import usb.common;
 import usb.device;
 import usb.driver;
 import usb.ep0_driver;
+import device.desc;
+import device.types;
+import util.core;
 
 export namespace usb::device {
+    class DeviceDriver;
+
+    struct DeviceModelHook {
+        Device* dev{nullptr};
+        DeviceDriver* driver{nullptr};
+        void (*start)(DeviceDriver&) noexcept { nullptr };
+        void (*stop)(DeviceDriver&) noexcept { nullptr };
+    };
+
+    inline ::device::Driver make_device_driver(DeviceModelHook* hook,
+                                             const ::device::DeviceDesc& match,
+                                             const char* name,
+                                             util::u32 priority) noexcept {
+        ::device::Driver drv{};
+        drv.name = name;
+        drv.match = match;
+        drv.priority = priority;
+        drv.ops.probe = [](::device::Device& dev) noexcept -> bool {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            return h && h->driver != nullptr;
+        };
+        drv.ops.init = [](::device::Device& dev) noexcept -> bool {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) return false;
+            if (h->dev) h->dev->reset();
+            if (h->start) h->start(*h->driver);
+            return true;
+        };
+        drv.ops.shutdown = [](::device::Device& dev) noexcept {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) return;
+            if (h->stop) h->stop(*h->driver);
+        };
+        drv.ops.remove = drv.ops.shutdown;
+        drv.ops.suspend = [](::device::Device& dev) noexcept -> bool {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) return false;
+            if (h->stop) h->stop(*h->driver);
+            return true;
+        };
+        drv.ops.resume = [](::device::Device& dev) noexcept -> bool {
+            auto* h = static_cast<DeviceModelHook*>(dev.ctx);
+            if (!h || !h->driver) return false;
+            if (h->start) h->start(*h->driver);
+            return true;
+        };
+        return drv;
+    }
+
     class DeviceDriver {
     public:
         DeviceDriver(Device& dev, void* dcd_ctx, driver::DcdOps ops) noexcept

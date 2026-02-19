@@ -150,6 +150,11 @@ export namespace fs {
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
 
+            if ((want_create || want_trunc) && !want_write) {
+                self->free_slot(slot);
+                return Status{Err::perm};
+            }
+
             mode |= want_read ? FA_READ : 0;
             mode |= want_write ? FA_WRITE : 0;
             if (!want_read && !want_write) mode |= FA_READ;
@@ -266,13 +271,26 @@ export namespace fs {
                 if (info.fname[0] == '\0') break;
                 const char* name = info.fname;
 #if defined(FF_USE_LFN) && FF_USE_LFN
-                if (info.lfname && info.lfname[0] != 0) {
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-                    name = info.fname;
+                if (info.lfname && info.lfname[0] != 0) {
+                    constexpr util::usize lfn_utf8_cap =
+#if defined(FF_MAX_LFN)
+                        static_cast<util::usize>(FF_MAX_LFN) * 4 + 1;
 #else
-                    name = info.lfname;
+                        256 * 4 + 1;
 #endif
+                    std::array<char, lfn_utf8_cap> lfname_utf8{};
+                    const auto written = utf16_to_utf8(info.lfname, lfname_utf8.data(), lfname_utf8.size());
+                    if (written > 0) {
+                        lfname_utf8[std::min(written, lfname_utf8.size() - 1)] = '\0';
+                        name = lfname_utf8.data();
+                    }
                 }
+#else
+                if (info.lfname && info.lfname[0] != 0) {
+                    name = info.lfname;
+                }
+#endif
 #endif
                 MountOps::ListEntry entry{};
                 entry.name = std::string_view{name};
@@ -358,15 +376,136 @@ export namespace fs {
         static constexpr util::usize max_path = 256;
 #endif
 
-        std::optional<std::array<char, max_path>> build_path(std::string_view path) noexcept {
+#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
+        static bool append_utf8(util::u32 cp, char* out, util::usize cap, util::usize& pos) noexcept {
+            if (cap == 0) return false;
+            if (cp <= 0x7F) {
+                if (pos + 1 >= cap) return false;
+                out[pos++] = static_cast<char>(cp);
+                return true;
+            }
+            if (cp <= 0x7FF) {
+                if (pos + 2 >= cap) return false;
+                out[pos++] = static_cast<char>(0xC0 | (cp >> 6));
+                out[pos++] = static_cast<char>(0x80 | (cp & 0x3F));
+                return true;
+            }
+            if (cp <= 0xFFFF) {
+                if (pos + 3 >= cap) return false;
+                out[pos++] = static_cast<char>(0xE0 | (cp >> 12));
+                out[pos++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                out[pos++] = static_cast<char>(0x80 | (cp & 0x3F));
+                return true;
+            }
+            if (cp <= 0x10FFFF) {
+                if (pos + 4 >= cap) return false;
+                out[pos++] = static_cast<char>(0xF0 | (cp >> 18));
+                out[pos++] = static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+                out[pos++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                out[pos++] = static_cast<char>(0x80 | (cp & 0x3F));
+                return true;
+            }
+            return false;
+        }
+
+        static util::usize utf16_to_utf8(const TCHAR* in, char* out, util::usize cap) noexcept {
+            if (!in || !out || cap == 0) return 0;
+            util::usize pos = 0;
+            util::usize idx = 0;
+            while (in[idx] != 0) {
+                util::u32 cp = static_cast<util::u32>(in[idx++]);
+                if (cp >= 0xD800 && cp <= 0xDBFF) {
+                    const util::u32 hi = cp;
+                    const util::u32 lo = static_cast<util::u32>(in[idx++]);
+                    if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                        cp = 0x10000 + (((hi - 0xD800) << 10) | (lo - 0xDC00));
+                    } else {
+                        cp = 0xFFFD;
+                    }
+                } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                    cp = 0xFFFD;
+                }
+                if (!append_utf8(cp, out, cap, pos)) break;
+            }
+            if (pos < cap) out[pos] = '\0';
+            return pos;
+        }
+
+        static bool utf8_to_utf16(std::string_view in, TCHAR* out, util::usize cap) noexcept {
+            if (!out || cap == 0) return false;
+            util::usize pos = 0;
+            util::usize i = 0;
+            while (i < in.size()) {
+                util::u32 cp = 0xFFFD;
+                const auto c0 = static_cast<unsigned char>(in[i]);
+                if (c0 < 0x80) {
+                    cp = c0;
+                    i += 1;
+                } else if ((c0 & 0xE0) == 0xC0 && i + 1 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    if ((c1 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x1F) << 6) | (c1 & 0x3F);
+                        if (cp < 0x80) cp = 0xFFFD;
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                } else if ((c0 & 0xF0) == 0xE0 && i + 2 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    const auto c2 = static_cast<unsigned char>(in[i + 2]);
+                    if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F);
+                        if (cp < 0x800) cp = 0xFFFD;
+                        i += 3;
+                    } else {
+                        i += 1;
+                    }
+                } else if ((c0 & 0xF8) == 0xF0 && i + 3 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    const auto c2 = static_cast<unsigned char>(in[i + 2]);
+                    const auto c3 = static_cast<unsigned char>(in[i + 3]);
+                    if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) |
+                             ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+                        if (cp < 0x10000 || cp > 0x10FFFF) cp = 0xFFFD;
+                        i += 4;
+                    } else {
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+
+                if (cp <= 0xFFFF) {
+                    if (pos + 1 >= cap) break;
+                    out[pos++] = static_cast<TCHAR>(cp);
+                } else {
+                    if (pos + 2 >= cap) break;
+                    cp -= 0x10000;
+                    out[pos++] = static_cast<TCHAR>(0xD800 + ((cp >> 10) & 0x3FF));
+                    out[pos++] = static_cast<TCHAR>(0xDC00 + (cp & 0x3FF));
+                }
+            }
+            if (pos < cap) out[pos] = 0;
+            return pos + 1 < cap;
+        }
+#endif
+
+        std::optional<std::array<TCHAR, max_path>> build_path(std::string_view path) noexcept {
             auto norm = normalize(path);
             std::string_view p{norm.data, norm.size};
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
+#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
+            std::array<TCHAR, max_path> buf{};
+            if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
+            return buf;
+#else
             if (p.size() + 1 > max_path) return std::nullopt;
-            std::array<char, max_path> buf{};
+            std::array<TCHAR, max_path> buf{};
             std::memcpy(buf.data(), p.data(), p.size());
             buf[p.size()] = '\0';
             return buf;
+#endif
         }
 
         BlockDevice* dev_{nullptr};

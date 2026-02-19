@@ -49,6 +49,7 @@ import charm.widgets.perf_overlay;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.rich_text;
+import charm.widgets.code_block;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -95,6 +96,7 @@ public:
     WidgetHandle create_stepper() noexcept { return make_handle(steppers_.create(), WidgetKind::Stepper); }
     WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
     WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
+    WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -137,6 +139,7 @@ public:
     Stepper* get_stepper(const WidgetHandle& h) noexcept { return get_from(steppers_, h, WidgetKind::Stepper); }
     Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
     RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
+    CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -179,6 +182,7 @@ public:
             case WidgetKind::Stepper: return get_stepper(h);
             case WidgetKind::Timeline: return get_timeline(h);
             case WidgetKind::RichText: return get_rich_text(h);
+            case WidgetKind::CodeBlock: return get_code_block(h);
             default: return nullptr;
         }
     }
@@ -369,6 +373,7 @@ public:
         case WidgetKind::Stepper: destroy_from(steppers_, h, WidgetKind::Stepper); break;
         case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
         case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
+        case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -641,6 +646,7 @@ private:
     HandlePool<Stepper, 16> steppers_{};
     HandlePool<Timeline, 16> timelines_{};
     HandlePool<RichText, 16> rich_texts_{};
+    HandlePool<CodeBlock, 16> code_blocks_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

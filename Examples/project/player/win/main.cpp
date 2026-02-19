@@ -23,6 +23,7 @@ import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
+import charm.widgets.code_block;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -237,6 +238,7 @@ namespace {
         WidgetHandle stepper{};
         WidgetHandle timeline{};
         WidgetHandle rich_text{};
+        WidgetHandle code_block{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -1207,6 +1209,13 @@ namespace {
             rich->set_size(200, 70);
         }
 
+        h.code_block = factory.create_code_block();
+        if (auto* block = factory.get_code_block(h.code_block)) {
+            block->set_text("int main() {\n  return 0;\n}");
+            block->set_wrap(TextWrap::None);
+            block->set_size(200, 80);
+        }
+
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
@@ -1269,6 +1278,7 @@ namespace {
         factory.link(h.debug_side, h.stepper);
         factory.link(h.debug_side, h.timeline);
         factory.link(h.debug_side, h.rich_text);
+        factory.link(h.debug_side, h.code_block);
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_play);

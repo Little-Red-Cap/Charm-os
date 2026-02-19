@@ -308,6 +308,14 @@ export namespace usb {
         return out;
     }
 
+    template <std::size_t N>
+    struct StringTable {
+        std::array<std::span<const u8>, N> entries{};
+        constexpr std::span<const u8> operator[](std::size_t idx) const noexcept {
+            return (idx < N) ? entries[idx] : std::span<const u8>{};
+        }
+    };
+
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)
             | static_cast<u8>(type)

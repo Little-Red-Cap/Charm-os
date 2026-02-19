@@ -191,13 +191,10 @@ export namespace usb::device {
                 if (!ep0_.handle_setup(resp)) return false;
             }
             if (req_type == RequestType::vendor) {
-                if (class_ops_ && class_ops_->vendor_setup) {
-                    ControlRequest req{};
-                    req.setup = setup;
-                    req.data = {};
-                    return class_ops_->vendor_setup(class_ctx_, req, resp);
-                }
-                return false;
+                ControlRequest req{};
+                req.setup = setup;
+                req.data = {};
+                if (!handle_vendor(setup, req, resp)) return false;
             }
             if (setup.w_length == 0) {
                 return true;
@@ -248,6 +245,14 @@ export namespace usb::device {
         }
 
     private:
+        bool handle_vendor(const SetupPacket& setup, const ControlRequest& req, ControlResponse& resp) noexcept {
+            if (!class_ops_) return false;
+            if (class_ops_->vendor_setup) {
+                return class_ops_->vendor_setup(class_ctx_, req, resp);
+            }
+            return false;
+        }
+
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {
             switch (static_cast<StandardRequest>(setup.b_request)) {
             case StandardRequest::get_status: {

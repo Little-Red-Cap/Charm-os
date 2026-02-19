@@ -191,7 +191,12 @@ export namespace usb::class_driver {
 
         static void handle_reset(void* ctx) noexcept {
             auto* self = static_cast<CdcAcm*>(ctx);
-            if (self) self->coding_ = {};
+            if (!self) return;
+            self->coding_ = {};
+            self->control_line_state_ = 0;
+            if (self->ops_.on_line_coding) {
+                self->ops_.on_line_coding(self->ctx_, self->coding_);
+            }
         }
 
         void* ctx_{nullptr};

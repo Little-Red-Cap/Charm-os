@@ -43,6 +43,7 @@ import charm.widgets.menu_item;
 import charm.widgets.radio;
 import charm.widgets.radio_group;
 import charm.widgets.chart;
+import charm.widgets.waveform;
 import charm.widgets.gauge;
 import charm.widgets.primitives_canvas;
 import charm.widgets.perf_overlay;
@@ -99,6 +100,7 @@ public:
     WidgetHandle create_radio(const char* text) noexcept { return make_handle(radios_.create(text), WidgetKind::Radio); }
     WidgetHandle create_radio_group() noexcept { return make_handle(radio_groups_.create(), WidgetKind::RadioGroup); }
     WidgetHandle create_chart() noexcept { return make_handle(charts_.create(), WidgetKind::Chart); }
+    WidgetHandle create_waveform() noexcept { return make_handle(waveforms_.create(), WidgetKind::Waveform); }
     WidgetHandle create_gauge() noexcept { return make_handle(gauges_.create(), WidgetKind::Gauge); }
     WidgetHandle create_primitives_canvas() noexcept { return make_handle(prim_canvas_.create(), WidgetKind::PrimitivesCanvas); }
     WidgetHandle create_perf_overlay() noexcept { return make_handle(perf_overlays_.create(), WidgetKind::PerfOverlay); }
@@ -151,6 +153,7 @@ public:
     Radio* get_radio(const WidgetHandle& h) noexcept { return get_from(radios_, h, WidgetKind::Radio); }
     RadioGroup* get_radio_group(const WidgetHandle& h) noexcept { return get_from(radio_groups_, h, WidgetKind::RadioGroup); }
     Chart* get_chart(const WidgetHandle& h) noexcept { return get_from(charts_, h, WidgetKind::Chart); }
+    Waveform* get_waveform(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::Waveform); }
     Gauge* get_gauge(const WidgetHandle& h) noexcept { return get_from(gauges_, h, WidgetKind::Gauge); }
     PrimitivesCanvas* get_primitives_canvas(const WidgetHandle& h) noexcept { return get_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); }
     PerfOverlay* get_perf_overlay(const WidgetHandle& h) noexcept { return get_from(perf_overlays_, h, WidgetKind::PerfOverlay); }
@@ -203,6 +206,7 @@ public:
             case WidgetKind::Radio: return get_radio(h);
             case WidgetKind::RadioGroup: return get_radio_group(h);
             case WidgetKind::Chart: return get_chart(h);
+            case WidgetKind::Waveform: return get_waveform(h);
             case WidgetKind::Gauge: return get_gauge(h);
             case WidgetKind::PrimitivesCanvas: return get_primitives_canvas(h);
             case WidgetKind::PerfOverlay: return get_perf_overlay(h);
@@ -403,6 +407,7 @@ public:
         case WidgetKind::Radio: destroy_from(radios_, h, WidgetKind::Radio); break;
         case WidgetKind::RadioGroup: destroy_from(radio_groups_, h, WidgetKind::RadioGroup); break;
         case WidgetKind::Chart: destroy_from(charts_, h, WidgetKind::Chart); break;
+        case WidgetKind::Waveform: destroy_from(waveforms_, h, WidgetKind::Waveform); break;
         case WidgetKind::Gauge: destroy_from(gauges_, h, WidgetKind::Gauge); break;
         case WidgetKind::PrimitivesCanvas: destroy_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); break;
         case WidgetKind::PerfOverlay: destroy_from(perf_overlays_, h, WidgetKind::PerfOverlay); break;
@@ -685,6 +690,7 @@ private:
     HandlePool<Radio, 64> radios_{};
     HandlePool<RadioGroup, 16> radio_groups_{};
     HandlePool<Chart, 16> charts_{};
+    HandlePool<Waveform, 8> waveforms_{};
     HandlePool<Gauge, 16> gauges_{};
     HandlePool<PrimitivesCanvas, 8> prim_canvas_{};
     HandlePool<PerfOverlay, 8> perf_overlays_{};

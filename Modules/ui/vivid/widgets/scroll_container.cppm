@@ -50,6 +50,9 @@ public:
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
     void set_deceleration(float d) noexcept { decel_ = d; }
     void set_drag_threshold(int px) noexcept { drag_threshold_sq_ = px * px; }
+    void set_inertia_fast_ratio(float v) noexcept { inertia_fast_ratio_ = clamp_ratio(v); }
+    void set_inertia_medium_ratio(float v) noexcept { inertia_medium_ratio_ = clamp_ratio(v); }
+    void set_inertia_extra_ratio(float v) noexcept { inertia_extra_ratio_ = clamp_ratio(v); }
 
     template<typename Resolver>
     void sync_child_bases(Resolver&& resolve) {
@@ -325,13 +328,16 @@ private:
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
         const auto clip = children_clip_rect();
-        if (abs_v > clip.h / 2) {
+        const int fast = static_cast<int>(clip.h * inertia_fast_ratio_);
+        const int medium = static_cast<int>(clip.h * inertia_medium_ratio_);
+        const int extra_band = static_cast<int>(clip.h * inertia_extra_ratio_);
+        if (fast > 0 && abs_v > fast) {
             accumulate_scroll_dirty(clip);
             return;
         }
         int extra = 0;
-        if (abs_v > clip.h / 4) {
-            extra = clip.h / 8;
+        if (medium > 0 && abs_v > medium) {
+            extra = extra_band;
         }
         Rect band{};
         if (dy > 0) {
@@ -411,6 +417,9 @@ private:
     int clip_inset_bottom_{1};
     Rect scroll_dirty_accum_{};
     bool scroll_dirty_valid_{false};
+    float inertia_fast_ratio_{0.5f};
+    float inertia_medium_ratio_{0.25f};
+    float inertia_extra_ratio_{0.125f};
 
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;
@@ -419,5 +428,11 @@ private:
         clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
         clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
         clip_inset_bottom_ = (slice_bottom_ > b) ? slice_bottom_ : b;
+    }
+
+    static float clamp_ratio(float v) noexcept {
+        if (v < 0.0f) return 0.0f;
+        if (v > 1.0f) return 1.0f;
+        return v;
     }
 };

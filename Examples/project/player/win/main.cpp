@@ -54,6 +54,7 @@ namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+    constexpr int kDemoGap = 16;
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];

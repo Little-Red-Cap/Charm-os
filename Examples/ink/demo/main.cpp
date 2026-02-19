@@ -84,6 +84,19 @@ inline void fill_round_rect_demo(Renderer& r, float t) noexcept {
     gui::fill_round_rect(r, gui::Rect{(std::int16_t)x, (std::int16_t)y, (std::int16_t)w, (std::int16_t)h});
 }
 
+inline void spinner_demo(Renderer& r, float t) noexcept {
+    const gui::Rect rc{48, 16, 32, 32};
+    const float phase = t * 2.0f * kPi;
+    r.drawText(6, 2, "Spinner", true);
+    gui::draw_spinner(r, rc, phase, true);
+}
+
+inline void progress_bar_demo(Renderer& r, float t) noexcept {
+    const std::uint8_t percent = (std::uint8_t)(t * 100.0f);
+    r.drawText(6, 2, "Progress", true);
+    gui::draw_progress_bar(r, gui::Rect{8, 28, 112, 12}, percent, true);
+}
+
 inline void dither_demo(Renderer& r, float t) noexcept {
     (void)t;
     constexpr int w = 96;
@@ -525,6 +538,8 @@ static constexpr DemoItem kDemos[] = {
     {"Invert", 1200, &invert_demo},
     {"RoundRect", 1200, &round_rect_demo},
     {"FillRound", 1200, &fill_round_rect_demo},
+    {"Spinner", 1600, &spinner_demo},
+    {"Progress", 1600, &progress_bar_demo},
     {"Dither", 1600, &dither_demo},
     {"Circle", 1200, &circle_demo},
     {"FillCircle", 1200, &fill_circle_demo},

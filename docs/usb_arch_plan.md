@@ -86,6 +86,28 @@ Modules/io/usb/
 - 最小 CDC 示例：`Examples/usb/usb_cdc_minimal`
 - 枚举路径：DescriptorBuilder → usb.device → usb.ep0_driver → DCD
 
+## 8.1 EP0 请求流（最小）
+
+```mermaid
+sequenceDiagram
+    participant Host
+    participant EP0 as usb.ep0_driver
+    participant Dev as usb.device
+    participant DCD as DCD
+
+    Host->>EP0: SETUP
+    EP0->>Dev: on_setup(setup)
+    alt IN request
+        EP0->>DCD: send_in(data, zlp)
+        DCD-->>EP0: on_in_complete(sent, sent_zlp)
+        EP0->>Dev: on_in_complete
+    else OUT request
+        Host->>EP0: OUT data
+        EP0->>Dev: on_out_data(data)
+        EP0->>DCD: send_zlp()
+    end
+```
+
 ## 9) 下一步建议（可执行）
 1. 补 DCD 适配层（硬件回调契约）
 2. 给 CDC 增加最小收发接口样例

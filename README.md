@@ -30,6 +30,7 @@
 - `Modules/ui/ink/` —— Charm-ink UI
 - `Modules/ui/vivid/` —— Charm-vivid UI
 - `Modules/platform/` —— 平台适配（win/未来 MCU）
+- `Modules/io/usb/` —— USB 设备端骨架与类草案
 - `Examples/` —— 示例工程（内核/boot/audio/fs/shell/service/alg/hal）
 - `docs/` —— 架构与协作文档
 - `Draft/` —— 计划/草案（可变动）
@@ -65,6 +66,11 @@
 1. 读文档：`Modules/system/modulex/ModuleX_格式草案.md`
 2. 看实现：`Modules/system/modulex/`
 3. 跑示例：`Examples/shell/vsf_shell_fs_module`
+
+### USB
+1. 读文档：`docs/usb_arch_plan.md`
+2. 看实现：`Modules/io/usb/`
+3. 跑示例：`Examples/usb/usb_cdc_minimal`
 
 ## 🚀 主线 Demos（Windows）
 - **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
@@ -125,6 +131,7 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 - `Examples/alg/alg_demo`：算法/压缩示例
 - `Examples/boot/bootloader_demo`：bootloader 示例
 - `Examples/audio/sdl3_wav_demo`：SDL3 音频示例
+- `Examples/usb/usb_cdc_minimal`：CDC 最小枚举示例
 
 ### 示例构建
 ```bash

@@ -28,6 +28,7 @@ graph TD
     IO --> F[FS/VFS]
     IO --> SH[Shell]
     IO --> OUT[Out]
+    IO --> USB[USB]
 ```
 
 ## 1.1 目录布局（统一）
@@ -36,7 +37,7 @@ graph TD
 Modules/
   core/        # util/trace/service/alg
   system/      # kernel/modulex/boot
-  io/          # hal/port/fs/shell/out
+  io/          # hal/port/fs/shell/out/usb
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
@@ -192,6 +193,12 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Out
 - out.core/out.api/out.format/out.ansi/out.logger
 - out.sink/out.print/out.domain/out.port
+
+### USB
+- 设备端骨架：descriptor/common、EP0 状态机
+- 类草案：CDC/UAC/MSC
+- 驱动接口：`usb.ep0_driver`
+- 示例：`Examples/usb/usb_cdc_minimal`
 
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme

@@ -81,8 +81,6 @@ export namespace player {
         std::array<WidgetHandle, kEqBands> eq_band_labels{};
         std::array<WidgetHandle, kEqBands> eq_sliders{};
         std::array<WidgetHandle, kEqBands> eq_value_labels{};
-        WidgetHandle ring{};
-        WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};

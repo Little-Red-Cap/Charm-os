@@ -25,14 +25,12 @@ import charm.widgets.perf_overlay;
 import charm.widgets.progress;
 import charm.widgets.progress_flowing;
 import charm.widgets.progress_wheel;
-import charm.widgets.ring_indication;
 import charm.widgets.rich_text;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.stepper;
 import charm.widgets.table_view;
 import charm.widgets.text;
-import charm.widgets.text_box;
 import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
@@ -294,18 +292,6 @@ export namespace player {
         if (auto* perf = factory.get_perf_overlay(h.perf_overlay)) {
             anchor_rect(perf, {screen_width - (kPerfOverlayWidth + kUiPadding),
                                kUiPadding, kPerfOverlayWidth, kPerfOverlayHeight});
-        }
-
-        h.ring = factory.create_ring_indication();
-        if (auto* ring = factory.get_ring_indication(h.ring)) {
-            anchor_rect(ring, {screen_width - kUiPadding - 90, kUiPadding + 90, 90, 90});
-            ring->set_value(58);
-            ring->set_thickness(10);
-        }
-
-        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
-        if (auto* box = factory.get_text_box(h.text_box)) {
-            anchor_rect(box, {screen_width - kUiPadding - 200, kUiPadding + 190, 200, 70});
         }
 
 #if CHARM_PLAYER_DEBUG_UI
@@ -593,8 +579,6 @@ export namespace player {
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.list_hint);
-        factory.link(h.root, h.ring);
-        factory.link(h.root, h.text_box);
 #if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);

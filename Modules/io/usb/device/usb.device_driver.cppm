@@ -6,9 +6,11 @@ module;
 export module usb.device_driver;
 
 import usb.common;
+import usb.class_cdc;
 import usb.device;
 import usb.driver;
 import usb.ep0_driver;
+import usb.dsl;
 import device.desc;
 import device.types;
 import util.core;
@@ -107,7 +109,37 @@ export namespace usb::device {
             }
         }
 
+        driver::DcdDeviceCallbacks callbacks() noexcept {
+            driver::DcdDeviceCallbacks cb{};
+            cb.ctx = this;
+            cb.on_setup = &DeviceDriver::handle_setup_cb;
+            cb.on_out_data = &DeviceDriver::handle_out_cb;
+            cb.on_in_complete = &DeviceDriver::handle_in_complete_cb;
+            cb.on_reset = &DeviceDriver::handle_reset_cb;
+            return cb;
+        }
+
     private:
+        static void handle_setup_cb(void* ctx, const SetupPacket& setup) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_setup(setup);
+        }
+
+        static void handle_out_cb(void* ctx, std::span<const u8> data) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_out_data(data);
+        }
+
+        static void handle_in_complete_cb(void* ctx, std::size_t sent, bool sent_zlp) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_in_complete(sent, sent_zlp);
+        }
+
+        static void handle_reset_cb(void* ctx) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_reset();
+        }
+
         static Ep0Result ep0_send_in(void* ctx, std::span<const u8> data, bool zlp) noexcept {
             auto* self = static_cast<DeviceDriver*>(ctx);
             if (!self || !self->dcd_ops_.ep.send) return Ep0Result::stall;
@@ -180,4 +212,41 @@ export namespace usb::device {
         bool pending_config_valid_{false};
         bool pending_configured_{false};
     };
+
+    namespace examples {
+        inline bool attach_cdc_acm(Device& dev,
+                                   class_driver::CdcAcm& cdc,
+                                   DescriptorTable& table,
+                                   ConfigTree& config_tree) noexcept {
+            if (table.device.size() >= sizeof(DeviceDescriptor)) {
+                const auto* desc = reinterpret_cast<const DeviceDescriptor*>(table.device.data());
+                dev.set_max_packet_size0(desc->max_packet_size0);
+            }
+            dev.set_class(&cdc, &cdc.class_ops());
+            table.configuration = config_tree.view;
+            dev.set_descriptor_provider(make_descriptor_provider(table));
+            return !table.configuration.empty();
+        }
+
+        inline bool build_and_attach_cdc_acm(Device& dev,
+                                             class_driver::CdcAcm& cdc,
+                                             dsl::DeviceBuildContext& build_ctx,
+                                             const dsl::DeviceInfo& dev_info,
+                                             const dsl::ConfigInfo& cfg_info,
+                                             const class_driver::CdcConfig& cdc_cfg,
+                                             std::span<const u8> class_desc,
+                                             const std::span<const u8>* strings,
+                                             std::size_t string_count) noexcept {
+            if (!dsl::build_cdc_acm_device(build_ctx,
+                                           dev_info,
+                                           cfg_info,
+                                           cdc_cfg,
+                                           class_desc,
+                                           strings,
+                                           string_count)) {
+                return false;
+            }
+            return attach_cdc_acm(dev, cdc, *build_ctx.table, *build_ctx.tree);
+        }
+    }
 }

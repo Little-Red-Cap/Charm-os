@@ -5,6 +5,12 @@
 - P1：中期重点能力与控件
 - P2：后续扩展与增强
 
+```mermaid
+flowchart TB
+  P0[P0: 基础能力/控件] --> P1[P1: 结构化增强/性能]
+  P1 --> P2[P2: 高级能力/扩展]
+```
+
 ## 1. 基础渲染与资源
 - P0 渲染原语：线/矩形/圆/圆角矩形/图片/九宫格
 - P0 脏矩形链路：标记 -> 合并 -> 分区刷新
@@ -25,7 +31,8 @@
 - P0 鼠标/触摸：按下/抬起/移动/滚轮
 - P0 点击/拖拽/长按
 - P0 焦点与键盘导航
-- P1 手势（滑动/捏合，已提供事件入口）
+- P1 手势（滑动/捏合，路由层识别）
+- P1 输入路由中心化（InputRouter）
 - P2 多指/压感
 
 ## 4. 布局与容器
@@ -33,6 +40,7 @@
 - P0 容器：ScrollContainer、PopupLayer
 - P1 栅格/流式布局（已提供最小实现）
 - P1 约束布局（Constraint）
+- P1 LayoutSpec 可配置布局引擎（统一入口）
 - P2 虚拟列表布局
 
 ## 5. 已具备的基础控件（当前已有）
@@ -43,6 +51,7 @@
 - P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
+- P0 progress_wheel / progress_flowing（含无值模式） / waveform_view / battery_gauge / histogram_view / ring_indication（含刻度/阴影） / text_box / foldable_panel / cloudy_glass
 - P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
 - P0 message_box / tabview / scroll_container / popup_layer / scrollbar
 - P0 segmented_control / toggle_group

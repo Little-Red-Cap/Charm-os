@@ -7,6 +7,7 @@ export module charm.widgets.scroll_container;
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
+import charm.core.input_interaction;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.gfx.image;
@@ -21,6 +22,12 @@ class ScrollContainer : public ObjectBase {
 public:
     ScrollContainer() {
         set_focusable(true);
+        set_clip_policy(ClipPolicy::Custom);
+        pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
+                                      &ScrollContainer::on_pinch_update,
+                                      &ScrollContainer::on_pinch_end,
+                                      this);
+        add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
@@ -160,6 +167,9 @@ public:
                 swipe_active_ = false;
             }
             return true;
+        } else if (e.type == Event::Type::GesturePinch) {
+            if (!r.contains(e.x, e.y)) return false;
+            return dispatch_interactions(e);
         }
         return false;
     }
@@ -184,6 +194,9 @@ public:
         style_.bg_color = bg;
         style_.border_color = border;
         has_local_style_ = true;
+        if (has_skin_) {
+            update_clip_insets_for_skin();
+        }
     }
 
     void set_skin(const ImageView& img, int left, int top, int right, int bottom) noexcept {
@@ -193,6 +206,7 @@ public:
         slice_right_ = right;
         slice_bottom_ = bottom;
         has_skin_ = true;
+        update_clip_insets_for_skin();
     }
 
     bool should_draw_child(const ObjectBase& ch) const noexcept override {
@@ -202,7 +216,52 @@ public:
                  c.y + c.h <= r.y || c.y >= r.y + r.h);
     }
 
+    Rect children_clip_rect() const noexcept override {
+        const auto r = get_rect();
+        int left = clip_inset_left_;
+        int top = clip_inset_top_;
+        int right = clip_inset_right_;
+        int bottom = clip_inset_bottom_;
+        if (has_skin_) {
+            if (slice_left_ > left) left = slice_left_;
+            if (slice_top_ > top) top = slice_top_;
+            if (slice_right_ > right) right = slice_right_;
+            if (slice_bottom_ > bottom) bottom = slice_bottom_;
+        }
+        Rect inner{r.x + left, r.y + top, r.w - left - right, r.h - top - bottom};
+        if (inner.w < 0) inner.w = 0;
+        if (inner.h < 0) inner.h = 0;
+        return inner;
+    }
+
+    void set_clip_insets(int left, int top, int right, int bottom) noexcept {
+        clip_inset_left_ = (left >= 0) ? left : 0;
+        clip_inset_top_ = (top >= 0) ? top : 0;
+        clip_inset_right_ = (right >= 0) ? right : 0;
+        clip_inset_bottom_ = (bottom >= 0) ? bottom : 0;
+    }
+
 private:
+    static void on_pinch_begin(void* ctx) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->pinch_active_ = true;
+        self->velocity_ = 0;
+    }
+
+    static void on_pinch_update(void* ctx, int dy) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->add_scroll_y(-dy);
+        self->velocity_ = -dy;
+    }
+
+    static void on_pinch_end(void* ctx) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->pinch_active_ = false;
+    }
+
     int clamp_scroll(int y) const noexcept {
         if (y < 0) return 0;
         if (y > max_scroll_) return max_scroll_;
@@ -228,6 +287,8 @@ private:
     int drag_threshold_sq_{9};
     bool dragging_{false};
     bool swipe_active_{false};
+    bool pinch_active_{false};
+    PinchScrollStrategy pinch_strategy_{};
     int last_y_{0};
     int velocity_{0};
 
@@ -239,4 +300,17 @@ private:
     int slice_top_{0};
     int slice_right_{0};
     int slice_bottom_{0};
+    int clip_inset_left_{1};
+    int clip_inset_top_{1};
+    int clip_inset_right_{1};
+    int clip_inset_bottom_{1};
+
+    void update_clip_insets_for_skin() noexcept {
+        if (!has_skin_) return;
+        const int b = style_.border_width;
+        clip_inset_left_ = (slice_left_ > b) ? slice_left_ : b;
+        clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
+        clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
+        clip_inset_bottom_ = (slice_bottom_ > b) ? slice_bottom_ : b;
+    }
 };

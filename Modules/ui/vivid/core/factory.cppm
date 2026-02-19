@@ -51,6 +51,15 @@ import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
+import charm.widgets.progress_wheel;
+import charm.widgets.waveform_view;
+import charm.widgets.battery_gauge;
+import charm.widgets.histogram_view;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
+import charm.widgets.foldable_panel;
+import charm.widgets.progress_flowing;
+import charm.widgets.cloudy_glass;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -99,6 +108,15 @@ public:
     WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
     WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
     WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
+    WidgetHandle create_progress_wheel() noexcept { return make_handle(progress_wheels_.create(), WidgetKind::ProgressWheel); }
+    WidgetHandle create_waveform_view() noexcept { return make_handle(waveforms_.create(), WidgetKind::WaveformView); }
+    WidgetHandle create_battery_gauge() noexcept { return make_handle(batteries_.create(), WidgetKind::BatteryGauge); }
+    WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
+    WidgetHandle create_ring_indication() noexcept { return make_handle(rings_.create(), WidgetKind::RingIndication); }
+    WidgetHandle create_text_box(const char* text) noexcept { return make_handle(text_boxes_.create(text), WidgetKind::TextBox); }
+    WidgetHandle create_foldable_panel(const char* title) noexcept { return make_handle(fold_panels_.create(title), WidgetKind::FoldablePanel); }
+    WidgetHandle create_progress_flowing() noexcept { return make_handle(progress_flow_.create(), WidgetKind::ProgressFlowing); }
+    WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -143,6 +161,15 @@ public:
     Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
     RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
     CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
+    ProgressWheel* get_progress_wheel(const WidgetHandle& h) noexcept { return get_from(progress_wheels_, h, WidgetKind::ProgressWheel); }
+    WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::WaveformView); }
+    BatteryGauge* get_battery_gauge(const WidgetHandle& h) noexcept { return get_from(batteries_, h, WidgetKind::BatteryGauge); }
+    HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
+    RingIndication* get_ring_indication(const WidgetHandle& h) noexcept { return get_from(rings_, h, WidgetKind::RingIndication); }
+    TextBox* get_text_box(const WidgetHandle& h) noexcept { return get_from(text_boxes_, h, WidgetKind::TextBox); }
+    FoldablePanel* get_foldable_panel(const WidgetHandle& h) noexcept { return get_from(fold_panels_, h, WidgetKind::FoldablePanel); }
+    ProgressFlowing* get_progress_flowing(const WidgetHandle& h) noexcept { return get_from(progress_flow_, h, WidgetKind::ProgressFlowing); }
+    CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -187,6 +214,15 @@ public:
             case WidgetKind::Timeline: return get_timeline(h);
             case WidgetKind::RichText: return get_rich_text(h);
             case WidgetKind::CodeBlock: return get_code_block(h);
+            case WidgetKind::ProgressWheel: return get_progress_wheel(h);
+            case WidgetKind::WaveformView: return get_waveform_view(h);
+            case WidgetKind::BatteryGauge: return get_battery_gauge(h);
+            case WidgetKind::HistogramView: return get_histogram_view(h);
+            case WidgetKind::RingIndication: return get_ring_indication(h);
+            case WidgetKind::TextBox: return get_text_box(h);
+            case WidgetKind::FoldablePanel: return get_foldable_panel(h);
+            case WidgetKind::ProgressFlowing: return get_progress_flowing(h);
+            case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
             default: return nullptr;
         }
     }
@@ -379,6 +415,15 @@ public:
         case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
         case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
         case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
+        case WidgetKind::ProgressWheel: destroy_from(progress_wheels_, h, WidgetKind::ProgressWheel); break;
+        case WidgetKind::WaveformView: destroy_from(waveforms_, h, WidgetKind::WaveformView); break;
+        case WidgetKind::BatteryGauge: destroy_from(batteries_, h, WidgetKind::BatteryGauge); break;
+        case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
+        case WidgetKind::RingIndication: destroy_from(rings_, h, WidgetKind::RingIndication); break;
+        case WidgetKind::TextBox: destroy_from(text_boxes_, h, WidgetKind::TextBox); break;
+        case WidgetKind::FoldablePanel: destroy_from(fold_panels_, h, WidgetKind::FoldablePanel); break;
+        case WidgetKind::ProgressFlowing: destroy_from(progress_flow_, h, WidgetKind::ProgressFlowing); break;
+        case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -653,6 +698,15 @@ private:
     HandlePool<Timeline, 16> timelines_{};
     HandlePool<RichText, 16> rich_texts_{};
     HandlePool<CodeBlock, 16> code_blocks_{};
+    HandlePool<ProgressWheel, 16> progress_wheels_{};
+    HandlePool<WaveformView, 16> waveforms_{};
+    HandlePool<BatteryGauge, 16> batteries_{};
+    HandlePool<HistogramView, 16> histograms_{};
+    HandlePool<RingIndication, 16> rings_{};
+    HandlePool<TextBox, 32> text_boxes_{};
+    HandlePool<FoldablePanel, 16> fold_panels_{};
+    HandlePool<ProgressFlowing, 16> progress_flow_{};
+    HandlePool<CloudyGlass, 16> glass_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

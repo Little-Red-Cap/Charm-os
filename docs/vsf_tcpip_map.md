@@ -68,6 +68,19 @@
 
 备注：网络复杂度较高，建议以“参考 + 接口骨架”为主，不做全量迁移。
 
+## 6) TCPIP 形状补充（Charm 预留）
+
+建议最小拆分：
+- `io/net/common`：地址/端口/协议常量
+- `io/net/stack`：栈实例与 netif 生命周期
+- `io/net/socket`：socket API（同步/异步）
+- `io/net/driver`：MAC/PHY 驱动
+
+最小可落地清单：
+1. netbuf/packet 抽象（固定容量缓冲）
+2. netif 生命周期（up/down/input/output）
+3. socket 语义（open/bind/connect/send/recv）
+
 ---
 
 参考来源：

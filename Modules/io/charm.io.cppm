@@ -54,3 +54,4 @@ export import usb.class_cdc;
 export import usb.class_uac;
 export import usb.class_msc;
 export import usb.driver;
+export import usb.host.core;

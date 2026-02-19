@@ -46,6 +46,15 @@ enum class WidgetKind : std::uint8_t {
     ,Timeline
     ,RichText
     ,CodeBlock
+    ,ProgressWheel
+    ,WaveformView
+    ,BatteryGauge
+    ,HistogramView
+    ,RingIndication
+    ,TextBox
+    ,FoldablePanel
+    ,ProgressFlowing
+    ,CloudyGlass
 };
 
 export
@@ -102,6 +111,15 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Timeline: return "Timeline";
         case WidgetKind::RichText: return "RichText";
         case WidgetKind::CodeBlock: return "CodeBlock";
+        case WidgetKind::ProgressWheel: return "ProgressWheel";
+        case WidgetKind::WaveformView: return "WaveformView";
+        case WidgetKind::BatteryGauge: return "BatteryGauge";
+        case WidgetKind::HistogramView: return "HistogramView";
+        case WidgetKind::RingIndication: return "RingIndication";
+        case WidgetKind::TextBox: return "TextBox";
+        case WidgetKind::FoldablePanel: return "FoldablePanel";
+        case WidgetKind::ProgressFlowing: return "ProgressFlowing";
+        case WidgetKind::CloudyGlass: return "CloudyGlass";
     }
     return "Unknown";
 }

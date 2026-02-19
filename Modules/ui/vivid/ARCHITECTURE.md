@@ -9,23 +9,67 @@
 - widgets：控件与容器实现，尽量保持薄封装，不重复基础设施。
 - font：字体数据与生成脚本产物（4bpp 为默认）。
 
+```mermaid
+flowchart TB
+  subgraph App
+    Demo[Examples / App Loop]
+  end
+  subgraph Vivid
+    Core[core: layout / style / input / trace]
+    Gfx[gfx: canvas / render / color]
+    Widgets[widgets: controls / containers]
+    Font[font: 4bpp data / builder]
+  end
+  Demo --> Core
+  Widgets --> Core
+  Widgets --> Gfx
+  Widgets --> Font
+  Core --> Gfx
+```
+
 ## 2. 渲染与更新
 
 - 渲染入口由 UI 主循环驱动，控件在更新阶段提交绘制。
 - 使用脏矩形/脏区域机制减少刷新面积，保持与底层驱动解耦。
 - 绘制 API 统一走 gfx 层，避免控件直接绑定平台细节。
+- 子控件裁剪通过 ClipPolicy 统一管理（Rect/LayoutRect/Custom）。
+
+```mermaid
+flowchart LR
+  Loop[Main Loop] --> Render[Gui::render]
+  Render --> Layout[apply_layout]
+  Render --> Draw[Widget::draw]
+  Draw --> Canvas[DefaultCanvas]
+  Draw --> Dirty[Dirty Rects]
+  Render --> Clip[ClipPolicy]
+  Clip --> Draw
+```
 
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
+- 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint 预留）。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
+- FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
 
 ## 4. 输入与事件
 
-- 输入链路在 UI 层进行语义化处理，控件只关注高层意图。
+- 输入链路由 InputRouter 中心化处理（hit-test/capture/gesture），支持双指 pinch 识别，控件只关注语义事件。
 - 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
 - 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
+
+```mermaid
+sequenceDiagram
+  participant HAL as Input Source
+  participant Router as InputRouter
+  participant Widget as Widget
+  participant Trace as trace_core
+  HAL->>Router: Raw event / gesture
+  Router->>Widget: Semantic event
+  Widget-->>Router: Handled / capture
+  Router-->>Trace: Counter / trace
+```
 
 ## 5. 文本与字体
 
@@ -39,6 +83,7 @@
 - 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
 - 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
+- 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
 
 ## 7. 诊断与可观测性
 

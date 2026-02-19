@@ -44,6 +44,12 @@ Modules/
   thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
+  # Shell 目录拆分（模块名保持不变）
+  io/shell/
+    core/      # shell_core/shell_stream/shell_time
+    cli/       # shell_cmd/shell_repl/shell_service/shell_stdio
+    facade/    # shell_posix（后续可扩展 arduino_facade）
+
 Examples/     # 示例工程
 docs/         # 架构与协作文档
 Draft/        # 计划/草案（可变动）
@@ -66,6 +72,10 @@ Draft/        # 计划/草案（可变动）
 - VSF USB 映射：`docs/vsf_usb_map.md`
 - VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
 - USB 体系规划：`docs/usb_arch_plan.md`
+- 设备模型草案：`docs/device_model_overview.md`
+- trace_core 统一入口：`docs/trace_core_entry.md`
+- trace_core ID 清单：`docs/trace_core_ids.md`
+- VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -199,6 +209,11 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 类草案：CDC/UAC/MSC
 - 驱动接口：`usb.ep0_driver`
 - 示例：`Examples/usb/usb_cdc_minimal`
+
+### Device Model
+- 设备/驱动/注册表骨架（device.desc/driver/registry）
+- 示例：`Examples/system/device_registry_demo`
+- 示例：`Examples/system/device_bus_demo`
 
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme
@@ -354,6 +369,8 @@ graph LR
     ServiceTrace[service_trace] --> Trace[trace_core]
     DistBus[service_distbus] --> ServiceTrace
 ```
+
+说明：Shell 目录已拆分为 `core/cli/facade`，模块名保持不变（`shell_posix` 仍作为 facade 入口）。
 
 ## 9. 运行期数据流（简化）
 

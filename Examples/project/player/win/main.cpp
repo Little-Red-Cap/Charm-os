@@ -1,3 +1,7 @@
+#ifndef CHARM_PLAYER_DEBUG_UI
+#define CHARM_PLAYER_DEBUG_UI 0
+#endif
+
 import audio.player;
 import audio.result;
 import audio.source.fs;
@@ -7,7 +11,6 @@ import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
-import charm.core.anim;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
@@ -21,14 +24,25 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.perf_overlay;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
+#if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
-import charm.widgets.image;
 import charm.widgets.table_view;
+import charm.widgets.progress_wheel;
+import charm.widgets.waveform_view;
+import charm.widgets.battery_gauge;
+import charm.widgets.histogram_view;
+import charm.widgets.foldable_panel;
+import charm.widgets.progress_flowing;
+import charm.widgets.cloudy_glass;
+#endif
+import charm.widgets.image;
 import charm.widgets.text;
 import fs_core;
 import fs_errno;
@@ -51,6 +65,7 @@ import util.core;
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -161,6 +176,7 @@ namespace {
         return false;
     }
 
+#if CHARM_PLAYER_DEBUG_UI
     struct TreeDemoNode {
         const char* label{nullptr};
         int depth{0};
@@ -168,10 +184,17 @@ namespace {
         bool has_children{false};
     };
 
+    struct TreeCacheEntry {
+        int index{-1};
+        int depth{0};
+        std::string label{};
+    };
+
     struct TreeDemo {
         static constexpr int kMaxNodes = 8;
         std::array<TreeDemoNode, kMaxNodes> nodes{};
         std::array<int, kMaxNodes> visible{};
+        std::array<TreeCacheEntry, 32> cache{};
         int node_count{0};
         int visible_count{0};
     };
@@ -217,13 +240,22 @@ namespace {
     }
 
     void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
-        (void)ctx;
+        auto* demo = static_cast<TreeDemo*>(ctx);
         const auto& st = Theme::instance().get<TreeView>();
         Rect text = info.rect;
-        text.x += st.padding + info.node.depth * 12;
+        const char* label = info.node.label ? info.node.label : "";
+        int depth = info.node.depth;
+        if (demo && info.slot >= 0 && info.slot < static_cast<int>(demo->cache.size())) {
+            const auto& entry = demo->cache[info.slot];
+            if (entry.index == info.index && !entry.label.empty()) {
+                label = entry.label.c_str();
+                depth = entry.depth;
+            }
+        }
+        text.x += st.padding + depth * 12;
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
-        draw_text_box(cvs, text, info.node.label ? info.node.label : "",
+        draw_text_box(cvs, text, label,
                       st.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
@@ -236,6 +268,36 @@ namespace {
         if (!node.has_children) return;
         node.expanded = !node.expanded;
         tree_rebuild_visible(*demo);
+    }
+
+    void on_tree_pool_create(void* ctx, int slot) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        demo->cache[slot].index = -1;
+        demo->cache[slot].depth = 0;
+        demo->cache[slot].label.clear();
+    }
+
+    void on_tree_pool_bind(void* ctx, int slot, int index, const TreeView::NodeInfo& info) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        auto& entry = demo->cache[slot];
+        entry.index = index;
+        entry.depth = info.depth;
+        entry.label = info.label ? info.label : "";
+    }
+
+    void on_tree_pool_recycle(void* ctx, int slot, int index) noexcept {
+        (void)index;
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        auto& entry = demo->cache[slot];
+        entry.index = -1;
+        entry.depth = 0;
+        entry.label.clear();
     }
 
     struct TableDemoRow {
@@ -315,6 +377,7 @@ namespace {
         (void)row;
         (void)col;
     }
+#endif
 
     struct TrackListContext {
         std::string_view dir{};
@@ -450,6 +513,9 @@ namespace {
         WidgetHandle status{};
         WidgetHandle list{};
         WidgetHandle list_scroll{};
+        WidgetHandle ring{};
+        WidgetHandle text_box{};
+#if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
         WidgetHandle debug_grid{};
@@ -460,6 +526,14 @@ namespace {
         WidgetHandle timeline{};
         WidgetHandle rich_text{};
         WidgetHandle code_block{};
+        WidgetHandle progress_wheel{};
+        WidgetHandle waveform{};
+        WidgetHandle battery_gauge{};
+        WidgetHandle histogram{};
+        WidgetHandle fold_panel{};
+        WidgetHandle progress_flow{};
+        WidgetHandle cloudy_glass{};
+#endif
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -509,8 +583,10 @@ namespace {
         bool ignore_list_select{false};
         std::string mount_status{};
         bool syncing_scrollbar{false};
+#if CHARM_PLAYER_DEBUG_UI
         bool show_debug{false};
         MenuTree menu_tree{};
+#endif
         struct ListCacheEntry {
             int index{-1};
             int width{0};
@@ -603,6 +679,7 @@ namespace {
         }
 
         void set_debug_visible(bool on) {
+#if CHARM_PLAYER_DEBUG_UI
             show_debug = on;
             if (!factory) return;
             if (auto* list = factory->get_list_view(handles.list)) {
@@ -614,10 +691,15 @@ namespace {
             if (auto* grid = factory->get_container(handles.debug_grid)) {
                 grid->set_visible(on);
             }
+#else
+            (void)on;
+#endif
         }
 
         void toggle_debug_view() {
+#if CHARM_PLAYER_DEBUG_UI
             set_debug_visible(!show_debug);
+#endif
         }
 
         void update_duration_from_player() {
@@ -964,18 +1046,60 @@ namespace {
         app->select_track_index(index);
     }
 
+    void on_list_pool_create(void* ctx, int slot) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = -1;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
+    void on_list_pool_bind(void* ctx, int slot, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        if (index < 0 || index >= static_cast<int>(app->track_labels.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = index;
+        entry.width = 0;
+        entry.text = app->track_labels[index];
+    }
+
+    void on_list_pool_recycle(void* ctx, int slot, int index) noexcept {
+        (void)index;
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = -1;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
     void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
-        if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
         const Style& st = Theme::instance().get<ListView>();
         const auto font = resolve_font(st);
         Rect text = info.rect;
         text.x += st.padding;
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
+        const char* label = nullptr;
+        if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
+            const auto& entry = app->list_cache[info.slot];
+            if (entry.index == info.index && !entry.text.empty()) {
+                label = entry.text.c_str();
+            }
+        }
+        if (!label) {
+            if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
+            label = app->track_labels[info.index].c_str();
+        }
         const rgba color = st.font_color;
-        draw_text_box(cvs, text, app->track_labels[info.index].c_str(), color, font,
+        draw_text_box(cvs, text, label, color, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
@@ -1054,6 +1178,7 @@ namespace {
             gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
             return true;
         case SDL_EVENT_KEY_DOWN:
+#if CHARM_PLAYER_DEBUG_UI
             if (evt.key.key == SDLK_T) {
                 ctx.toggle_debug_view();
                 return true;
@@ -1086,6 +1211,7 @@ namespace {
                     }
                 }
             }
+#endif
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();
@@ -1169,6 +1295,19 @@ namespace {
             anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
         }
 
+        h.ring = factory.create_ring_indication();
+        if (auto* ring = factory.get_ring_indication(h.ring)) {
+            anchor_rect(ring, {screen_width - kUiPadding - 90, kUiPadding + 90, 90, 90});
+            ring->set_value(58);
+            ring->set_thickness(10);
+        }
+
+        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
+        if (auto* box = factory.get_text_box(h.text_box)) {
+            anchor_rect(box, {screen_width - kUiPadding - 200, kUiPadding + 190, 200, 70});
+        }
+
+#if CHARM_PLAYER_DEBUG_UI
         h.debug_grid = factory.create_container();
         if (auto* grid = factory.get_container(h.debug_grid)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
@@ -1188,7 +1327,8 @@ namespace {
             anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
-            list->set_on_scroll(&on_list_scrolled, &ctx);
+            list->set_item_pool(&on_list_pool_create, &on_list_pool_bind, &on_list_pool_recycle, &ctx);
+            list->set_prefetch_rows(2);
             list->set_row_height(32);
             list->set_wheel_step(32);
         }
@@ -1207,6 +1347,8 @@ namespace {
             tree_rebuild_visible(g_tree_demo);
             tree->set_data_source(&tree_row_count, &tree_node_info, &on_tree_draw, &g_tree_demo);
             tree->set_on_toggle(&on_tree_toggle);
+            tree->set_item_pool(&on_tree_pool_create, &on_tree_pool_bind, &on_tree_pool_recycle, &g_tree_demo);
+            tree->set_prefetch_rows(2);
             tree->set_row_height(28);
         }
 
@@ -1298,6 +1440,64 @@ namespace {
             block->set_size(200, 80);
         }
 
+        h.progress_wheel = factory.create_progress_wheel();
+        if (auto* wheel = factory.get_progress_wheel(h.progress_wheel)) {
+            wheel->set_value(72);
+            wheel->set_thickness(8);
+            wheel->set_size(90, 90);
+        }
+
+        h.waveform = factory.create_waveform_view();
+        if (auto* wave = factory.get_waveform_view(h.waveform)) {
+            static int samples[] = {3, 5, 8, 6, 2, -2, -5, -3, 1, 4, 7, 4, 1, -3, -6, -4};
+            wave->set_samples(samples, static_cast<int>(sizeof(samples) / sizeof(samples[0])));
+            wave->set_size(200, 80);
+        }
+
+        h.battery_gauge = factory.create_battery_gauge();
+        if (auto* battery = factory.get_battery_gauge(h.battery_gauge)) {
+            battery->set_value(65);
+            battery->set_size(200, 48);
+        }
+
+        h.histogram = factory.create_histogram_view();
+        if (auto* hist = factory.get_histogram_view(h.histogram)) {
+            static int bins[] = {2, 5, 8, 3, 6, 9, 4, 7, 5, 2, 6, 8};
+            hist->set_values(bins, static_cast<int>(sizeof(bins) / sizeof(bins[0])));
+            hist->set_size(200, 80);
+        }
+
+        h.fold_panel = factory.create_foldable_panel("Foldable Panel");
+        if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
+            panel->set_body("Tap header to expand or collapse.");
+            panel->set_expanded(true);
+            panel->set_size(200, 120);
+        }
+        h.progress_flow = factory.create_progress_flowing();
+        if (auto* flow = factory.get_progress_flowing(h.progress_flow)) {
+            flow->set_range(0, 100);
+            flow->set_indeterminate(true);
+            flow->set_flow_span(12);
+            flow->set_flow_speed(2);
+            flow->set_size(200, 16);
+        }
+        h.cloudy_glass = factory.create_cloudy_glass();
+        if (auto* glass = factory.get_cloudy_glass(h.cloudy_glass)) {
+            glass->set_size(200, 70);
+            glass->set_opacity(140);
+        }
+        auto fold_btn_primary = factory.create_button("Apply");
+        if (auto* btn = factory.get_button(fold_btn_primary)) {
+            btn->set_size(90, 32);
+        }
+        auto fold_btn_secondary = factory.create_button("Reset");
+        if (auto* btn = factory.get_button(fold_btn_secondary)) {
+            btn->set_size(90, 32);
+        }
+        factory.link(h.fold_panel, fold_btn_primary);
+        factory.link(h.fold_panel, fold_btn_secondary);
+#endif
+
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
@@ -1350,6 +1550,9 @@ namespace {
         factory.link(h.root, h.status);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
+        factory.link(h.root, h.ring);
+        factory.link(h.root, h.text_box);
+#if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
         factory.link(h.debug_grid, h.table);
@@ -1360,6 +1563,14 @@ namespace {
         factory.link(h.debug_side, h.timeline);
         factory.link(h.debug_side, h.rich_text);
         factory.link(h.debug_side, h.code_block);
+        factory.link(h.debug_side, h.progress_wheel);
+        factory.link(h.debug_side, h.waveform);
+        factory.link(h.debug_side, h.battery_gauge);
+        factory.link(h.debug_side, h.histogram);
+        factory.link(h.debug_side, h.fold_panel);
+        factory.link(h.debug_side, h.progress_flow);
+        factory.link(h.debug_side, h.cloudy_glass);
+#endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_play);
@@ -1438,6 +1649,17 @@ int main(int argc, char** argv) {
     preset.perf_overlay.border_color = {70, 90, 120, 255};
     preset.perf_overlay.font_color = {220, 228, 242, 255};
     preset.perf_overlay.padding = 6;
+    preset.has_foldable_panel = true;
+    preset.foldable_panel = theme.get<FoldablePanel>();
+    preset.foldable_panel.header_padding = 10;
+    preset.foldable_panel.content_padding = 10;
+    preset.has_cloudy_glass = true;
+    preset.cloudy_glass = theme.get<CloudyGlass>();
+    preset.cloudy_glass.glass_highlight_pos = 12;
+    preset.cloudy_glass.glass_highlight_alpha = 90;
+    preset.cloudy_glass.glass_shadow_alpha = 50;
+    preset.cloudy_glass.glass_opacity_min = 60;
+    preset.cloudy_glass.glass_opacity_max = 200;
     apply_theme_preset(preset);
 
     auto& sheet = StyleSheet::instance();
@@ -1454,6 +1676,7 @@ int main(int argc, char** argv) {
     btn_hover.bg_color = {44, 60, 82, 255};
     sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
 
+#if CHARM_PLAYER_DEBUG_UI
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
@@ -1467,6 +1690,7 @@ int main(int argc, char** argv) {
     StylePatch tree_patch = table_patch;
     tree_patch.bg_color = {20, 22, 30, 255};
     theme.patch<TreeView>(tree_patch);
+#endif
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
@@ -1540,7 +1764,6 @@ int main(int argc, char** argv) {
     gui.set_dirty_tracking(true);
     gui.set_layer_cache(true);
 
-    static anim::Timeline timeline;
     const auto start_time = std::chrono::steady_clock::now();
 
     bool running = true;
@@ -1594,11 +1817,9 @@ int main(int argc, char** argv) {
         const auto now = std::chrono::steady_clock::now();
         const auto ms = static_cast<std::uint32_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
-        timeline.tick(ms);
-        if (!timeline.active()) {
-            timeline.clear();
-            timeline.add(&apply_cover_pulse, &ctx, 0.0f, 1.0f, ms, 2000, anim::Ease::InOutQuad);
-        }
+        const float phase = static_cast<float>(ms % 2000) / 2000.0f;
+        const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
+        apply_cover_pulse(&ctx, v);
 
         canvas.clear({18, 20, 28, 255});
         gui.render();

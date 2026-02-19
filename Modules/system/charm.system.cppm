@@ -46,3 +46,10 @@ export import boot_flow;
 export import boot_policy;
 export import boot_storage;
 export import boot_uart;
+
+export import device.desc;
+export import device.bus;
+export import device.driver;
+export import device.manager;
+export import device.registry;
+export import device.types;

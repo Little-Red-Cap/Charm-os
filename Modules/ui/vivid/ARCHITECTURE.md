@@ -9,12 +9,41 @@
 - widgets：控件与容器实现，尽量保持薄封装，不重复基础设施。
 - font：字体数据与生成脚本产物（4bpp 为默认）。
 
+```mermaid
+flowchart TB
+  subgraph App
+    Demo[Examples / App Loop]
+  end
+  subgraph Vivid
+    Core[core: layout / style / input / trace]
+    Gfx[gfx: canvas / render / color]
+    Widgets[widgets: controls / containers]
+    Font[font: 4bpp data / builder]
+  end
+  Demo --> Core
+  Widgets --> Core
+  Widgets --> Gfx
+  Widgets --> Font
+  Core --> Gfx
+```
+
 ## 2. 渲染与更新
 
 - 渲染入口由 UI 主循环驱动，控件在更新阶段提交绘制。
 - 使用脏矩形/脏区域机制减少刷新面积，保持与底层驱动解耦。
 - 绘制 API 统一走 gfx 层，避免控件直接绑定平台细节。
 - 子控件裁剪通过 ClipPolicy 统一管理（Rect/LayoutRect/Custom）。
+
+```mermaid
+flowchart LR
+  Loop[Main Loop] --> Render[Gui::render]
+  Render --> Layout[apply_layout]
+  Render --> Draw[Widget::draw]
+  Draw --> Canvas[DefaultCanvas]
+  Draw --> Dirty[Dirty Rects]
+  Render --> Clip[ClipPolicy]
+  Clip --> Draw
+```
 
 ## 3. 布局与容器
 
@@ -29,6 +58,18 @@
 - 输入链路由 InputRouter 中心化处理（hit-test/capture/gesture），支持双指 pinch 识别，控件只关注语义事件。
 - 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
 - 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
+
+```mermaid
+sequenceDiagram
+  participant HAL as Input Source
+  participant Router as InputRouter
+  participant Widget as Widget
+  participant Trace as trace_core
+  HAL->>Router: Raw event / gesture
+  Router->>Widget: Semantic event
+  Widget-->>Router: Handled / capture
+  Router-->>Trace: Counter / trace
+```
 
 ## 5. 文本与字体
 

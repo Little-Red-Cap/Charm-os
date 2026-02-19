@@ -426,7 +426,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, 0);
+    SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
         SDL_Quit();
         return 1;
@@ -586,6 +586,8 @@ int main(int argc, char** argv) {
 
     const auto start_time = std::chrono::steady_clock::now();
 
+    int win_w = screen_width;
+    int win_h = screen_height;
     bool running = true;
     while (running) {
         SDL_Event evt{};
@@ -593,6 +595,10 @@ int main(int argc, char** argv) {
             if (evt.type == SDL_EVENT_QUIT) {
                 running = false;
                 break;
+            }
+            if (evt.type == SDL_EVENT_WINDOW_RESIZED) {
+                win_w = static_cast<int>(evt.window.data1);
+                win_h = static_cast<int>(evt.window.data2);
             }
             dispatch_sdl_event(*gui, g_ctx, evt);
         }
@@ -664,7 +670,13 @@ int main(int argc, char** argv) {
 
         SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
         SDL_RenderClear(renderer);
-        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+        SDL_FRect dst{
+            0.0f,
+            0.0f,
+            static_cast<float>(win_w),
+            static_cast<float>(win_h)
+        };
+        SDL_RenderTexture(renderer, texture, nullptr, &dst);
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);

@@ -5,6 +5,7 @@ module;
 export module media.stream.filter;
 
 import util.core;
+import util.expected;
 import util.span;
 import media.stream.types;
 

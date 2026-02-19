@@ -20,9 +20,12 @@ using namespace ui::render;
 export
 class ScrollContainer : public ObjectBase {
 public:
+    static constexpr int kLayoutId = 1;
+
     ScrollContainer() {
         set_focusable(true);
         set_clip_policy(ClipPolicy::Custom);
+        set_custom_layout(kLayoutId);
         pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,

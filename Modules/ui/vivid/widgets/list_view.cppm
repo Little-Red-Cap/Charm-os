@@ -15,6 +15,8 @@ using namespace ui::render;
 export
 class ListView : public ObjectBase {
 public:
+    static constexpr int kLayoutId = 2;
+
     struct DrawInfo {
         Rect rect{};
         int index{0};
@@ -35,6 +37,7 @@ public:
     ListView() {
         set_size(240, 180);
         set_focusable(true);
+        set_custom_layout(kLayoutId);
     }
 
     void set_item_count(int count) noexcept {

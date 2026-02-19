@@ -383,6 +383,13 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
             const int kern = (prev_gid && gid) ? get_glyph_kern(font, prev_gid, gid) : 0;
             if (wrap != TextWrap::None && line_width + kern + adv > rect.w) {
                 overflowed = true;
+                if (wrap == TextWrap::Char || line_len == 0) {
+                    line_width += kern + adv;
+                    line_len += static_cast<int>(q - before);
+                    prev_gid = gid;
+                } else {
+                    q = before;
+                }
                 break;
             }
             line_width += kern + adv;
@@ -406,7 +413,15 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
         lines[line_count++] = { line_start, line_len, line_width };
         if (*p == '\n') ++p;
         if (wrap == TextWrap::None) break;
-        if (line_len == 0 && *p) ++p;
+        if (line_len == 0 && p < end) {
+            const char* next = p;
+            std::uint32_t cp = 0;
+            if (next_codepoint(next, end, cp)) {
+                p = next;
+            } else {
+                ++p;
+            }
+        }
     }
 
     int max_lines = rect.h / line_height;

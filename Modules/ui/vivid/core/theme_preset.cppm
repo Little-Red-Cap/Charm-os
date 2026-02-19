@@ -6,6 +6,7 @@ export import charm.widgets.button;
 export import charm.widgets.label;
 export import charm.widgets.list_view;
 export import charm.widgets.progress;
+export import charm.widgets.progress_bar_simple;
 export import charm.widgets.scrollbar;
 export import charm.widgets.segmented_control;
 export import charm.widgets.text_input;
@@ -16,6 +17,8 @@ export import charm.widgets.tree_view;
 export import charm.widgets.perf_overlay;
 export import charm.widgets.foldable_panel;
 export import charm.widgets.cloudy_glass;
+export import charm.widgets.dynamic_nebula;
+export import charm.widgets.crt_screen;
 
 export
 struct ThemePreset {
@@ -27,6 +30,8 @@ struct ThemePreset {
     Style list_view{};
     bool has_progress{false};
     Style progress{};
+    bool has_progress_bar_simple{false};
+    Style progress_bar_simple{};
     bool has_scroll_bar{false};
     Style scroll_bar{};
     bool has_segmented_control{false};
@@ -47,6 +52,10 @@ struct ThemePreset {
     Style foldable_panel{};
     bool has_cloudy_glass{false};
     Style cloudy_glass{};
+    bool has_dynamic_nebula{false};
+    Style dynamic_nebula{};
+    bool has_crt_screen{false};
+    Style crt_screen{};
 };
 
 export
@@ -56,6 +65,7 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_button) theme.set<Button>(preset.button);
     if (preset.has_list_view) theme.set<ListView>(preset.list_view);
     if (preset.has_progress) theme.set<Progress>(preset.progress);
+    if (preset.has_progress_bar_simple) theme.set<ProgressBarSimple>(preset.progress_bar_simple);
     if (preset.has_scroll_bar) theme.set<ScrollBar>(preset.scroll_bar);
     if (preset.has_segmented_control) theme.set<SegmentedControl>(preset.segmented_control);
     if (preset.has_text_input) theme.set<TextInput>(preset.text_input);
@@ -66,4 +76,6 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_perf_overlay) theme.set<PerfOverlay>(preset.perf_overlay);
     if (preset.has_foldable_panel) theme.set<FoldablePanel>(preset.foldable_panel);
     if (preset.has_cloudy_glass) theme.set<CloudyGlass>(preset.cloudy_glass);
+    if (preset.has_dynamic_nebula) theme.set<DynamicNebula>(preset.dynamic_nebula);
+    if (preset.has_crt_screen) theme.set<CrtScreen>(preset.crt_screen);
 }

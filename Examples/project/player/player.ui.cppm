@@ -12,11 +12,21 @@ import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
+import charm.widgets.dynamic_nebula;
+import charm.widgets.crt_screen;
+import charm.widgets.spinning_wheel;
+import charm.widgets.image_box;
+import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.progress_bar_drill;
+import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
+import charm.widgets.switcher;
+import charm.widgets.slider;
+import charm.widgets.dropdown;
 
 export namespace player::ui {
     inline constexpr int kUiPadding = 24;
@@ -30,8 +40,23 @@ export namespace player::ui {
     inline constexpr int kHeaderModeOffset = 160;
     inline constexpr int kModeWidth = 240;
     inline constexpr int kModeHeight = 28;
+    inline constexpr int kModeHintHeight = 18;
+    inline constexpr int kModeHintGap = 6;
     inline constexpr int kSpectrumHeight = 80;
     inline constexpr int kSpectrumGap = 12;
+    inline constexpr int kOptionsHeight = 28;
+    inline constexpr int kOptionsGap = 10;
+    inline constexpr int kOptionLabelWidth = 86;
+    inline constexpr int kEqBands = 5;
+    inline constexpr int kEqPanelHeight = 148;
+    inline constexpr int kEqTitleHeight = 18;
+    inline constexpr int kEqRowHeight = 22;
+    inline constexpr int kEqRowGap = 6;
+    inline constexpr int kEqLabelWidth = 40;
+    inline constexpr int kEqValueWidth = 44;
+    inline constexpr int kEqRowGapX = 10;
+    inline constexpr int kEqPresetLabelWidth = 56;
+    inline constexpr int kEqPresetWidth = 140;
     inline constexpr int kListTitleGap = 26;
     inline constexpr int kListBottomReserve = 170;
     inline constexpr int kListScrollWidth = 10;
@@ -53,6 +78,9 @@ export namespace player::ui {
     inline constexpr rgba kUiError = {220, 120, 120, 255};
     inline constexpr rgba kUiOk = {120, 200, 170, 255};
     inline constexpr rgba kUiPaused = {230, 185, 90, 255};
+    inline constexpr rgba kUiOption = {170, 178, 205, 255};
+    inline constexpr rgba kUiSwitchOn = {90, 160, 210, 255};
+    inline constexpr rgba kUiEqTitle = {200, 206, 228, 255};
 
     inline constexpr rgba kUiButtonBg = {26, 30, 44, 255};
     inline constexpr rgba kUiButtonBorder = {70, 90, 120, 255};
@@ -90,6 +118,10 @@ export namespace player::ui {
         preset.progress = theme.get<Progress>();
         preset.progress.bg_color = kUiProgressBg;
         preset.progress.border_color = kUiProgressBorder;
+        preset.has_progress_bar_simple = true;
+        preset.progress_bar_simple = theme.get<ProgressBarSimple>();
+        preset.progress_bar_simple.bg_color = kUiProgressBg;
+        preset.progress_bar_simple.border_color = kUiProgressBorder;
         preset.has_scroll_bar = true;
         preset.scroll_bar = theme.get<ScrollBar>();
         preset.scroll_bar.bg_color = kUiScrollBg;
@@ -146,5 +178,57 @@ export namespace player::ui {
 
         StylePatch hist_patch = chart_patch;
         theme.patch<HistogramView>(hist_patch);
+
+        StylePatch switch_patch{};
+        switch_patch.has_bg_color = true;
+        switch_patch.bg_color = kUiButtonBg;
+        switch_patch.has_border_color = true;
+        switch_patch.border_color = kUiButtonBorder;
+        switch_patch.has_bg_pressed = true;
+        switch_patch.bg_pressed = kUiSwitchOn;
+        switch_patch.has_border_pressed = true;
+        switch_patch.border_pressed = kUiSwitchOn;
+        theme.patch<Switch>(switch_patch);
+
+        StylePatch slider_patch{};
+        slider_patch.has_bg_color = true;
+        slider_patch.bg_color = kUiButtonBg;
+        slider_patch.has_border_color = true;
+        slider_patch.border_color = kUiButtonBorder;
+        theme.patch<Slider>(slider_patch);
+
+        StylePatch dropdown_patch{};
+        dropdown_patch.has_bg_color = true;
+        dropdown_patch.bg_color = kUiButtonBg;
+        dropdown_patch.has_border_color = true;
+        dropdown_patch.border_color = kUiButtonBorder;
+        dropdown_patch.has_font_color = true;
+        dropdown_patch.font_color = kUiListFont;
+        theme.patch<Dropdown>(dropdown_patch);
+
+        StylePatch image_box_patch = chart_patch;
+        theme.patch<ImageBox>(image_box_patch);
+
+        StylePatch meter_patch = chart_patch;
+        meter_patch.has_border_focus = true;
+        meter_patch.border_focus = kUiOk;
+        theme.patch<MeterPointer>(meter_patch);
+
+        StylePatch drill_patch = chart_patch;
+        drill_patch.has_bg_pressed = true;
+        drill_patch.bg_pressed = kUiSwitchOn;
+        theme.patch<ProgressBarDrill>(drill_patch);
+
+        StylePatch wheel_patch{};
+        wheel_patch.has_font_color = true;
+        wheel_patch.font_color = kUiListFont;
+        theme.patch<SpinningWheel>(wheel_patch);
+        StylePatch nebula_patch{};
+        nebula_patch.has_font_color = true;
+        nebula_patch.font_color = kUiListFont;
+        theme.patch<DynamicNebula>(nebula_patch);
+
+        StylePatch crt_patch = chart_patch;
+        theme.patch<CrtScreen>(crt_patch);
     }
 }

@@ -23,6 +23,9 @@ enum class WidgetKind : std::uint8_t {
     TextTrackingList,
     TextList,
     ModalDialog,
+    ProgressBarSimple,
+    DynamicNebula,
+    CrtScreen,
     ScrollBar,
     SegmentedControl,
     TextArea,
@@ -62,6 +65,14 @@ enum class WidgetKind : std::uint8_t {
     ,NumberList
     ,ProgressBarRound
     ,SpinZoomWidget
+    ,SpinningWheel
+    ,ImageBox
+    ,MeterPointer
+    ,ProgressBarDrill
+    ,BusyWheel
+    ,ConsoleBox
+    ,BatteryGasGauge
+    ,Histogram
 };
 
 export
@@ -95,6 +106,9 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::TextTrackingList: return "TextTrackingList";
         case WidgetKind::TextList: return "TextList";
         case WidgetKind::ModalDialog: return "ModalDialog";
+        case WidgetKind::ProgressBarSimple: return "ProgressBarSimple";
+        case WidgetKind::DynamicNebula: return "DynamicNebula";
+        case WidgetKind::CrtScreen: return "CrtScreen";
         case WidgetKind::ScrollBar: return "ScrollBar";
         case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";
@@ -134,6 +148,14 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::NumberList: return "NumberList";
         case WidgetKind::ProgressBarRound: return "ProgressBarRound";
         case WidgetKind::SpinZoomWidget: return "SpinZoomWidget";
+        case WidgetKind::SpinningWheel: return "SpinningWheel";
+        case WidgetKind::ImageBox: return "ImageBox";
+        case WidgetKind::MeterPointer: return "MeterPointer";
+        case WidgetKind::ProgressBarDrill: return "ProgressBarDrill";
+        case WidgetKind::BusyWheel: return "BusyWheel";
+        case WidgetKind::ConsoleBox: return "ConsoleBox";
+        case WidgetKind::BatteryGasGauge: return "BatteryGasGauge";
+        case WidgetKind::Histogram: return "Histogram";
     }
     return "Unknown";
 }

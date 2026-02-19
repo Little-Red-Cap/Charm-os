@@ -44,6 +44,7 @@ export namespace usb::device {
         bool (*clear_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
         bool (*set_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
         bool (*vendor_setup)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
+        bool (*vendor_out)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
         void (*reset)(void* ctx) noexcept { nullptr };
     };
 
@@ -181,6 +182,7 @@ export namespace usb::device {
 
         bool handle_setup(const SetupPacket& setup, ControlResponse& resp) noexcept {
             ep0_.on_setup(setup);
+            setup_cache_ = setup;
             const auto req_type = request_type(setup.bm_request_type);
             if (req_type == RequestType::standard) {
                 if (!handle_standard(setup, resp)) return false;
@@ -215,7 +217,16 @@ export namespace usb::device {
         bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
             const auto expected = ep0_.out_expected();
             const auto len = (data.size() < expected) ? data.size() : expected;
-            if (!ep0_.handle_out_data(data.subspan(0, len), resp)) return false;
+            if (!ep0_.handle_out_data(data.subspan(0, len), resp)) {
+                if (class_ops_ && class_ops_->vendor_out) {
+                    ControlRequest req{};
+                    req.setup = setup_cache_;
+                    req.data = data.subspan(0, len);
+                    if (!class_ops_->vendor_out(class_ctx_, req, resp)) return false;
+                } else {
+                    return false;
+                }
+            }
             ep0_.finish_data_out();
             return true;
         }
@@ -317,6 +328,7 @@ export namespace usb::device {
         DescriptorProvider provider_{};
         void* class_ctx_{nullptr};
         const ClassOps* class_ops_{nullptr};
+        SetupPacket setup_cache_{};
         u8 configuration_{0};
         u8 interface_alt_{0};
         u8 status_buf_[2]{0, 0};

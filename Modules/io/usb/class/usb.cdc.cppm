@@ -115,7 +115,12 @@ export namespace usb::class_driver {
         u16 control_line_state() const noexcept { return control_line_state_; }
         const CdcLineCoding& line_coding() const noexcept { return coding_; }
         CdcLineCoding get_line_coding() const noexcept { return coding_; }
-        void set_line_coding(const CdcLineCoding& coding) noexcept { coding_ = coding; }
+        void set_line_coding(const CdcLineCoding& coding, bool notify = false) noexcept {
+            coding_ = coding;
+            if (notify && ops_.on_line_coding) {
+                ops_.on_line_coding(ctx_, coding_);
+            }
+        }
         void set_control_line_state(u16 value) noexcept {
             control_line_state_ = value;
             if (ops_.on_control_line) {

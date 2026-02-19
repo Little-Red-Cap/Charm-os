@@ -293,6 +293,21 @@ export namespace usb {
         return out;
     }
 
+    template <std::size_t N>
+    consteval auto make_utf16_string_descriptor(const char16_t (&text)[N]) {
+        constexpr std::size_t len = (N > 0) ? (N - 1) : 0;
+        static_assert(len <= 127, "USB string descriptor too long");
+        std::array<u8, 2 + len * 2> out{};
+        out[0] = static_cast<u8>(2 + len * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < len; ++i) {
+            const auto ch = static_cast<u16>(text[i]);
+            out[2 + i * 2] = static_cast<u8>(ch & 0xFF);
+            out[2 + i * 2 + 1] = static_cast<u8>((ch >> 8) & 0xFF);
+        }
+        return out;
+    }
+
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)
             | static_cast<u8>(type)

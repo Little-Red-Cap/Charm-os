@@ -1007,6 +1007,15 @@ namespace {
                 table_rebuild_order(g_table_demo);
                 return true;
             }
+            if (evt.key.key == SDLK_G) {
+                const auto e = Event::gesture(Event::Type::GestureSwipe,
+                                              0, 0,
+                                              0, 120,
+                                              Event::GesturePhase::Update,
+                                              1.0f);
+                gui.dispatch_event(e);
+                return true;
+            }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();

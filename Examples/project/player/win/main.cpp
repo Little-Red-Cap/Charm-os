@@ -392,7 +392,16 @@ namespace {
         }
 
         void start_playback() {
-            if (!player || !track_path || !track_ready) return;
+            if (!player || !track_path) {
+                set_status("No track");
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
+            if (!track_ready) {
+                set_status("Track not ready");
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             (void)player->stop();
             auto res = player->play(track_path);
             if (!res) {
@@ -404,8 +413,8 @@ namespace {
             playing = true;
             paused = false;
             start = std::chrono::steady_clock::now();
-            set_status("Playing");
-            set_status_color({120, 200, 170, 255});
+            set_status("Opening");
+            set_status_color({140, 150, 175, 255});
             set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
@@ -931,6 +940,19 @@ int main(int argc, char** argv) {
             ctx.set_status("Stopped");
             ctx.set_status_color({140, 150, 175, 255});
             ctx.set_pause_button_text("Pause");
+        }
+        if (!ctx.paused) {
+            const auto st = player.state();
+            if (st == audio::PlayerState::opening) {
+                ctx.set_status("Opening");
+                ctx.set_status_color({140, 150, 175, 255});
+            } else if (st == audio::PlayerState::buffering) {
+                ctx.set_status("Buffering");
+                ctx.set_status_color({140, 150, 175, 255});
+            } else if (st == audio::PlayerState::playing) {
+                ctx.set_status("Playing");
+                ctx.set_status_color({120, 200, 170, 255});
+            }
         }
         if (player.state() == audio::PlayerState::error) {
             ctx.playing = false;

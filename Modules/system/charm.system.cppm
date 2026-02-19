@@ -49,6 +49,7 @@ export import boot_uart;
 
 export import power.core;
 export import power.policy;
+export import power.port;
 export import power.trace;
 export import power.types;
 

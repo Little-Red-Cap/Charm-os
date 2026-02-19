@@ -2,6 +2,7 @@
 #include <cstdio>
 
 import charm.runtime;
+import platform.win.power;
 
 namespace {
     struct DemoPolicy final : power::Policy {
@@ -26,7 +27,12 @@ namespace {
 int main() {
     power::Manager mgr{};
     DemoPolicy policy{};
+    power::PortOps port_ops{
+        .enter = platform::win::NoopPower::enter,
+        .exit = platform::win::NoopPower::exit
+    };
     mgr.set_policy(&policy);
+    mgr.set_port(&port_ops);
 
     power::trace::set_sink(power::trace::Sink{
         .ctx = nullptr,

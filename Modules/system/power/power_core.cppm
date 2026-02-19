@@ -3,12 +3,14 @@ export module power.core;
 import util.core;
 import power.types;
 import power.policy;
+import power.port;
 import power.trace;
 
 export namespace power {
     class Manager {
     public:
         void set_policy(Policy* policy) noexcept { policy_ = policy; }
+        void set_port(PortOps* port) noexcept { port_ = port; }
 
         void request(State state) noexcept {
             requested_ = state;
@@ -62,6 +64,9 @@ export namespace power {
         }
 
         void enter_state(State state) noexcept {
+            if (port_ && port_->enter) {
+                (void)port_->enter(state);
+            }
             current_ = state;
             trace::record(trace::EventId::enter_state, static_cast<util::u32>(state));
         }
@@ -69,12 +74,16 @@ export namespace power {
         void exit_state(State state) noexcept {
             trace::record(trace::EventId::exit_state, static_cast<util::u32>(state));
             current_ = State::active;
+            if (port_ && port_->exit) {
+                port_->exit(state);
+            }
         }
 
         [[nodiscard]] State current() const noexcept { return current_; }
 
     private:
         Policy* policy_{nullptr};
+        PortOps* port_{nullptr};
         State requested_{State::active};
         State current_{State::active};
         util::u32 wake_sources_mask_{0};

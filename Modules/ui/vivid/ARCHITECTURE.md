@@ -17,7 +17,7 @@
 
 ## 3. 布局与容器
 
-- 基础布局能力为 Flex/Anchor 等，容器负责子节点的布局与裁剪。
+- 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 
@@ -35,6 +35,7 @@
 ## 6. 主题与样式
 
 - 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
+- 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
 
 ## 7. 诊断与可观测性

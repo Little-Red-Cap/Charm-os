@@ -46,6 +46,10 @@ import charm.widgets.chart;
 import charm.widgets.gauge;
 import charm.widgets.primitives_canvas;
 import charm.widgets.perf_overlay;
+import charm.widgets.stepper;
+import charm.widgets.timeline;
+import charm.widgets.rich_text;
+import charm.widgets.code_block;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -89,6 +93,10 @@ public:
     WidgetHandle create_gauge() noexcept { return make_handle(gauges_.create(), WidgetKind::Gauge); }
     WidgetHandle create_primitives_canvas() noexcept { return make_handle(prim_canvas_.create(), WidgetKind::PrimitivesCanvas); }
     WidgetHandle create_perf_overlay() noexcept { return make_handle(perf_overlays_.create(), WidgetKind::PerfOverlay); }
+    WidgetHandle create_stepper() noexcept { return make_handle(steppers_.create(), WidgetKind::Stepper); }
+    WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
+    WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
+    WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -128,6 +136,10 @@ public:
     Gauge* get_gauge(const WidgetHandle& h) noexcept { return get_from(gauges_, h, WidgetKind::Gauge); }
     PrimitivesCanvas* get_primitives_canvas(const WidgetHandle& h) noexcept { return get_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); }
     PerfOverlay* get_perf_overlay(const WidgetHandle& h) noexcept { return get_from(perf_overlays_, h, WidgetKind::PerfOverlay); }
+    Stepper* get_stepper(const WidgetHandle& h) noexcept { return get_from(steppers_, h, WidgetKind::Stepper); }
+    Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
+    RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
+    CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -167,6 +179,10 @@ public:
             case WidgetKind::Gauge: return get_gauge(h);
             case WidgetKind::PrimitivesCanvas: return get_primitives_canvas(h);
             case WidgetKind::PerfOverlay: return get_perf_overlay(h);
+            case WidgetKind::Stepper: return get_stepper(h);
+            case WidgetKind::Timeline: return get_timeline(h);
+            case WidgetKind::RichText: return get_rich_text(h);
+            case WidgetKind::CodeBlock: return get_code_block(h);
             default: return nullptr;
         }
     }
@@ -354,6 +370,10 @@ public:
         case WidgetKind::Gauge: destroy_from(gauges_, h, WidgetKind::Gauge); break;
         case WidgetKind::PrimitivesCanvas: destroy_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); break;
         case WidgetKind::PerfOverlay: destroy_from(perf_overlays_, h, WidgetKind::PerfOverlay); break;
+        case WidgetKind::Stepper: destroy_from(steppers_, h, WidgetKind::Stepper); break;
+        case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
+        case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
+        case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -623,6 +643,10 @@ private:
     HandlePool<Gauge, 16> gauges_{};
     HandlePool<PrimitivesCanvas, 8> prim_canvas_{};
     HandlePool<PerfOverlay, 8> perf_overlays_{};
+    HandlePool<Stepper, 16> steppers_{};
+    HandlePool<Timeline, 16> timelines_{};
+    HandlePool<RichText, 16> rich_texts_{};
+    HandlePool<CodeBlock, 16> code_blocks_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

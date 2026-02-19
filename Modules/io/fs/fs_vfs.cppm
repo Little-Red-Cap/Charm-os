@@ -137,7 +137,7 @@ export namespace fs {
         return chosen;
     }
 
-    inline Status vfs_open(std::string_view path, File& f) noexcept {
+    inline Status vfs_open(std::string_view path, File& f, OpenFlags flags) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
         if (!chosen || !chosen->ops || !chosen->ops->open) return Status{Err::nosys};
@@ -147,11 +147,15 @@ export namespace fs {
         std::string_view rest = p.substr(prefix.size());
         auto rest_norm = normalize(rest);
         std::string_view rest_view{rest_norm.data, rest_norm.size};
-        auto st = chosen->ops->open(chosen, rest_view, f);
+        auto st = chosen->ops->open(chosen, rest_view, f, flags);
         if (st) {
             f.mount = chosen;
         }
         return st;
+    }
+
+    inline Status vfs_open(std::string_view path, File& f) noexcept {
+        return vfs_open(path, f, OpenFlags::read);
     }
 
     inline Status vfs_close(File& f) noexcept {

@@ -24,7 +24,7 @@ import fs_block;
 
 #if CHARM_USE_FATFS
 export namespace fs {
-    void fatfs_register_block_device(BlockDevice* dev) noexcept;
+    void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
 
     struct FatFsFileSlot {
         bool used{false};
@@ -68,15 +68,20 @@ export namespace fs {
 
     class FatFsMount {
     public:
-        static constexpr util::usize max_files = 8;
+        static constexpr util::usize max_files =
+#ifdef CHARM_FATFS_MAX_FILES
+            static_cast<util::usize>(CHARM_FATFS_MAX_FILES);
+#else
+            8;
+#endif
 
         FatFsMount() = default;
         FatFsMount(const FatFsMount&) = delete;
         FatFsMount& operator=(const FatFsMount&) = delete;
 
-        Status mount(BlockDevice& dev, bool format_if_needed = false) noexcept {
+        Status mount(BlockDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             dev_ = &dev;
-            fatfs_register_block_device(dev_);
+            fatfs_register_block_device(dev_, pdrv);
             auto fr = f_mount(&fs_, "", 1);
             if (fr == FR_NO_FILESYSTEM && format_if_needed) {
 #if defined(FF_USE_MKFS) && FF_USE_MKFS
@@ -126,7 +131,7 @@ export namespace fs {
     private:
         static MountOps ops_;
 
-        static Status open_impl(Mount* m, std::string_view path, File& out) noexcept {
+        static Status open_impl(Mount* m, std::string_view path, File& out, OpenFlags flags) noexcept {
             if (!m) return Status{Err::inval};
             auto* self = static_cast<FatFsMount*>(m->data);
             if (!self) return Status{Err::inval};
@@ -139,10 +144,36 @@ export namespace fs {
                 return Status{Err::nametoolong};
             }
             const auto* cpath = buf->data();
-            const auto fr = f_open(&slot->file, cpath, FA_READ | FA_WRITE | FA_OPEN_ALWAYS);
+            BYTE mode = 0;
+            const bool want_read = has_flag(flags, OpenFlags::read);
+            const bool want_write = has_flag(flags, OpenFlags::write);
+            const bool want_create = has_flag(flags, OpenFlags::create);
+            const bool want_trunc = has_flag(flags, OpenFlags::trunc);
+
+            mode |= want_read ? FA_READ : 0;
+            mode |= want_write ? FA_WRITE : 0;
+            if (!want_read && !want_write) mode |= FA_READ;
+
+            if (want_trunc && want_create) {
+                mode |= FA_CREATE_ALWAYS;
+            } else if (want_create) {
+                mode |= FA_OPEN_ALWAYS;
+            } else {
+                mode |= FA_OPEN_EXISTING;
+            }
+
+            auto fr = f_open(&slot->file, cpath, mode);
             if (fr != FR_OK) {
                 self->free_slot(slot);
                 return status_from_fr(fr);
+            }
+            if (want_trunc && !want_create) {
+                fr = f_truncate(&slot->file);
+                if (fr != FR_OK) {
+                    self->free_slot(slot);
+                    return status_from_fr(fr);
+                }
+                (void)f_lseek(&slot->file, 0);
             }
 
             out.node.type = NodeType::file;
@@ -217,6 +248,15 @@ export namespace fs {
             auto fr = f_opendir(&dir, buf->data());
             if (fr != FR_OK) return status_from_fr(fr);
             FILINFO info{};
+#if defined(FF_USE_LFN) && FF_USE_LFN
+#if defined(FF_MAX_LFN)
+            std::array<TCHAR, FF_MAX_LFN + 1> lfname{};
+#else
+            std::array<TCHAR, 256> lfname{};
+#endif
+            info.lfname = lfname.data();
+            info.lfsize = static_cast<UINT>(lfname.size());
+#endif
             while (true) {
                 fr = f_readdir(&dir, &info);
                 if (fr != FR_OK) {
@@ -224,8 +264,18 @@ export namespace fs {
                     return status_from_fr(fr);
                 }
                 if (info.fname[0] == '\0') break;
+                const char* name = info.fname;
+#if defined(FF_USE_LFN) && FF_USE_LFN
+                if (info.lfname && info.lfname[0] != 0) {
+#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
+                    name = info.fname;
+#else
+                    name = info.lfname;
+#endif
+                }
+#endif
                 MountOps::ListEntry entry{};
-                entry.name = std::string_view{info.fname};
+                entry.name = std::string_view{name};
                 entry.size = static_cast<util::u64>(info.fsize);
                 entry.type = (info.fattrib & AM_DIR) ? NodeType::dir : NodeType::file;
                 auto st = fn(ctx, entry);
@@ -302,12 +352,18 @@ export namespace fs {
             }
         }
 
-        std::optional<std::array<char, 256>> build_path(std::string_view path) noexcept {
+#ifdef CHARM_FATFS_MAX_PATH
+        static constexpr util::usize max_path = static_cast<util::usize>(CHARM_FATFS_MAX_PATH);
+#else
+        static constexpr util::usize max_path = 256;
+#endif
+
+        std::optional<std::array<char, max_path>> build_path(std::string_view path) noexcept {
             auto norm = normalize(path);
             std::string_view p{norm.data, norm.size};
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
-            if (p.size() >= 255) return std::nullopt;
-            std::array<char, 256> buf{};
+            if (p.size() + 1 > max_path) return std::nullopt;
+            std::array<char, max_path> buf{};
             std::memcpy(buf.data(), p.data(), p.size());
             buf[p.size()] = '\0';
             return buf;
@@ -338,26 +394,28 @@ export namespace fs {
     };
 
     inline BlockDevice* g_fatfs_device = nullptr;
+    inline BYTE g_fatfs_pdrv = 0;
 
-    inline void fatfs_register_block_device(BlockDevice* dev) noexcept {
+    inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept {
         g_fatfs_device = dev;
+        g_fatfs_pdrv = static_cast<BYTE>(pdrv);
     }
 
 } // namespace fs
 
 extern "C" {
     DSTATUS disk_initialize(BYTE pdrv) {
-        if (pdrv != 0 || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
         return 0;
     }
 
     DSTATUS disk_status(BYTE pdrv) {
-        if (pdrv != 0 || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
         return 0;
     }
 
     DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != 0 || !fs::g_fatfs_device) return RES_NOTRDY;
+        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
         const auto size = static_cast<util::usize>(count) * dev->block_size;
         auto st = dev->read(dev->ctx, static_cast<util::u64>(sector),
@@ -366,7 +424,7 @@ extern "C" {
     }
 
     DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != 0 || !fs::g_fatfs_device) return RES_NOTRDY;
+        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
         const auto size = static_cast<util::usize>(count) * dev->block_size;
         auto st = dev->write(dev->ctx, static_cast<util::u64>(sector),
@@ -375,7 +433,7 @@ extern "C" {
     }
 
     DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
-        if (pdrv != 0 || !fs::g_fatfs_device) return RES_NOTRDY;
+        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
         switch (cmd) {
         case CTRL_SYNC:

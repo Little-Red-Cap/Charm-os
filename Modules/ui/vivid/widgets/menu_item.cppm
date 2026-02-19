@@ -21,6 +21,10 @@ public:
 
     void set_text(const char* t) { label_.set_text(t); update_size(); }
     void set_on_click(Callback cb) noexcept { on_click_ = cb; }
+    void set_indent(int px) noexcept { indent_ = (px > 0) ? px : 0; }
+    void set_has_children(bool on) noexcept { has_children_ = on; }
+    void set_expanded(bool on) noexcept { expanded_ = on; }
+    void set_selected(bool on) noexcept { selected_ = on; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<MenuItem>();
@@ -29,14 +33,31 @@ public:
         resolve_colors(st,
                        {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
                        bg, border, font);
+        if (selected_) {
+            bg = st.bg_pressed;
+        }
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         label_.set_color(font);
         label_.set_font(resolve_font(st));
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
-        label_.set_baseline_pos(r.x + st.padding, baseline_y);
+        label_.set_baseline_pos(r.x + st.padding + indent_, baseline_y);
         label_.draw(cvs);
+
+        if (has_children_) {
+            const int cx = r.x + r.w - st.padding - 6;
+            const int cy = r.y + r.h / 2;
+            if (expanded_) {
+                draw_line(cvs, cx - 3, cy - 2, cx + 3, cy - 2, font);
+                draw_line(cvs, cx - 3, cy - 2, cx, cy + 3, font);
+                draw_line(cvs, cx + 3, cy - 2, cx, cy + 3, font);
+            } else {
+                draw_line(cvs, cx - 2, cy - 3, cx - 2, cy + 3, font);
+                draw_line(cvs, cx - 2, cy - 3, cx + 3, cy, font);
+                draw_line(cvs, cx - 2, cy + 3, cx + 3, cy, font);
+            }
+        }
 
         if (has_state(State::Focused)) {
             draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
@@ -66,4 +87,8 @@ private:
 
     Label label_;
     Callback on_click_{};
+    int indent_{0};
+    bool has_children_{false};
+    bool expanded_{false};
+    bool selected_{false};
 };

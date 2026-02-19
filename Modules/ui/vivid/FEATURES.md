@@ -31,18 +31,19 @@
 ## 4. 布局与容器
 - P0 基础布局：Flex/Anchor
 - P0 容器：ScrollContainer、PopupLayer
-- P1 栅格/流式布局
+- P1 栅格/流式布局（已提供最小实现）
 - P1 约束布局（Constraint）
 - P2 虚拟列表布局
 
 ## 5. 已具备的基础控件（当前已有）
-- P0 button / label / image / checkbox / switch
+- P0 button / label / image（缩放/裁剪/对齐） / checkbox / switch
 - P0 radio / radio_group
 - P0 slider / dial / roller / dropdown
 - P0 list / menu / menu_item
+- P0 menu 支持多级展开/收起（menu_tree）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
-- P0 text / text_area / text_input / number_input
+- P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
 - P0 message_box / tabview / scroll_container / popup_layer / scrollbar
 - P0 segmented_control / toggle_group
 - P0 table_view / tree_view（最小骨架与示例数据源）
@@ -53,14 +54,14 @@
 ## 7. 高级组件
 - P1 表格/表头（table_view）
 - P1 树形列表（tree_view）
-- P1 进度与状态：stepper、timeline
+- P1 进度与状态：stepper、timeline（已提供最小骨架）
 - P2 图表扩展（多曲线/交互）
 - P2 富文本/代码编辑
 
 ## 8. 主题与样式
 - P0 主题结构化（Theme/Style）
 - P1 样式继承与局部覆盖（已在部分控件落地示例）
-- P1 主题加载（配置/资源）
+- P1 主题加载（配置/资源入口已提供：ThemePreset）
 - P2 运行时 DSL/CSS
 
 ## 9. 动画与过渡

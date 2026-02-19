@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <span>
 #include <thread>
 #include <utility>
 #include <SDL3/SDL_log.h>
@@ -19,6 +20,7 @@ import gui.qr_widget;
 import gui.perf;
 import backend.sdl3;
 import out.api;
+import alg_dither;
 import service_trace;
 import trace_core;
 import util.core;
@@ -80,6 +82,40 @@ inline void fill_round_rect_demo(Renderer& r, float t) noexcept {
     const int x = (128 - w) / 2;
     const int y = (64 - h) / 2;
     gui::fill_round_rect(r, gui::Rect{(std::int16_t)x, (std::int16_t)y, (std::int16_t)w, (std::int16_t)h});
+}
+
+inline void dither_demo(Renderer& r, float t) noexcept {
+    (void)t;
+    constexpr int w = 96;
+    constexpr int h = 32;
+    constexpr int stride = (w + 7) / 8;
+    static std::uint8_t gray[w * h]{};
+    static std::uint8_t bits[stride * h]{};
+    static bool init = false;
+    if (!init) {
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                gray[y * w + x] = (std::uint8_t)((x * 255) / (w - 1));
+            }
+        }
+        init = true;
+    }
+    alg::DitherConfig cfg{};
+    cfg.op = alg::DitherOperator::ordered;
+    cfg.ordered_mode = alg::DitherMode::bayer4;
+    cfg.params.threshold = 128;
+    gui::dither_gray_to_1bpp(std::span<const util::u8>{gray, (std::size_t)(w * h)},
+                             w, h, cfg,
+                             std::span<util::u8>{bits, (std::size_t)(stride * h)});
+    const gui::Image1bpp img{
+        (std::int16_t)w,
+        (std::int16_t)h,
+        (std::int16_t)stride,
+        bits,
+        gui::ImageLayout::RowMajorMsb
+    };
+    r.drawText(6, 2, "Dither", true);
+    gui::draw_image_1bpp(r, 16, 18, img, true);
 }
 
 inline void draw_circle(Renderer& r, int cx, int cy, int rad, bool on) noexcept {
@@ -489,6 +525,7 @@ static constexpr DemoItem kDemos[] = {
     {"Invert", 1200, &invert_demo},
     {"RoundRect", 1200, &round_rect_demo},
     {"FillRound", 1200, &fill_round_rect_demo},
+    {"Dither", 1600, &dither_demo},
     {"Circle", 1200, &circle_demo},
     {"FillCircle", 1200, &fill_circle_demo},
     {"Ellipse", 1200, &ellipse_demo},

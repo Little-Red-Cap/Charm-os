@@ -41,14 +41,21 @@ export namespace input::trace {
             + static_cast<util::u32>(b));
     }
 
-    inline void trace_counter_delta(TraceId id, util::u64 delta) noexcept {
+    inline void trace_emit(::trace::TraceKind kind,
+                           TraceId id,
+                           util::u64 payload,
+                           util::u32 count = 1) noexcept {
         static util::u32 seq{0};
         TraceRecord rec{};
         rec.time = ++seq;
         rec.id = static_cast<util::u32>(id);
-        rec.payload = delta;
-        rec.count = 1;
-        rec.kind = ::trace::TraceKind::counter_delta;
+        rec.payload = payload;
+        rec.count = count;
+        rec.kind = kind;
         buffer_mut().push(rec);
+    }
+
+    inline void trace_counter_delta(TraceId id, util::u64 delta) noexcept {
+        trace_emit(::trace::TraceKind::counter_delta, id, delta);
     }
 }

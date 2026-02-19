@@ -60,11 +60,18 @@ export namespace usb::class_driver {
         explicit MscDevice(void* ctx, const MscOps& ops) noexcept
             : ctx_(ctx), ops_(ops) {}
 
-        device::ClassOps class_ops() noexcept {
-            device::ClassOps ops{};
-            ops.setup = &MscDevice::handle_setup;
-            ops.reset = &MscDevice::handle_reset;
-            return ops;
+        const device::ClassOps* class_ops() const noexcept {
+            static const device::ClassOps ops{
+                &MscDevice::handle_setup,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                &MscDevice::handle_reset,
+            };
+            return &ops;
         }
 
         const MscConfig& config() const noexcept { return cfg_; }

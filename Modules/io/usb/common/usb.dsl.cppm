@@ -10,6 +10,8 @@ export module usb.dsl;
 import usb.common;
 import usb.device;
 import usb.class_cdc;
+import usb.class_msc;
+import usb.class_uac;
 
 export namespace usb::dsl {
     using usb::u8;
@@ -335,8 +337,8 @@ export namespace usb::dsl {
     struct DeviceBuildContext {
         std::span<u8> device_desc_storage{};
         std::span<u8> config_storage{};
-        DescriptorTable* table{nullptr};
-        ConfigTree* tree{nullptr};
+        device::DescriptorTable* table{nullptr};
+        device::ConfigTree* tree{nullptr};
     };
 
     inline bool build_cdc_acm_device(DeviceBuildContext& ctx,

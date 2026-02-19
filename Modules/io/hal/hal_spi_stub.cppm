@@ -1,5 +1,7 @@
 module;
 
+#include <span>
+
 export module hal_spi_stub;
 
 import hal_core;

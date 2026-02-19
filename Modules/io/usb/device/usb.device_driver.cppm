@@ -254,7 +254,7 @@ export namespace usb::device {
                 const auto* desc = reinterpret_cast<const DeviceDescriptor*>(table.device.data());
                 dev.set_max_packet_size0(desc->max_packet_size0);
             }
-            dev.set_class(&cdc, &cdc.class_ops());
+            dev.set_class(&cdc, cdc.class_ops());
             table.configuration = config_tree.view;
             dev.set_descriptor_provider(make_descriptor_provider(table));
             return !table.configuration.empty();

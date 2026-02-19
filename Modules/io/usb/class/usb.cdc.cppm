@@ -123,12 +123,18 @@ export namespace usb::class_driver {
         explicit CdcAcm(void* ctx, const CdcOps& ops) noexcept
             : ctx_(ctx), ops_(ops) {}
 
-        device::ClassOps class_ops() noexcept {
-            device::ClassOps ops{};
-            ops.setup = &CdcAcm::handle_setup;
-            ops.control_out = &CdcAcm::handle_control_out;
-            ops.reset = &CdcAcm::handle_reset;
-            return ops;
+        const device::ClassOps* class_ops() const noexcept {
+            static const device::ClassOps ops{
+                &CdcAcm::handle_setup,
+                &CdcAcm::handle_control_out,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                &CdcAcm::handle_reset,
+            };
+            return &ops;
         }
 
         const CdcConfig& config() const noexcept { return cfg_; }

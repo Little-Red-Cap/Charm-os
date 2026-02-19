@@ -106,6 +106,28 @@ export namespace device {
             match_all();
         }
 
+        void suspend_all() noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                auto& dev = devices_[i];
+                if (dev.driver && dev.driver->ops.suspend) {
+                    if (dev.driver->ops.suspend(dev)) {
+                        dev.state = DeviceState::suspended;
+                    }
+                }
+            }
+        }
+
+        void resume_all() noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                auto& dev = devices_[i];
+                if (dev.driver && dev.driver->ops.resume) {
+                    if (dev.driver->ops.resume(dev)) {
+                        dev.state = DeviceState::running;
+                    }
+                }
+            }
+        }
+
     private:
         static bool match(const DeviceDesc& dev, const DeviceDesc& drv) noexcept {
             if (drv.class_id && drv.class_id != dev.class_id) return false;

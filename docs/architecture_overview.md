@@ -213,6 +213,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Device Model
 - 设备/驱动/注册表骨架（device.desc/driver/registry）
 - 示例：`Examples/system/device_registry_demo`
+- 示例：`Examples/system/device_bus_demo`
 
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme

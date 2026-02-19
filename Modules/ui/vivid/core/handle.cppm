@@ -25,6 +25,8 @@ enum class WidgetKind : std::uint8_t {
     TextInput,
     NumberInput,
     ToggleGroup,
+    TableView,
+    TreeView,
     Dropdown,
     TabView,
     Roller,
@@ -73,6 +75,8 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::TextInput: return "TextInput";
         case WidgetKind::NumberInput: return "NumberInput";
         case WidgetKind::ToggleGroup: return "ToggleGroup";
+        case WidgetKind::TableView: return "TableView";
+        case WidgetKind::TreeView: return "TreeView";
         case WidgetKind::Dropdown: return "Dropdown";
         case WidgetKind::TabView: return "TabView";
         case WidgetKind::Roller: return "Roller";

@@ -29,6 +29,8 @@ import charm.widgets.text_area;
 import charm.widgets.text_input;
 import charm.widgets.number_input;
 import charm.widgets.toggle_group;
+import charm.widgets.table_view;
+import charm.widgets.tree_view;
 import charm.widgets.dropdown;
 import charm.widgets.tabview;
 import charm.widgets.roller;
@@ -70,6 +72,8 @@ public:
     WidgetHandle create_text_input() noexcept { return make_handle(text_inputs_.create(), WidgetKind::TextInput); }
     WidgetHandle create_number_input() noexcept { return make_handle(number_inputs_.create(), WidgetKind::NumberInput); }
     WidgetHandle create_toggle_group() noexcept { return make_handle(toggles_.create(), WidgetKind::ToggleGroup); }
+    WidgetHandle create_table_view() noexcept { return make_handle(tables_.create(), WidgetKind::TableView); }
+    WidgetHandle create_tree_view() noexcept { return make_handle(trees_.create(), WidgetKind::TreeView); }
     WidgetHandle create_dropdown() noexcept { return make_handle(dropdowns_.create(), WidgetKind::Dropdown); }
     WidgetHandle create_tabview() noexcept { return make_handle(tabviews_.create(), WidgetKind::TabView); }
     WidgetHandle create_roller() noexcept { return make_handle(rollers_.create(), WidgetKind::Roller); }
@@ -107,6 +111,8 @@ public:
     TextInput* get_text_input(const WidgetHandle& h) noexcept { return get_from(text_inputs_, h, WidgetKind::TextInput); }
     NumberInput* get_number_input(const WidgetHandle& h) noexcept { return get_from(number_inputs_, h, WidgetKind::NumberInput); }
     ToggleGroup* get_toggle_group(const WidgetHandle& h) noexcept { return get_from(toggles_, h, WidgetKind::ToggleGroup); }
+    TableView* get_table_view(const WidgetHandle& h) noexcept { return get_from(tables_, h, WidgetKind::TableView); }
+    TreeView* get_tree_view(const WidgetHandle& h) noexcept { return get_from(trees_, h, WidgetKind::TreeView); }
     Dropdown* get_dropdown(const WidgetHandle& h) noexcept { return get_from(dropdowns_, h, WidgetKind::Dropdown); }
     TabView* get_tabview(const WidgetHandle& h) noexcept { return get_from(tabviews_, h, WidgetKind::TabView); }
     Roller* get_roller(const WidgetHandle& h) noexcept { return get_from(rollers_, h, WidgetKind::Roller); }
@@ -142,6 +148,8 @@ public:
             case WidgetKind::TextInput: return get_text_input(h);
             case WidgetKind::NumberInput: return get_number_input(h);
             case WidgetKind::ToggleGroup: return get_toggle_group(h);
+            case WidgetKind::TableView: return get_table_view(h);
+            case WidgetKind::TreeView: return get_tree_view(h);
             case WidgetKind::Dropdown: return get_dropdown(h);
             case WidgetKind::TabView: return get_tabview(h);
             case WidgetKind::Roller: return get_roller(h);
@@ -326,6 +334,8 @@ public:
         case WidgetKind::TextInput: destroy_from(text_inputs_, h, WidgetKind::TextInput); break;
         case WidgetKind::NumberInput: destroy_from(number_inputs_, h, WidgetKind::NumberInput); break;
         case WidgetKind::ToggleGroup: destroy_from(toggles_, h, WidgetKind::ToggleGroup); break;
+        case WidgetKind::TableView: destroy_from(tables_, h, WidgetKind::TableView); break;
+        case WidgetKind::TreeView: destroy_from(trees_, h, WidgetKind::TreeView); break;
         case WidgetKind::Dropdown: destroy_from(dropdowns_, h, WidgetKind::Dropdown); break;
         case WidgetKind::TabView: destroy_from(tabviews_, h, WidgetKind::TabView); break;
         case WidgetKind::Roller: destroy_from(rollers_, h, WidgetKind::Roller); break;
@@ -592,6 +602,8 @@ private:
     HandlePool<TextInput, 64> text_inputs_{};
     HandlePool<NumberInput, 32> number_inputs_{};
     HandlePool<ToggleGroup, 32> toggles_{};
+    HandlePool<TableView, 8> tables_{};
+    HandlePool<TreeView, 8> trees_{};
     HandlePool<Dropdown, 64> dropdowns_{};
     HandlePool<TabView, 16> tabviews_{};
     HandlePool<Roller, 32> rollers_{};

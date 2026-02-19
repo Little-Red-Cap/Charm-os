@@ -51,8 +51,8 @@
 - P1 选择：range_selector（待定）
 
 ## 7. 高级组件
-- P1 表格/表头（table）
-- P1 树形列表（tree）
+- P1 表格/表头（table_view）
+- P1 树形列表（tree_view）
 - P1 进度与状态：stepper、timeline
 - P2 图表扩展（多曲线、交互）
 - P2 代码编辑/富文本

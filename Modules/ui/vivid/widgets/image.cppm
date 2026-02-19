@@ -1,5 +1,4 @@
 module;
-#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +8,7 @@ export module charm.widgets.image;
 import charm.core.object;
 import charm.core.geometry;
 import charm.core.event;
+import charm.core.input_interaction;
 import charm.gfx.image;
 import charm.gfx.render;
 
@@ -58,7 +58,10 @@ public:
         AllowOutside
     };
 
-    Image() = default;
+    Image() {
+        double_tap_.set_callback(&Image::on_double_tap, this);
+        double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
+    }
 
     void set_image(const ImageView& img) noexcept {
         image_ = img;
@@ -120,24 +123,18 @@ public:
         if (decay > 0.98f) decay = 0.98f;
         inertia_decay_ = decay;
     }
-    void set_double_tap_restore(bool on) noexcept { double_tap_restore_ = on; }
+    void set_double_tap_restore(bool on) noexcept { double_tap_.set_enabled(on); }
     void set_double_tap_ms(int ms) noexcept {
-        double_tap_ms_ = (ms > 0) ? ms : 0;
+        double_tap_.set_threshold((ms > 0) ? ms : 0, double_tap_radius_);
     }
     void set_double_tap_radius(int px) noexcept {
         if (px < 0) px = 0;
-        double_tap_dist_sq_ = px * px;
+        double_tap_radius_ = px;
+        double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
     bool on_event(const Event& e) override {
-        if (double_tap_restore_ && e.type == Event::Type::Click) {
-            if (is_double_tap(e.x, e.y)) {
-                zoom_ = 1.0f;
-                zoom_velocity_ = 0.0f;
-                pinch_active_ = false;
-                return true;
-            }
-        }
+        if (double_tap_.on_event(e)) return true;
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {
@@ -408,22 +405,10 @@ private:
         return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
     }
 
-    bool is_double_tap(int x, int y) {
-        const auto now = std::chrono::steady_clock::now();
-        bool is_double = false;
-        if (double_tap_ms_ > 0) {
-            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_tap_time_).count();
-            const int dx = x - last_tap_x_;
-            const int dy = y - last_tap_y_;
-            const int dist_sq = dx * dx + dy * dy;
-            if (elapsed >= 0 && elapsed <= double_tap_ms_ && dist_sq <= double_tap_dist_sq_) {
-                is_double = true;
-            }
-        }
-        last_tap_time_ = now;
-        last_tap_x_ = x;
-        last_tap_y_ = y;
-        return is_double;
+    void reset_zoom() noexcept {
+        zoom_ = 1.0f;
+        zoom_velocity_ = 0.0f;
+        pinch_active_ = false;
     }
 
     float clamp_zoom(float value) const noexcept {
@@ -453,10 +438,12 @@ private:
     bool pinch_enabled_{true};
     bool pinch_active_{false};
     bool inertia_enabled_{true};
-    bool double_tap_restore_{true};
     int double_tap_ms_{300};
-    int double_tap_dist_sq_{144};
-    int last_tap_x_{0};
-    int last_tap_y_{0};
-    std::chrono::steady_clock::time_point last_tap_time_{};
+    int double_tap_radius_{12};
+    DoubleTapRestoreStrategy double_tap_{};
+
+    static void on_double_tap(void* ctx) {
+        auto* self = static_cast<Image*>(ctx);
+        if (self) self->reset_zoom();
+    }
 };

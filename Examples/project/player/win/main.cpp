@@ -25,7 +25,6 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.chart;
 import charm.widgets.perf_overlay;
 import charm.widgets.ring_indication;
@@ -264,12 +263,10 @@ namespace {
         list->set_scroll_y(bar->value());
     }
 
-    void on_play_mode_change(void* ctx) noexcept {
+    void on_play_mode_click(void* ctx) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app || !app->factory) return;
-        auto* mode = app->factory->get_segmented_control(app->handles.play_mode);
-        if (!mode) return;
-        app->set_play_mode(mode->selected());
+        if (!app) return;
+        app->cycle_play_mode();
     }
 
     void on_spectrum_toggle(void* ctx) noexcept {
@@ -481,7 +478,6 @@ int main(int argc, char** argv) {
     ui_cb.list_pool_recycle = &on_list_pool_recycle;
     ui_cb.list_ctx = &g_ctx;
     ui_cb.list_scroll_change = Callback{&on_list_scrollbar_change, &g_ctx};
-    ui_cb.play_mode_change = Callback{&on_play_mode_change, &g_ctx};
     ui_cb.spectrum_toggle = Callback{&on_spectrum_toggle, &g_ctx};
     ui_cb.low_load_toggle = Callback{&on_low_load_toggle, &g_ctx};
     ui_cb.eq_toggle = Callback{&on_eq_toggle, &g_ctx};
@@ -489,6 +485,7 @@ int main(int argc, char** argv) {
     ui_cb.eq_preset_change = Callback{&on_eq_preset_change, &g_ctx};
     ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
     ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
+    ui_cb.mode_click = Callback{&on_play_mode_click, &g_ctx};
     ui_cb.pause_click = Callback{&on_pause_clicked, &g_ctx};
 
     g_ctx.handles = build_ui(g_factory, g_ctx, ui_cb);

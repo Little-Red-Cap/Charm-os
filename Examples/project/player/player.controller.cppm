@@ -23,7 +23,6 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.switcher;
 import charm.widgets.slider;
 import charm.widgets.dropdown;
@@ -63,7 +62,6 @@ export namespace player {
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
-        WidgetHandle play_mode{};
         WidgetHandle mode_hint{};
         WidgetHandle spectrum_hist{};
         WidgetHandle spectrum_peak{};
@@ -109,6 +107,7 @@ export namespace player {
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
+        WidgetHandle btn_mode{};
         WidgetHandle controls{};
         WidgetHandle perf_overlay{};
     };
@@ -225,6 +224,20 @@ export namespace player {
             char buf[32]{};
             std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
             set_label(handles.mode_hint, buf);
+        }
+
+        void update_play_mode_icon() {
+            if (!factory) return;
+            if (auto* btn = factory->get_button(handles.btn_mode)) {
+                btn->set_text("");
+                if (play_mode == 1) {
+                    btn->set_icon(icon_single(), 18, 18);
+                } else if (play_mode == 2) {
+                    btn->set_icon(icon_shuffle(), 18, 18);
+                } else {
+                    btn->set_icon(icon_loop(), 18, 18);
+                }
+            }
         }
 
         void update_eq_label() {
@@ -444,11 +457,11 @@ export namespace player {
             if (auto* hint = factory->get_label(handles.list_hint)) {
                 hint->set_visible(!on);
             }
-            if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
-                mode->set_visible(!on);
-            }
             if (auto* hint = factory->get_label(handles.mode_hint)) {
                 hint->set_visible(!on);
+            }
+            if (auto* btn = factory->get_button(handles.btn_mode)) {
+                btn->set_visible(!on);
             }
             if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
                 hist->set_visible(!on);
@@ -600,6 +613,11 @@ export namespace player {
         void set_play_mode(int mode) {
             play_mode = mode;
             update_play_mode_label();
+            update_play_mode_icon();
+        }
+
+        void cycle_play_mode() {
+            set_play_mode((play_mode + 1) % 3);
         }
 
         void sync_option_states() {
@@ -620,6 +638,7 @@ export namespace player {
                 }
             }
             update_play_mode_label();
+            update_play_mode_icon();
             update_low_load_label();
             update_eq_label();
             update_eq_panel_labels();

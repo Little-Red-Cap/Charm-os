@@ -27,7 +27,6 @@ import charm.widgets.progress_flowing;
 import charm.widgets.progress_wheel;
 import charm.widgets.rich_text;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.stepper;
 import charm.widgets.table_view;
 import charm.widgets.text;
@@ -59,7 +58,6 @@ export namespace player {
         ListView::PoolRecycleFn list_pool_recycle{nullptr};
         void* list_ctx{nullptr};
         Callback list_scroll_change{};
-        Callback play_mode_change{};
         Callback spectrum_toggle{};
         Callback low_load_toggle{};
         Callback eq_toggle{};
@@ -67,6 +65,7 @@ export namespace player {
         Callback eq_preset_change{};
         Callback prev_click{};
         Callback next_click{};
+        Callback mode_click{};
         Callback pause_click{};
     };
 
@@ -141,15 +140,6 @@ export namespace player {
             anchor_rect(status, {kUiPadding, header_top + kHeaderStatusOffset,
                                  screen_width - kUiPadding * 2, 18});
             status->set_align(TextAlignH::Center, TextAlignV::Center);
-        }
-
-        h.play_mode = factory.create_segmented_control();
-        if (auto* mode = factory.get_segmented_control(h.play_mode)) {
-            static const char* kModeItems[] = {"Order", "Single", "Shuffle"};
-            mode->set_items(kModeItems, 3);
-            mode->set_selected(0);
-            mode->set_on_change(cb.play_mode_change);
-            anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
         }
 
         h.mode_hint = factory.create_label("Mode: Order");
@@ -519,7 +509,7 @@ export namespace player {
         factory.link(h.fold_panel, fold_btn_secondary);
 #endif
 
-        const int controls_w = kButtonWidth * 3 + kButtonGap * 2;
+        const int controls_w = kButtonWidth * 3 + kModeButtonWidth + kButtonGap * 3;
         const int controls_h = kButtonHeight;
         const int controls_x = (screen_width - controls_w) / 2;
         const int controls_y = screen_height - controls_h - kControlsBottomMargin;
@@ -546,6 +536,14 @@ export namespace player {
             next->set_icon(icon_next(), 20, 20);
         }
 
+        h.btn_mode = factory.create_button("Mode");
+        if (auto* mode = factory.get_button(h.btn_mode)) {
+            mode->set_size(kModeButtonWidth, kButtonHeight);
+            mode->set_on_click(cb.mode_click);
+            mode->set_text("");
+            mode->set_icon(icon_loop(), 18, 18);
+        }
+
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
             pause->set_size(kButtonWidth, kButtonHeight);
@@ -560,7 +558,6 @@ export namespace player {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
-        factory.link(h.root, h.play_mode);
         factory.link(h.root, h.mode_hint);
         factory.link(h.root, h.spectrum_hist);
         factory.link(h.root, h.spectrum_peak);
@@ -598,6 +595,7 @@ export namespace player {
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_pause);
         factory.link(h.controls, h.btn_next);
+        factory.link(h.controls, h.btn_mode);
         factory.bring_to_front(h.root, h.perf_overlay);
 
         factory.link(h.options_row, h.opt_spectrum_label);

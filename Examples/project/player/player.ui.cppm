@@ -68,6 +68,7 @@ export namespace player::ui {
     inline constexpr int kButtonWidth = 120;
     inline constexpr int kButtonHeight = 48;
     inline constexpr int kButtonGap = 12;
+    inline constexpr int kModeButtonWidth = 72;
     inline constexpr int kPerfOverlayWidth = 300;
     inline constexpr int kPerfOverlayHeight = 72;
 
@@ -168,6 +169,54 @@ export namespace player::ui {
             }
         }
 
+        void build_loop_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int x = 3; x <= 12; ++x) {
+                icon_set_pixel(buf, x, 4, color);
+                icon_set_pixel(buf, x, 11, color);
+            }
+            for (int y = 4; y <= 11; ++y) {
+                icon_set_pixel(buf, 3, y, color);
+                icon_set_pixel(buf, 12, y, color);
+            }
+            // arrow heads
+            icon_set_pixel(buf, 11, 3, color);
+            icon_set_pixel(buf, 12, 4, color);
+            icon_set_pixel(buf, 13, 5, color);
+            icon_set_pixel(buf, 4, 12, color);
+            icon_set_pixel(buf, 3, 11, color);
+            icon_set_pixel(buf, 2, 10, color);
+        }
+
+        void build_single_icon(IconBuffer& buf, const rgba& color) {
+            build_loop_icon(buf, color);
+            for (int y = 5; y <= 10; ++y) {
+                icon_set_pixel(buf, 7, y, color);
+                icon_set_pixel(buf, 8, y, color);
+            }
+            icon_set_pixel(buf, 6, 5, color);
+            icon_set_pixel(buf, 9, 5, color);
+        }
+
+        void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int x = 3; x <= 12; ++x) {
+                const int y1 = 4 + (x - 3) / 2;
+                const int y2 = 11 - (x - 3) / 2;
+                icon_set_pixel(buf, x, y1, color);
+                icon_set_pixel(buf, x, y2, color);
+            }
+            // arrow heads
+            icon_set_pixel(buf, 12, 4, color);
+            icon_set_pixel(buf, 13, 5, color);
+            icon_set_pixel(buf, 12, 11, color);
+            icon_set_pixel(buf, 13, 10, color);
+            icon_set_pixel(buf, 2, 6, color);
+            icon_set_pixel(buf, 3, 5, color);
+            icon_set_pixel(buf, 2, 9, color);
+            icon_set_pixel(buf, 3, 10, color);
+        }
+
         void build_next_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
             constexpr int center = 7;
@@ -228,6 +277,54 @@ export namespace player::ui {
         static bool init = false;
         if (!init) {
             detail::build_pause_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_loop() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_loop_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_single() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_single_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_shuffle() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_shuffle_icon(buf, kUiListFont);
             init = true;
         }
         return make_image_view(PixelFormat::ARGB8888,

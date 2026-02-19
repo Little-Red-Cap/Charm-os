@@ -800,18 +800,60 @@ namespace {
         app->select_track_index(index);
     }
 
+    void on_list_pool_create(void* ctx, int slot) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = -1;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
+    void on_list_pool_bind(void* ctx, int slot, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        if (index < 0 || index >= static_cast<int>(app->track_labels.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = index;
+        entry.width = 0;
+        entry.text = app->track_labels[index];
+    }
+
+    void on_list_pool_recycle(void* ctx, int slot, int index) noexcept {
+        (void)index;
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = -1;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
     void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
-        if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
         const Style& st = Theme::instance().get<ListView>();
         const auto font = resolve_font(st);
         Rect text = info.rect;
         text.x += st.padding;
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
+        const char* label = nullptr;
+        if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
+            const auto& entry = app->list_cache[info.slot];
+            if (entry.index == info.index && !entry.text.empty()) {
+                label = entry.text.c_str();
+            }
+        }
+        if (!label) {
+            if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
+            label = app->track_labels[info.index].c_str();
+        }
         const rgba color = st.font_color;
-        draw_text_box(cvs, text, app->track_labels[info.index].c_str(), color, font,
+        draw_text_box(cvs, text, label, color, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
@@ -1002,6 +1044,8 @@ namespace {
             anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
+            list->set_item_pool(&on_list_pool_create, &on_list_pool_bind, &on_list_pool_recycle, &ctx);
+            list->set_prefetch_rows(2);
             list->set_row_height(32);
             list->set_wheel_step(32);
         }

@@ -247,6 +247,9 @@ export namespace audio {
             if (!is_wav_ && !is_flac_ && !is_mp3_) {
                 return unexpected(Err{Errc::not_supported, 0});
             }
+            if (total_frames_ == 0) {
+                return unexpected(Err{Errc::not_supported, 0});
+            }
             Command cmd{};
             cmd.type = CommandType::seek_ms;
             cmd.seek_ms = ms;
@@ -561,7 +564,10 @@ export namespace audio {
             (void)sink_.stop();
             if (fifo_capacity_) fifo_.clear();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
-            const std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
+            std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
+            if (total_frames_ > 0 && clamped_frames >= total_frames_) {
+                clamped_frames = total_frames_ - 1;
+            }
             if (is_wav_) {
                 const std::uint64_t offset = clamped_frames * input_fmt_.frame_size();
                 const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);

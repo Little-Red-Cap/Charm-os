@@ -102,7 +102,6 @@ export namespace audio {
                 SDL_DestroyAudioStream(stream_);
                 stream_ = nullptr;
             }
-            SDL_Quit();
         }
 
         void set_fill_callback(FillCallback cb, void* user) {

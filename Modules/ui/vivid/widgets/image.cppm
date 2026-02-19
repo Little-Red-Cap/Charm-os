@@ -1,5 +1,7 @@
 module;
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 export module charm.widgets.image;
 
 import charm.core.object;
@@ -31,6 +33,18 @@ public:
         Fill
     };
 
+    enum class Rotation {
+        None,
+        Rotate90,
+        Rotate180,
+        Rotate270
+    };
+
+    enum class Sampling {
+        Nearest,
+        Bilinear
+    };
+
     Image() = default;
 
     void set_image(const ImageView& img) noexcept {
@@ -45,9 +59,22 @@ public:
     void set_scale_mode(ScaleMode mode) noexcept { scale_mode_ = mode; }
     ScaleMode scale_mode() const noexcept { return scale_mode_; }
 
+    void set_rotation(Rotation r) noexcept { rotation_ = r; }
+    Rotation rotation() const noexcept { return rotation_; }
+
+    void set_sampling(Sampling s) noexcept { sampling_ = s; }
+    Sampling sampling() const noexcept { return sampling_; }
+
+    void set_anchor(float x, float y) noexcept {
+        anchor_x_ = (x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x);
+        anchor_y_ = (y < 0.0f) ? 0.0f : ((y > 1.0f) ? 1.0f : y);
+    }
+
     void set_alignment(AlignH h, AlignV v) noexcept {
         align_h_ = h;
         align_v_ = v;
+        anchor_x_ = (h == AlignH::Left) ? 0.0f : (h == AlignH::Right ? 1.0f : 0.5f);
+        anchor_y_ = (v == AlignV::Top) ? 0.0f : (v == AlignV::Bottom ? 1.0f : 0.5f);
     }
 
     void set_crop(const Rect& r) noexcept {
@@ -74,51 +101,196 @@ public:
         const ImageView src_view = make_subview(image_, src);
         if (!src_view) return;
 
-        int dst_w = src_view.w;
-        int dst_h = src_view.h;
+        const bool swap = (rotation_ == Rotation::Rotate90 || rotation_ == Rotation::Rotate270);
+        const int src_w = swap ? src_view.h : src_view.w;
+        const int src_h = swap ? src_view.w : src_view.h;
+
+        int dst_w = src_w;
+        int dst_h = src_h;
         if (scale_mode_ == ScaleMode::Stretch) {
             dst_w = r.w;
             dst_h = r.h;
         } else if (scale_mode_ == ScaleMode::Fit) {
-            if (src_view.w <= 0 || src_view.h <= 0) return;
-            const float sx = static_cast<float>(r.w) / static_cast<float>(src_view.w);
-            const float sy = static_cast<float>(r.h) / static_cast<float>(src_view.h);
+            if (src_w <= 0 || src_h <= 0) return;
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
             const float s = (sx < sy) ? sx : sy;
-            dst_w = static_cast<int>(src_view.w * s);
-            dst_h = static_cast<int>(src_view.h * s);
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
         } else if (scale_mode_ == ScaleMode::Fill) {
-            if (src_view.w <= 0 || src_view.h <= 0) return;
-            const float sx = static_cast<float>(r.w) / static_cast<float>(src_view.w);
-            const float sy = static_cast<float>(r.h) / static_cast<float>(src_view.h);
+            if (src_w <= 0 || src_h <= 0) return;
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
             const float s = (sx > sy) ? sx : sy;
-            dst_w = static_cast<int>(src_view.w * s);
-            dst_h = static_cast<int>(src_view.h * s);
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
         }
 
-        int dst_x = r.x;
-        int dst_y = r.y;
-        if (align_h_ == AlignH::Center) {
-            dst_x = r.x + (r.w - dst_w) / 2;
-        } else if (align_h_ == AlignH::Right) {
-            dst_x = r.x + r.w - dst_w;
-        }
-        if (align_v_ == AlignV::Center) {
-            dst_y = r.y + (r.h - dst_h) / 2;
-        } else if (align_v_ == AlignV::Bottom) {
-            dst_y = r.y + r.h - dst_h;
-        }
+        int dst_x = r.x + static_cast<int>((r.w - dst_w) * anchor_x_);
+        int dst_y = r.y + static_cast<int>((r.h - dst_h) * anchor_y_);
 
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
-        if (dst_w != src_view.w || dst_h != src_view.h) {
-            draw_image_scaled(cvs, dst_x, dst_y, dst_w, dst_h, src_view);
+        if (rotation_ == Rotation::None && sampling_ == Sampling::Nearest) {
+            if (dst_w != src_view.w || dst_h != src_view.h) {
+                draw_image_scaled(cvs, dst_x, dst_y, dst_w, dst_h, src_view);
+            } else {
+                draw_image(cvs, dst_x, dst_y, src_view);
+            }
         } else {
-            draw_image(cvs, dst_x, dst_y, src_view);
+            draw_image_transformed(cvs, dst_x, dst_y, dst_w, dst_h, src_view, rotation_, sampling_);
         }
         cvs.restore_clip(clip_state);
     }
 
 private:
+    static rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
+        if (!img.data || sx < 0 || sy < 0 || sx >= img.w || sy >= img.h) {
+            return {0, 0, 0, 0};
+        }
+        const int bpp = bytes_per_pixel(img.format);
+        const std::byte* row = img.data + sy * img.stride_bytes;
+        const std::byte* p = row + sx * bpp;
+        if (img.format == PixelFormat::RGB565) {
+            uint16_t px{};
+            std::memcpy(&px, p, sizeof(px));
+            const rgb rgbv = unpack_rgb565(px);
+            return rgba{rgbv.r, rgbv.g, rgbv.b, 255};
+        }
+        if (img.format == PixelFormat::RGB888) {
+            return rgba{
+                static_cast<std::uint8_t>(p[0]),
+                static_cast<std::uint8_t>(p[1]),
+                static_cast<std::uint8_t>(p[2]),
+                255
+            };
+        }
+        rgba src{
+            static_cast<std::uint8_t>(p[1]),
+            static_cast<std::uint8_t>(p[2]),
+            static_cast<std::uint8_t>(p[3]),
+            static_cast<std::uint8_t>(p[0])
+        };
+        if (img.force_opaque) {
+            src.a = 255;
+        }
+        return src;
+    }
+
+    template<PixelFormat PF, std::size_t W, std::size_t H>
+    static void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y,
+                            const rgba& src, bool premultiplied) noexcept {
+        if (src.a == 255) {
+            cvs.set_pixel(x, y, src);
+            return;
+        }
+        if (src.a == 0) return;
+        const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+        const int ia = 255 - src.a;
+        rgba out{};
+        if (premultiplied) {
+            out = rgba{
+                static_cast<std::uint8_t>(src.r + (dst.r * ia) / 255),
+                static_cast<std::uint8_t>(src.g + (dst.g * ia) / 255),
+                static_cast<std::uint8_t>(src.b + (dst.b * ia) / 255),
+                255
+            };
+        } else {
+            out = rgba{
+                static_cast<std::uint8_t>((src.r * src.a + dst.r * ia) / 255),
+                static_cast<std::uint8_t>((src.g * src.a + dst.g * ia) / 255),
+                static_cast<std::uint8_t>((src.b * src.a + dst.b * ia) / 255),
+                255
+            };
+        }
+        cvs.set_pixel(x, y, out);
+    }
+
+    static rgba sample_bilinear(const ImageView& img, float fx, float fy) noexcept {
+        const int x0 = static_cast<int>(fx);
+        const int y0 = static_cast<int>(fy);
+        const int x1 = (x0 + 1 < img.w) ? (x0 + 1) : x0;
+        const int y1 = (y0 + 1 < img.h) ? (y0 + 1) : y0;
+        const float tx = fx - static_cast<float>(x0);
+        const float ty = fy - static_cast<float>(y0);
+
+        const rgba c00 = decode_pixel(img, x0, y0);
+        const rgba c10 = decode_pixel(img, x1, y0);
+        const rgba c01 = decode_pixel(img, x0, y1);
+        const rgba c11 = decode_pixel(img, x1, y1);
+
+        auto lerp = [](std::uint8_t a, std::uint8_t b, float t) -> float {
+            return static_cast<float>(a) + (static_cast<float>(b) - static_cast<float>(a)) * t;
+        };
+
+        const float r0 = lerp(c00.r, c10.r, tx);
+        const float r1 = lerp(c01.r, c11.r, tx);
+        const float g0 = lerp(c00.g, c10.g, tx);
+        const float g1 = lerp(c01.g, c11.g, tx);
+        const float b0 = lerp(c00.b, c10.b, tx);
+        const float b1 = lerp(c01.b, c11.b, tx);
+        const float a0 = lerp(c00.a, c10.a, tx);
+        const float a1 = lerp(c01.a, c11.a, tx);
+
+        rgba out{};
+        out.r = static_cast<std::uint8_t>(lerp(static_cast<std::uint8_t>(r0), static_cast<std::uint8_t>(r1), ty));
+        out.g = static_cast<std::uint8_t>(lerp(static_cast<std::uint8_t>(g0), static_cast<std::uint8_t>(g1), ty));
+        out.b = static_cast<std::uint8_t>(lerp(static_cast<std::uint8_t>(b0), static_cast<std::uint8_t>(b1), ty));
+        out.a = static_cast<std::uint8_t>(lerp(static_cast<std::uint8_t>(a0), static_cast<std::uint8_t>(a1), ty));
+        return out;
+    }
+
+    template<PixelFormat PF, std::size_t W, std::size_t H>
+    static void draw_image_transformed(Canvas<PF, W, H>& cvs,
+                                       int dst_x, int dst_y, int dst_w, int dst_h,
+                                       const ImageView& img,
+                                       Rotation rot,
+                                       Sampling sampling) noexcept {
+        if (!img || dst_w <= 0 || dst_h <= 0) return;
+        const int sw = img.w;
+        const int sh = img.h;
+        if (sw <= 0 || sh <= 0) return;
+        for (int y = 0; y < dst_h; ++y) {
+            for (int x = 0; x < dst_w; ++x) {
+                const int px = dst_x + x;
+                const int py = dst_y + y;
+                if (!cvs.in_clip(px, py)) continue;
+
+                float fx = 0.0f;
+                float fy = 0.0f;
+                const float u = (dst_w > 1) ? static_cast<float>(x) / static_cast<float>(dst_w - 1) : 0.0f;
+                const float v = (dst_h > 1) ? static_cast<float>(y) / static_cast<float>(dst_h - 1) : 0.0f;
+                switch (rot) {
+                case Rotation::Rotate90:
+                    fx = (1.0f - v) * static_cast<float>(sw - 1);
+                    fy = u * static_cast<float>(sh - 1);
+                    break;
+                case Rotation::Rotate180:
+                    fx = (1.0f - u) * static_cast<float>(sw - 1);
+                    fy = (1.0f - v) * static_cast<float>(sh - 1);
+                    break;
+                case Rotation::Rotate270:
+                    fx = v * static_cast<float>(sw - 1);
+                    fy = (1.0f - u) * static_cast<float>(sh - 1);
+                    break;
+                default:
+                    fx = u * static_cast<float>(sw - 1);
+                    fy = v * static_cast<float>(sh - 1);
+                    break;
+                }
+
+                rgba src{};
+                if (sampling == Sampling::Bilinear) {
+                    src = sample_bilinear(img, fx, fy);
+                } else {
+                    const int sx = static_cast<int>(fx + 0.5f);
+                    const int sy = static_cast<int>(fy + 0.5f);
+                    src = decode_pixel(img, sx, sy);
+                }
+                blend_pixel(cvs, px, py, src, img.premultiplied_alpha);
+            }
+        }
+    }
     static int bytes_per_pixel(PixelFormat fmt) noexcept {
         switch (fmt) {
         case PixelFormat::RGB565: return 2;
@@ -142,8 +314,12 @@ private:
 
     ImageView image_{};
     ScaleMode scale_mode_{ScaleMode::Stretch};
+    Rotation rotation_{Rotation::None};
+    Sampling sampling_{Sampling::Nearest};
     AlignH align_h_{AlignH::Center};
     AlignV align_v_{AlignV::Center};
+    float anchor_x_{0.5f};
+    float anchor_y_{0.5f};
     Rect crop_{};
     bool has_crop_{false};
 };

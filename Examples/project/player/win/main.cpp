@@ -1022,6 +1022,9 @@ namespace {
             logo->set_image(render_logo_argb());
             logo->set_scale_mode(Image::ScaleMode::Fit);
             logo->set_alignment(Image::AlignH::Center, Image::AlignV::Center);
+            logo->set_rotation(Image::Rotation::Rotate90);
+            logo->set_sampling(Image::Sampling::Bilinear);
+            logo->set_anchor(0.5f, 0.5f);
             logo->set_crop({4, 4, 22, 22});
             logo->set_size(200, 90);
         }

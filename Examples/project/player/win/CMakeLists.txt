@@ -28,8 +28,8 @@ set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_USE_VFS ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FETCHCONTENT_FATFS ON CACHE BOOL "" FORCE)
-set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/pabigot/FatFs.git" CACHE STRING "" FORCE)
-set(CHARM_FATFS_GIT_TAG "ff/master" CACHE STRING "" FORCE)
+set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/abbrev/fatfs.git" CACHE STRING "" FORCE)
+set(CHARM_FATFS_GIT_TAG "master" CACHE STRING "" FORCE)
 
 charm_example_sources(${target_name} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/project/player/*.cppm"

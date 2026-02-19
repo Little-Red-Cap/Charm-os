@@ -25,7 +25,7 @@
 - P0 鼠标/触摸：按下/抬起/移动/滚轮
 - P0 点击/拖拽/长按
 - P0 焦点与键盘导航
-- P1 手势（滑动/捏合）
+- P1 手势（滑动/捏合，已提供事件入口）
 - P2 多指/压感
 
 ## 4. 布局与容器
@@ -36,11 +36,11 @@
 - P2 虚拟列表布局
 
 ## 5. 已具备的基础控件（当前已有）
-- P0 button / label / image（缩放/裁剪/对齐） / checkbox / switch
+- P0 button / label / image（缩放/裁剪/对齐/旋转/采样/裁剪模式/边界模式） / checkbox / switch
 - P0 radio / radio_group
 - P0 slider / dial / roller / dropdown
 - P0 list / menu / menu_item
-- P0 menu 支持多级展开/收起（menu_tree）
+- P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
 - P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
@@ -62,6 +62,7 @@
 - P0 主题结构化（Theme/Style）
 - P1 样式继承与局部覆盖（已在部分控件落地示例）
 - P1 主题加载（配置/资源入口已提供：ThemePreset）
+- P1 约束式样式表 PoC（StyleSheet）
 - P2 运行时 DSL/CSS
 
 ## 9. 动画与过渡

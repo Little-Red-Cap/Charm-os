@@ -1,6 +1,7 @@
 module;
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 export module charm.core.gui;
 
 export import charm.gfx.canvas;
@@ -19,7 +20,7 @@ export
 class Gui {
 public:
     Gui(DefaultCanvas& cvs, UiFactory& factory, WidgetHandle root)
-        : canvas(cvs), factory_(factory), root_(root) {}
+        : canvas(cvs), factory_(factory), root_(root), cache_canvas_(cache_fb_) {}
 
     WidgetHandle focused() const noexcept { return focused_; }
     WidgetHandle hovered() const noexcept { return hovered_; }
@@ -28,6 +29,9 @@ public:
     bool dragging() const noexcept { return dragging_; }
     void set_dirty_tracking(bool on) noexcept { dirty_tracking_ = on; }
     bool dirty_tracking() const noexcept { return dirty_tracking_; }
+    void set_layer_cache(bool on) noexcept { layer_cache_ = on; cache_valid_ = false; }
+    bool layer_cache() const noexcept { return layer_cache_; }
+    void invalidate_cache() noexcept { cache_valid_ = false; }
     int last_frame_nodes() const noexcept { return debug_nodes_; }
     int last_depth_hits() const noexcept { return debug_depth_hits_; }
     int last_cycle_hits() const noexcept { return debug_cycle_hits_; }
@@ -62,30 +66,19 @@ public:
     void render() {
         static util::u32 frame_no = 0;
         canvas.begin_frame();
-        factory_.sanitize_tree(root_);
-        const WidgetHandle ov = factory_.overlay();
-        if (ov) factory_.sanitize_tree(ov);
-        const auto& rep = factory_.last_sanitize_report();
-        if (rep.removed > 0) {
-            static int frame_mod = 0;
-            frame_mod = (frame_mod + 1) % 60;
-            if (frame_mod == 0) {
-                trace_counter(GuiTraceId::SanitizeRemoved, (util::u64)rep.removed, frame_no);
-                trace_counter(GuiTraceId::SanitizeMissing, (util::u64)rep.missing, frame_no);
-                trace_counter(GuiTraceId::SanitizeSelf, (util::u64)rep.self_ref, frame_no);
-                trace_counter(GuiTraceId::SanitizeInvalidParent, (util::u64)rep.invalid_parent, frame_no);
-                trace_counter(GuiTraceId::SanitizeCycle, (util::u64)rep.cycle, frame_no);
-            }
-        }
-        debug_nodes_ = 0;
-        debug_depth_hits_ = 0;
-        debug_cycle_hits_ = 0;
-        WidgetHandle stack[kMaxDepth]{};
-        draw_recursive(root_, 0, stack);
+        sanitize_tree_and_trace(frame_no);
 
-        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, frame_no);
-        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, frame_no);
-        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, frame_no);
+        if (layer_cache_) {
+            if (!cache_valid_) {
+                cache_canvas_.begin_frame();
+                render_tree(cache_canvas_);
+                cache_canvas_.end_frame();
+                cache_valid_ = true;
+            }
+            blit_cache();
+        } else {
+            render_tree(canvas);
+        }
         frame_no++;
         canvas.end_frame();
     }
@@ -93,6 +86,9 @@ public:
     // 派发一个输入事件（全局坐标）
     void dispatch_event(const Event& e) {
         sanitize_handles();
+        if (layer_cache_) {
+            cache_valid_ = false;
+        }
         const WidgetHandle overlay = factory_.overlay();
         auto* overlay_obj = factory_.get(overlay);
         const bool overlay_visible = overlay_obj && overlay_obj->is_visible();
@@ -352,7 +348,42 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         return first;
     }
 
-    void draw_recursive(WidgetHandle h, int depth, WidgetHandle* stack) {
+    void sanitize_tree_and_trace(util::u32 frame_no) {
+        factory_.sanitize_tree(root_);
+        const WidgetHandle ov = factory_.overlay();
+        if (ov) factory_.sanitize_tree(ov);
+        const auto& rep = factory_.last_sanitize_report();
+        if (rep.removed > 0) {
+            static int frame_mod = 0;
+            frame_mod = (frame_mod + 1) % 60;
+            if (frame_mod == 0) {
+                trace_counter(GuiTraceId::SanitizeRemoved, (util::u64)rep.removed, frame_no);
+                trace_counter(GuiTraceId::SanitizeMissing, (util::u64)rep.missing, frame_no);
+                trace_counter(GuiTraceId::SanitizeSelf, (util::u64)rep.self_ref, frame_no);
+                trace_counter(GuiTraceId::SanitizeInvalidParent, (util::u64)rep.invalid_parent, frame_no);
+                trace_counter(GuiTraceId::SanitizeCycle, (util::u64)rep.cycle, frame_no);
+            }
+        }
+    }
+
+    void render_tree(DefaultCanvas& target) {
+        debug_nodes_ = 0;
+        debug_depth_hits_ = 0;
+        debug_cycle_hits_ = 0;
+        WidgetHandle stack[kMaxDepth]{};
+        draw_recursive(target, root_, 0, stack);
+        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
+        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
+        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+    }
+
+    void blit_cache() {
+        auto* dst = canvas.raw_buffer().data();
+        const auto* src = cache_fb_.data();
+        std::memcpy(dst, src, DefaultFrameBuffer::buffer_bytes);
+    }
+
+    void draw_recursive(DefaultCanvas& target, WidgetHandle h, int depth, WidgetHandle* stack) {
         if (depth > kMaxDepth) {
             ++debug_depth_hits_;
             return;
@@ -387,15 +418,15 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
                 sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
             }
         }
-        obj->draw(canvas);
+        obj->draw(target);
         if (dirty_tracking_) {
-            canvas.mark_dirty(obj->get_rect());
+            target.mark_dirty(obj->get_rect());
         }
 
         const bool clip_children = (h.kind == WidgetKind::ScrollContainer);
-        auto clip_state = canvas.save_clip();
+        auto clip_state = target.save_clip();
         if (clip_children) {
-            canvas.set_clip(obj->get_rect());
+            target.set_clip(obj->get_rect());
         }
 
         for (std::size_t i = 0; i < obj->child_count(); ++i) {
@@ -403,11 +434,11 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
             auto* ch_obj = factory_.get(ch);
             if (!ch_obj) continue;
             if (!obj->should_draw_child(*ch_obj)) continue;
-            draw_recursive(ch, depth + 1, stack);
+            draw_recursive(target, ch, depth + 1, stack);
         }
 
         if (clip_children) {
-            canvas.restore_clip(clip_state);
+            target.restore_clip(clip_state);
         }
     }
 
@@ -467,5 +498,9 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
     int debug_depth_hits_{0};
     int debug_cycle_hits_{0};
     bool dirty_tracking_{false};
+    bool layer_cache_{false};
+    bool cache_valid_{false};
+    DefaultFrameBuffer cache_fb_{};
+    DefaultCanvas cache_canvas_;
     TraceBuffer trace_{};
 };

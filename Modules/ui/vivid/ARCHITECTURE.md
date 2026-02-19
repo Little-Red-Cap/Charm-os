@@ -25,12 +25,14 @@
 
 - 输入链路在 UI 层进行语义化处理，控件只关注高层意图。
 - 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
+- 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
 
 ## 5. 文本与字体
 
 - 文本渲染默认 4bpp 字体数据。
 - 支持 UTF-8 解码、测量、换行与截断，渲染与排版逻辑集中在 text 组件。
 - 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
+- RichText/CodeBlock 走独立控件，避免复杂样式侵入基础文本。
 
 ## 6. 主题与样式
 
@@ -46,4 +48,4 @@
 ## 8. 示例与验证
 
 - 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
-- 当前示例含 ListView/ScrollBar/TableView/TreeView 的最小可用配置。
+- 当前示例含 ListView/ScrollBar/TableView/TreeView、Stepper/Timeline、MenuTree、RichText/CodeBlock、Image 变换等最小配置。

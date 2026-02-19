@@ -396,7 +396,7 @@ export namespace fs {
     inline BlockDevice* g_fatfs_device = nullptr;
     inline BYTE g_fatfs_pdrv = 0;
 
-    inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept {
+    inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv) noexcept {
         g_fatfs_device = dev;
         g_fatfs_pdrv = static_cast<BYTE>(pdrv);
     }

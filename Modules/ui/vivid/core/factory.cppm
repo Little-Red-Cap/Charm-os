@@ -23,7 +23,10 @@ import charm.widgets.switcher;
 import charm.widgets.progress;
 import charm.widgets.list;
 import charm.widgets.list_view;
+import charm.widgets.scrollbar;
 import charm.widgets.text_area;
+import charm.widgets.text_input;
+import charm.widgets.number_input;
 import charm.widgets.dropdown;
 import charm.widgets.tabview;
 import charm.widgets.roller;
@@ -59,7 +62,10 @@ public:
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
     WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
+    WidgetHandle create_scroll_bar() noexcept { return make_handle(scroll_bars_.create(), WidgetKind::ScrollBar); }
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
+    WidgetHandle create_text_input() noexcept { return make_handle(text_inputs_.create(), WidgetKind::TextInput); }
+    WidgetHandle create_number_input() noexcept { return make_handle(number_inputs_.create(), WidgetKind::NumberInput); }
     WidgetHandle create_dropdown() noexcept { return make_handle(dropdowns_.create(), WidgetKind::Dropdown); }
     WidgetHandle create_tabview() noexcept { return make_handle(tabviews_.create(), WidgetKind::TabView); }
     WidgetHandle create_roller() noexcept { return make_handle(rollers_.create(), WidgetKind::Roller); }
@@ -91,7 +97,10 @@ public:
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
     ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
+    ScrollBar* get_scroll_bar(const WidgetHandle& h) noexcept { return get_from(scroll_bars_, h, WidgetKind::ScrollBar); }
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
+    TextInput* get_text_input(const WidgetHandle& h) noexcept { return get_from(text_inputs_, h, WidgetKind::TextInput); }
+    NumberInput* get_number_input(const WidgetHandle& h) noexcept { return get_from(number_inputs_, h, WidgetKind::NumberInput); }
     Dropdown* get_dropdown(const WidgetHandle& h) noexcept { return get_from(dropdowns_, h, WidgetKind::Dropdown); }
     TabView* get_tabview(const WidgetHandle& h) noexcept { return get_from(tabviews_, h, WidgetKind::TabView); }
     Roller* get_roller(const WidgetHandle& h) noexcept { return get_from(rollers_, h, WidgetKind::Roller); }
@@ -121,7 +130,10 @@ public:
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
             case WidgetKind::ListView: return get_list_view(h);
+            case WidgetKind::ScrollBar: return get_scroll_bar(h);
             case WidgetKind::TextArea: return get_text_area(h);
+            case WidgetKind::TextInput: return get_text_input(h);
+            case WidgetKind::NumberInput: return get_number_input(h);
             case WidgetKind::Dropdown: return get_dropdown(h);
             case WidgetKind::TabView: return get_tabview(h);
             case WidgetKind::Roller: return get_roller(h);
@@ -300,7 +312,10 @@ public:
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
         case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
+        case WidgetKind::ScrollBar: destroy_from(scroll_bars_, h, WidgetKind::ScrollBar); break;
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
+        case WidgetKind::TextInput: destroy_from(text_inputs_, h, WidgetKind::TextInput); break;
+        case WidgetKind::NumberInput: destroy_from(number_inputs_, h, WidgetKind::NumberInput); break;
         case WidgetKind::Dropdown: destroy_from(dropdowns_, h, WidgetKind::Dropdown); break;
         case WidgetKind::TabView: destroy_from(tabviews_, h, WidgetKind::TabView); break;
         case WidgetKind::Roller: destroy_from(rollers_, h, WidgetKind::Roller); break;
@@ -561,7 +576,10 @@ private:
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
     HandlePool<ListView, 16> list_views_{};
+    HandlePool<ScrollBar, 32> scroll_bars_{};
     HandlePool<TextArea, 32> text_areas_{};
+    HandlePool<TextInput, 64> text_inputs_{};
+    HandlePool<NumberInput, 32> number_inputs_{};
     HandlePool<Dropdown, 64> dropdowns_{};
     HandlePool<TabView, 16> tabviews_{};
     HandlePool<Roller, 32> rollers_{};

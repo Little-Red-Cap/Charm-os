@@ -43,7 +43,7 @@ Modules/ui/vivid/
 - 布局/容器：list、menu/menu_item、tabview、scroll_container、popup_layer
 - 显示：progress、spinner、bar、gauge、arc、chart
 - 文本：text、text_area
-- 其它：message_box、primitives_canvas、list_view
+- 其它：message_box、primitives_canvas、list_view、scrollbar、text_input、number_input
 
 ## 3. 核心数据结构
 ### 3.1 WidgetHandle

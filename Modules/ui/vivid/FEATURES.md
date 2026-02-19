@@ -43,13 +43,11 @@
 - P0 list / menu / menu_item
 - P0 list_view（基础虚拟化入口）
 - P0 progress / spinner / bar / gauge / arc
-- P0 text / text_area
-- P0 message_box / tabview / scroll_container / popup_layer
+- P0 text / text_area / text_input / number_input
+- P0 message_box / tabview / scroll_container / popup_layer / scrollbar
 
 ## 6. 需要补齐的基础控件
-- P1 输入：text_input（单行）、number_input
 - P1 选择：segmented_control、toggle_group
-- P1 滚动条独立控件（scrollbar）
 
 ## 7. 高级组件
 - P1 表格/表头（table）

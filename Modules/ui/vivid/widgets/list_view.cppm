@@ -29,6 +29,7 @@ public:
     using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
     using PoolBindFn = void(*)(void* ctx, int slot, int index) noexcept;
     using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using RowHeightFn = int(*)(void* ctx, int index) noexcept;
     using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
@@ -55,11 +56,20 @@ public:
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 4) ? h : 4;
+        row_height_fn_ = nullptr;
+        row_height_ctx_ = nullptr;
         clear_cache();
         update_scroll_bounds();
     }
 
     int row_height() const noexcept { return row_height_; }
+
+    void set_row_height_fn(RowHeightFn fn, void* ctx = nullptr) noexcept {
+        row_height_fn_ = fn;
+        row_height_ctx_ = ctx;
+        clear_cache();
+        update_scroll_bounds();
+    }
 
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
         draw_fn_ = fn;
@@ -148,11 +158,40 @@ public:
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
-        const int row_h = row_height_for_render();
-        const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
-        const int start = window.start;
-        const int visible = window.visible;
-        int y = window.offset_y;
+        const bool variable_height = (row_height_fn_ != nullptr);
+        int start = 0;
+        int visible = 0;
+        int y = r.y + pad;
+        if (!variable_height) {
+            const int row_h = row_height_for_render();
+            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
+            start = window.start;
+            visible = window.visible;
+            y = window.offset_y;
+        } else {
+            int acc = 0;
+            for (int i = 0; i < count; ++i) {
+                const int h = row_height_for_index(i);
+                if (acc + h > scroll_y_) {
+                    start = i;
+                    break;
+                }
+                acc += h;
+                start = i + 1;
+            }
+            if (prefetch_rows_ > 0) {
+                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
+                    --start;
+                    acc -= row_height_for_index(start);
+                }
+            }
+            y = r.y + pad - (scroll_y_ - acc);
+            int temp_y = y;
+            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
+                temp_y += row_height_for_index(i);
+                ++visible;
+            }
+        }
         auto on_create = [&](int slot) {
             if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
         };
@@ -165,6 +204,7 @@ public:
         };
         cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
+            const int row_h = variable_height ? row_height_for_index(i) : row_height_for_render();
             Rect row{content_x, y, content_w, row_h};
             const bool is_selected = (i == selected_);
             if (is_selected) {
@@ -258,8 +298,16 @@ private:
         const auto r = get_rect();
         const Style& st = Theme::instance().get<ListView>();
         const int count = item_count_for_render();
-        const int row_h = row_height_for_render();
-        content_height_ = count * row_h + st.padding * 2;
+        if (row_height_fn_) {
+            int sum = 0;
+            for (int i = 0; i < count; ++i) {
+                sum += row_height_for_index(i);
+            }
+            content_height_ = sum + st.padding * 2;
+        } else {
+            const int row_h = row_height_for_render();
+            content_height_ = count * row_h + st.padding * 2;
+        }
         const int max = content_height_ - r.h;
         max_scroll_ = (max > 0) ? max : 0;
         if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
@@ -278,9 +326,16 @@ private:
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
         const int pad = st.padding;
-        const int row_h = row_height_for_render();
-        const int row_top = index * row_h;
-        const int row_bottom = row_top + row_h;
+        int row_top = 0;
+        int row_bottom = 0;
+        if (row_height_fn_) {
+            row_top = offset_for_index(index);
+            row_bottom = row_top + row_height_for_index(index);
+        } else {
+            const int row_h = row_height_for_render();
+            row_top = index * row_h;
+            row_bottom = row_top + row_h;
+        }
         const int view_top = scroll_y_;
         const int view_bottom = scroll_y_ + (r.h - pad * 2);
         if (row_top < view_top) {
@@ -295,9 +350,18 @@ private:
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_ - st.padding;
         if (local < 0) return -1;
-        const int row_h = row_height_for_render();
-        if (row_h <= 0) return -1;
-        return local / row_h;
+        if (!row_height_fn_) {
+            const int row_h = row_height_for_render();
+            if (row_h <= 0) return -1;
+            return local / row_h;
+        }
+        int acc = 0;
+        const int count = item_count_for_render();
+        for (int i = 0; i < count; ++i) {
+            acc += row_height_for_index(i);
+            if (local < acc) return i;
+        }
+        return -1;
     }
 
     int item_count_for_render() const noexcept {
@@ -310,6 +374,20 @@ private:
 
     int row_height_for_render() const noexcept {
         return (row_height_ > 4) ? row_height_ : 4;
+    }
+
+    int row_height_for_index(int index) const noexcept {
+        if (!row_height_fn_) return row_height_for_render();
+        int h = row_height_fn_(row_height_ctx_ ? row_height_ctx_ : data_ctx_, index);
+        return (h > 4) ? h : 4;
+    }
+
+    int offset_for_index(int index) const noexcept {
+        int acc = 0;
+        for (int i = 0; i < index; ++i) {
+            acc += row_height_for_index(i);
+        }
+        return acc;
     }
 
     void notify_scroll() noexcept {
@@ -336,6 +414,8 @@ private:
     PoolBindFn pool_bind_fn_{nullptr};
     PoolRecycleFn pool_recycle_fn_{nullptr};
     void* pool_ctx_{nullptr};
+    RowHeightFn row_height_fn_{nullptr};
+    void* row_height_ctx_{nullptr};
     ScrollFn scroll_fn_{nullptr};
     void* scroll_ctx_{nullptr};
 

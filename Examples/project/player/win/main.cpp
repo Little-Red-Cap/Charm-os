@@ -1,5 +1,5 @@
 #ifndef CHARM_PLAYER_DEBUG_UI
-#define CHARM_PLAYER_DEBUG_UI 1
+#define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
 import audio.player;
@@ -175,10 +175,17 @@ namespace {
         bool has_children{false};
     };
 
+    struct TreeCacheEntry {
+        int index{-1};
+        int depth{0};
+        std::string label{};
+    };
+
     struct TreeDemo {
         static constexpr int kMaxNodes = 8;
         std::array<TreeDemoNode, kMaxNodes> nodes{};
         std::array<int, kMaxNodes> visible{};
+        std::array<TreeCacheEntry, 32> cache{};
         int node_count{0};
         int visible_count{0};
     };
@@ -224,13 +231,22 @@ namespace {
     }
 
     void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
-        (void)ctx;
+        auto* demo = static_cast<TreeDemo*>(ctx);
         const auto& st = Theme::instance().get<TreeView>();
         Rect text = info.rect;
-        text.x += st.padding + info.node.depth * 12;
+        const char* label = info.node.label ? info.node.label : "";
+        int depth = info.node.depth;
+        if (demo && info.slot >= 0 && info.slot < static_cast<int>(demo->cache.size())) {
+            const auto& entry = demo->cache[info.slot];
+            if (entry.index == info.index && !entry.label.empty()) {
+                label = entry.label.c_str();
+                depth = entry.depth;
+            }
+        }
+        text.x += st.padding + depth * 12;
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
-        draw_text_box(cvs, text, info.node.label ? info.node.label : "",
+        draw_text_box(cvs, text, label,
                       st.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
@@ -243,6 +259,36 @@ namespace {
         if (!node.has_children) return;
         node.expanded = !node.expanded;
         tree_rebuild_visible(*demo);
+    }
+
+    void on_tree_pool_create(void* ctx, int slot) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        demo->cache[slot].index = -1;
+        demo->cache[slot].depth = 0;
+        demo->cache[slot].label.clear();
+    }
+
+    void on_tree_pool_bind(void* ctx, int slot, int index, const TreeView::NodeInfo& info) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        auto& entry = demo->cache[slot];
+        entry.index = index;
+        entry.depth = info.depth;
+        entry.label = info.label ? info.label : "";
+    }
+
+    void on_tree_pool_recycle(void* ctx, int slot, int index) noexcept {
+        (void)index;
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo) return;
+        if (slot < 0 || slot >= static_cast<int>(demo->cache.size())) return;
+        auto& entry = demo->cache[slot];
+        entry.index = -1;
+        entry.depth = 0;
+        entry.label.clear();
     }
 
     struct TableDemoRow {
@@ -1271,6 +1317,8 @@ namespace {
             tree_rebuild_visible(g_tree_demo);
             tree->set_data_source(&tree_row_count, &tree_node_info, &on_tree_draw, &g_tree_demo);
             tree->set_on_toggle(&on_tree_toggle);
+            tree->set_item_pool(&on_tree_pool_create, &on_tree_pool_bind, &on_tree_pool_recycle, &g_tree_demo);
+            tree->set_prefetch_rows(2);
             tree->set_row_height(28);
         }
 

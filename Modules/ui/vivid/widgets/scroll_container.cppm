@@ -26,6 +26,7 @@ public:
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,
                                       this);
+        interactions_.add(&pinch_strategy_);
     }
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
@@ -167,7 +168,7 @@ public:
             return true;
         } else if (e.type == Event::Type::GesturePinch) {
             if (!r.contains(e.x, e.y)) return false;
-            return pinch_strategy_.on_event(e);
+            return interactions_.on_event(e);
         }
         return false;
     }
@@ -258,6 +259,7 @@ private:
     bool swipe_active_{false};
     bool pinch_active_{false};
     PinchScrollStrategy pinch_strategy_{};
+    InteractionList interactions_{};
     int last_y_{0};
     int velocity_{0};
 

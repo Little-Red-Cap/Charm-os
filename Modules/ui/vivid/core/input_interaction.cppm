@@ -13,6 +13,50 @@ public:
 };
 
 export
+class InteractionList {
+public:
+    static constexpr std::size_t kMax = 4;
+
+    bool add(InteractionStrategy* strategy) noexcept {
+        if (!strategy) return false;
+        for (std::size_t i = 0; i < count_; ++i) {
+            if (items_[i] == strategy) return true;
+        }
+        if (count_ >= kMax) return false;
+        items_[count_++] = strategy;
+        return true;
+    }
+
+    bool remove(InteractionStrategy* strategy) noexcept {
+        for (std::size_t i = 0; i < count_; ++i) {
+            if (items_[i] == strategy) {
+                for (std::size_t j = i + 1; j < count_; ++j) {
+                    items_[j - 1] = items_[j];
+                }
+                items_[count_ - 1] = nullptr;
+                --count_;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool on_event(const Event& e) {
+        for (std::size_t i = 0; i < count_; ++i) {
+            auto* strategy = items_[i];
+            if (strategy && strategy->on_event(e)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    InteractionStrategy* items_[kMax]{};
+    std::size_t count_{0};
+};
+
+export
 class DoubleTapRestoreStrategy : public InteractionStrategy {
 public:
     using Callback = void(*)(void*);

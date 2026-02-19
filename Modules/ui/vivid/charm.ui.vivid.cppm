@@ -36,6 +36,7 @@ export import charm.widgets.arc;
 export import charm.widgets.bar;
 export import charm.widgets.button;
 export import charm.widgets.chart;
+export import charm.widgets.waveform;
 export import charm.widgets.checkbox;
 export import charm.widgets.dial;
 export import charm.widgets.dropdown;

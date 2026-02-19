@@ -38,6 +38,7 @@ enum class WidgetKind : std::uint8_t {
     Radio,
     RadioGroup
     ,Chart
+    ,Waveform
     ,Gauge
     ,PrimitivesCanvas
     ,PerfOverlay
@@ -93,6 +94,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Radio: return "Radio";
         case WidgetKind::RadioGroup: return "RadioGroup";
         case WidgetKind::Chart: return "Chart";
+        case WidgetKind::Waveform: return "Waveform";
         case WidgetKind::Gauge: return "Gauge";
         case WidgetKind::PrimitivesCanvas: return "PrimitivesCanvas";
         case WidgetKind::PerfOverlay: return "PerfOverlay";

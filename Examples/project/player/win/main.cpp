@@ -120,11 +120,25 @@ namespace {
     struct TrackListContext {
         std::string_view dir{};
         std::vector<std::string>* out{nullptr};
+        std::vector<std::string>* subdirs{nullptr};
     };
 
     fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* info = static_cast<TrackListContext*>(ctx);
         if (!info || !info->out) return fs::Status{fs::Err::inval};
+        if (entry.type == fs::NodeType::dir) {
+            if (!info->subdirs) return fs::Status{fs::Err::ok};
+            std::string path;
+            if (info->dir.empty() || info->dir == "/") {
+                path = "/";
+            } else {
+                path.assign(info->dir.begin(), info->dir.end());
+                if (!path.empty() && path.back() != '/') path.push_back('/');
+            }
+            path.append(entry.name.begin(), entry.name.end());
+            info->subdirs->push_back(path);
+            return fs::Status{fs::Err::ok};
+        }
         if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
         if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
 
@@ -140,10 +154,13 @@ namespace {
         return fs::Status{fs::Err::ok};
     }
 
-    bool collect_tracks_from_dir(std::string_view dir, std::vector<std::string>& out) {
-        TrackListContext ctx{dir, &out};
-        const auto st = fs::vfs_list(dir, &ctx, &collect_track);
-        return st && !out.empty();
+    bool collect_tracks_from_dir(std::string_view dir,
+                                 std::vector<std::string>& out,
+                                 std::vector<std::string>* subdirs,
+                                 fs::Status& out_status) {
+        TrackListContext ctx{dir, &out, subdirs};
+        out_status = fs::vfs_list(dir, &ctx, &collect_track);
+        return out_status && !out.empty();
     }
 
     struct OffsetDevice {
@@ -910,14 +927,45 @@ int main(int argc, char** argv) {
         ctx.set_status_color({220, 120, 120, 255});
     } else {
         vfs_tracks.clear();
-        if (!collect_tracks_from_dir("/music", vfs_tracks)) {
-            if (!collect_tracks_from_dir("/", vfs_tracks)) {
+        fs::Status list_st{fs::Err::ok};
+        if (!collect_tracks_from_dir("/music", vfs_tracks, nullptr, list_st)) {
+            std::vector<std::string> subdirs;
+            const bool root_has = collect_tracks_from_dir("/", vfs_tracks, &subdirs, list_st);
+            if (list_st) {
+                for (const auto& dir : subdirs) {
+                    collect_tracks_from_dir(dir, vfs_tracks, nullptr, list_st);
+                }
+            }
+            if (!list_st) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
+                ctx.set_status(buf);
+                ctx.set_status_color({220, 120, 120, 255});
+            } else if (!root_has && vfs_tracks.empty()) {
+                ctx.set_status("No tracks found");
+                ctx.set_status_color({220, 120, 120, 255});
+            }
+        }
+        bool should_load = true;
+        if (vfs_tracks.empty()) {
+            if (!list_st) {
                 vfs_tracks.emplace_back(kDefaultVfsTrack);
+            } else {
+                should_load = false;
             }
         }
         ctx.rebuild_track_labels();
         ctx.refresh_list_view();
-        ctx.load_track_index(0);
+        if (should_load) {
+            ctx.load_track_index(0);
+        } else {
+            ctx.track_ready = false;
+            ctx.track_path = nullptr;
+            ctx.set_pause_button_text("Pause");
+            ctx.set_time_label(0);
+            ctx.sync_progress_value(0);
+            ctx.reset_duration();
+        }
     }
 
     Gui gui(canvas, factory, ctx.handles.root);

@@ -5,14 +5,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_block;
-import fs_blockfs;
-import fs_core;
-import fs_errno;
-import fs_stream;
-import fs_vfs;
-import shell_posix;
+import charm.foundation;
+import charm.runtime;
 
 struct MemBlock {
     static constexpr util::usize block_size = 128;

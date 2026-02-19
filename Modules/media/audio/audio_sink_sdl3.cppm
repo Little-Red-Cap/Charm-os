@@ -9,12 +9,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <span>
 
 export module audio.sink.sdl3;
 
 import audio.format;
 import audio.result;
+import media.stream.sink;
+import util.span;
 
 export namespace audio {
 #ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
@@ -29,12 +30,8 @@ export namespace audio {
         static_cast<std::size_t>(CHARM_AUDIO_MAX_CHANNELS) *
         sizeof(std::int16_t);
 
-    using FillCallback = std::size_t(*)(std::span<std::byte>, void*) noexcept;
-
-    struct SinkConfig {
-        AudioFormat fmt{};
-        std::uint32_t preferred_period_frames{0};
-    };
+    using FillCallback = media::FillCallback;
+    using SinkConfig = media::SinkConfig;
 
     struct CallbackStats {
         std::uint64_t count{0};
@@ -44,10 +41,10 @@ export namespace audio {
         std::uint32_t last_request_frames{0};
     };
 
-    class Sdl3AudioSink {
+    class Sdl3AudioSink : public media::IStreamSink {
     public:
-        Result<void> open(const SinkConfig& cfg) {
-            fmt_ = cfg.fmt;
+        Result<void> open(const SinkConfig& cfg) noexcept override {
+            fmt_ = from_stream_format(cfg.format);
             const std::uint32_t period = cfg.preferred_period_frames != 0
                 ? cfg.preferred_period_frames
                 : (fmt_.rate / 100);
@@ -85,31 +82,31 @@ export namespace audio {
             return {};
         }
 
-        Result<void> start() {
+        Result<void> start() noexcept override {
             if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_ResumeAudioStreamDevice(stream_);
             return {};
         }
 
-        Result<void> stop() {
+        Result<void> stop() noexcept override {
             if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_PauseAudioStreamDevice(stream_);
             return {};
         }
 
-        void close() {
+        void close() noexcept override {
             if (stream_) {
                 SDL_DestroyAudioStream(stream_);
                 stream_ = nullptr;
             }
         }
 
-        void set_fill_callback(FillCallback cb, void* user) {
+        void set_fill_callback(FillCallback cb, void* user) noexcept override {
             fill_cb_ = cb;
             fill_user_ = user;
         }
 
-        AudioFormat format() const noexcept { return fmt_; }
+        media::StreamFormat format() const noexcept override { return to_stream_format(fmt_); }
         std::uint32_t actual_period_frames() const noexcept { return period_frames_; }
         double output_latency_seconds() const noexcept { return latency_sec_; }
 
@@ -190,7 +187,7 @@ export namespace audio {
                 if (chunk == 0) break;
                 std::size_t written = 0;
                 if (self->fill_cb_) {
-                    written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
+                    written = self->fill_cb_(util::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
                 }
 
                 if (written < chunk) {
@@ -226,5 +223,23 @@ export namespace audio {
         std::atomic<std::uint64_t> cb_dt_sum_ns_{0};
         std::atomic<std::uint64_t> cb_last_ns_{0};
         std::atomic<std::uint32_t> cb_last_request_frames_{0};
+
+        static AudioFormat from_stream_format(const media::StreamFormat& fmt) {
+            AudioFormat out{};
+            out.rate = fmt.rate;
+            out.channels = fmt.channels;
+            out.sample_type = SampleType::s16;
+            out.interleaved = true;
+            return out;
+        }
+
+        static media::StreamFormat to_stream_format(const AudioFormat& fmt) {
+            media::StreamFormat out{};
+            out.kind = media::StreamKind::audio;
+            out.rate = fmt.rate;
+            out.channels = fmt.channels;
+            out.bits_per_sample = 16;
+            return out;
+        }
     };
 }

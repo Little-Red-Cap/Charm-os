@@ -5,10 +5,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_ramfs;
-import fs_vfs;
+import charm.foundation;
+import charm.runtime;
 
 static void write_and_read(std::string_view path, const char* msg) {
     fs::File f{};

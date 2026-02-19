@@ -3,13 +3,16 @@
 #define DR_FLAC_IMPLEMENTATION
 #include <dr_flac.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 
 export module audio.decoder.flac;
 
 import audio.result;
+import util.span;
+import media.stream.source;
+import media.stream.filter;
 
 export namespace audio {
     struct FlacInfo {
@@ -22,7 +25,7 @@ export namespace audio {
         struct SourceOps {
             static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
                 auto* src = static_cast<Source*>(user);
-                auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
+                auto res = src->read(util::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
                 if (!res) return 0;
                 return *res;
             }
@@ -110,5 +113,83 @@ export namespace audio {
     private:
         drflac* flac_{nullptr};
         void* src_{nullptr};
+    };
+
+    class FlacFilter : public media::IStreamFilter {
+    public:
+        Result<void> open(media::IStreamSource& src) noexcept {
+            view_.src = &src;
+            auto info = decoder_.open(view_);
+            if (!info) return unexpected(info.error());
+            info_ = *info;
+            opened_ = true;
+            return Result<void>{};
+        }
+
+        void close() noexcept {
+            decoder_.close();
+            opened_ = false;
+            view_.src = nullptr;
+        }
+
+        Result<void> reset() noexcept override {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            return decoder_.seek_pcm_frame(0);
+        }
+
+        Result<media::FilterResult> process(util::span<const std::byte>,
+                                            util::span<std::byte> out) noexcept override {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int32_t);
+            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            const std::size_t frames = out.size() / frame_bytes;
+            if (frames == 0) return media::FilterResult{};
+            auto* pcm = reinterpret_cast<std::int32_t*>(out.data());
+            auto read = decoder_.read_s32(pcm, frames);
+            if (!read) return unexpected(read.error());
+            const std::size_t produced = (*read) * frame_bytes;
+            return media::FilterResult{0, produced, *read == 0};
+        }
+
+        media::StreamFormat format() const noexcept override {
+            media::StreamFormat fmt{};
+            fmt.kind = media::StreamKind::audio;
+            fmt.rate = info_.sample_rate;
+            fmt.channels = info_.channels;
+            fmt.bits_per_sample = 32;
+            return fmt;
+        }
+
+        Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            return decoder_.seek_pcm_frame(frame);
+        }
+
+        std::uint64_t total_frames() const noexcept {
+            return decoder_.total_frames();
+        }
+
+    private:
+        struct SourceView {
+            media::IStreamSource* src{nullptr};
+
+            Result<std::size_t> read(util::span<std::byte> out) noexcept {
+                return src->read(out);
+            }
+
+            Result<std::int64_t> seek(std::int64_t offset, int whence) noexcept {
+                media::SeekWhence mapped = media::SeekWhence::set;
+                if (whence == SEEK_CUR) mapped = media::SeekWhence::cur;
+                if (whence == SEEK_END) mapped = media::SeekWhence::end;
+                return src->seek(offset, mapped);
+            }
+
+            Result<std::int64_t> tell() noexcept { return src->tell(); }
+        };
+
+        FlacDecoder decoder_{};
+        SourceView view_{};
+        FlacInfo info_{};
+        bool opened_{false};
     };
 }

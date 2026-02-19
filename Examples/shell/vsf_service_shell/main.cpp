@@ -1,18 +1,11 @@
-﻿#include <array>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
 
-import util.core;
-import service_ring_buffer;
-import service_stream;
-import service_trace;
-import service_json;
-import shell_core;
-import shell_stdio;
-import shell_cmd;
-import shell_stream;
+import charm.foundation;
+import charm.runtime;
 
 struct TestStream {
     std::array<char, 64> buf{};

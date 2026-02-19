@@ -1,14 +1,17 @@
 ﻿module;
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <span>
 
 export module audio.decoder.wav;
 
 import audio.result;
+import util.span;
+import media.stream.source;
+import media.stream.filter;
 
 export namespace audio {
     struct WavInfo {
@@ -51,7 +54,7 @@ export namespace audio {
         if (!start) return unexpected(start.error());
 
         detail::RiffHeader riff{};
-        auto read_riff = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&riff), sizeof(riff)));
+        auto read_riff = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&riff), sizeof(riff)));
         if (!read_riff || *read_riff != sizeof(riff)) {
             return unexpected(Err{Errc::invalid_arg, 0});
         }
@@ -65,7 +68,7 @@ export namespace audio {
 
         while (true) {
         detail::ChunkHeader ch{};
-            auto read_ch = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&ch), sizeof(ch)));
+            auto read_ch = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&ch), sizeof(ch)));
             if (!read_ch || *read_ch != sizeof(ch)) break;
 
             if (detail::match_id(ch.id, "fmt ")) {
@@ -73,7 +76,7 @@ export namespace audio {
                     return unexpected(Err{Errc::invalid_arg, 0});
                 }
                 detail::FmtChunk fmt{};
-                auto read_fmt = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&fmt), sizeof(fmt)));
+                auto read_fmt = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&fmt), sizeof(fmt)));
                 if (!read_fmt || *read_fmt != sizeof(fmt)) {
                     return unexpected(Err{Errc::io_error, 0});
                 }
@@ -111,4 +114,85 @@ export namespace audio {
 
         return info;
     }
+
+    class WavFilter : public media::IStreamFilter {
+    public:
+        Result<void> open(media::IStreamSource& src) noexcept {
+            src_ = &src;
+            SourceView view{src_};
+            auto parsed = parse_wav(view);
+            if (!parsed) return unexpected(parsed.error());
+            info_ = *parsed;
+            data_end_ = static_cast<std::uint64_t>(info_.data_offset) +
+                        static_cast<std::uint64_t>(info_.data_size);
+            opened_ = true;
+            return reset();
+        }
+
+        void close() noexcept {
+            opened_ = false;
+            src_ = nullptr;
+        }
+
+        Result<void> reset() noexcept override {
+            if (!src_ || !opened_) return unexpected(Err{Errc::bad_state, 0});
+            auto res = src_->seek(static_cast<std::int64_t>(info_.data_offset), media::SeekWhence::set);
+            return res ? Result<void>{} : unexpected(res.error());
+        }
+
+        Result<media::FilterResult> process(util::span<const std::byte>,
+                                            util::span<std::byte> out) noexcept override {
+            if (!src_ || !opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (out.empty()) return media::FilterResult{};
+            auto pos = src_->tell();
+            if (!pos) return unexpected(pos.error());
+            const auto cur = static_cast<std::uint64_t>(*pos);
+            if (cur >= data_end_) {
+                return media::FilterResult{0, 0, true};
+            }
+            auto remaining = data_end_ - cur;
+            if (remaining < out.size()) {
+                out = util::span<std::byte>(out.data(), static_cast<std::size_t>(remaining));
+            }
+            auto rd = src_->read(out);
+            if (!rd) return unexpected(rd.error());
+            const bool eos = (*rd == 0) || (static_cast<std::uint64_t>(*rd) >= remaining);
+            return media::FilterResult{0, *rd, eos};
+        }
+
+        media::StreamFormat format() const noexcept override {
+            media::StreamFormat fmt{};
+            fmt.kind = media::StreamKind::audio;
+            fmt.rate = info_.sample_rate;
+            fmt.channels = info_.channels;
+            fmt.bits_per_sample = info_.bits_per_sample;
+            return fmt;
+        }
+
+        std::uint32_t data_offset() const noexcept { return info_.data_offset; }
+        std::uint32_t data_size() const noexcept { return info_.data_size; }
+
+    private:
+        struct SourceView {
+            media::IStreamSource* src{nullptr};
+
+            Result<std::size_t> read(util::span<std::byte> out) noexcept {
+                return src->read(out);
+            }
+
+            Result<std::int64_t> seek(std::int64_t offset, int whence) noexcept {
+                media::SeekWhence mapped = media::SeekWhence::set;
+                if (whence == SEEK_CUR) mapped = media::SeekWhence::cur;
+                if (whence == SEEK_END) mapped = media::SeekWhence::end;
+                return src->seek(offset, mapped);
+            }
+
+            Result<std::int64_t> tell() noexcept { return src->tell(); }
+        };
+
+        media::IStreamSource* src_{nullptr};
+        WavInfo info_{};
+        std::uint64_t data_end_{0};
+        bool opened_{false};
+    };
 }

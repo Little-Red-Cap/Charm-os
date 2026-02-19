@@ -1,15 +1,12 @@
-﻿#include <array>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_ramfs;
-import fs_vfs;
-import shell_posix;
+import charm.foundation;
+import charm.runtime;
 
 using Posix = shell_posix::PosixApi<8>;
 

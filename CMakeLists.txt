@@ -79,6 +79,7 @@ message(STATUS "${target_name} Draft Examples: Windows -> ${CMAKE_CURRENT_SOURCE
 message(STATUS "${target_name} Draft Examples: STM32   -> ${CMAKE_CURRENT_SOURCE_DIR}/Draft/Examples/stm32f103c8")
 message(STATUS "${target_name} Examples: Kernel/Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/kernel/windows")
 message(STATUS "${target_name} Examples: Boot/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/boot/bootloader_demo")
+message(STATUS "${target_name} Examples: Power/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/system/power_demo")
 message(STATUS "${target_name} Examples: Audio/SDL3 -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/audio/sdl3_wav_demo")
 message(STATUS "${target_name} Examples: FS/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/fs")
 message(STATUS "${target_name} Examples: Shell/VSF -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/shell/vsf_service_shell")

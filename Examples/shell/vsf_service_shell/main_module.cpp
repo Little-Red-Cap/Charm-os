@@ -1,15 +1,12 @@
-﻿#include <cstddef>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <array>
 #include <cstring>
 #include <string_view>
 
-import module_core;
-import module_loader;
-import module_link;
-import module_registry;
-import util.core;
+import charm.foundation;
+import charm.runtime;
 
 static void demo_entry() {
     std::printf("[module_demo] entry invoked\n");

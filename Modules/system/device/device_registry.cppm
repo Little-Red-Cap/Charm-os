@@ -54,12 +54,15 @@ export namespace device {
                         continue;
                     }
                     if (drv->ops.init) {
-                        dev.state = DeviceState::initialized;
                         if (!drv->ops.init(dev)) {
-                            dev.state = DeviceState::detected;
+                            if (drv->ops.remove) {
+                                drv->ops.remove(dev);
+                            }
                             dev.driver = nullptr;
+                            dev.state = DeviceState::detected;
                             continue;
                         }
+                        dev.state = DeviceState::initialized;
                     }
                     dev.state = DeviceState::running;
                     break;

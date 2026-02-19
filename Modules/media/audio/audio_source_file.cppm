@@ -1,15 +1,17 @@
 ﻿module;
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 
 export module audio.source.file;
 
 import audio.result;
+import media.stream.source;
+import util.span;
 
 export namespace audio {
-    class FileDataSource {
+    class FileDataSource : public media::IStreamSource {
     public:
         FileDataSource() = default;
         explicit FileDataSource(const char* path) { (void)open(path); }
@@ -30,7 +32,7 @@ export namespace audio {
 
         ~FileDataSource() { close(); }
 
-        Result<std::size_t> read(std::span<std::byte> out) {
+        Result<std::size_t> read(util::span<std::byte> out) noexcept override {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto n = std::fread(out.data(), 1, out.size(), file_);
             if (n == 0 && std::ferror(file_)) {
@@ -47,14 +49,30 @@ export namespace audio {
             return tell();
         }
 
-        Result<std::int64_t> tell() {
+        Result<std::int64_t> seek(std::int64_t offset, media::SeekWhence whence) noexcept override {
+            int mapped = SEEK_SET;
+            switch (whence) {
+            case media::SeekWhence::set:
+                mapped = SEEK_SET;
+                break;
+            case media::SeekWhence::cur:
+                mapped = SEEK_CUR;
+                break;
+            case media::SeekWhence::end:
+                mapped = SEEK_END;
+                break;
+            }
+            return seek(offset, mapped);
+        }
+
+        Result<std::int64_t> tell() noexcept override {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const long pos = std::ftell(file_);
             if (pos < 0) return unexpected(Err{Errc::io_error, 0});
             return static_cast<std::int64_t>(pos);
         }
 
-        Result<std::int64_t> size() {
+        Result<std::int64_t> size() noexcept override {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto cur = tell();
             if (!cur) return unexpected(cur.error());

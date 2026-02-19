@@ -5,10 +5,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_ramfs;
-import fs_stream;
+import charm.foundation;
+import charm.runtime;
 
 int main() {
     fs::RamFs<64, 4, 16> ramfs;

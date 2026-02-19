@@ -1,14 +1,10 @@
-﻿#include <cstddef>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <utility>
 
-import kernel.capabilities;
-import kernel.config;
-import kernel.eda;
-import kernel.evt;
-import kernel.scheduler;
-import kernel.trace;
+import charm.foundation;
+import charm.runtime;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;

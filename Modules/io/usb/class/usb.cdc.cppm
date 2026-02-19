@@ -112,6 +112,42 @@ export namespace usb::class_driver {
         }
 
         const CdcConfig& config() const noexcept { return cfg_; }
+        u16 control_line_state() const noexcept { return control_line_state_; }
+        const CdcLineCoding& line_coding() const noexcept { return coding_; }
+        CdcLineCoding get_line_coding() const noexcept { return coding_; }
+        void set_line_coding(const CdcLineCoding& coding, bool notify = false) noexcept {
+            coding_ = coding;
+            if (notify && ops_.on_line_coding) {
+                ops_.on_line_coding(ctx_, coding_);
+            }
+        }
+        void set_control_line_state(u16 value) noexcept {
+            if (control_line_state_ == value) return;
+            control_line_state_ = value;
+            if (ops_.on_control_line) {
+                ops_.on_control_line(ctx_, value);
+            }
+        }
+
+        std::span<u8> rx_buffer() noexcept {
+            return ops_.rx_buffer ? ops_.rx_buffer(ctx_) : std::span<u8>{};
+        }
+
+        std::span<u8> tx_buffer() noexcept {
+            return ops_.tx_buffer ? ops_.tx_buffer(ctx_) : std::span<u8>{};
+        }
+
+        void on_rx_done(std::size_t len) noexcept {
+            if (ops_.on_rx_done) {
+                ops_.on_rx_done(ctx_, len);
+            }
+        }
+
+        void on_tx_done(std::size_t len) noexcept {
+            if (ops_.on_tx_done) {
+                ops_.on_tx_done(ctx_, len);
+            }
+        }
 
         std::span<const u8> serial_state_notification(u16 state_bits) noexcept {
             notify_.w_index = cfg_.ctrl_ifc;
@@ -136,9 +172,7 @@ export namespace usb::class_driver {
             if (!self) return false;
             switch (req.setup.b_request) {
             case req_set_control_line_state:
-                if (self->ops_.on_control_line) {
-                    self->ops_.on_control_line(self->ctx_, req.setup.w_value);
-                }
+                self->set_control_line_state(req.setup.w_value);
                 resp.data = {};
                 resp.zlp = true;
                 return true;
@@ -178,7 +212,12 @@ export namespace usb::class_driver {
 
         static void handle_reset(void* ctx) noexcept {
             auto* self = static_cast<CdcAcm*>(ctx);
-            if (self) self->coding_ = {};
+            if (!self) return;
+            self->coding_ = {};
+            self->control_line_state_ = 0;
+            if (self->ops_.on_line_coding) {
+                self->ops_.on_line_coding(self->ctx_, self->coding_);
+            }
         }
 
         void* ctx_{nullptr};
@@ -187,5 +226,6 @@ export namespace usb::class_driver {
         CdcLineCoding coding_{};
         bool expect_line_coding_{false};
         CdcNotification notify_{};
+        u16 control_line_state_{0};
     };
 } // namespace usb::class_driver

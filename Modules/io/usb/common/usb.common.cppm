@@ -1,10 +1,12 @@
 module;
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <span>
 #include <string_view>
+#include <utility>
 
 export module usb.common;
 
@@ -123,6 +125,17 @@ export namespace usb {
         u8 interface{0};
     };
 
+    struct InterfaceAssociationDescriptor {
+        u8 length{8};
+        DescriptorType type{static_cast<DescriptorType>(0x0B)};
+        u8 first_interface{0};
+        u8 interface_count{0};
+        u8 function_class{0};
+        u8 function_subclass{0};
+        u8 function_protocol{0};
+        u8 function{0};
+    };
+
     struct EndpointDescriptor {
         u8 length{7};
         DescriptorType type{DescriptorType::endpoint};
@@ -184,8 +197,15 @@ export namespace usb {
         DescriptorWriter writer{};
         std::size_t config_offset{static_cast<std::size_t>(-1)};
         u8 interface_count{0};
+        bool interface_count_override{false};
+        u8 interface_count_value{0};
 
         explicit DescriptorBuilder(std::span<u8> buffer) noexcept { writer.buffer = buffer; }
+
+        void set_interface_count(u8 value) noexcept {
+            interface_count_override = true;
+            interface_count_value = value;
+        }
 
         bool begin_config(const ConfigDescriptor& cfg) noexcept {
             config_offset = writer.offset;
@@ -212,7 +232,7 @@ export namespace usb {
             if (config_offset + sizeof(ConfigDescriptor) > writer.buffer.size()) return false;
             auto* cfg = reinterpret_cast<ConfigDescriptor*>(writer.buffer.data() + config_offset);
             cfg->total_length = static_cast<u16>(writer.offset - config_offset);
-            cfg->num_interfaces = interface_count;
+            cfg->num_interfaces = interface_count_override ? interface_count_value : interface_count;
             return true;
         }
     };
@@ -236,6 +256,80 @@ export namespace usb {
         }
         return true;
     }
+
+    inline bool write_utf16_string_descriptor(DescriptorWriter& writer, std::u16string_view text) noexcept {
+        const auto utf16_bytes = text.size() * 2;
+        if (utf16_bytes > 254) return false;
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + utf16_bytes);
+        if (!writer.write_object(hdr)) return false;
+        for (char16_t ch : text) {
+            const u16 le = static_cast<u16>(ch);
+            if (!writer.write_object(le)) return false;
+        }
+        return true;
+    }
+
+    inline constexpr std::pair<u8, u16> utf16le_unit(char16_t ch) noexcept {
+        return { static_cast<u8>(2), static_cast<u16>(ch) };
+    }
+
+    inline constexpr u8 utf16le_length(std::u16string_view text) noexcept {
+        const auto bytes = text.size() * 2;
+        return (bytes > 254) ? static_cast<u8>(0) : static_cast<u8>(bytes);
+    }
+
+    template <std::size_t N>
+    consteval auto make_ascii_string_descriptor(const char (&text)[N]) {
+        constexpr std::size_t len = (N > 0) ? (N - 1) : 0;
+        static_assert(len <= 127, "USB string descriptor too long");
+        std::array<u8, 2 + len * 2> out{};
+        out[0] = static_cast<u8>(2 + len * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < len; ++i) {
+            out[2 + i * 2] = static_cast<u8>(text[i]);
+            out[2 + i * 2 + 1] = 0;
+        }
+        return out;
+    }
+
+    template <std::size_t N>
+    consteval auto make_utf16_string_descriptor(const char16_t (&text)[N]) {
+        constexpr std::size_t len = (N > 0) ? (N - 1) : 0;
+        static_assert(len <= 127, "USB string descriptor too long");
+        std::array<u8, 2 + len * 2> out{};
+        out[0] = static_cast<u8>(2 + len * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < len; ++i) {
+            const auto ch = static_cast<u16>(text[i]);
+            out[2 + i * 2] = static_cast<u8>(ch & 0xFF);
+            out[2 + i * 2 + 1] = static_cast<u8>((ch >> 8) & 0xFF);
+        }
+        return out;
+    }
+
+    template <std::size_t N>
+    consteval auto make_lang_id_descriptor(const u16 (&langs)[N]) {
+        static_assert(N > 0, "LangID array must not be empty");
+        static_assert(N <= 126, "LangID descriptor too long");
+        std::array<u8, 2 + N * 2> out{};
+        out[0] = static_cast<u8>(2 + N * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < N; ++i) {
+            const auto ch = langs[i];
+            out[2 + i * 2] = static_cast<u8>(ch & 0xFF);
+            out[2 + i * 2 + 1] = static_cast<u8>((ch >> 8) & 0xFF);
+        }
+        return out;
+    }
+
+    template <std::size_t N>
+    struct StringTable {
+        std::array<std::span<const u8>, N> entries{};
+        constexpr std::span<const u8> operator[](std::size_t idx) const noexcept {
+            return (idx < N) ? entries[idx] : std::span<const u8>{};
+        }
+    };
 
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)

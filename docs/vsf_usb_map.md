@@ -80,6 +80,30 @@
 - `io/usb/driver`
   - DCD/HCD/OTG 适配
 
+## 4.1 Charm 当前落地状态（对照 VSF）
+
+- `io/usb/common`
+  - 已完成：描述符结构、DescriptorBuilder、UTF-16/ASCII/LangID 工具
+- `io/usb/device`
+  - 已完成：EP0 状态机、标准请求、vendor/class 分派、ZLP/长度裁剪
+- `io/usb/driver`
+  - 已完成：最小 DCD 接口契约（`usb.driver` / `usb.ep0_driver`）
+- `io/usb/class`
+  - 已完成：CDC/UAC/MSC 类草案 + CDC 收发钩子
+- 示例
+  - 已完成：`Examples/usb/usb_cdc_minimal`
+
+## 4.2 仅参考 VSF 的“接口形状”
+
+只参考这些内容：
+- class op 的职责划分（setup/data/init/fini）
+- 描述符构建风格（结构/表/DSL）
+- 传输对象模型（EP/缓冲/回调）
+
+不参考这些内容：
+- VSF 的宏配置体系
+- 平台驱动细节与工程裁剪机制
+
 ## 5) 迁移优先级建议
 
 1) Device Core + CDC ACM

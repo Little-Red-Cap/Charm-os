@@ -45,6 +45,7 @@ import charm.widgets.radio_group;
 import charm.widgets.chart;
 import charm.widgets.gauge;
 import charm.widgets.primitives_canvas;
+import charm.widgets.perf_overlay;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -87,6 +88,7 @@ public:
     WidgetHandle create_chart() noexcept { return make_handle(charts_.create(), WidgetKind::Chart); }
     WidgetHandle create_gauge() noexcept { return make_handle(gauges_.create(), WidgetKind::Gauge); }
     WidgetHandle create_primitives_canvas() noexcept { return make_handle(prim_canvas_.create(), WidgetKind::PrimitivesCanvas); }
+    WidgetHandle create_perf_overlay() noexcept { return make_handle(perf_overlays_.create(), WidgetKind::PerfOverlay); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -125,6 +127,7 @@ public:
     Chart* get_chart(const WidgetHandle& h) noexcept { return get_from(charts_, h, WidgetKind::Chart); }
     Gauge* get_gauge(const WidgetHandle& h) noexcept { return get_from(gauges_, h, WidgetKind::Gauge); }
     PrimitivesCanvas* get_primitives_canvas(const WidgetHandle& h) noexcept { return get_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); }
+    PerfOverlay* get_perf_overlay(const WidgetHandle& h) noexcept { return get_from(perf_overlays_, h, WidgetKind::PerfOverlay); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -163,6 +166,7 @@ public:
             case WidgetKind::Chart: return get_chart(h);
             case WidgetKind::Gauge: return get_gauge(h);
             case WidgetKind::PrimitivesCanvas: return get_primitives_canvas(h);
+            case WidgetKind::PerfOverlay: return get_perf_overlay(h);
             default: return nullptr;
         }
     }
@@ -349,6 +353,7 @@ public:
         case WidgetKind::Chart: destroy_from(charts_, h, WidgetKind::Chart); break;
         case WidgetKind::Gauge: destroy_from(gauges_, h, WidgetKind::Gauge); break;
         case WidgetKind::PrimitivesCanvas: destroy_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); break;
+        case WidgetKind::PerfOverlay: destroy_from(perf_overlays_, h, WidgetKind::PerfOverlay); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -617,6 +622,7 @@ private:
     HandlePool<Chart, 16> charts_{};
     HandlePool<Gauge, 16> gauges_{};
     HandlePool<PrimitivesCanvas, 8> prim_canvas_{};
+    HandlePool<PerfOverlay, 8> perf_overlays_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

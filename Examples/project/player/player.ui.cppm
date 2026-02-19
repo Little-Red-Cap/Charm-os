@@ -1,4 +1,7 @@
 module;
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 
 export module player.ui;
@@ -7,6 +10,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.color;
+import charm.gfx.image;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
@@ -17,6 +21,7 @@ import charm.widgets.histogram_view;
 import charm.widgets.histogram;
 import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
+import charm.widgets.spectrum_view;
 import charm.widgets.spinning_wheel;
 import charm.widgets.image_box;
 import charm.widgets.meter_pointer;
@@ -48,7 +53,7 @@ export namespace player::ui {
     inline constexpr int kModeHintGap = 6;
     inline constexpr int kSpectrumHeight = 80;
     inline constexpr int kSpectrumGap = 12;
-    inline constexpr int kOptionsHeight = 28;
+    inline constexpr int kOptionsHeight = 32;
     inline constexpr int kOptionsGap = 10;
     inline constexpr int kOptionLabelWidth = 86;
     inline constexpr int kEqBands = 5;
@@ -68,6 +73,7 @@ export namespace player::ui {
     inline constexpr int kButtonWidth = 120;
     inline constexpr int kButtonHeight = 48;
     inline constexpr int kButtonGap = 12;
+    inline constexpr int kModeButtonWidth = 72;
     inline constexpr int kPerfOverlayWidth = 300;
     inline constexpr int kPerfOverlayHeight = 72;
 
@@ -99,6 +105,257 @@ export namespace player::ui {
     inline constexpr rgba kUiPerfBg = {24, 26, 36, 230};
     inline constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
     inline constexpr rgba kUiPerfFont = {220, 228, 242, 255};
+
+    namespace detail {
+        constexpr int kIconSize = 16;
+        constexpr int kIconStride = kIconSize * 4;
+        using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
+
+        void icon_clear(IconBuffer& buf) {
+            buf.fill(std::byte{0});
+        }
+
+        void icon_set_pixel(IconBuffer& buf, int x, int y, const rgba& color) {
+            if (x < 0 || y < 0 || x >= kIconSize || y >= kIconSize) return;
+            const std::size_t idx = static_cast<std::size_t>(y * kIconSize + x) * 4;
+            buf[idx + 0] = std::byte{color.a};
+            buf[idx + 1] = std::byte{color.r};
+            buf[idx + 2] = std::byte{color.g};
+            buf[idx + 3] = std::byte{color.b};
+        }
+
+        void build_prev_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int apex_x = 3;
+            constexpr int base_x = 11;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = apex_x; x <= base_x; ++x) {
+                    const int span = (x - apex_x) * base_half / (base_x - apex_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+            for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 1, y, color);
+                icon_set_pixel(buf, 2, y, color);
+            }
+        }
+
+        void build_play_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int base_x = 4;
+            constexpr int apex_x = 12;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = base_x; x <= apex_x; ++x) {
+                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+        }
+
+        void build_pause_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int y = 3; y <= 12; ++y) {
+                icon_set_pixel(buf, 5, y, color);
+                icon_set_pixel(buf, 6, y, color);
+                icon_set_pixel(buf, 10, y, color);
+                icon_set_pixel(buf, 11, y, color);
+            }
+        }
+
+        void build_loop_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int x = 3; x <= 12; ++x) {
+                icon_set_pixel(buf, x, 4, color);
+                icon_set_pixel(buf, x, 11, color);
+            }
+            for (int y = 4; y <= 11; ++y) {
+                icon_set_pixel(buf, 3, y, color);
+                icon_set_pixel(buf, 12, y, color);
+            }
+            // arrow heads
+            icon_set_pixel(buf, 11, 3, color);
+            icon_set_pixel(buf, 12, 4, color);
+            icon_set_pixel(buf, 13, 5, color);
+            icon_set_pixel(buf, 4, 12, color);
+            icon_set_pixel(buf, 3, 11, color);
+            icon_set_pixel(buf, 2, 10, color);
+        }
+
+        void build_single_icon(IconBuffer& buf, const rgba& color) {
+            build_loop_icon(buf, color);
+            for (int y = 5; y <= 10; ++y) {
+                icon_set_pixel(buf, 7, y, color);
+                icon_set_pixel(buf, 8, y, color);
+            }
+            icon_set_pixel(buf, 6, 5, color);
+            icon_set_pixel(buf, 9, 5, color);
+        }
+
+        void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int x = 3; x <= 12; ++x) {
+                const int y1 = 4 + (x - 3) / 2;
+                const int y2 = 11 - (x - 3) / 2;
+                icon_set_pixel(buf, x, y1, color);
+                icon_set_pixel(buf, x, y2, color);
+            }
+            // arrow heads
+            icon_set_pixel(buf, 12, 4, color);
+            icon_set_pixel(buf, 13, 5, color);
+            icon_set_pixel(buf, 12, 11, color);
+            icon_set_pixel(buf, 13, 10, color);
+            icon_set_pixel(buf, 2, 6, color);
+            icon_set_pixel(buf, 3, 5, color);
+            icon_set_pixel(buf, 2, 9, color);
+            icon_set_pixel(buf, 3, 10, color);
+        }
+
+        void build_next_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int base_x = 4;
+            constexpr int apex_x = 12;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = base_x; x <= apex_x; ++x) {
+                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+            for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 13, y, color);
+                icon_set_pixel(buf, 14, y, color);
+            }
+        }
+    }
+
+    inline ImageView icon_prev() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_prev_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_play() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_play_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_pause() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_pause_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_loop() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_loop_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_single() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_single_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_shuffle() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_shuffle_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_next() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_next_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
 
     inline void apply_player_theme() {
         auto& theme = Theme::instance();
@@ -162,6 +419,12 @@ export namespace player::ui {
         preset.cloudy_glass.glass_shadow_alpha = 50;
         preset.cloudy_glass.glass_opacity_min = 60;
         preset.cloudy_glass.glass_opacity_max = 200;
+        preset.has_spectrum_view = true;
+        preset.spectrum_view = theme.get<SpectrumView>();
+        preset.spectrum_view.bg_color = kUiListBg;
+        preset.spectrum_view.border_color = kUiListBorder;
+        preset.spectrum_view.bg_pressed = kUiSwitchOn;
+        preset.spectrum_view.border_focus = kUiOk;
         preset.has_battery_gasgauge = true;
         preset.battery_gasgauge = theme.get<BatteryGasGauge>();
         preset.battery_gasgauge.bg_color = kUiListBg;
@@ -264,5 +527,12 @@ export namespace player::ui {
 
         StylePatch crt_patch = chart_patch;
         theme.patch<CrtScreen>(crt_patch);
+
+        StylePatch spectrum_patch = chart_patch;
+        spectrum_patch.has_bg_pressed = true;
+        spectrum_patch.bg_pressed = kUiSwitchOn;
+        spectrum_patch.has_border_focus = true;
+        spectrum_patch.border_focus = kUiOk;
+        theme.patch<SpectrumView>(spectrum_patch);
     }
 }

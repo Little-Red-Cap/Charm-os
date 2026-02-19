@@ -11,12 +11,11 @@ import charm.core.layout;
 import charm.gfx.assets.render;
 import charm.widgets.battery_gauge;
 import charm.widgets.button;
-import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.code_block;
 import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
-import charm.widgets.histogram_view;
+import charm.widgets.spectrum_view;
 import charm.widgets.image;
 import charm.widgets.label;
 import charm.widgets.list_view;
@@ -25,14 +24,11 @@ import charm.widgets.perf_overlay;
 import charm.widgets.progress;
 import charm.widgets.progress_flowing;
 import charm.widgets.progress_wheel;
-import charm.widgets.ring_indication;
 import charm.widgets.rich_text;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.stepper;
 import charm.widgets.table_view;
 import charm.widgets.text;
-import charm.widgets.text_box;
 import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
@@ -61,7 +57,6 @@ export namespace player {
         ListView::PoolRecycleFn list_pool_recycle{nullptr};
         void* list_ctx{nullptr};
         Callback list_scroll_change{};
-        Callback play_mode_change{};
         Callback spectrum_toggle{};
         Callback low_load_toggle{};
         Callback eq_toggle{};
@@ -69,9 +64,8 @@ export namespace player {
         Callback eq_preset_change{};
         Callback prev_click{};
         Callback next_click{};
-        Callback play_click{};
+        Callback mode_click{};
         Callback pause_click{};
-        Callback stop_click{};
     };
 
     UiHandles build_ui(UiFactory& factory, PlayerController& ctx, const UiCallbacks& cb) {
@@ -147,15 +141,6 @@ export namespace player {
             status->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
-        h.play_mode = factory.create_segmented_control();
-        if (auto* mode = factory.get_segmented_control(h.play_mode)) {
-            static const char* kModeItems[] = {"Order", "Single", "Shuffle"};
-            mode->set_items(kModeItems, 3);
-            mode->set_selected(0);
-            mode->set_on_change(cb.play_mode_change);
-            anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
-        }
-
         h.mode_hint = factory.create_label("Mode: Order");
         if (auto* hint = factory.get_label(h.mode_hint)) {
             hint->set_color(kUiOption);
@@ -163,15 +148,10 @@ export namespace player {
             hint->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
-        h.spectrum_hist = factory.create_histogram_view();
-        if (auto* hist = factory.get_histogram_view(h.spectrum_hist)) {
-            anchor_rect(hist, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
-            hist->set_range(0, 100);
-        }
-
-        h.spectrum_peak = factory.create_chart();
-        if (auto* chart = factory.get_chart(h.spectrum_peak)) {
-            anchor_rect(chart, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+        h.spectrum_view = factory.create_spectrum_view();
+        if (auto* view = factory.get_spectrum_view(h.spectrum_view)) {
+            anchor_rect(view, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+            view->set_mode(SpectrumView::Mode::NeonBars);
         }
 
         h.options_row = factory.create_container();
@@ -294,18 +274,6 @@ export namespace player {
         if (auto* perf = factory.get_perf_overlay(h.perf_overlay)) {
             anchor_rect(perf, {screen_width - (kPerfOverlayWidth + kUiPadding),
                                kUiPadding, kPerfOverlayWidth, kPerfOverlayHeight});
-        }
-
-        h.ring = factory.create_ring_indication();
-        if (auto* ring = factory.get_ring_indication(h.ring)) {
-            anchor_rect(ring, {screen_width - kUiPadding - 90, kUiPadding + 90, 90, 90});
-            ring->set_value(58);
-            ring->set_thickness(10);
-        }
-
-        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
-        if (auto* box = factory.get_text_box(h.text_box)) {
-            anchor_rect(box, {screen_width - kUiPadding - 200, kUiPadding + 190, 200, 70});
         }
 
 #if CHARM_PLAYER_DEBUG_UI
@@ -535,8 +503,8 @@ export namespace player {
         factory.link(h.fold_panel, fold_btn_secondary);
 #endif
 
-        const int controls_w = kButtonWidth * 3 + kButtonGap * 2;
-        const int controls_h = kButtonHeight * 2 + kButtonGap;
+        const int controls_w = kButtonWidth * 3 + kModeButtonWidth + kButtonGap * 3;
+        const int controls_h = kButtonHeight;
         const int controls_x = (screen_width - controls_w) / 2;
         const int controls_y = screen_height - controls_h - kControlsBottomMargin;
         h.controls = factory.create_container();
@@ -550,30 +518,32 @@ export namespace player {
         if (auto* prev = factory.get_button(h.btn_prev)) {
             prev->set_size(kButtonWidth, kButtonHeight);
             prev->set_on_click(cb.prev_click);
+            prev->set_text("");
+            prev->set_icon(icon_prev(), 20, 20);
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
             next->set_size(kButtonWidth, kButtonHeight);
             next->set_on_click(cb.next_click);
+            next->set_text("");
+            next->set_icon(icon_next(), 20, 20);
         }
 
-        h.btn_play = factory.create_button("Play");
-        if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_size(kButtonWidth, kButtonHeight);
-            play->set_on_click(cb.play_click);
+        h.btn_mode = factory.create_button("Mode");
+        if (auto* mode = factory.get_button(h.btn_mode)) {
+            mode->set_size(kModeButtonWidth, kButtonHeight);
+            mode->set_on_click(cb.mode_click);
+            mode->set_text("");
+            mode->set_icon(icon_loop(), 24, 24);
         }
 
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
             pause->set_size(kButtonWidth, kButtonHeight);
             pause->set_on_click(cb.pause_click);
-        }
-
-        h.btn_stop = factory.create_button("Stop");
-        if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_size(kButtonWidth, kButtonHeight);
-            stop->set_on_click(cb.stop_click);
+            pause->set_text("");
+            pause->set_icon(icon_play(), 20, 20);
         }
 
         factory.link(h.root, h.cover);
@@ -582,10 +552,8 @@ export namespace player {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
-        factory.link(h.root, h.play_mode);
         factory.link(h.root, h.mode_hint);
-        factory.link(h.root, h.spectrum_hist);
-        factory.link(h.root, h.spectrum_peak);
+        factory.link(h.root, h.spectrum_view);
         factory.link(h.root, h.options_row);
         factory.link(h.root, h.eq_panel);
         factory.link(h.eq_panel, h.eq_title);
@@ -593,8 +561,6 @@ export namespace player {
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.list_hint);
-        factory.link(h.root, h.ring);
-        factory.link(h.root, h.text_box);
 #if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
@@ -620,10 +586,9 @@ export namespace player {
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
-        factory.link(h.controls, h.btn_play);
         factory.link(h.controls, h.btn_pause);
-        factory.link(h.controls, h.btn_stop);
         factory.link(h.controls, h.btn_next);
+        factory.link(h.controls, h.btn_mode);
         factory.bring_to_front(h.root, h.perf_overlay);
 
         factory.link(h.options_row, h.opt_spectrum_label);

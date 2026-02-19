@@ -19,6 +19,7 @@ export import charm.widgets.foldable_panel;
 export import charm.widgets.cloudy_glass;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
+export import charm.widgets.spectrum_view;
 export import charm.widgets.battery_gasgauge;
 export import charm.widgets.histogram;
 export import charm.widgets.busy_wheel;
@@ -60,6 +61,8 @@ struct ThemePreset {
     Style dynamic_nebula{};
     bool has_crt_screen{false};
     Style crt_screen{};
+    bool has_spectrum_view{false};
+    Style spectrum_view{};
     bool has_battery_gasgauge{false};
     Style battery_gasgauge{};
     bool has_histogram{false};
@@ -90,6 +93,7 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_cloudy_glass) theme.set<CloudyGlass>(preset.cloudy_glass);
     if (preset.has_dynamic_nebula) theme.set<DynamicNebula>(preset.dynamic_nebula);
     if (preset.has_crt_screen) theme.set<CrtScreen>(preset.crt_screen);
+    if (preset.has_spectrum_view) theme.set<SpectrumView>(preset.spectrum_view);
     if (preset.has_battery_gasgauge) theme.set<BatteryGasGauge>(preset.battery_gasgauge);
     if (preset.has_histogram) theme.set<Histogram>(preset.histogram);
     if (preset.has_busy_wheel) theme.set<BusyWheel>(preset.busy_wheel);
@@ -159,6 +163,9 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
     preset.has_crt_screen = true;
     preset.crt_screen = theme.get<CrtScreen>();
     apply_base(preset.crt_screen);
+    preset.has_spectrum_view = true;
+    preset.spectrum_view = theme.get<SpectrumView>();
+    apply_base(preset.spectrum_view);
     preset.has_battery_gasgauge = true;
     preset.battery_gasgauge = theme.get<BatteryGasGauge>();
     apply_base(preset.battery_gasgauge);

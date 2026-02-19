@@ -18,11 +18,13 @@ public:
         Rect rect{};
         int index{0};
         bool selected{false};
+        int slot{-1};
     };
 
     using CountFn = int(*)(void* ctx) noexcept;
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
+    using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
 
     ListView() {
         set_size(240, 180);
@@ -32,6 +34,7 @@ public:
     void set_item_count(int count) noexcept {
         item_count_ = (count > 0) ? count : 0;
         if (selected_ >= item_count_) selected_ = item_count_ - 1;
+        clear_cache();
         update_scroll_bounds();
     }
 
@@ -41,11 +44,13 @@ public:
         count_fn_ = count_fn;
         draw_fn_ = draw_fn;
         data_ctx_ = ctx;
+        clear_cache();
         update_scroll_bounds();
     }
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 4) ? h : 4;
+        clear_cache();
         update_scroll_bounds();
     }
 
@@ -54,6 +59,12 @@ public:
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
         draw_fn_ = fn;
         draw_ctx_ = ctx;
+    }
+
+    void set_cache_handler(CacheFn fn, void* ctx = nullptr) noexcept {
+        cache_fn_ = fn;
+        cache_ctx_ = ctx;
+        clear_cache();
     }
 
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
@@ -107,6 +118,7 @@ public:
         const int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
         const int offset_y = r.y + pad - (scroll_y_ % row_h);
 
+        const int visible = (row_h > 0) ? ((r.h + row_h - 1) / row_h + 1) : 0;
         int y = offset_y;
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             Rect row{content_x, y, content_w, row_h};
@@ -114,9 +126,21 @@ public:
             if (is_selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
             }
+            int slot = -1;
+            if (visible > 0 && visible <= kMaxCache) {
+                slot = i - start;
+                if (slot >= 0 && slot < kMaxCache) {
+                    if (cache_slots_[slot].index != i) {
+                        cache_slots_[slot].index = i;
+                        if (cache_fn_) cache_fn_(cache_ctx_, slot, i);
+                    }
+                } else {
+                    slot = -1;
+                }
+            }
             if (draw_fn_) {
                 const void* ctx = data_ctx_ ? data_ctx_ : draw_ctx_;
-                draw_fn_(const_cast<void*>(ctx), cvs, DrawInfo{row, i, is_selected});
+                draw_fn_(const_cast<void*>(ctx), cvs, DrawInfo{row, i, is_selected, slot});
             }
             y += row_h;
         }
@@ -244,12 +268,20 @@ private:
         return (row_height_ > 4) ? row_height_ : 4;
     }
 
+    void clear_cache() noexcept {
+        for (int i = 0; i < kMaxCache; ++i) {
+            cache_slots_[i].index = -1;
+        }
+    }
+
     CountFn count_fn_{nullptr};
     DrawRowFn draw_fn_{nullptr};
     void* draw_ctx_{nullptr};
     void* data_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
+    CacheFn cache_fn_{nullptr};
+    void* cache_ctx_{nullptr};
 
     int item_count_{0};
     int row_height_{24};
@@ -260,4 +292,10 @@ private:
     int wheel_step_{24};
     bool dragging_{false};
     int last_y_{0};
+
+    struct CacheSlot {
+        int index{-1};
+    };
+    static constexpr int kMaxCache = 32;
+    CacheSlot cache_slots_[kMaxCache]{};
 };

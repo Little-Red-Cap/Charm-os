@@ -13,7 +13,9 @@ import charm.widgets.button;
 import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.table_view;
 import charm.widgets.text;
+import charm.widgets.tree_view;
 import fs_core;
 import fs_errno;
 import fs_block;
@@ -42,6 +44,7 @@ namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+    constexpr int kDemoGap = 12;
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];
@@ -213,6 +216,8 @@ namespace {
         WidgetHandle subtitle{};
         WidgetHandle status{};
         WidgetHandle list{};
+        WidgetHandle table{};
+        WidgetHandle tree{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -246,6 +251,7 @@ namespace {
         bool fs_ready{false};
         bool duration_ready{false};
         bool ignore_list_select{false};
+        bool show_debug{false};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -322,6 +328,24 @@ namespace {
             if (count > 0) {
                 sync_list_selection();
             }
+        }
+
+        void set_debug_visible(bool on) {
+            show_debug = on;
+            if (!factory) return;
+            if (auto* list = factory->get_list_view(handles.list)) {
+                list->set_visible(!on);
+            }
+            if (auto* table = factory->get_table_view(handles.table)) {
+                table->set_visible(on);
+            }
+            if (auto* tree = factory->get_tree_view(handles.tree)) {
+                tree->set_visible(on);
+            }
+        }
+
+        void toggle_debug_view() {
+            set_debug_visible(!show_debug);
         }
 
         void update_duration_from_player() {
@@ -695,6 +719,10 @@ namespace {
             gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
             return true;
         case SDL_EVENT_KEY_DOWN:
+            if (evt.key.key == SDLK_T) {
+                ctx.toggle_debug_view();
+                return true;
+            }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();
@@ -784,6 +812,30 @@ namespace {
             list->set_wheel_step(32);
         }
 
+        h.tree = factory.create_tree_view();
+        if (auto* tree = factory.get_tree_view(h.tree)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            anchor_rect(tree, {kUiPadding, list_y, half_w, list_h});
+            tree->set_data_source(&tree_row_count, &tree_node_info, &on_tree_draw, &g_tree_demo);
+            tree->set_on_toggle(&on_tree_toggle);
+            tree->set_row_height(28);
+            tree->set_visible(false);
+        }
+
+        h.table = factory.create_table_view();
+        if (auto* table = factory.get_table_view(h.table)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            anchor_rect(table, {kUiPadding + half_w + kDemoGap, list_y, half_w, list_h});
+            table->set_data_source(&table_row_count, &table_col_count, &on_table_draw, &g_table_demo);
+            table->set_column_width_fn(&table_col_width);
+            table->set_row_height(28);
+            table->set_visible(false);
+        }
+
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
@@ -832,6 +884,8 @@ namespace {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.list);
+        factory.link(h.root, h.tree);
+        factory.link(h.root, h.table);
         factory.link(h.root, h.btn_prev);
         factory.link(h.root, h.btn_play);
         factory.link(h.root, h.btn_pause);
@@ -889,8 +943,24 @@ int main(int argc, char** argv) {
     ctx.track_path = kDefaultVfsTrack;
     ctx.tracks = &vfs_tracks;
 
+    auto& theme = Theme::instance();
+    theme.inherit<TableView, ListView>();
+    theme.inherit<TreeView, ListView>();
+    StylePatch table_patch{};
+    table_patch.has_bg_color = true;
+    table_patch.bg_color = {22, 24, 34, 255};
+    table_patch.has_border_color = true;
+    table_patch.border_color = {60, 70, 90, 255};
+    table_patch.has_padding = true;
+    table_patch.padding = 6;
+    theme.patch<TableView>(table_patch);
+    StylePatch tree_patch = table_patch;
+    tree_patch.bg_color = {20, 22, 30, 255};
+    theme.patch<TreeView>(tree_patch);
+
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
+    ctx.set_debug_visible(false);
 
     const auto mount_st = mount_fatfs_from_vhd(vhd_path);
     ctx.fs_ready = static_cast<bool>(mount_st);
@@ -960,3 +1030,117 @@ int main(int argc, char** argv) {
     SDL_Quit();
     return 0;
 }
+    struct TableDemoData {
+        static constexpr int kCols = 3;
+        static constexpr int kRows = 6;
+        const char* headers[kCols]{
+            "Name", "Type", "Size"
+        };
+        const char* rows[kRows][kCols]{
+            {"boot.img", "bin", "256KB"},
+            {"config.json", "cfg", "3KB"},
+            {"splash.bmp", "img", "42KB"},
+            {"fonts.bin", "bin", "180KB"},
+            {"readme.txt", "txt", "1KB"},
+            {"log-0001.txt", "txt", "12KB"}
+        };
+    };
+
+    TableDemoData g_table_demo{};
+
+    int table_row_count(void* ctx) noexcept {
+        (void)ctx;
+        return TableDemoData::kRows + 1;
+    }
+
+    int table_col_count(void* ctx) noexcept {
+        (void)ctx;
+        return TableDemoData::kCols;
+    }
+
+    int table_col_width(void* ctx, int col) noexcept {
+        (void)ctx;
+        switch (col) {
+        case 0: return 160;
+        case 1: return 80;
+        case 2: return 90;
+        default: return 80;
+        }
+    }
+
+    void on_table_draw(void* ctx, DefaultCanvas& cvs, const TableView::CellInfo& info) noexcept {
+        auto* demo = static_cast<TableDemoData*>(ctx);
+        if (!demo) return;
+        const Style& st = Theme::instance().get<TableView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        if (info.row == 0) {
+            draw_text_box(cvs, text, demo->headers[info.col], st.font_color, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            return;
+        }
+        const int data_row = info.row - 1;
+        if (data_row < 0 || data_row >= TableDemoData::kRows) return;
+        draw_text_box(cvs, text, demo->rows[data_row][info.col], st.font_color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    struct TreeNodeData {
+        int depth{0};
+        bool expanded{false};
+        bool has_children{false};
+        const char* label{nullptr};
+    };
+
+    struct TreeDemoData {
+        TreeNodeData nodes[9]{
+            {0, true,  true,  "System"},
+            {1, true,  true,  "Drivers"},
+            {2, false, false, "I2C"},
+            {2, false, false, "SPI"},
+            {1, false, true,  "Assets"},
+            {2, false, false, "Fonts"},
+            {2, false, false, "Icons"},
+            {0, true,  true,  "User"},
+            {1, false, false, "Config"}
+        };
+        int count{9};
+    };
+
+    TreeDemoData g_tree_demo{};
+
+    int tree_row_count(void* ctx) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        return demo ? demo->count : 0;
+    }
+
+    TreeView::NodeInfo tree_node_info(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || index < 0 || index >= demo->count) return {};
+        const auto& node = demo->nodes[index];
+        return TreeView::NodeInfo{node.depth, node.expanded, node.has_children, node.label};
+    }
+
+    void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || info.index < 0 || info.index >= demo->count) return;
+        const Style& st = Theme::instance().get<TreeView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding + info.node.depth * 12;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        const rgba color = info.selected ? st.border_focus : st.font_color;
+        draw_text_box(cvs, text, info.node.label ? info.node.label : "", color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_tree_toggle(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || index < 0 || index >= demo->count) return;
+        if (!demo->nodes[index].has_children) return;
+        demo->nodes[index].expanded = !demo->nodes[index].expanded;
+    }

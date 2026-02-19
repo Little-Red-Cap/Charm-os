@@ -3,6 +3,7 @@ module;
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include <algorithm>
 #include <span>
 
 export module usb.class_cdc;
@@ -135,6 +136,22 @@ export namespace usb::class_driver {
 
         std::span<u8> tx_buffer() noexcept {
             return ops_.tx_buffer ? ops_.tx_buffer(ctx_) : std::span<u8>{};
+        }
+
+        bool on_out_packet(std::span<const u8> data) noexcept {
+            auto buf = rx_buffer();
+            if (buf.empty()) return false;
+            const auto len = (std::min)(buf.size(), data.size());
+            std::memcpy(buf.data(), data.data(), len);
+            on_rx_done(len);
+            return len == data.size();
+        }
+
+        std::span<const u8> on_in_request(std::size_t max_len) noexcept {
+            auto buf = tx_buffer();
+            if (buf.empty()) return {};
+            const auto len = (std::min)(buf.size(), max_len);
+            return std::span<const u8>(buf.data(), len);
         }
 
         void on_rx_done(std::size_t len) noexcept {

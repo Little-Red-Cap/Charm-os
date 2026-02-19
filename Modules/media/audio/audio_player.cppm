@@ -330,6 +330,10 @@ export namespace audio {
             return state_ != PlayerState::idle && state_ != PlayerState::error;
         }
 
+        std::uint64_t total_frames() const noexcept { return total_frames_; }
+
+        AudioFormat input_format() const noexcept { return input_fmt_; }
+
         PlayerSnapshot snapshot(bool reset_window) {
             PlayerSnapshot snap{};
             snap.stats = stats_;

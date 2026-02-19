@@ -46,6 +46,13 @@ public:
         }
     }
 
+    void dump_trace_demo() noexcept {
+        if (trace_.size() == 0) {
+            trace_counter(GuiTraceId::FrameNodes, 0, 0);
+        }
+        dump_trace();
+    }
+
     // 渲染一帧
     void render() {
         static util::u32 frame_no = 0;

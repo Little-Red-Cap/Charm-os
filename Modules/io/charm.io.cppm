@@ -44,3 +44,5 @@ export import out.logger;
 export import out.port;
 export import out.print;
 export import out.sink;
+
+export import usb.common;

@@ -78,7 +78,7 @@ int main() {
     }
 
     static fs::MountOps mops{
-        .open = +[](std::string_view path, fs::File& f) noexcept {
+        .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept {
             return g_bfs ? g_bfs->open(path, f) : fs::Status{fs::Err::nosys};
         },
         .flush = +[](fs::Mount* m) noexcept {

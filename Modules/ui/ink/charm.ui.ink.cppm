@@ -26,6 +26,7 @@ export import input.trace;
 
 export import gui.qr_widget;
 export import gui.widgets;
+export import gui.ui_msgbox;
 export import gui.ui_button;
 export import gui.ui_immediate;
 export import gui.ui_list;

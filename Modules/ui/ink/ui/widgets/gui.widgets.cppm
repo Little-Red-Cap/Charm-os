@@ -290,6 +290,69 @@ export namespace gui
     }
 
     template <class R>
+    void draw_led(R& r, const Rect& rc, bool on) noexcept
+    {
+        if (rc.w <= 0 || rc.h <= 0) return;
+        const int cx = rc.x + rc.w / 2;
+        const int cy = rc.y + rc.h / 2;
+        int radius = (rc.w < rc.h ? rc.w : rc.h) / 2;
+        if (radius < 1) {
+            r.setPixel(cx, cy, on);
+            return;
+        }
+        alg::circle::outline(cx, cy, radius, [&](int x, int y) noexcept {
+            r.setPixel(x, y, true);
+        });
+        if (!on || radius <= 1) return;
+        alg::circle::fill(cx, cy, radius - 1, [&](int x0, int x1, int y) noexcept {
+            for (int x = x0; x < x1; ++x) {
+                r.setPixel(x, y, true);
+            }
+        });
+    }
+
+    template <class R>
+    void draw_spinner(R& r, const Rect& rc, float phase, bool on = true) noexcept
+    {
+        if (rc.w <= 0 || rc.h <= 0) return;
+        const int cx = rc.x + rc.w / 2;
+        const int cy = rc.y + rc.h / 2;
+        int radius = (rc.w < rc.h ? rc.w : rc.h) / 2 - 1;
+        if (radius < 3) radius = 3;
+        const int inner = radius - 2;
+        const float base = alg::arc::wrap_angle_0_2pi(phase);
+        for (int i = 0; i < 3; ++i) {
+            const float a = base - (float)i * (alg::arc::kPi / 6.0f);
+            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius, a);
+            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, inner, a);
+            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
+        }
+        for (int i = 3; i < 8; ++i) {
+            const float a = base - (float)i * (alg::arc::kPi / 6.0f);
+            const auto p = alg::arc::point_on_circle_rad(cx, cy, radius, a);
+            r.setPixel(p.x, p.y, on);
+        }
+    }
+
+    template <class R>
+    void draw_progress_bar(R& r, const Rect& rc, std::uint8_t percent, bool on = true) noexcept
+    {
+        if (rc.w <= 2 || rc.h <= 2) return;
+        r.drawRect(rc, on);
+        const int inner_w = rc.w - 2;
+        const int inner_h = rc.h - 2;
+        const int p = (percent > 100) ? 100 : percent;
+        const int fill_w = (inner_w * p) / 100;
+        if (fill_w <= 0 || inner_h <= 0) return;
+        r.fillRect(Rect{
+            (std::int16_t)(rc.x + 1),
+            (std::int16_t)(rc.y + 1),
+            (std::int16_t)fill_w,
+            (std::int16_t)inner_h
+        }, on);
+    }
+
+    template <class R>
     void draw_gauge(R& r, const Rect& rc, std::uint8_t value_0_100, bool on = true) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;

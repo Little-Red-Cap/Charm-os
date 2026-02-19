@@ -147,7 +147,7 @@ export namespace fs {
         std::string_view rest = p.substr(prefix.size());
         auto rest_norm = normalize(rest);
         std::string_view rest_view{rest_norm.data, rest_norm.size};
-        auto st = chosen->ops->open(rest_view, f);
+        auto st = chosen->ops->open(chosen, rest_view, f);
         if (st) {
             f.mount = chosen;
         }

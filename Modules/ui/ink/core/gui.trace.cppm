@@ -34,25 +34,25 @@ export namespace gui::trace {
         buffer_mut().clear();
     }
 
-    inline void trace_counter(TraceId id, util::u64 payload) noexcept {
+    inline void trace_emit(::trace::TraceKind kind,
+                           TraceId id,
+                           util::u64 payload,
+                           util::u32 count = 1) noexcept {
         static util::u32 seq{0};
         TraceRecord rec{};
         rec.time = ++seq;
         rec.id = static_cast<util::u32>(id);
         rec.payload = payload;
-        rec.count = 1;
-        rec.kind = ::trace::TraceKind::counter;
+        rec.count = count;
+        rec.kind = kind;
         buffer_mut().push(rec);
     }
 
+    inline void trace_counter(TraceId id, util::u64 payload) noexcept {
+        trace_emit(::trace::TraceKind::counter, id, payload);
+    }
+
     inline void trace_counter_delta(TraceId id, util::u64 delta) noexcept {
-        static util::u32 seq{0};
-        TraceRecord rec{};
-        rec.time = ++seq;
-        rec.id = static_cast<util::u32>(id);
-        rec.payload = delta;
-        rec.count = 1;
-        rec.kind = ::trace::TraceKind::counter_delta;
-        buffer_mut().push(rec);
+        trace_emit(::trace::TraceKind::counter_delta, id, delta);
     }
 }

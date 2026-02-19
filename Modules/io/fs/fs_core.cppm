@@ -40,7 +40,7 @@ export namespace fs {
     };
 
     struct MountOps {
-        Status (*open)(std::string_view path, File&) noexcept { nullptr };
+        Status (*open)(Mount*, std::string_view path, File&) noexcept { nullptr };
         Status (*flush)(Mount*) noexcept { nullptr };
         Status (*unmount)(Mount*, bool force) noexcept { nullptr };
         Status (*unlink)(Mount*, std::string_view path) noexcept { nullptr };

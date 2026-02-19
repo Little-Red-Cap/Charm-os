@@ -40,6 +40,7 @@ export import charm.widgets.dropdown_popup;
 export import charm.widgets.gauge;
 export import charm.widgets.image;
 export import charm.widgets.label;
+export import charm.widgets.led;
 export import charm.widgets.list;
 export import charm.widgets.list_utils;
 export import charm.widgets.list_view;

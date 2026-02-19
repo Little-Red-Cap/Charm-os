@@ -112,8 +112,17 @@ Modules/ui/vivid/
 - 高级组件与状态管理较少
 - 动画/过渡系统缺失
 
-## 9. 迁移/演进建议（下一阶段）
-1. 以 LVGL/ARM-2D 的控件分层方式补齐“基础控件 + 组合控件”清单。
-2. 引入脏矩形完整链路（标记 -> 合并 -> 分区渲染）。
-3. 引入轻量动画系统（时间轴 + easing）。
-4. 建立样式继承与主题加载。
+## 9. 演进建议（优先级）
+
+1. 字体流水线稳定：4bpp 作为默认输出
+2. 渲染优化：脏矩形 + 轻量缓存
+3. 样式系统：主题配置文件与运行时切换
+4. 高级控件：表格/树/虚拟列表
+5. 动画系统：简单时间轴 + easing
+
+## 10. Reference Migration Notes (SGL/LVGL/ARM-2D)
+
+- SGL: small widgets (led/msgbox/keyboard) are good fits for Vivid/Ink migration.
+- LVGL: style/layout rules map cleanly to Vivid Theme/Style; keep layout logic in core.
+- ARM-2D: favor tile/dirty-rect thinking; keep render primitives stateless and cache-friendly.
+

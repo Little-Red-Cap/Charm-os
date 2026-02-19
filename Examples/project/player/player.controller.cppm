@@ -420,8 +420,8 @@ export namespace player {
             }
         }
 
-        void update_progress() {
-            if (!playing || updating) return;
+        bool update_progress() {
+            if (!playing || updating) return false;
             const auto now = std::chrono::steady_clock::now();
             const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
             const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
@@ -433,17 +433,18 @@ export namespace player {
                 bar->set_value(value);
             }
             set_time_label(clamped);
+            return true;
         }
 
-        void update_spectrum() {
-            if (!player || !factory) return;
-            if (!spectrum_enabled) return;
+        bool update_spectrum() {
+            if (!player || !factory) return false;
+            if (!spectrum_enabled) return false;
             if (spectrum_low_load) {
-                if ((spectrum_tick++ & 3u) != 0u) return;
+                if ((spectrum_tick++ & 3u) != 0u) return false;
             } else {
                 spectrum_tick = 0;
             }
-            if (!player->read_spectrum(spectrum_values)) return;
+            if (!player->read_spectrum(spectrum_values)) return false;
             constexpr float kBarDecay = 2.0f;
             constexpr float kPeakDecay = 1.0f;
             for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
@@ -470,6 +471,7 @@ export namespace player {
                 chart->set_points(spectrum_peak_points.data(),
                                   static_cast<int>(spectrum_peak_points.size()));
             }
+            return true;
         }
 
         void set_spectrum_enabled(bool on) {

@@ -629,15 +629,28 @@ int main(int argc, char** argv) {
         }
         g_ctx.update_duration_from_player();
         g_ctx.apply_pending_seek();
-        g_ctx.update_progress();
-        g_ctx.update_spectrum();
+        bool needs_redraw = false;
+        needs_redraw |= g_ctx.update_progress();
+        needs_redraw |= g_ctx.update_spectrum();
 
-        const auto now = std::chrono::steady_clock::now();
-        const auto ms = static_cast<std::uint32_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
-        const float phase = static_cast<float>(ms % 2000) / 2000.0f;
-        const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
-        apply_cover_pulse(&g_ctx, v);
+        if (g_ctx.playing) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto ms = static_cast<std::uint32_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
+            const float phase = static_cast<float>(ms % 2000) / 2000.0f;
+            const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
+            apply_cover_pulse(&g_ctx, v);
+            needs_redraw = true;
+        }
+
+        if (g_player.state() == audio::PlayerState::opening ||
+            g_player.state() == audio::PlayerState::buffering) {
+            needs_redraw = true;
+        }
+
+        if (needs_redraw) {
+            gui->invalidate_cache();
+        }
 
         g_canvas.clear(kUiBackground);
         gui->render();

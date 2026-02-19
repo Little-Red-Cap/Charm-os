@@ -227,7 +227,7 @@ public:
     }
 
     bool should_draw_child(const ObjectBase& ch) const noexcept override {
-        const auto r = get_rect();
+        const auto r = children_clip_rect();
         const auto c = ch.get_rect();
         return !(c.x + c.w <= r.x || c.x >= r.x + r.w ||
                  c.y + c.h <= r.y || c.y >= r.y + r.h);

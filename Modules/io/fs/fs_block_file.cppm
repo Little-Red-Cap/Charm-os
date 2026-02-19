@@ -5,6 +5,9 @@ module;
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#if !defined(_WIN32)
+#include <sys/types.h>
+#endif
 
 export module fs_block_file;
 
@@ -62,13 +65,38 @@ export namespace fs {
         [[nodiscard]] util::u64 block_count() const noexcept { return block_count_; }
 
     private:
+        static bool seek64(std::FILE* file, util::u64 offset) noexcept {
+            if (!file) return false;
+#if defined(_WIN32)
+            return _fseeki64(file, static_cast<__int64>(offset), SEEK_SET) == 0;
+#else
+            return std::fseeko(file, static_cast<off_t>(offset), SEEK_SET) == 0;
+#endif
+        }
+
+        static util::u64 tell64(std::FILE* file) noexcept {
+            if (!file) return 0;
+#if defined(_WIN32)
+            const auto pos = _ftelli64(file);
+#else
+            const auto pos = std::ftello(file);
+#endif
+            return pos < 0 ? 0 : static_cast<util::u64>(pos);
+        }
+
         bool refresh_size() noexcept {
             if (!file_ || block_size_ == 0) return false;
-            if (std::fseek(file_, 0, SEEK_END) != 0) return false;
-            const long size = std::ftell(file_);
-            if (size < 0) return false;
-            if (std::fseek(file_, 0, SEEK_SET) != 0) return false;
-            const util::u64 usize = static_cast<util::u64>(size);
+#if defined(_WIN32)
+            if (_fseeki64(file_, 0, SEEK_END) != 0) return false;
+#else
+            if (std::fseeko(file_, 0, SEEK_END) != 0) return false;
+#endif
+            const util::u64 usize = tell64(file_);
+#if defined(_WIN32)
+            if (_fseeki64(file_, 0, SEEK_SET) != 0) return false;
+#else
+            if (std::fseeko(file_, 0, SEEK_SET) != 0) return false;
+#endif
             if (usize % block_size_ != 0) return false;
             block_count_ = usize / block_size_;
             return true;
@@ -82,7 +110,7 @@ export namespace fs {
             const util::u64 blocks = out.size() / self->block_size_;
             if (lba + blocks > self->block_count_) return Status{Err::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (std::fseek(self->file_, static_cast<long>(offset), SEEK_SET) != 0) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Err::io};
             const std::size_t read = std::fread(out.data(), 1, out.size(), self->file_);
             if (read != out.size()) return Status{Err::io};
             return Status{Err::ok};
@@ -96,7 +124,7 @@ export namespace fs {
             const util::u64 blocks = in.size() / self->block_size_;
             if (lba + blocks > self->block_count_) return Status{Err::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (std::fseek(self->file_, static_cast<long>(offset), SEEK_SET) != 0) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Err::io};
             const std::size_t written = std::fwrite(in.data(), 1, in.size(), self->file_);
             if (written != in.size()) return Status{Err::io};
             return Status{Err::ok};
@@ -108,7 +136,7 @@ export namespace fs {
             if (self->block_size_ == 0) return Status{Err::inval};
             if (lba + count > self->block_count_) return Status{Err::inval};
             const util::u64 offset = lba * self->block_size_;
-            if (std::fseek(self->file_, static_cast<long>(offset), SEEK_SET) != 0) return Status{Err::io};
+            if (!seek64(self->file_, offset)) return Status{Err::io};
             std::array<util::u8, 512> zeros{};
             util::u64 remaining = count * self->block_size_;
             while (remaining > 0) {

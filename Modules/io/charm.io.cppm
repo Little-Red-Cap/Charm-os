@@ -3,6 +3,7 @@ export module charm.io;
 export import hal_clock;
 export import hal_core;
 export import hal_gpio;
+export import hal_input;
 export import hal_irq;
 export import hal_stm32_stub;
 export import hal_time;
@@ -47,4 +48,9 @@ export import out.sink;
 
 export import usb.common;
 export import usb.device;
+export import usb.device_driver;
+export import usb.ep0_driver;
 export import usb.class_cdc;
+export import usb.class_uac;
+export import usb.class_msc;
+export import usb.driver;

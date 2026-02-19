@@ -26,7 +26,6 @@ import charm.widgets.rich_text;
 import charm.widgets.code_block;
 import charm.widgets.table_view;
 import charm.widgets.text;
-import charm.widgets.tree_view;
 import fs_core;
 import fs_errno;
 import fs_block;
@@ -38,7 +37,6 @@ import util.core;
 
 #include <SDL3/SDL.h>
 
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cctype>
@@ -52,11 +50,11 @@ import util.core;
 #include <vector>
 
 namespace {
-    constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
+    // constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
+    constexpr const char* kDefaultVfsTrack = "/Beautiful Trick-FELT.flac";
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
-    constexpr int kDemoGap = 12;
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];
@@ -111,6 +109,26 @@ namespace {
         return "unknown";
     }
 
+    const char* audio_stage_text(audio::PlayerErrorStage stage) {
+        switch (stage) {
+        case audio::PlayerErrorStage::none: return "none";
+        case audio::PlayerErrorStage::open_source: return "open_source";
+        case audio::PlayerErrorStage::unsupported_format: return "unsupported_format";
+        case audio::PlayerErrorStage::decode_open: return "decode_open";
+        case audio::PlayerErrorStage::wav_parse: return "wav_parse";
+        case audio::PlayerErrorStage::wav_bits: return "wav_bits";
+        case audio::PlayerErrorStage::channel_convert: return "channel_convert";
+        case audio::PlayerErrorStage::buffer_config: return "buffer_config";
+        case audio::PlayerErrorStage::sink_open: return "sink_open";
+        case audio::PlayerErrorStage::buffer_alloc: return "buffer_alloc";
+        case audio::PlayerErrorStage::sink_start: return "sink_start";
+        case audio::PlayerErrorStage::seek: return "seek";
+        case audio::PlayerErrorStage::resume: return "resume";
+        case audio::PlayerErrorStage::reconfigure: return "reconfigure";
+        }
+        return "unknown";
+    }
+
     bool has_audio_ext(std::string_view name) {
         const auto dot = name.find_last_of('.');
         if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
@@ -121,6 +139,7 @@ namespace {
             const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
             if (a == 'm' && b == 'p' && c == '3') return true;
             if (a == 'w' && b == 'a' && c == 'v') return true;
+            if (a == 'f' && b == 'l' && c == 'a') return true;
         }
         if (ext.size() == 4) {
             const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
@@ -135,11 +154,25 @@ namespace {
     struct TrackListContext {
         std::string_view dir{};
         std::vector<std::string>* out{nullptr};
+        std::vector<std::string>* subdirs{nullptr};
     };
 
     fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* info = static_cast<TrackListContext*>(ctx);
         if (!info || !info->out) return fs::Status{fs::Err::inval};
+        if (entry.type == fs::NodeType::dir) {
+            if (!info->subdirs) return fs::Status{fs::Err::ok};
+            std::string path;
+            if (info->dir.empty() || info->dir == "/") {
+                path = "/";
+            } else {
+                path.assign(info->dir.begin(), info->dir.end());
+                if (!path.empty() && path.back() != '/') path.push_back('/');
+            }
+            path.append(entry.name.begin(), entry.name.end());
+            info->subdirs->push_back(path);
+            return fs::Status{fs::Err::ok};
+        }
         if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
         if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
 
@@ -155,10 +188,13 @@ namespace {
         return fs::Status{fs::Err::ok};
     }
 
-    bool collect_tracks_from_dir(std::string_view dir, std::vector<std::string>& out) {
-        TrackListContext ctx{dir, &out};
-        const auto st = fs::vfs_list(dir, &ctx, &collect_track);
-        return st && !out.empty();
+    bool collect_tracks_from_dir(std::string_view dir,
+                                 std::vector<std::string>& out,
+                                 std::vector<std::string>* subdirs,
+                                 fs::Status& out_status) {
+        TrackListContext ctx{dir, &out, subdirs};
+        out_status = fs::vfs_list(dir, &ctx, &collect_track);
+        return out_status && !out.empty();
     }
 
     struct OffsetDevice {
@@ -458,7 +494,21 @@ namespace {
         }
 
         void start_playback() {
-            if (!player || !track_path || !track_ready) return;
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
+            if (!player || !track_path) {
+                set_status("No track");
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
+            if (!track_ready) {
+                set_status("Track not ready");
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             (void)player->stop();
             auto res = player->play(track_path);
             if (!res) {
@@ -470,8 +520,8 @@ namespace {
             playing = true;
             paused = false;
             start = std::chrono::steady_clock::now();
-            set_status("Playing");
-            set_status_color({120, 200, 170, 255});
+            set_status("Opening");
+            set_status_color({140, 150, 175, 255});
             set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
@@ -551,6 +601,11 @@ namespace {
         }
 
         bool load_track_index(int idx) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return false;
+            }
             if (!tracks || tracks->empty()) return false;
             if (idx < 0) idx = 0;
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
@@ -586,6 +641,11 @@ namespace {
         }
 
         void switch_track(int delta) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             if (!tracks || tracks->empty()) return;
             const int count = static_cast<int>(tracks->size());
             int next = track_index + delta;
@@ -600,6 +660,11 @@ namespace {
         }
 
         void select_track_index(int idx) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             if (!tracks || tracks->empty()) return;
             const bool was_playing = playing;
             const bool was_paused = paused;
@@ -667,174 +732,6 @@ namespace {
         }
     };
 
-    struct TableDemoData {
-        static constexpr int kCols = 3;
-        static constexpr int kRows = 6;
-        const char* headers[kCols]{
-            "Name", "Type", "Size"
-        };
-        const char* rows[kRows][kCols]{
-            {"boot.img", "bin", "256KB"},
-            {"config.json", "cfg", "3KB"},
-            {"splash.bmp", "img", "42KB"},
-            {"fonts.bin", "bin", "180KB"},
-            {"readme.txt", "txt", "1KB"},
-            {"log-0001.txt", "txt", "12KB"}
-        };
-        int order[kRows]{0, 1, 2, 3, 4, 5};
-        int sort_col{0};
-        bool sort_asc{true};
-    };
-
-    TableDemoData g_table_demo{};
-
-    void table_rebuild_order(TableDemoData& demo) {
-        for (int i = 0; i < TableDemoData::kRows; ++i) demo.order[i] = i;
-        const int col = demo.sort_col;
-        const bool asc = demo.sort_asc;
-        std::sort(demo.order, demo.order + TableDemoData::kRows, [&](int a, int b) {
-            const char* va = demo.rows[a][col];
-            const char* vb = demo.rows[b][col];
-            if (!va) va = "";
-            if (!vb) vb = "";
-            const int cmp = std::strcmp(va, vb);
-            return asc ? (cmp < 0) : (cmp > 0);
-        });
-    }
-
-    int table_row_count(void* ctx) noexcept {
-        (void)ctx;
-        return TableDemoData::kRows + 1;
-    }
-
-    int table_col_count(void* ctx) noexcept {
-        (void)ctx;
-        return TableDemoData::kCols;
-    }
-
-    int table_col_width(void* ctx, int col) noexcept {
-        (void)ctx;
-        switch (col) {
-        case 0: return 160;
-        case 1: return 80;
-        case 2: return 90;
-        default: return 80;
-        }
-    }
-
-    void on_table_draw(void* ctx, DefaultCanvas& cvs, const TableView::CellInfo& info) noexcept {
-        auto* demo = static_cast<TableDemoData*>(ctx);
-        if (!demo) return;
-        const Style& st = Theme::instance().get<TableView>();
-        const auto font = resolve_font(st);
-        Rect text = info.rect;
-        text.x += st.padding;
-        text.w -= st.padding * 2;
-        if (text.w <= 0 || text.h <= 0) return;
-        if (info.row == 0) {
-            draw_text_box(cvs, text, demo->headers[info.col], st.font_color, font,
-                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-            return;
-        }
-        const int data_row = info.row - 1;
-        if (data_row < 0 || data_row >= TableDemoData::kRows) return;
-        const int real_row = demo->order[data_row];
-        draw_text_box(cvs, text, demo->rows[real_row][info.col], st.font_color, font,
-                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    }
-
-    void on_table_select(void* ctx, int row, int col) noexcept {
-        auto* demo = static_cast<TableDemoData*>(ctx);
-        if (!demo) return;
-        if (row != 0) return;
-        if (col < 0 || col >= TableDemoData::kCols) return;
-        if (demo->sort_col == col) {
-            demo->sort_asc = !demo->sort_asc;
-        } else {
-            demo->sort_col = col;
-            demo->sort_asc = true;
-        }
-        table_rebuild_order(*demo);
-    }
-
-    struct TreeNodeData {
-        int depth{0};
-        bool expanded{false};
-        bool has_children{false};
-        const char* label{nullptr};
-    };
-
-    struct TreeDemoData {
-        TreeNodeData nodes[9]{
-            {0, true,  true,  "System"},
-            {1, true,  true,  "Drivers"},
-            {2, false, false, "I2C"},
-            {2, false, false, "SPI"},
-            {1, false, true,  "Assets"},
-            {2, false, false, "Fonts"},
-            {2, false, false, "Icons"},
-            {0, true,  true,  "User"},
-            {1, false, false, "Config"}
-        };
-        int count{9};
-        int visible[9]{0,1,2,3,4,5,6,7,8};
-        int visible_count{9};
-    };
-
-    TreeDemoData g_tree_demo{};
-
-    void tree_rebuild_visible(TreeDemoData& demo) {
-        demo.visible_count = 0;
-        int hidden_depth = -1;
-        for (int i = 0; i < demo.count; ++i) {
-            const auto& node = demo.nodes[i];
-            if (hidden_depth >= 0) {
-                if (node.depth > hidden_depth) continue;
-                hidden_depth = -1;
-            }
-            demo.visible[demo.visible_count++] = i;
-            if (node.has_children && !node.expanded) {
-                hidden_depth = node.depth;
-            }
-        }
-    }
-
-    int tree_row_count(void* ctx) noexcept {
-        auto* demo = static_cast<TreeDemoData*>(ctx);
-        return demo ? demo->visible_count : 0;
-    }
-
-    TreeView::NodeInfo tree_node_info(void* ctx, int index) noexcept {
-        auto* demo = static_cast<TreeDemoData*>(ctx);
-        if (!demo || index < 0 || index >= demo->visible_count) return {};
-        const int node_index = demo->visible[index];
-        const auto& node = demo->nodes[node_index];
-        return TreeView::NodeInfo{node.depth, node.expanded, node.has_children, node.label};
-    }
-
-    void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
-        auto* demo = static_cast<TreeDemoData*>(ctx);
-        if (!demo || info.index < 0 || info.index >= demo->visible_count) return;
-        const Style& st = Theme::instance().get<TreeView>();
-        const auto font = resolve_font(st);
-        Rect text = info.rect;
-        text.x += st.padding + info.node.depth * 12;
-        text.w -= st.padding * 2;
-        if (text.w <= 0 || text.h <= 0) return;
-        const rgba color = info.selected ? st.border_focus : st.font_color;
-        draw_text_box(cvs, text, info.node.label ? info.node.label : "", color, font,
-                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    }
-
-    void on_tree_toggle(void* ctx, int index) noexcept {
-        auto* demo = static_cast<TreeDemoData*>(ctx);
-        if (!demo || index < 0 || index >= demo->visible_count) return;
-        const int node_index = demo->visible[index];
-        if (!demo->nodes[node_index].has_children) return;
-        demo->nodes[node_index].expanded = !demo->nodes[node_index].expanded;
-        tree_rebuild_visible(*demo);
-    }
-
     void on_play_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
@@ -872,45 +769,6 @@ namespace {
         app->select_track_index(index);
     }
 
-    const char* trim_label_utf8(PlayerUiContext::ListCacheEntry& entry,
-                                std::string_view text,
-                                int max_width,
-                                const Font& font) {
-        if (max_width <= 0) {
-            entry.text.clear();
-            return entry.text.c_str();
-        }
-        const int full_width = measure_text_width(text.data(), static_cast<int>(text.size()), font);
-        if (full_width <= max_width) {
-            entry.text.assign(text.begin(), text.end());
-            return entry.text.c_str();
-        }
-        const int ellipsis_w = measure_text_width("...", 3, font);
-        int draw_len = static_cast<int>(text.size());
-        while (draw_len > 0 && (measure_text_width(text.data(), draw_len, font) + ellipsis_w) > max_width) {
-            const char* start = text.data();
-            const char* cur = start + draw_len;
-            while (cur > start && (static_cast<unsigned char>(cur[-1]) & 0xC0u) == 0x80u) {
-                --cur;
-            }
-            draw_len = static_cast<int>(cur - start);
-            if (draw_len == static_cast<int>(text.size())) --draw_len;
-        }
-        entry.text.assign(text.data(), text.data() + draw_len);
-        entry.text.append("...");
-        return entry.text.c_str();
-    }
-
-    void on_list_cache(void* ctx, int slot, int index) noexcept {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app) return;
-        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
-        auto& entry = app->list_cache[slot];
-        entry.index = index;
-        entry.width = 0;
-        entry.text.clear();
-    }
-
     void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
@@ -922,38 +780,8 @@ namespace {
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
         const rgba color = st.font_color;
-        const char* label = app->track_labels[info.index].c_str();
-        if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
-            auto& entry = app->list_cache[info.slot];
-            if (entry.index == info.index && entry.width == text.w && !entry.text.empty()) {
-                label = entry.text.c_str();
-            } else {
-                entry.index = info.index;
-                entry.width = text.w;
-                label = trim_label_utf8(entry, app->track_labels[info.index], text.w, font);
-            }
-        }
-        draw_text_box(cvs, text, label, color, font,
+        draw_text_box(cvs, text, app->track_labels[info.index].c_str(), color, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    }
-
-    void on_list_scroll(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app || !app->factory) return;
-        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
-        if (!bar) return;
-        bar->set_range(0, max_scroll);
-        bar->set_page_size(view_h);
-        bar->set_value(scroll_y);
-    }
-
-    void on_list_scrollbar_change(void* ctx) noexcept {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app || !app->factory) return;
-        auto* list = app->factory->get_list_view(app->handles.list);
-        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
-        if (!list || !bar) return;
-        list->set_scroll_y(bar->value());
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -1115,12 +943,9 @@ namespace {
         if (auto* list = factory.get_list_view(h.list)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
             const int list_h = screen_height - list_y - 170;
-            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2 - 12, list_h});
+            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
-            list->set_cache_handler(&on_list_cache, &ctx);
-            list->set_on_scroll(&on_list_scroll, &ctx);
-            list->set_show_scrollbar(false);
             list->set_row_height(32);
             list->set_wheel_step(32);
         }
@@ -1275,7 +1100,6 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
-        factory.link(h.root, h.perf_overlay);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.debug_grid);
@@ -1385,7 +1209,6 @@ int main(int argc, char** argv) {
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
-    ctx.set_debug_visible(false);
 
     const auto mount_st = mount_fatfs_from_vhd(vhd_path);
     ctx.fs_ready = static_cast<bool>(mount_st);
@@ -1394,25 +1217,75 @@ int main(int argc, char** argv) {
         std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
         ctx.set_status(buf);
         ctx.set_status_color({220, 120, 120, 255});
-    } else {
+        ctx.mount_status = buf;
         vfs_tracks.clear();
-        if (!collect_tracks_from_dir("/music", vfs_tracks)) {
-            if (!collect_tracks_from_dir("/", vfs_tracks)) {
+        ctx.rebuild_track_labels();
+        ctx.refresh_list_view();
+        ctx.track_ready = false;
+        ctx.track_path = nullptr;
+        ctx.set_pause_button_text("Pause");
+        ctx.set_time_label(0);
+        ctx.sync_progress_value(0);
+        ctx.reset_duration();
+    } else {
+        ctx.mount_status = "Mounted";
+        vfs_tracks.clear();
+        fs::Status list_st{fs::Err::ok};
+        if (!collect_tracks_from_dir("/music", vfs_tracks, nullptr, list_st)) {
+            std::vector<std::string> subdirs;
+            const bool root_has = collect_tracks_from_dir("/", vfs_tracks, &subdirs, list_st);
+            if (list_st) {
+                for (const auto& dir : subdirs) {
+                    collect_tracks_from_dir(dir, vfs_tracks, nullptr, list_st);
+                }
+            }
+            if (!list_st) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
+                ctx.set_status(buf);
+                ctx.set_status_color({220, 120, 120, 255});
+            } else if (!root_has && vfs_tracks.empty()) {
+                ctx.set_status("No tracks found");
+                ctx.set_status_color({220, 120, 120, 255});
+            }
+        }
+        bool should_load = true;
+        if (vfs_tracks.empty()) {
+            if (!list_st) {
                 vfs_tracks.emplace_back(kDefaultVfsTrack);
+            } else {
+                fs::File f{};
+                auto st = fs::vfs_open(kDefaultVfsTrack, f);
+                if (st) {
+                    (void)fs::vfs_close(f);
+                    vfs_tracks.emplace_back(kDefaultVfsTrack);
+                } else {
+                    char buf[64]{};
+                    std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(st.err));
+                    ctx.set_status(buf);
+                    ctx.set_status_color({220, 120, 120, 255});
+                    should_load = false;
+                }
             }
         }
         ctx.rebuild_track_labels();
         ctx.refresh_list_view();
-        ctx.load_track_index(0);
+        if (should_load) {
+            ctx.load_track_index(0);
+        } else {
+            ctx.track_ready = false;
+            ctx.track_path = nullptr;
+            ctx.set_pause_button_text("Pause");
+            ctx.set_time_label(0);
+            ctx.sync_progress_value(0);
+            ctx.reset_duration();
+        }
     }
 
     Gui gui(canvas, factory, ctx.handles.root);
-    gui.set_dirty_tracking(true);
-    PerfState perf{};
 
     bool running = true;
     while (running) {
-        const auto frame_begin = std::chrono::steady_clock::now();
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_EVENT_QUIT) {
@@ -1430,10 +1303,28 @@ int main(int argc, char** argv) {
             ctx.set_status_color({140, 150, 175, 255});
             ctx.set_pause_button_text("Pause");
         }
+        if (!ctx.paused) {
+            const auto st = player.state();
+            if (st == audio::PlayerState::opening) {
+                ctx.set_status("Opening");
+                ctx.set_status_color({140, 150, 175, 255});
+            } else if (st == audio::PlayerState::buffering) {
+                ctx.set_status("Buffering");
+                ctx.set_status_color({140, 150, 175, 255});
+            } else if (st == audio::PlayerState::playing) {
+                ctx.set_status("Playing");
+                ctx.set_status_color({120, 200, 170, 255});
+            }
+        }
         if (player.state() == audio::PlayerState::error) {
             ctx.playing = false;
             ctx.paused = false;
-            ctx.set_status("Player error");
+            const auto err = player.last_error();
+            const auto stage = static_cast<audio::PlayerErrorStage>(err.ext);
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
+                          audio_err_text(err.code), audio_stage_text(stage));
+            ctx.set_status(buf);
             ctx.set_status_color({220, 120, 120, 255});
             ctx.set_pause_button_text("Pause");
         }
@@ -1442,50 +1333,7 @@ int main(int argc, char** argv) {
         ctx.update_progress();
 
         canvas.clear({18, 20, 28, 255});
-        const auto render_begin = std::chrono::steady_clock::now();
         gui.render();
-        const auto render_end = std::chrono::steady_clock::now();
-
-        perf.draw_ms = static_cast<int>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_begin).count());
-        perf.frame_count += 1;
-        if (perf.last.time_since_epoch().count() == 0) {
-            perf.last = frame_begin;
-        } else {
-            const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(frame_begin - perf.last);
-            if (dt.count() >= 1000) {
-                perf.fps = (dt.count() > 0) ? (perf.frame_count * 1000 / static_cast<int>(dt.count())) : 0;
-                perf.frame_count = 0;
-                perf.last = frame_begin;
-            }
-        }
-
-        const auto& dirty = canvas.dirty_list();
-        perf.dirty_count = static_cast<int>(dirty.size());
-        if (canvas.dirty_full()) {
-            perf.dirty_area = screen_width * screen_height;
-        } else {
-            int area = 0;
-            for (util::usize i = 0; i < dirty.size(); ++i) {
-                const auto& r = dirty[i];
-                area += r.w * r.h;
-            }
-            perf.dirty_area = area;
-        }
-        perf.nodes = gui.last_frame_nodes();
-        perf.depth_hits = gui.last_depth_hits();
-        perf.cycle_hits = gui.last_cycle_hits();
-        if (auto* overlay = factory.get_perf_overlay(ctx.handles.perf_overlay)) {
-            overlay->set_sample(PerfOverlay::Sample{
-                perf.fps,
-                perf.draw_ms,
-                perf.dirty_count,
-                perf.dirty_area,
-                perf.nodes,
-                perf.depth_hits,
-                perf.cycle_hits
-            });
-        }
 
         SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
         SDL_RenderClear(renderer);

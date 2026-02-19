@@ -51,11 +51,13 @@ export namespace fs {
             init_root();
         }
 
-        Status open(std::string_view path, File& out) noexcept {
+        Status open(std::string_view path, File& out, OpenFlags flags) noexcept {
             auto norm = normalize(path);
             auto trimmed = rstrip_seps(norm);
             PathView pv{trimmed.data, trimmed.size};
             if (pv.size == 0) return Status{Err::inval};
+            const bool want_create = has_flag(flags, OpenFlags::create);
+            const bool want_trunc = has_flag(flags, OpenFlags::trunc);
 
             auto cur_idx = root_index;
             while (true) {
@@ -64,11 +66,19 @@ export namespace fs {
                 const bool last = (rest.size == 0);
                 auto* fe = find_child(cur_idx, head);
                 if (!fe) {
-                    fe = create_entry(cur_idx, head, !last);
-                    if (!fe) return Status{Err::nomem};
+                    if (last && want_create) {
+                        fe = create_entry(cur_idx, head, false);
+                        if (!fe) return Status{Err::nomem};
+                    } else {
+                        return Status{Err::noent};
+                    }
                 }
                 if (last) {
                     if (fe->is_dir) return Status{Err::inval};
+                    if (want_trunc) {
+                        auto st = truncate(path, 0);
+                        if (!st) return st;
+                    }
                     out.node = fe->node;
                     out.node.data = fe;
                     out.node.ops = &node_ops;

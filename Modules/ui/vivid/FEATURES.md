@@ -45,7 +45,7 @@
 - P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
-- P0 progress_wheel / progress_flowing / waveform_view / battery_gauge / histogram_view / ring_indication / text_box / foldable_panel
+- P0 progress_wheel / progress_flowing / waveform_view / battery_gauge / histogram_view / ring_indication / text_box / foldable_panel / cloudy_glass
 - P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
 - P0 message_box / tabview / scroll_container / popup_layer / scrollbar
 - P0 segmented_control / toggle_group

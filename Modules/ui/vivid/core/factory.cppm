@@ -58,6 +58,7 @@ import charm.widgets.ring_indication;
 import charm.widgets.text_box;
 import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
+import charm.widgets.cloudy_glass;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -113,6 +114,7 @@ public:
     WidgetHandle create_text_box(const char* text) noexcept { return make_handle(text_boxes_.create(text), WidgetKind::TextBox); }
     WidgetHandle create_foldable_panel(const char* title) noexcept { return make_handle(fold_panels_.create(title), WidgetKind::FoldablePanel); }
     WidgetHandle create_progress_flowing() noexcept { return make_handle(progress_flow_.create(), WidgetKind::ProgressFlowing); }
+    WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -164,6 +166,7 @@ public:
     TextBox* get_text_box(const WidgetHandle& h) noexcept { return get_from(text_boxes_, h, WidgetKind::TextBox); }
     FoldablePanel* get_foldable_panel(const WidgetHandle& h) noexcept { return get_from(fold_panels_, h, WidgetKind::FoldablePanel); }
     ProgressFlowing* get_progress_flowing(const WidgetHandle& h) noexcept { return get_from(progress_flow_, h, WidgetKind::ProgressFlowing); }
+    CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -215,6 +218,7 @@ public:
             case WidgetKind::TextBox: return get_text_box(h);
             case WidgetKind::FoldablePanel: return get_foldable_panel(h);
             case WidgetKind::ProgressFlowing: return get_progress_flowing(h);
+            case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
             default: return nullptr;
         }
     }
@@ -414,6 +418,7 @@ public:
         case WidgetKind::TextBox: destroy_from(text_boxes_, h, WidgetKind::TextBox); break;
         case WidgetKind::FoldablePanel: destroy_from(fold_panels_, h, WidgetKind::FoldablePanel); break;
         case WidgetKind::ProgressFlowing: destroy_from(progress_flow_, h, WidgetKind::ProgressFlowing); break;
+        case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -695,6 +700,7 @@ private:
     HandlePool<TextBox, 32> text_boxes_{};
     HandlePool<FoldablePanel, 16> fold_panels_{};
     HandlePool<ProgressFlowing, 16> progress_flow_{};
+    HandlePool<CloudyGlass, 16> glass_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

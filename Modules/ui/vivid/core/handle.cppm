@@ -53,6 +53,7 @@ enum class WidgetKind : std::uint8_t {
     ,TextBox
     ,FoldablePanel
     ,ProgressFlowing
+    ,CloudyGlass
 };
 
 export
@@ -116,6 +117,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::TextBox: return "TextBox";
         case WidgetKind::FoldablePanel: return "FoldablePanel";
         case WidgetKind::ProgressFlowing: return "ProgressFlowing";
+        case WidgetKind::CloudyGlass: return "CloudyGlass";
     }
     return "Unknown";
 }

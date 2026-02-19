@@ -40,6 +40,7 @@ import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
 import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
+import charm.widgets.cloudy_glass;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -531,6 +532,7 @@ namespace {
         WidgetHandle histogram{};
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
+        WidgetHandle cloudy_glass{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1479,6 +1481,11 @@ namespace {
             flow->set_flow_speed(2);
             flow->set_size(200, 16);
         }
+        h.cloudy_glass = factory.create_cloudy_glass();
+        if (auto* glass = factory.get_cloudy_glass(h.cloudy_glass)) {
+            glass->set_size(200, 70);
+            glass->set_opacity(140);
+        }
         auto fold_btn_primary = factory.create_button("Apply");
         if (auto* btn = factory.get_button(fold_btn_primary)) {
             btn->set_size(90, 32);
@@ -1562,6 +1569,7 @@ namespace {
         factory.link(h.debug_side, h.histogram);
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
+        factory.link(h.debug_side, h.cloudy_glass);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

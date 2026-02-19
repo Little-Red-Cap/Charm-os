@@ -25,6 +25,32 @@ export namespace hal {
         GpioLevel init_level{GpioLevel::low};
     };
 
+    struct GpioOps {
+        Result (*init)(void* ctx, GpioPin pin, GpioConfig cfg) noexcept { nullptr };
+        Result (*write)(void* ctx, GpioPin pin, GpioLevel lvl) noexcept { nullptr };
+        Result (*read)(void* ctx, GpioPin pin, GpioLevel& out) noexcept { nullptr };
+    };
+
+    struct GpioIoHandle {
+        void* ctx{nullptr};
+        const GpioOps* ops{nullptr};
+    };
+
+    inline Result gpio_init(GpioIoHandle h, GpioPin pin, GpioConfig cfg) noexcept {
+        if (!h.ops || !h.ops->init) return err(Status::unsupported);
+        return h.ops->init(h.ctx, pin, cfg);
+    }
+
+    inline Result gpio_write(GpioIoHandle h, GpioPin pin, GpioLevel lvl) noexcept {
+        if (!h.ops || !h.ops->write) return err(Status::unsupported);
+        return h.ops->write(h.ctx, pin, lvl);
+    }
+
+    inline Result gpio_read(GpioIoHandle h, GpioPin pin, GpioLevel& out) noexcept {
+        if (!h.ops || !h.ops->read) return err(Status::unsupported);
+        return h.ops->read(h.ctx, pin, out);
+    }
+
     template <typename T>
     concept GpioDriver = requires(GpioPin pin, GpioConfig cfg, GpioLevel lvl) {
         { T::init(pin, cfg) } -> std::same_as<Result>;

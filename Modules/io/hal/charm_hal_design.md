@@ -21,9 +21,23 @@
 - No global macros in interface; selection via CMake/manifest choosing platform impl files.
 
 ## Platform binding
-- For each target: 	argets/<vendor>/<board>/hal_<periph>.cpp implements the concepts.
+- For each target: targets/<vendor>/<board>/hal_<periph>.cpp implements the concepts.
 - Provide template file Modules/port/port.kernel.template.cpp as quick start; similar templates for gpio/uart.
 
+## Unified API routing (VSF-aligned)
+- A single hal::<periph> API should target multiple backends:
+  - hardware IP (SPI/UART/I2C)
+  - bitbang GPIO
+  - USB bridge or remote SPI
+- The handle owns a driver vtable (ops) so all backends share one API.
+- Upper layers stay backend-agnostic; only binding chooses the backend.
+
+## IP core drivers (VSF-aligned)
+- Split into two layers:
+  - core: register model + state machine (no clocks/pins/irq routing)
+  - port: clock/reset/irq/pinmux glue
+- Port ops should be minimal and explicit; core owns logic.
+ 
 ## Build selection
 - CMake cache variables choose target; a manifest lists sources to compile for that target.
 - Upper layers link only the interfaces they use (per-module granularity), enabling dead-strip.
@@ -37,6 +51,7 @@
 ## Documentation
 - For each periph: table of required/optional behaviors (blocking/async, timeout units, ISR context rules).
 - Example usage snippets per module; platform notes (e.g., STM32 requires clock enable before gpio_cfg).
+- Ops binding templates: `Modules/io/hal/hal_ops_template_guide.md`.
 
 ## Phasing
 - Phase A (current): port.kernel + minimal time/irq for PC/STM32.

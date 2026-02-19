@@ -48,6 +48,8 @@ export namespace usb::device {
         void reset() noexcept {
             state_ = DeviceState::default_state;
             stage_ = Ep0Stage::setup;
+            in_remaining_ = 0;
+            out_expected_ = 0;
         }
 
         void set_class(void* ctx, const ClassOps* ops) noexcept {
@@ -61,6 +63,8 @@ export namespace usb::device {
         void on_setup(const SetupPacket& setup) noexcept {
             setup_ = setup;
             stage_ = Ep0Stage::setup;
+            in_remaining_ = 0;
+            out_expected_ = 0;
         }
 
         bool handle_setup(ControlResponse& resp) noexcept {
@@ -83,6 +87,29 @@ export namespace usb::device {
             return false;
         }
 
+        void begin_data_in(std::size_t len) noexcept {
+            stage_ = Ep0Stage::data_in;
+            in_remaining_ = static_cast<u16>(len);
+        }
+
+        void begin_data_out(std::size_t len) noexcept {
+            stage_ = Ep0Stage::data_out;
+            out_expected_ = static_cast<u16>(len);
+        }
+
+        void finish_data_in() noexcept {
+            stage_ = Ep0Stage::status_out;
+            in_remaining_ = 0;
+        }
+
+        void finish_data_out() noexcept {
+            stage_ = Ep0Stage::status_in;
+            out_expected_ = 0;
+        }
+
+        u16 in_remaining() const noexcept { return in_remaining_; }
+        u16 out_expected() const noexcept { return out_expected_; }
+
         void set_address(u8 addr) noexcept {
             address_ = addr;
             state_ = (addr == 0) ? DeviceState::default_state : DeviceState::addressed;
@@ -99,6 +126,8 @@ export namespace usb::device {
         u8 address_{0};
         void* class_ctx_{nullptr};
         const ClassOps* class_ops_{nullptr};
+        u16 in_remaining_{0};
+        u16 out_expected_{0};
     };
 
     class Device {
@@ -107,22 +136,38 @@ export namespace usb::device {
         void set_class(void* ctx, const ClassOps* ops) noexcept { ep0_.set_class(ctx, ops); }
 
         DeviceState state() const noexcept { return ep0_.state(); }
+        Ep0Stage stage() const noexcept { return ep0_.stage(); }
+        u16 in_remaining() const noexcept { return ep0_.in_remaining(); }
+        u16 out_expected() const noexcept { return ep0_.out_expected(); }
 
         bool handle_setup(const SetupPacket& setup, ControlResponse& resp) noexcept {
             ep0_.on_setup(setup);
             const auto req_type = request_type(setup.bm_request_type);
             if (req_type == RequestType::standard) {
-                return handle_standard(setup, resp);
+                if (!handle_standard(setup, resp)) return false;
             }
             if (req_type == RequestType::class_request) {
-                return ep0_.handle_setup(resp);
+                if (!ep0_.handle_setup(resp)) return false;
             }
-            return false;
+            if (setup.w_length == 0) {
+                return true;
+            }
+            if (request_direction(setup.bm_request_type) == RequestDirection::in) {
+                const auto len = static_cast<std::size_t>(resp.data.size());
+                ep0_.begin_data_in(len);
+                return true;
+            }
+            ep0_.begin_data_out(setup.w_length);
+            return true;
         }
 
         bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
-            return ep0_.handle_out_data(data, resp);
+            if (!ep0_.handle_out_data(data, resp)) return false;
+            ep0_.finish_data_out();
+            return true;
         }
+
+        void finish_in_status() noexcept { ep0_.finish_data_in(); }
 
     private:
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {

@@ -132,6 +132,31 @@ export namespace usb {
         u8 interval{0};
     };
 
+    struct DeviceQualifierDescriptor {
+        u8 length{10};
+        DescriptorType type{DescriptorType::device_qualifier};
+        u16 bcd_usb{0x0200};
+        u8 device_class{0};
+        u8 device_subclass{0};
+        u8 device_protocol{0};
+        u8 max_packet_size0{64};
+        u8 num_configurations{1};
+        u8 reserved{0};
+    };
+
+    struct BosDescriptor {
+        u8 length{5};
+        DescriptorType type{DescriptorType::bos};
+        u16 total_length{0};
+        u8 num_caps{0};
+    };
+
+    struct DeviceCapabilityHeader {
+        u8 length{0};
+        u8 type{0x10};
+        u8 capability{0};
+    };
+
     struct StringDescriptorHeader {
         u8 length{2};
         DescriptorType type{DescriptorType::string};

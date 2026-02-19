@@ -70,6 +70,15 @@ export namespace usb::class_driver {
         u8 data_bits{8};
     };
 
+    struct CdcNotification {
+        u8 bm_request_type{0xA1};
+        u8 b_request{0x20}; // SERIAL_STATE
+        u16 w_value{0};
+        u16 w_index{0};
+        u16 w_length{2};
+        u16 serial_state{0};
+    };
+
     struct CdcConfig {
         u8 ctrl_ifc{0};
         u8 data_ifc{1};
@@ -102,6 +111,14 @@ export namespace usb::class_driver {
         }
 
         const CdcConfig& config() const noexcept { return cfg_; }
+
+        std::span<const u8> serial_state_notification(u16 state_bits) noexcept {
+            notify_.w_index = cfg_.ctrl_ifc;
+            notify_.serial_state = state_bits;
+            return std::span<const u8>(
+                reinterpret_cast<const u8*>(&notify_),
+                sizeof(notify_));
+        }
 
     private:
         static constexpr u8 req_set_line_coding = 0x20;
@@ -163,5 +180,6 @@ export namespace usb::class_driver {
         CdcConfig cfg_{};
         CdcLineCoding coding_{};
         bool expect_line_coding_{false};
+        CdcNotification notify_{};
     };
 } // namespace usb::class_driver

@@ -80,6 +80,8 @@ import util.core;
 
 namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
+    constexpr bool kEnableSpectrumDefault = true;
+    constexpr bool kLowLoadDefault = false;
     using namespace player::fs_utils;
     using namespace player::ui;
 #if CHARM_PLAYER_DEBUG_UI
@@ -418,7 +420,8 @@ int main(int argc, char** argv) {
     g_ctx.factory = &g_factory;
     g_ctx.track_path = nullptr;
     g_ctx.tracks = &g_vfs_tracks;
-    g_player.enable_spectrum(true);
+    g_ctx.set_spectrum_enabled(kEnableSpectrumDefault);
+    g_ctx.set_low_load(kLowLoadDefault);
 
     apply_player_theme();
 

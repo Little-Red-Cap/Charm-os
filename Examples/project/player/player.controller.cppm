@@ -18,6 +18,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.widgets.button;
 import charm.widgets.chart;
+import charm.widgets.histogram_view;
 import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
@@ -59,7 +60,8 @@ export namespace player {
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
         WidgetHandle play_mode{};
-        WidgetHandle spectrum{};
+        WidgetHandle spectrum_hist{};
+        WidgetHandle spectrum_peak{};
         WidgetHandle ring{};
         WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
@@ -115,12 +117,18 @@ export namespace player {
         bool updating{false};
         bool fs_ready{false};
         int play_mode{0};
+        bool spectrum_enabled{true};
+        bool spectrum_low_load{false};
+        std::uint32_t spectrum_tick{0};
         bool duration_ready{false};
         bool ignore_list_select{false};
         std::string mount_status{};
         bool syncing_scrollbar{false};
         std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_values{};
-        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_points{};
+        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_bars{};
+        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_peaks{};
+        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_bar_points{};
+        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_peak_points{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
 #if CHARM_PLAYER_DEBUG_UI
@@ -307,7 +315,10 @@ export namespace player {
             if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
                 mode->set_visible(!on);
             }
-            if (auto* chart = factory->get_chart(handles.spectrum)) {
+            if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
+                hist->set_visible(!on);
+            }
+            if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
                 chart->set_visible(!on);
             }
             if (auto* list = factory->get_list_view(handles.list)) {
@@ -363,15 +374,56 @@ export namespace player {
 
         void update_spectrum() {
             if (!player || !factory) return;
+            if (!spectrum_enabled) return;
+            if (spectrum_low_load) {
+                if ((spectrum_tick++ & 3u) != 0u) return;
+            } else {
+                spectrum_tick = 0;
+            }
             if (!player->read_spectrum(spectrum_values)) return;
+            constexpr float kBarDecay = 2.0f;
+            constexpr float kPeakDecay = 1.0f;
             for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
-                const float v = spectrum_values[i];
-                spectrum_points[i] = static_cast<int>(v * 100.0f);
+                const float target = spectrum_values[i] * 100.0f;
+                float bar = spectrum_bars[i];
+                if (target > bar) bar = target;
+                else bar = (bar > kBarDecay) ? (bar - kBarDecay) : 0.0f;
+                spectrum_bars[i] = bar;
+
+                float peak = spectrum_peaks[i];
+                if (bar > peak) peak = bar;
+                else peak = (peak > kPeakDecay) ? (peak - kPeakDecay) : 0.0f;
+                spectrum_peaks[i] = peak;
+
+                spectrum_bar_points[i] = static_cast<int>(bar + 0.5f);
+                spectrum_peak_points[i] = static_cast<int>(peak + 0.5f);
             }
-            if (auto* chart = factory->get_chart(handles.spectrum)) {
-                chart->set_points(spectrum_points.data(),
-                                  static_cast<int>(spectrum_points.size()));
+            if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
+                hist->set_values(spectrum_bar_points.data(),
+                                 static_cast<int>(spectrum_bar_points.size()));
+                hist->set_range(0, 100);
             }
+            if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
+                chart->set_points(spectrum_peak_points.data(),
+                                  static_cast<int>(spectrum_peak_points.size()));
+            }
+        }
+
+        void set_spectrum_enabled(bool on) {
+            spectrum_enabled = on;
+            if (player) player->enable_spectrum(on);
+            if (factory) {
+                if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
+                    hist->set_visible(on);
+                }
+                if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
+                    chart->set_visible(on);
+                }
+            }
+        }
+
+        void set_low_load(bool on) {
+            spectrum_low_load = on;
         }
 
         void sync_progress_value(int value) {

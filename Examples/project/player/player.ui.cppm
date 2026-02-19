@@ -11,6 +11,7 @@ import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.foldable_panel;
+import charm.widgets.histogram_view;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
@@ -142,5 +143,8 @@ export namespace player::ui {
         chart_patch.has_font_color = true;
         chart_patch.font_color = kUiListFont;
         theme.patch<Chart>(chart_patch);
+
+        StylePatch hist_patch = chart_patch;
+        theme.patch<HistogramView>(hist_patch);
     }
 }

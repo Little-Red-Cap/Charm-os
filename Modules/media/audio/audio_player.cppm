@@ -172,6 +172,19 @@ export namespace audio {
         std::uint8_t fail_reconfig_step{0};
     };
 
+    struct EqBand {
+        std::uint32_t freq_hz{1000};
+        float gain_db{0.0f};
+        float q{1.0f};
+    };
+
+    struct EqConfig {
+        static constexpr std::size_t max_bands = 8;
+        bool enabled{false};
+        std::uint8_t band_count{0};
+        std::array<EqBand, max_bands> bands{};
+    };
+
     struct PlayerStats {
         std::uint64_t underrun_count{0};
         std::size_t min_water{0};
@@ -239,6 +252,16 @@ export namespace audio {
         Result<void> resume() {
             Command cmd{};
             cmd.type = CommandType::resume;
+            if (!queue_.push(cmd)) {
+                return unexpected(Err{Errc::timeout, 0});
+            }
+            return {};
+        }
+
+        Result<void> set_eq(const EqConfig& eq) {
+            Command cmd{};
+            cmd.type = CommandType::set_eq;
+            cmd.eq = eq;
             if (!queue_.push(cmd)) {
                 return unexpected(Err{Errc::timeout, 0});
             }
@@ -361,6 +384,8 @@ export namespace audio {
 
         Err last_error() const noexcept { return last_err_; }
 
+        EqConfig eq_config() const noexcept { return eq_; }
+
         static constexpr std::size_t spectrum_bins = 32;
         static constexpr std::size_t spectrum_fft_size = 256;
 
@@ -402,13 +427,14 @@ export namespace audio {
         }
 
     private:
-        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
 
         struct Command {
             CommandType type{};
             FixedString<kMaxPath> path{};
             std::uint64_t seek_ms{0};
             AudioFormat fmt{};
+            EqConfig eq{};
         };
 
         static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
@@ -517,6 +543,11 @@ export namespace audio {
                     handle_seek(cmd->seek_ms);
                 } else if (cmd->type == CommandType::reconfigure) {
                     handle_reconfigure(cmd->fmt);
+                } else if (cmd->type == CommandType::set_eq) {
+                    eq_ = cmd->eq;
+                    if (eq_.band_count > EqConfig::max_bands) {
+                        eq_.band_count = EqConfig::max_bands;
+                    }
                 }
             }
         }
@@ -1211,6 +1242,7 @@ export namespace audio {
         std::size_t remaining_bytes_{0};
         std::uint64_t total_frames_{0};
         Err last_err_{};
+        EqConfig eq_{};
 
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};

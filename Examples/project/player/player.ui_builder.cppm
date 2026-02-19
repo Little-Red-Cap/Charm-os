@@ -142,8 +142,14 @@ export namespace player {
             anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
         }
 
-        h.spectrum = factory.create_chart();
-        if (auto* chart = factory.get_chart(h.spectrum)) {
+        h.spectrum_hist = factory.create_histogram_view();
+        if (auto* hist = factory.get_histogram_view(h.spectrum_hist)) {
+            anchor_rect(hist, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+            hist->set_range(0, 100);
+        }
+
+        h.spectrum_peak = factory.create_chart();
+        if (auto* chart = factory.get_chart(h.spectrum_peak)) {
             anchor_rect(chart, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
         }
 
@@ -415,7 +421,8 @@ export namespace player {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.play_mode);
-        factory.link(h.root, h.spectrum);
+        factory.link(h.root, h.spectrum_hist);
+        factory.link(h.root, h.spectrum_peak);
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);

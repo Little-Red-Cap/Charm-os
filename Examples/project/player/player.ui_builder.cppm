@@ -559,7 +559,7 @@ export namespace player {
         factory.link(h.root, h.spectrum_peak);
         factory.link(h.root, h.options_row);
         factory.link(h.root, h.eq_panel);
-        factory.link(h.root, h.eq_title);
+        factory.link(h.eq_panel, h.eq_title);
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);

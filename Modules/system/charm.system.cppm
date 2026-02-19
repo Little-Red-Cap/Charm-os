@@ -47,6 +47,11 @@ export import boot_policy;
 export import boot_storage;
 export import boot_uart;
 
+export import power.core;
+export import power.policy;
+export import power.trace;
+export import power.types;
+
 export import device.desc;
 export import device.bus;
 export import device.driver;

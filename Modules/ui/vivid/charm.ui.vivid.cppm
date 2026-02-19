@@ -83,3 +83,5 @@ export import charm.widgets.progress_wheel;
 export import charm.widgets.waveform_view;
 export import charm.widgets.battery_gauge;
 export import charm.widgets.histogram_view;
+export import charm.widgets.ring_indication;
+export import charm.widgets.text_box;

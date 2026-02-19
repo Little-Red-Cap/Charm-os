@@ -36,6 +36,8 @@ import charm.widgets.progress_wheel;
 import charm.widgets.waveform_view;
 import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -523,6 +525,8 @@ namespace {
         WidgetHandle waveform{};
         WidgetHandle battery_gauge{};
         WidgetHandle histogram{};
+        WidgetHandle ring{};
+        WidgetHandle text_box{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1444,6 +1448,18 @@ namespace {
             hist->set_values(bins, static_cast<int>(sizeof(bins) / sizeof(bins[0])));
             hist->set_size(200, 80);
         }
+
+        h.ring = factory.create_ring_indication();
+        if (auto* ring = factory.get_ring_indication(h.ring)) {
+            ring->set_value(58);
+            ring->set_thickness(10);
+            ring->set_size(90, 90);
+        }
+
+        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
+        if (auto* box = factory.get_text_box(h.text_box)) {
+            box->set_size(200, 70);
+        }
 #endif
 
         constexpr int button_w = 120;
@@ -1513,6 +1529,8 @@ namespace {
         factory.link(h.debug_side, h.waveform);
         factory.link(h.debug_side, h.battery_gauge);
         factory.link(h.debug_side, h.histogram);
+        factory.link(h.debug_side, h.ring);
+        factory.link(h.debug_side, h.text_box);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

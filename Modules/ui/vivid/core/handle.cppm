@@ -49,6 +49,8 @@ enum class WidgetKind : std::uint8_t {
     ,WaveformView
     ,BatteryGauge
     ,HistogramView
+    ,RingIndication
+    ,TextBox
 };
 
 export
@@ -108,6 +110,8 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::WaveformView: return "WaveformView";
         case WidgetKind::BatteryGauge: return "BatteryGauge";
         case WidgetKind::HistogramView: return "HistogramView";
+        case WidgetKind::RingIndication: return "RingIndication";
+        case WidgetKind::TextBox: return "TextBox";
     }
     return "Unknown";
 }

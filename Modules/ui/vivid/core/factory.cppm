@@ -54,6 +54,8 @@ import charm.widgets.progress_wheel;
 import charm.widgets.waveform_view;
 import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -105,6 +107,8 @@ public:
     WidgetHandle create_waveform_view() noexcept { return make_handle(waveforms_.create(), WidgetKind::WaveformView); }
     WidgetHandle create_battery_gauge() noexcept { return make_handle(batteries_.create(), WidgetKind::BatteryGauge); }
     WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
+    WidgetHandle create_ring_indication() noexcept { return make_handle(rings_.create(), WidgetKind::RingIndication); }
+    WidgetHandle create_text_box(const char* text) noexcept { return make_handle(text_boxes_.create(text), WidgetKind::TextBox); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -152,6 +156,8 @@ public:
     WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::WaveformView); }
     BatteryGauge* get_battery_gauge(const WidgetHandle& h) noexcept { return get_from(batteries_, h, WidgetKind::BatteryGauge); }
     HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
+    RingIndication* get_ring_indication(const WidgetHandle& h) noexcept { return get_from(rings_, h, WidgetKind::RingIndication); }
+    TextBox* get_text_box(const WidgetHandle& h) noexcept { return get_from(text_boxes_, h, WidgetKind::TextBox); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -199,6 +205,8 @@ public:
             case WidgetKind::WaveformView: return get_waveform_view(h);
             case WidgetKind::BatteryGauge: return get_battery_gauge(h);
             case WidgetKind::HistogramView: return get_histogram_view(h);
+            case WidgetKind::RingIndication: return get_ring_indication(h);
+            case WidgetKind::TextBox: return get_text_box(h);
             default: return nullptr;
         }
     }
@@ -394,6 +402,8 @@ public:
         case WidgetKind::WaveformView: destroy_from(waveforms_, h, WidgetKind::WaveformView); break;
         case WidgetKind::BatteryGauge: destroy_from(batteries_, h, WidgetKind::BatteryGauge); break;
         case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
+        case WidgetKind::RingIndication: destroy_from(rings_, h, WidgetKind::RingIndication); break;
+        case WidgetKind::TextBox: destroy_from(text_boxes_, h, WidgetKind::TextBox); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -671,6 +681,8 @@ private:
     HandlePool<WaveformView, 16> waveforms_{};
     HandlePool<BatteryGauge, 16> batteries_{};
     HandlePool<HistogramView, 16> histograms_{};
+    HandlePool<RingIndication, 16> rings_{};
+    HandlePool<TextBox, 32> text_boxes_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

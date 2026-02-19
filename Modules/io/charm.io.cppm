@@ -47,6 +47,7 @@ export import out.sink;
 
 export import usb.common;
 export import usb.device;
+export import usb.device_driver;
 export import usb.ep0_driver;
 export import usb.class_cdc;
 export import usb.class_uac;

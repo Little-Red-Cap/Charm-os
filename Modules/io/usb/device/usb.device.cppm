@@ -56,6 +56,7 @@ export namespace usb::device {
             in_remaining_ = 0;
             out_expected_ = 0;
             zlp_pending_ = false;
+            address_ = 0;
         }
 
         void set_class(void* ctx, const ClassOps* ops) noexcept {
@@ -166,6 +167,14 @@ export namespace usb::device {
 
     class Device {
     public:
+        void reset() noexcept {
+            ep0_.reset();
+            configuration_ = 0;
+            interface_alt_ = 0;
+            if (class_ops_ && class_ops_->reset) {
+                class_ops_->reset(class_ctx_);
+            }
+        }
         void set_max_packet_size0(u16 mps) noexcept { max_packet_size0_ = mps; }
         void set_descriptor_provider(DescriptorProvider provider) noexcept { provider_ = provider; }
         void set_class(void* ctx, const ClassOps* ops) noexcept {

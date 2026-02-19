@@ -18,10 +18,14 @@ public:
         Rect rect{};
         int index{0};
         bool selected{false};
+        int slot{-1};
     };
 
+    using CountFn = int(*)(void* ctx) noexcept;
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
+    using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
         set_size(240, 180);
@@ -31,13 +35,23 @@ public:
     void set_item_count(int count) noexcept {
         item_count_ = (count > 0) ? count : 0;
         if (selected_ >= item_count_) selected_ = item_count_ - 1;
+        clear_cache();
         update_scroll_bounds();
     }
 
     int item_count() const noexcept { return item_count_; }
 
+    void set_data_source(CountFn count_fn, DrawRowFn draw_fn, void* ctx = nullptr) noexcept {
+        count_fn_ = count_fn;
+        draw_fn_ = draw_fn;
+        data_ctx_ = ctx;
+        clear_cache();
+        update_scroll_bounds();
+    }
+
     void set_row_height(int h) noexcept {
         row_height_ = (h > 4) ? h : 4;
+        clear_cache();
         update_scroll_bounds();
     }
 
@@ -46,6 +60,18 @@ public:
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
         draw_fn_ = fn;
         draw_ctx_ = ctx;
+    }
+
+    void set_cache_handler(CacheFn fn, void* ctx = nullptr) noexcept {
+        cache_fn_ = fn;
+        cache_ctx_ = ctx;
+        clear_cache();
+    }
+
+    void set_on_scroll(ScrollFn fn, void* ctx = nullptr) noexcept {
+        scroll_fn_ = fn;
+        scroll_ctx_ = ctx;
+        notify_scroll();
     }
 
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
@@ -64,13 +90,20 @@ public:
 
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
+        notify_scroll();
     }
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        notify_scroll();
     }
 
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
+    void set_show_scrollbar(bool on) noexcept { show_scrollbar_ = on; }
+
+    int scroll_y() const noexcept { return scroll_y_; }
+    int max_scroll() const noexcept { return max_scroll_; }
+    int content_height() const noexcept { return content_height_; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<ListView>();
@@ -94,25 +127,41 @@ public:
         const int pad = st.padding;
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
-        const int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
-        const int offset_y = r.y + pad - (scroll_y_ % row_height_);
+        const int count = item_count_for_render();
+        const int row_h = row_height_for_render();
+        const int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
+        const int offset_y = r.y + pad - (scroll_y_ % row_h);
 
+        const int visible = (row_h > 0) ? ((r.h + row_h - 1) / row_h + 1) : 0;
         int y = offset_y;
-        for (int i = start; i < item_count_ && y < r.y + r.h; ++i) {
-            Rect row{content_x, y, content_w, row_height_};
+        for (int i = start; i < count && y < r.y + r.h; ++i) {
+            Rect row{content_x, y, content_w, row_h};
             const bool is_selected = (i == selected_);
             if (is_selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
             }
-            if (draw_fn_) {
-                draw_fn_(draw_ctx_, cvs, DrawInfo{row, i, is_selected});
+            int slot = -1;
+            if (visible > 0 && visible <= kMaxCache) {
+                slot = i - start;
+                if (slot >= 0 && slot < kMaxCache) {
+                    if (cache_slots_[slot].index != i) {
+                        cache_slots_[slot].index = i;
+                        if (cache_fn_) cache_fn_(cache_ctx_, slot, i);
+                    }
+                } else {
+                    slot = -1;
+                }
             }
-            y += row_height_;
+            if (draw_fn_) {
+                const void* ctx = data_ctx_ ? data_ctx_ : draw_ctx_;
+                draw_fn_(const_cast<void*>(ctx), cvs, DrawInfo{row, i, is_selected, slot});
+            }
+            y += row_h;
         }
 
         cvs.restore_clip(clip_state);
 
-        if (content_height_ > r.h) {
+        if (show_scrollbar_ && content_height_ > r.h) {
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - 2;
             const int track_h = r.h - 4;
@@ -157,7 +206,8 @@ public:
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
             const int index = index_from_y(e.y);
-            if (index >= 0 && index < item_count_) {
+            const int count = item_count_for_render();
+            if (index >= 0 && index < count) {
                 set_selected(index);
                 return true;
             }
@@ -178,11 +228,14 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<ListView>();
-        content_height_ = item_count_ * row_height_ + st.padding * 2;
+        const int count = item_count_for_render();
+        const int row_h = row_height_for_render();
+        content_height_ = count * row_h + st.padding * 2;
         const int max = content_height_ - r.h;
         max_scroll_ = (max > 0) ? max : 0;
         if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
         if (scroll_y_ < 0) scroll_y_ = 0;
+        notify_scroll();
     }
 
     int clamp_scroll(int y) const noexcept {
@@ -196,8 +249,9 @@ private:
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
         const int pad = st.padding;
-        const int row_top = index * row_height_;
-        const int row_bottom = row_top + row_height_;
+        const int row_h = row_height_for_render();
+        const int row_top = index * row_h;
+        const int row_bottom = row_top + row_h;
         const int view_top = scroll_y_;
         const int view_bottom = scroll_y_ + (r.h - pad * 2);
         if (row_top < view_top) {
@@ -212,14 +266,45 @@ private:
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_ - st.padding;
         if (local < 0) return -1;
-        if (row_height_ <= 0) return -1;
-        return local / row_height_;
+        const int row_h = row_height_for_render();
+        if (row_h <= 0) return -1;
+        return local / row_h;
     }
 
+    int item_count_for_render() const noexcept {
+        if (count_fn_) {
+            const int count = count_fn_(data_ctx_);
+            return (count > 0) ? count : 0;
+        }
+        return item_count_;
+    }
+
+    int row_height_for_render() const noexcept {
+        return (row_height_ > 4) ? row_height_ : 4;
+    }
+
+    void notify_scroll() noexcept {
+        if (!scroll_fn_) return;
+        const auto r = get_rect();
+        scroll_fn_(scroll_ctx_, scroll_y_, max_scroll_, r.h, content_height_);
+    }
+
+    void clear_cache() noexcept {
+        for (int i = 0; i < kMaxCache; ++i) {
+            cache_slots_[i].index = -1;
+        }
+    }
+
+    CountFn count_fn_{nullptr};
     DrawRowFn draw_fn_{nullptr};
     void* draw_ctx_{nullptr};
+    void* data_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
+    CacheFn cache_fn_{nullptr};
+    void* cache_ctx_{nullptr};
+    ScrollFn scroll_fn_{nullptr};
+    void* scroll_ctx_{nullptr};
 
     int item_count_{0};
     int row_height_{24};
@@ -230,4 +315,11 @@ private:
     int wheel_step_{24};
     bool dragging_{false};
     int last_y_{0};
+    bool show_scrollbar_{true};
+
+    struct CacheSlot {
+        int index{-1};
+    };
+    static constexpr int kMaxCache = 32;
+    CacheSlot cache_slots_[kMaxCache]{};
 };

@@ -26,6 +26,11 @@ public:
     WidgetHandle pressed() const noexcept { return pressed_; }
     WidgetHandle captured() const noexcept { return captured_; }
     bool dragging() const noexcept { return dragging_; }
+    void set_dirty_tracking(bool on) noexcept { dirty_tracking_ = on; }
+    bool dirty_tracking() const noexcept { return dirty_tracking_; }
+    int last_frame_nodes() const noexcept { return debug_nodes_; }
+    int last_depth_hits() const noexcept { return debug_depth_hits_; }
+    int last_cycle_hits() const noexcept { return debug_cycle_hits_; }
     void dump_trace() const noexcept {
         const auto total = trace_.size();
         const auto cap = trace_.capacity();
@@ -374,6 +379,9 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
             }
         }
         obj->draw(canvas);
+        if (dirty_tracking_) {
+            canvas.mark_dirty(obj->get_rect());
+        }
 
         const bool clip_children = (h.kind == WidgetKind::ScrollContainer);
         auto clip_state = canvas.save_clip();
@@ -449,5 +457,6 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
     int debug_nodes_{0};
     int debug_depth_hits_{0};
     int debug_cycle_hits_{0};
+    bool dirty_tracking_{false};
     TraceBuffer trace_{};
 };

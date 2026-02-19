@@ -1,128 +1,48 @@
-# Charm Vivid 架构文档（工作版）
+﻿# Charm Vivid 架构说明
 
-## 1. 定位与目标
-- 定位：资源受限平台上的“富 UI”实现，强调可组合控件与可维护渲染管线。
-- 目标：零动态分配、可预测性能、可渐进演进的 UI 系统。
-- 约束：不依赖异常与 RTTI，默认 4bpp 字体灰度。
+本文件用于描述 Vivid 的当前架构、边界与主要模块，便于后续补齐能力与迁移控件。
 
-## 2. 目录结构与模块分层
-```
-Modules/ui/vivid/
-  core/      # GUI 核心：对象树、事件、布局、工厂、样式
-  gfx/       # 渲染基础：像素格式、画布、framebuffer、图像
-  font/      # 字体与排版：Font/typography + lvgl 转换
-  widgets/   # 具体控件集合
-  gfx/assets # 资源注册与示例资源
-```
+## 1. 分层结构
 
-### 2.1 core
-- `object.cppm`：ObjectBase（Rect/State/children/anchor/flex）
-- `handle.cppm`：WidgetHandle（kind/index/generation）
-- `factory.cppm`：UiFactory（对象池创建、树连接、销毁）
-- `gui.cppm`：Gui（事件派发、焦点、渲染递归）
-- `layout.cppm`：Flex/Anchor 布局
-- `style.cppm`：Style/Theme 与颜色解析
-- `event.cppm`：Event 类型与输入结果
+- core：数据结构、主题/样式、诊断/trace、配置等基础设施。
+- gfx：渲染 API 与几何/像素格式抽象。
+- widgets：控件与容器实现，尽量保持薄封装，不重复基础设施。
+- font：字体数据与生成脚本产物（4bpp 为默认）。
 
-### 2.2 gfx
-- `canvas.cppm`：Canvas 封装 framebuffer 与裁剪
-- `render.cppm`：绘制原语（线/矩形/圆/图片/9-slice）
-- `pixel_format.cppm`：RGB565/RGB888/ARGB8888
-- `image.cppm`：ImageView 与视图构造
-- `framebuffer.cppm`：像素缓冲承载
+## 2. 渲染与更新
 
-### 2.3 font
-- `font.cppm`：Glyph/Font/查找与 kern
-- `typography.cppm`：FontId 与字体选择
-- `font_12.cppm`：示例 1bpp 字体
-- `lvgl/`：LVGL 字体转换与样本（4bpp）
+- 渲染入口由 UI 主循环驱动，控件在更新阶段提交绘制。
+- 使用脏矩形/脏区域机制减少刷新面积，保持与底层驱动解耦。
+- 绘制 API 统一走 gfx 层，避免控件直接绑定平台细节。
 
-### 2.4 widgets（现有控件清单）
-- 基础：button、label、image、checkbox、switch、radio/radio_group
-- 输入：slider、dial、roller、dropdown
-- 布局/容器：list、menu/menu_item、tabview、scroll_container、popup_layer
-- 显示：progress、spinner、bar、gauge、arc、chart
-- 文本：text、text_area
-- 其它：message_box、primitives_canvas、list_view、scrollbar、text_input、number_input
+## 3. 布局与容器
 
-## 3. 核心数据结构
-### 3.1 WidgetHandle
-- 由 `(kind, index, generation)` 组成。
-- UiFactory 通过 generation 防止悬空引用。
+- 基础布局能力为 Flex/Anchor 等，容器负责子节点的布局与裁剪。
+- ScrollContainer/ScrollBar 负责滚动与可视区域同步。
+- ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 
-### 3.2 ObjectBase
-- 几何：Rect/位置/尺寸
-- 状态：Hovered/Pressed/Focused/Disabled
-- 结构：parent/children
-- 布局：flex/anchor/percent/min/max/align
+## 4. 输入与事件
 
-### 3.3 Style/Theme
-- Style 是控件样式容器（bg/border/font）。
-- Theme 模板化保存每个控件的 Style。
+- 输入链路在 UI 层进行语义化处理，控件只关注高层意图。
+- 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
 
-## 4. 渲染管线
-1. Gui::render 触发树遍历与布局应用
-2. Layout：优先 flex，其次 anchor
-3. 控件 draw 使用 gfx::render 原语绘制
-4. 文本渲染基于 `Glyph` + `bpp` 灰度混合
+## 5. 文本与字体
 
-当前绘制为逐像素绘制，不含合批或脏矩形分区渲染。
+- 文本渲染默认 4bpp 字体数据。
+- 支持 UTF-8 解码、测量、换行与截断，渲染与排版逻辑集中在 text 组件。
+- 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
 
-## 5. 事件与输入
-### 5.1 Event 结构
-- MouseDown/Up/Move/Wheel
-- Click/DragStart/DragMove/DragEnd
-- KeyDown/KeyUp
+## 6. 主题与样式
 
-### 5.2 Gui 事件派发
-- Hover/Pressed/Captured/Focused 状态机
-- overlay 优先派发（弹层）
-- 拖拽阈值 + 事件转换
+- 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
+- 控件以 theme token 作为样式入口，避免散落硬编码。
 
-## 6. 字体与文本
-### 6.1 默认策略
-- Vivid 默认 4bpp 字体灰度渲染（兼顾质量与成本）。
-- 现存 `font_12` 为 1bpp，可保留作为 Mono。
+## 7. 诊断与可观测性
 
-### 6.2 文本渲染
-- UTF-8 解码（基础）
-- Glyph 查找与 kern
-- bpp = 1/2/4/8 灰度混合
+- 统一接入 trace_core 做机器可读事件输出。
+- 日志统一通过 out.logger。
 
-## 7. 资源与资产
-- `gfx/assets/registry.cppm`：资源注册表
-- `gfx/assets/render_images.cppm`：渲染示例
-- `gfx/assets/benchmark_images.cppm`：性能样本
+## 8. 示例与验证
 
-## 8. 当前缺口与风险
-### 8.1 渲染与性能
-- 缺少脏矩形分区渲染的完整闭环
-- Canvas 逐像素绘制成本高，需块渲染与批处理
-- GPU/DMA 适配层缺失
-
-### 8.2 文本与排版
-- 无复杂 shaping（阿拉伯/印度语等）
-- 断行/测量能力偏基础
-
-### 8.3 样式系统
-- 缺少样式继承/主题加载
-- 运行时 CSS/DSL 尚未支持
-
-### 8.4 组件生态
-- 高级组件与状态管理较少
-- 动画/过渡系统缺失
-
-## 9. 演进建议（优先级）
-
-1. 字体流水线稳定：4bpp 作为默认输出
-2. 渲染优化：脏矩形 + 轻量缓存
-3. 样式系统：主题配置文件与运行时切换
-4. 高级控件：表格/树/虚拟列表
-5. 动画系统：简单时间轴 + easing
-
-## 10. Reference Migration Notes (SGL/LVGL/ARM-2D)
-
-- SGL: small widgets (led/msgbox/keyboard) are good fits for Vivid/Ink migration.
-- LVGL: style/layout rules map cleanly to Vivid Theme/Style; keep layout logic in core.
-- ARM-2D: favor tile/dirty-rect thinking; keep render primitives stateless and cache-friendly.
-
+- 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
+- 当前示例含 ListView/ScrollBar/TableView/TreeView 的最小可用配置。

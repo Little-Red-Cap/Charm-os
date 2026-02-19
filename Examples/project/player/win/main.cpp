@@ -1,15 +1,23 @@
-﻿import audio.player;
+import audio.player;
+import audio.result;
 import charm.core.config;
 import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
+import charm.core.style;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
 import charm.gfx.color;
 import charm.widgets.button;
 import charm.widgets.label;
+import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.scrollbar;
+import charm.widgets.perf_overlay;
+import charm.widgets.table_view;
+import charm.widgets.text;
+import charm.widgets.tree_view;
 import fs_core;
 import fs_errno;
 import fs_block;
@@ -21,6 +29,7 @@ import util.core;
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cctype>
@@ -38,6 +47,7 @@ namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+    constexpr int kDemoGap = 12;
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];
@@ -57,6 +67,89 @@ namespace {
             }
         }
         return 0;
+    }
+
+    const char* fs_err_text(fs::Err err) {
+        switch (err) {
+        case fs::Err::ok: return "ok";
+        case fs::Err::perm: return "perm";
+        case fs::Err::noent: return "noent";
+        case fs::Err::exist: return "exist";
+        case fs::Err::io: return "io";
+        case fs::Err::busy: return "busy";
+        case fs::Err::inval: return "inval";
+        case fs::Err::nametoolong: return "nametoolong";
+        case fs::Err::nosys: return "nosys";
+        case fs::Err::nomem: return "nomem";
+        case fs::Err::notsup: return "notsup";
+        case fs::Err::rofs: return "rofs";
+        case fs::Err::timeout: return "timeout";
+        case fs::Err::again: return "again";
+        }
+        return "unknown";
+    }
+
+    const char* audio_err_text(audio::Errc err) {
+        switch (err) {
+        case audio::Errc::ok: return "ok";
+        case audio::Errc::invalid_arg: return "invalid_arg";
+        case audio::Errc::not_supported: return "not_supported";
+        case audio::Errc::io_error: return "io_error";
+        case audio::Errc::decode_error: return "decode_error";
+        case audio::Errc::bad_state: return "bad_state";
+        case audio::Errc::timeout: return "timeout";
+        }
+        return "unknown";
+    }
+
+    bool has_audio_ext(std::string_view name) {
+        const auto dot = name.find_last_of('.');
+        if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
+        const auto ext = name.substr(dot + 1);
+        if (ext.size() == 3) {
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            if (a == 'm' && b == 'p' && c == '3') return true;
+            if (a == 'w' && b == 'a' && c == 'v') return true;
+        }
+        if (ext.size() == 4) {
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
+            if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
+        }
+        return false;
+    }
+
+    struct TrackListContext {
+        std::string_view dir{};
+        std::vector<std::string>* out{nullptr};
+    };
+
+    fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* info = static_cast<TrackListContext*>(ctx);
+        if (!info || !info->out) return fs::Status{fs::Err::inval};
+        if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
+        if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
+
+        std::string path;
+        if (info->dir.empty() || info->dir == "/") {
+            path = "/";
+        } else {
+            path.assign(info->dir.begin(), info->dir.end());
+            if (!path.empty() && path.back() != '/') path.push_back('/');
+        }
+        path.append(entry.name.begin(), entry.name.end());
+        info->out->push_back(path);
+        return fs::Status{fs::Err::ok};
+    }
+
+    bool collect_tracks_from_dir(std::string_view dir, std::vector<std::string>& out) {
+        TrackListContext ctx{dir, &out};
+        const auto st = fs::vfs_list(dir, &ctx, &collect_track);
+        return st && !out.empty();
     }
 
     struct OffsetDevice {
@@ -94,29 +187,29 @@ namespace {
         }
     };
 
-    bool mount_fatfs_from_vhd(const char* path) {
-        if (!path || !*path) return false;
+    fs::Status mount_fatfs_from_vhd(const char* path) {
+        if (!path || !*path) return fs::Status{fs::Err::inval};
         static fs::BlockFile file_dev;
         static OffsetDevice part_dev;
         static fs::FatFsMount fat;
 
         auto st = file_dev.open(path, 512);
-        if (!st) return false;
+        if (!st) return st;
 
         std::array<std::uint8_t, 512> sector0{};
         st = file_dev.device().read(file_dev.device().ctx, 0,
             std::span<util::u8>(reinterpret_cast<util::u8*>(sector0.data()), sector0.size()));
-        if (!st) return false;
+        if (!st) return st;
 
         const auto lba = find_fat_partition_lba(sector0);
         part_dev.init(file_dev.device(), lba);
 
         st = fat.mount(part_dev.device, false);
-        if (!st) return false;
+        if (!st) return st;
 
         fs::clear_mounts();
         (void)fs::add_mount("/", fat.mount_point());
-        return true;
+        return fs::Status{fs::Err::ok};
     }
 
     struct UiHandles {
@@ -125,6 +218,10 @@ namespace {
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
+        WidgetHandle list{};
+        WidgetHandle list_scroll{};
+        WidgetHandle table{};
+        WidgetHandle tree{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -132,6 +229,19 @@ namespace {
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
         WidgetHandle btn_stop{};
+        WidgetHandle perf_overlay{};
+    };
+
+    struct PerfState {
+        std::chrono::steady_clock::time_point last{};
+        int frame_count{0};
+        int fps{0};
+        int draw_ms{0};
+        int dirty_count{0};
+        int dirty_area{0};
+        int nodes{0};
+        int depth_hits{0};
+        int cycle_hits{0};
     };
 
     struct PlayerUiContext {
@@ -149,12 +259,22 @@ namespace {
         int pending_seek_sec{-1};
         const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
+        std::vector<std::string> track_labels{};
         int track_index{0};
         std::string title_text{};
         std::string subtitle_text{};
         bool paused{false};
         bool updating{false};
         bool fs_ready{false};
+        bool duration_ready{false};
+        bool ignore_list_select{false};
+        bool show_debug{false};
+        struct ListCacheEntry {
+            int index{-1};
+            int width{0};
+            std::string text{};
+        };
+        std::array<ListCacheEntry, 32> list_cache{};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -191,6 +311,83 @@ namespace {
             const int total_s = total % 60;
             std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
             set_label(handles.time, buf);
+        }
+
+        void reset_duration() {
+            duration_ready = false;
+            duration_sec = 180;
+        }
+
+        void rebuild_track_labels() {
+            track_labels.clear();
+            if (!tracks) return;
+            track_labels.reserve(tracks->size());
+            for (const auto& path : *tracks) {
+                auto base = std::string_view{path};
+                const auto pos = base.find_last_of("/\\");
+                if (pos != std::string_view::npos) base = base.substr(pos + 1);
+                track_labels.emplace_back(base);
+            }
+        }
+
+        void sync_list_selection() {
+            if (!factory) return;
+            auto* list = factory->get_list_view(handles.list);
+            if (!list) return;
+            if (track_index < 0 || track_index >= static_cast<int>(track_labels.size())) return;
+            ignore_list_select = true;
+            list->set_selected(track_index);
+            ignore_list_select = false;
+        }
+
+        void refresh_list_view() {
+            if (!factory) return;
+            auto* list = factory->get_list_view(handles.list);
+            if (!list) return;
+            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            list->set_item_count(count);
+            list->set_row_height(32);
+            list->set_wheel_step(32);
+            if (count > 0) {
+                sync_list_selection();
+            }
+        }
+
+        void set_debug_visible(bool on) {
+            show_debug = on;
+            if (!factory) return;
+            if (auto* list = factory->get_list_view(handles.list)) {
+                list->set_visible(!on);
+            }
+            if (auto* bar = factory->get_scroll_bar(handles.list_scroll)) {
+                bar->set_visible(!on);
+            }
+            if (auto* table = factory->get_table_view(handles.table)) {
+                table->set_visible(on);
+            }
+            if (auto* tree = factory->get_tree_view(handles.tree)) {
+                tree->set_visible(on);
+            }
+        }
+
+        void toggle_debug_view() {
+            set_debug_visible(!show_debug);
+        }
+
+        void update_duration_from_player() {
+            if (duration_ready || !player) return;
+            const auto total = player->total_frames();
+            const auto fmt = player->input_format();
+            if (total == 0 || fmt.rate == 0) return;
+            const auto secs = static_cast<int>(total / fmt.rate);
+            duration_sec = (secs > 0) ? secs : 1;
+            duration_ready = true;
+            if (current_sec > duration_sec) {
+                set_time_label(duration_sec);
+                sync_progress_value(100);
+            } else {
+                set_time_label(current_sec);
+            }
         }
 
         void update_progress() {
@@ -249,7 +446,9 @@ namespace {
             (void)player->stop();
             auto res = player->play(track_path);
             if (!res) {
-                set_status("Play failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             playing = true;
@@ -267,7 +466,9 @@ namespace {
             if (!player || !playing) return;
             auto res = player->pause();
             if (!res) {
-                set_status("Pause failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             playing = false;
@@ -281,7 +482,9 @@ namespace {
             if (!player || !paused) return;
             auto res = player->resume();
             if (!res) {
-                set_status("Resume failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             paused = false;
@@ -347,7 +550,13 @@ namespace {
             } else {
                 track_ready = false;
             }
-            set_status(track_ready ? "Ready" : "Load failed");
+            if (track_ready) {
+                set_status("Ready");
+            } else {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
+                set_status(buf);
+            }
             set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
             set_pause_button_text("Pause");
             set_time_label(0);
@@ -355,6 +564,8 @@ namespace {
             pending_seek_sec = -1;
             playing = false;
             paused = false;
+            reset_duration();
+            sync_list_selection();
             return track_ready;
         }
 
@@ -369,6 +580,20 @@ namespace {
             load_track_index(next);
             if (was_active && track_ready) {
                 start_playback();
+            }
+        }
+
+        void select_track_index(int idx) {
+            if (!tracks || tracks->empty()) return;
+            const bool was_playing = playing;
+            const bool was_paused = paused;
+            stop_playback();
+            load_track_index(idx);
+            if (was_playing && track_ready) {
+                start_playback();
+            } else if (was_paused && track_ready) {
+                start_playback();
+                pause_playback();
             }
         }
 
@@ -426,6 +651,174 @@ namespace {
         }
     };
 
+    struct TableDemoData {
+        static constexpr int kCols = 3;
+        static constexpr int kRows = 6;
+        const char* headers[kCols]{
+            "Name", "Type", "Size"
+        };
+        const char* rows[kRows][kCols]{
+            {"boot.img", "bin", "256KB"},
+            {"config.json", "cfg", "3KB"},
+            {"splash.bmp", "img", "42KB"},
+            {"fonts.bin", "bin", "180KB"},
+            {"readme.txt", "txt", "1KB"},
+            {"log-0001.txt", "txt", "12KB"}
+        };
+        int order[kRows]{0, 1, 2, 3, 4, 5};
+        int sort_col{0};
+        bool sort_asc{true};
+    };
+
+    TableDemoData g_table_demo{};
+
+    void table_rebuild_order(TableDemoData& demo) {
+        for (int i = 0; i < TableDemoData::kRows; ++i) demo.order[i] = i;
+        const int col = demo.sort_col;
+        const bool asc = demo.sort_asc;
+        std::sort(demo.order, demo.order + TableDemoData::kRows, [&](int a, int b) {
+            const char* va = demo.rows[a][col];
+            const char* vb = demo.rows[b][col];
+            if (!va) va = "";
+            if (!vb) vb = "";
+            const int cmp = std::strcmp(va, vb);
+            return asc ? (cmp < 0) : (cmp > 0);
+        });
+    }
+
+    int table_row_count(void* ctx) noexcept {
+        (void)ctx;
+        return TableDemoData::kRows + 1;
+    }
+
+    int table_col_count(void* ctx) noexcept {
+        (void)ctx;
+        return TableDemoData::kCols;
+    }
+
+    int table_col_width(void* ctx, int col) noexcept {
+        (void)ctx;
+        switch (col) {
+        case 0: return 160;
+        case 1: return 80;
+        case 2: return 90;
+        default: return 80;
+        }
+    }
+
+    void on_table_draw(void* ctx, DefaultCanvas& cvs, const TableView::CellInfo& info) noexcept {
+        auto* demo = static_cast<TableDemoData*>(ctx);
+        if (!demo) return;
+        const Style& st = Theme::instance().get<TableView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        if (info.row == 0) {
+            draw_text_box(cvs, text, demo->headers[info.col], st.font_color, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            return;
+        }
+        const int data_row = info.row - 1;
+        if (data_row < 0 || data_row >= TableDemoData::kRows) return;
+        const int real_row = demo->order[data_row];
+        draw_text_box(cvs, text, demo->rows[real_row][info.col], st.font_color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_table_select(void* ctx, int row, int col) noexcept {
+        auto* demo = static_cast<TableDemoData*>(ctx);
+        if (!demo) return;
+        if (row != 0) return;
+        if (col < 0 || col >= TableDemoData::kCols) return;
+        if (demo->sort_col == col) {
+            demo->sort_asc = !demo->sort_asc;
+        } else {
+            demo->sort_col = col;
+            demo->sort_asc = true;
+        }
+        table_rebuild_order(*demo);
+    }
+
+    struct TreeNodeData {
+        int depth{0};
+        bool expanded{false};
+        bool has_children{false};
+        const char* label{nullptr};
+    };
+
+    struct TreeDemoData {
+        TreeNodeData nodes[9]{
+            {0, true,  true,  "System"},
+            {1, true,  true,  "Drivers"},
+            {2, false, false, "I2C"},
+            {2, false, false, "SPI"},
+            {1, false, true,  "Assets"},
+            {2, false, false, "Fonts"},
+            {2, false, false, "Icons"},
+            {0, true,  true,  "User"},
+            {1, false, false, "Config"}
+        };
+        int count{9};
+        int visible[9]{0,1,2,3,4,5,6,7,8};
+        int visible_count{9};
+    };
+
+    TreeDemoData g_tree_demo{};
+
+    void tree_rebuild_visible(TreeDemoData& demo) {
+        demo.visible_count = 0;
+        int hidden_depth = -1;
+        for (int i = 0; i < demo.count; ++i) {
+            const auto& node = demo.nodes[i];
+            if (hidden_depth >= 0) {
+                if (node.depth > hidden_depth) continue;
+                hidden_depth = -1;
+            }
+            demo.visible[demo.visible_count++] = i;
+            if (node.has_children && !node.expanded) {
+                hidden_depth = node.depth;
+            }
+        }
+    }
+
+    int tree_row_count(void* ctx) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        return demo ? demo->visible_count : 0;
+    }
+
+    TreeView::NodeInfo tree_node_info(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || index < 0 || index >= demo->visible_count) return {};
+        const int node_index = demo->visible[index];
+        const auto& node = demo->nodes[node_index];
+        return TreeView::NodeInfo{node.depth, node.expanded, node.has_children, node.label};
+    }
+
+    void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || info.index < 0 || info.index >= demo->visible_count) return;
+        const Style& st = Theme::instance().get<TreeView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding + info.node.depth * 12;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        const rgba color = info.selected ? st.border_focus : st.font_color;
+        draw_text_box(cvs, text, info.node.label ? info.node.label : "", color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_tree_toggle(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemoData*>(ctx);
+        if (!demo || index < 0 || index >= demo->visible_count) return;
+        const int node_index = demo->visible[index];
+        if (!demo->nodes[node_index].has_children) return;
+        demo->nodes[node_index].expanded = !demo->nodes[node_index].expanded;
+        tree_rebuild_visible(*demo);
+    }
+
     void on_play_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
@@ -455,6 +848,96 @@ namespace {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         app->switch_track(1);
+    }
+
+    void on_list_selected(void* ctx, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || app->ignore_list_select) return;
+        app->select_track_index(index);
+    }
+
+    const char* trim_label_utf8(PlayerUiContext::ListCacheEntry& entry,
+                                std::string_view text,
+                                int max_width,
+                                const Font& font) {
+        if (max_width <= 0) {
+            entry.text.clear();
+            return entry.text.c_str();
+        }
+        const int full_width = measure_text_width(text.data(), static_cast<int>(text.size()), font);
+        if (full_width <= max_width) {
+            entry.text.assign(text.begin(), text.end());
+            return entry.text.c_str();
+        }
+        const int ellipsis_w = measure_text_width("...", 3, font);
+        int draw_len = static_cast<int>(text.size());
+        while (draw_len > 0 && (measure_text_width(text.data(), draw_len, font) + ellipsis_w) > max_width) {
+            const char* start = text.data();
+            const char* cur = start + draw_len;
+            while (cur > start && (static_cast<unsigned char>(cur[-1]) & 0xC0u) == 0x80u) {
+                --cur;
+            }
+            draw_len = static_cast<int>(cur - start);
+            if (draw_len == static_cast<int>(text.size())) --draw_len;
+        }
+        entry.text.assign(text.data(), text.data() + draw_len);
+        entry.text.append("...");
+        return entry.text.c_str();
+    }
+
+    void on_list_cache(void* ctx, int slot, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = index;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
+    void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
+        const Style& st = Theme::instance().get<ListView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        const rgba color = st.font_color;
+        const char* label = app->track_labels[info.index].c_str();
+        if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
+            auto& entry = app->list_cache[info.slot];
+            if (entry.index == info.index && entry.width == text.w && !entry.text.empty()) {
+                label = entry.text.c_str();
+            } else {
+                entry.index = info.index;
+                entry.width = text.w;
+                label = trim_label_utf8(entry, app->track_labels[info.index], text.w, font);
+            }
+        }
+        draw_text_box(cvs, text, label, color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_list_scroll(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!bar) return;
+        bar->set_range(0, max_scroll);
+        bar->set_page_size(view_h);
+        bar->set_value(scroll_y);
+    }
+
+    void on_list_scrollbar_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* list = app->factory->get_list_view(app->handles.list);
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!list || !bar) return;
+        list->set_scroll_y(bar->value());
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -499,6 +982,15 @@ namespace {
             gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
             return true;
         case SDL_EVENT_KEY_DOWN:
+            if (evt.key.key == SDLK_T) {
+                ctx.toggle_debug_view();
+                return true;
+            }
+            if (evt.key.key == SDLK_S) {
+                g_table_demo.sort_asc = !g_table_demo.sort_asc;
+                table_rebuild_order(g_table_demo);
+                return true;
+            }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();
@@ -524,6 +1016,16 @@ namespace {
     }
 
     UiHandles build_ui(UiFactory& factory, PlayerUiContext& ctx) {
+        auto anchor_pos = [](auto* obj, int x, int y) {
+            if (!obj) return;
+            obj->set_pos(x, y);
+            obj->set_anchor(x, y, -1, -1);
+        };
+        auto anchor_rect = [](auto* obj, const Rect& r) {
+            if (!obj) return;
+            obj->set_rect(r);
+            obj->set_anchor(r.x, r.y, -1, -1);
+        };
         UiHandles h{};
         h.root = factory.create_container();
         auto* root = factory.get_container(h.root);
@@ -532,25 +1034,25 @@ namespace {
 
         h.cover = factory.create_container();
         if (auto* cover = factory.get_container(h.cover)) {
-            cover->set_rect({(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
+            anchor_rect(cover, {(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
             cover->set_background({40, 44, 60, 255});
         }
 
         h.title = factory.create_label("Beautiful Trick");
         if (auto* title = factory.get_label(h.title)) {
             title->set_color({236, 238, 246, 255});
-            title->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 20);
+            anchor_pos(title, kUiPadding, kUiPadding * 2 + kCoverSize + 20);
         }
 
         h.subtitle = factory.create_label("FELT · FLAC");
         if (auto* sub = factory.get_label(h.subtitle)) {
             sub->set_color({156, 162, 188, 255});
-            sub->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 46);
+            anchor_pos(sub, kUiPadding, kUiPadding * 2 + kCoverSize + 46);
         }
 
         h.progress = factory.create_progress();
         if (auto* bar = factory.get_progress(h.progress)) {
-            bar->set_rect({kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
+            anchor_rect(bar, {kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
             bar->set_range(0, 100);
             bar->set_value(0);
         }
@@ -558,13 +1060,68 @@ namespace {
         h.time = factory.create_label("0:00 / 3:00");
         if (auto* time = factory.get_label(h.time)) {
             time->set_color({136, 142, 166, 255});
-            time->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 120);
+            anchor_pos(time, kUiPadding, kUiPadding * 2 + kCoverSize + 120);
         }
 
         h.status = factory.create_label("Stopped");
         if (auto* status = factory.get_label(h.status)) {
             status->set_color({140, 150, 175, 255});
-            status->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 150);
+            anchor_pos(status, kUiPadding, kUiPadding * 2 + kCoverSize + 150);
+        }
+
+        h.perf_overlay = factory.create_perf_overlay();
+        if (auto* perf = factory.get_perf_overlay(h.perf_overlay)) {
+            anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
+        }
+
+        h.list = factory.create_list_view();
+        if (auto* list = factory.get_list_view(h.list)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2 - 12, list_h});
+            list->set_on_draw(&on_list_draw, &ctx);
+            list->set_on_select(&on_list_selected, &ctx);
+            list->set_cache_handler(&on_list_cache, &ctx);
+            list->set_on_scroll(&on_list_scroll, &ctx);
+            list->set_show_scrollbar(false);
+            list->set_row_height(32);
+            list->set_wheel_step(32);
+        }
+
+        h.list_scroll = factory.create_scroll_bar();
+        if (auto* bar = factory.get_scroll_bar(h.list_scroll)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            anchor_rect(bar, {screen_width - kUiPadding - 10, list_y, 10, list_h});
+            bar->set_orientation(ScrollBar::Orientation::Vertical);
+            bar->set_on_change(Callback{&on_list_scrollbar_change, &ctx});
+        }
+
+        h.tree = factory.create_tree_view();
+        if (auto* tree = factory.get_tree_view(h.tree)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            anchor_rect(tree, {kUiPadding, list_y, half_w, list_h});
+            tree_rebuild_visible(g_tree_demo);
+            tree->set_data_source(&tree_row_count, &tree_node_info, &on_tree_draw, &g_tree_demo);
+            tree->set_on_toggle(&on_tree_toggle);
+            tree->set_row_height(28);
+            tree->set_visible(false);
+        }
+
+        h.table = factory.create_table_view();
+        if (auto* table = factory.get_table_view(h.table)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            anchor_rect(table, {kUiPadding + half_w + kDemoGap, list_y, half_w, list_h});
+            table_rebuild_order(g_table_demo);
+            table->set_data_source(&table_row_count, &table_col_count, &on_table_draw, &g_table_demo);
+            table->set_column_width_fn(&table_col_width);
+            table->set_on_select(&on_table_select, &g_table_demo);
+            table->set_row_height(28);
+            table->set_visible(false);
         }
 
         constexpr int button_w = 120;
@@ -575,35 +1132,35 @@ namespace {
 
         h.btn_prev = factory.create_button("Prev");
         if (auto* prev = factory.get_button(h.btn_prev)) {
-            prev->set_pos(kUiPadding, row1_y);
+            anchor_pos(prev, kUiPadding, row1_y);
             prev->set_size(button_w, button_h);
             prev->set_on_click(Callback{&on_prev_clicked, &ctx});
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
-            next->set_pos(screen_width - kUiPadding - button_w, row1_y);
+            anchor_pos(next, screen_width - kUiPadding - button_w, row1_y);
             next->set_size(button_w, button_h);
             next->set_on_click(Callback{&on_next_clicked, &ctx});
         }
 
         h.btn_play = factory.create_button("Play");
         if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_pos(kUiPadding, row2_y);
+            anchor_pos(play, kUiPadding, row2_y);
             play->set_size(button_w, button_h);
             play->set_on_click(Callback{&on_play_clicked, &ctx});
         }
 
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
-            pause->set_pos((screen_width - button_w) / 2, row2_y);
+            anchor_pos(pause, (screen_width - button_w) / 2, row2_y);
             pause->set_size(button_w, button_h);
             pause->set_on_click(Callback{&on_pause_clicked, &ctx});
         }
 
         h.btn_stop = factory.create_button("Stop");
         if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_pos(screen_width - kUiPadding - button_w, row2_y);
+            anchor_pos(stop, screen_width - kUiPadding - button_w, row2_y);
             stop->set_size(button_w, button_h);
             stop->set_on_click(Callback{&on_stop_clicked, &ctx});
         }
@@ -614,11 +1171,17 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
+        factory.link(h.root, h.perf_overlay);
+        factory.link(h.root, h.list);
+        factory.link(h.root, h.list_scroll);
+        factory.link(h.root, h.tree);
+        factory.link(h.root, h.table);
         factory.link(h.root, h.btn_prev);
         factory.link(h.root, h.btn_play);
         factory.link(h.root, h.btn_pause);
         factory.link(h.root, h.btn_next);
         factory.link(h.root, h.btn_stop);
+        factory.bring_to_front(h.root, h.perf_overlay);
 
         return h;
     }
@@ -671,21 +1234,80 @@ int main(int argc, char** argv) {
     ctx.track_path = kDefaultVfsTrack;
     ctx.tracks = &vfs_tracks;
 
+    auto& theme = Theme::instance();
+    theme.inherit<TableView, ListView>();
+    theme.inherit<TreeView, ListView>();
+    StylePatch table_patch{};
+    table_patch.has_bg_color = true;
+    table_patch.bg_color = {22, 24, 34, 255};
+    table_patch.has_border_color = true;
+    table_patch.border_color = {60, 70, 90, 255};
+    table_patch.has_padding = true;
+    table_patch.padding = 6;
+    theme.patch<TableView>(table_patch);
+    StylePatch tree_patch = table_patch;
+    tree_patch.bg_color = {20, 22, 30, 255};
+    theme.patch<TreeView>(tree_patch);
+    theme.inherit<Button, Label>();
+    StylePatch button_patch{};
+    button_patch.has_bg_color = true;
+    button_patch.bg_color = {26, 30, 44, 255};
+    button_patch.has_border_color = true;
+    button_patch.border_color = {70, 90, 120, 255};
+    button_patch.has_padding = true;
+    button_patch.padding = 6;
+    theme.patch<Button>(button_patch);
+    StylePatch label_patch{};
+    label_patch.has_font_color = true;
+    label_patch.font_color = {230, 234, 246, 255};
+    theme.patch<Label>(label_patch);
+    StylePatch progress_patch{};
+    progress_patch.has_bg_color = true;
+    progress_patch.bg_color = {28, 32, 46, 255};
+    progress_patch.has_border_color = true;
+    progress_patch.border_color = {90, 110, 150, 255};
+    theme.patch<Progress>(progress_patch);
+    StylePatch perf_patch{};
+    perf_patch.has_bg_color = true;
+    perf_patch.bg_color = {24, 26, 36, 230};
+    perf_patch.has_border_color = true;
+    perf_patch.border_color = {70, 90, 120, 255};
+    perf_patch.has_font_color = true;
+    perf_patch.font_color = {220, 228, 242, 255};
+    perf_patch.has_padding = true;
+    perf_patch.padding = 6;
+    theme.patch<PerfOverlay>(perf_patch);
+
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
+    ctx.set_debug_visible(false);
 
-    ctx.fs_ready = mount_fatfs_from_vhd(vhd_path);
+    const auto mount_st = mount_fatfs_from_vhd(vhd_path);
+    ctx.fs_ready = static_cast<bool>(mount_st);
     if (!ctx.fs_ready) {
-        ctx.set_status("Mount failed");
+        char buf[64]{};
+        std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
+        ctx.set_status(buf);
         ctx.set_status_color({220, 120, 120, 255});
     } else {
+        vfs_tracks.clear();
+        if (!collect_tracks_from_dir("/music", vfs_tracks)) {
+            if (!collect_tracks_from_dir("/", vfs_tracks)) {
+                vfs_tracks.emplace_back(kDefaultVfsTrack);
+            }
+        }
+        ctx.rebuild_track_labels();
+        ctx.refresh_list_view();
         ctx.load_track_index(0);
     }
 
     Gui gui(canvas, factory, ctx.handles.root);
+    gui.set_dirty_tracking(true);
+    PerfState perf{};
 
     bool running = true;
     while (running) {
+        const auto frame_begin = std::chrono::steady_clock::now();
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_EVENT_QUIT) {
@@ -703,11 +1325,62 @@ int main(int argc, char** argv) {
             ctx.set_status_color({140, 150, 175, 255});
             ctx.set_pause_button_text("Pause");
         }
+        if (player.state() == audio::PlayerState::error) {
+            ctx.playing = false;
+            ctx.paused = false;
+            ctx.set_status("Player error");
+            ctx.set_status_color({220, 120, 120, 255});
+            ctx.set_pause_button_text("Pause");
+        }
+        ctx.update_duration_from_player();
         ctx.apply_pending_seek();
         ctx.update_progress();
 
         canvas.clear({18, 20, 28, 255});
+        const auto render_begin = std::chrono::steady_clock::now();
         gui.render();
+        const auto render_end = std::chrono::steady_clock::now();
+
+        perf.draw_ms = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_begin).count());
+        perf.frame_count += 1;
+        if (perf.last.time_since_epoch().count() == 0) {
+            perf.last = frame_begin;
+        } else {
+            const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(frame_begin - perf.last);
+            if (dt.count() >= 1000) {
+                perf.fps = (dt.count() > 0) ? (perf.frame_count * 1000 / static_cast<int>(dt.count())) : 0;
+                perf.frame_count = 0;
+                perf.last = frame_begin;
+            }
+        }
+
+        const auto& dirty = canvas.dirty_list();
+        perf.dirty_count = static_cast<int>(dirty.size());
+        if (canvas.dirty_full()) {
+            perf.dirty_area = screen_width * screen_height;
+        } else {
+            int area = 0;
+            for (util::usize i = 0; i < dirty.size(); ++i) {
+                const auto& r = dirty[i];
+                area += r.w * r.h;
+            }
+            perf.dirty_area = area;
+        }
+        perf.nodes = gui.last_frame_nodes();
+        perf.depth_hits = gui.last_depth_hits();
+        perf.cycle_hits = gui.last_cycle_hits();
+        if (auto* overlay = factory.get_perf_overlay(ctx.handles.perf_overlay)) {
+            overlay->set_sample(PerfOverlay::Sample{
+                perf.fps,
+                perf.draw_ms,
+                perf.dirty_count,
+                perf.dirty_area,
+                perf.nodes,
+                perf.depth_hits,
+                perf.cycle_hits
+            });
+        }
 
         SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
         SDL_RenderClear(renderer);

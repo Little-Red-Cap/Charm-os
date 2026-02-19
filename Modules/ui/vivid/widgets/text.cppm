@@ -65,6 +65,15 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
     return true;
 }
 
+inline const char* prev_codepoint_start(const char* start, const char* p) noexcept {
+    if (p <= start) return start;
+    const char* q = p - 1;
+    while (q > start && (static_cast<std::uint8_t>(*q) & 0xC0u) == 0x80u) {
+        --q;
+    }
+    return q;
+}
+
 export
 inline int measure_text_width(const char* text, const Font& font) noexcept {
     int width = 0;
@@ -359,6 +368,8 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
         const char* last_space = nullptr;
         int width_at_space = 0;
         int len_at_space = 0;
+        bool overflowed = false;
+        uint16_t prev_gid = 0;
 
         const char* q = p;
         while (q < end) {
@@ -368,21 +379,31 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
             if (cp == '\n') break;
             const auto* g = find_glyph(font, cp);
             const int adv = g ? g->x_advance : 8;
-            if (wrap != TextWrap::None && line_width + adv > rect.w) {
+            const uint16_t gid = g ? static_cast<uint16_t>(g - font.table.data()) : 0;
+            const int kern = (prev_gid && gid) ? get_glyph_kern(font, prev_gid, gid) : 0;
+            if (wrap != TextWrap::None && line_width + kern + adv > rect.w) {
+                overflowed = true;
+                if (wrap == TextWrap::Char || line_len == 0) {
+                    line_width += kern + adv;
+                    line_len += static_cast<int>(q - before);
+                    prev_gid = gid;
+                } else {
+                    q = before;
+                }
                 break;
             }
-            line_width += adv;
+            line_width += kern + adv;
             line_len += static_cast<int>(q - before);
             if (wrap == TextWrap::Word && cp == ' ') {
                 last_space = before;
                 width_at_space = line_width;
                 len_at_space = line_len;
             }
+            prev_gid = gid;
         }
         p = q;
 
-        if (wrap == TextWrap::Word && p != line_start && *p != '\n' && line_width > rect.w && last_space) {
-            const int rollback = line_len - len_at_space;
+        if (wrap == TextWrap::Word && overflowed && last_space) {
             line_len = len_at_space;
             line_width = width_at_space;
             p = last_space + 1;
@@ -392,7 +413,15 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
         lines[line_count++] = { line_start, line_len, line_width };
         if (*p == '\n') ++p;
         if (wrap == TextWrap::None) break;
-        if (line_len == 0 && *p) ++p;
+        if (line_len == 0 && p < end) {
+            const char* next = p;
+            std::uint32_t cp = 0;
+            if (next_codepoint(next, end, cp)) {
+                p = next;
+            } else {
+                ++p;
+            }
+        }
     }
 
     int max_lines = rect.h / line_height;
@@ -425,9 +454,13 @@ void draw_text_box(Canvas<PF, W, H>& cvs,
             }
             if (draw_width > rect.w) {
                 while (draw_len > 0 && draw_width + ellipsis_width > rect.w) {
-                    const auto* g = find_glyph(font, static_cast<std::uint32_t>(static_cast<unsigned char>(line.start[draw_len - 1])));
-                    draw_width -= g ? g->x_advance : 8;
-                    --draw_len;
+                    const char* new_end = prev_codepoint_start(line.start, line.start + draw_len);
+                    if (new_end == line.start + draw_len) {
+                        --draw_len;
+                    } else {
+                        draw_len = static_cast<int>(new_end - line.start);
+                    }
+                    draw_width = measure_text_width(line.start, draw_len, font);
                 }
                 add_ellipsis = true;
             }

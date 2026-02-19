@@ -1,0 +1,118 @@
+module;
+#include <algorithm>
+export module charm.widgets.segmented_control;
+
+import charm.core.object;
+import charm.core.event;
+import charm.gfx.color;
+import charm.gfx.render;
+import charm.core.style;
+import charm.widgets.text;
+
+using namespace ui::render;
+
+export
+class SegmentedControl : public ObjectBase {
+public:
+    SegmentedControl() {
+        set_focusable(true);
+        set_size(220, 28);
+    }
+
+    void set_items(const char* const* items, int count) noexcept {
+        count_ = (count > kMax) ? kMax : (count < 0 ? 0 : count);
+        for (int i = 0; i < count_; ++i) labels_[i] = items[i];
+        for (int i = count_; i < kMax; ++i) labels_[i] = nullptr;
+        if (selected_ >= count_) selected_ = (count_ > 0) ? (count_ - 1) : 0;
+    }
+
+    void set_item(int index, const char* label) noexcept {
+        if (index < 0 || index >= kMax) return;
+        if (index >= count_) count_ = index + 1;
+        labels_[index] = label;
+    }
+
+    void set_selected(int index) noexcept {
+        if (index < 0 || index >= count_) return;
+        if (selected_ == index) return;
+        selected_ = index;
+        if (on_change_) on_change_();
+    }
+
+    int selected() const noexcept { return selected_; }
+
+    void set_on_change(Callback cb) noexcept { on_change_ = cb; }
+
+    void draw(DefaultCanvas& cvs) override {
+        const Style& st = Theme::instance().get<SegmentedControl>();
+        const auto r = get_rect();
+
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        resolve_colors(st,
+                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
+                       bg, border, font);
+
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+
+        if (count_ <= 0) return;
+
+        const int seg_w = (count_ > 0) ? (r.w / count_) : r.w;
+        for (int i = 0; i < count_; ++i) {
+            Rect seg{r.x + i * seg_w, r.y, seg_w, r.h};
+            if (i == count_ - 1) {
+                seg.w = r.x + r.w - seg.x;
+            }
+
+            rgba seg_bg = bg;
+            rgba seg_border = border;
+            if (i == selected_) {
+                seg_bg = st.bg_pressed;
+                seg_border = st.border_pressed;
+            }
+            draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_bg, true);
+            draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_border, false);
+            if (i > 0) {
+                draw_line(cvs, seg.x, seg.y + 2, seg.x, seg.y + seg.h - 3, border);
+            }
+
+            const char* label = labels_[i] ? labels_[i] : "";
+            draw_text_box(cvs, seg, label, font, resolve_font(st),
+                          TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
+
+        if (has_state(State::Focused)) {
+            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
+        }
+    }
+
+    bool on_event(const Event& e) override {
+        if (!is_enabled()) return false;
+        const auto r = get_rect();
+        if (e.type == Event::Type::Click) {
+            if (!r.contains(e.x, e.y) || count_ <= 0) return false;
+            const int idx = (e.x - r.x) * count_ / std::max(1, r.w);
+            set_selected(idx);
+            return true;
+        } else if (e.type == Event::Type::KeyDown) {
+            if (e.key_code == Event::Key::Left && selected_ > 0) {
+                set_selected(selected_ - 1);
+                return true;
+            }
+            if (e.key_code == Event::Key::Right && selected_ + 1 < count_) {
+                set_selected(selected_ + 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    static constexpr int kMax = 8;
+    const char* labels_[kMax]{};
+    int count_{0};
+    int selected_{0};
+    Callback on_change_{};
+};

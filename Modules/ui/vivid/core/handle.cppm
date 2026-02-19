@@ -20,9 +20,13 @@ enum class WidgetKind : std::uint8_t {
     ListItem,
     ListView,
     ScrollBar,
+    SegmentedControl,
     TextArea,
     TextInput,
     NumberInput,
+    ToggleGroup,
+    TableView,
+    TreeView,
     Dropdown,
     TabView,
     Roller,
@@ -36,6 +40,7 @@ enum class WidgetKind : std::uint8_t {
     ,Chart
     ,Gauge
     ,PrimitivesCanvas
+    ,PerfOverlay
 };
 
 export
@@ -66,9 +71,13 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::ListItem: return "ListItem";
         case WidgetKind::ListView: return "ListView";
         case WidgetKind::ScrollBar: return "ScrollBar";
+        case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";
         case WidgetKind::TextInput: return "TextInput";
         case WidgetKind::NumberInput: return "NumberInput";
+        case WidgetKind::ToggleGroup: return "ToggleGroup";
+        case WidgetKind::TableView: return "TableView";
+        case WidgetKind::TreeView: return "TreeView";
         case WidgetKind::Dropdown: return "Dropdown";
         case WidgetKind::TabView: return "TabView";
         case WidgetKind::Roller: return "Roller";
@@ -82,6 +91,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Chart: return "Chart";
         case WidgetKind::Gauge: return "Gauge";
         case WidgetKind::PrimitivesCanvas: return "PrimitivesCanvas";
+        case WidgetKind::PerfOverlay: return "PerfOverlay";
     }
     return "Unknown";
 }

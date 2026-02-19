@@ -72,3 +72,4 @@ export import charm.widgets.number_input;
 export import charm.widgets.timeline;
 export import charm.widgets.toggle_group;
 export import charm.widgets.tree_view;
+export import charm.widgets.rich_text;

@@ -43,6 +43,7 @@ enum class WidgetKind : std::uint8_t {
     ,PerfOverlay
     ,Stepper
     ,Timeline
+    ,RichText
 };
 
 export
@@ -96,6 +97,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::PerfOverlay: return "PerfOverlay";
         case WidgetKind::Stepper: return "Stepper";
         case WidgetKind::Timeline: return "Timeline";
+        case WidgetKind::RichText: return "RichText";
     }
     return "Unknown";
 }

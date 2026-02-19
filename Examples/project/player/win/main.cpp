@@ -22,6 +22,7 @@ import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
+import charm.widgets.rich_text;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -235,6 +236,7 @@ namespace {
         WidgetHandle logo{};
         WidgetHandle stepper{};
         WidgetHandle timeline{};
+        WidgetHandle rich_text{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -1198,6 +1200,13 @@ namespace {
             timeline->set_flex_grow(1);
         }
 
+        h.rich_text = factory.create_rich_text();
+        if (auto* rich = factory.get_rich_text(h.rich_text)) {
+            rich->set_text("[b]Rich[/b] [color=#7ED321]text[/color] demo\n"
+                           "[mono]mono[/mono] and [code]code[/code] sample");
+            rich->set_size(200, 70);
+        }
+
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
@@ -1259,6 +1268,7 @@ namespace {
         factory.link(h.debug_side, h.logo);
         factory.link(h.debug_side, h.stepper);
         factory.link(h.debug_side, h.timeline);
+        factory.link(h.debug_side, h.rich_text);
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_play);

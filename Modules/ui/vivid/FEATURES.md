@@ -43,7 +43,7 @@
 - P0 menu 支持多级展开/收起（menu_tree）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
-- P0 text / text_area / text_input / number_input
+- P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽）
 - P0 message_box / tabview / scroll_container / popup_layer / scrollbar
 - P0 segmented_control / toggle_group
 - P0 table_view / tree_view（最小骨架与示例数据源）

@@ -53,6 +53,32 @@ flowchart LR
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 - FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
 
+```mermaid
+flowchart LR
+  subgraph WidgetTree[控件树]
+    Root[Root]
+    Header[Header]
+    Content[Content]
+    Button[Button]
+    List[ListView]
+    Root --> Header
+    Root --> Content
+    Content --> Button
+    Content --> List
+  end
+  subgraph RenderTree[渲染树]
+    RRoot[Root]
+    RHeader[Header]
+    RList[ListView (virtual)]
+    RRow1[Row 1]
+    RRow2[Row 2]
+    RRoot --> RHeader
+    RRoot --> RList
+    RList --> RRow1
+    RList --> RRow2
+  end
+```
+
 ## 4. 输入与事件
 
 - 输入链路由 InputRouter 中心化处理（hit-test/capture/gesture），支持双指 pinch 识别，控件只关注语义事件。
@@ -89,6 +115,14 @@ sequenceDiagram
 
 - 统一接入 trace_core 做机器可读事件输出。
 - 日志统一通过 out.logger。
+
+```mermaid
+flowchart LR
+  UI[UI Widgets] --> Trace[trace_core]
+  IO[Input Router] --> Trace
+  Trace --> Dump[dump_trace / out.logger]
+  Trace --> Store[ring buffer]
+```
 
 ## 8. 示例与验证
 

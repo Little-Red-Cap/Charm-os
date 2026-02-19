@@ -76,6 +76,7 @@ export import charm.widgets.text;
 export import charm.widgets.text_area;
 export import charm.widgets.text_input;
 export import charm.widgets.number_input;
+export import charm.widgets.number_list;
 export import charm.widgets.timeline;
 export import charm.widgets.toggle_group;
 export import charm.widgets.tree_view;

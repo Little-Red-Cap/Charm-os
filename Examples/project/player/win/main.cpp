@@ -42,6 +42,7 @@ import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
 import charm.widgets.cloudy_glass;
 import charm.widgets.icon_list;
+import charm.widgets.number_list;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -532,6 +533,7 @@ namespace {
         WidgetHandle battery_gauge{};
         WidgetHandle histogram{};
         WidgetHandle icon_list{};
+        WidgetHandle number_list{};
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
         WidgetHandle cloudy_glass{};
@@ -1484,6 +1486,16 @@ namespace {
             icon_list->set_size(200, 160);
         }
 
+        h.number_list = factory.create_number_list();
+        if (auto* number_list = factory.get_number_list(h.number_list)) {
+            number_list->set_item_count(60);
+            number_list->set_range(0, 1);
+            number_list->set_format("%02d");
+            number_list->set_item_height(28);
+            number_list->set_selected(12);
+            number_list->set_size(200, 160);
+        }
+
         h.fold_panel = factory.create_foldable_panel("Foldable Panel");
         if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
             panel->set_body("Tap header to expand or collapse.");
@@ -1585,6 +1597,7 @@ namespace {
         factory.link(h.debug_side, h.battery_gauge);
         factory.link(h.debug_side, h.histogram);
         factory.link(h.debug_side, h.icon_list);
+        factory.link(h.debug_side, h.number_list);
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);

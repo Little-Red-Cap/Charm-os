@@ -29,6 +29,7 @@ import charm.widgets.segmented_control;
 import charm.widgets.text_area;
 import charm.widgets.text_input;
 import charm.widgets.number_input;
+import charm.widgets.number_list;
 import charm.widgets.toggle_group;
 import charm.widgets.table_view;
 import charm.widgets.tree_view;
@@ -88,6 +89,7 @@ public:
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
     WidgetHandle create_text_input() noexcept { return make_handle(text_inputs_.create(), WidgetKind::TextInput); }
     WidgetHandle create_number_input() noexcept { return make_handle(number_inputs_.create(), WidgetKind::NumberInput); }
+    WidgetHandle create_number_list() noexcept { return make_handle(number_lists_.create(), WidgetKind::NumberList); }
     WidgetHandle create_toggle_group() noexcept { return make_handle(toggles_.create(), WidgetKind::ToggleGroup); }
     WidgetHandle create_table_view() noexcept { return make_handle(tables_.create(), WidgetKind::TableView); }
     WidgetHandle create_tree_view() noexcept { return make_handle(trees_.create(), WidgetKind::TreeView); }
@@ -143,6 +145,7 @@ public:
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
     TextInput* get_text_input(const WidgetHandle& h) noexcept { return get_from(text_inputs_, h, WidgetKind::TextInput); }
     NumberInput* get_number_input(const WidgetHandle& h) noexcept { return get_from(number_inputs_, h, WidgetKind::NumberInput); }
+    NumberList* get_number_list(const WidgetHandle& h) noexcept { return get_from(number_lists_, h, WidgetKind::NumberList); }
     ToggleGroup* get_toggle_group(const WidgetHandle& h) noexcept { return get_from(toggles_, h, WidgetKind::ToggleGroup); }
     TableView* get_table_view(const WidgetHandle& h) noexcept { return get_from(tables_, h, WidgetKind::TableView); }
     TreeView* get_tree_view(const WidgetHandle& h) noexcept { return get_from(trees_, h, WidgetKind::TreeView); }
@@ -196,6 +199,7 @@ public:
             case WidgetKind::TextArea: return get_text_area(h);
             case WidgetKind::TextInput: return get_text_input(h);
             case WidgetKind::NumberInput: return get_number_input(h);
+            case WidgetKind::NumberList: return get_number_list(h);
             case WidgetKind::ToggleGroup: return get_toggle_group(h);
             case WidgetKind::TableView: return get_table_view(h);
             case WidgetKind::TreeView: return get_tree_view(h);
@@ -398,6 +402,7 @@ public:
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
         case WidgetKind::TextInput: destroy_from(text_inputs_, h, WidgetKind::TextInput); break;
         case WidgetKind::NumberInput: destroy_from(number_inputs_, h, WidgetKind::NumberInput); break;
+        case WidgetKind::NumberList: destroy_from(number_lists_, h, WidgetKind::NumberList); break;
         case WidgetKind::ToggleGroup: destroy_from(toggles_, h, WidgetKind::ToggleGroup); break;
         case WidgetKind::TableView: destroy_from(tables_, h, WidgetKind::TableView); break;
         case WidgetKind::TreeView: destroy_from(trees_, h, WidgetKind::TreeView); break;
@@ -682,6 +687,7 @@ private:
     HandlePool<TextArea, 32> text_areas_{};
     HandlePool<TextInput, 64> text_inputs_{};
     HandlePool<NumberInput, 32> number_inputs_{};
+    HandlePool<NumberList, 16> number_lists_{};
     HandlePool<ToggleGroup, 32> toggles_{};
     HandlePool<TableView, 8> tables_{};
     HandlePool<TreeView, 8> trees_{};

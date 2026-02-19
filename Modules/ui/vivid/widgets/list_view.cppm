@@ -168,6 +168,8 @@ public:
                        {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
                        bg, border, font);
 
+        flush_scroll_dirty();
+
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
@@ -342,16 +344,44 @@ private:
         return Rect{left, top, w, h};
     }
 
+    void accumulate_scroll_dirty(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!scroll_dirty_valid_) {
+            scroll_dirty_accum_ = r;
+            scroll_dirty_valid_ = true;
+            return;
+        }
+        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
+        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
+        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
+            ? (r.x + r.w)
+            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
+        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
+            ? (r.y + r.h)
+            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
+        scroll_dirty_accum_.x = left;
+        scroll_dirty_accum_.y = top;
+        scroll_dirty_accum_.w = right - left;
+        scroll_dirty_accum_.h = bottom - top;
+    }
+
+    void flush_scroll_dirty() noexcept {
+        if (!scroll_dirty_valid_) return;
+        mark_dirty_hint(scroll_dirty_accum_);
+        scroll_dirty_valid_ = false;
+        scroll_dirty_accum_ = {};
+    }
+
     void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
         const auto r = get_rect();
         if (dy > r.h || dy < -r.h) {
-            mark_dirty_hint(r);
+            accumulate_scroll_dirty(r);
             return;
         }
         if (dy > r.h / 2 || dy < -r.h / 2) {
-            mark_dirty_hint(r);
+            accumulate_scroll_dirty(r);
             return;
         }
         Rect band{};
@@ -362,9 +392,9 @@ private:
         }
         const auto clipped = intersect_rect(band, r);
         if (clipped.w > 0 && clipped.h > 0) {
-            mark_dirty_hint(clipped);
+            accumulate_scroll_dirty(clipped);
         } else {
-            mark_dirty_hint(r);
+            accumulate_scroll_dirty(r);
         }
     }
 
@@ -536,6 +566,8 @@ private:
     int window_visible_{0};
     int window_offset_y_{0};
     bool window_valid_{false};
+    Rect scroll_dirty_accum_{};
+    bool scroll_dirty_valid_{false};
 
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};

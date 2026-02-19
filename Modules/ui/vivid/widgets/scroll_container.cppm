@@ -81,6 +81,8 @@ public:
                        {is_enabled(), has_state(State::Hovered), dragging_, has_state(State::Focused)},
                        bg, border, font);
 
+        flush_scroll_dirty();
+
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
                                   slice_left_, slice_top_, slice_right_, slice_bottom_);
@@ -260,16 +262,44 @@ private:
         return Rect{left, top, w, h};
     }
 
+    void accumulate_scroll_dirty(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!scroll_dirty_valid_) {
+            scroll_dirty_accum_ = r;
+            scroll_dirty_valid_ = true;
+            return;
+        }
+        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
+        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
+        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
+            ? (r.x + r.w)
+            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
+        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
+            ? (r.y + r.h)
+            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
+        scroll_dirty_accum_.x = left;
+        scroll_dirty_accum_.y = top;
+        scroll_dirty_accum_.w = right - left;
+        scroll_dirty_accum_.h = bottom - top;
+    }
+
+    void flush_scroll_dirty() noexcept {
+        if (!scroll_dirty_valid_) return;
+        mark_dirty_hint(scroll_dirty_accum_);
+        scroll_dirty_valid_ = false;
+        scroll_dirty_accum_ = {};
+    }
+
     void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
         const auto clip = children_clip_rect();
         if (dy > clip.h || dy < -clip.h) {
-            mark_dirty_hint(clip);
+            accumulate_scroll_dirty(clip);
             return;
         }
         if (dy > clip.h / 2 || dy < -clip.h / 2) {
-            mark_dirty_hint(clip);
+            accumulate_scroll_dirty(clip);
             return;
         }
         Rect band{};
@@ -280,9 +310,9 @@ private:
         }
         const auto clipped = intersect_rect(band, clip);
         if (clipped.w > 0 && clipped.h > 0) {
-            mark_dirty_hint(clipped);
+            accumulate_scroll_dirty(clipped);
         } else {
-            mark_dirty_hint(clip);
+            accumulate_scroll_dirty(clip);
         }
     }
 
@@ -348,6 +378,8 @@ private:
     int clip_inset_top_{1};
     int clip_inset_right_{1};
     int clip_inset_bottom_{1};
+    Rect scroll_dirty_accum_{};
+    bool scroll_dirty_valid_{false};
 
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;

@@ -9,6 +9,18 @@ import device.desc;
 export namespace device {
     struct Device;
 
+    enum class DeviceEvent : util::u8 {
+        attach,
+        probe,
+        init,
+        start,
+        suspend,
+        resume,
+        shutdown,
+        remove,
+        error
+    };
+
     struct DriverOps {
         bool (*probe)(Device& dev) noexcept { nullptr };
         bool (*init)(Device& dev) noexcept { nullptr };
@@ -16,11 +28,13 @@ export namespace device {
         void (*remove)(Device& dev) noexcept { nullptr };
         bool (*suspend)(Device& dev) noexcept { nullptr };
         bool (*resume)(Device& dev) noexcept { nullptr };
+        void (*on_event)(Device& dev, DeviceEvent ev) noexcept { nullptr };
     };
 
     struct Driver {
         const char* name{nullptr};
         DeviceDesc match{};
+        util::u32 priority{0};
         DriverOps ops{};
     };
 
@@ -37,5 +51,6 @@ export namespace device {
         void* ctx{nullptr};
         DeviceState state{DeviceState::detected};
         const Driver* driver{nullptr};
+        util::u32 match_score{0};
     };
 }

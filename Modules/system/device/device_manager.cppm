@@ -52,6 +52,11 @@ export namespace device {
         void shutdown_all() noexcept { registry_.shutdown_all(); }
         void suspend_all() noexcept { registry_.suspend_all(); }
         void resume_all() noexcept { registry_.resume_all(); }
+        void dispatch_all(DeviceEvent ev) noexcept {
+            for (util::usize i = 0; i < registry_.device_count(); ++i) {
+                registry_.dispatch(registry_.device_at(i), ev);
+            }
+        }
 
     private:
         Registry<MaxDevices, MaxDrivers> registry_{};

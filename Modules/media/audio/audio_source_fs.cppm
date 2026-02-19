@@ -63,9 +63,18 @@ export namespace audio {
             return to_read;
         }
 
-        Result<std::int64_t> seek(std::int64_t offset, int) {
+        Result<std::int64_t> seek(std::int64_t offset, int whence) {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
-            const auto st = fs::seek(file_, static_cast<util::i64>(offset));
+            std::int64_t target = offset;
+            const auto cur = static_cast<std::int64_t>(file_.node.offset);
+            const auto size = static_cast<std::int64_t>(file_.node.size);
+            if (whence == SEEK_CUR) {
+                target = cur + offset;
+            } else if (whence == SEEK_END) {
+                target = size + offset;
+            }
+            if (target < 0) return unexpected(Err{Errc::io_error, 0});
+            const auto st = fs::seek(file_, static_cast<util::i64>(target));
             if (!st) return unexpected(Err{Errc::io_error, 0});
             return tell();
         }

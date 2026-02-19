@@ -47,11 +47,27 @@ export namespace shell_posix {
             if (!path) return -static_cast<int>(fs::Err::inval);
             auto idx = alloc_fd();
             if (idx < 0) return idx;
-            auto st = fs::vfs_open(path, fds_[idx].file);
+            fs::OpenFlags oflags = fs::OpenFlags::read;
+            if ((flags & O_WRONLY) == O_WRONLY) {
+                oflags = fs::OpenFlags::write;
+            } else if ((flags & O_RDWR) == O_RDWR) {
+                oflags = static_cast<fs::OpenFlags>(
+                    static_cast<util::u32>(fs::OpenFlags::read) |
+                    static_cast<util::u32>(fs::OpenFlags::write));
+            }
+            if (flags & O_CREAT) {
+                oflags = static_cast<fs::OpenFlags>(
+                    static_cast<util::u32>(oflags) |
+                    static_cast<util::u32>(fs::OpenFlags::create));
+            }
+            if (flags & O_TRUNC) {
+                oflags = static_cast<fs::OpenFlags>(
+                    static_cast<util::u32>(oflags) |
+                    static_cast<util::u32>(fs::OpenFlags::trunc));
+            }
+
+            auto st = fs::vfs_open(path, fds_[idx].file, oflags);
             if (!st) {
-                if (flags & O_CREAT) {
-                    st = fs::vfs_open(path, fds_[idx].file);
-                }
                 if (!st) {
                     fds_[idx].used = false;
                     return static_cast<int>(st.err);

@@ -39,8 +39,19 @@ export namespace fs {
         Mount* mount{nullptr};
     };
 
+    enum class OpenFlags : util::u32 {
+        read = 1u << 0,
+        write = 1u << 1,
+        create = 1u << 2,
+        trunc = 1u << 3,
+    };
+
+    [[nodiscard]] inline bool has_flag(OpenFlags value, OpenFlags flag) noexcept {
+        return (static_cast<util::u32>(value) & static_cast<util::u32>(flag)) != 0u;
+    }
+
     struct MountOps {
-        Status (*open)(Mount*, std::string_view path, File&) noexcept { nullptr };
+        Status (*open)(Mount*, std::string_view path, File&, OpenFlags flags) noexcept { nullptr };
         Status (*flush)(Mount*) noexcept { nullptr };
         Status (*unmount)(Mount*, bool force) noexcept { nullptr };
         Status (*unlink)(Mount*, std::string_view path) noexcept { nullptr };

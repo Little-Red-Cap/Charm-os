@@ -39,6 +39,7 @@ import charm.widgets.waveform_view;
 import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
 import charm.widgets.foldable_panel;
+import charm.widgets.progress_flowing;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -529,6 +530,7 @@ namespace {
         WidgetHandle battery_gauge{};
         WidgetHandle histogram{};
         WidgetHandle fold_panel{};
+        WidgetHandle progress_flow{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1469,6 +1471,14 @@ namespace {
             panel->set_expanded(true);
             panel->set_size(200, 120);
         }
+        h.progress_flow = factory.create_progress_flowing();
+        if (auto* flow = factory.get_progress_flowing(h.progress_flow)) {
+            flow->set_range(0, 100);
+            flow->set_value(65);
+            flow->set_flow_span(12);
+            flow->set_flow_speed(2);
+            flow->set_size(200, 16);
+        }
         auto fold_btn_primary = factory.create_button("Apply");
         if (auto* btn = factory.get_button(fold_btn_primary)) {
             btn->set_size(90, 32);
@@ -1551,6 +1561,7 @@ namespace {
         factory.link(h.debug_side, h.battery_gauge);
         factory.link(h.debug_side, h.histogram);
         factory.link(h.debug_side, h.fold_panel);
+        factory.link(h.debug_side, h.progress_flow);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

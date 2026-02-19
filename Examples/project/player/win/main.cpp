@@ -13,6 +13,7 @@ import charm.widgets.button;
 import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.scrollbar;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -217,6 +218,7 @@ namespace {
         WidgetHandle subtitle{};
         WidgetHandle status{};
         WidgetHandle list{};
+        WidgetHandle list_scroll{};
         WidgetHandle table{};
         WidgetHandle tree{};
         WidgetHandle progress{};
@@ -342,6 +344,9 @@ namespace {
             if (!factory) return;
             if (auto* list = factory->get_list_view(handles.list)) {
                 list->set_visible(!on);
+            }
+            if (auto* bar = factory->get_scroll_bar(handles.list_scroll)) {
+                bar->set_visible(!on);
             }
             if (auto* table = factory->get_table_view(handles.table)) {
                 table->set_visible(on);
@@ -902,6 +907,25 @@ namespace {
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
+    void on_list_scroll(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!bar) return;
+        bar->set_range(0, max_scroll);
+        bar->set_page_size(view_h);
+        bar->set_value(scroll_y);
+    }
+
+    void on_list_scrollbar_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* list = app->factory->get_list_view(app->handles.list);
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!list || !bar) return;
+        list->set_scroll_y(bar->value());
+    }
+
     Event::Key map_key(SDL_Keycode key) {
         switch (key) {
         case SDLK_TAB: return Event::Key::Tab;
@@ -1035,12 +1059,23 @@ namespace {
         if (auto* list = factory.get_list_view(h.list)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
             const int list_h = screen_height - list_y - 170;
-            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
+            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2 - 12, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
             list->set_cache_handler(&on_list_cache, &ctx);
+            list->set_on_scroll(&on_list_scroll, &ctx);
+            list->set_show_scrollbar(false);
             list->set_row_height(32);
             list->set_wheel_step(32);
+        }
+
+        h.list_scroll = factory.create_scroll_bar();
+        if (auto* bar = factory.get_scroll_bar(h.list_scroll)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            anchor_rect(bar, {screen_width - kUiPadding - 10, list_y, 10, list_h});
+            bar->set_orientation(ScrollBar::Orientation::Vertical);
+            bar->set_on_change(Callback{&on_list_scrollbar_change, &ctx});
         }
 
         h.tree = factory.create_tree_view();
@@ -1118,6 +1153,7 @@ namespace {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.list);
+        factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.tree);
         factory.link(h.root, h.table);
         factory.link(h.root, h.btn_prev);

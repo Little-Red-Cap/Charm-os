@@ -25,6 +25,7 @@ public:
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
     using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
         set_size(240, 180);
@@ -67,6 +68,12 @@ public:
         clear_cache();
     }
 
+    void set_on_scroll(ScrollFn fn, void* ctx = nullptr) noexcept {
+        scroll_fn_ = fn;
+        scroll_ctx_ = ctx;
+        notify_scroll();
+    }
+
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
@@ -83,13 +90,20 @@ public:
 
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
+        notify_scroll();
     }
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        notify_scroll();
     }
 
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
+    void set_show_scrollbar(bool on) noexcept { show_scrollbar_ = on; }
+
+    int scroll_y() const noexcept { return scroll_y_; }
+    int max_scroll() const noexcept { return max_scroll_; }
+    int content_height() const noexcept { return content_height_; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<ListView>();
@@ -147,7 +161,7 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (content_height_ > r.h) {
+        if (show_scrollbar_ && content_height_ > r.h) {
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - 2;
             const int track_h = r.h - 4;
@@ -221,6 +235,7 @@ private:
         max_scroll_ = (max > 0) ? max : 0;
         if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
         if (scroll_y_ < 0) scroll_y_ = 0;
+        notify_scroll();
     }
 
     int clamp_scroll(int y) const noexcept {
@@ -268,6 +283,12 @@ private:
         return (row_height_ > 4) ? row_height_ : 4;
     }
 
+    void notify_scroll() noexcept {
+        if (!scroll_fn_) return;
+        const auto r = get_rect();
+        scroll_fn_(scroll_ctx_, scroll_y_, max_scroll_, r.h, content_height_);
+    }
+
     void clear_cache() noexcept {
         for (int i = 0; i < kMaxCache; ++i) {
             cache_slots_[i].index = -1;
@@ -282,6 +303,8 @@ private:
     void* select_ctx_{nullptr};
     CacheFn cache_fn_{nullptr};
     void* cache_ctx_{nullptr};
+    ScrollFn scroll_fn_{nullptr};
+    void* scroll_ctx_{nullptr};
 
     int item_count_{0};
     int row_height_{24};
@@ -292,6 +315,7 @@ private:
     int wheel_step_{24};
     bool dragging_{false};
     int last_y_{0};
+    bool show_scrollbar_{true};
 
     struct CacheSlot {
         int index{-1};

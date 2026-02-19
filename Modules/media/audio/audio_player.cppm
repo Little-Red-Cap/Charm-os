@@ -579,13 +579,43 @@ export namespace audio {
                     return;
                 }
             } else if (is_flac_) {
-                auto res = flac_.seek_pcm_frame(clamped_frames);
-                if (!res) {
+                auto reset = src_.seek(0, SEEK_SET);
+                if (!reset) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     running_ = false;
                     return;
                 }
+                flac_.close();
+                auto info = flac_.open(src_);
+                if (!info) {
+                    set_error(Errc::decode_error, PlayerErrorStage::seek);
+                    running_ = false;
+                    return;
+                }
+                input_fmt_.rate = info->sample_rate;
+                input_fmt_.channels = info->channels;
+                input_fmt_.sample_type = SampleType::s16;
+                total_frames_ = flac_.total_frames();
                 has_more_data_ = true;
+
+                const std::size_t max_frames = s32_in_.size() / input_fmt_.channels;
+                if (max_frames == 0) {
+                    set_error(Errc::bad_state, PlayerErrorStage::seek);
+                    running_ = false;
+                    return;
+                }
+                std::uint64_t remaining = clamped_frames;
+                while (remaining > 0) {
+                    const std::size_t chunk = static_cast<std::size_t>(
+                        std::min<std::uint64_t>(remaining, max_frames));
+                    auto read = flac_.read_s32(s32_in_.data(), chunk);
+                    if (!read || *read == 0) {
+                        set_error(Errc::decode_error, PlayerErrorStage::seek);
+                        running_ = false;
+                        return;
+                    }
+                    remaining -= *read;
+                }
             } else if (is_mp3_) {
                 auto res = mp3_.seek_pcm_frame(clamped_frames);
                 if (!res) {

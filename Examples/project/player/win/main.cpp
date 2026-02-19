@@ -661,9 +661,9 @@ int main(int argc, char** argv) {
     static DefaultFrameBuffer fb;
     DefaultCanvas canvas(fb);
 
-    UiFactory factory;
-    audio::PlayerConfig cfg{};
-    audio::AudioPlayer player(cfg);
+    static UiFactory factory;
+    static audio::PlayerConfig cfg{};
+    static audio::AudioPlayer player(cfg);
 
     PlayerUiContext ctx{};
     ctx.player = &player;

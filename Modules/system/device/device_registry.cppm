@@ -119,7 +119,7 @@ export namespace device {
             if (drv.class_id && drv.class_id != dev.class_id) return false;
             if (drv.vendor_id && drv.vendor_id != dev.vendor_id) return false;
             if (drv.product_id && drv.product_id != dev.product_id) return false;
-            if (!drv.type.empty() && drv.type != dev.type) return false;
+            if (!drv.type.empty() && drv.type.compare(dev.type) != 0) return false;
             return true;
         }
 

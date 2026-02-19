@@ -8,6 +8,8 @@ export module device.manager;
 import util.core;
 import device.bus;
 import device.registry;
+import device.desc;
+import device.driver;
 
 export namespace device {
     template <util::usize MaxBuses>

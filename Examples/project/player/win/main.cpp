@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
+import charm.core.anim;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
@@ -362,6 +363,13 @@ namespace {
 
         void set_status(const char* text) {
             set_label(handles.status, text);
+        }
+
+        void set_cover_color(const rgba& color) {
+            if (!factory) return;
+            if (auto* cover = factory->get_container(handles.cover)) {
+                cover->set_background(color);
+            }
         }
 
         void set_status_color(const rgba& color) {
@@ -819,6 +827,17 @@ namespace {
         case SDLK_RIGHT: return Event::Key::Right;
         default: return Event::Key::Unknown;
         }
+    }
+
+    void apply_cover_pulse(void* ctx, float v) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        const std::uint8_t base = 40;
+        const std::uint8_t delta = static_cast<std::uint8_t>(20 * v);
+        app->set_cover_color({static_cast<std::uint8_t>(base + delta),
+                              static_cast<std::uint8_t>(44 + delta),
+                              static_cast<std::uint8_t>(60 + delta),
+                              255});
     }
 
     bool dispatch_sdl_event(Gui& gui, PlayerUiContext& ctx, const SDL_Event& evt) {
@@ -1346,6 +1365,9 @@ int main(int argc, char** argv) {
     gui.set_dirty_tracking(true);
     gui.set_layer_cache(true);
 
+    static anim::Timeline timeline;
+    const auto start_time = std::chrono::steady_clock::now();
+
     bool running = true;
     while (running) {
         SDL_Event evt{};
@@ -1393,6 +1415,15 @@ int main(int argc, char** argv) {
         ctx.update_duration_from_player();
         ctx.apply_pending_seek();
         ctx.update_progress();
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto ms = static_cast<std::uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
+        timeline.tick(ms);
+        if (!timeline.active()) {
+            timeline.clear();
+            timeline.add(&apply_cover_pulse, &ctx, 0.0f, 1.0f, ms, 2000, anim::Ease::InOutQuad);
+        }
 
         canvas.clear({18, 20, 28, 255});
         gui.render();

@@ -7,6 +7,7 @@ export import charm.core.factory;
 export import charm.core.geometry;
 export import charm.core.gui;
 export import charm.core.handle;
+export import charm.core.anim;
 export import charm.core.layout;
 export import charm.core.object;
 export import charm.core.pool;

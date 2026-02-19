@@ -61,7 +61,7 @@ public:
     Image() {
         double_tap_.set_callback(&Image::on_double_tap, this);
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
-        add_interaction(&double_tap_, InteractionList::mask(Event::Type::Click));
+        add_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
 
     void set_image(const ImageView& img) noexcept {

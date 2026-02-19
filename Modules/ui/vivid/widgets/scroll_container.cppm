@@ -26,7 +26,7 @@ public:
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,
                                       this);
-        add_interaction(&pinch_strategy_, InteractionList::mask(Event::Type::GesturePinch));
+        add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);

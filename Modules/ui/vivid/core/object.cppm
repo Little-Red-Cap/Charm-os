@@ -184,7 +184,7 @@ public:
     bool has_percent_size() const noexcept { return percent_w_ >= 0 || percent_h_ >= 0; }
 
     bool add_interaction(InteractionStrategy* strategy,
-                         InteractionList::EventMask mask = InteractionList::kAll) noexcept {
+                         InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
         return interactions_.add(strategy, mask);
     }
 
@@ -195,6 +195,36 @@ public:
     bool dispatch_interactions(const Event& e) {
         return interactions_.on_event(e);
     }
+
+    void enable_default_drag(DragStrategy::BeginFn begin_fn,
+                             DragStrategy::UpdateFn update_fn,
+                             DragStrategy::EndFn end_fn,
+                             void* ctx) noexcept {
+        default_drag_.set_callbacks(begin_fn, update_fn, end_fn, ctx);
+        const auto mask = InteractionList<>::mask(Event::Type::DragStart)
+            | InteractionList<>::mask(Event::Type::DragMove)
+            | InteractionList<>::mask(Event::Type::DragEnd);
+        interactions_.add(&default_drag_, mask);
+    }
+
+    void disable_default_drag() noexcept { interactions_.remove(&default_drag_); }
+
+    void enable_default_long_press(LongPressStrategy::Callback fn,
+                                   void* ctx,
+                                   int ms = 500,
+                                   int move_px = 6) noexcept {
+        default_long_press_.set_callback(fn, ctx);
+        default_long_press_.set_threshold(ms, move_px);
+        const auto mask = InteractionList<>::mask(Event::Type::MouseDown)
+            | InteractionList<>::mask(Event::Type::MouseMove)
+            | InteractionList<>::mask(Event::Type::MouseUp)
+            | InteractionList<>::mask(Event::Type::DragStart)
+            | InteractionList<>::mask(Event::Type::DragMove)
+            | InteractionList<>::mask(Event::Type::DragEnd);
+        interactions_.add(&default_long_press_, mask);
+    }
+
+    void disable_default_long_press() noexcept { interactions_.remove(&default_long_press_); }
 
     void set_min_size(int w, int h) noexcept { min_w_ = w; min_h_ = h; }
     void clear_min_size() noexcept { min_w_ = 0; min_h_ = 0; }
@@ -366,7 +396,9 @@ protected:
     int align_v_{0};
     bool layout_spec_enabled_{false};
     LayoutSpec layout_spec_{};
-    InteractionList interactions_{};
+    InteractionList<> interactions_{};
+    DragStrategy default_drag_{};
+    LongPressStrategy default_long_press_{};
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};

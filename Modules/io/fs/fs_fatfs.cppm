@@ -150,6 +150,11 @@ export namespace fs {
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
 
+            if ((want_create || want_trunc) && !want_write) {
+                self->free_slot(slot);
+                return Status{Err::perm};
+            }
+
             mode |= want_read ? FA_READ : 0;
             mode |= want_write ? FA_WRITE : 0;
             if (!want_read && !want_write) mode |= FA_READ;
@@ -266,13 +271,27 @@ export namespace fs {
                 if (info.fname[0] == '\0') break;
                 const char* name = info.fname;
 #if defined(FF_USE_LFN) && FF_USE_LFN
-                if (info.lfname && info.lfname[0] != 0) {
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-                    name = info.fname;
+#if defined(FF_MAX_LFN)
+                std::array<char, FF_MAX_LFN + 1> lfname_utf8{};
 #else
-                    name = info.lfname;
+                std::array<char, 256> lfname_utf8{};
 #endif
+                if (info.lfname && info.lfname[0] != 0) {
+                    util::usize out = 0;
+                    while (info.lfname[out] != 0 && (out + 1) < lfname_utf8.size()) {
+                        const auto ch = static_cast<unsigned int>(info.lfname[out]);
+                        lfname_utf8[out] = (ch <= 0x7F) ? static_cast<char>(ch) : '?';
+                        ++out;
+                    }
+                    lfname_utf8[out] = '\0';
+                    name = lfname_utf8.data();
                 }
+#else
+                if (info.lfname && info.lfname[0] != 0) {
+                    name = info.lfname;
+                }
+#endif
 #endif
                 MountOps::ListEntry entry{};
                 entry.name = std::string_view{name};

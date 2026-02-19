@@ -1,6 +1,7 @@
 module;
 
 #include <cstdint>
+#include <cstring>
 #include <span>
 
 export module usb.class_msc;
@@ -69,11 +70,36 @@ export namespace usb::class_driver {
         const MscConfig& config() const noexcept { return cfg_; }
         MscPhase phase() const noexcept { return phase_; }
         void reset_phase() noexcept { phase_ = MscPhase::cbw; }
+        const MscCbw& last_cbw() const noexcept { return last_cbw_; }
 
         static bool validate_cbw(const MscCbw& cbw) noexcept {
             if (cbw.signature != 0x43425355) return false;
             if (cbw.cb_length == 0 || cbw.cb_length > 16) return false;
             return true;
+        }
+
+        bool handle_cbw(std::span<const u8> data) noexcept {
+            if (data.size() < sizeof(MscCbw)) return false;
+            std::memcpy(&last_cbw_, data.data(), sizeof(MscCbw));
+            if (!validate_cbw(last_cbw_)) return false;
+            if (ops_.on_command && !ops_.on_command(ctx_, std::span<const u8>(last_cbw_.cb, last_cbw_.cb_length))) {
+                return false;
+            }
+            if (last_cbw_.data_transfer_length > 0) {
+                begin_data();
+            } else {
+                begin_csw();
+            }
+            return true;
+        }
+
+        std::span<const u8> make_csw(MscStatus status, u32 residue = 0) noexcept {
+            last_csw_.tag = last_cbw_.tag;
+            last_csw_.residue = residue;
+            last_csw_.status = static_cast<u8>(status);
+            return std::span<const u8>(
+                reinterpret_cast<const u8*>(&last_csw_),
+                sizeof(MscCsw));
         }
 
         void begin_data() noexcept { phase_ = MscPhase::data; }
@@ -104,5 +130,7 @@ export namespace usb::class_driver {
         MscOps ops_{};
         MscConfig cfg_{};
         MscPhase phase_{MscPhase::cbw};
+        MscCbw last_cbw_{};
+        MscCsw last_csw_{};
     };
 }

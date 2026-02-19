@@ -23,6 +23,17 @@ export namespace usb::class_driver {
         u8 control{0x00};
     };
 
+    struct UacClockSourceDescriptor {
+        u8 length{8};
+        u8 type{0x24};
+        u8 sub_type{0x0A};
+        u8 clock_id{10};
+        u8 attributes{0x03};
+        u8 controls{0x03};
+        u8 assoc_terminal{0};
+        u8 clock{0};
+    };
+
     struct UacInputTerminalDescriptor {
         u8 length{17};
         u8 type{0x24};
@@ -30,7 +41,7 @@ export namespace usb::class_driver {
         u8 terminal_id{1};
         u16 terminal_type{0x0101};
         u8 assoc_terminal{0};
-        u8 clk_source_id{0};
+        u8 clk_source_id{10};
         u8 num_channels{2};
         u32 channel_config{0};
         u8 channel_names{0};
@@ -46,7 +57,7 @@ export namespace usb::class_driver {
         u16 terminal_type{0x0301};
         u8 assoc_terminal{0};
         u8 source_id{1};
-        u8 clk_source_id{0};
+        u8 clk_source_id{10};
         u16 controls{0};
         u8 terminal{0};
     };

@@ -16,9 +16,13 @@ export namespace usb::device {
 
     enum class Ep0Stage : u8 {
         setup,
+        // IN data stage (device -> host).
         data_in,
+        // OUT data stage (host -> device).
         data_out,
+        // Status IN stage (device -> host ZLP).
         status_in,
+        // Status OUT stage (host -> device ZLP).
         status_out,
     };
 
@@ -209,6 +213,7 @@ export namespace usb::device {
                 return true;
             }
             if (request_direction(setup.bm_request_type) == RequestDirection::in) {
+                // DATA IN: trim payload to wLength, compute ZLP if needed, then enter data_in stage.
                 const auto wlen = static_cast<std::size_t>(setup.w_length);
                 const auto len = (resp.data.size() < wlen) ? resp.data.size() : wlen;
                 resp.data = resp.data.subspan(0, len);
@@ -216,11 +221,13 @@ export namespace usb::device {
                 ep0_.begin_data_in(len, resp.zlp);
                 return true;
             }
+            // DATA OUT: host will send up to wLength bytes, then we respond with a ZLP.
             ep0_.begin_data_out(setup.w_length);
             return true;
         }
 
         bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
+            // DATA OUT: accept up to wLength bytes, then move to status stage.
             const auto expected = ep0_.out_expected();
             const auto len = (data.size() < expected) ? data.size() : expected;
             if (!ep0_.handle_out_data(data.subspan(0, len), resp)) {

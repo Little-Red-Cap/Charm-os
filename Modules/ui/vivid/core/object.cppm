@@ -6,6 +6,7 @@ export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.gfx.canvas;
 export import charm.core.event;
+export import charm.core.input_interaction;
 
 export
 class ObjectBase {
@@ -182,6 +183,19 @@ public:
     int percent_height() const noexcept { return percent_h_; }
     bool has_percent_size() const noexcept { return percent_w_ >= 0 || percent_h_ >= 0; }
 
+    bool add_interaction(InteractionStrategy* strategy,
+                         InteractionList::EventMask mask = InteractionList::kAll) noexcept {
+        return interactions_.add(strategy, mask);
+    }
+
+    bool remove_interaction(InteractionStrategy* strategy) noexcept {
+        return interactions_.remove(strategy);
+    }
+
+    bool dispatch_interactions(const Event& e) {
+        return interactions_.on_event(e);
+    }
+
     void set_min_size(int w, int h) noexcept { min_w_ = w; min_h_ = h; }
     void clear_min_size() noexcept { min_w_ = 0; min_h_ = 0; }
     int min_width() const noexcept { return min_w_; }
@@ -352,6 +366,7 @@ protected:
     int align_v_{0};
     bool layout_spec_enabled_{false};
     LayoutSpec layout_spec_{};
+    InteractionList interactions_{};
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};

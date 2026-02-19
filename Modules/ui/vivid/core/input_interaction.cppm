@@ -1,6 +1,7 @@
 module;
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 export module charm.core.input_interaction;
 
 export import charm.core.event;
@@ -15,15 +16,24 @@ public:
 export
 class InteractionList {
 public:
+    using EventMask = std::uint64_t;
     static constexpr std::size_t kMax = 4;
+    static constexpr EventMask kAll = ~EventMask{0};
 
-    bool add(InteractionStrategy* strategy) noexcept {
+    static constexpr EventMask mask(Event::Type type) noexcept {
+        return (static_cast<unsigned>(type) < 64)
+            ? (EventMask{1} << static_cast<unsigned>(type))
+            : EventMask{0};
+    }
+
+    bool add(InteractionStrategy* strategy, EventMask mask = kAll) noexcept {
         if (!strategy) return false;
         for (std::size_t i = 0; i < count_; ++i) {
             if (items_[i] == strategy) return true;
         }
         if (count_ >= kMax) return false;
         items_[count_++] = strategy;
+        masks_[count_ - 1] = mask;
         return true;
     }
 
@@ -32,8 +42,10 @@ public:
             if (items_[i] == strategy) {
                 for (std::size_t j = i + 1; j < count_; ++j) {
                     items_[j - 1] = items_[j];
+                    masks_[j - 1] = masks_[j];
                 }
                 items_[count_ - 1] = nullptr;
+                masks_[count_ - 1] = 0;
                 --count_;
                 return true;
             }
@@ -42,9 +54,12 @@ public:
     }
 
     bool on_event(const Event& e) {
+        const auto event_mask = mask(e.type);
         for (std::size_t i = 0; i < count_; ++i) {
             auto* strategy = items_[i];
-            if (strategy && strategy->on_event(e)) {
+            if (!strategy) continue;
+            if ((masks_[i] & event_mask) == 0) continue;
+            if (strategy->on_event(e)) {
                 return true;
             }
         }
@@ -53,6 +68,7 @@ public:
 
 private:
     InteractionStrategy* items_[kMax]{};
+    EventMask masks_[kMax]{};
     std::size_t count_{0};
 };
 

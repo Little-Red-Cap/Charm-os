@@ -1,38 +1,42 @@
-ï»¿# Charm Vivid æ¶æ„è¯´æ˜
+# Charm Vivid ¼Ü¹¹ËµÃ÷
 
-æœ¬æ–‡ä»¶ç”¨äºæè¿° Vivid çš„å½“å‰æ¶æ„ã€è¾¹ç•Œä¸ä¸»è¦æ¨¡å—ï¼Œä¾¿äºåç»­è¡¥é½èƒ½åŠ›ä¸è¿ç§»æ§ä»¶ã€‚
+±¾ÎÄ¼şÓÃÓÚÃèÊö Vivid µÄµ±Ç°¼Ü¹¹¡¢±ß½çÓëÖ÷ÒªÄ£¿é£¬±ãÓÚºóĞø²¹ÆëÄÜÁ¦ÓëÇ¨ÒÆ¿Ø¼ş¡£
 
-## 1. åˆ†å±‚ç»“æ„
+## 1. ·Ö²ã½á¹¹
 
-- coreï¼šæ•°æ®ç»“æ„ã€ä¸»é¢˜/æ ·å¼ã€è¯Šæ–­/traceã€é…ç½®ç­‰åŸºç¡€è®¾æ–½ã€‚
-- gfxï¼šæ¸²æŸ“ API ä¸å‡ ä½•/åƒç´ æ ¼å¼æŠ½è±¡ã€‚
-- widgetsï¼šæ§ä»¶ä¸å®¹å™¨å®ç°ï¼Œå°½é‡ä¿æŒè–„å°è£…ï¼Œä¸é‡å¤åŸºç¡€è®¾æ–½ã€‚
-- fontï¼šå­—ä½“æ•°æ®ä¸ç”Ÿæˆè„šæœ¬äº§ç‰©ï¼ˆ4bpp ä¸ºé»˜è®¤ï¼‰ã€‚
+- core£ºÊı¾İ½á¹¹¡¢Ö÷Ìâ/ÑùÊ½¡¢Õï¶Ï/trace¡¢ÅäÖÃµÈ»ù´¡ÉèÊ©¡£
+- gfx£ºäÖÈ¾ API Óë¼¸ºÎ/ÏñËØ¸ñÊ½³éÏó¡£
+- widgets£º¿Ø¼şÓëÈİÆ÷ÊµÏÖ£¬¾¡Á¿±£³Ö±¡·â×°£¬²»ÖØ¸´»ù´¡ÉèÊ©¡£
+- font£º×ÖÌåÊı¾İÓëÉú³É½Å±¾²úÎï£¨4bpp ÎªÄ¬ÈÏ£©¡£
+
+### ·Ö²ã¹ØÏµÍ¼£¨Âß¼­ÊÓÍ¼£©
 
 ```mermaid
 flowchart TB
   subgraph App
     Demo[Examples / App Loop]
   end
-  subgraph Vivid
+  subgraph Vivid["Vivid"]
     Core[core: layout / style / input / trace]
     Gfx[gfx: canvas / render / color]
     Widgets[widgets: controls / containers]
     Font[font: 4bpp data / builder]
   end
+  PLATFORM["platform/driver"]
   Demo --> Core
   Widgets --> Core
   Widgets --> Gfx
   Widgets --> Font
   Core --> Gfx
-```
+  Gfx --> PLATFORM
+``````
 
-## 2. æ¸²æŸ“ä¸æ›´æ–°
+## 2. äÖÈ¾Óë¸üĞÂ
 
-- æ¸²æŸ“å…¥å£ç”± UI ä¸»å¾ªç¯é©±åŠ¨ï¼Œæ§ä»¶åœ¨æ›´æ–°é˜¶æ®µæäº¤ç»˜åˆ¶ã€‚
-- ä½¿ç”¨è„çŸ©å½¢/è„åŒºåŸŸæœºåˆ¶å‡å°‘åˆ·æ–°é¢ç§¯ï¼Œä¿æŒä¸åº•å±‚é©±åŠ¨è§£è€¦ã€‚
-- ç»˜åˆ¶ API ç»Ÿä¸€èµ° gfx å±‚ï¼Œé¿å…æ§ä»¶ç›´æ¥ç»‘å®šå¹³å°ç»†èŠ‚ã€‚
-- å­æ§ä»¶è£å‰ªé€šè¿‡ ClipPolicy ç»Ÿä¸€ç®¡ç†ï¼ˆRect/LayoutRect/Customï¼‰ã€‚
+- äÖÈ¾Èë¿ÚÓÉ UI Ö÷Ñ­»·Çı¶¯£¬¿Ø¼şÔÚ¸üĞÂ½×¶ÎÌá½»»æÖÆ¡£
+- Ê¹ÓÃÔà¾ØĞÎ/ÔàÇøÓò»úÖÆ¼õÉÙË¢ĞÂÃæ»ı£¬±£³ÖÓëµ×²ãÇı¶¯½âñî¡£
+- »æÖÆ API Í³Ò»×ß gfx ²ã£¬±ÜÃâ¿Ø¼şÖ±½Ó°ó¶¨Æ½Ì¨Ï¸½Ú¡£
+- ×Ó¿Ø¼ş²Ã¼ôÍ¨¹ı ClipPolicy Í³Ò»¹ÜÀí£¨Rect/LayoutRect/Custom£©¡£
 
 ```mermaid
 flowchart LR
@@ -55,17 +59,36 @@ flowchart TB
   Build --> Blit
 ```
 
-## 3. å¸ƒå±€ä¸å®¹å™¨
+### äÖÈ¾/Ë¢ĞÂÁ´Â·£¨Ê±ĞòÊÓÍ¼£©
 
-- åŸºç¡€å¸ƒå±€èƒ½åŠ›ä¸º Anchor/Flex/Flow/Gridï¼Œå®¹å™¨è´Ÿè´£å­èŠ‚ç‚¹çš„å¸ƒå±€ä¸è£å‰ªã€‚
-- å¸ƒå±€å…¥å£ç»Ÿä¸€é€šè¿‡ layout engine æ‰§è¡Œï¼Œæ”¯æŒæŒ‰ LayoutSpec åˆ‡æ¢ç­–ç•¥ï¼ˆå« Constraint é¢„ç•™ï¼‰ã€‚
-- ScrollContainer/ScrollBar è´Ÿè´£æ»šåŠ¨ä¸å¯è§†åŒºåŸŸåŒæ­¥ã€‚
-- ListView æ”¯æŒè™šæ‹ŸåŒ–ä¸å›ºå®šè¡Œç¼“å­˜æ§½ä½å¤ç”¨ï¼Œæå‡æ»šåŠ¨æ€§èƒ½ã€‚
-- FoldablePanel æ”¯æŒå†…å®¹åŒºæ»šåŠ¨ä¸æŠ˜å ï¼Œå­æ§ä»¶å¸ƒå±€åŸºäºå†…å®¹åŒºçŸ©å½¢ã€‚
+```mermaid
+sequenceDiagram
+  participant App as App/Scene
+  participant UI as UI Loop
+  participant Tree as Widget Tree
+  participant DR as DirtyRect
+  participant GFX as gfx Renderer
+  participant HW as Driver
+
+  App->>UI: tick()
+  UI->>Tree: update/layout
+  Tree->>DR: mark dirty
+  UI->>DR: merge/split
+  UI->>GFX: draw(dirty regions)
+  GFX->>HW: blit/flush
+```
+
+## 3. ²¼¾ÖÓëÈİÆ÷
+
+- »ù´¡²¼¾ÖÄÜÁ¦Îª Anchor/Flex/Flow/Grid£¬ÈİÆ÷¸ºÔğ×Ó½ÚµãµÄ²¼¾ÖÓë²Ã¼ô¡£
+- ²¼¾ÖÈë¿ÚÍ³Ò»Í¨¹ı layout engine Ö´ĞĞ£¬Ö§³Ö°´ LayoutSpec ÇĞ»»²ßÂÔ£¨º¬ Constraint Ô¤Áô£©¡£
+- ScrollContainer/ScrollBar ¸ºÔğ¹ö¶¯Óë¿ÉÊÓÇøÓòÍ¬²½¡£
+- ListView Ö§³ÖĞéÄâ»¯Óë¹Ì¶¨ĞĞ»º´æ²ÛÎ»¸´ÓÃ£¬ÌáÉı¹ö¶¯ĞÔÄÜ¡£
+- FoldablePanel Ö§³ÖÄÚÈİÇø¹ö¶¯ÓëÕÛµş£¬×Ó¿Ø¼ş²¼¾Ö»ùÓÚÄÚÈİÇø¾ØĞÎ¡£
 
 ```mermaid
 flowchart LR
-  subgraph WidgetTree[æ§ä»¶æ ‘]
+  subgraph WidgetTree[¿Ø¼şÊ÷]
     Root[Root]
     Header[Header]
     Content[Content]
@@ -76,7 +99,7 @@ flowchart LR
     Content --> Button
     Content --> List
   end
-  subgraph RenderTree[æ¸²æŸ“æ ‘]
+  subgraph RenderTree[äÖÈ¾Ê÷]
     RRoot[Root]
     RHeader[Header]
     RList[ListView (virtual)]
@@ -104,63 +127,88 @@ flowchart TB
   Constraint --> Apply
 ```
 
-## 4. è¾“å…¥ä¸äº‹ä»¶
-
-- è¾“å…¥é“¾è·¯ç”± InputRouter ä¸­å¿ƒåŒ–å¤„ç†ï¼ˆhit-test/capture/gestureï¼‰ï¼Œæ”¯æŒåŒæŒ‡ pinch è¯†åˆ«ï¼Œæ§ä»¶åªå…³æ³¨è¯­ä¹‰äº‹ä»¶ã€‚
-- ç„¦ç‚¹ä¸é”®ç›˜å¯¼èˆªç”±é€šç”¨é€»è¾‘ç»´æŠ¤ï¼Œæ§ä»¶å®ç°è‡ªèº«è¡Œä¸ºã€‚
-- æ‰‹åŠ¿äº‹ä»¶æä¾› Swipe/Pinch çš„æ¥å£å ä½ï¼ŒæŒ‰éœ€ç”±æ§ä»¶æ¥å…¥ã€‚
-
-```mermaid
-sequenceDiagram
-  participant HAL as Input Source
-  participant Router as InputRouter
-  participant Widget as Widget
-  participant Trace as trace_core
-  HAL->>Router: Raw event / gesture
-  Router->>Widget: Semantic event
-  Widget-->>Router: Handled / capture
-  Router-->>Trace: Counter / trace
-```
+### ²¼¾ÖÓëÈİÆ÷Ğ­×÷
 
 ```mermaid
 flowchart LR
-  E[Event] --> HitTest[Hit-Test]
-  HitTest --> Capture{Captured?}
-  Capture -->|Yes| Target[Captured Widget]
-  Capture -->|No| Route[Focus/Hit Widget]
-  Target --> Dispatch[Dispatch]
-  Route --> Dispatch
-  Dispatch --> Gesture[Gesture Pipeline]
+  LayoutSpec["LayoutSpec"] --> Engine["Layout Engine"]
+  Engine --> Container["Container"]
+  Container --> Clip["Clip/Viewport"]
+  Container --> Child["Children"]
+  Child --> Render["Render"]
 ```
 
-## 5. æ–‡æœ¬ä¸å­—ä½“
+## 4. ÊäÈëÓëÊÂ¼ş
 
-- æ–‡æœ¬æ¸²æŸ“é»˜è®¤ 4bpp å­—ä½“æ•°æ®ã€‚
-- æ”¯æŒ UTF-8 è§£ç ã€æµ‹é‡ã€æ¢è¡Œä¸æˆªæ–­ï¼Œæ¸²æŸ“ä¸æ’ç‰ˆé€»è¾‘é›†ä¸­åœ¨ text ç»„ä»¶ã€‚
-- å­—ä½“æ•°æ®ç”± `font/font_builder.py` ç”Ÿæˆï¼Œè¾“å‡ºæ¨¡å—åŒ–å­—ä½“æ•°æ®ã€‚
-- RichText/CodeBlock èµ°ç‹¬ç«‹æ§ä»¶ï¼Œé¿å…å¤æ‚æ ·å¼ä¾µå…¥åŸºç¡€æ–‡æœ¬ã€‚
+- ÊäÈëÁ´Â·ÓÉ InputRouter ÖĞĞÄ»¯´¦Àí£¨hit-test/capture/gesture£©£¬Ö§³ÖË«Ö¸ pinch Ê¶±ğ£¬¿Ø¼şÖ»¹Ø×¢ÓïÒåÊÂ¼ş¡£
+- ½¹µãÓë¼üÅÌµ¼º½ÓÉÍ¨ÓÃÂß¼­Î¬»¤£¬¿Ø¼şÊµÏÖ×ÔÉíĞĞÎª¡£
+- ÊÖÊÆÊÂ¼şÌá¹© Swipe/Pinch µÄ½Ó¿ÚÕ¼Î»£¬°´ĞèÓÉ¿Ø¼ş½ÓÈë¡£
 
-## 6. ä¸»é¢˜ä¸æ ·å¼
-
-- ä¸»é¢˜å®šä¹‰åœ¨ core/style ä¸­ï¼Œé€šè¿‡ `Theme::inherit` ä¸ `StylePatch` æ”¯æŒå±€éƒ¨è¦†ç›–ã€‚
-- æä¾› `ThemePreset` ä½œä¸ºé…ç½®å…¥å£ï¼Œä¾¿äºé›†ä¸­åŠ è½½ä¸»é¢˜ã€‚
-- æ§ä»¶ä»¥ theme token ä½œä¸ºæ ·å¼å…¥å£ï¼Œé¿å…æ•£è½ç¡¬ç¼–ç ã€‚
-- ä¸»é¢˜æ‰©å±•æ”¯æŒæ§ä»¶å±€éƒ¨å‚æ•°ï¼šå¦‚ FoldablePanel header/content paddingã€CloudyGlass é«˜å…‰ä¸é€æ˜åº¦èŒƒå›´ã€‚
-
-## 7. è¯Šæ–­ä¸å¯è§‚æµ‹æ€§
-
-- ç»Ÿä¸€æ¥å…¥ trace_core åšæœºå™¨å¯è¯»äº‹ä»¶è¾“å‡ºã€‚
-- æ—¥å¿—ç»Ÿä¸€é€šè¿‡ out.loggerã€‚
+### ·Ö²ã¹ØÏµÍ¼£¨Âß¼­ÊÓÍ¼£©
 
 ```mermaid
-flowchart LR
-  UI[UI Widgets] --> Trace[trace_core]
-  IO[Input Router] --> Trace
-  Trace --> Dump[dump_trace / out.logger]
-  Trace --> Store[ring buffer]
-```
+flowchart TB
+  subgraph App
+    Demo[Examples / App Loop]
+  end
+  subgraph Vivid["Vivid"]
+    Core[core: layout / style / input / trace]
+    Gfx[gfx: canvas / render / color]
+    Widgets[widgets: controls / containers]
+    Font[font: 4bpp data / builder]
+  end
+  PLATFORM["platform/driver"]
+  Demo --> Core
+  Widgets --> Core
+  Widgets --> Gfx
+  Widgets --> Font
+  Core --> Gfx
+  Gfx --> PLATFORM
+``````
 
-## 8. ç¤ºä¾‹ä¸éªŒè¯
+## 5. ÎÄ±¾Óë×ÖÌå
 
-- ç¤ºä¾‹å·¥ç¨‹ç”¨äºéªŒè¯æ§ä»¶è¡Œä¸ºä¸æ€§èƒ½è·¯å¾„ï¼Œé¿å…ç‹¬ç«‹æµ‹è¯•ä¸çœŸå®åœºæ™¯è„±èŠ‚ã€‚
-- å½“å‰ç¤ºä¾‹å« ListView/ScrollBar/TableView/TreeViewã€Stepper/Timelineã€MenuTreeã€RichText/CodeBlockã€Image å˜æ¢ç­‰æœ€å°é…ç½®ã€‚
+- ÎÄ±¾äÖÈ¾Ä¬ÈÏ 4bpp ×ÖÌåÊı¾İ¡£
+- Ö§³Ö UTF-8 ½âÂë¡¢²âÁ¿¡¢»»ĞĞÓë½Ø¶Ï£¬äÖÈ¾ÓëÅÅ°æÂß¼­¼¯ÖĞÔÚ text ×é¼ş¡£
+- ×ÖÌåÊı¾İÓÉ `font/font_builder.py` Éú³É£¬Êä³öÄ£¿é»¯×ÖÌåÊı¾İ¡£
+- RichText/CodeBlock ×ß¶ÀÁ¢¿Ø¼ş£¬±ÜÃâ¸´ÔÓÑùÊ½ÇÖÈë»ù´¡ÎÄ±¾¡£
+
+## 6. Ö÷ÌâÓëÑùÊ½
+
+- Ö÷Ìâ¶¨ÒåÔÚ core/style ÖĞ£¬Í¨¹ı `Theme::inherit` Óë `StylePatch` Ö§³Ö¾Ö²¿¸²¸Ç¡£
+- Ìá¹© `ThemePreset` ×÷ÎªÅäÖÃÈë¿Ú£¬±ãÓÚ¼¯ÖĞ¼ÓÔØÖ÷Ìâ¡£
+- ¿Ø¼şÒÔ theme token ×÷ÎªÑùÊ½Èë¿Ú£¬±ÜÃâÉ¢ÂäÓ²±àÂë¡£
+- Ö÷ÌâÀ©Õ¹Ö§³Ö¿Ø¼ş¾Ö²¿²ÎÊı£ºÈç FoldablePanel header/content padding¡¢CloudyGlass ¸ß¹âÓëÍ¸Ã÷¶È·¶Î§¡£
+
+## 7. Õï¶ÏÓë¿É¹Û²âĞÔ
+
+- Í³Ò»½ÓÈë trace_core ×ö»úÆ÷¿É¶ÁÊÂ¼şÊä³ö¡£
+- ÈÕÖ¾Í³Ò»Í¨¹ı out.logger¡£
+
+### ·Ö²ã¹ØÏµÍ¼£¨Âß¼­ÊÓÍ¼£©
+
+```mermaid
+flowchart TB
+  subgraph App
+    Demo[Examples / App Loop]
+  end
+  subgraph Vivid["Vivid"]
+    Core[core: layout / style / input / trace]
+    Gfx[gfx: canvas / render / color]
+    Widgets[widgets: controls / containers]
+    Font[font: 4bpp data / builder]
+  end
+  PLATFORM["platform/driver"]
+  Demo --> Core
+  Widgets --> Core
+  Widgets --> Gfx
+  Widgets --> Font
+  Core --> Gfx
+  Gfx --> PLATFORM
+``````
+
+## 8. Ê¾ÀıÓëÑéÖ¤
+
+- Ê¾Àı¹¤³ÌÓÃÓÚÑéÖ¤¿Ø¼şĞĞÎªÓëĞÔÄÜÂ·¾¶£¬±ÜÃâ¶ÀÁ¢²âÊÔÓëÕæÊµ³¡¾°ÍÑ½Ú¡£
+- µ±Ç°Ê¾Àıº¬ ListView/ScrollBar/TableView/TreeView¡¢Stepper/Timeline¡¢MenuTree¡¢RichText/CodeBlock¡¢Image ±ä»»µÈ×îĞ¡ÅäÖÃ¡£
+

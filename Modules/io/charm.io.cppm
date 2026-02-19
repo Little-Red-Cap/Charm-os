@@ -3,6 +3,7 @@ export module charm.io;
 export import hal_clock;
 export import hal_core;
 export import hal_gpio;
+export import hal_input;
 export import hal_irq;
 export import hal_stm32_stub;
 export import hal_time;

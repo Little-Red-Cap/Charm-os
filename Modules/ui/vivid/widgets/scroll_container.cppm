@@ -268,6 +268,10 @@ private:
             mark_dirty_hint(clip);
             return;
         }
+        if (dy > clip.h / 2 || dy < -clip.h / 2) {
+            mark_dirty_hint(clip);
+            return;
+        }
         Rect band{};
         if (dy > 0) {
             band = Rect{clip.x, clip.y + clip.h - dy, clip.w, dy};

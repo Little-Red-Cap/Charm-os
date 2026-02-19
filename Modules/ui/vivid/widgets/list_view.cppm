@@ -350,6 +350,10 @@ private:
             mark_dirty_hint(r);
             return;
         }
+        if (dy > r.h / 2 || dy < -r.h / 2) {
+            mark_dirty_hint(r);
+            return;
+        }
         Rect band{};
         if (dy > 0) {
             band = Rect{r.x, r.y + r.h - dy, r.w, dy};

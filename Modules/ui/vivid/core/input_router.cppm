@@ -58,12 +58,13 @@ public:
                     const int total_dy = e.y - drag_start_y_;
                     if ((total_dx * total_dx + total_dy * total_dy) >= drag_threshold_sq_) {
                         dragging_ = true;
-                        dispatch_to(pressed_, Event::drag(Event::Type::DragStart, e.x, e.y, 0, 0, e.button));
+                        gesture_target_ = captured_ ? captured_ : pressed_;
+                        dispatch_to(gesture_target_, Event::drag(Event::Type::DragStart, e.x, e.y, 0, 0, e.button));
                         begin_swipe(e.x, e.y);
                     }
                 }
                 if (dragging_) {
-                    dispatch_to(pressed_, Event::drag(Event::Type::DragMove, e.x, e.y, dx, dy, e.button));
+                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragMove, e.x, e.y, dx, dy, e.button));
                     update_swipe(e.x, e.y);
                 } else {
                     dispatch_to(pressed_, e);
@@ -84,6 +85,7 @@ public:
                 set_state(pressed_, ObjectBase::State::Pressed, false);
                 pressed_ = target;
                 captured_ = target;
+                gesture_target_ = target;
                 set_state(pressed_, ObjectBase::State::Pressed, true);
                 dragging_ = false;
                 swipe_active_ = false;
@@ -107,7 +109,7 @@ public:
             if (pressed_) {
                 const bool was_dragging = dragging_;
                 if (dragging_) {
-                    dispatch_to(pressed_, Event::drag(Event::Type::DragEnd, e.x, e.y, 0, 0, e.button));
+                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragEnd, e.x, e.y, 0, 0, e.button));
                     dragging_ = false;
                 }
                 end_swipe(e.x, e.y);
@@ -118,6 +120,7 @@ public:
                 }
                 pressed_ = {};
                 captured_ = {};
+                gesture_target_ = {};
             } else if (target) {
                 dispatch_to(target, e);
             }
@@ -274,9 +277,12 @@ private:
         pinch_start_cy_ = (a.y + b.y) / 2;
         pinch_last_cx_ = pinch_start_cx_;
         pinch_last_cy_ = pinch_start_cy_;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
-                                             pinch_start_cx_, pinch_start_cy_,
-                                             0, 0, Event::GesturePhase::Begin, 1.0f));
+        if (!pinch_target_) {
+            pinch_target_ = captured_ ? captured_ : hit_test(root_, pinch_start_cx_, pinch_start_cy_);
+        }
+        dispatch_to(pinch_target_, Event::gesture(Event::Type::GesturePinch,
+                                                 pinch_start_cx_, pinch_start_cy_,
+                                                 0, 0, Event::GesturePhase::Begin, 1.0f));
     }
 
     void update_pinch() {
@@ -297,17 +303,18 @@ private:
         const int dy = cy - pinch_last_cy_;
         pinch_last_cx_ = cx;
         pinch_last_cy_ = cy;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
-                                             cx, cy, dx, dy,
-                                             Event::GesturePhase::Update, scale));
+        dispatch_to(pinch_target_, Event::gesture(Event::Type::GesturePinch,
+                                                 cx, cy, dx, dy,
+                                                 Event::GesturePhase::Update, scale));
     }
 
     void end_pinch() {
         if (!pinch_active_) return;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
-                                             pinch_last_cx_, pinch_last_cy_,
-                                             0, 0, Event::GesturePhase::End, 1.0f));
+        dispatch_to(pinch_target_, Event::gesture(Event::Type::GesturePinch,
+                                                 pinch_last_cx_, pinch_last_cy_,
+                                                 0, 0, Event::GesturePhase::End, 1.0f));
         pinch_active_ = false;
+        pinch_target_ = {};
     }
 
     static int distance_sq(const TouchPoint& a, const TouchPoint& b) noexcept {
@@ -428,8 +435,8 @@ private:
         swipe_active_ = true;
         swipe_last_x_ = x;
         swipe_last_y_ = y;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GestureSwipe, x, y, 0, 0,
-                                             Event::GesturePhase::Begin, 1.0f));
+        dispatch_to(gesture_target_, Event::gesture(Event::Type::GestureSwipe, x, y, 0, 0,
+                                                    Event::GesturePhase::Begin, 1.0f));
     }
 
     void update_swipe(int x, int y) {
@@ -438,14 +445,14 @@ private:
         const int dy = y - swipe_last_y_;
         swipe_last_x_ = x;
         swipe_last_y_ = y;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GestureSwipe, x, y, dx, dy,
-                                             Event::GesturePhase::Update, 1.0f));
+        dispatch_to(gesture_target_, Event::gesture(Event::Type::GestureSwipe, x, y, dx, dy,
+                                                    Event::GesturePhase::Update, 1.0f));
     }
 
     void end_swipe(int x, int y) {
         if (!swipe_active_) return;
-        dispatch_to(pressed_, Event::gesture(Event::Type::GestureSwipe, x, y, 0, 0,
-                                             Event::GesturePhase::End, 1.0f));
+        dispatch_to(gesture_target_, Event::gesture(Event::Type::GestureSwipe, x, y, 0, 0,
+                                                    Event::GesturePhase::End, 1.0f));
         swipe_active_ = false;
     }
 
@@ -491,6 +498,8 @@ private:
     WidgetHandle pressed_{};
     WidgetHandle focused_{};
     WidgetHandle captured_{};
+    WidgetHandle gesture_target_{};
+    WidgetHandle pinch_target_{};
     bool dragging_{false};
     int drag_start_x_{0};
     int drag_start_y_{0};

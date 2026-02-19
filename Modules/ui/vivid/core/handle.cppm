@@ -70,6 +70,10 @@ enum class WidgetKind : std::uint8_t {
     ,MeterPointer
     ,ProgressBarDrill
     ,SpectrumView
+    ,BusyWheel
+    ,ConsoleBox
+    ,BatteryGasGauge
+    ,Histogram
 };
 
 export
@@ -150,6 +154,10 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::MeterPointer: return "MeterPointer";
         case WidgetKind::ProgressBarDrill: return "ProgressBarDrill";
         case WidgetKind::SpectrumView: return "SpectrumView";
+        case WidgetKind::BusyWheel: return "BusyWheel";
+        case WidgetKind::ConsoleBox: return "ConsoleBox";
+        case WidgetKind::BatteryGasGauge: return "BatteryGasGauge";
+        case WidgetKind::Histogram: return "Histogram";
     }
     return "Unknown";
 }

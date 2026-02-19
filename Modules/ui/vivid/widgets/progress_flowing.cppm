@@ -36,6 +36,9 @@ public:
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
     bool is_indeterminate() const noexcept { return indeterminate_; }
 
+    void set_animation_enabled(bool on) noexcept { set_flow_enabled(on); }
+    void set_animation_speed(float px) noexcept { set_flow_speed(static_cast<int>(px)); }
+
     void set_flow_enabled(bool on) noexcept { flow_enabled_ = on; }
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }

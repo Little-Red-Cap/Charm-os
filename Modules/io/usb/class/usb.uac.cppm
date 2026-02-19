@@ -113,11 +113,18 @@ export namespace usb::class_driver {
         explicit UacDevice(void* ctx, const UacOps& ops) noexcept
             : ctx_(ctx), ops_(ops) {}
 
-        device::ClassOps class_ops() noexcept {
-            device::ClassOps ops{};
-            ops.setup = &UacDevice::handle_setup;
-            ops.reset = &UacDevice::handle_reset;
-            return ops;
+        const device::ClassOps* class_ops() const noexcept {
+            static const device::ClassOps ops{
+                &UacDevice::handle_setup,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                &UacDevice::handle_reset,
+            };
+            return &ops;
         }
 
         const UacConfig& config() const noexcept { return cfg_; }

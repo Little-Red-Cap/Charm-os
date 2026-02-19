@@ -14,8 +14,11 @@ import charm.gfx.image;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
+import charm.widgets.busy_wheel;
+import charm.widgets.console_box;
 import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
+import charm.widgets.histogram;
 import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
 import charm.widgets.spectrum_view;
@@ -24,6 +27,7 @@ import charm.widgets.image_box;
 import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.battery_gasgauge;
 import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
@@ -355,6 +359,13 @@ export namespace player::ui {
 
     inline void apply_player_theme() {
         auto& theme = Theme::instance();
+        Style baseline = theme.get<Button>();
+        baseline.border_color = kUiButtonBorder;
+        baseline.border_focus = kUiOk;
+        baseline.padding = 6;
+        baseline.corner_radius = 6;
+        apply_baseline_theme_preset(baseline);
+
         ThemePreset preset{};
         preset.has_label = true;
         preset.label = theme.get<Label>();
@@ -414,6 +425,27 @@ export namespace player::ui {
         preset.spectrum_view.border_color = kUiListBorder;
         preset.spectrum_view.bg_pressed = kUiSwitchOn;
         preset.spectrum_view.border_focus = kUiOk;
+        preset.has_battery_gasgauge = true;
+        preset.battery_gasgauge = theme.get<BatteryGasGauge>();
+        preset.battery_gasgauge.bg_color = kUiListBg;
+        preset.battery_gasgauge.border_color = kUiListBorder;
+        preset.battery_gasgauge.corner_radius = 6;
+        preset.battery_gasgauge.padding = 6;
+        preset.has_histogram = true;
+        preset.histogram = theme.get<Histogram>();
+        preset.histogram.bg_color = kUiListBg;
+        preset.histogram.border_color = kUiListBorder;
+        preset.histogram.corner_radius = 6;
+        preset.histogram.padding = 6;
+        preset.histogram.font_color = kUiListFont;
+        preset.has_busy_wheel = true;
+        preset.busy_wheel = theme.get<BusyWheel>();
+        preset.busy_wheel.font_color = kUiListFont;
+        preset.has_console_box = true;
+        preset.console_box = theme.get<ConsoleBox>();
+        preset.console_box.bg_color = kUiListBg;
+        preset.console_box.border_color = kUiListBorder;
+        preset.console_box.padding = 6;
         apply_theme_preset(preset);
 
         auto& sheet = StyleSheet::instance();
@@ -441,6 +473,7 @@ export namespace player::ui {
 
         StylePatch hist_patch = chart_patch;
         theme.patch<HistogramView>(hist_patch);
+        theme.patch<Histogram>(hist_patch);
 
         StylePatch switch_patch{};
         switch_patch.has_bg_color = true;
@@ -486,6 +519,7 @@ export namespace player::ui {
         wheel_patch.has_font_color = true;
         wheel_patch.font_color = kUiListFont;
         theme.patch<SpinningWheel>(wheel_patch);
+        theme.patch<BusyWheel>(wheel_patch);
         StylePatch nebula_patch{};
         nebula_patch.has_font_color = true;
         nebula_patch.font_color = kUiListFont;

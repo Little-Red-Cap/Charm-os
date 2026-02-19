@@ -15,6 +15,8 @@ using namespace ui::render;
 export
 class ListView : public ObjectBase {
 public:
+    static constexpr int kLayoutId = 2;
+
     struct DrawInfo {
         Rect rect{};
         int index{0};
@@ -35,6 +37,7 @@ public:
     ListView() {
         set_size(240, 180);
         set_focusable(true);
+        set_custom_layout(kLayoutId);
     }
 
     void set_item_count(int count) noexcept {
@@ -42,6 +45,8 @@ public:
         if (selected_ >= item_count_) selected_ = item_count_ - 1;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     int item_count() const noexcept { return item_count_; }
@@ -52,14 +57,18 @@ public:
         data_ctx_ = ctx;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 4) ? h : 4;
         row_height_fn_ = nullptr;
         row_height_ctx_ = nullptr;
-        clear_cache();
+        invalidate_cache_from(0);
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     int row_height() const noexcept { return row_height_; }
@@ -67,8 +76,10 @@ public:
     void set_row_height_fn(RowHeightFn fn, void* ctx = nullptr) noexcept {
         row_height_fn_ = fn;
         row_height_ctx_ = ctx;
-        clear_cache();
+        invalidate_cache_from(0);
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
@@ -107,25 +118,62 @@ public:
     void set_prefetch_rows(int rows) noexcept {
         prefetch_rows_ = (rows > 0) ? rows : 0;
         clear_cache();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
+    }
+
+    void notify_rows_changed(int start, int count) noexcept {
+        const int total = item_count_for_render();
+        if (total <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > total) range_end = total;
+        if (range_start >= range_end) return;
+        invalidate_cache_range(range_start, range_end);
+        mark_dirty_rows_range(range_start, range_end);
+    }
+
+    void notify_row_height_changed(int start, int count) noexcept {
+        const int total = item_count_for_render();
+        if (total <= 0) return;
+        int range_start = start;
+        int range_end = start + count;
+        if (range_start < 0) range_start = 0;
+        if (range_end > total) range_end = total;
+        if (range_start >= range_end) return;
+        invalidate_cache_from(range_start);
+        update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_from_row(range_start);
     }
 
     void set_selected(int index) noexcept {
         if (index < 0 || index >= item_count_) return;
+        const int prev = selected_;
         selected_ = index;
         ensure_visible(index);
+        mark_dirty_row(prev);
+        mark_dirty_row(index);
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
     int selected() const noexcept { return selected_; }
 
     void set_scroll_y(int y) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(y);
         notify_scroll();
+        window_valid_ = false;
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
         notify_scroll();
+        window_valid_ = false;
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
@@ -146,10 +194,10 @@ public:
                        {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
                        bg, border, font);
 
+        flush_scroll_dirty();
+
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-
-        update_scroll_bounds();
 
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
@@ -158,40 +206,11 @@ public:
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
+        if (!window_valid_) update_visible_window();
+        int start = window_start_;
+        int visible = window_visible_;
+        int y = window_offset_y_;
         const bool variable_height = (row_height_fn_ != nullptr);
-        int start = 0;
-        int visible = 0;
-        int y = r.y + pad;
-        if (!variable_height) {
-            const int row_h = row_height_for_render();
-            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
-            start = window.start;
-            visible = window.visible;
-            y = window.offset_y;
-        } else {
-            int acc = 0;
-            for (int i = 0; i < count; ++i) {
-                const int h = row_height_for_index(i);
-                if (acc + h > scroll_y_) {
-                    start = i;
-                    break;
-                }
-                acc += h;
-                start = i + 1;
-            }
-            if (prefetch_rows_ > 0) {
-                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
-                    --start;
-                    acc -= row_height_for_index(start);
-                }
-            }
-            y = r.y + pad - (scroll_y_ - acc);
-            int temp_y = y;
-            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
-                temp_y += row_height_for_index(i);
-                ++visible;
-            }
-        }
         auto on_create = [&](int slot) {
             if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
         };
@@ -250,6 +269,52 @@ public:
         }
     }
 
+    void update_visible_window() noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        update_scroll_bounds();
+        const int pad = st.padding;
+        const int count = item_count_for_render();
+        const bool variable_height = (row_height_fn_ != nullptr);
+        int start = 0;
+        int visible = 0;
+        int y = r.y + pad;
+        if (!variable_height) {
+            const int row_h = row_height_for_render();
+            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
+            start = window.start;
+            visible = window.visible;
+            y = window.offset_y;
+        } else {
+            int acc = 0;
+            for (int i = 0; i < count; ++i) {
+                const int h = row_height_for_index(i);
+                if (acc + h > scroll_y_) {
+                    start = i;
+                    break;
+                }
+                acc += h;
+                start = i + 1;
+            }
+            if (prefetch_rows_ > 0) {
+                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
+                    --start;
+                    acc -= row_height_for_index(start);
+                }
+            }
+            y = r.y + pad - (scroll_y_ - acc);
+            int temp_y = y;
+            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
+                temp_y += row_height_for_index(i);
+                ++visible;
+            }
+        }
+        window_start_ = start;
+        window_visible_ = visible;
+        window_offset_y_ = y;
+        window_valid_ = true;
+    }
+
     bool on_event(const Event& e) override {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -271,6 +336,18 @@ public:
             if (!r.contains(e.x, e.y)) return false;
             const int target_step = e.wheel_y * wheel_step_;
             add_scroll_y(-target_step);
+            return true;
+        } else if (e.type == Event::Type::GestureSwipe) {
+            if (!r.contains(e.x, e.y)) return false;
+            if (e.gesture_phase == Event::GesturePhase::Begin) {
+                swipe_active_ = true;
+            } else if (e.gesture_phase == Event::GesturePhase::Update) {
+                if (swipe_active_) {
+                    add_scroll_y(-e.dy);
+                }
+            } else if (e.gesture_phase == Event::GesturePhase::End) {
+                swipe_active_ = false;
+            }
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
@@ -294,6 +371,141 @@ public:
     }
 
 private:
+    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
+        const int left = (a.x > b.x) ? a.x : b.x;
+        const int top = (a.y > b.y) ? a.y : b.y;
+        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
+        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
+        const int w = right - left;
+        const int h = bottom - top;
+        if (w <= 0 || h <= 0) return {};
+        return Rect{left, top, w, h};
+    }
+
+    void accumulate_scroll_dirty(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!scroll_dirty_valid_) {
+            scroll_dirty_accum_ = r;
+            scroll_dirty_valid_ = true;
+            return;
+        }
+        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
+        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
+        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
+            ? (r.x + r.w)
+            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
+        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
+            ? (r.y + r.h)
+            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
+        scroll_dirty_accum_.x = left;
+        scroll_dirty_accum_.y = top;
+        scroll_dirty_accum_.w = right - left;
+        scroll_dirty_accum_.h = bottom - top;
+    }
+
+    void flush_scroll_dirty() noexcept {
+        if (!scroll_dirty_valid_) return;
+        mark_dirty_hint(scroll_dirty_accum_);
+        scroll_dirty_valid_ = false;
+        scroll_dirty_accum_ = {};
+    }
+
+    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto r = get_rect();
+        if (dy > r.h || dy < -r.h) {
+            accumulate_scroll_dirty(r);
+            return;
+        }
+        if (dy > r.h / 2 || dy < -r.h / 2) {
+            accumulate_scroll_dirty(r);
+            return;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{r.x, r.y + r.h - dy, r.w, dy};
+        } else {
+            band = Rect{r.x, r.y, r.w, -dy};
+        }
+        const auto clipped = intersect_rect(band, r);
+        if (clipped.w > 0 && clipped.h > 0) {
+            accumulate_scroll_dirty(clipped);
+        } else {
+            accumulate_scroll_dirty(r);
+        }
+    }
+
+    void mark_dirty_row(int index) noexcept {
+        if (index < 0) return;
+        const auto row = row_rect_for_index(index);
+        if (row.w <= 0 || row.h <= 0) return;
+        const auto clipped = intersect_rect(row, get_rect());
+        if (clipped.w <= 0 || clipped.h <= 0) return;
+        mark_dirty_hint(clipped);
+    }
+
+    void mark_dirty_rows_range(int start, int end) noexcept {
+        const auto range = row_range_rect(start, end);
+        if (range.w <= 0 || range.h <= 0) return;
+        const auto clipped = intersect_rect(range, get_rect());
+        if (clipped.w <= 0 || clipped.h <= 0) return;
+        mark_dirty_hint(clipped);
+    }
+
+    void mark_dirty_from_row(int start) noexcept {
+        const int end = item_count_for_render();
+        mark_dirty_rows_range(start, end);
+    }
+
+    Rect row_rect_for_index(int index) const noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        const int pad = st.padding;
+        int row_top = 0;
+        int row_h = row_height_for_index(index);
+        if (row_height_fn_) {
+            row_top = offset_for_index(index);
+        } else {
+            row_top = index * row_height_for_render();
+        }
+        return Rect{
+            r.x + pad,
+            r.y + pad + row_top - scroll_y_,
+            r.w - pad * 2,
+            row_h
+        };
+    }
+
+    Rect row_range_rect(int start, int end) const noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        if (start < 0) start = 0;
+        if (end < start) end = start;
+        const int count = item_count_for_render();
+        if (end > count) end = count;
+        if (start >= end) return {};
+        const int pad = st.padding;
+        int row_top = 0;
+        int range_h = 0;
+        if (row_height_fn_) {
+            row_top = offset_for_index(start);
+            for (int i = start; i < end; ++i) {
+                range_h += row_height_for_index(i);
+            }
+        } else {
+            const int row_h = row_height_for_render();
+            row_top = start * row_h;
+            range_h = (end - start) * row_h;
+        }
+        return Rect{
+            r.x + pad,
+            r.y + pad + row_top - scroll_y_,
+            r.w - pad * 2,
+            range_h
+        };
+    }
+
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<ListView>();
@@ -402,6 +614,22 @@ private:
         });
     }
 
+    void invalidate_cache_range(int start, int end) noexcept {
+        cache_.recycle_if([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        }, [&](int index) {
+            return index >= start && index < end;
+        });
+    }
+
+    void invalidate_cache_from(int start) noexcept {
+        cache_.recycle_if([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        }, [&](int index) {
+            return index >= start;
+        });
+    }
+
     CountFn count_fn_{nullptr};
     DrawRowFn draw_fn_{nullptr};
     void* draw_ctx_{nullptr};
@@ -430,6 +658,13 @@ private:
     int last_y_{0};
     bool show_scrollbar_{true};
     int prefetch_rows_{1};
+    bool swipe_active_{false};
+    int window_start_{0};
+    int window_visible_{0};
+    int window_offset_y_{0};
+    bool window_valid_{false};
+    Rect scroll_dirty_accum_{};
+    bool scroll_dirty_valid_{false};
 
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};

@@ -99,17 +99,42 @@ export namespace usb::class_driver {
         bool (*notify)(void* ctx, std::span<const u8> data) noexcept { nullptr };
     };
 
+    struct CdcDataCallbacks {
+        void* ctx{nullptr};
+        bool (*on_out)(void* ctx, std::span<const u8> data) noexcept { nullptr };
+        std::span<const u8> (*on_in_request)(void* ctx, std::size_t max_len) noexcept { nullptr };
+        void (*on_in_complete)(void* ctx, std::size_t sent) noexcept { nullptr };
+    };
+
+    inline bool handle_cdc_out(CdcDataCallbacks cb, std::span<const u8> data) noexcept {
+        return cb.on_out ? cb.on_out(cb.ctx, data) : false;
+    }
+
+    inline std::span<const u8> handle_cdc_in_request(CdcDataCallbacks cb, std::size_t max_len) noexcept {
+        return cb.on_in_request ? cb.on_in_request(cb.ctx, max_len) : std::span<const u8>{};
+    }
+
+    inline void handle_cdc_in_complete(CdcDataCallbacks cb, std::size_t sent) noexcept {
+        if (cb.on_in_complete) cb.on_in_complete(cb.ctx, sent);
+    }
+
     class CdcAcm {
     public:
         explicit CdcAcm(void* ctx, const CdcOps& ops) noexcept
             : ctx_(ctx), ops_(ops) {}
 
-        device::ClassOps class_ops() noexcept {
-            device::ClassOps ops{};
-            ops.setup = &CdcAcm::handle_setup;
-            ops.control_out = &CdcAcm::handle_control_out;
-            ops.reset = &CdcAcm::handle_reset;
-            return ops;
+        const device::ClassOps* class_ops() const noexcept {
+            static const device::ClassOps ops{
+                &CdcAcm::handle_setup,
+                &CdcAcm::handle_control_out,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                &CdcAcm::handle_reset,
+            };
+            return &ops;
         }
 
         const CdcConfig& config() const noexcept { return cfg_; }
@@ -128,6 +153,15 @@ export namespace usb::class_driver {
             if (ops_.on_control_line) {
                 ops_.on_control_line(ctx_, value);
             }
+        }
+
+        CdcDataCallbacks data_callbacks() noexcept {
+            CdcDataCallbacks cb{};
+            cb.ctx = this;
+            cb.on_out = &CdcAcm::on_out_cb;
+            cb.on_in_request = &CdcAcm::on_in_request_cb;
+            cb.on_in_complete = &CdcAcm::on_in_complete_cb;
+            return cb;
         }
 
         std::span<u8> rx_buffer() noexcept {
@@ -235,6 +269,21 @@ export namespace usb::class_driver {
             if (self->ops_.on_line_coding) {
                 self->ops_.on_line_coding(self->ctx_, self->coding_);
             }
+        }
+
+        static bool on_out_cb(void* ctx, std::span<const u8> data) noexcept {
+            auto* self = static_cast<CdcAcm*>(ctx);
+            return self ? self->on_out_packet(data) : false;
+        }
+
+        static std::span<const u8> on_in_request_cb(void* ctx, std::size_t max_len) noexcept {
+            auto* self = static_cast<CdcAcm*>(ctx);
+            return self ? self->on_in_request(max_len) : std::span<const u8>{};
+        }
+
+        static void on_in_complete_cb(void* ctx, std::size_t sent) noexcept {
+            auto* self = static_cast<CdcAcm*>(ctx);
+            if (self) self->on_tx_done(sent);
         }
 
         void* ctx_{nullptr};

@@ -12,6 +12,7 @@ export import charm.core.factory;
 export import charm.core.layout;
 export import charm.core.input_router;
 export import charm.widgets.scroll_container;
+export import charm.widgets.list_view;
 import service_trace;
 import util.core;
 import out.api;
@@ -162,6 +163,7 @@ private:
     }
 
     void render_tree(DefaultCanvas& target) {
+        register_layout_engines();
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
         debug_cycle_hits_ = 0;
@@ -195,14 +197,14 @@ private:
         if (!obj->is_visible()) return;
         ++debug_nodes_;
         apply_layout(factory_, *obj);
-        if (h.kind == WidgetKind::ScrollContainer) {
-            if (auto* sc = factory_.get_scroll_container(h)) {
-                sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
-            }
-        }
         obj->draw(target);
         if (dirty_tracking_) {
-            target.mark_dirty(obj->get_rect());
+            Rect hint{};
+            if (obj->take_dirty_hint(hint)) {
+                target.mark_dirty(hint);
+            } else {
+                target.mark_dirty(obj->get_rect());
+            }
         }
 
         const auto clip_policy = obj->clip_policy();
@@ -253,4 +255,24 @@ private:
     DefaultCanvas cache_canvas_;
     TraceBuffer trace_{};
     InputRouter router_;
+
+    static void register_layout_engines() {
+        static bool registered = false;
+        if (registered) return;
+        registered = true;
+        register_layout_engine(ScrollContainer::kLayoutId, &Gui::layout_scroll_container);
+        register_layout_engine(ListView::kLayoutId, &Gui::layout_list_view);
+    }
+
+    static void layout_scroll_container(UiFactory& factory,
+                                        ObjectBase& container,
+                                        const ObjectBase::LayoutSpec&) {
+        auto& sc = static_cast<ScrollContainer&>(container);
+        sc.apply_scroll([&](WidgetHandle ch){ return factory.get(ch); });
+    }
+
+    static void layout_list_view(UiFactory&, ObjectBase& container, const ObjectBase::LayoutSpec&) {
+        auto& view = static_cast<ListView&>(container);
+        view.update_visible_window();
+    }
 };

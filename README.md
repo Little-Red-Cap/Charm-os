@@ -72,6 +72,11 @@
 2. 看实现：`Modules/io/usb/`
 3. 跑示例：`Examples/usb/usb_cdc_minimal`
 
+### UI/Vivid
+1. 读文档：`Modules/ui/vivid/ARCHITECTURE.md`、`Modules/ui/vivid/FEATURES.md`
+2. 看实现：`Modules/ui/vivid/`
+3. 跑示例：`Examples/project/scope`
+
 ## 🚀 主线 Demos（Windows）
 - **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
 - **M1** `Examples/kernel/windows/main_m1.cpp` ：sync + IPC

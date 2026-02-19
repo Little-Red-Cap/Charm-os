@@ -20,6 +20,10 @@ export import charm.widgets.cloudy_glass;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
 export import charm.widgets.spectrum_view;
+export import charm.widgets.battery_gasgauge;
+export import charm.widgets.histogram;
+export import charm.widgets.busy_wheel;
+export import charm.widgets.console_box;
 
 export
 struct ThemePreset {
@@ -59,6 +63,14 @@ struct ThemePreset {
     Style crt_screen{};
     bool has_spectrum_view{false};
     Style spectrum_view{};
+    bool has_battery_gasgauge{false};
+    Style battery_gasgauge{};
+    bool has_histogram{false};
+    Style histogram{};
+    bool has_busy_wheel{false};
+    Style busy_wheel{};
+    bool has_console_box{false};
+    Style console_box{};
 };
 
 export
@@ -82,4 +94,90 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_dynamic_nebula) theme.set<DynamicNebula>(preset.dynamic_nebula);
     if (preset.has_crt_screen) theme.set<CrtScreen>(preset.crt_screen);
     if (preset.has_spectrum_view) theme.set<SpectrumView>(preset.spectrum_view);
+    if (preset.has_battery_gasgauge) theme.set<BatteryGasGauge>(preset.battery_gasgauge);
+    if (preset.has_histogram) theme.set<Histogram>(preset.histogram);
+    if (preset.has_busy_wheel) theme.set<BusyWheel>(preset.busy_wheel);
+    if (preset.has_console_box) theme.set<ConsoleBox>(preset.console_box);
+}
+
+export
+inline void apply_baseline_theme_preset(const Style& base) noexcept {
+    auto& theme = Theme::instance();
+    auto apply_base = [&](Style& s) {
+        s.padding = base.padding;
+        s.corner_radius = base.corner_radius;
+        s.border_width = base.border_width;
+        s.border_color = base.border_color;
+        s.border_focus = base.border_focus;
+    };
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    apply_base(preset.label);
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    apply_base(preset.button);
+    preset.has_list_view = true;
+    preset.list_view = theme.get<ListView>();
+    apply_base(preset.list_view);
+    preset.has_progress = true;
+    preset.progress = theme.get<Progress>();
+    apply_base(preset.progress);
+    preset.has_progress_bar_simple = true;
+    preset.progress_bar_simple = theme.get<ProgressBarSimple>();
+    apply_base(preset.progress_bar_simple);
+    preset.has_scroll_bar = true;
+    preset.scroll_bar = theme.get<ScrollBar>();
+    apply_base(preset.scroll_bar);
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    apply_base(preset.segmented_control);
+    preset.has_text_input = true;
+    preset.text_input = theme.get<TextInput>();
+    apply_base(preset.text_input);
+    preset.has_number_input = true;
+    preset.number_input = theme.get<NumberInput>();
+    apply_base(preset.number_input);
+    preset.has_toggle_group = true;
+    preset.toggle_group = theme.get<ToggleGroup>();
+    apply_base(preset.toggle_group);
+    preset.has_table_view = true;
+    preset.table_view = theme.get<TableView>();
+    apply_base(preset.table_view);
+    preset.has_tree_view = true;
+    preset.tree_view = theme.get<TreeView>();
+    apply_base(preset.tree_view);
+    preset.has_perf_overlay = true;
+    preset.perf_overlay = theme.get<PerfOverlay>();
+    apply_base(preset.perf_overlay);
+    preset.has_foldable_panel = true;
+    preset.foldable_panel = theme.get<FoldablePanel>();
+    apply_base(preset.foldable_panel);
+    preset.has_cloudy_glass = true;
+    preset.cloudy_glass = theme.get<CloudyGlass>();
+    apply_base(preset.cloudy_glass);
+    preset.has_dynamic_nebula = true;
+    preset.dynamic_nebula = theme.get<DynamicNebula>();
+    apply_base(preset.dynamic_nebula);
+    preset.has_crt_screen = true;
+    preset.crt_screen = theme.get<CrtScreen>();
+    apply_base(preset.crt_screen);
+    preset.has_spectrum_view = true;
+    preset.spectrum_view = theme.get<SpectrumView>();
+    apply_base(preset.spectrum_view);
+    preset.has_battery_gasgauge = true;
+    preset.battery_gasgauge = theme.get<BatteryGasGauge>();
+    apply_base(preset.battery_gasgauge);
+    preset.has_histogram = true;
+    preset.histogram = theme.get<Histogram>();
+    apply_base(preset.histogram);
+    preset.has_busy_wheel = true;
+    preset.busy_wheel = theme.get<BusyWheel>();
+    apply_base(preset.busy_wheel);
+    preset.has_console_box = true;
+    preset.console_box = theme.get<ConsoleBox>();
+    apply_base(preset.console_box);
+
+    apply_theme_preset(preset);
 }

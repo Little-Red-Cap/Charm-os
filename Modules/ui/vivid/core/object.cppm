@@ -402,6 +402,13 @@ public:
     bool has_children_bounds() const noexcept { return children_bounds_valid_; }
     Rect children_bounds() const noexcept { return children_bounds_; }
 
+    bool take_dirty_hint(Rect& out) noexcept {
+        if (!dirty_hint_valid_) return false;
+        out = dirty_hint_;
+        dirty_hint_valid_ = false;
+        return true;
+    }
+
 protected:
     static constexpr std::size_t kMaxChildren = 64;
 
@@ -449,6 +456,25 @@ protected:
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};
+    Rect dirty_hint_{};
+    bool dirty_hint_valid_{false};
+
+    void mark_dirty_hint(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!dirty_hint_valid_) {
+            dirty_hint_ = r;
+            dirty_hint_valid_ = true;
+            return;
+        }
+        const int left = (r.x < dirty_hint_.x) ? r.x : dirty_hint_.x;
+        const int top = (r.y < dirty_hint_.y) ? r.y : dirty_hint_.y;
+        const int right = ((r.x + r.w) > (dirty_hint_.x + dirty_hint_.w)) ? (r.x + r.w) : (dirty_hint_.x + dirty_hint_.w);
+        const int bottom = ((r.y + r.h) > (dirty_hint_.y + dirty_hint_.h)) ? (r.y + r.h) : (dirty_hint_.y + dirty_hint_.h);
+        dirty_hint_.x = left;
+        dirty_hint_.y = top;
+        dirty_hint_.w = right - left;
+        dirty_hint_.h = bottom - top;
+    }
 };
 
 export

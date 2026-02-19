@@ -45,6 +45,8 @@ public:
         if (selected_ >= item_count_) selected_ = item_count_ - 1;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     int item_count() const noexcept { return item_count_; }
@@ -55,6 +57,8 @@ public:
         data_ctx_ = ctx;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_row_height(int h) noexcept {
@@ -63,6 +67,8 @@ public:
         row_height_ctx_ = nullptr;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     int row_height() const noexcept { return row_height_; }
@@ -72,6 +78,8 @@ public:
         row_height_ctx_ = ctx;
         clear_cache();
         update_scroll_bounds();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
@@ -110,12 +118,17 @@ public:
     void set_prefetch_rows(int rows) noexcept {
         prefetch_rows_ = (rows > 0) ? rows : 0;
         clear_cache();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_selected(int index) noexcept {
         if (index < 0 || index >= item_count_) return;
+        const int prev = selected_;
         selected_ = index;
         ensure_visible(index);
+        mark_dirty_row(prev);
+        mark_dirty_row(index);
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
@@ -124,11 +137,15 @@ public:
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
         notify_scroll();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
         notify_scroll();
+        window_valid_ = false;
+        mark_dirty_hint(get_rect());
     }
 
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
@@ -152,8 +169,6 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        update_scroll_bounds();
-
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
@@ -161,40 +176,11 @@ public:
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
+        if (!window_valid_) update_visible_window();
+        int start = window_start_;
+        int visible = window_visible_;
+        int y = window_offset_y_;
         const bool variable_height = (row_height_fn_ != nullptr);
-        int start = 0;
-        int visible = 0;
-        int y = r.y + pad;
-        if (!variable_height) {
-            const int row_h = row_height_for_render();
-            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
-            start = window.start;
-            visible = window.visible;
-            y = window.offset_y;
-        } else {
-            int acc = 0;
-            for (int i = 0; i < count; ++i) {
-                const int h = row_height_for_index(i);
-                if (acc + h > scroll_y_) {
-                    start = i;
-                    break;
-                }
-                acc += h;
-                start = i + 1;
-            }
-            if (prefetch_rows_ > 0) {
-                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
-                    --start;
-                    acc -= row_height_for_index(start);
-                }
-            }
-            y = r.y + pad - (scroll_y_ - acc);
-            int temp_y = y;
-            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
-                temp_y += row_height_for_index(i);
-                ++visible;
-            }
-        }
         auto on_create = [&](int slot) {
             if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
         };
@@ -253,6 +239,52 @@ public:
         }
     }
 
+    void update_visible_window() noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        update_scroll_bounds();
+        const int pad = st.padding;
+        const int count = item_count_for_render();
+        const bool variable_height = (row_height_fn_ != nullptr);
+        int start = 0;
+        int visible = 0;
+        int y = r.y + pad;
+        if (!variable_height) {
+            const int row_h = row_height_for_render();
+            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
+            start = window.start;
+            visible = window.visible;
+            y = window.offset_y;
+        } else {
+            int acc = 0;
+            for (int i = 0; i < count; ++i) {
+                const int h = row_height_for_index(i);
+                if (acc + h > scroll_y_) {
+                    start = i;
+                    break;
+                }
+                acc += h;
+                start = i + 1;
+            }
+            if (prefetch_rows_ > 0) {
+                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
+                    --start;
+                    acc -= row_height_for_index(start);
+                }
+            }
+            y = r.y + pad - (scroll_y_ - acc);
+            int temp_y = y;
+            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
+                temp_y += row_height_for_index(i);
+                ++visible;
+            }
+        }
+        window_start_ = start;
+        window_visible_ = visible;
+        window_offset_y_ = y;
+        window_valid_ = true;
+    }
+
     bool on_event(const Event& e) override {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -297,6 +329,45 @@ public:
     }
 
 private:
+    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
+        const int left = (a.x > b.x) ? a.x : b.x;
+        const int top = (a.y > b.y) ? a.y : b.y;
+        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
+        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
+        const int w = right - left;
+        const int h = bottom - top;
+        if (w <= 0 || h <= 0) return {};
+        return Rect{left, top, w, h};
+    }
+
+    void mark_dirty_row(int index) noexcept {
+        if (index < 0) return;
+        const auto row = row_rect_for_index(index);
+        if (row.w <= 0 || row.h <= 0) return;
+        const auto clipped = intersect_rect(row, get_rect());
+        if (clipped.w <= 0 || clipped.h <= 0) return;
+        mark_dirty_hint(clipped);
+    }
+
+    Rect row_rect_for_index(int index) const noexcept {
+        const Style& st = Theme::instance().get<ListView>();
+        const auto r = get_rect();
+        const int pad = st.padding;
+        int row_top = 0;
+        int row_h = row_height_for_index(index);
+        if (row_height_fn_) {
+            row_top = offset_for_index(index);
+        } else {
+            row_top = index * row_height_for_render();
+        }
+        return Rect{
+            r.x + pad,
+            r.y + pad + row_top - scroll_y_,
+            r.w - pad * 2,
+            row_h
+        };
+    }
+
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<ListView>();
@@ -433,6 +504,10 @@ private:
     int last_y_{0};
     bool show_scrollbar_{true};
     int prefetch_rows_{1};
+    int window_start_{0};
+    int window_visible_{0};
+    int window_offset_y_{0};
+    bool window_valid_{false};
 
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};

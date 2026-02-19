@@ -83,6 +83,7 @@ sequenceDiagram
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
 - 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint/Custom）。
 - Custom 布局通过注册表挂载（LayoutEngine Registry），便于引入可插拔布局对象。
+- Custom Layout 参数约定：custom_id 为布局引擎编号；custom_param0~3 由对应引擎定义，建议在控件/文档中明确含义，未使用保持 0。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 - FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
@@ -214,5 +215,6 @@ flowchart TB
 
 - 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
 - 当前示例含 ListView/ScrollBar/TableView/TreeView、Stepper/Timeline、MenuTree、RichText/CodeBlock、Image 变换等最小配置。
+
 
 

@@ -199,7 +199,12 @@ private:
         apply_layout(factory_, *obj);
         obj->draw(target);
         if (dirty_tracking_) {
-            target.mark_dirty(obj->get_rect());
+            Rect hint{};
+            if (obj->take_dirty_hint(hint)) {
+                target.mark_dirty(hint);
+            } else {
+                target.mark_dirty(obj->get_rect());
+            }
         }
 
         const auto clip_policy = obj->clip_policy();
@@ -266,7 +271,8 @@ private:
         sc.apply_scroll([&](WidgetHandle ch){ return factory.get(ch); });
     }
 
-    static void layout_list_view(UiFactory&, ObjectBase&, const ObjectBase::LayoutSpec&) {
-        // ListView uses custom layout to validate registry-based layout routing.
+    static void layout_list_view(UiFactory&, ObjectBase& container, const ObjectBase::LayoutSpec&) {
+        auto& view = static_cast<ListView&>(container);
+        view.update_visible_window();
     }
 };

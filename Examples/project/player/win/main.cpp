@@ -97,6 +97,26 @@ namespace {
         return "unknown";
     }
 
+    const char* audio_stage_text(audio::PlayerErrorStage stage) {
+        switch (stage) {
+        case audio::PlayerErrorStage::none: return "none";
+        case audio::PlayerErrorStage::open_source: return "open_source";
+        case audio::PlayerErrorStage::unsupported_format: return "unsupported_format";
+        case audio::PlayerErrorStage::decode_open: return "decode_open";
+        case audio::PlayerErrorStage::wav_parse: return "wav_parse";
+        case audio::PlayerErrorStage::wav_bits: return "wav_bits";
+        case audio::PlayerErrorStage::channel_convert: return "channel_convert";
+        case audio::PlayerErrorStage::buffer_config: return "buffer_config";
+        case audio::PlayerErrorStage::sink_open: return "sink_open";
+        case audio::PlayerErrorStage::buffer_alloc: return "buffer_alloc";
+        case audio::PlayerErrorStage::sink_start: return "sink_start";
+        case audio::PlayerErrorStage::seek: return "seek";
+        case audio::PlayerErrorStage::resume: return "resume";
+        case audio::PlayerErrorStage::reconfigure: return "reconfigure";
+        }
+        return "unknown";
+    }
+
     bool has_audio_ext(std::string_view name) {
         const auto dot = name.find_last_of('.');
         if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
@@ -1050,7 +1070,12 @@ int main(int argc, char** argv) {
         if (player.state() == audio::PlayerState::error) {
             ctx.playing = false;
             ctx.paused = false;
-            ctx.set_status("Player error");
+            const auto err = player.last_error();
+            const auto stage = static_cast<audio::PlayerErrorStage>(err.ext);
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
+                          audio_err_text(err.code), audio_stage_text(stage));
+            ctx.set_status(buf);
             ctx.set_status_color({220, 120, 120, 255});
             ctx.set_pause_button_text("Pause");
         }

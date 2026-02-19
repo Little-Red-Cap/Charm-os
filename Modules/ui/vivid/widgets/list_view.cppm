@@ -25,6 +25,9 @@ public:
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
     using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
+    using PoolBindFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
     using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
@@ -65,6 +68,17 @@ public:
     void set_cache_handler(CacheFn fn, void* ctx = nullptr) noexcept {
         cache_fn_ = fn;
         cache_ctx_ = ctx;
+        clear_cache();
+    }
+
+    void set_item_pool(PoolCreateFn create_fn,
+                       PoolBindFn bind_fn,
+                       PoolRecycleFn recycle_fn,
+                       void* ctx = nullptr) noexcept {
+        pool_create_fn_ = create_fn;
+        pool_bind_fn_ = bind_fn;
+        pool_recycle_fn_ = recycle_fn;
+        pool_ctx_ = ctx;
         clear_cache();
     }
 
@@ -144,9 +158,19 @@ public:
             if (visible > 0 && visible <= kMaxCache) {
                 slot = i - start;
                 if (slot >= 0 && slot < kMaxCache) {
+                    touch_slot(slot);
                     if (cache_slots_[slot].index != i) {
+                        recycle_slot(slot);
                         cache_slots_[slot].index = i;
-                        if (cache_fn_) cache_fn_(cache_ctx_, slot, i);
+                        if (pool_create_fn_ && !cache_slots_[slot].created) {
+                            pool_create_fn_(pool_ctx_, slot);
+                            cache_slots_[slot].created = true;
+                        }
+                        if (pool_bind_fn_) {
+                            pool_bind_fn_(pool_ctx_, slot, i);
+                        } else if (cache_fn_) {
+                            cache_fn_(cache_ctx_, slot, i);
+                        }
                     }
                 } else {
                     slot = -1;
@@ -158,6 +182,8 @@ public:
             }
             y += row_h;
         }
+
+        recycle_inactive_slots();
 
         cvs.restore_clip(clip_state);
 
@@ -291,7 +317,32 @@ private:
 
     void clear_cache() noexcept {
         for (int i = 0; i < kMaxCache; ++i) {
+            recycle_slot(i);
             cache_slots_[i].index = -1;
+            cache_slots_[i].touched = false;
+            cache_slots_[i].created = false;
+        }
+    }
+
+    void touch_slot(int slot) noexcept {
+        if (slot < 0 || slot >= kMaxCache) return;
+        cache_slots_[slot].touched = true;
+    }
+
+    void recycle_slot(int slot) noexcept {
+        if (slot < 0 || slot >= kMaxCache) return;
+        if (cache_slots_[slot].index >= 0 && pool_recycle_fn_) {
+            pool_recycle_fn_(pool_ctx_, slot, cache_slots_[slot].index);
+        }
+    }
+
+    void recycle_inactive_slots() noexcept {
+        for (int i = 0; i < kMaxCache; ++i) {
+            if (!cache_slots_[i].touched && cache_slots_[i].index >= 0) {
+                recycle_slot(i);
+                cache_slots_[i].index = -1;
+            }
+            cache_slots_[i].touched = false;
         }
     }
 
@@ -303,6 +354,10 @@ private:
     void* select_ctx_{nullptr};
     CacheFn cache_fn_{nullptr};
     void* cache_ctx_{nullptr};
+    PoolCreateFn pool_create_fn_{nullptr};
+    PoolBindFn pool_bind_fn_{nullptr};
+    PoolRecycleFn pool_recycle_fn_{nullptr};
+    void* pool_ctx_{nullptr};
     ScrollFn scroll_fn_{nullptr};
     void* scroll_ctx_{nullptr};
 
@@ -319,6 +374,8 @@ private:
 
     struct CacheSlot {
         int index{-1};
+        bool touched{false};
+        bool created{false};
     };
     static constexpr int kMaxCache = 32;
     CacheSlot cache_slots_[kMaxCache]{};

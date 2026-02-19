@@ -1328,6 +1328,8 @@ int main(int argc, char** argv) {
     }
 
     Gui gui(canvas, factory, ctx.handles.root);
+    gui.set_dirty_tracking(true);
+    gui.set_layer_cache(true);
 
     bool running = true;
     while (running) {

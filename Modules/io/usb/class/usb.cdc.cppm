@@ -129,6 +129,26 @@ export namespace usb::class_driver {
             }
         }
 
+        std::span<u8> rx_buffer() noexcept {
+            return ops_.rx_buffer ? ops_.rx_buffer(ctx_) : std::span<u8>{};
+        }
+
+        std::span<u8> tx_buffer() noexcept {
+            return ops_.tx_buffer ? ops_.tx_buffer(ctx_) : std::span<u8>{};
+        }
+
+        void on_rx_done(std::size_t len) noexcept {
+            if (ops_.on_rx_done) {
+                ops_.on_rx_done(ctx_, len);
+            }
+        }
+
+        void on_tx_done(std::size_t len) noexcept {
+            if (ops_.on_tx_done) {
+                ops_.on_tx_done(ctx_, len);
+            }
+        }
+
         std::span<const u8> serial_state_notification(u16 state_bits) noexcept {
             notify_.w_index = cfg_.ctrl_ifc;
             notify_.serial_state = state_bits;

@@ -51,3 +51,4 @@ export import usb.ep0_driver;
 export import usb.class_cdc;
 export import usb.class_uac;
 export import usb.class_msc;
+export import usb.driver;

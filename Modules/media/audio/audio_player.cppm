@@ -585,6 +585,39 @@ export namespace audio {
             is_mp3_ = ends_with_icase(path, ".mp3");
 
             if (!is_flac_ && !is_wav_ && !is_mp3_) {
+                std::array<std::byte, 12> header{};
+                auto pos = src_iface_->tell();
+                auto read = src_iface_->read(util::span<std::byte>(header.data(), header.size()));
+                if (read && *read >= 4) {
+                    const auto b0 = static_cast<unsigned char>(header[0]);
+                    const auto b1 = static_cast<unsigned char>(header[1]);
+                    const auto b2 = static_cast<unsigned char>(header[2]);
+                    const auto b3 = static_cast<unsigned char>(header[3]);
+                    if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
+                        is_flac_ = true;
+                    } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
+                        is_mp3_ = true;
+                    } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
+                        is_mp3_ = true;
+                    } else if (read && *read >= 12) {
+                        const auto b8 = static_cast<unsigned char>(header[8]);
+                        const auto b9 = static_cast<unsigned char>(header[9]);
+                        const auto b10 = static_cast<unsigned char>(header[10]);
+                        const auto b11 = static_cast<unsigned char>(header[11]);
+                        if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F' &&
+                            b8 == 'W' && b9 == 'A' && b10 == 'V' && b11 == 'E') {
+                            is_wav_ = true;
+                        }
+                    }
+                }
+                if (pos) {
+                    (void)src_iface_->seek(*pos, media::SeekWhence::set);
+                } else {
+                    (void)src_iface_->seek(0, media::SeekWhence::set);
+                }
+            }
+
+            if (!is_flac_ && !is_wav_ && !is_mp3_) {
                 set_error(Errc::not_supported, PlayerErrorStage::unsupported_format);
                 return;
             }

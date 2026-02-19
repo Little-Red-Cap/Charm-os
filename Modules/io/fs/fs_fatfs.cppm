@@ -253,15 +253,6 @@ export namespace fs {
             auto fr = f_opendir(&dir, buf->data());
             if (fr != FR_OK) return status_from_fr(fr);
             FILINFO info{};
-#if defined(FF_USE_LFN) && FF_USE_LFN
-#if defined(FF_MAX_LFN)
-            std::array<TCHAR, FF_MAX_LFN + 1> lfname{};
-#else
-            std::array<TCHAR, 256> lfname{};
-#endif
-            info.lfname = lfname.data();
-            info.lfsize = static_cast<UINT>(lfname.size());
-#endif
             while (true) {
                 fr = f_readdir(&dir, &info);
                 if (fr != FR_OK) {
@@ -272,23 +263,19 @@ export namespace fs {
                 const char* name = info.fname;
 #if defined(FF_USE_LFN) && FF_USE_LFN
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-                if (info.lfname && info.lfname[0] != 0) {
+                if (info.fname[0] != 0) {
                     constexpr util::usize lfn_utf8_cap =
 #if defined(FF_MAX_LFN)
                         static_cast<util::usize>(FF_MAX_LFN) * 4 + 1;
 #else
                         256 * 4 + 1;
 #endif
-                    std::array<char, lfn_utf8_cap> lfname_utf8{};
-                    const auto written = utf16_to_utf8(info.lfname, lfname_utf8.data(), lfname_utf8.size());
+                    std::array<char, lfn_utf8_cap> fname_utf8{};
+                    const auto written = utf16_to_utf8(info.fname, fname_utf8.data(), fname_utf8.size());
                     if (written > 0) {
-                        lfname_utf8[std::min(written, lfname_utf8.size() - 1)] = '\0';
-                        name = lfname_utf8.data();
+                        fname_utf8[std::min(written, fname_utf8.size() - 1)] = '\0';
+                        name = fname_utf8.data();
                     }
-                }
-#else
-                if (info.lfname && info.lfname[0] != 0) {
-                    name = info.lfname;
                 }
 #endif
 #endif

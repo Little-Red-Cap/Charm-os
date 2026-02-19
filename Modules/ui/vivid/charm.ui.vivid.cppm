@@ -79,3 +79,7 @@ export import charm.widgets.toggle_group;
 export import charm.widgets.tree_view;
 export import charm.widgets.rich_text;
 export import charm.widgets.code_block;
+export import charm.widgets.progress_wheel;
+export import charm.widgets.waveform_view;
+export import charm.widgets.battery_gauge;
+export import charm.widgets.histogram_view;

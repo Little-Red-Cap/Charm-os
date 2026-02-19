@@ -50,6 +50,10 @@ import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
+import charm.widgets.progress_wheel;
+import charm.widgets.waveform_view;
+import charm.widgets.battery_gauge;
+import charm.widgets.histogram_view;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -97,6 +101,10 @@ public:
     WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
     WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
     WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
+    WidgetHandle create_progress_wheel() noexcept { return make_handle(progress_wheels_.create(), WidgetKind::ProgressWheel); }
+    WidgetHandle create_waveform_view() noexcept { return make_handle(waveforms_.create(), WidgetKind::WaveformView); }
+    WidgetHandle create_battery_gauge() noexcept { return make_handle(batteries_.create(), WidgetKind::BatteryGauge); }
+    WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -140,6 +148,10 @@ public:
     Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
     RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
     CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
+    ProgressWheel* get_progress_wheel(const WidgetHandle& h) noexcept { return get_from(progress_wheels_, h, WidgetKind::ProgressWheel); }
+    WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::WaveformView); }
+    BatteryGauge* get_battery_gauge(const WidgetHandle& h) noexcept { return get_from(batteries_, h, WidgetKind::BatteryGauge); }
+    HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -183,6 +195,10 @@ public:
             case WidgetKind::Timeline: return get_timeline(h);
             case WidgetKind::RichText: return get_rich_text(h);
             case WidgetKind::CodeBlock: return get_code_block(h);
+            case WidgetKind::ProgressWheel: return get_progress_wheel(h);
+            case WidgetKind::WaveformView: return get_waveform_view(h);
+            case WidgetKind::BatteryGauge: return get_battery_gauge(h);
+            case WidgetKind::HistogramView: return get_histogram_view(h);
             default: return nullptr;
         }
     }
@@ -374,6 +390,10 @@ public:
         case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
         case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
         case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
+        case WidgetKind::ProgressWheel: destroy_from(progress_wheels_, h, WidgetKind::ProgressWheel); break;
+        case WidgetKind::WaveformView: destroy_from(waveforms_, h, WidgetKind::WaveformView); break;
+        case WidgetKind::BatteryGauge: destroy_from(batteries_, h, WidgetKind::BatteryGauge); break;
+        case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -647,6 +667,10 @@ private:
     HandlePool<Timeline, 16> timelines_{};
     HandlePool<RichText, 16> rich_texts_{};
     HandlePool<CodeBlock, 16> code_blocks_{};
+    HandlePool<ProgressWheel, 16> progress_wheels_{};
+    HandlePool<WaveformView, 16> waveforms_{};
+    HandlePool<BatteryGauge, 16> batteries_{};
+    HandlePool<HistogramView, 16> histograms_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

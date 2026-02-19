@@ -32,6 +32,10 @@ import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
 import charm.widgets.table_view;
+import charm.widgets.progress_wheel;
+import charm.widgets.waveform_view;
+import charm.widgets.battery_gauge;
+import charm.widgets.histogram_view;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -515,6 +519,10 @@ namespace {
         WidgetHandle timeline{};
         WidgetHandle rich_text{};
         WidgetHandle code_block{};
+        WidgetHandle progress_wheel{};
+        WidgetHandle waveform{};
+        WidgetHandle battery_gauge{};
+        WidgetHandle histogram{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1409,6 +1417,33 @@ namespace {
             block->set_wrap(TextWrap::None);
             block->set_size(200, 80);
         }
+
+        h.progress_wheel = factory.create_progress_wheel();
+        if (auto* wheel = factory.get_progress_wheel(h.progress_wheel)) {
+            wheel->set_value(72);
+            wheel->set_thickness(8);
+            wheel->set_size(90, 90);
+        }
+
+        h.waveform = factory.create_waveform_view();
+        if (auto* wave = factory.get_waveform_view(h.waveform)) {
+            static int samples[] = {3, 5, 8, 6, 2, -2, -5, -3, 1, 4, 7, 4, 1, -3, -6, -4};
+            wave->set_samples(samples, static_cast<int>(sizeof(samples) / sizeof(samples[0])));
+            wave->set_size(200, 80);
+        }
+
+        h.battery_gauge = factory.create_battery_gauge();
+        if (auto* battery = factory.get_battery_gauge(h.battery_gauge)) {
+            battery->set_value(65);
+            battery->set_size(200, 48);
+        }
+
+        h.histogram = factory.create_histogram_view();
+        if (auto* hist = factory.get_histogram_view(h.histogram)) {
+            static int bins[] = {2, 5, 8, 3, 6, 9, 4, 7, 5, 2, 6, 8};
+            hist->set_values(bins, static_cast<int>(sizeof(bins) / sizeof(bins[0])));
+            hist->set_size(200, 80);
+        }
 #endif
 
         constexpr int button_w = 120;
@@ -1474,6 +1509,10 @@ namespace {
         factory.link(h.debug_side, h.timeline);
         factory.link(h.debug_side, h.rich_text);
         factory.link(h.debug_side, h.code_block);
+        factory.link(h.debug_side, h.progress_wheel);
+        factory.link(h.debug_side, h.waveform);
+        factory.link(h.debug_side, h.battery_gauge);
+        factory.link(h.debug_side, h.histogram);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

@@ -633,20 +633,17 @@ int main(int argc, char** argv) {
     vfs_tracks.emplace_back(kDefaultVfsTrack);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-        std::printf("[player] SDL_Init failed\n");
         return 1;
     }
 
     SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, 0);
     if (!window) {
-        std::printf("[player] SDL_CreateWindow failed\n");
         SDL_Quit();
         return 1;
     }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        std::printf("[player] SDL_CreateRenderer failed\n");
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
@@ -655,14 +652,13 @@ int main(int argc, char** argv) {
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
-        std::printf("[player] SDL_CreateTexture failed\n");
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
 
-    DefaultFrameBuffer fb;
+    static DefaultFrameBuffer fb;
     DefaultCanvas canvas(fb);
 
     UiFactory factory;

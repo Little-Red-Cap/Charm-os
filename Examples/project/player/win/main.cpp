@@ -268,7 +268,25 @@ namespace {
         if (!app || !app->factory) return;
         auto* mode = app->factory->get_segmented_control(app->handles.play_mode);
         if (!mode) return;
-        app->play_mode = mode->selected();
+        app->set_play_mode(mode->selected());
+    }
+
+    void on_spectrum_toggle(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->on_spectrum_toggle();
+    }
+
+    void on_low_load_toggle(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->on_low_load_toggle();
+    }
+
+    void on_eq_toggle(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->on_eq_toggle();
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -452,6 +470,9 @@ int main(int argc, char** argv) {
     ui_cb.list_ctx = &g_ctx;
     ui_cb.list_scroll_change = Callback{&on_list_scrollbar_change, &g_ctx};
     ui_cb.play_mode_change = Callback{&on_play_mode_change, &g_ctx};
+    ui_cb.spectrum_toggle = Callback{&on_spectrum_toggle, &g_ctx};
+    ui_cb.low_load_toggle = Callback{&on_low_load_toggle, &g_ctx};
+    ui_cb.eq_toggle = Callback{&on_eq_toggle, &g_ctx};
     ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
     ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
     ui_cb.play_click = Callback{&on_play_clicked, &g_ctx};
@@ -459,6 +480,7 @@ int main(int argc, char** argv) {
     ui_cb.stop_click = Callback{&on_stop_clicked, &g_ctx};
 
     g_ctx.handles = build_ui(g_factory, g_ctx, ui_cb);
+    g_ctx.sync_option_states();
     g_ctx.set_time_label(0);
     g_ctx.mount_status = "Mounting VHD...";
     g_ctx.set_status("Mounting");

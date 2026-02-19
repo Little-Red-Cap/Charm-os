@@ -24,6 +24,7 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
+import charm.widgets.switcher;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.menu_tree;
 #endif
@@ -45,6 +46,7 @@ export namespace player {
         case audio::Errc::decode_error: return "decode_error";
         case audio::Errc::bad_state: return "bad_state";
         case audio::Errc::timeout: return "timeout";
+        case audio::Errc::end_of_stream: return "end_of_stream";
         }
         return "unknown";
     }
@@ -60,8 +62,16 @@ export namespace player {
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
         WidgetHandle play_mode{};
+        WidgetHandle mode_hint{};
         WidgetHandle spectrum_hist{};
         WidgetHandle spectrum_peak{};
+        WidgetHandle options_row{};
+        WidgetHandle opt_spectrum_label{};
+        WidgetHandle opt_spectrum_switch{};
+        WidgetHandle opt_low_label{};
+        WidgetHandle opt_low_switch{};
+        WidgetHandle opt_eq_label{};
+        WidgetHandle opt_eq_switch{};
         WidgetHandle ring{};
         WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
@@ -119,6 +129,7 @@ export namespace player {
         int play_mode{0};
         bool spectrum_enabled{true};
         bool spectrum_low_load{false};
+        bool eq_enabled{false};
         std::uint32_t spectrum_tick{0};
         bool duration_ready{false};
         bool ignore_list_select{false};
@@ -187,6 +198,34 @@ export namespace player {
         void reset_duration() {
             duration_ready = false;
             duration_sec = 180;
+        }
+
+        static const char* play_mode_text(int mode) noexcept {
+            switch (mode) {
+            case 1: return "Single";
+            case 2: return "Shuffle";
+            default: return "Order";
+            }
+        }
+
+        void update_play_mode_label() {
+            char buf[32]{};
+            std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
+            set_label(handles.mode_hint, buf);
+        }
+
+        void update_eq_label() {
+            if (!factory) return;
+            auto* label = factory->get_label(handles.opt_eq_label);
+            if (!label) return;
+            label->set_text(eq_enabled ? "EQ On" : "EQ Off");
+        }
+
+        void update_low_load_label() {
+            if (!factory) return;
+            auto* label = factory->get_label(handles.opt_low_label);
+            if (!label) return;
+            label->set_text(spectrum_low_load ? "Low load On" : "Low load");
         }
 
         void rebuild_track_labels() {
@@ -315,11 +354,17 @@ export namespace player {
             if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
                 mode->set_visible(!on);
             }
+            if (auto* hint = factory->get_label(handles.mode_hint)) {
+                hint->set_visible(!on);
+            }
             if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
                 hist->set_visible(!on);
             }
             if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
                 chart->set_visible(!on);
+            }
+            if (auto* row = factory->get_container(handles.options_row)) {
+                row->set_visible(!on);
             }
             if (auto* list = factory->get_list_view(handles.list)) {
                 list->set_visible(!on);
@@ -419,11 +464,79 @@ export namespace player {
                 if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
                     chart->set_visible(on);
                 }
+                if (auto* sw = factory->get_switch(handles.opt_spectrum_switch)) {
+                    sw->set_on(on);
+                }
             }
         }
 
         void set_low_load(bool on) {
             spectrum_low_load = on;
+            if (factory) {
+                if (auto* sw = factory->get_switch(handles.opt_low_switch)) {
+                    sw->set_on(on);
+                }
+                update_low_load_label();
+            }
+        }
+
+        void set_eq_enabled(bool on) {
+            eq_enabled = on;
+            if (factory) {
+                if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
+                    sw->set_on(on);
+                }
+                update_eq_label();
+            }
+            if (player) {
+                audio::EqConfig cfg{};
+                cfg.enabled = on;
+                cfg.band_count = 0;
+                (void)player->set_eq(cfg);
+            }
+        }
+
+        void set_play_mode(int mode) {
+            play_mode = mode;
+            update_play_mode_label();
+        }
+
+        void sync_option_states() {
+            if (factory) {
+                if (auto* sw = factory->get_switch(handles.opt_spectrum_switch)) {
+                    sw->set_on(spectrum_enabled);
+                }
+                if (auto* sw = factory->get_switch(handles.opt_low_switch)) {
+                    sw->set_on(spectrum_low_load);
+                }
+                if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
+                    sw->set_on(eq_enabled);
+                }
+            }
+            update_play_mode_label();
+            update_low_load_label();
+            update_eq_label();
+        }
+
+        void on_spectrum_toggle() {
+            if (!factory) return;
+            auto* sw = factory->get_switch(handles.opt_spectrum_switch);
+            if (!sw) return;
+            set_spectrum_enabled(sw->is_on());
+        }
+
+        void on_low_load_toggle() {
+            if (!factory) return;
+            auto* sw = factory->get_switch(handles.opt_low_switch);
+            if (!sw) return;
+            set_low_load(sw->is_on());
+        }
+
+        void on_eq_toggle() {
+            if (!factory) return;
+            auto* sw = factory->get_switch(handles.opt_eq_switch);
+            if (!sw) return;
+            set_eq_enabled(sw->is_on());
         }
 
         void sync_progress_value(int value) {

@@ -17,6 +17,7 @@ import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
+import charm.widgets.switcher;
 
 export namespace player::ui {
     inline constexpr int kUiPadding = 24;
@@ -30,8 +31,13 @@ export namespace player::ui {
     inline constexpr int kHeaderModeOffset = 160;
     inline constexpr int kModeWidth = 240;
     inline constexpr int kModeHeight = 28;
+    inline constexpr int kModeHintHeight = 18;
+    inline constexpr int kModeHintGap = 6;
     inline constexpr int kSpectrumHeight = 80;
     inline constexpr int kSpectrumGap = 12;
+    inline constexpr int kOptionsHeight = 28;
+    inline constexpr int kOptionsGap = 10;
+    inline constexpr int kOptionLabelWidth = 86;
     inline constexpr int kListTitleGap = 26;
     inline constexpr int kListBottomReserve = 170;
     inline constexpr int kListScrollWidth = 10;
@@ -53,6 +59,8 @@ export namespace player::ui {
     inline constexpr rgba kUiError = {220, 120, 120, 255};
     inline constexpr rgba kUiOk = {120, 200, 170, 255};
     inline constexpr rgba kUiPaused = {230, 185, 90, 255};
+    inline constexpr rgba kUiOption = {170, 178, 205, 255};
+    inline constexpr rgba kUiSwitchOn = {90, 160, 210, 255};
 
     inline constexpr rgba kUiButtonBg = {26, 30, 44, 255};
     inline constexpr rgba kUiButtonBorder = {70, 90, 120, 255};
@@ -146,5 +154,16 @@ export namespace player::ui {
 
         StylePatch hist_patch = chart_patch;
         theme.patch<HistogramView>(hist_patch);
+
+        StylePatch switch_patch{};
+        switch_patch.has_bg_color = true;
+        switch_patch.bg_color = kUiButtonBg;
+        switch_patch.has_border_color = true;
+        switch_patch.border_color = kUiButtonBorder;
+        switch_patch.has_bg_pressed = true;
+        switch_patch.bg_pressed = kUiSwitchOn;
+        switch_patch.has_border_pressed = true;
+        switch_patch.border_pressed = kUiSwitchOn;
+        theme.patch<Switch>(switch_patch);
     }
 }

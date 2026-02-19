@@ -45,9 +45,10 @@
 - P0 progress / spinner / bar / gauge / arc
 - P0 text / text_area / text_input / number_input
 - P0 message_box / tabview / scroll_container / popup_layer / scrollbar
+- P0 segmented_control / toggle_group
 
 ## 6. 需要补齐的基础控件
-- P1 选择：segmented_control、toggle_group
+- P1 选择：range_selector（待定）
 
 ## 7. 高级组件
 - P1 表格/表头（table）

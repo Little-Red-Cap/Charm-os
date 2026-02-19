@@ -2,6 +2,9 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <span>
+#include <string_view>
 
 export module usb.common;
 
@@ -128,6 +131,49 @@ export namespace usb {
         u16 max_packet_size{0};
         u8 interval{0};
     };
+
+    struct StringDescriptorHeader {
+        u8 length{2};
+        DescriptorType type{DescriptorType::string};
+    };
+
+    struct DescriptorWriter {
+        std::span<u8> buffer{};
+        std::size_t offset{0};
+
+        bool write_bytes(std::span<const u8> data) noexcept {
+            if (offset + data.size() > buffer.size()) return false;
+            std::memcpy(buffer.data() + offset, data.data(), data.size());
+            offset += data.size();
+            return true;
+        }
+
+        template <typename T>
+        bool write_object(const T& obj) noexcept {
+            return write_bytes(std::span<const u8>(
+                reinterpret_cast<const u8*>(&obj), sizeof(T)));
+        }
+    };
+
+    inline bool write_lang_id_descriptor(DescriptorWriter& writer, u16 lang_id) noexcept {
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + sizeof(lang_id));
+        if (!writer.write_object(hdr)) return false;
+        return writer.write_object(lang_id);
+    }
+
+    inline bool write_ascii_string_descriptor(DescriptorWriter& writer, std::string_view text) noexcept {
+        const auto utf16_bytes = text.size() * 2;
+        if (utf16_bytes > 254) return false;
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + utf16_bytes);
+        if (!writer.write_object(hdr)) return false;
+        for (char ch : text) {
+            const u16 le = static_cast<u8>(ch);
+            if (!writer.write_object(le)) return false;
+        }
+        return true;
+    }
 
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)

@@ -39,6 +39,7 @@ export namespace usb::device {
 
     struct ClassOps {
         bool (*setup)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
+        bool (*control_out)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
         void (*reset)(void* ctx) noexcept { nullptr };
     };
 
@@ -68,6 +69,16 @@ export namespace usb::device {
                 req.setup = setup_;
                 req.data = {};
                 return class_ops_->setup(class_ctx_, req, resp);
+            }
+            return false;
+        }
+
+        bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
+            if (class_ops_ && class_ops_->control_out) {
+                ControlRequest req{};
+                req.setup = setup_;
+                req.data = data;
+                return class_ops_->control_out(class_ctx_, req, resp);
             }
             return false;
         }
@@ -109,9 +120,25 @@ export namespace usb::device {
             return false;
         }
 
+        bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
+            return ep0_.handle_out_data(data, resp);
+        }
+
     private:
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {
             switch (static_cast<StandardRequest>(setup.b_request)) {
+            case StandardRequest::get_status: {
+                status_buf_[0] = 0;
+                status_buf_[1] = 0;
+                resp.data = std::span<const u8>(status_buf_, 2);
+                resp.zlp = false;
+                return true;
+            }
+            case StandardRequest::clear_feature:
+            case StandardRequest::set_feature:
+                resp.data = {};
+                resp.zlp = true;
+                return true;
             case StandardRequest::get_descriptor: {
                 const auto type = static_cast<DescriptorType>(setup.w_value >> 8);
                 const auto index = static_cast<u8>(setup.w_value & 0xFF);
@@ -136,6 +163,15 @@ export namespace usb::device {
                 resp.data = std::span<const u8>(&configuration_, 1);
                 resp.zlp = false;
                 return true;
+            case StandardRequest::get_interface:
+                resp.data = std::span<const u8>(&interface_alt_, 1);
+                resp.zlp = false;
+                return true;
+            case StandardRequest::set_interface:
+                interface_alt_ = static_cast<u8>(setup.w_value & 0xFF);
+                resp.data = {};
+                resp.zlp = true;
+                return true;
             default:
                 return false;
             }
@@ -144,5 +180,7 @@ export namespace usb::device {
         Ep0StateMachine ep0_{};
         DescriptorProvider provider_{};
         u8 configuration_{0};
+        u8 interface_alt_{0};
+        u8 status_buf_[2]{0, 0};
     };
 } // namespace usb::device

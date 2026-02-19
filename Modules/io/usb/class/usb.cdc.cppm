@@ -2,6 +2,7 @@ module;
 
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 #include <span>
 
 export module usb.class_cdc;
@@ -95,6 +96,7 @@ export namespace usb::class_driver {
         device::ClassOps class_ops() noexcept {
             device::ClassOps ops{};
             ops.setup = &CdcAcm::handle_setup;
+            ops.control_out = &CdcAcm::handle_control_out;
             ops.reset = &CdcAcm::handle_reset;
             return ops;
         }
@@ -124,7 +126,7 @@ export namespace usb::class_driver {
                 resp.zlp = false;
                 return true;
             case req_set_line_coding:
-                // Host-to-device data stage not wired in the skeleton.
+                self->expect_line_coding_ = true;
                 resp.data = {};
                 resp.zlp = true;
                 return true;
@@ -133,14 +135,33 @@ export namespace usb::class_driver {
             }
         }
 
+        static bool handle_control_out(void* ctx, const device::ControlRequest& req, device::ControlResponse& resp) noexcept {
+            auto* self = static_cast<CdcAcm*>(ctx);
+            if (!self) return false;
+            if (req.setup.b_request == req_set_line_coding && self->expect_line_coding_) {
+                if (req.data.size() >= sizeof(CdcLineCoding)) {
+                    std::memcpy(&self->coding_, req.data.data(), sizeof(CdcLineCoding));
+                    if (self->ops_.on_line_coding) {
+                        self->ops_.on_line_coding(self->ctx_, self->coding_);
+                    }
+                }
+                self->expect_line_coding_ = false;
+                resp.data = {};
+                resp.zlp = true;
+                return true;
+            }
+            return false;
+        }
+
         static void handle_reset(void* ctx) noexcept {
             auto* self = static_cast<CdcAcm*>(ctx);
             if (self) self->coding_ = {};
         }
 
         void* ctx_{nullptr};
-        CdcOps ops_{};
+        CdcOps ops_{}; 
         CdcConfig cfg_{};
         CdcLineCoding coding_{};
+        bool expect_line_coding_{false};
     };
 } // namespace usb::class_driver

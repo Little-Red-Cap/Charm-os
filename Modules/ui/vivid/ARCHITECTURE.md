@@ -45,6 +45,16 @@ flowchart LR
   Clip --> Draw
 ```
 
+```mermaid
+flowchart TB
+  Render[Gui::render] --> Cache{Layer Cache?}
+  Cache -->|No| Draw[Draw Widgets]
+  Cache -->|Yes| Check[Cache Valid?]
+  Check -->|No| Build[Render to Cache]
+  Check -->|Yes| Blit[Blit Cache]
+  Build --> Blit
+```
+
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
@@ -95,6 +105,17 @@ sequenceDiagram
   Router->>Widget: Semantic event
   Widget-->>Router: Handled / capture
   Router-->>Trace: Counter / trace
+```
+
+```mermaid
+flowchart LR
+  E[Event] --> HitTest[Hit-Test]
+  HitTest --> Capture{Captured?}
+  Capture -->|Yes| Target[Captured Widget]
+  Capture -->|No| Route[Focus/Hit Widget]
+  Target --> Dispatch[Dispatch]
+  Route --> Dispatch
+  Dispatch --> Gesture[Gesture Pipeline]
 ```
 
 ## 5. 文本与字体

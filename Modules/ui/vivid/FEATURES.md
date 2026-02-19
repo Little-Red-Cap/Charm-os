@@ -11,6 +11,16 @@ flowchart TB
   P1 --> P2[P2: 高级能力/扩展]
 ```
 
+```mermaid
+flowchart LR
+  Render[渲染] --> Text[字体/文本]
+  Text --> Widgets[控件]
+  Render --> Widgets
+  Input[输入路由] --> Widgets
+  Theme[主题/样式] --> Widgets
+  Trace[trace/日志] --> Diagnostics[可观测性]
+```
+
 ## 1. 基础渲染与资源
 - P0 渲染原语：线/矩形/圆/圆角矩形/图片/九宫格
 - P0 脏矩形链路：标记 -> 合并 -> 分区刷新
@@ -57,29 +67,42 @@ flowchart TB
 - P0 segmented_control / toggle_group
 - P0 table_view / tree_view（最小骨架与示例数据源）
 
-## 6. 待补齐的基础控件
+## 6. 典型能力验证入口（示例）
+- ListView 虚拟化与池复用（player demo）
+- TableView / TreeView 最小数据源与点击选择（player demo）
+- FoldablePanel 滚动与裁剪（player demo）
+- ProgressFlowing 无值模式（player debug）
+- CloudyGlass 高光/阴影/圆角（player debug）
+
+## 7. 待补齐的基础控件
 - P1 选择类：range_selector（待定）
 
-## 7. 高级组件
+## 8. 高级组件
 - P1 表格/表头（table_view）
 - P1 树形列表（tree_view）
 - P1 进度与状态：stepper、timeline（已提供最小骨架）
 - P2 图表扩展（多曲线/交互）
 - P2 富文本/代码编辑
 
-## 8. 主题与样式
+## 9. 主题与样式
 - P0 主题结构化（Theme/Style）
 - P1 样式继承与局部覆盖（已在部分控件落地示例）
 - P1 主题加载（配置/资源入口已提供：ThemePreset）
 - P1 约束式样式表 PoC（StyleSheet）
 - P2 运行时 DSL/CSS
 
-## 9. 动画与过渡
+## 10. 动画与过渡
 - P1 简单时间轴 + easing
 - P1 属性插值（alpha/位置/尺寸）
 - P2 复杂转场与滤镜
 
-## 10. 诊断与可观测性
+## 11. 诊断与可观测性
 - P0 trace/日志/计数器（已接入）
 - P1 性能 overlay（FPS/脏区/绘制时间）
 - P2 可回放的渲染/输入记录
+
+## 12. 关键缺口与风险
+- 动画系统尚未统一到控件全量路径（仍有局部手写逻辑）
+- 复杂文本排版与 shaping 未实现（国际化风险）
+- 高级图表交互缺口（缩放/选区/标注）
+- GPU/DMA 后端未接入（大屏或高帧率场景受限）

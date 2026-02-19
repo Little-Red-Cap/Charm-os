@@ -113,6 +113,19 @@
 
 Host 侧可后置（复杂度更高）。
 
+## 7) USB Host 形状补充（Charm 预留）
+
+建议拆成：
+- `usb.host.core`：枚举/地址/配置
+- `usb.host.hub`：端口/复位/状态变更
+- `usb.host.pipe`：transfer/queue
+- `usb.host.class`：MSC/HID/CDC/UAC
+
+最小可落地清单：
+1. EP0 枚举（GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION）
+2. 单端口 Hub（connect/reset/enabled）
+3. Pipe 仅支持控制传输（后续再扩 bulk/interrupt）
+
 ## 6) 对 Charm 的直接启示
 
 - 描述符构建可抽象为“描述符 DSL/宏层”

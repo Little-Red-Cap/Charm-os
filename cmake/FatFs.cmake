@@ -1,6 +1,6 @@
 option(CHARM_FETCHCONTENT_FATFS "Fetch FatFs via FetchContent when not found" OFF)
 
-set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/pabigot/FatFs.git" CACHE STRING "FatFs git repository")
+set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/abbrev/fatfs.git" CACHE STRING "FatFs git repository")
 set(CHARM_FATFS_GIT_TAG "master" CACHE STRING "FatFs git tag")
 
 if (NOT DEFINED CHARM_FATFS_ROOT)

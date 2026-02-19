@@ -11,6 +11,7 @@ option(CHARM_USE_ETL "Use ETL for core util aliases" ON)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_USE_ETL_EXPECTED "Use ETL expected instead of std::expected" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
+option(CHARM_BUILD_PLAYER "Build player example" OFF)
 
 add_library(${target_name})
 
@@ -86,3 +87,7 @@ message(STATUS "${target_name} Examples: Service/VSF -> ${CMAKE_CURRENT_SOURCE_D
 message(STATUS "${target_name} Examples: Service/DS -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/service_ds_demo")
 message(STATUS "${target_name} Examples: HAL/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/hal/hal_demo")
 message(STATUS "${target_name} Examples: Alg/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/alg/alg_demo")
+
+if (CHARM_BUILD_PLAYER)
+    add_subdirectory(Examples/project/player)
+endif()

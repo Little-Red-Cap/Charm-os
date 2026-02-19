@@ -27,6 +27,7 @@ import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
+import charm.widgets.image;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import fs_core;
@@ -38,7 +39,15 @@ import fs_fatfs;
 import fs_vfs;
 import util.core;
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
 #include <SDL3/SDL.h>
+#if defined(_WIN32)
+#undef NOMINMAX
+#undef WIN32_LEAN_AND_MEAN
+#endif
 
 #include <array>
 #include <chrono>
@@ -49,15 +58,13 @@ import util.core;
 #include <span>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 namespace {
-    // constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
-    constexpr const char* kDefaultVfsTrack = "/Beautiful Trick-FELT.flac";
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+    constexpr int kDemoGap = 16;
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];
@@ -152,6 +159,161 @@ namespace {
             if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
         }
         return false;
+    }
+
+    struct TreeDemoNode {
+        const char* label{nullptr};
+        int depth{0};
+        bool expanded{false};
+        bool has_children{false};
+    };
+
+    struct TreeDemo {
+        static constexpr int kMaxNodes = 8;
+        std::array<TreeDemoNode, kMaxNodes> nodes{};
+        std::array<int, kMaxNodes> visible{};
+        int node_count{0};
+        int visible_count{0};
+    };
+
+    TreeDemo g_tree_demo{
+        .nodes = {{
+            {"System", 0, true, true},
+            {"Audio", 1, true, true},
+            {"Player", 2, false, false},
+            {"Codec", 2, false, false},
+            {"UI", 1, true, true},
+            {"Vivid", 2, false, false},
+            {"Ink", 2, false, false},
+            {"Boot", 0, false, false},
+        }},
+        .node_count = 8,
+        .visible_count = 0,
+    };
+
+    void tree_rebuild_visible(TreeDemo& demo) noexcept {
+        demo.visible_count = 0;
+        std::array<bool, 8> open{};
+        open.fill(true);
+        for (int i = 0; i < demo.node_count; ++i) {
+            const auto& node = demo.nodes[i];
+            if (node.depth > 0 && !open[static_cast<std::size_t>(node.depth - 1)]) continue;
+            demo.visible[demo.visible_count++] = i;
+            open[static_cast<std::size_t>(node.depth)] = node.expanded || !node.has_children;
+        }
+    }
+
+    int tree_row_count(void* ctx) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        return demo ? demo->visible_count : 0;
+    }
+
+    TreeView::NodeInfo tree_node_info(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo || index < 0 || index >= demo->visible_count) return {};
+        const int node_index = demo->visible[index];
+        const auto& node = demo->nodes[node_index];
+        return TreeView::NodeInfo{node.depth, node.expanded, node.has_children, node.label};
+    }
+
+    void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
+        (void)ctx;
+        const auto& st = Theme::instance().get<TreeView>();
+        Rect text = info.rect;
+        text.x += st.padding + info.node.depth * 12;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        draw_text_box(cvs, text, info.node.label ? info.node.label : "",
+                      st.font_color, resolve_font(st),
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_tree_toggle(void* ctx, int index) noexcept {
+        auto* demo = static_cast<TreeDemo*>(ctx);
+        if (!demo || index < 0 || index >= demo->visible_count) return;
+        const int node_index = demo->visible[index];
+        auto& node = demo->nodes[node_index];
+        if (!node.has_children) return;
+        node.expanded = !node.expanded;
+        tree_rebuild_visible(*demo);
+    }
+
+    struct TableDemoRow {
+        const char* name{nullptr};
+        int value{0};
+        int delta{0};
+    };
+
+    struct TableDemo {
+        static constexpr int kRows = 6;
+        std::array<TableDemoRow, kRows> rows{};
+        std::array<int, kRows> order{};
+        bool sort_asc{true};
+    };
+
+    TableDemo g_table_demo{
+        .rows = {{
+            {"Buffer", 64, 2},
+            {"Underrun", 0, 0},
+            {"Latency", 120, -3},
+            {"Seek", 4, 1},
+            {"Decode", 7, 0},
+            {"Render", 12, -1},
+        }},
+        .order = {},
+        .sort_asc = true,
+    };
+
+    void table_rebuild_order(TableDemo& demo) noexcept {
+        for (int i = 0; i < TableDemo::kRows; ++i) {
+            demo.order[i] = demo.sort_asc ? i : (TableDemo::kRows - 1 - i);
+        }
+    }
+
+    int table_row_count(void* ctx) noexcept {
+        auto* demo = static_cast<TableDemo*>(ctx);
+        return demo ? TableDemo::kRows : 0;
+    }
+
+    int table_col_count(void* ctx) noexcept {
+        (void)ctx;
+        return 3;
+    }
+
+    int table_col_width(void* ctx, int col) noexcept {
+        (void)ctx;
+        return (col == 0) ? 140 : 80;
+    }
+
+    void on_table_draw(void* ctx, DefaultCanvas& cvs, const TableView::CellInfo& info) noexcept {
+        auto* demo = static_cast<TableDemo*>(ctx);
+        if (!demo || info.row < 0 || info.row >= TableDemo::kRows) return;
+        const int row = demo->order[info.row];
+        const auto& item = demo->rows[row];
+        char buf[32]{};
+        const char* text = "";
+        if (info.col == 0) {
+            text = item.name ? item.name : "";
+        } else if (info.col == 1) {
+            std::snprintf(buf, sizeof(buf), "%d", item.value);
+            text = buf;
+        } else if (info.col == 2) {
+            std::snprintf(buf, sizeof(buf), "%+d", item.delta);
+            text = buf;
+        }
+
+        const auto& st = Theme::instance().get<TableView>();
+        Rect text_box = info.rect;
+        text_box.x += st.padding;
+        text_box.w -= st.padding * 2;
+        draw_text_box(cvs, text_box, text, st.font_color, resolve_font(st),
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    }
+
+    void on_table_select(void* ctx, int row, int col) noexcept {
+        (void)ctx;
+        (void)row;
+        (void)col;
     }
 
     struct TrackListContext {
@@ -345,6 +507,8 @@ namespace {
         bool fs_ready{false};
         bool duration_ready{false};
         bool ignore_list_select{false};
+        std::string mount_status{};
+        bool syncing_scrollbar{false};
         bool show_debug{false};
         MenuTree menu_tree{};
         struct ListCacheEntry {
@@ -857,6 +1021,28 @@ namespace {
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
+    void on_list_scrolled(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept {
+        (void)content_h;
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!bar) return;
+        app->syncing_scrollbar = true;
+        bar->set_range(0, max_scroll);
+        bar->set_page_size(view_h);
+        bar->set_value(scroll_y);
+        app->syncing_scrollbar = false;
+    }
+
+    void on_list_scrollbar_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory || app->syncing_scrollbar) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        auto* list = app->factory->get_list_view(app->handles.list);
+        if (!bar || !list) return;
+        list->set_scroll_y(bar->value());
+    }
+
     Event::Key map_key(SDL_Keycode key) {
         switch (key) {
         case SDLK_TAB: return Event::Key::Tab;
@@ -1235,7 +1421,6 @@ int main(int argc, char** argv) {
     (void)argv;
     const char* vhd_path = kDefaultVhdPath;
     std::vector<std::string> vfs_tracks;
-    vfs_tracks.emplace_back(kDefaultVfsTrack);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -1273,7 +1458,7 @@ int main(int argc, char** argv) {
     PlayerUiContext ctx{};
     ctx.player = &player;
     ctx.factory = &factory;
-    ctx.track_path = kDefaultVfsTrack;
+    ctx.track_path = nullptr;
     ctx.tracks = &vfs_tracks;
 
     auto& theme = Theme::instance();
@@ -1370,22 +1555,11 @@ int main(int argc, char** argv) {
         }
         bool should_load = true;
         if (vfs_tracks.empty()) {
-            if (!list_st) {
-                vfs_tracks.emplace_back(kDefaultVfsTrack);
-            } else {
-                fs::File f{};
-                auto st = fs::vfs_open(kDefaultVfsTrack, f);
-                if (st) {
-                    (void)fs::vfs_close(f);
-                    vfs_tracks.emplace_back(kDefaultVfsTrack);
-                } else {
-                    char buf[64]{};
-                    std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(st.err));
-                    ctx.set_status(buf);
-                    ctx.set_status_color({220, 120, 120, 255});
-                    should_load = false;
-                }
-            }
+            char buf[64]{};
+            std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
+            ctx.set_status(buf);
+            ctx.set_status_color({220, 120, 120, 255});
+            should_load = false;
         }
         ctx.rebuild_track_labels();
         ctx.refresh_list_view();
@@ -1477,7 +1651,7 @@ int main(int argc, char** argv) {
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        SDL_Delay(16);
     }
 
     SDL_DestroyTexture(texture);

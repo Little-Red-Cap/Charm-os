@@ -206,12 +206,18 @@ export namespace usb::device {
         void finish_in_data(bool sent_zlp) noexcept {
             if (sent_zlp) {
                 ep0_.mark_zlp_sent();
-            } else {
-                ep0_.mark_data_in_done();
+                return;
             }
+            ep0_.on_in_packet(ep0_.in_remaining());
         }
 
-        void on_in_packet(std::size_t sent) noexcept { ep0_.on_in_packet(sent); }
+        void on_in_packet(std::size_t sent, bool sent_zlp = false) noexcept {
+            if (sent_zlp) {
+                ep0_.mark_zlp_sent();
+                return;
+            }
+            ep0_.on_in_packet(sent);
+        }
 
     private:
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {

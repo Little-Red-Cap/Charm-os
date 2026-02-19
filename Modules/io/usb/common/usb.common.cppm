@@ -123,6 +123,17 @@ export namespace usb {
         u8 interface{0};
     };
 
+    struct InterfaceAssociationDescriptor {
+        u8 length{8};
+        DescriptorType type{static_cast<DescriptorType>(0x0B)};
+        u8 first_interface{0};
+        u8 interface_count{0};
+        u8 function_class{0};
+        u8 function_subclass{0};
+        u8 function_protocol{0};
+        u8 function{0};
+    };
+
     struct EndpointDescriptor {
         u8 length{7};
         DescriptorType type{DescriptorType::endpoint};

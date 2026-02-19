@@ -115,6 +115,12 @@ export namespace usb::class_driver {
         u16 control_line_state() const noexcept { return control_line_state_; }
         const CdcLineCoding& line_coding() const noexcept { return coding_; }
         void set_line_coding(const CdcLineCoding& coding) noexcept { coding_ = coding; }
+        void set_control_line_state(u16 value) noexcept {
+            control_line_state_ = value;
+            if (ops_.on_control_line) {
+                ops_.on_control_line(ctx_, value);
+            }
+        }
 
         std::span<const u8> serial_state_notification(u16 state_bits) noexcept {
             notify_.w_index = cfg_.ctrl_ifc;
@@ -139,10 +145,7 @@ export namespace usb::class_driver {
             if (!self) return false;
             switch (req.setup.b_request) {
             case req_set_control_line_state:
-                self->control_line_state_ = req.setup.w_value;
-                if (self->ops_.on_control_line) {
-                    self->ops_.on_control_line(self->ctx_, req.setup.w_value);
-                }
+                self->set_control_line_state(req.setup.w_value);
                 resp.data = {};
                 resp.zlp = true;
                 return true;

@@ -12,6 +12,7 @@ export import charm.core.object;
 export import charm.core.pool;
 export import charm.core.string;
 export import charm.core.style;
+export import charm.core.theme_preset;
 
 export import charm.gfx.canvas;
 export import charm.gfx.color;

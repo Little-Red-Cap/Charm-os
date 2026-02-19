@@ -35,6 +35,7 @@
 ## 6. 主题与样式
 
 - 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
+- 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
 
 ## 7. 诊断与可观测性

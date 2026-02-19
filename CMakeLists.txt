@@ -67,6 +67,10 @@ endif()
 if (NOT CHARM_ENABLE_UI_VIVID)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/")
 endif()
+if (NOT CHARM_ENABLE_MEDIA OR NOT CHARM_ENABLE_UI_INK OR NOT CHARM_ENABLE_UI_VIVID)
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/charm.domain.cppm")
+endif()
 target_sources(${target_name}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES

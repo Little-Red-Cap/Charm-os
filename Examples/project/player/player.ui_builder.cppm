@@ -14,6 +14,7 @@ import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.code_block;
+import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
 import charm.widgets.image;
@@ -35,6 +36,11 @@ import charm.widgets.text_box;
 import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
+import charm.widgets.switcher;
+import charm.widgets.spinning_wheel;
+import charm.widgets.image_box;
+import charm.widgets.meter_pointer;
+import charm.widgets.progress_bar_drill;
 import player.controller;
 import player.ui;
 #if CHARM_PLAYER_DEBUG_UI
@@ -56,6 +62,11 @@ export namespace player {
         void* list_ctx{nullptr};
         Callback list_scroll_change{};
         Callback play_mode_change{};
+        Callback spectrum_toggle{};
+        Callback low_load_toggle{};
+        Callback eq_toggle{};
+        Callback eq_slider_change{};
+        Callback eq_preset_change{};
         Callback prev_click{};
         Callback next_click{};
         Callback play_click{};
@@ -83,8 +94,11 @@ export namespace player {
         const int cover_top = kUiPadding * 2;
         const int header_top = cover_top + kCoverSize;
         const int mode_y = header_top + kHeaderModeOffset;
-        const int spectrum_y = mode_y + kModeHeight + kSpectrumGap;
-        const int list_y = spectrum_y + kSpectrumHeight + kSpectrumGap;
+        const int mode_hint_y = mode_y + kModeHeight + kModeHintGap;
+        const int spectrum_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
+        const int options_y = spectrum_y + kSpectrumHeight + kOptionsGap;
+        const int eq_y = options_y + kOptionsHeight + kOptionsGap;
+        const int list_y = eq_y + kEqPanelHeight + kSpectrumGap;
         const int list_h = screen_height - list_y - kListBottomReserve;
 
         h.cover = factory.create_container();
@@ -142,6 +156,13 @@ export namespace player {
             anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
         }
 
+        h.mode_hint = factory.create_label("Mode: Order");
+        if (auto* hint = factory.get_label(h.mode_hint)) {
+            hint->set_color(kUiOption);
+            anchor_rect(hint, {kUiPadding, mode_hint_y, screen_width - kUiPadding * 2, kModeHintHeight});
+            hint->set_align(TextAlignH::Center, TextAlignV::Center);
+        }
+
         h.spectrum_hist = factory.create_histogram_view();
         if (auto* hist = factory.get_histogram_view(h.spectrum_hist)) {
             anchor_rect(hist, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
@@ -151,6 +172,122 @@ export namespace player {
         h.spectrum_peak = factory.create_chart();
         if (auto* chart = factory.get_chart(h.spectrum_peak)) {
             anchor_rect(chart, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+        }
+
+        h.options_row = factory.create_container();
+        if (auto* row = factory.get_container(h.options_row)) {
+            anchor_rect(row, {kUiPadding, options_y, screen_width - kUiPadding * 2, kOptionsHeight});
+            row->set_flow_layout(12, 0, 0);
+            row->set_align(static_cast<int>(AlignH::Start), static_cast<int>(AlignV::Center));
+        }
+
+        h.opt_spectrum_label = factory.create_label("Spectrum");
+        if (auto* label = factory.get_label(h.opt_spectrum_label)) {
+            label->set_color(kUiOption);
+            label->set_align(TextAlignH::Left, TextAlignV::Center);
+            label->set_size(kOptionLabelWidth, kOptionsHeight);
+        }
+
+        h.opt_spectrum_switch = factory.create_switch();
+        if (auto* sw = factory.get_switch(h.opt_spectrum_switch)) {
+            sw->set_on(ctx.spectrum_enabled);
+            sw->set_on_change(cb.spectrum_toggle);
+            sw->set_size(44, 24);
+        }
+
+        h.opt_low_label = factory.create_label("Low load");
+        if (auto* label = factory.get_label(h.opt_low_label)) {
+            label->set_color(kUiOption);
+            label->set_align(TextAlignH::Left, TextAlignV::Center);
+            label->set_size(kOptionLabelWidth, kOptionsHeight);
+        }
+
+        h.opt_low_switch = factory.create_switch();
+        if (auto* sw = factory.get_switch(h.opt_low_switch)) {
+            sw->set_on(ctx.spectrum_low_load);
+            sw->set_on_change(cb.low_load_toggle);
+            sw->set_size(44, 24);
+        }
+
+        h.opt_eq_label = factory.create_label("EQ Off");
+        if (auto* label = factory.get_label(h.opt_eq_label)) {
+            label->set_color(kUiOption);
+            label->set_align(TextAlignH::Left, TextAlignV::Center);
+            label->set_size(70, kOptionsHeight);
+        }
+
+        h.opt_eq_switch = factory.create_switch();
+        if (auto* sw = factory.get_switch(h.opt_eq_switch)) {
+            sw->set_on(ctx.eq_enabled);
+            sw->set_on_change(cb.eq_toggle);
+            sw->set_size(44, 24);
+        }
+
+        h.eq_panel = factory.create_container();
+        if (auto* panel = factory.get_container(h.eq_panel)) {
+            anchor_rect(panel, {kUiPadding, eq_y, screen_width - kUiPadding * 2, kEqPanelHeight});
+            panel->set_background(kUiListBg);
+        }
+
+        h.eq_title = factory.create_label("EQ");
+        const int eq_inner_x = kUiPadding + 10;
+        const int eq_inner_w = screen_width - kUiPadding * 2 - 20;
+        const int eq_title_y = eq_y + 6;
+        const int eq_preset_x = eq_inner_x + eq_inner_w -
+            (kEqPresetLabelWidth + kEqRowGapX + kEqPresetWidth);
+        if (auto* title = factory.get_label(h.eq_title)) {
+            title->set_color(kUiEqTitle);
+            anchor_rect(title, {eq_inner_x, eq_title_y, screen_width - kUiPadding * 2 - 20, kEqTitleHeight});
+            title->set_align(TextAlignH::Left, TextAlignV::Center);
+        }
+
+        h.eq_preset_label = factory.create_label("Preset");
+        if (auto* label = factory.get_label(h.eq_preset_label)) {
+            label->set_color(kUiOption);
+            anchor_rect(label, {eq_preset_x, eq_title_y, kEqPresetLabelWidth, kEqTitleHeight});
+            label->set_align(TextAlignH::Left, TextAlignV::Center);
+        }
+
+        h.eq_preset = factory.create_dropdown();
+        if (auto* drop = factory.get_dropdown(h.eq_preset)) {
+            drop->set_size(kEqPresetWidth, kEqRowHeight);
+            drop->add_option("Flat");
+            drop->add_option("Bass");
+            drop->add_option("Vocal");
+            drop->add_option("Treble");
+            drop->add_option("Custom");
+            drop->set_selected(0);
+            drop->set_on_change(cb.eq_preset_change);
+            anchor_rect(drop, {eq_preset_x + kEqPresetLabelWidth + kEqRowGapX, eq_title_y,
+                               kEqPresetWidth, kEqRowHeight});
+        }
+
+        static const char* kEqLabels[kEqBands] = {"60", "250", "1k", "4k", "12k"};
+        const int slider_w = eq_inner_w - kEqLabelWidth - kEqValueWidth - kEqRowGapX * 2;
+        for (int i = 0; i < kEqBands; ++i) {
+            const int row_y = eq_y + kEqTitleHeight + 12 + i * (kEqRowHeight + kEqRowGap);
+            h.eq_band_labels[i] = factory.create_label(kEqLabels[i]);
+            if (auto* label = factory.get_label(h.eq_band_labels[i])) {
+                label->set_color(kUiOption);
+                anchor_rect(label, {eq_inner_x, row_y, kEqLabelWidth, kEqRowHeight});
+                label->set_align(TextAlignH::Left, TextAlignV::Center);
+            }
+
+            h.eq_sliders[i] = factory.create_slider();
+            if (auto* slider = factory.get_slider(h.eq_sliders[i])) {
+                anchor_rect(slider, {eq_inner_x + kEqLabelWidth + kEqRowGapX, row_y, slider_w, kEqRowHeight});
+                slider->set_range(-12, 12);
+                slider->set_value(0);
+                slider->set_on_change(cb.eq_slider_change);
+            }
+
+            h.eq_value_labels[i] = factory.create_label("0 dB");
+            if (auto* value = factory.get_label(h.eq_value_labels[i])) {
+                value->set_color(kUiOption);
+                anchor_rect(value, {eq_inner_x + kEqLabelWidth + kEqRowGapX + slider_w + kEqRowGapX,
+                                    row_y, kEqValueWidth, kEqRowHeight});
+                value->set_align(TextAlignH::Right, TextAlignV::Center);
+            }
         }
 
         h.perf_overlay = factory.create_perf_overlay();
@@ -361,6 +498,31 @@ export namespace player {
             glass->set_size(200, 70);
             glass->set_opacity(140);
         }
+        h.spinning_wheel = factory.create_spinning_wheel();
+        if (auto* wheel = factory.get_spinning_wheel(h.spinning_wheel)) {
+            wheel->set_size(90, 90);
+            wheel->set_thickness(8);
+            wheel->set_speed(5.0f);
+        }
+        h.image_box = factory.create_image_box();
+        if (auto* box = factory.get_image_box(h.image_box)) {
+            box->set_image(render_logo_argb());
+            box->set_scale_mode(ImageBox::ScaleMode::Fit);
+            box->set_alignment(ImageBox::AlignH::Center, ImageBox::AlignV::Center);
+            box->set_size(200, 120);
+        }
+        h.meter_pointer = factory.create_meter_pointer();
+        if (auto* meter = factory.get_meter_pointer(h.meter_pointer)) {
+            meter->set_range(0, 100);
+            meter->set_value(35);
+            meter->set_size(160, 160);
+        }
+        h.progress_drill = factory.create_progress_bar_drill();
+        if (auto* bar = factory.get_progress_bar_drill(h.progress_drill)) {
+            bar->set_range(0, 100);
+            bar->set_value(35);
+            bar->set_size(200, 18);
+        }
         auto fold_btn_primary = factory.create_button("Apply");
         if (auto* btn = factory.get_button(fold_btn_primary)) {
             btn->set_size(90, 32);
@@ -421,8 +583,12 @@ export namespace player {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.play_mode);
+        factory.link(h.root, h.mode_hint);
         factory.link(h.root, h.spectrum_hist);
         factory.link(h.root, h.spectrum_peak);
+        factory.link(h.root, h.options_row);
+        factory.link(h.root, h.eq_panel);
+        factory.link(h.eq_panel, h.eq_title);
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
@@ -447,6 +613,10 @@ export namespace player {
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);
+        factory.link(h.debug_side, h.spinning_wheel);
+        factory.link(h.debug_side, h.image_box);
+        factory.link(h.debug_side, h.meter_pointer);
+        factory.link(h.debug_side, h.progress_drill);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
@@ -455,6 +625,21 @@ export namespace player {
         factory.link(h.controls, h.btn_stop);
         factory.link(h.controls, h.btn_next);
         factory.bring_to_front(h.root, h.perf_overlay);
+
+        factory.link(h.options_row, h.opt_spectrum_label);
+        factory.link(h.options_row, h.opt_spectrum_switch);
+        factory.link(h.options_row, h.opt_low_label);
+        factory.link(h.options_row, h.opt_low_switch);
+        factory.link(h.options_row, h.opt_eq_label);
+        factory.link(h.options_row, h.opt_eq_switch);
+
+        factory.link(h.eq_panel, h.eq_preset_label);
+        factory.link(h.eq_panel, h.eq_preset);
+        for (int i = 0; i < kEqBands; ++i) {
+            factory.link(h.eq_panel, h.eq_band_labels[i]);
+            factory.link(h.eq_panel, h.eq_sliders[i]);
+            factory.link(h.eq_panel, h.eq_value_labels[i]);
+        }
 
         return h;
     }

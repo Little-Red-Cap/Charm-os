@@ -441,6 +441,30 @@ export namespace audio {
             EqConfig eq{};
         };
 
+        struct Biquad {
+            float b0{1.0f};
+            float b1{0.0f};
+            float b2{0.0f};
+            float a1{0.0f};
+            float a2{0.0f};
+            std::array<float, kMaxChannels> z1{};
+            std::array<float, kMaxChannels> z2{};
+            bool enabled{false};
+
+            void reset() noexcept {
+                z1.fill(0.0f);
+                z2.fill(0.0f);
+            }
+
+            float process(float x, std::size_t ch) noexcept {
+                if (!enabled || ch >= z1.size()) return x;
+                const float y = b0 * x + z1[ch];
+                z1[ch] = b1 * x + z2[ch] - a1 * y;
+                z2[ch] = b2 * x - a2 * y;
+                return y;
+            }
+        };
+
         static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
             auto* self = static_cast<AudioPlayer*>(user);
             if (!self || self->fifo_capacity_ == 0) return 0;
@@ -561,7 +585,11 @@ export namespace audio {
                     if (eq_.band_count > EqConfig::max_bands) {
                         eq_.band_count = EqConfig::max_bands;
                     }
+                    eq_dirty_ = true;
                 }
+            }
+            if (eq_dirty_ && output_fmt_.rate != 0) {
+                update_eq_filters();
             }
         }
 
@@ -580,9 +608,42 @@ export namespace audio {
             flac_filter_.close();
             mp3_filter_.close();
 
-            is_flac_ = ends_with_icase(path, ".flac") || ends_with_icase(path, ".fla");
+            is_flac_ = ends_with_icase(path, ".flac");
             is_wav_ = ends_with_icase(path, ".wav");
             is_mp3_ = ends_with_icase(path, ".mp3");
+
+            if (!is_flac_ && !is_wav_ && !is_mp3_) {
+                std::array<std::byte, 12> header{};
+                auto pos = src_iface_->tell();
+                auto read = src_iface_->read(util::span<std::byte>(header.data(), header.size()));
+                if (read && *read >= 4) {
+                    const auto b0 = static_cast<unsigned char>(header[0]);
+                    const auto b1 = static_cast<unsigned char>(header[1]);
+                    const auto b2 = static_cast<unsigned char>(header[2]);
+                    const auto b3 = static_cast<unsigned char>(header[3]);
+                    if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
+                        is_flac_ = true;
+                    } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
+                        is_mp3_ = true;
+                    } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
+                        is_mp3_ = true;
+                    } else if (read && *read >= 12) {
+                        const auto b8 = static_cast<unsigned char>(header[8]);
+                        const auto b9 = static_cast<unsigned char>(header[9]);
+                        const auto b10 = static_cast<unsigned char>(header[10]);
+                        const auto b11 = static_cast<unsigned char>(header[11]);
+                        if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F' &&
+                            b8 == 'W' && b9 == 'A' && b10 == 'V' && b11 == 'E') {
+                            is_wav_ = true;
+                        }
+                    }
+                }
+                if (pos) {
+                    (void)src_iface_->seek(*pos, media::SeekWhence::set);
+                } else {
+                    (void)src_iface_->seek(0, media::SeekWhence::set);
+                }
+            }
 
             if (!is_flac_ && !is_wav_ && !is_mp3_) {
                 set_error(Errc::not_supported, PlayerErrorStage::unsupported_format);
@@ -656,6 +717,7 @@ export namespace audio {
                     resample_enabled_ = true;
                 }
             }
+            update_eq_filters();
 
             if (!configure_buffers()) {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_config);
@@ -799,6 +861,7 @@ export namespace audio {
                     resample_enabled_ = true;
                 }
             }
+            update_eq_filters();
 
             if (config_.fail_reconfig_step == 1) {
                 set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
@@ -861,6 +924,12 @@ export namespace audio {
             resample_cache_frames_ = 0;
             last_decode_eos_ = false;
             last_err_ = Err{};
+            for (auto& biquad : eq_biquads_) {
+                biquad.enabled = false;
+                biquad.reset();
+            }
+            eq_ready_ = false;
+            eq_dirty_ = false;
             spectrum_pos_ = 0;
             spectrum_ready_.store(false, std::memory_order_relaxed);
             state_ = PlayerState::idle;
@@ -1134,7 +1203,72 @@ export namespace audio {
             return result.out_frames;
         }
 
+        void update_eq_filters() {
+            eq_dirty_ = false;
+            for (auto& biquad : eq_biquads_) {
+                biquad.enabled = false;
+                biquad.reset();
+            }
+            if (!eq_.enabled || eq_.band_count == 0 || output_fmt_.rate == 0) {
+                eq_ready_ = false;
+                return;
+            }
+            const float fs = static_cast<float>(output_fmt_.rate);
+            const float nyquist = fs * 0.5f - 1.0f;
+            const float min_freq = 10.0f;
+            for (std::size_t i = 0; i < eq_.band_count && i < eq_biquads_.size(); ++i) {
+                const auto& band = eq_.bands[i];
+                if (std::abs(band.gain_db) < 0.01f) {
+                    continue;
+                }
+                const float freq = std::clamp(static_cast<float>(band.freq_hz), min_freq, nyquist);
+                const float q = (band.q > 0.05f) ? band.q : 0.707f;
+                const float a = std::pow(10.0f, band.gain_db / 40.0f);
+                const float w0 = static_cast<float>(2.0 * 3.14159265358979323846) * freq / fs;
+                const float cosw = std::cos(w0);
+                const float sinw = std::sin(w0);
+                const float alpha = sinw / (2.0f * q);
+
+                const float b0 = 1.0f + alpha * a;
+                const float b1 = -2.0f * cosw;
+                const float b2 = 1.0f - alpha * a;
+                const float a0 = 1.0f + alpha / a;
+                const float a1 = -2.0f * cosw;
+                const float a2 = 1.0f - alpha / a;
+
+                auto& biquad = eq_biquads_[i];
+                const float inv_a0 = (a0 != 0.0f) ? (1.0f / a0) : 1.0f;
+                biquad.b0 = b0 * inv_a0;
+                biquad.b1 = b1 * inv_a0;
+                biquad.b2 = b2 * inv_a0;
+                biquad.a1 = a1 * inv_a0;
+                biquad.a2 = a2 * inv_a0;
+                biquad.enabled = true;
+            }
+            eq_ready_ = true;
+        }
+
+        void apply_eq_s32(std::size_t frames) {
+            if (!eq_ready_ || !eq_.enabled || eq_.band_count == 0) return;
+            const std::size_t channels = output_fmt_.channels;
+            if (channels == 0) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 32767.0f / 32768.0f;
+            const std::size_t samples = frames * channels;
+            for (std::size_t i = 0; i < samples; ++i) {
+                const std::size_t ch = i % channels;
+                float v = static_cast<float>(s32_out_[i]) * kScale;
+                for (std::size_t b = 0; b < eq_.band_count && b < eq_biquads_.size(); ++b) {
+                    v = eq_biquads_[b].process(v, ch);
+                }
+                v = std::clamp(v, -1.0f, kClamp);
+                s32_out_[i] = static_cast<std::int32_t>(v * kInvScale);
+            }
+        }
+
         std::size_t quantize_s32(std::size_t frames) {
+            apply_eq_s32(frames);
             const std::size_t samples = frames * output_fmt_.channels;
             const std::uint64_t fade_total = fade_in_total_frames();
             const std::uint64_t fade_remaining = fade_in_remaining_frames_;
@@ -1245,6 +1379,9 @@ export namespace audio {
         std::uint64_t total_frames_{0};
         Err last_err_{};
         EqConfig eq_{};
+        std::array<Biquad, EqConfig::max_bands> eq_biquads_{};
+        bool eq_ready_{false};
+        bool eq_dirty_{false};
 
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};

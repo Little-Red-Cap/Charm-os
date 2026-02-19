@@ -52,9 +52,15 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, track, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, border, false);
 
-        const int knob_size = r.h - 4;
-        const int knob_y = r.y + 2;
-        const int knob_x = on_ ? (r.x + r.w - knob_size - 2) : (r.x + 2);
+        int pad = st.padding;
+        if (pad < 2) pad = 2;
+        int knob_size = r.h - pad * 2;
+        if (knob_size <= 0) {
+            knob_size = (r.h > 2) ? (r.h - 2) : r.h;
+            pad = (r.h - knob_size) / 2;
+        }
+        const int knob_y = r.y + pad;
+        const int knob_x = on_ ? (r.x + r.w - knob_size - pad) : (r.x + pad);
         draw_round_rect(cvs, knob_x, knob_y, knob_size, knob_size, knob_size / 2, knob, true);
 
         if (has_state(State::Focused)) {

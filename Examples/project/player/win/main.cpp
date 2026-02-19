@@ -23,6 +23,7 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
+import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.chart;
@@ -61,6 +62,8 @@ import util.core;
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -71,6 +74,56 @@ namespace {
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
     constexpr int kDemoGap = 16;
+    constexpr int kHeaderTitleOffset = 18;
+    constexpr int kHeaderSubtitleOffset = 44;
+    constexpr int kHeaderProgressOffset = 86;
+    constexpr int kHeaderTimeOffset = 114;
+    constexpr int kHeaderStatusOffset = 136;
+    constexpr int kHeaderModeOffset = 160;
+    constexpr int kModeWidth = 240;
+    constexpr int kModeHeight = 28;
+    constexpr int kListTitleGap = 26;
+    constexpr int kListBottomReserve = 170;
+    constexpr int kListScrollWidth = 10;
+    constexpr int kControlsBottomMargin = 20;
+    constexpr int kButtonWidth = 120;
+    constexpr int kButtonHeight = 48;
+    constexpr int kButtonGap = 12;
+    constexpr int kPerfOverlayWidth = 300;
+    constexpr int kPerfOverlayHeight = 72;
+
+    constexpr rgba kUiBackground = {18, 20, 28, 255};
+    constexpr rgba kUiCover = {32, 36, 52, 255};
+    constexpr rgba kUiTitle = {236, 238, 246, 255};
+    constexpr rgba kUiSubtitle = {156, 162, 188, 255};
+    constexpr rgba kUiTime = {136, 142, 166, 255};
+    constexpr rgba kUiStatus = {140, 150, 175, 255};
+    constexpr rgba kUiListTitle = {190, 196, 218, 255};
+    constexpr rgba kUiHint = {120, 128, 150, 255};
+    constexpr rgba kUiError = {220, 120, 120, 255};
+    constexpr rgba kUiOk = {120, 200, 170, 255};
+    constexpr rgba kUiPaused = {230, 185, 90, 255};
+
+    constexpr rgba kUiButtonBg = {26, 30, 44, 255};
+    constexpr rgba kUiButtonBorder = {70, 90, 120, 255};
+    constexpr rgba kUiButtonHover = {44, 60, 82, 255};
+    constexpr rgba kUiListBg = {22, 24, 34, 255};
+    constexpr rgba kUiListBorder = {60, 70, 90, 255};
+    constexpr rgba kUiListFont = {210, 220, 240, 255};
+    constexpr rgba kUiProgressBg = {28, 32, 46, 255};
+    constexpr rgba kUiProgressBorder = {90, 110, 150, 255};
+    constexpr rgba kUiScrollBg = {30, 34, 48, 255};
+    constexpr rgba kUiScrollBorder = {70, 90, 120, 255};
+    constexpr rgba kUiPerfBg = {24, 26, 36, 230};
+    constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
+    constexpr rgba kUiPerfFont = {220, 228, 242, 255};
+
+    static DefaultFrameBuffer g_framebuffer{};
+    static DefaultCanvas g_canvas(g_framebuffer);
+    static UiFactory g_factory{};
+    static audio::PlayerConfig g_player_cfg{};
+    static audio::AudioPlayer g_player(g_player_cfg);
+    static std::vector<std::string> g_vfs_tracks{};
     struct MbrPartition {
         std::uint8_t status;
         std::uint8_t chs_first[3];
@@ -462,7 +515,7 @@ namespace {
 
         std::array<std::uint8_t, 512> sector0{};
         st = file_dev.device().read(file_dev.device().ctx, 0,
-            std::span<util::u8>(reinterpret_cast<util::u8*>(sector0.data()), sector0.size()));
+            std::span<util::u8>(sector0));
         if (!st) return st;
 
         const auto lba = find_fat_partition_lba(sector0);
@@ -503,7 +556,10 @@ namespace {
         WidgetHandle subtitle{};
         WidgetHandle status{};
         WidgetHandle list{};
+        WidgetHandle list_title{};
+        WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
+        WidgetHandle play_mode{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
@@ -561,10 +617,13 @@ namespace {
         bool paused{false};
         bool updating{false};
         bool fs_ready{false};
+        int play_mode{0};
         bool duration_ready{false};
         bool ignore_list_select{false};
         std::string mount_status{};
         bool syncing_scrollbar{false};
+        std::mt19937 rng{static_cast<unsigned int>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count())};
 #if CHARM_PLAYER_DEBUG_UI
         bool show_debug{false};
         MenuTree menu_tree{};
@@ -658,12 +717,99 @@ namespace {
             if (count > 0) {
                 sync_list_selection();
             }
+            update_list_title();
+            update_list_placeholder();
+        }
+
+        void update_list_title() {
+            if (!factory) return;
+            auto* label = factory->get_label(handles.list_title);
+            if (!label) return;
+            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            if (count > 0) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Tracks (%d)", count);
+                label->set_text(buf);
+            } else {
+                label->set_text("Tracks");
+            }
+        }
+
+        void update_list_placeholder() {
+            if (!factory) return;
+            auto* label = factory->get_label(handles.list_hint);
+            if (!label) return;
+#if CHARM_PLAYER_DEBUG_UI
+            if (show_debug) {
+                label->set_visible(false);
+                return;
+            }
+#endif
+            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            if (count > 0) {
+                label->set_visible(false);
+                return;
+            }
+            label->set_visible(true);
+            if (!mount_status.empty()) {
+                label->set_text(mount_status.c_str());
+                return;
+            }
+            label->set_text(fs_ready ? "No tracks in /music or /" : "FS not ready");
+        }
+
+        int resolve_next_track() {
+            if (!tracks || tracks->empty()) return -1;
+            const int count = static_cast<int>(tracks->size());
+            if (play_mode == 1) {
+                return track_index;
+            }
+            if (play_mode == 2) {
+                if (count <= 1) return track_index;
+                std::uniform_int_distribution<int> dist(0, count - 1);
+                int next = track_index;
+                for (int i = 0; i < 4 && next == track_index; ++i) {
+                    next = dist(rng);
+                }
+                if (next == track_index) {
+                    next = (track_index + 1) % count;
+                }
+                return next;
+            }
+            int next = track_index + 1;
+            if (next >= count) next = 0;
+            return next;
+        }
+
+        void handle_track_end() {
+            if (!fs_ready || !tracks || tracks->empty()) {
+                stop_playback();
+                return;
+            }
+            const int next = resolve_next_track();
+            if (next < 0) {
+                stop_playback();
+                return;
+            }
+            stop_playback();
+            if (load_track_index(next)) {
+                start_playback();
+            }
         }
 
         void set_debug_visible(bool on) {
 #if CHARM_PLAYER_DEBUG_UI
             show_debug = on;
             if (!factory) return;
+            if (auto* title = factory->get_label(handles.list_title)) {
+                title->set_visible(!on);
+            }
+            if (auto* hint = factory->get_label(handles.list_hint)) {
+                hint->set_visible(!on);
+            }
+            if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
+                mode->set_visible(!on);
+            }
             if (auto* list = factory->get_list_view(handles.list)) {
                 list->set_visible(!on);
             }
@@ -754,17 +900,17 @@ namespace {
         void start_playback() {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return;
             }
             if (!player || !track_path) {
                 set_status("No track");
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return;
             }
             if (!track_ready) {
                 set_status("Track not ready");
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return;
             }
             (void)player->stop();
@@ -779,7 +925,7 @@ namespace {
             paused = false;
             start = std::chrono::steady_clock::now();
             set_status("Opening");
-            set_status_color({140, 150, 175, 255});
+            set_status_color(kUiStatus);
             set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
@@ -798,7 +944,7 @@ namespace {
             playing = false;
             paused = true;
             set_status("Paused");
-            set_status_color({230, 185, 90, 255});
+            set_status_color(kUiPaused);
             set_pause_button_text("Resume");
         }
 
@@ -815,7 +961,7 @@ namespace {
             playing = true;
             start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
             set_status("Playing");
-            set_status_color({120, 200, 170, 255});
+            set_status_color(kUiOk);
             set_pause_button_text("Pause");
         }
 
@@ -827,7 +973,7 @@ namespace {
             paused = false;
             pending_seek_sec = -1;
             set_status("Stopped");
-            set_status_color({140, 150, 175, 255});
+            set_status_color(kUiStatus);
             set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
@@ -862,7 +1008,7 @@ namespace {
         bool load_track_index(int idx) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return false;
             }
             if (!tracks || tracks->empty()) return false;
@@ -887,7 +1033,7 @@ namespace {
                 std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
                 set_status(buf);
             }
-            set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
+            set_status_color(track_ready ? kUiOk : kUiError);
             set_pause_button_text("Pause");
             set_time_label(0);
             sync_progress_value(0);
@@ -902,7 +1048,7 @@ namespace {
         void switch_track(int delta) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return;
             }
             if (!tracks || tracks->empty()) return;
@@ -921,7 +1067,7 @@ namespace {
         void select_track_index(int idx) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color({220, 120, 120, 255});
+                set_status_color(kUiError);
                 return;
             }
             if (!tracks || tracks->empty()) return;
@@ -990,6 +1136,8 @@ namespace {
             }
         }
     };
+
+    static PlayerUiContext g_ctx{};
 
     void on_play_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
@@ -1105,6 +1253,14 @@ namespace {
         auto* list = app->factory->get_list_view(app->handles.list);
         if (!bar || !list) return;
         list->set_scroll_y(bar->value());
+    }
+
+    void on_play_mode_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* mode = app->factory->get_segmented_control(app->handles.play_mode);
+        if (!mode) return;
+        app->play_mode = mode->selected();
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -1233,55 +1389,78 @@ namespace {
         h.root = factory.create_container();
         auto* root = factory.get_container(h.root);
         root->set_rect({0, 0, screen_width, screen_height});
-        root->set_background({18, 20, 28, 255});
+        root->set_background(kUiBackground);
+
+        const int cover_top = kUiPadding * 2;
+        const int header_top = cover_top + kCoverSize;
+        const int mode_y = header_top + kHeaderModeOffset;
+        const int list_y = mode_y + kModeHeight + 12;
+        const int list_h = screen_height - list_y - kListBottomReserve;
 
         h.cover = factory.create_container();
         if (auto* cover = factory.get_container(h.cover)) {
-            anchor_rect(cover, {(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
-            cover->set_background({40, 44, 60, 255});
+            anchor_rect(cover, {(screen_width - kCoverSize) / 2, cover_top, kCoverSize, kCoverSize});
+            cover->set_background(kUiCover);
         }
 
         h.title = factory.create_label("Beautiful Trick");
         if (auto* title = factory.get_label(h.title)) {
-            title->set_color({236, 238, 246, 255});
-            anchor_pos(title, kUiPadding, kUiPadding * 2 + kCoverSize + 20);
+            title->set_color(kUiTitle);
+            anchor_rect(title, {kUiPadding, header_top + kHeaderTitleOffset,
+                                screen_width - kUiPadding * 2, 24});
+            title->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
         h.subtitle = factory.create_label("FELT · FLAC");
         if (auto* sub = factory.get_label(h.subtitle)) {
-            sub->set_color({156, 162, 188, 255});
-            anchor_pos(sub, kUiPadding, kUiPadding * 2 + kCoverSize + 46);
+            sub->set_color(kUiSubtitle);
+            anchor_rect(sub, {kUiPadding, header_top + kHeaderSubtitleOffset,
+                              screen_width - kUiPadding * 2, 20});
+            sub->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
         h.progress = factory.create_progress();
         if (auto* bar = factory.get_progress(h.progress)) {
-            anchor_rect(bar, {kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
+            anchor_rect(bar, {kUiPadding, header_top + kHeaderProgressOffset,
+                              screen_width - kUiPadding * 2, 16});
             bar->set_range(0, 100);
             bar->set_value(0);
         }
 
         h.time = factory.create_label("0:00 / 3:00");
         if (auto* time = factory.get_label(h.time)) {
-            time->set_color({136, 142, 166, 255});
-            anchor_pos(time, kUiPadding, kUiPadding * 2 + kCoverSize + 120);
+            time->set_color(kUiTime);
+            anchor_rect(time, {kUiPadding, header_top + kHeaderTimeOffset,
+                               screen_width - kUiPadding * 2, 18});
+            time->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
         h.status = factory.create_label("Stopped");
         if (auto* status = factory.get_label(h.status)) {
-            status->set_color({140, 150, 175, 255});
-            anchor_pos(status, kUiPadding, kUiPadding * 2 + kCoverSize + 150);
+            status->set_color(kUiStatus);
+            anchor_rect(status, {kUiPadding, header_top + kHeaderStatusOffset,
+                                 screen_width - kUiPadding * 2, 18});
+            status->set_align(TextAlignH::Center, TextAlignV::Center);
+        }
+
+        h.play_mode = factory.create_segmented_control();
+        if (auto* mode = factory.get_segmented_control(h.play_mode)) {
+            static const char* kModeItems[] = {"Order", "Single", "Shuffle"};
+            mode->set_items(kModeItems, 3);
+            mode->set_selected(0);
+            mode->set_on_change(Callback{&on_play_mode_change, &ctx});
+            anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
         }
 
         h.perf_overlay = factory.create_perf_overlay();
         if (auto* perf = factory.get_perf_overlay(h.perf_overlay)) {
-            anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
+            anchor_rect(perf, {screen_width - (kPerfOverlayWidth + kUiPadding),
+                               kUiPadding, kPerfOverlayWidth, kPerfOverlayHeight});
         }
 
 #if CHARM_PLAYER_DEBUG_UI
         h.debug_grid = factory.create_container();
         if (auto* grid = factory.get_container(h.debug_grid)) {
-            const int list_y = kUiPadding * 2 + kCoverSize + 190;
-            const int list_h = screen_height - list_y - 170;
             const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
             const int cell_h = (list_h - kDemoGap) / 2;
             anchor_rect(grid, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
@@ -1289,11 +1468,17 @@ namespace {
             grid->set_align(static_cast<int>(AlignH::Center), static_cast<int>(AlignV::Center));
             grid->set_visible(false);
         }
+#endif
+
+        h.list_title = factory.create_label("Tracks");
+        if (auto* title = factory.get_label(h.list_title)) {
+            title->set_color(kUiListTitle);
+            anchor_rect(title, {kUiPadding, list_y - kListTitleGap, screen_width - kUiPadding * 2, 18});
+            title->set_align(TextAlignH::Left, TextAlignV::Center);
+        }
 
         h.list = factory.create_list_view();
         if (auto* list = factory.get_list_view(h.list)) {
-            const int list_y = kUiPadding * 2 + kCoverSize + 190;
-            const int list_h = screen_height - list_y - 170;
             anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
@@ -1305,13 +1490,20 @@ namespace {
 
         h.list_scroll = factory.create_scroll_bar();
         if (auto* bar = factory.get_scroll_bar(h.list_scroll)) {
-            const int list_y = kUiPadding * 2 + kCoverSize + 190;
-            const int list_h = screen_height - list_y - 170;
-            anchor_rect(bar, {screen_width - kUiPadding - 10, list_y, 10, list_h});
+            anchor_rect(bar, {screen_width - kUiPadding - kListScrollWidth, list_y, kListScrollWidth, list_h});
             bar->set_orientation(ScrollBar::Orientation::Vertical);
             bar->set_on_change(Callback{&on_list_scrollbar_change, &ctx});
         }
 
+        h.list_hint = factory.create_label("No tracks in /music or /");
+        if (auto* hint = factory.get_label(h.list_hint)) {
+            hint->set_color(kUiHint);
+            anchor_rect(hint, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
+            hint->set_align(TextAlignH::Center, TextAlignV::Center);
+            hint->set_visible(false);
+        }
+ 
+#if CHARM_PLAYER_DEBUG_UI
         h.tree = factory.create_tree_view();
         if (auto* tree = factory.get_tree_view(h.tree)) {
             tree_rebuild_visible(g_tree_demo);
@@ -1411,47 +1603,44 @@ namespace {
         }
 #endif
 
-        constexpr int button_w = 120;
-        constexpr int button_h = 48;
-        constexpr int gap = 12;
-        const int controls_w = button_w * 3 + gap * 2;
-        const int controls_h = button_h * 2 + gap;
+        const int controls_w = kButtonWidth * 3 + kButtonGap * 2;
+        const int controls_h = kButtonHeight * 2 + kButtonGap;
         const int controls_x = (screen_width - controls_w) / 2;
-        const int controls_y = screen_height - controls_h - 20;
+        const int controls_y = screen_height - controls_h - kControlsBottomMargin;
         h.controls = factory.create_container();
         if (auto* controls = factory.get_container(h.controls)) {
             anchor_rect(controls, {controls_x, controls_y, controls_w, controls_h});
-            controls->set_flow_layout(gap, gap, 0);
+            controls->set_flow_layout(kButtonGap, kButtonGap, 0);
             controls->set_align(static_cast<int>(AlignH::Center), static_cast<int>(AlignV::Start));
         }
 
         h.btn_prev = factory.create_button("Prev");
         if (auto* prev = factory.get_button(h.btn_prev)) {
-            prev->set_size(button_w, button_h);
+            prev->set_size(kButtonWidth, kButtonHeight);
             prev->set_on_click(Callback{&on_prev_clicked, &ctx});
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
-            next->set_size(button_w, button_h);
+            next->set_size(kButtonWidth, kButtonHeight);
             next->set_on_click(Callback{&on_next_clicked, &ctx});
         }
 
         h.btn_play = factory.create_button("Play");
         if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_size(button_w, button_h);
+            play->set_size(kButtonWidth, kButtonHeight);
             play->set_on_click(Callback{&on_play_clicked, &ctx});
         }
 
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
-            pause->set_size(button_w, button_h);
+            pause->set_size(kButtonWidth, kButtonHeight);
             pause->set_on_click(Callback{&on_pause_clicked, &ctx});
         }
 
         h.btn_stop = factory.create_button("Stop");
         if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_size(button_w, button_h);
+            stop->set_size(kButtonWidth, kButtonHeight);
             stop->set_on_click(Callback{&on_stop_clicked, &ctx});
         }
 
@@ -1461,8 +1650,11 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
+        factory.link(h.root, h.play_mode);
+        factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
+        factory.link(h.root, h.list_hint);
 #if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
@@ -1492,7 +1684,6 @@ int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
     const char* vhd_path = kDefaultVhdPath;
-    std::vector<std::string> vfs_tracks;
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -1520,38 +1711,49 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    static DefaultFrameBuffer fb;
-    DefaultCanvas canvas(fb);
-
-    static UiFactory factory;
-    static audio::PlayerConfig cfg{};
-    static audio::AudioPlayer player(cfg);
-
-    PlayerUiContext ctx{};
-    ctx.player = &player;
-    ctx.factory = &factory;
-    ctx.track_path = nullptr;
-    ctx.tracks = &vfs_tracks;
+    g_ctx.player = &g_player;
+    g_ctx.factory = &g_factory;
+    g_ctx.track_path = nullptr;
+    g_ctx.tracks = &g_vfs_tracks;
 
     auto& theme = Theme::instance();
     ThemePreset preset{};
     preset.has_label = true;
     preset.label = theme.get<Label>();
-    preset.label.font_color = {230, 234, 246, 255};
+    preset.label.font_color = kUiTitle;
     preset.has_button = true;
     preset.button = theme.get<Button>();
-    preset.button.bg_color = {26, 30, 44, 255};
-    preset.button.border_color = {70, 90, 120, 255};
+    preset.button.bg_color = kUiButtonBg;
+    preset.button.border_color = kUiButtonBorder;
     preset.button.padding = 6;
+    preset.has_list_view = true;
+    preset.list_view = theme.get<ListView>();
+    preset.list_view.bg_color = kUiListBg;
+    preset.list_view.border_color = kUiListBorder;
+    preset.list_view.corner_radius = 6;
+    preset.list_view.padding = 6;
+    preset.list_view.font_color = kUiListFont;
     preset.has_progress = true;
     preset.progress = theme.get<Progress>();
-    preset.progress.bg_color = {28, 32, 46, 255};
-    preset.progress.border_color = {90, 110, 150, 255};
+    preset.progress.bg_color = kUiProgressBg;
+    preset.progress.border_color = kUiProgressBorder;
+    preset.has_scroll_bar = true;
+    preset.scroll_bar = theme.get<ScrollBar>();
+    preset.scroll_bar.bg_color = kUiScrollBg;
+    preset.scroll_bar.border_color = kUiScrollBorder;
+    preset.scroll_bar.corner_radius = 6;
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kUiButtonBg;
+    preset.segmented_control.border_color = kUiButtonBorder;
+    preset.segmented_control.bg_pressed = kUiButtonHover;
+    preset.segmented_control.border_pressed = kUiButtonBorder;
+    preset.segmented_control.font_color = kUiListFont;
     preset.has_perf_overlay = true;
     preset.perf_overlay = theme.get<PerfOverlay>();
-    preset.perf_overlay.bg_color = {24, 26, 36, 230};
-    preset.perf_overlay.border_color = {70, 90, 120, 255};
-    preset.perf_overlay.font_color = {220, 228, 242, 255};
+    preset.perf_overlay.bg_color = kUiPerfBg;
+    preset.perf_overlay.border_color = kUiPerfBorder;
+    preset.perf_overlay.font_color = kUiPerfFont;
     preset.perf_overlay.padding = 6;
     apply_theme_preset(preset);
 
@@ -1559,14 +1761,14 @@ int main(int argc, char** argv) {
     sheet.clear();
     StylePatch btn_base{};
     btn_base.has_bg_color = true;
-    btn_base.bg_color = {34, 40, 58, 255};
+    btn_base.bg_color = kUiButtonBg;
     btn_base.has_border_color = true;
-    btn_base.border_color = {90, 120, 160, 255};
+    btn_base.border_color = kUiButtonBorder;
     sheet.add_rule({WidgetKind::Button, 0}, btn_base);
 
     StylePatch btn_hover{};
     btn_hover.has_bg_color = true;
-    btn_hover.bg_color = {44, 60, 82, 255};
+    btn_hover.bg_color = kUiButtonHover;
     sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
 
 #if CHARM_PLAYER_DEBUG_UI
@@ -1574,9 +1776,9 @@ int main(int argc, char** argv) {
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
     table_patch.has_bg_color = true;
-    table_patch.bg_color = {22, 24, 34, 255};
+    table_patch.bg_color = kUiListBg;
     table_patch.has_border_color = true;
-    table_patch.border_color = {60, 70, 90, 255};
+    table_patch.border_color = kUiListBorder;
     table_patch.has_padding = true;
     table_patch.padding = 6;
     theme.patch<TableView>(table_patch);
@@ -1585,77 +1787,94 @@ int main(int argc, char** argv) {
     theme.patch<TreeView>(tree_patch);
 #endif
 
-    ctx.handles = build_ui(factory, ctx);
-    ctx.set_time_label(0);
+    g_ctx.handles = build_ui(g_factory, g_ctx);
+    g_ctx.set_time_label(0);
+    g_ctx.mount_status = "Mounting VHD...";
+    g_ctx.set_status("Mounting");
+    g_ctx.set_status_color(kUiStatus);
+    g_ctx.update_list_placeholder();
 
     const auto mount_st = mount_fatfs_from_vhd(vhd_path);
-    ctx.fs_ready = static_cast<bool>(mount_st);
-    if (!ctx.fs_ready) {
+    g_ctx.fs_ready = static_cast<bool>(mount_st);
+    if (!g_ctx.fs_ready) {
         char buf[64]{};
         std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
-        ctx.set_status(buf);
-        ctx.set_status_color({220, 120, 120, 255});
-        ctx.mount_status = buf;
-        vfs_tracks.clear();
-        ctx.rebuild_track_labels();
-        ctx.refresh_list_view();
-        ctx.track_ready = false;
-        ctx.track_path = nullptr;
-        ctx.set_pause_button_text("Pause");
-        ctx.set_time_label(0);
-        ctx.sync_progress_value(0);
-        ctx.reset_duration();
+        g_ctx.set_status(buf);
+        g_ctx.set_status_color(kUiError);
+        g_ctx.mount_status = std::string(buf) + ". Unmount VHD in Windows";
+        g_vfs_tracks.clear();
+        g_ctx.rebuild_track_labels();
+        g_ctx.refresh_list_view();
+        g_ctx.track_ready = false;
+        g_ctx.track_path = nullptr;
+        g_ctx.set_pause_button_text("Pause");
+        g_ctx.set_time_label(0);
+        g_ctx.sync_progress_value(0);
+        g_ctx.reset_duration();
+        g_ctx.update_list_placeholder();
     } else {
-        ctx.mount_status = "Mounted";
-        vfs_tracks.clear();
+        g_ctx.mount_status = "Mounted";
+        g_ctx.update_list_placeholder();
+        g_vfs_tracks.clear();
         fs::Status list_st{fs::Err::ok};
-        if (!collect_tracks_from_dir("/music", vfs_tracks, nullptr, list_st)) {
+        g_ctx.mount_status = "Scanning /music...";
+        if (!collect_tracks_from_dir("/music", g_vfs_tracks, nullptr, list_st)) {
             std::vector<std::string> subdirs;
-            const bool root_has = collect_tracks_from_dir("/", vfs_tracks, &subdirs, list_st);
+            g_ctx.mount_status = "Scanning /...";
+            const bool root_has = collect_tracks_from_dir("/", g_vfs_tracks, &subdirs, list_st);
             if (list_st) {
                 for (const auto& dir : subdirs) {
-                    collect_tracks_from_dir(dir, vfs_tracks, nullptr, list_st);
+                    collect_tracks_from_dir(dir, g_vfs_tracks, nullptr, list_st);
                 }
             }
             if (!list_st) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
-                ctx.set_status(buf);
-                ctx.set_status_color({220, 120, 120, 255});
-            } else if (!root_has && vfs_tracks.empty()) {
-                ctx.set_status("No tracks found");
-                ctx.set_status_color({220, 120, 120, 255});
+                g_ctx.set_status(buf);
+                g_ctx.set_status_color(kUiError);
+                g_ctx.mount_status = buf;
+            } else if (!root_has && g_vfs_tracks.empty()) {
+                g_ctx.set_status("No tracks found");
+                g_ctx.set_status_color(kUiError);
+                g_ctx.mount_status = "No tracks in /music or /";
             }
         }
         bool should_load = true;
-        if (vfs_tracks.empty()) {
+        if (g_vfs_tracks.empty()) {
             char buf[64]{};
             std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
-            ctx.set_status(buf);
-            ctx.set_status_color({220, 120, 120, 255});
+            g_ctx.set_status(buf);
+            g_ctx.set_status_color(kUiError);
+            if (g_ctx.mount_status == "Mounted") {
+                g_ctx.mount_status = "No tracks in /music or /";
+            }
             should_load = false;
         }
-        ctx.rebuild_track_labels();
-        ctx.refresh_list_view();
+        g_ctx.rebuild_track_labels();
+        g_ctx.refresh_list_view();
         if (should_load) {
-            ctx.load_track_index(0);
-            if (ctx.track_ready && !fs_seek_selftest(ctx.track_path)) {
-                ctx.set_status("Fs seek selftest failed");
-                ctx.set_status_color({220, 120, 120, 255});
+            g_ctx.load_track_index(0);
+            if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
+                g_ctx.set_status("Fs seek selftest failed");
+                g_ctx.set_status_color(kUiError);
+            }
+            if (g_ctx.track_ready) {
+                g_ctx.mount_status = "Ready";
             }
         } else {
-            ctx.track_ready = false;
-            ctx.track_path = nullptr;
-            ctx.set_pause_button_text("Pause");
-            ctx.set_time_label(0);
-            ctx.sync_progress_value(0);
-            ctx.reset_duration();
+            g_ctx.track_ready = false;
+            g_ctx.track_path = nullptr;
+            g_ctx.set_pause_button_text("Pause");
+            g_ctx.set_time_label(0);
+            g_ctx.sync_progress_value(0);
+            g_ctx.reset_duration();
         }
+        g_ctx.update_list_placeholder();
     }
 
-    Gui gui(canvas, factory, ctx.handles.root);
-    gui.set_dirty_tracking(true);
-    gui.set_layer_cache(true);
+    auto gui = std::make_unique<Gui>(g_canvas, g_factory, g_ctx.handles.root);
+    gui->set_dirty_tracking(true);
+    gui->set_layer_cache(true);
 
     const auto start_time = std::chrono::steady_clock::now();
 
@@ -1667,62 +1886,71 @@ int main(int argc, char** argv) {
                 running = false;
                 break;
             }
-            dispatch_sdl_event(gui, ctx, evt);
+            dispatch_sdl_event(*gui, g_ctx, evt);
         }
 
-        player.tick();
-        if (ctx.playing && !player.is_running()) {
-            ctx.playing = false;
-            ctx.paused = false;
-            ctx.set_status("Stopped");
-            ctx.set_status_color({140, 150, 175, 255});
-            ctx.set_pause_button_text("Pause");
-        }
-        if (!ctx.paused) {
-            const auto st = player.state();
-            if (st == audio::PlayerState::opening) {
-                ctx.set_status("Opening");
-                ctx.set_status_color({140, 150, 175, 255});
-            } else if (st == audio::PlayerState::buffering) {
-                ctx.set_status("Buffering");
-                ctx.set_status_color({140, 150, 175, 255});
-            } else if (st == audio::PlayerState::playing) {
-                ctx.set_status("Playing");
-                ctx.set_status_color({120, 200, 170, 255});
+        g_player.tick();
+        if (g_ctx.playing && !g_player.is_running()) {
+            if (g_player.state() == audio::PlayerState::error) {
+                g_ctx.playing = false;
+                g_ctx.paused = false;
+                g_ctx.set_status("Stopped");
+                g_ctx.set_status_color(kUiStatus);
+                g_ctx.set_pause_button_text("Pause");
+            } else {
+                g_ctx.handle_track_end();
             }
         }
-        if (player.state() == audio::PlayerState::error) {
-            ctx.playing = false;
-            ctx.paused = false;
-            const auto err = player.last_error();
+        if (!g_ctx.paused) {
+            const auto st = g_player.state();
+            if (st == audio::PlayerState::opening) {
+                g_ctx.set_status("Opening");
+                g_ctx.set_status_color(kUiStatus);
+            } else if (st == audio::PlayerState::buffering) {
+                g_ctx.set_status("Buffering");
+                g_ctx.set_status_color(kUiStatus);
+            } else if (st == audio::PlayerState::playing) {
+                g_ctx.set_status("Playing");
+                g_ctx.set_status_color(kUiOk);
+            }
+        }
+        if (g_player.state() == audio::PlayerState::error) {
+            g_ctx.playing = false;
+            g_ctx.paused = false;
+            const auto err = g_player.last_error();
             const auto stage = static_cast<audio::PlayerErrorStage>(err.ext);
             char buf[96]{};
             std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
                           audio_err_text(err.code), audio_stage_text(stage));
-            ctx.set_status(buf);
-            ctx.set_status_color({220, 120, 120, 255});
-            ctx.set_pause_button_text("Pause");
+            g_ctx.set_status(buf);
+            g_ctx.set_status_color(kUiError);
+            g_ctx.set_pause_button_text("Pause");
         }
-        ctx.update_duration_from_player();
-        ctx.apply_pending_seek();
-        ctx.update_progress();
+        g_ctx.update_duration_from_player();
+        g_ctx.apply_pending_seek();
+        g_ctx.update_progress();
 
         const auto now = std::chrono::steady_clock::now();
         const auto ms = static_cast<std::uint32_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
         const float phase = static_cast<float>(ms % 2000) / 2000.0f;
         const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
-        apply_cover_pulse(&ctx, v);
+        apply_cover_pulse(&g_ctx, v);
 
-        canvas.clear({18, 20, 28, 255});
-        gui.render();
+        g_canvas.clear(kUiBackground);
+        gui->render();
 
-        SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
+        SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);
+    }
+
+    (void)g_player.stop();
+    for (int i = 0; i < 8 && g_player.is_running(); ++i) {
+        g_player.tick();
     }
 
     SDL_DestroyTexture(texture);

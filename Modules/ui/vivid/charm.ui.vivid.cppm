@@ -47,6 +47,7 @@ export import charm.widgets.list_utils;
 export import charm.widgets.list_view;
 export import charm.widgets.menu;
 export import charm.widgets.menu_item;
+export import charm.widgets.menu_tree;
 export import charm.widgets.message_box;
 export import charm.widgets.popup_layer;
 export import charm.widgets.perf_overlay;

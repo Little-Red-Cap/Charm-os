@@ -21,6 +21,7 @@ import charm.widgets.perf_overlay;
 import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
+import charm.widgets.menu_tree;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -282,6 +283,7 @@ namespace {
         bool duration_ready{false};
         bool ignore_list_select{false};
         bool show_debug{false};
+        MenuTree menu_tree{};
         struct ListCacheEntry {
             int index{-1};
             int width{0};
@@ -1147,6 +1149,21 @@ namespace {
             side->set_flex_layout(1, 0, 0, 8, 8);
             side->set_flex_grow(1);
         }
+
+        ctx.menu_tree.init(factory, h.debug_side);
+        ctx.menu_tree.set_rect({0, 0, 200, 120});
+        ctx.menu_tree.set_item_height(22);
+        ctx.menu_tree.set_indent(12);
+        const int menu_file = ctx.menu_tree.add_item(-1, "File");
+        ctx.menu_tree.add_item(menu_file, "New");
+        ctx.menu_tree.add_item(menu_file, "Open");
+        ctx.menu_tree.add_item(menu_file, "Save");
+        const int menu_edit = ctx.menu_tree.add_item(-1, "Edit");
+        ctx.menu_tree.add_item(menu_edit, "Undo");
+        ctx.menu_tree.add_item(menu_edit, "Redo");
+        ctx.menu_tree.add_item(-1, "View");
+        ctx.menu_tree.set_expanded(menu_file, true);
+        ctx.menu_tree.rebuild();
 
         h.logo = factory.create_image();
         if (auto* logo = factory.get_image(h.logo)) {

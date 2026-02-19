@@ -40,6 +40,7 @@
 - P0 radio / radio_group
 - P0 slider / dial / roller / dropdown
 - P0 list / menu / menu_item
+- P0 menu 支持多级展开/收起（menu_tree）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / gauge / arc
 - P0 text / text_area / text_input / number_input

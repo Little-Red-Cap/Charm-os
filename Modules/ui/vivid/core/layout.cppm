@@ -32,7 +32,7 @@ public:
       : dir(dir), spacing(spacing), padding(padding) {}
 
     void apply(UiFactory& factory, ObjectBase& container) override {
-        auto rect = container.get_rect();
+        auto rect = container.layout_rect();
         int offset = (dir == Direction::Horizontal ? rect.x : rect.y) + padding;
 
         for (std::size_t i = 0; i < container.child_count(); ++i) {
@@ -107,7 +107,7 @@ struct FlexLayoutConfig {
 
 export
 inline void apply_flex_layout(UiFactory& factory, ObjectBase& container, const FlexLayoutConfig& cfg) {
-    const auto rect = container.get_rect();
+    const auto rect = container.layout_rect();
     const int inner_x = rect.x + cfg.padding;
     const int inner_y = rect.y + cfg.padding;
     const int inner_w = rect.w - cfg.padding * 2;
@@ -198,7 +198,7 @@ inline void apply_flex_layout(UiFactory& factory, ObjectBase& container) {
 export
 inline void apply_flow_layout(UiFactory& factory, ObjectBase& container,
                               int gap, int line_gap, int padding) {
-    const auto rect = container.get_rect();
+    const auto rect = container.layout_rect();
     const int inner_x = rect.x + padding;
     const int inner_y = rect.y + padding;
     const int inner_w = rect.w - padding * 2;
@@ -274,7 +274,7 @@ export
 inline void apply_grid_layout(UiFactory& factory, ObjectBase& container,
                               int cols, int cell_w, int cell_h,
                               int gap, int padding) {
-    const auto rect = container.get_rect();
+    const auto rect = container.layout_rect();
     cols = (cols > 0) ? cols : 1;
     const int align_h = container.align_h();
     const int align_v = container.align_v();
@@ -505,12 +505,12 @@ inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container, Rect 
 
 export
 inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
-    apply_anchor_layout(factory, container, container.get_rect());
+    apply_anchor_layout(factory, container, container.layout_rect());
 }
 
 export
 inline void apply_constraint_layout(UiFactory& factory, ObjectBase& container, int padding = 0) {
-    auto rect = container.get_rect();
+    auto rect = container.layout_rect();
     if (padding > 0) {
         rect.x += padding;
         rect.y += padding;
@@ -524,6 +524,31 @@ inline void apply_constraint_layout(UiFactory& factory, ObjectBase& container, i
 
 export
 inline void apply_layout(UiFactory& factory, ObjectBase& container) {
+    auto update_bounds = [&]() {
+        Rect bounds{};
+        bool has_bounds = false;
+        for (std::size_t i = 0; i < container.child_count(); ++i) {
+            auto h = container.child_at(i);
+            auto* ch = factory.get(h);
+            if (!ch || !ch->is_visible()) continue;
+            const auto r = ch->get_rect();
+            if (!has_bounds) {
+                bounds = r;
+                has_bounds = true;
+            } else {
+                const int left = (r.x < bounds.x) ? r.x : bounds.x;
+                const int top = (r.y < bounds.y) ? r.y : bounds.y;
+                const int right = ((r.x + r.w) > (bounds.x + bounds.w)) ? (r.x + r.w) : (bounds.x + bounds.w);
+                const int bottom = ((r.y + r.h) > (bounds.y + bounds.h)) ? (r.y + r.h) : (bounds.y + bounds.h);
+                bounds.x = left;
+                bounds.y = top;
+                bounds.w = right - left;
+                bounds.h = bottom - top;
+            }
+        }
+        container.set_children_bounds(bounds, has_bounds);
+    };
+
     if (container.has_layout_spec()) {
         const auto& spec = container.layout_spec();
         switch (spec.kind) {
@@ -551,6 +576,7 @@ inline void apply_layout(UiFactory& factory, ObjectBase& container) {
             apply_anchor_layout(factory, container);
             break;
         }
+        update_bounds();
         return;
     }
 
@@ -571,4 +597,5 @@ inline void apply_layout(UiFactory& factory, ObjectBase& container) {
         apply_anchor_layout(factory, container);
         break;
     }
+    update_bounds();
 }

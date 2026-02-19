@@ -9,6 +9,8 @@ import charm.core.theme_preset;
 import charm.gfx.color;
 import charm.widgets.button;
 import charm.widgets.chart;
+import charm.widgets.cloudy_glass;
+import charm.widgets.foldable_panel;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
@@ -105,6 +107,17 @@ export namespace player::ui {
         preset.perf_overlay.border_color = kUiPerfBorder;
         preset.perf_overlay.font_color = kUiPerfFont;
         preset.perf_overlay.padding = 6;
+        preset.has_foldable_panel = true;
+        preset.foldable_panel = theme.get<FoldablePanel>();
+        preset.foldable_panel.header_padding = 10;
+        preset.foldable_panel.content_padding = 10;
+        preset.has_cloudy_glass = true;
+        preset.cloudy_glass = theme.get<CloudyGlass>();
+        preset.cloudy_glass.glass_highlight_pos = 12;
+        preset.cloudy_glass.glass_highlight_alpha = 90;
+        preset.cloudy_glass.glass_shadow_alpha = 50;
+        preset.cloudy_glass.glass_opacity_min = 60;
+        preset.cloudy_glass.glass_opacity_max = 200;
         apply_theme_preset(preset);
 
         auto& sheet = StyleSheet::instance();

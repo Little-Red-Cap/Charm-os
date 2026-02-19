@@ -12,6 +12,13 @@ struct Style {
     int       border_width  = 1;
     int       corner_radius = 4;
     int       padding       = 4;
+    int       header_padding = 4;
+    int       content_padding = 8;
+    int       glass_highlight_pos = 10;
+    int       glass_highlight_alpha = 70;
+    int       glass_shadow_alpha = 40;
+    int       glass_opacity_min = 40;
+    int       glass_opacity_max = 200;
 
     const Font* font         = nullptr;
     rgba        font_color   = {  0,  0,  0,255};
@@ -33,6 +40,13 @@ struct StylePatch {
     bool has_border_width{false};
     bool has_corner_radius{false};
     bool has_padding{false};
+    bool has_header_padding{false};
+    bool has_content_padding{false};
+    bool has_glass_highlight_pos{false};
+    bool has_glass_highlight_alpha{false};
+    bool has_glass_shadow_alpha{false};
+    bool has_glass_opacity_min{false};
+    bool has_glass_opacity_max{false};
     bool has_font{false};
     bool has_font_color{false};
     bool has_bg_hover{false};
@@ -49,6 +63,13 @@ struct StylePatch {
     int  border_width{0};
     int  corner_radius{0};
     int  padding{0};
+    int  header_padding{0};
+    int  content_padding{0};
+    int  glass_highlight_pos{0};
+    int  glass_highlight_alpha{0};
+    int  glass_shadow_alpha{0};
+    int  glass_opacity_min{0};
+    int  glass_opacity_max{0};
     const Font* font{nullptr};
     rgba font_color{};
     rgba bg_hover{};
@@ -66,6 +87,13 @@ struct StylePatch {
         if (has_border_width) s.border_width = border_width;
         if (has_corner_radius) s.corner_radius = corner_radius;
         if (has_padding) s.padding = padding;
+        if (has_header_padding) s.header_padding = header_padding;
+        if (has_content_padding) s.content_padding = content_padding;
+        if (has_glass_highlight_pos) s.glass_highlight_pos = glass_highlight_pos;
+        if (has_glass_highlight_alpha) s.glass_highlight_alpha = glass_highlight_alpha;
+        if (has_glass_shadow_alpha) s.glass_shadow_alpha = glass_shadow_alpha;
+        if (has_glass_opacity_min) s.glass_opacity_min = glass_opacity_min;
+        if (has_glass_opacity_max) s.glass_opacity_max = glass_opacity_max;
         if (has_font) s.font = font;
         if (has_font_color) s.font_color = font_color;
         if (has_bg_hover) s.bg_hover = bg_hover;

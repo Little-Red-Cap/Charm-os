@@ -25,6 +25,8 @@ import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.chart;
 import charm.widgets.perf_overlay;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.stepper;
 import charm.widgets.timeline;
@@ -33,6 +35,13 @@ import charm.widgets.rich_text;
 import charm.widgets.code_block;
 import charm.widgets.table_view;
 import charm.widgets.tree_view;
+import charm.widgets.progress_wheel;
+import charm.widgets.waveform_view;
+import charm.widgets.battery_gauge;
+import charm.widgets.histogram_view;
+import charm.widgets.foldable_panel;
+import charm.widgets.progress_flowing;
+import charm.widgets.cloudy_glass;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -327,6 +336,8 @@ namespace {
         WidgetHandle list_scroll{};
         WidgetHandle play_mode{};
         WidgetHandle spectrum{};
+        WidgetHandle ring{};
+        WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
@@ -338,6 +349,13 @@ namespace {
         WidgetHandle timeline{};
         WidgetHandle rich_text{};
         WidgetHandle code_block{};
+        WidgetHandle progress_wheel{};
+        WidgetHandle waveform{};
+        WidgetHandle battery_gauge{};
+        WidgetHandle histogram{};
+        WidgetHandle fold_panel{};
+        WidgetHandle progress_flow{};
+        WidgetHandle cloudy_glass{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1249,6 +1267,18 @@ namespace {
                                kUiPadding, kPerfOverlayWidth, kPerfOverlayHeight});
         }
 
+        h.ring = factory.create_ring_indication();
+        if (auto* ring = factory.get_ring_indication(h.ring)) {
+            anchor_rect(ring, {screen_width - kUiPadding - 90, kUiPadding + 90, 90, 90});
+            ring->set_value(58);
+            ring->set_thickness(10);
+        }
+
+        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
+        if (auto* box = factory.get_text_box(h.text_box)) {
+            anchor_rect(box, {screen_width - kUiPadding - 200, kUiPadding + 190, 200, 70});
+        }
+
 #if CHARM_PLAYER_DEBUG_UI
         h.debug_grid = factory.create_container();
         if (auto* grid = factory.get_container(h.debug_grid)) {
@@ -1392,6 +1422,63 @@ namespace {
             block->set_wrap(TextWrap::None);
             block->set_size(200, 80);
         }
+
+        h.progress_wheel = factory.create_progress_wheel();
+        if (auto* wheel = factory.get_progress_wheel(h.progress_wheel)) {
+            wheel->set_value(72);
+            wheel->set_thickness(8);
+            wheel->set_size(90, 90);
+        }
+
+        h.waveform = factory.create_waveform_view();
+        if (auto* wave = factory.get_waveform_view(h.waveform)) {
+            static int samples[] = {3, 5, 8, 6, 2, -2, -5, -3, 1, 4, 7, 4, 1, -3, -6, -4};
+            wave->set_samples(samples, static_cast<int>(sizeof(samples) / sizeof(samples[0])));
+            wave->set_size(200, 80);
+        }
+
+        h.battery_gauge = factory.create_battery_gauge();
+        if (auto* battery = factory.get_battery_gauge(h.battery_gauge)) {
+            battery->set_value(65);
+            battery->set_size(200, 48);
+        }
+
+        h.histogram = factory.create_histogram_view();
+        if (auto* hist = factory.get_histogram_view(h.histogram)) {
+            static int bins[] = {2, 5, 8, 3, 6, 9, 4, 7, 5, 2, 6, 8};
+            hist->set_values(bins, static_cast<int>(sizeof(bins) / sizeof(bins[0])));
+            hist->set_size(200, 80);
+        }
+
+        h.fold_panel = factory.create_foldable_panel("Foldable Panel");
+        if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
+            panel->set_body("Tap header to expand or collapse.");
+            panel->set_expanded(true);
+            panel->set_size(200, 120);
+        }
+        h.progress_flow = factory.create_progress_flowing();
+        if (auto* flow = factory.get_progress_flowing(h.progress_flow)) {
+            flow->set_range(0, 100);
+            flow->set_indeterminate(true);
+            flow->set_flow_span(12);
+            flow->set_flow_speed(2);
+            flow->set_size(200, 16);
+        }
+        h.cloudy_glass = factory.create_cloudy_glass();
+        if (auto* glass = factory.get_cloudy_glass(h.cloudy_glass)) {
+            glass->set_size(200, 70);
+            glass->set_opacity(140);
+        }
+        auto fold_btn_primary = factory.create_button("Apply");
+        if (auto* btn = factory.get_button(fold_btn_primary)) {
+            btn->set_size(90, 32);
+        }
+        auto fold_btn_secondary = factory.create_button("Reset");
+        if (auto* btn = factory.get_button(fold_btn_secondary)) {
+            btn->set_size(90, 32);
+        }
+        factory.link(h.fold_panel, fold_btn_primary);
+        factory.link(h.fold_panel, fold_btn_secondary);
 #endif
 
         const int controls_w = kButtonWidth * 3 + kButtonGap * 2;
@@ -1447,6 +1534,8 @@ namespace {
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.list_hint);
+        factory.link(h.root, h.ring);
+        factory.link(h.root, h.text_box);
 #if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
@@ -1458,6 +1547,13 @@ namespace {
         factory.link(h.debug_side, h.timeline);
         factory.link(h.debug_side, h.rich_text);
         factory.link(h.debug_side, h.code_block);
+        factory.link(h.debug_side, h.progress_wheel);
+        factory.link(h.debug_side, h.waveform);
+        factory.link(h.debug_side, h.battery_gauge);
+        factory.link(h.debug_side, h.histogram);
+        factory.link(h.debug_side, h.fold_panel);
+        factory.link(h.debug_side, h.progress_flow);
+        factory.link(h.debug_side, h.cloudy_glass);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

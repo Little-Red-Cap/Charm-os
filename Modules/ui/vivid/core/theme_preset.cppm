@@ -14,6 +14,8 @@ export import charm.widgets.toggle_group;
 export import charm.widgets.table_view;
 export import charm.widgets.tree_view;
 export import charm.widgets.perf_overlay;
+export import charm.widgets.foldable_panel;
+export import charm.widgets.cloudy_glass;
 
 export
 struct ThemePreset {
@@ -41,6 +43,10 @@ struct ThemePreset {
     Style tree_view{};
     bool has_perf_overlay{false};
     Style perf_overlay{};
+    bool has_foldable_panel{false};
+    Style foldable_panel{};
+    bool has_cloudy_glass{false};
+    Style cloudy_glass{};
 };
 
 export
@@ -58,4 +64,6 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_table_view) theme.set<TableView>(preset.table_view);
     if (preset.has_tree_view) theme.set<TreeView>(preset.tree_view);
     if (preset.has_perf_overlay) theme.set<PerfOverlay>(preset.perf_overlay);
+    if (preset.has_foldable_panel) theme.set<FoldablePanel>(preset.foldable_panel);
+    if (preset.has_cloudy_glass) theme.set<CloudyGlass>(preset.cloudy_glass);
 }

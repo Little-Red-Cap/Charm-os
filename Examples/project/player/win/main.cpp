@@ -1658,6 +1658,8 @@ int main(int argc, char** argv) {
     preset.cloudy_glass.glass_highlight_pos = 12;
     preset.cloudy_glass.glass_highlight_alpha = 90;
     preset.cloudy_glass.glass_shadow_alpha = 50;
+    preset.cloudy_glass.glass_opacity_min = 60;
+    preset.cloudy_glass.glass_opacity_max = 200;
     apply_theme_preset(preset);
 
     auto& sheet = StyleSheet::instance();

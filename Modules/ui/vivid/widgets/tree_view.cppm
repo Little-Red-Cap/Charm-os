@@ -33,6 +33,9 @@ public:
     using DrawNodeFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using ToggleFn = void(*)(void* ctx, int index) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
+    using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
+    using PoolBindFn = void(*)(void* ctx, int slot, int index, const NodeInfo& info) noexcept;
+    using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
 
     TreeView() {
         set_focusable(true);
@@ -44,11 +47,13 @@ public:
         node_fn_ = node_fn;
         draw_fn_ = draw_fn;
         data_ctx_ = ctx;
+        clear_cache();
         update_scroll_bounds();
     }
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 6) ? h : 6;
+        clear_cache();
         update_scroll_bounds();
     }
 
@@ -56,6 +61,22 @@ public:
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
+    }
+
+    void set_item_pool(PoolCreateFn create_fn,
+                       PoolBindFn bind_fn,
+                       PoolRecycleFn recycle_fn,
+                       void* ctx = nullptr) noexcept {
+        pool_create_fn_ = create_fn;
+        pool_bind_fn_ = bind_fn;
+        pool_recycle_fn_ = recycle_fn;
+        pool_ctx_ = ctx;
+        clear_cache();
+    }
+
+    void set_prefetch_rows(int rows) noexcept {
+        prefetch_rows_ = (rows > 0) ? rows : 0;
+        clear_cache();
     }
 
     void set_selected(int index) noexcept {
@@ -84,14 +105,40 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
-        int y = r.y - (scroll_y_ % row_height_);
+        int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
+        if (start > 0 && prefetch_rows_ > 0) {
+            start = (start > prefetch_rows_) ? (start - prefetch_rows_) : 0;
+        }
+        const int offset_y = r.y - (scroll_y_ - start * row_height_);
+        int y = offset_y;
+        int visible = (row_height_ > 0) ? ((r.h + row_height_ - 1) / row_height_ + 1) : 0;
+        if (prefetch_rows_ > 0) visible += prefetch_rows_ * 2;
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
             Rect row{r.x, y, r.w, row_height_};
             const bool selected = (i == selected_);
             if (selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+            }
+            int slot = -1;
+            if (visible > 0 && visible <= kMaxCache) {
+                slot = i - start;
+                if (slot >= 0 && slot < kMaxCache) {
+                    touch_slot(slot);
+                    if (cache_slots_[slot].index != i) {
+                        recycle_slot(slot);
+                        cache_slots_[slot].index = i;
+                        if (pool_create_fn_ && !cache_slots_[slot].created) {
+                            pool_create_fn_(pool_ctx_, slot);
+                            cache_slots_[slot].created = true;
+                        }
+                        if (pool_bind_fn_) {
+                            pool_bind_fn_(pool_ctx_, slot, i, info);
+                        }
+                    }
+                } else {
+                    slot = -1;
+                }
             }
             draw_node_glyphs(cvs, row, info, border);
             if (draw_fn_) {
@@ -103,6 +150,8 @@ public:
             }
             y += row_height_;
         }
+
+        recycle_inactive_slots();
 
         cvs.restore_clip(clip_state);
 
@@ -175,12 +224,47 @@ private:
         }
     }
 
+    void clear_cache() noexcept {
+        for (int i = 0; i < kMaxCache; ++i) {
+            recycle_slot(i);
+            cache_slots_[i].index = -1;
+            cache_slots_[i].touched = false;
+            cache_slots_[i].created = false;
+        }
+    }
+
+    void touch_slot(int slot) noexcept {
+        if (slot < 0 || slot >= kMaxCache) return;
+        cache_slots_[slot].touched = true;
+    }
+
+    void recycle_slot(int slot) noexcept {
+        if (slot < 0 || slot >= kMaxCache) return;
+        if (cache_slots_[slot].index >= 0 && pool_recycle_fn_) {
+            pool_recycle_fn_(pool_ctx_, slot, cache_slots_[slot].index);
+        }
+    }
+
+    void recycle_inactive_slots() noexcept {
+        for (int i = 0; i < kMaxCache; ++i) {
+            if (!cache_slots_[i].touched && cache_slots_[i].index >= 0) {
+                recycle_slot(i);
+                cache_slots_[i].index = -1;
+            }
+            cache_slots_[i].touched = false;
+        }
+    }
+
     static constexpr int indent_w_ = 12;
     CountFn count_fn_{nullptr};
     NodeFn node_fn_{nullptr};
     DrawNodeFn draw_fn_{nullptr};
     ToggleFn toggle_fn_{nullptr};
     SelectFn select_fn_{nullptr};
+    PoolCreateFn pool_create_fn_{nullptr};
+    PoolBindFn pool_bind_fn_{nullptr};
+    PoolRecycleFn pool_recycle_fn_{nullptr};
+    void* pool_ctx_{nullptr};
     void* data_ctx_{nullptr};
     void* select_ctx_{nullptr};
     int row_height_{20};
@@ -188,4 +272,13 @@ private:
     int max_scroll_y_{0};
     int wheel_step_{24};
     int selected_{-1};
+    int prefetch_rows_{1};
+
+    struct CacheSlot {
+        int index{-1};
+        bool touched{false};
+        bool created{false};
+    };
+    static constexpr int kMaxCache = 32;
+    CacheSlot cache_slots_[kMaxCache]{};
 };

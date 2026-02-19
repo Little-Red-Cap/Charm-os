@@ -93,6 +93,11 @@ public:
         select_ctx_ = ctx;
     }
 
+    void set_prefetch_rows(int rows) noexcept {
+        prefetch_rows_ = (rows > 0) ? rows : 0;
+        clear_cache();
+    }
+
     void set_selected(int index) noexcept {
         if (index < 0 || index >= item_count_) return;
         selected_ = index;
@@ -143,10 +148,14 @@ public:
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
         const int row_h = row_height_for_render();
-        const int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
-        const int offset_y = r.y + pad - (scroll_y_ % row_h);
+        int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
+        if (start > 0 && prefetch_rows_ > 0) {
+            start = (start > prefetch_rows_) ? (start - prefetch_rows_) : 0;
+        }
+        const int offset_y = r.y + pad - (scroll_y_ - start * row_h);
 
-        const int visible = (row_h > 0) ? ((r.h + row_h - 1) / row_h + 1) : 0;
+        int visible = (row_h > 0) ? ((r.h + row_h - 1) / row_h + 1) : 0;
+        if (prefetch_rows_ > 0) visible += prefetch_rows_ * 2;
         int y = offset_y;
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             Rect row{content_x, y, content_w, row_h};
@@ -371,6 +380,7 @@ private:
     bool dragging_{false};
     int last_y_{0};
     bool show_scrollbar_{true};
+    int prefetch_rows_{1};
 
     struct CacheSlot {
         int index{-1};

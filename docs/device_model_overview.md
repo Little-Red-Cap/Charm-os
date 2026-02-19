@@ -104,3 +104,35 @@ for dev in devices:
 - Driver 不得直接依赖具体平台实现（必须走 Device/Bus 接口）
 - Registry 不得阻塞
 - 匹配失败不得影响其它设备
+
+---
+
+## 9. VSF 对照表（接口形状参考）
+
+仅参考 **分层与接口形状**，不参考宏体系与实现细节。
+
+| Charm 设备模型 | VSF 对应概念 | 说明 |
+| --- | --- | --- |
+| Device | vsf_device_t / vsf_dev_t | 设备实例与描述 |
+| Driver | vsf_driver_t | 设备驱动抽象 |
+| Bus | vsf_hal/usb host stack | 发现/枚举与挂载 |
+| Registry | vsf_device_registry | 设备注册与查找 |
+| probe/init/remove | vsf_xxx_init / vsf_xxx_fini | 生命周期钩子 |
+| suspend/resume | vsf_pm 相关 | 电源管理入口 |
+
+注：VSF 大量依赖宏与配置体系，Charm 只保留抽象层次与生命周期语义。
+
+## 10. 迁移清单（从易到难）
+
+### 第一阶段（高收益/低风险）
+1. **USB Device**：CDC/MSC/UAC 作为 Driver，USB 枚举作为 Bus  
+2. **FS**：BlockDevice -> Device，FatFs/RamFs -> Driver  
+3. **Audio**：I2S/SDL3 作为 Device，Sink 作为 Driver
+
+### 第二阶段（中风险）
+1. **USB Host**：Host 枚举与 Hub 作为 Bus  
+2. **TCP/IP 抽象层**：socket/endpoint 作为 Device
+
+### 第三阶段（高风险）
+1. **Power/PM**：suspend/resume 联动 Kernel 与 Driver  
+2. **多总线协同**：设备热插拔 + 统一事件流

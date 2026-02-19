@@ -40,6 +40,9 @@ export namespace usb::device {
     struct ClassOps {
         bool (*setup)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
         bool (*control_out)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
+        bool (*get_status)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
+        bool (*clear_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
+        bool (*set_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
         void (*reset)(void* ctx) noexcept { nullptr };
     };
 
@@ -163,7 +166,11 @@ export namespace usb::device {
     public:
         void set_max_packet_size0(u16 mps) noexcept { max_packet_size0_ = mps; }
         void set_descriptor_provider(DescriptorProvider provider) noexcept { provider_ = provider; }
-        void set_class(void* ctx, const ClassOps* ops) noexcept { ep0_.set_class(ctx, ops); }
+        void set_class(void* ctx, const ClassOps* ops) noexcept {
+            class_ctx_ = ctx;
+            class_ops_ = ops;
+            ep0_.set_class(ctx, ops);
+        }
 
         DeviceState state() const noexcept { return ep0_.state(); }
         Ep0Stage stage() const noexcept { return ep0_.stage(); }
@@ -179,6 +186,9 @@ export namespace usb::device {
             }
             if (req_type == RequestType::class_request) {
                 if (!ep0_.handle_setup(resp)) return false;
+            }
+            if (req_type == RequestType::vendor) {
+                return false;
             }
             if (setup.w_length == 0) {
                 return true;
@@ -223,6 +233,13 @@ export namespace usb::device {
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {
             switch (static_cast<StandardRequest>(setup.b_request)) {
             case StandardRequest::get_status: {
+                if (class_ops_ && class_ops_->get_status) {
+                    ControlResponse tmp{};
+                    if (class_ops_->get_status(class_ctx_, setup, tmp)) {
+                        resp = tmp;
+                        return true;
+                    }
+                }
                 status_buf_[0] = 0;
                 status_buf_[1] = 0;
                 resp.data = std::span<const u8>(status_buf_, 2);
@@ -230,7 +247,24 @@ export namespace usb::device {
                 return true;
             }
             case StandardRequest::clear_feature:
+                if (class_ops_ && class_ops_->clear_feature) {
+                    ControlResponse tmp{};
+                    if (class_ops_->clear_feature(class_ctx_, setup, tmp)) {
+                        resp = tmp;
+                        return true;
+                    }
+                }
+                resp.data = {};
+                resp.zlp = true;
+                return true;
             case StandardRequest::set_feature:
+                if (class_ops_ && class_ops_->set_feature) {
+                    ControlResponse tmp{};
+                    if (class_ops_->set_feature(class_ctx_, setup, tmp)) {
+                        resp = tmp;
+                        return true;
+                    }
+                }
                 resp.data = {};
                 resp.zlp = true;
                 return true;
@@ -274,6 +308,8 @@ export namespace usb::device {
 
         Ep0StateMachine ep0_{};
         DescriptorProvider provider_{};
+        void* class_ctx_{nullptr};
+        const ClassOps* class_ops_{nullptr};
         u8 configuration_{0};
         u8 interface_alt_{0};
         u8 status_buf_[2]{0, 0};

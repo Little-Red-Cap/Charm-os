@@ -5,6 +5,7 @@ module;
 #include <cstring>
 #include <span>
 #include <string_view>
+#include <utility>
 
 export module usb.common;
 
@@ -266,6 +267,15 @@ export namespace usb {
             if (!writer.write_object(le)) return false;
         }
         return true;
+    }
+
+    inline constexpr std::pair<u8, u16> utf16le_unit(char16_t ch) noexcept {
+        return { static_cast<u8>(2), static_cast<u16>(ch) };
+    }
+
+    inline constexpr u8 utf16le_length(std::u16string_view text) noexcept {
+        const auto bytes = text.size() * 2;
+        return (bytes > 254) ? static_cast<u8>(0) : static_cast<u8>(bytes);
     }
 
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {

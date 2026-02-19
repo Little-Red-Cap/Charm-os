@@ -626,17 +626,11 @@ namespace {
 }
 
 int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
     const char* vhd_path = kDefaultVhdPath;
     std::vector<std::string> vfs_tracks;
-    if (argc >= 2) {
-        vhd_path = argv[1];
-        for (int i = 2; i < argc; ++i) {
-            if (argv[i] && *argv[i]) vfs_tracks.emplace_back(argv[i]);
-        }
-    }
-    if (vfs_tracks.empty()) {
-        vfs_tracks.emplace_back(kDefaultVfsTrack);
-    }
+    vfs_tracks.emplace_back(kDefaultVfsTrack);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         std::printf("[player] SDL_Init failed\n");

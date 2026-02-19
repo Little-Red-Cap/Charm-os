@@ -1653,6 +1653,11 @@ int main(int argc, char** argv) {
     preset.foldable_panel = theme.get<FoldablePanel>();
     preset.foldable_panel.header_padding = 10;
     preset.foldable_panel.content_padding = 10;
+    preset.has_cloudy_glass = true;
+    preset.cloudy_glass = theme.get<CloudyGlass>();
+    preset.cloudy_glass.glass_highlight_pos = 12;
+    preset.cloudy_glass.glass_highlight_alpha = 90;
+    preset.cloudy_glass.glass_shadow_alpha = 50;
     apply_theme_preset(preset);
 
     auto& sheet = StyleSheet::instance();

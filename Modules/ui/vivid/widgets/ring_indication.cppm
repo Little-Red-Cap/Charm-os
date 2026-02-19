@@ -34,6 +34,8 @@ public:
     void set_show_ticks(bool on) noexcept { show_ticks_ = on; }
     void set_tick_count(int count) noexcept { tick_count_ = (count > 0) ? count : 1; }
     void set_tick_length(int px) noexcept { tick_len_ = (px > 0) ? px : 1; }
+    void set_major_tick_every(int every) noexcept { major_every_ = (every > 0) ? every : 1; }
+    void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
     void draw(DefaultCanvas& cvs) override {
@@ -68,8 +70,10 @@ public:
             const float range = static_cast<float>(end - start);
             const float step = range / static_cast<float>(tick_count_);
             const int inner = radius - thickness_ / 2;
-            const int outer = inner + tick_len_;
             for (int i = 0; i <= tick_count_; ++i) {
+                const bool major = (major_every_ > 0) ? (i % major_every_ == 0) : false;
+                const int len = major ? major_len_ : tick_len_;
+                const int outer = inner + len;
                 const float deg = static_cast<float>(start) + step * static_cast<float>(i);
                 const float rad = deg * 3.1415926f / 180.0f;
                 const int x0 = cx + static_cast<int>(std::cos(rad) * inner);
@@ -90,5 +94,7 @@ private:
     bool show_ticks_{true};
     int tick_count_{12};
     int tick_len_{6};
+    int major_every_{5};
+    int major_len_{10};
     bool show_shadow_{true};
 };

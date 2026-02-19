@@ -18,6 +18,7 @@ import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
 import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
+import charm.widgets.spectrum_view;
 import charm.widgets.spinning_wheel;
 import charm.widgets.image_box;
 import charm.widgets.meter_pointer;
@@ -48,7 +49,7 @@ export namespace player::ui {
     inline constexpr int kModeHintGap = 6;
     inline constexpr int kSpectrumHeight = 80;
     inline constexpr int kSpectrumGap = 12;
-    inline constexpr int kOptionsHeight = 28;
+    inline constexpr int kOptionsHeight = 32;
     inline constexpr int kOptionsGap = 10;
     inline constexpr int kOptionLabelWidth = 86;
     inline constexpr int kEqBands = 5;
@@ -407,6 +408,12 @@ export namespace player::ui {
         preset.cloudy_glass.glass_shadow_alpha = 50;
         preset.cloudy_glass.glass_opacity_min = 60;
         preset.cloudy_glass.glass_opacity_max = 200;
+        preset.has_spectrum_view = true;
+        preset.spectrum_view = theme.get<SpectrumView>();
+        preset.spectrum_view.bg_color = kUiListBg;
+        preset.spectrum_view.border_color = kUiListBorder;
+        preset.spectrum_view.bg_pressed = kUiSwitchOn;
+        preset.spectrum_view.border_focus = kUiOk;
         apply_theme_preset(preset);
 
         auto& sheet = StyleSheet::instance();
@@ -486,5 +493,12 @@ export namespace player::ui {
 
         StylePatch crt_patch = chart_patch;
         theme.patch<CrtScreen>(crt_patch);
+
+        StylePatch spectrum_patch = chart_patch;
+        spectrum_patch.has_bg_pressed = true;
+        spectrum_patch.bg_pressed = kUiSwitchOn;
+        spectrum_patch.has_border_focus = true;
+        spectrum_patch.border_focus = kUiOk;
+        theme.patch<SpectrumView>(spectrum_patch);
     }
 }

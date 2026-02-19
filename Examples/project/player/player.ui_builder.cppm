@@ -11,12 +11,11 @@ import charm.core.layout;
 import charm.gfx.assets.render;
 import charm.widgets.battery_gauge;
 import charm.widgets.button;
-import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.code_block;
 import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
-import charm.widgets.histogram_view;
+import charm.widgets.spectrum_view;
 import charm.widgets.image;
 import charm.widgets.label;
 import charm.widgets.list_view;
@@ -149,15 +148,10 @@ export namespace player {
             hint->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
-        h.spectrum_hist = factory.create_histogram_view();
-        if (auto* hist = factory.get_histogram_view(h.spectrum_hist)) {
-            anchor_rect(hist, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
-            hist->set_range(0, 100);
-        }
-
-        h.spectrum_peak = factory.create_chart();
-        if (auto* chart = factory.get_chart(h.spectrum_peak)) {
-            anchor_rect(chart, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+        h.spectrum_view = factory.create_spectrum_view();
+        if (auto* view = factory.get_spectrum_view(h.spectrum_view)) {
+            anchor_rect(view, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
+            view->set_mode(SpectrumView::Mode::NeonBars);
         }
 
         h.options_row = factory.create_container();
@@ -541,7 +535,7 @@ export namespace player {
             mode->set_size(kModeButtonWidth, kButtonHeight);
             mode->set_on_click(cb.mode_click);
             mode->set_text("");
-            mode->set_icon(icon_loop(), 18, 18);
+            mode->set_icon(icon_loop(), 24, 24);
         }
 
         h.btn_pause = factory.create_button("Pause");
@@ -559,8 +553,7 @@ export namespace player {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.mode_hint);
-        factory.link(h.root, h.spectrum_hist);
-        factory.link(h.root, h.spectrum_peak);
+        factory.link(h.root, h.spectrum_view);
         factory.link(h.root, h.options_row);
         factory.link(h.root, h.eq_panel);
         factory.link(h.eq_panel, h.eq_title);

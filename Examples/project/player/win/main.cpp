@@ -400,6 +400,10 @@ namespace {
                 ctx.switch_track(-1);
                 return true;
             }
+            if (evt.key.key == SDLK_V) {
+                ctx.cycle_spectrum_style();
+                return true;
+            }
             gui.dispatch_event(Event::key(Event::Type::KeyDown, map_key(evt.key.key)));
             return true;
         case SDL_EVENT_KEY_UP:

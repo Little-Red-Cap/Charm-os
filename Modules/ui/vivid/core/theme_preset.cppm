@@ -19,6 +19,7 @@ export import charm.widgets.foldable_panel;
 export import charm.widgets.cloudy_glass;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
+export import charm.widgets.spectrum_view;
 
 export
 struct ThemePreset {
@@ -56,6 +57,8 @@ struct ThemePreset {
     Style dynamic_nebula{};
     bool has_crt_screen{false};
     Style crt_screen{};
+    bool has_spectrum_view{false};
+    Style spectrum_view{};
 };
 
 export
@@ -78,4 +81,5 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_cloudy_glass) theme.set<CloudyGlass>(preset.cloudy_glass);
     if (preset.has_dynamic_nebula) theme.set<DynamicNebula>(preset.dynamic_nebula);
     if (preset.has_crt_screen) theme.set<CrtScreen>(preset.crt_screen);
+    if (preset.has_spectrum_view) theme.set<SpectrumView>(preset.spectrum_view);
 }

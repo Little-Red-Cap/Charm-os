@@ -74,6 +74,7 @@ import charm.widgets.spin_zoom_widget;
 import charm.widgets.spinning_wheel;
 import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
+import charm.widgets.spectrum_view;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -143,6 +144,7 @@ public:
     WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
     WidgetHandle create_spin_zoom_widget() noexcept { return make_handle(spin_zoom_.create(), WidgetKind::SpinZoomWidget); }
     WidgetHandle create_spinning_wheel() noexcept { return make_handle(spinning_wheel_.create(), WidgetKind::SpinningWheel); }
+    WidgetHandle create_spectrum_view() noexcept { return make_handle(spectrum_views_.create(), WidgetKind::SpectrumView); }
     WidgetHandle create_dynamic_nebula() noexcept { return make_handle(nebula_.create(), WidgetKind::DynamicNebula); }
     WidgetHandle create_crt_screen() noexcept { return make_handle(crt_.create(), WidgetKind::CrtScreen); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
@@ -210,6 +212,7 @@ public:
     CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
     SpinZoomWidget* get_spin_zoom_widget(const WidgetHandle& h) noexcept { return get_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); }
     SpinningWheel* get_spinning_wheel(const WidgetHandle& h) noexcept { return get_from(spinning_wheel_, h, WidgetKind::SpinningWheel); }
+    SpectrumView* get_spectrum_view(const WidgetHandle& h) noexcept { return get_from(spectrum_views_, h, WidgetKind::SpectrumView); }
     DynamicNebula* get_dynamic_nebula(const WidgetHandle& h) noexcept { return get_from(nebula_, h, WidgetKind::DynamicNebula); }
     CrtScreen* get_crt_screen(const WidgetHandle& h) noexcept { return get_from(crt_, h, WidgetKind::CrtScreen); }
 
@@ -277,6 +280,7 @@ public:
             case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
             case WidgetKind::SpinZoomWidget: return get_spin_zoom_widget(h);
             case WidgetKind::SpinningWheel: return get_spinning_wheel(h);
+            case WidgetKind::SpectrumView: return get_spectrum_view(h);
             case WidgetKind::DynamicNebula: return get_dynamic_nebula(h);
             case WidgetKind::CrtScreen: return get_crt_screen(h);
             default: return nullptr;
@@ -492,6 +496,7 @@ public:
         case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
         case WidgetKind::SpinZoomWidget: destroy_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); break;
         case WidgetKind::SpinningWheel: destroy_from(spinning_wheel_, h, WidgetKind::SpinningWheel); break;
+        case WidgetKind::SpectrumView: destroy_from(spectrum_views_, h, WidgetKind::SpectrumView); break;
         case WidgetKind::DynamicNebula: destroy_from(nebula_, h, WidgetKind::DynamicNebula); break;
         case WidgetKind::CrtScreen: destroy_from(crt_, h, WidgetKind::CrtScreen); break;
             default: break;
@@ -791,6 +796,7 @@ private:
     HandlePool<SpinningWheel, 16> spinning_wheel_{};
     HandlePool<DynamicNebula, 8> nebula_{};
     HandlePool<CrtScreen, 8> crt_{};
+    HandlePool<SpectrumView, 16> spectrum_views_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

@@ -214,6 +214,38 @@ export namespace usb::device {
     };
 
     namespace examples {
+        struct CdcEndpointCallbacks {
+            driver::EpCallbacks out{};
+            driver::EpCallbacks in{};
+        };
+
+        inline CdcEndpointCallbacks make_cdc_ep_callbacks(class_driver::CdcAcm& cdc) noexcept {
+            CdcEndpointCallbacks cb{};
+            cb.out.on_out = [] (void* ctx, std::span<const u8> data) noexcept {
+                auto* self = static_cast<class_driver::CdcAcm*>(ctx);
+                if (self) self->on_out_packet(data);
+            };
+            cb.in.on_in_complete = [] (void* ctx, std::size_t sent, bool) noexcept {
+                auto* self = static_cast<class_driver::CdcAcm*>(ctx);
+                if (self) self->on_tx_done(sent);
+            };
+            cb.out.on_stall = nullptr;
+            cb.in.on_stall = nullptr;
+            cb.out.on_in_complete = nullptr;
+            return cb;
+        }
+
+        inline bool send_cdc_in_packet(const driver::DcdOps& dcd,
+                                       void* dcd_ctx,
+                                       class_driver::CdcAcm& cdc,
+                                       std::size_t max_len) noexcept {
+            if (!dcd.ep.send) return false;
+            auto data = cdc.on_in_request(max_len);
+            if (data.empty()) return false;
+            const auto ep = cdc.config().ep_in;
+            return dcd.ep.send(dcd_ctx, ep, data, false);
+        }
+
         inline bool attach_cdc_acm(Device& dev,
                                    class_driver::CdcAcm& cdc,
                                    DescriptorTable& table,

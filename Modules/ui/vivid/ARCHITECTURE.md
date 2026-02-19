@@ -82,11 +82,26 @@ flowchart LR
     RList[ListView (virtual)]
     RRow1[Row 1]
     RRow2[Row 2]
-    RRoot --> RHeader
-    RRoot --> RList
-    RList --> RRow1
-    RList --> RRow2
-  end
+  RRoot --> RHeader
+  RRoot --> RList
+  RList --> RRow1
+  RList --> RRow2
+end
+```
+
+```mermaid
+flowchart TB
+  LayoutSpec[LayoutSpec] --> Switch{LayoutMode}
+  Switch --> Anchor[Anchor]
+  Switch --> Flex[Flex]
+  Switch --> Flow[Flow]
+  Switch --> Grid[Grid]
+  Switch --> Constraint[Constraint]
+  Anchor --> Apply[apply_layout]
+  Flex --> Apply
+  Flow --> Apply
+  Grid --> Apply
+  Constraint --> Apply
 ```
 
 ## 4. 输入与事件

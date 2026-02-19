@@ -106,3 +106,12 @@ flowchart LR
 - 复杂文本排版与 shaping 未实现（国际化风险）
 - 高级图表交互缺口（缩放/选区/标注）
 - GPU/DMA 后端未接入（大屏或高帧率场景受限）
+
+```mermaid
+flowchart LR
+  Clip[ClipPolicy] --> Rect[Rect/LayoutRect]
+  Clip --> Custom[Custom Insets]
+  Scroll[ScrollContainer] --> Custom
+  Fold[FoldablePanel] --> Rect
+  Custom --> Render[Clip in render]
+```

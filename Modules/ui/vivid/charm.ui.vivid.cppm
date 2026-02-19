@@ -48,6 +48,7 @@ export import charm.widgets.menu;
 export import charm.widgets.menu_item;
 export import charm.widgets.message_box;
 export import charm.widgets.popup_layer;
+export import charm.widgets.perf_overlay;
 export import charm.widgets.primitives_canvas;
 export import charm.widgets.progress;
 export import charm.widgets.radio;

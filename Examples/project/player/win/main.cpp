@@ -14,6 +14,7 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
+import charm.widgets.perf_overlay;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -228,6 +229,19 @@ namespace {
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
         WidgetHandle btn_stop{};
+        WidgetHandle perf_overlay{};
+    };
+
+    struct PerfState {
+        std::chrono::steady_clock::time_point last{};
+        int frame_count{0};
+        int fps{0};
+        int draw_ms{0};
+        int dirty_count{0};
+        int dirty_area{0};
+        int nodes{0};
+        int depth_hits{0};
+        int cycle_hits{0};
     };
 
     struct PlayerUiContext {
@@ -1055,6 +1069,11 @@ namespace {
             anchor_pos(status, kUiPadding, kUiPadding * 2 + kCoverSize + 150);
         }
 
+        h.perf_overlay = factory.create_perf_overlay();
+        if (auto* perf = factory.get_perf_overlay(h.perf_overlay)) {
+            anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
+        }
+
         h.list = factory.create_list_view();
         if (auto* list = factory.get_list_view(h.list)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
@@ -1152,6 +1171,7 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
+        factory.link(h.root, h.perf_overlay);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
         factory.link(h.root, h.tree);
@@ -1161,6 +1181,7 @@ namespace {
         factory.link(h.root, h.btn_pause);
         factory.link(h.root, h.btn_next);
         factory.link(h.root, h.btn_stop);
+        factory.bring_to_front(h.root, h.perf_overlay);
 
         return h;
     }
@@ -1246,6 +1267,16 @@ int main(int argc, char** argv) {
     progress_patch.has_border_color = true;
     progress_patch.border_color = {90, 110, 150, 255};
     theme.patch<Progress>(progress_patch);
+    StylePatch perf_patch{};
+    perf_patch.has_bg_color = true;
+    perf_patch.bg_color = {24, 26, 36, 230};
+    perf_patch.has_border_color = true;
+    perf_patch.border_color = {70, 90, 120, 255};
+    perf_patch.has_font_color = true;
+    perf_patch.font_color = {220, 228, 242, 255};
+    perf_patch.has_padding = true;
+    perf_patch.padding = 6;
+    theme.patch<PerfOverlay>(perf_patch);
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
@@ -1271,9 +1302,12 @@ int main(int argc, char** argv) {
     }
 
     Gui gui(canvas, factory, ctx.handles.root);
+    gui.set_dirty_tracking(true);
+    PerfState perf{};
 
     bool running = true;
     while (running) {
+        const auto frame_begin = std::chrono::steady_clock::now();
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_EVENT_QUIT) {
@@ -1303,7 +1337,50 @@ int main(int argc, char** argv) {
         ctx.update_progress();
 
         canvas.clear({18, 20, 28, 255});
+        const auto render_begin = std::chrono::steady_clock::now();
         gui.render();
+        const auto render_end = std::chrono::steady_clock::now();
+
+        perf.draw_ms = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_begin).count());
+        perf.frame_count += 1;
+        if (perf.last.time_since_epoch().count() == 0) {
+            perf.last = frame_begin;
+        } else {
+            const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(frame_begin - perf.last);
+            if (dt.count() >= 1000) {
+                perf.fps = (dt.count() > 0) ? (perf.frame_count * 1000 / static_cast<int>(dt.count())) : 0;
+                perf.frame_count = 0;
+                perf.last = frame_begin;
+            }
+        }
+
+        const auto& dirty = canvas.dirty_list();
+        perf.dirty_count = static_cast<int>(dirty.size());
+        if (canvas.dirty_full()) {
+            perf.dirty_area = screen_width * screen_height;
+        } else {
+            int area = 0;
+            for (util::usize i = 0; i < dirty.size(); ++i) {
+                const auto& r = dirty[i];
+                area += r.w * r.h;
+            }
+            perf.dirty_area = area;
+        }
+        perf.nodes = gui.last_frame_nodes();
+        perf.depth_hits = gui.last_depth_hits();
+        perf.cycle_hits = gui.last_cycle_hits();
+        if (auto* overlay = factory.get_perf_overlay(ctx.handles.perf_overlay)) {
+            overlay->set_sample(PerfOverlay::Sample{
+                perf.fps,
+                perf.draw_ms,
+                perf.dirty_count,
+                perf.dirty_area,
+                perf.nodes,
+                perf.depth_hits,
+                perf.cycle_hits
+            });
+        }
 
         SDL_UpdateTexture(texture, nullptr, fb.data(), screen_width * 3);
         SDL_RenderClear(renderer);

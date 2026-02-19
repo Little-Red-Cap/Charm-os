@@ -160,6 +160,18 @@ public:
                 swipe_active_ = false;
             }
             return true;
+        } else if (e.type == Event::Type::GesturePinch) {
+            if (!r.contains(e.x, e.y)) return false;
+            if (e.gesture_phase == Event::GesturePhase::Begin) {
+                pinch_active_ = true;
+                velocity_ = 0;
+            } else if (e.gesture_phase == Event::GesturePhase::Update) {
+                add_scroll_y(-e.dy);
+                velocity_ = -e.dy;
+            } else if (e.gesture_phase == Event::GesturePhase::End) {
+                pinch_active_ = false;
+            }
+            return true;
         }
         return false;
     }
@@ -228,6 +240,7 @@ private:
     int drag_threshold_sq_{9};
     bool dragging_{false};
     bool swipe_active_{false};
+    bool pinch_active_{false};
     int last_y_{0};
     int velocity_{0};
 

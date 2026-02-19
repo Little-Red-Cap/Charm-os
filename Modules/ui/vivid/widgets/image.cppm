@@ -6,6 +6,7 @@ export module charm.widgets.image;
 
 import charm.core.object;
 import charm.core.geometry;
+import charm.core.event;
 import charm.gfx.image;
 import charm.gfx.render;
 
@@ -100,6 +101,33 @@ public:
 
     void clear_crop() noexcept { has_crop_ = false; }
 
+    void set_zoom(float zoom) noexcept {
+        zoom_ = clamp_zoom(zoom);
+    }
+
+    void set_zoom_limits(float min_zoom, float max_zoom) noexcept {
+        min_zoom_ = (min_zoom > 0.0f) ? min_zoom : 0.1f;
+        max_zoom_ = (max_zoom > min_zoom_) ? max_zoom : min_zoom_;
+        zoom_ = clamp_zoom(zoom_);
+    }
+
+    void set_pinch_enabled(bool on) noexcept { pinch_enabled_ = on; }
+
+    bool on_event(const Event& e) override {
+        if (!pinch_enabled_) return false;
+        if (e.type != Event::Type::GesturePinch) return false;
+        if (e.gesture_phase == Event::GesturePhase::Begin) {
+            pinch_active_ = true;
+            pinch_base_zoom_ = zoom_;
+        } else if (e.gesture_phase == Event::GesturePhase::Update) {
+            if (!pinch_active_) return false;
+            zoom_ = clamp_zoom(pinch_base_zoom_ * e.scale);
+        } else if (e.gesture_phase == Event::GesturePhase::End) {
+            pinch_active_ = false;
+        }
+        return true;
+    }
+
     void draw(DefaultCanvas& cvs) override {
         if (!image_) return;
         const auto r = get_rect();
@@ -140,6 +168,11 @@ public:
             const float s = (sx > sy) ? sx : sy;
             dst_w = static_cast<int>(src_w * s);
             dst_h = static_cast<int>(src_h * s);
+        }
+
+        if (zoom_ != 1.0f) {
+            dst_w = static_cast<int>(static_cast<float>(dst_w) * zoom_);
+            dst_h = static_cast<int>(static_cast<float>(dst_h) * zoom_);
         }
 
         int dst_x = r.x + static_cast<int>((r.w - dst_w) * anchor_x_);
@@ -341,6 +374,12 @@ private:
         return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
     }
 
+    float clamp_zoom(float value) const noexcept {
+        if (value < min_zoom_) return min_zoom_;
+        if (value > max_zoom_) return max_zoom_;
+        return value;
+    }
+
     ImageView image_{};
     ScaleMode scale_mode_{ScaleMode::Stretch};
     Rotation rotation_{Rotation::None};
@@ -353,4 +392,10 @@ private:
     float anchor_y_{0.5f};
     Rect crop_{};
     bool has_crop_{false};
+    float zoom_{1.0f};
+    float min_zoom_{0.5f};
+    float max_zoom_{4.0f};
+    float pinch_base_zoom_{1.0f};
+    bool pinch_enabled_{true};
+    bool pinch_active_{false};
 };

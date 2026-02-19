@@ -7,7 +7,9 @@ import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
+import charm.core.anim;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
 import charm.gfx.assets.render;
@@ -527,6 +529,13 @@ namespace {
             set_label(handles.status, text);
         }
 
+        void set_cover_color(const rgba& color) {
+            if (!factory) return;
+            if (auto* cover = factory->get_container(handles.cover)) {
+                cover->set_background(color);
+            }
+        }
+
         void set_status_color(const rgba& color) {
             if (!factory) return;
             if (auto* label = factory->get_label(handles.status)) {
@@ -1006,6 +1015,17 @@ namespace {
         }
     }
 
+    void apply_cover_pulse(void* ctx, float v) {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        const std::uint8_t base = 40;
+        const std::uint8_t delta = static_cast<std::uint8_t>(20 * v);
+        app->set_cover_color({static_cast<std::uint8_t>(base + delta),
+                              static_cast<std::uint8_t>(44 + delta),
+                              static_cast<std::uint8_t>(60 + delta),
+                              255});
+    }
+
     bool dispatch_sdl_event(Gui& gui, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION:
@@ -1051,6 +1071,20 @@ namespace {
                                               1.0f);
                 gui.dispatch_event(e);
                 return true;
+            }
+            if (ctx.show_debug) {
+                Event::Key key = Event::Key::Unknown;
+                if (evt.key.key == SDLK_UP) key = Event::Key::Up;
+                else if (evt.key.key == SDLK_DOWN) key = Event::Key::Down;
+                else if (evt.key.key == SDLK_LEFT) key = Event::Key::Left;
+                else if (evt.key.key == SDLK_RIGHT) key = Event::Key::Right;
+                else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
+                else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
+                if (key != Event::Key::Unknown) {
+                    if (ctx.menu_tree.handle_event(Event::key(Event::Type::KeyDown, key))) {
+                        return true;
+                    }
+                }
             }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
@@ -1217,6 +1251,11 @@ namespace {
             logo->set_image(render_logo_argb());
             logo->set_scale_mode(Image::ScaleMode::Fit);
             logo->set_alignment(Image::AlignH::Center, Image::AlignV::Center);
+            logo->set_rotation(Image::Rotation::Rotate90);
+            logo->set_sampling(Image::Sampling::Bilinear);
+            logo->set_crop_mode(Image::CropMode::Transparent);
+            logo->set_edge_mode(Image::EdgeMode::AllowOutside);
+            logo->set_anchor(0.5f, 0.5f);
             logo->set_crop({4, 4, 22, 22});
             logo->set_size(200, 90);
         }
@@ -1401,6 +1440,20 @@ int main(int argc, char** argv) {
     preset.perf_overlay.padding = 6;
     apply_theme_preset(preset);
 
+    auto& sheet = StyleSheet::instance();
+    sheet.clear();
+    StylePatch btn_base{};
+    btn_base.has_bg_color = true;
+    btn_base.bg_color = {34, 40, 58, 255};
+    btn_base.has_border_color = true;
+    btn_base.border_color = {90, 120, 160, 255};
+    sheet.add_rule({WidgetKind::Button, 0}, btn_base);
+
+    StylePatch btn_hover{};
+    btn_hover.has_bg_color = true;
+    btn_hover.bg_color = {44, 60, 82, 255};
+    sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
+
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
@@ -1484,6 +1537,11 @@ int main(int argc, char** argv) {
     }
 
     Gui gui(canvas, factory, ctx.handles.root);
+    gui.set_dirty_tracking(true);
+    gui.set_layer_cache(true);
+
+    static anim::Timeline timeline;
+    const auto start_time = std::chrono::steady_clock::now();
 
     bool running = true;
     while (running) {
@@ -1532,6 +1590,15 @@ int main(int argc, char** argv) {
         ctx.update_duration_from_player();
         ctx.apply_pending_seek();
         ctx.update_progress();
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto ms = static_cast<std::uint32_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
+        timeline.tick(ms);
+        if (!timeline.active()) {
+            timeline.clear();
+            timeline.add(&apply_cover_pulse, &ctx, 0.0f, 1.0f, ms, 2000, anim::Ease::InOutQuad);
+        }
 
         canvas.clear({18, 20, 28, 255});
         gui.render();

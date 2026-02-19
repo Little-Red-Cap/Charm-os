@@ -7,11 +7,13 @@ export import charm.core.factory;
 export import charm.core.geometry;
 export import charm.core.gui;
 export import charm.core.handle;
+export import charm.core.anim;
 export import charm.core.layout;
 export import charm.core.object;
 export import charm.core.pool;
 export import charm.core.string;
 export import charm.core.style;
+export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 
 export import charm.gfx.canvas;

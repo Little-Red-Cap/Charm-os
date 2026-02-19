@@ -17,6 +17,7 @@ public:
     void set_pos(int x, int y) noexcept { rect_.x = x; rect_.y = y; }
     void set_size(int w, int h) noexcept { rect_.w = w; rect_.h = h; }
     void set_rect(Rect r) noexcept { rect_ = r; }
+    virtual Rect layout_rect() const noexcept { return rect_; }
 
     void set_visible(bool v) noexcept {
         visible_ = v;

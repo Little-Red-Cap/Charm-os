@@ -18,6 +18,7 @@ public:
         set_focusable(true);
         set_size(220, 140);
         set_title(title);
+        set_flow_layout(8, 8, 0);
     }
 
     void set_title(const char* text) noexcept { assign(title_, title_len_, text); }
@@ -31,6 +32,7 @@ public:
     void toggle() noexcept { expanded_ = !expanded_; }
 
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
+    void set_content_padding(int p) noexcept { content_pad_ = (p >= 0) ? p : 0; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<FoldablePanel>();
@@ -57,10 +59,12 @@ public:
 
         if (!expanded_) return;
 
-        const Rect body_box{r.x + st.padding, r.y + header_h + st.padding,
-                            r.w - st.padding * 2, r.h - header_h - st.padding * 2};
-        draw_text_box(cvs, body_box, body_, font, resolve_font(st),
-                      TextAlignH::Left, TextAlignV::Top, TextWrap::Word, TextEllipsis::None);
+        if (child_count() == 0 && body_len_ > 0) {
+            const Rect body_box{r.x + st.padding, r.y + header_h + st.padding,
+                                r.w - st.padding * 2, r.h - header_h - st.padding * 2};
+            draw_text_box(cvs, body_box, body_, font, resolve_font(st),
+                          TextAlignH::Left, TextAlignV::Top, TextWrap::Word, TextEllipsis::None);
+        }
     }
 
     bool on_event(const Event& e) override {
@@ -74,6 +78,23 @@ public:
         return false;
     }
 
+    Rect layout_rect() const noexcept override {
+        const auto r = get_rect();
+        const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
+        if (!expanded_) {
+            return {r.x, r.y + header_h, r.w, 0};
+        }
+        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_,
+                   r.w - content_pad_ * 2, r.h - header_h - content_pad_ * 2};
+        if (inner.w < 0) inner.w = 0;
+        if (inner.h < 0) inner.h = 0;
+        return inner;
+    }
+
+    bool should_draw_child(const ObjectBase&) const noexcept override {
+        return expanded_;
+    }
+
 private:
     static constexpr int kMax = 256;
     char title_[kMax + 1]{};
@@ -81,6 +102,7 @@ private:
     int title_len_{0};
     int body_len_{0};
     int header_h_{28};
+    int content_pad_{8};
     bool expanded_{true};
 
     static void assign(char* dst, int& len, const char* src) noexcept {

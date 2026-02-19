@@ -1469,6 +1469,16 @@ namespace {
             panel->set_expanded(true);
             panel->set_size(200, 120);
         }
+        auto fold_btn_primary = factory.create_button("Apply");
+        if (auto* btn = factory.get_button(fold_btn_primary)) {
+            btn->set_size(90, 32);
+        }
+        auto fold_btn_secondary = factory.create_button("Reset");
+        if (auto* btn = factory.get_button(fold_btn_secondary)) {
+            btn->set_size(90, 32);
+        }
+        factory.link(h.fold_panel, fold_btn_primary);
+        factory.link(h.fold_panel, fold_btn_secondary);
 #endif
 
         constexpr int button_w = 120;

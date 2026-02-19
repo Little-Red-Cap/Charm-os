@@ -52,6 +52,67 @@ public:
 
     int selected() const noexcept { return selected_; }
 
+    bool handle_event(const Event& e) {
+        if (e.type != Event::Type::KeyDown) return false;
+        if (visible_count_ == 0) return false;
+        int idx = find_visible_index(selected_);
+        if (idx < 0) {
+            selected_ = visible_[0].node;
+            rebuild();
+            return true;
+        }
+        const int node = visible_[idx].node;
+        switch (e.key_code) {
+        case Event::Key::Down:
+            if (idx + 1 < visible_count_) {
+                selected_ = visible_[idx + 1].node;
+                rebuild();
+            }
+            return true;
+        case Event::Key::Up:
+            if (idx - 1 >= 0) {
+                selected_ = visible_[idx - 1].node;
+                rebuild();
+            }
+            return true;
+        case Event::Key::Right:
+            if (nodes_[node].has_children && !nodes_[node].expanded) {
+                nodes_[node].expanded = true;
+                rebuild();
+            } else if (idx + 1 < visible_count_) {
+                selected_ = visible_[idx + 1].node;
+                rebuild();
+            }
+            return true;
+        case Event::Key::Left:
+            if (nodes_[node].has_children && nodes_[node].expanded) {
+                nodes_[node].expanded = false;
+                rebuild();
+            } else {
+                const int parent = nodes_[node].parent;
+                if (parent >= 0) {
+                    selected_ = parent;
+                    rebuild();
+                }
+            }
+            return true;
+        case Event::Key::Enter:
+        case Event::Key::Space:
+            if (nodes_[node].has_children) {
+                nodes_[node].expanded = !nodes_[node].expanded;
+                rebuild();
+            } else {
+                selected_ = node;
+                if (on_select_) on_select_();
+                rebuild();
+            }
+            return true;
+        default:
+            break;
+        }
+        return false;
+    }
+
     int add_item(int parent, const char* text) {
         if (node_count_ >= kMaxNodes) return -1;
         const int id = node_count_++;
@@ -78,6 +139,9 @@ public:
         visible_count_ = 0;
         build_visible(-1, 0);
         const auto rect = menu->get_rect();
+        if (visible_count_ > 0 && find_visible_index(selected_) < 0) {
+            selected_ = visible_[0].node;
+        }
 
         for (int i = 0; i < visible_count_; ++i) {
             const int node_id = visible_[i].node;
@@ -122,6 +186,7 @@ private:
 
     void handle_click(int node_id) {
         if (node_id < 0 || node_id >= node_count_) return;
+        selected_ = node_id;
         if (nodes_[node_id].has_children) {
             nodes_[node_id].expanded = !nodes_[node_id].expanded;
             rebuild();
@@ -141,6 +206,13 @@ private:
                 build_visible(i, depth + 1);
             }
         }
+    }
+
+    int find_visible_index(int node_id) const noexcept {
+        for (int i = 0; i < visible_count_; ++i) {
+            if (visible_[i].node == node_id) return i;
+        }
+        return -1;
     }
 
     Menu* get_menu() noexcept {

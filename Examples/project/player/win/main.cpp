@@ -844,6 +844,20 @@ namespace {
                 gui.dispatch_event(e);
                 return true;
             }
+            if (ctx.show_debug) {
+                Event::Key key = Event::Key::Unknown;
+                if (evt.key.key == SDLK_UP) key = Event::Key::Up;
+                else if (evt.key.key == SDLK_DOWN) key = Event::Key::Down;
+                else if (evt.key.key == SDLK_LEFT) key = Event::Key::Left;
+                else if (evt.key.key == SDLK_RIGHT) key = Event::Key::Right;
+                else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
+                else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
+                if (key != Event::Key::Unknown) {
+                    if (ctx.menu_tree.handle_event(Event::key(Event::Type::KeyDown, key))) {
+                        return true;
+                    }
+                }
+            }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();

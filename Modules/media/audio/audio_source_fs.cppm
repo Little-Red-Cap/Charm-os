@@ -51,9 +51,15 @@ export namespace audio {
                     to_read = static_cast<std::size_t>(remaining);
                 }
             }
+            const auto before = file_.node.offset;
             const auto st = fs::read(file_, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
             if (!st) return unexpected(Err{Errc::io_error, 0});
+            const auto after = file_.node.offset;
+            if (after >= before) {
+                const auto delta = static_cast<std::size_t>(after - before);
+                return (delta <= to_read) ? delta : to_read;
+            }
             return to_read;
         }
 

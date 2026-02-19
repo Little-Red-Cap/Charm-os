@@ -1,4 +1,7 @@
 module;
+#include <array>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
 
 export module player.ui;
@@ -7,6 +10,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.color;
+import charm.gfx.image;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
@@ -95,6 +99,101 @@ export namespace player::ui {
     inline constexpr rgba kUiPerfBg = {24, 26, 36, 230};
     inline constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
     inline constexpr rgba kUiPerfFont = {220, 228, 242, 255};
+
+    namespace detail {
+        constexpr int kIconSize = 16;
+        constexpr int kIconStride = kIconSize * 4;
+        using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
+
+        void icon_clear(IconBuffer& buf) {
+            buf.fill(std::byte{0});
+        }
+
+        void icon_set_pixel(IconBuffer& buf, int x, int y, const rgba& color) {
+            if (x < 0 || y < 0 || x >= kIconSize || y >= kIconSize) return;
+            const std::size_t idx = static_cast<std::size_t>(y * kIconSize + x) * 4;
+            buf[idx + 0] = std::byte{color.a};
+            buf[idx + 1] = std::byte{color.r};
+            buf[idx + 2] = std::byte{color.g};
+            buf[idx + 3] = std::byte{color.b};
+        }
+
+        void build_prev_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int apex_x = 3;
+            constexpr int base_x = 11;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = apex_x; x <= base_x; ++x) {
+                    const int span = (x - apex_x) * base_half / (base_x - apex_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+            for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 1, y, color);
+                icon_set_pixel(buf, 2, y, color);
+            }
+        }
+
+        void build_next_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int base_x = 4;
+            constexpr int apex_x = 12;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = base_x; x <= apex_x; ++x) {
+                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+            for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 13, y, color);
+                icon_set_pixel(buf, 14, y, color);
+            }
+        }
+    }
+
+    inline ImageView icon_prev() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_prev_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_next() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_next_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
 
     inline void apply_player_theme() {
         auto& theme = Theme::instance();

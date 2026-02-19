@@ -536,12 +536,16 @@ export namespace player {
         if (auto* prev = factory.get_button(h.btn_prev)) {
             prev->set_size(kButtonWidth, kButtonHeight);
             prev->set_on_click(cb.prev_click);
+            prev->set_text("");
+            prev->set_icon(icon_prev(), 20, 20);
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
             next->set_size(kButtonWidth, kButtonHeight);
             next->set_on_click(cb.next_click);
+            next->set_text("");
+            next->set_icon(icon_next(), 20, 20);
         }
 
         h.btn_play = factory.create_button("Play");

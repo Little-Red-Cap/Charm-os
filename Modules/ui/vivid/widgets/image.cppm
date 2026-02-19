@@ -1,4 +1,6 @@
 module;
+#include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -112,16 +114,41 @@ public:
     }
 
     void set_pinch_enabled(bool on) noexcept { pinch_enabled_ = on; }
+    void set_inertia_enabled(bool on) noexcept { inertia_enabled_ = on; }
+    void set_inertia_decay(float decay) noexcept {
+        if (decay <= 0.0f) decay = 0.0f;
+        if (decay > 0.98f) decay = 0.98f;
+        inertia_decay_ = decay;
+    }
+    void set_double_tap_restore(bool on) noexcept { double_tap_restore_ = on; }
+    void set_double_tap_ms(int ms) noexcept {
+        double_tap_ms_ = (ms > 0) ? ms : 0;
+    }
+    void set_double_tap_radius(int px) noexcept {
+        if (px < 0) px = 0;
+        double_tap_dist_sq_ = px * px;
+    }
 
     bool on_event(const Event& e) override {
+        if (double_tap_restore_ && e.type == Event::Type::Click) {
+            if (is_double_tap(e.x, e.y)) {
+                zoom_ = 1.0f;
+                zoom_velocity_ = 0.0f;
+                pinch_active_ = false;
+                return true;
+            }
+        }
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {
             pinch_active_ = true;
             pinch_base_zoom_ = zoom_;
+            zoom_velocity_ = 0.0f;
         } else if (e.gesture_phase == Event::GesturePhase::Update) {
             if (!pinch_active_) return false;
-            zoom_ = clamp_zoom(pinch_base_zoom_ * e.scale);
+            const float next = clamp_zoom(pinch_base_zoom_ * e.scale);
+            zoom_velocity_ = next - zoom_;
+            zoom_ = next;
         } else if (e.gesture_phase == Event::GesturePhase::End) {
             pinch_active_ = false;
         }
@@ -130,6 +157,13 @@ public:
 
     void draw(DefaultCanvas& cvs) override {
         if (!image_) return;
+        if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
+            zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
+            zoom_velocity_ *= inertia_decay_;
+            if (std::fabs(zoom_velocity_) < 0.0001f) {
+                zoom_velocity_ = 0.0f;
+            }
+        }
         const auto r = get_rect();
         Rect src{0, 0, image_.w, image_.h};
         if (has_crop_) {
@@ -374,6 +408,24 @@ private:
         return make_image_view(img.format, w, h, img.stride_bytes, data, img.premultiplied_alpha, img.force_opaque);
     }
 
+    bool is_double_tap(int x, int y) {
+        const auto now = std::chrono::steady_clock::now();
+        bool is_double = false;
+        if (double_tap_ms_ > 0) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_tap_time_).count();
+            const int dx = x - last_tap_x_;
+            const int dy = y - last_tap_y_;
+            const int dist_sq = dx * dx + dy * dy;
+            if (elapsed >= 0 && elapsed <= double_tap_ms_ && dist_sq <= double_tap_dist_sq_) {
+                is_double = true;
+            }
+        }
+        last_tap_time_ = now;
+        last_tap_x_ = x;
+        last_tap_y_ = y;
+        return is_double;
+    }
+
     float clamp_zoom(float value) const noexcept {
         if (value < min_zoom_) return min_zoom_;
         if (value > max_zoom_) return max_zoom_;
@@ -396,6 +448,15 @@ private:
     float min_zoom_{0.5f};
     float max_zoom_{4.0f};
     float pinch_base_zoom_{1.0f};
+    float zoom_velocity_{0.0f};
+    float inertia_decay_{0.85f};
     bool pinch_enabled_{true};
     bool pinch_active_{false};
+    bool inertia_enabled_{true};
+    bool double_tap_restore_{true};
+    int double_tap_ms_{300};
+    int double_tap_dist_sq_{144};
+    int last_tap_x_{0};
+    int last_tap_y_{0};
+    std::chrono::steady_clock::time_point last_tap_time_{};
 };

@@ -193,7 +193,12 @@ public:
             ch->set_pos(r.x + base_x_[i], r.y + base_y_[i] - scroll_y_);
         }
         if (!dragging_ && velocity_ != 0) {
-            add_scroll_y(velocity_);
+            const int old = scroll_y_;
+            const int next = clamp_scroll(scroll_y_ + velocity_);
+            if (next != old) {
+                mark_scroll_dirty_inertia(old, next, (velocity_ < 0) ? -velocity_ : velocity_);
+                scroll_y_ = next;
+            }
             velocity_ = static_cast<int>(static_cast<float>(velocity_) * decel_);
             if (std::abs(velocity_) < 1) velocity_ = 0;
         }
@@ -307,6 +312,32 @@ private:
             band = Rect{clip.x, clip.y + clip.h - dy, clip.w, dy};
         } else {
             band = Rect{clip.x, clip.y, clip.w, -dy};
+        }
+        const auto clipped = intersect_rect(band, clip);
+        if (clipped.w > 0 && clipped.h > 0) {
+            accumulate_scroll_dirty(clipped);
+        } else {
+            accumulate_scroll_dirty(clip);
+        }
+    }
+
+    void mark_scroll_dirty_inertia(int old_scroll, int new_scroll, int abs_v) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto clip = children_clip_rect();
+        if (abs_v > clip.h / 2) {
+            accumulate_scroll_dirty(clip);
+            return;
+        }
+        int extra = 0;
+        if (abs_v > clip.h / 4) {
+            extra = clip.h / 8;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{clip.x, clip.y + clip.h - dy - extra, clip.w, dy + extra};
+        } else {
+            band = Rect{clip.x, clip.y, clip.w, -dy + extra};
         }
         const auto clipped = intersect_rect(band, clip);
         if (clipped.w > 0 && clipped.h > 0) {

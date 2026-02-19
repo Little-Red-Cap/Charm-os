@@ -41,6 +41,92 @@ export namespace usb::device {
         bool (*get_descriptor)(void* ctx, DescriptorType type, u8 index, std::span<const u8>& out) noexcept { nullptr };
     };
 
+    struct DescriptorTable {
+        std::span<const u8> device{};
+        std::span<const u8> configuration{};
+        std::span<const u8> other_speed{};
+        std::span<const u8> qualifier{};
+        std::span<const u8> bos{};
+        const std::span<const u8>* strings{nullptr};
+        std::size_t string_count{0};
+    };
+
+    inline bool get_descriptor_from_table(void* ctx, DescriptorType type, u8 index, std::span<const u8>& out) noexcept {
+        const auto* table = static_cast<const DescriptorTable*>(ctx);
+        if (!table) return false;
+        switch (type) {
+        case DescriptorType::device:
+            out = table->device;
+            return !out.empty();
+        case DescriptorType::configuration:
+            out = table->configuration;
+            return !out.empty();
+        case DescriptorType::other_speed_configuration:
+            out = table->other_speed;
+            return !out.empty();
+        case DescriptorType::device_qualifier:
+            out = table->qualifier;
+            return !out.empty();
+        case DescriptorType::bos:
+            out = table->bos;
+            return !out.empty();
+        case DescriptorType::string:
+            if (!table->strings || index >= table->string_count) return false;
+            out = table->strings[index];
+            return !out.empty();
+        default:
+            return false;
+        }
+    }
+
+    inline DescriptorProvider make_descriptor_provider(const DescriptorTable& table) noexcept {
+        DescriptorProvider provider{};
+        provider.ctx = const_cast<DescriptorTable*>(&table);
+        provider.get_descriptor = &get_descriptor_from_table;
+        return provider;
+    }
+
+    struct ConfigTree {
+        std::span<u8> buffer{};
+        std::span<const u8> view{};
+
+        template <typename BuilderFunc>
+        bool build(BuilderFunc&& fn) noexcept {
+            DescriptorBuilder builder(buffer);
+            if (!fn(builder)) return false;
+            if (!builder.end_config()) return false;
+            view = buffer.subspan(0, builder.writer.offset);
+            return true;
+        }
+    };
+
+    namespace examples {
+        struct CdcAcmConfig {
+            ConfigDescriptor config{};
+            InterfaceDescriptor ctrl_interface{};
+            InterfaceDescriptor data_interface{};
+            EndpointDescriptor ep_notify{};
+            EndpointDescriptor ep_out{};
+            EndpointDescriptor ep_in{};
+            std::span<const u8> class_descriptors{};
+        };
+
+        inline bool build_cdc_acm_config(ConfigTree& tree, const CdcAcmConfig& cfg) noexcept {
+            return tree.build([&](DescriptorBuilder& builder) noexcept -> bool {
+                if (!builder.begin_config(cfg.config)) return false;
+                if (!builder.add_interface(cfg.ctrl_interface)) return false;
+                if (!cfg.class_descriptors.empty()) {
+                    if (!builder.writer.write_bytes(cfg.class_descriptors)) return false;
+                }
+                if (!builder.add_endpoint(cfg.ep_notify)) return false;
+                if (!builder.add_interface(cfg.data_interface)) return false;
+                if (!builder.add_endpoint(cfg.ep_out)) return false;
+                if (!builder.add_endpoint(cfg.ep_in)) return false;
+                return true;
+            });
+        }
+    }
+
     struct ClassOps {
         bool (*setup)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
         bool (*control_out)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };

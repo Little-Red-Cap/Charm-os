@@ -20,22 +20,29 @@ using namespace ui::render;
 export
 class ScrollContainer : public ObjectBase {
 public:
+    static constexpr int kLayoutId = 1;
+
     ScrollContainer() {
         set_focusable(true);
         set_clip_policy(ClipPolicy::Custom);
+        set_custom_layout(kLayoutId);
         pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,
                                       this);
-        add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
+        enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(y);
         velocity_ = 0;
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     int scroll_y() const noexcept { return scroll_y_; }
@@ -43,6 +50,18 @@ public:
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
     void set_deceleration(float d) noexcept { decel_ = d; }
     void set_drag_threshold(int px) noexcept { drag_threshold_sq_ = px * px; }
+    void set_inertia_fast_ratio(float v) noexcept { inertia_fast_ratio_ = clamp_ratio(v); }
+    void set_inertia_medium_ratio(float v) noexcept { inertia_medium_ratio_ = clamp_ratio(v); }
+    void set_inertia_extra_ratio(float v) noexcept { inertia_extra_ratio_ = clamp_ratio(v); }
+    void set_pinch_enabled(bool on) noexcept {
+        pinch_strategy_.set_enabled(on);
+        if (on) {
+            enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
+        } else {
+            disable_interaction(&pinch_strategy_);
+        }
+    }
+    void set_scroll_hint_enabled(bool on) noexcept { show_scroll_hint_ = on; }
 
     template<typename Resolver>
     void sync_child_bases(Resolver&& resolve) {
@@ -74,6 +93,8 @@ public:
                        {is_enabled(), has_state(State::Hovered), dragging_, has_state(State::Focused)},
                        bg, border, font);
 
+        flush_scroll_dirty();
+
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
                                   slice_left_, slice_top_, slice_right_, slice_bottom_);
@@ -102,7 +123,7 @@ public:
             draw_rect(cvs, track_x, thumb_y, track_w, thumb_h, thumb, true);
         }
 
-        if (dragging_) {
+        if (show_scroll_hint_ && dragging_) {
             Rect hint{r.x + 8, r.y + 4, r.w - 16, 18};
             draw_text_box(cvs, hint, "Dragging", {60, 60, 70, 255},
                           resolve_font(st),
@@ -184,7 +205,12 @@ public:
             ch->set_pos(r.x + base_x_[i], r.y + base_y_[i] - scroll_y_);
         }
         if (!dragging_ && velocity_ != 0) {
-            add_scroll_y(velocity_);
+            const int old = scroll_y_;
+            const int next = clamp_scroll(scroll_y_ + velocity_);
+            if (next != old) {
+                mark_scroll_dirty_inertia(old, next, (velocity_ < 0) ? -velocity_ : velocity_);
+                scroll_y_ = next;
+            }
             velocity_ = static_cast<int>(static_cast<float>(velocity_) * decel_);
             if (std::abs(velocity_) < 1) velocity_ = 0;
         }
@@ -210,7 +236,7 @@ public:
     }
 
     bool should_draw_child(const ObjectBase& ch) const noexcept override {
-        const auto r = get_rect();
+        const auto r = children_clip_rect();
         const auto c = ch.get_rect();
         return !(c.x + c.w <= r.x || c.x >= r.x + r.w ||
                  c.y + c.h <= r.y || c.y >= r.y + r.h);
@@ -242,6 +268,100 @@ public:
     }
 
 private:
+    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
+        const int left = (a.x > b.x) ? a.x : b.x;
+        const int top = (a.y > b.y) ? a.y : b.y;
+        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
+        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
+        const int w = right - left;
+        const int h = bottom - top;
+        if (w <= 0 || h <= 0) return {};
+        return Rect{left, top, w, h};
+    }
+
+    void accumulate_scroll_dirty(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!scroll_dirty_valid_) {
+            scroll_dirty_accum_ = r;
+            scroll_dirty_valid_ = true;
+            return;
+        }
+        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
+        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
+        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
+            ? (r.x + r.w)
+            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
+        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
+            ? (r.y + r.h)
+            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
+        scroll_dirty_accum_.x = left;
+        scroll_dirty_accum_.y = top;
+        scroll_dirty_accum_.w = right - left;
+        scroll_dirty_accum_.h = bottom - top;
+    }
+
+    void flush_scroll_dirty() noexcept {
+        if (!scroll_dirty_valid_) return;
+        mark_dirty_hint(scroll_dirty_accum_);
+        scroll_dirty_valid_ = false;
+        scroll_dirty_accum_ = {};
+    }
+
+    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto clip = children_clip_rect();
+        if (dy > clip.h || dy < -clip.h) {
+            accumulate_scroll_dirty(clip);
+            return;
+        }
+        if (dy > clip.h / 2 || dy < -clip.h / 2) {
+            accumulate_scroll_dirty(clip);
+            return;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{clip.x, clip.y + clip.h - dy, clip.w, dy};
+        } else {
+            band = Rect{clip.x, clip.y, clip.w, -dy};
+        }
+        const auto clipped = intersect_rect(band, clip);
+        if (clipped.w > 0 && clipped.h > 0) {
+            accumulate_scroll_dirty(clipped);
+        } else {
+            accumulate_scroll_dirty(clip);
+        }
+    }
+
+    void mark_scroll_dirty_inertia(int old_scroll, int new_scroll, int abs_v) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto clip = children_clip_rect();
+        const int fast = static_cast<int>(clip.h * inertia_fast_ratio_);
+        const int medium = static_cast<int>(clip.h * inertia_medium_ratio_);
+        const int extra_band = static_cast<int>(clip.h * inertia_extra_ratio_);
+        if (fast > 0 && abs_v > fast) {
+            accumulate_scroll_dirty(clip);
+            return;
+        }
+        int extra = 0;
+        if (medium > 0 && abs_v > medium) {
+            extra = extra_band;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{clip.x, clip.y + clip.h - dy - extra, clip.w, dy + extra};
+        } else {
+            band = Rect{clip.x, clip.y, clip.w, -dy + extra};
+        }
+        const auto clipped = intersect_rect(band, clip);
+        if (clipped.w > 0 && clipped.h > 0) {
+            accumulate_scroll_dirty(clipped);
+        } else {
+            accumulate_scroll_dirty(clip);
+        }
+    }
+
     static void on_pinch_begin(void* ctx) {
         auto* self = static_cast<ScrollContainer*>(ctx);
         if (!self) return;
@@ -289,6 +409,7 @@ private:
     bool swipe_active_{false};
     bool pinch_active_{false};
     PinchScrollStrategy pinch_strategy_{};
+    bool show_scroll_hint_{true};
     int last_y_{0};
     int velocity_{0};
 
@@ -304,6 +425,11 @@ private:
     int clip_inset_top_{1};
     int clip_inset_right_{1};
     int clip_inset_bottom_{1};
+    Rect scroll_dirty_accum_{};
+    bool scroll_dirty_valid_{false};
+    float inertia_fast_ratio_{0.5f};
+    float inertia_medium_ratio_{0.25f};
+    float inertia_extra_ratio_{0.125f};
 
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;
@@ -312,5 +438,11 @@ private:
         clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
         clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
         clip_inset_bottom_ = (slice_bottom_ > b) ? slice_bottom_ : b;
+    }
+
+    static float clamp_ratio(float v) noexcept {
+        if (v < 0.0f) return 0.0f;
+        if (v > 1.0f) return 1.0f;
+        return v;
     }
 };

@@ -52,7 +52,8 @@ public:
         Flex,
         Flow,
         Grid,
-        Constraint
+        Constraint,
+        Custom
     };
 
     struct LayoutSpec {
@@ -68,6 +69,11 @@ public:
         int cell_h{0};
         int grid_gap{0};
         int grid_padding{0};
+        int custom_id{0};
+        int custom_param0{0};
+        int custom_param1{0};
+        int custom_param2{0};
+        int custom_param3{0};
     };
 
     void set_state(State s, bool on) noexcept {
@@ -160,13 +166,33 @@ public:
         layout_spec_.padding = padding;
     }
 
+    void set_custom_layout(int custom_id,
+                           int p0 = 0,
+                           int p1 = 0,
+                           int p2 = 0,
+                           int p3 = 0) noexcept {
+        layout_mode_ = LayoutMode::Custom;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Custom;
+        layout_spec_.custom_id = custom_id;
+        layout_spec_.custom_param0 = p0;
+        layout_spec_.custom_param1 = p1;
+        layout_spec_.custom_param2 = p2;
+        layout_spec_.custom_param3 = p3;
+    }
+
     void set_layout_spec(const LayoutSpec& spec) noexcept {
         layout_spec_enabled_ = true;
         layout_spec_ = spec;
         layout_mode_ = spec.kind;
     }
 
-    void clear_layout_spec() noexcept { layout_spec_enabled_ = false; }
+    void clear_layout_spec() noexcept {
+        layout_spec_enabled_ = false;
+        layout_spec_ = {};
+        layout_mode_ = LayoutMode::Anchor;
+    }
     bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
     const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
 
@@ -201,6 +227,15 @@ public:
     }
 
     bool remove_interaction(InteractionStrategy* strategy) noexcept {
+        return interactions_.remove(strategy);
+    }
+
+    bool enable_interaction(InteractionStrategy* strategy,
+                            InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
+        return interactions_.add(strategy, mask);
+    }
+
+    bool disable_interaction(InteractionStrategy* strategy) noexcept {
         return interactions_.remove(strategy);
     }
 
@@ -376,6 +411,13 @@ public:
     bool has_children_bounds() const noexcept { return children_bounds_valid_; }
     Rect children_bounds() const noexcept { return children_bounds_; }
 
+    bool take_dirty_hint(Rect& out) noexcept {
+        if (!dirty_hint_valid_) return false;
+        out = dirty_hint_;
+        dirty_hint_valid_ = false;
+        return true;
+    }
+
 protected:
     static constexpr std::size_t kMaxChildren = 64;
 
@@ -423,6 +465,25 @@ protected:
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};
+    Rect dirty_hint_{};
+    bool dirty_hint_valid_{false};
+
+    void mark_dirty_hint(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (!dirty_hint_valid_) {
+            dirty_hint_ = r;
+            dirty_hint_valid_ = true;
+            return;
+        }
+        const int left = (r.x < dirty_hint_.x) ? r.x : dirty_hint_.x;
+        const int top = (r.y < dirty_hint_.y) ? r.y : dirty_hint_.y;
+        const int right = ((r.x + r.w) > (dirty_hint_.x + dirty_hint_.w)) ? (r.x + r.w) : (dirty_hint_.x + dirty_hint_.w);
+        const int bottom = ((r.y + r.h) > (dirty_hint_.y + dirty_hint_.h)) ? (r.y + r.h) : (dirty_hint_.y + dirty_hint_.h);
+        dirty_hint_.x = left;
+        dirty_hint_.y = top;
+        dirty_hint_.w = right - left;
+        dirty_hint_.h = bottom - top;
+    }
 };
 
 export

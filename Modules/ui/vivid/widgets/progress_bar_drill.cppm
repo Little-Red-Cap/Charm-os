@@ -39,6 +39,9 @@ public:
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
     bool is_indeterminate() const noexcept { return indeterminate_; }
 
+    void set_animation_enabled(bool on) noexcept { anim_enabled_ = on; }
+    void set_animation_speed(float px) noexcept { set_flow_speed(static_cast<int>(px)); }
+
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_hole_radius(int px) noexcept { hole_radius_ = (px > 0) ? px : 1; }
     void set_hole_spacing(int px) noexcept { hole_spacing_ = (px > 0) ? px : 1; }
@@ -75,8 +78,10 @@ public:
             int start = inner.x + (flow_offset_ % (inner.w + span)) - span;
             int end = start + span;
             if (end <= inner.x || start >= inner.x + inner.w) {
-                flow_offset_ += flow_speed_;
-                if (flow_offset_ > inner.w + span) flow_offset_ = flow_offset_ % (inner.w + span);
+                if (anim_enabled_) {
+                    flow_offset_ += flow_speed_;
+                    if (flow_offset_ > inner.w + span) flow_offset_ = flow_offset_ % (inner.w + span);
+                }
                 return;
             }
             if (start < inner.x) start = inner.x;
@@ -105,10 +110,12 @@ public:
         }
         cvs.restore_clip(clip_state);
 
-        flow_offset_ += flow_speed_;
-        if (flow_offset_ > inner.w + hole_step) flow_offset_ = flow_offset_ % (inner.w + hole_step);
-        hole_offset_ += flow_speed_;
-        if (hole_offset_ > hole_step) hole_offset_ = hole_offset_ % hole_step;
+        if (anim_enabled_) {
+            flow_offset_ += flow_speed_;
+            if (flow_offset_ > inner.w + hole_step) flow_offset_ = flow_offset_ % (inner.w + hole_step);
+            hole_offset_ += flow_speed_;
+            if (hole_offset_ > hole_step) hole_offset_ = hole_offset_ % hole_step;
+        }
     }
 
 private:
@@ -116,6 +123,7 @@ private:
     int max_{100};
     int value_{0};
     bool indeterminate_{false};
+    bool anim_enabled_{true};
     int flow_speed_{2};
     int flow_offset_{0};
     int hole_radius_{3};

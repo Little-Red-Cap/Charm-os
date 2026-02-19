@@ -96,6 +96,27 @@ public:
         router_.dispatch_event(e);
     }
 
+    void dispatch_touch_down(int id, int x, int y) {
+        if (layer_cache_) {
+            cache_valid_ = false;
+        }
+        router_.on_touch_down(id, x, y);
+    }
+
+    void dispatch_touch_move(int id, int x, int y) {
+        if (layer_cache_) {
+            cache_valid_ = false;
+        }
+        router_.on_touch_move(id, x, y);
+    }
+
+    void dispatch_touch_up(int id, int x, int y) {
+        if (layer_cache_) {
+            cache_valid_ = false;
+        }
+        router_.on_touch_up(id, x, y);
+    }
+
 private:
     enum class GuiTraceId : util::u32 {
         FrameNodes = 1,

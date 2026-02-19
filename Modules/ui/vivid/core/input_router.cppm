@@ -1,5 +1,8 @@
 module;
+#include <array>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 export module charm.core.input_router;
 
 export import charm.core.event;
@@ -158,7 +161,161 @@ public:
         }
     }
 
+    void on_touch_down(int id, int x, int y) {
+        if (!touch_set(id, x, y, true)) return;
+        if (active_touch_count() == 1) {
+            primary_touch_id_ = id;
+            dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 0));
+            return;
+        }
+        if (active_touch_count() == 2) {
+            begin_pinch();
+        }
+    }
+
+    void on_touch_move(int id, int x, int y) {
+        if (!touch_set(id, x, y, false)) return;
+        if (pinch_active_) {
+            update_pinch();
+            return;
+        }
+        if (active_touch_count() == 1 && id == primary_touch_id_) {
+            dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
+        }
+    }
+
+    void on_touch_up(int id, int x, int y) {
+        if (pinch_active_ && active_touch_count() >= 2) {
+            end_pinch();
+        }
+        touch_clear(id);
+        if (active_touch_count() == 0 && id == primary_touch_id_) {
+            dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 0));
+            primary_touch_id_ = -1;
+        }
+    }
+
 private:
+    struct TouchPoint {
+        int id{-1};
+        int x{0};
+        int y{0};
+        bool active{false};
+    };
+
+    int active_touch_count() const noexcept {
+        int count = 0;
+        for (const auto& t : touches_) {
+            if (t.active) ++count;
+        }
+        return count;
+    }
+
+    TouchPoint* find_touch(int id) noexcept {
+        for (auto& t : touches_) {
+            if (t.active && t.id == id) return &t;
+        }
+        return nullptr;
+    }
+
+    TouchPoint* find_or_alloc_touch(int id) noexcept {
+        if (auto* t = find_touch(id)) return t;
+        for (auto& t : touches_) {
+            if (!t.active) {
+                t.active = true;
+                t.id = id;
+                return &t;
+            }
+        }
+        return nullptr;
+    }
+
+    bool touch_set(int id, int x, int y, bool is_down) noexcept {
+        auto* t = find_or_alloc_touch(id);
+        if (!t) return false;
+        t->x = x;
+        t->y = y;
+        if (is_down) {
+            t->active = true;
+        }
+        return true;
+    }
+
+    void touch_clear(int id) noexcept {
+        if (auto* t = find_touch(id)) {
+            t->active = false;
+            t->id = -1;
+        }
+    }
+
+    bool get_two_touches(TouchPoint& a, TouchPoint& b) const noexcept {
+        bool found = false;
+        for (const auto& t : touches_) {
+            if (!t.active) continue;
+            if (!found) {
+                a = t;
+                found = true;
+            } else {
+                b = t;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void begin_pinch() {
+        if (pinch_active_) return;
+        TouchPoint a{};
+        TouchPoint b{};
+        if (!get_two_touches(a, b)) return;
+        pinch_active_ = true;
+        pinch_start_dist_sq_ = distance_sq(a, b);
+        pinch_start_cx_ = (a.x + b.x) / 2;
+        pinch_start_cy_ = (a.y + b.y) / 2;
+        pinch_last_cx_ = pinch_start_cx_;
+        pinch_last_cy_ = pinch_start_cy_;
+        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
+                                             pinch_start_cx_, pinch_start_cy_,
+                                             0, 0, Event::GesturePhase::Begin, 1.0f));
+    }
+
+    void update_pinch() {
+        if (!pinch_active_) return;
+        TouchPoint a{};
+        TouchPoint b{};
+        if (!get_two_touches(a, b)) return;
+        const int dist_sq = distance_sq(a, b);
+        float scale = 1.0f;
+        if (pinch_start_dist_sq_ > 0 && dist_sq > 0) {
+            const float start = std::sqrt(static_cast<float>(pinch_start_dist_sq_));
+            const float current = std::sqrt(static_cast<float>(dist_sq));
+            if (start > 0.0f) scale = current / start;
+        }
+        const int cx = (a.x + b.x) / 2;
+        const int cy = (a.y + b.y) / 2;
+        const int dx = cx - pinch_last_cx_;
+        const int dy = cy - pinch_last_cy_;
+        pinch_last_cx_ = cx;
+        pinch_last_cy_ = cy;
+        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
+                                             cx, cy, dx, dy,
+                                             Event::GesturePhase::Update, scale));
+    }
+
+    void end_pinch() {
+        if (!pinch_active_) return;
+        dispatch_to(pressed_, Event::gesture(Event::Type::GesturePinch,
+                                             pinch_last_cx_, pinch_last_cy_,
+                                             0, 0, Event::GesturePhase::End, 1.0f));
+        pinch_active_ = false;
+    }
+
+    static int distance_sq(const TouchPoint& a, const TouchPoint& b) noexcept {
+        const int dx = a.x - b.x;
+        const int dy = a.y - b.y;
+        return dx * dx + dy * dy;
+    }
+
     void sanitize_handles() {
         auto invalid = [&](WidgetHandle h) -> bool {
             auto* obj = factory_.get(h);
@@ -343,5 +500,14 @@ private:
     bool swipe_active_{false};
     int swipe_last_x_{0};
     int swipe_last_y_{0};
+    static constexpr int kMaxTouches = 2;
+    std::array<TouchPoint, kMaxTouches> touches_{};
+    int primary_touch_id_{-1};
+    bool pinch_active_{false};
+    int pinch_start_dist_sq_{0};
+    int pinch_start_cx_{0};
+    int pinch_start_cy_{0};
+    int pinch_last_cx_{0};
+    int pinch_last_cy_{0};
     static constexpr int kMaxDepth = 128;
 };

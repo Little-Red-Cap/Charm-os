@@ -122,6 +122,7 @@ export namespace usb::class_driver {
             }
         }
         void set_control_line_state(u16 value) noexcept {
+            if (control_line_state_ == value) return;
             control_line_state_ = value;
             if (ops_.on_control_line) {
                 ops_.on_control_line(ctx_, value);

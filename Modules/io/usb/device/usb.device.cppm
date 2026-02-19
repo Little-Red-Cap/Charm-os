@@ -194,7 +194,7 @@ export namespace usb::device {
                 ControlRequest req{};
                 req.setup = setup;
                 req.data = {};
-                if (!handle_vendor(setup, req, resp)) return false;
+                if (!handle_vendor(req, resp)) return false;
             }
             if (setup.w_length == 0) {
                 return true;
@@ -215,14 +215,10 @@ export namespace usb::device {
             const auto expected = ep0_.out_expected();
             const auto len = (data.size() < expected) ? data.size() : expected;
             if (!ep0_.handle_out_data(data.subspan(0, len), resp)) {
-                if (class_ops_ && class_ops_->vendor_out) {
-                    ControlRequest req{};
-                    req.setup = setup_cache_;
-                    req.data = data.subspan(0, len);
-                    if (!class_ops_->vendor_out(class_ctx_, req, resp)) return false;
-                } else {
-                    return false;
-                }
+                ControlRequest req{};
+                req.setup = setup_cache_;
+                req.data = data.subspan(0, len);
+                if (!handle_vendor(req, resp)) return false;
             }
             ep0_.finish_data_out();
             return true;
@@ -245,12 +241,12 @@ export namespace usb::device {
         }
 
     private:
-        bool handle_vendor(const SetupPacket& setup, const ControlRequest& req, ControlResponse& resp) noexcept {
+        bool handle_vendor(const ControlRequest& req, ControlResponse& resp) noexcept {
             if (!class_ops_) return false;
-            if (class_ops_->vendor_setup) {
-                return class_ops_->vendor_setup(class_ctx_, req, resp);
+            if (req.data.empty()) {
+                return class_ops_->vendor_setup && class_ops_->vendor_setup(class_ctx_, req, resp);
             }
-            return false;
+            return class_ops_->vendor_out && class_ops_->vendor_out(class_ctx_, req, resp);
         }
 
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {

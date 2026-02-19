@@ -309,6 +309,21 @@ export namespace usb {
     }
 
     template <std::size_t N>
+    consteval auto make_lang_id_descriptor(const u16 (&langs)[N]) {
+        static_assert(N > 0, "LangID array must not be empty");
+        static_assert(N <= 126, "LangID descriptor too long");
+        std::array<u8, 2 + N * 2> out{};
+        out[0] = static_cast<u8>(2 + N * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < N; ++i) {
+            const auto ch = langs[i];
+            out[2 + i * 2] = static_cast<u8>(ch & 0xFF);
+            out[2 + i * 2 + 1] = static_cast<u8>((ch >> 8) & 0xFF);
+        }
+        return out;
+    }
+
+    template <std::size_t N>
     struct StringTable {
         std::array<std::span<const u8>, N> entries{};
         constexpr std::span<const u8> operator[](std::size_t idx) const noexcept {

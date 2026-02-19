@@ -47,6 +47,8 @@ export import charm.widgets.dropdown_popup;
 export import charm.widgets.gauge;
 export import charm.widgets.image;
 export import charm.widgets.image_box;
+export import charm.widgets.busy_wheel;
+export import charm.widgets.console_box;
 export import charm.widgets.label;
 export import charm.widgets.led;
 export import charm.widgets.list;

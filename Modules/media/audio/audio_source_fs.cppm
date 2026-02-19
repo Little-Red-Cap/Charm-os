@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 export module audio.source.fs;
@@ -13,9 +12,11 @@ import fs_stream;
 import fs_vfs;
 import util.alias;
 import util.core;
+import util.span;
+import media.stream.source;
 
 export namespace audio {
-    class FsDataSource {
+    class FsDataSource : public media::IStreamSource {
     public:
         FsDataSource() = default;
         explicit FsDataSource(const char* path) { (void)open(path); }
@@ -39,7 +40,7 @@ export namespace audio {
 
         ~FsDataSource() { close(); }
 
-        Result<std::size_t> read(std::span<std::byte> out) {
+        Result<std::size_t> read(util::span<std::byte> out) noexcept override {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             std::size_t to_read = out.size();
             if (file_.node.size > 0 && file_.node.offset >= 0) {
@@ -79,12 +80,28 @@ export namespace audio {
             return tell();
         }
 
-        Result<std::int64_t> tell() {
+        Result<std::int64_t> seek(std::int64_t offset, media::SeekWhence whence) noexcept override {
+            int mapped = SEEK_SET;
+            switch (whence) {
+            case media::SeekWhence::set:
+                mapped = SEEK_SET;
+                break;
+            case media::SeekWhence::cur:
+                mapped = SEEK_CUR;
+                break;
+            case media::SeekWhence::end:
+                mapped = SEEK_END;
+                break;
+            }
+            return seek(offset, mapped);
+        }
+
+        Result<std::int64_t> tell() noexcept override {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return static_cast<std::int64_t>(file_.node.offset);
         }
 
-        Result<std::int64_t> size() {
+        Result<std::int64_t> size() noexcept override {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return static_cast<std::int64_t>(file_.node.size);
         }

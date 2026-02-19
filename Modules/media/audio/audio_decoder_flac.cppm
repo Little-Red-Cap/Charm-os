@@ -3,13 +3,14 @@
 #define DR_FLAC_IMPLEMENTATION
 #include <dr_flac.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 
 export module audio.decoder.flac;
 
 import audio.result;
+import util.span;
 
 export namespace audio {
     struct FlacInfo {
@@ -22,7 +23,7 @@ export namespace audio {
         struct SourceOps {
             static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
                 auto* src = static_cast<Source*>(user);
-                auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
+                auto res = src->read(util::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
                 if (!res) return 0;
                 return *res;
             }

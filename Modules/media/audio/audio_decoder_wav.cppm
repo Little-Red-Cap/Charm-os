@@ -1,14 +1,15 @@
 ﻿module;
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <span>
 
 export module audio.decoder.wav;
 
 import audio.result;
+import util.span;
 
 export namespace audio {
     struct WavInfo {
@@ -51,7 +52,7 @@ export namespace audio {
         if (!start) return unexpected(start.error());
 
         detail::RiffHeader riff{};
-        auto read_riff = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&riff), sizeof(riff)));
+        auto read_riff = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&riff), sizeof(riff)));
         if (!read_riff || *read_riff != sizeof(riff)) {
             return unexpected(Err{Errc::invalid_arg, 0});
         }
@@ -65,7 +66,7 @@ export namespace audio {
 
         while (true) {
         detail::ChunkHeader ch{};
-            auto read_ch = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&ch), sizeof(ch)));
+            auto read_ch = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&ch), sizeof(ch)));
             if (!read_ch || *read_ch != sizeof(ch)) break;
 
             if (detail::match_id(ch.id, "fmt ")) {
@@ -73,7 +74,7 @@ export namespace audio {
                     return unexpected(Err{Errc::invalid_arg, 0});
                 }
                 detail::FmtChunk fmt{};
-                auto read_fmt = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&fmt), sizeof(fmt)));
+                auto read_fmt = src.read(util::span<std::byte>(reinterpret_cast<std::byte*>(&fmt), sizeof(fmt)));
                 if (!read_fmt || *read_fmt != sizeof(fmt)) {
                     return unexpected(Err{Errc::io_error, 0});
                 }

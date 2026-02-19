@@ -28,8 +28,10 @@ export namespace media {
         not_supported,
         invalid_arg,
         io_error,
+        decode_error,
         end_of_stream,
-        bad_state
+        bad_state,
+        timeout
     };
 
     struct Error {

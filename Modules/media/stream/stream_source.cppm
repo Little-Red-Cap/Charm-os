@@ -19,11 +19,11 @@ export namespace media {
         virtual ~IStreamSource() = default;
 
         virtual Result<util::usize> read(util::span<std::byte> out) noexcept = 0;
-        virtual Result<util::u64> seek(util::i64 offset, SeekWhence whence) noexcept = 0;
-        virtual Result<util::u64> tell() noexcept = 0;
-        virtual Result<util::u64> size() noexcept = 0;
+        virtual Result<util::i64> seek(util::i64 offset, SeekWhence whence) noexcept = 0;
+        virtual Result<util::i64> tell() noexcept = 0;
+        virtual Result<util::i64> size() noexcept = 0;
 
-        virtual Result<util::usize> read_at(util::u64, util::span<std::byte>) noexcept {
+        virtual Result<util::usize> read_at(util::i64, util::span<std::byte>) noexcept {
             return util::unexpected(Error{Errc::not_supported, 0});
         }
     };

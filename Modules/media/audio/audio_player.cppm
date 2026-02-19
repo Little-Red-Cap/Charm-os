@@ -31,6 +31,7 @@ import audio.resampler.linear;
 import audio.result;
 import audio.sink.sdl3;
 import service.queue;
+import util.span;
 
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
@@ -888,7 +889,7 @@ export namespace audio {
             if (frames == 0) return 0;
             const std::size_t bytes_per_frame = input_fmt_.frame_size();
             const std::size_t to_read = std::min(frames * bytes_per_frame, remaining_bytes_);
-            auto res = src_.read(std::span<std::byte>(raw_.data(), to_read));
+            auto res = src_.read(util::span<std::byte>(raw_.data(), to_read));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;

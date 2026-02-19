@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <array>
 export module charm.core.layout;
 
 import charm.core.object;
@@ -204,10 +205,39 @@ inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
     const int inner_y = rect.y + padding;
     const int inner_w = rect.w - padding * 2;
     const int max_x = inner_x + inner_w;
+    const int align_h = container.align_h();
 
     int cursor_x = inner_x;
     int cursor_y = inner_y;
     int line_h = 0;
+    int line_w = 0;
+    constexpr std::size_t kMaxLine = 64;
+    std::array<WidgetHandle, kMaxLine> line{};
+    std::array<int, kMaxLine> line_x{};
+    std::size_t line_count = 0;
+
+    auto flush_line = [&]() {
+        if (line_count == 0) return;
+        int offset = 0;
+        if (align_h == static_cast<int>(AlignH::Center)) {
+            offset = (inner_w - line_w) / 2;
+        } else if (align_h == static_cast<int>(AlignH::End)) {
+            offset = inner_w - line_w;
+        }
+        if (offset < 0) offset = 0;
+        if (offset > 0) {
+            for (std::size_t i = 0; i < line_count; ++i) {
+                auto* ch = factory.get(line[i]);
+                if (!ch) continue;
+                const auto r = ch->get_rect();
+                ch->set_pos(line_x[i] + offset, r.y);
+            }
+        }
+        line_count = 0;
+        line_w = 0;
+        line_h = 0;
+    };
+
     for (std::size_t i = 0; i < container.child_count(); ++i) {
         auto h = container.child_at(i);
         auto* ch = factory.get(h);
@@ -215,14 +245,23 @@ inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
         auto r = ch->get_rect();
         if (r.w <= 0 || r.h <= 0) continue;
         if (cursor_x != inner_x && (cursor_x + r.w) > max_x) {
+            const int prev_line_h = line_h;
+            flush_line();
             cursor_x = inner_x;
-            cursor_y += line_h + line_gap;
-            line_h = 0;
+            cursor_y += prev_line_h + line_gap;
         }
         ch->set_pos(cursor_x, cursor_y);
+        if (line_count < line.size()) {
+            line[line_count] = h;
+            line_x[line_count] = cursor_x;
+            ++line_count;
+        }
+        if (line_w == 0) line_w = r.w;
+        else line_w += gap + r.w;
         cursor_x += r.w + gap;
         if (r.h > line_h) line_h = r.h;
     }
+    flush_line();
 }
 
 export

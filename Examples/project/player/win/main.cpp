@@ -5,6 +5,7 @@ import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
+import charm.core.layout;
 import charm.core.style;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
@@ -1135,6 +1136,7 @@ namespace {
         if (auto* controls = factory.get_container(h.controls)) {
             anchor_rect(controls, {controls_x, controls_y, controls_w, controls_h});
             controls->set_flow_layout(gap, gap, 0);
+            controls->set_align(static_cast<int>(AlignH::Center), static_cast<int>(AlignV::Start));
         }
 
         h.btn_prev = factory.create_button("Prev");

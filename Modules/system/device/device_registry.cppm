@@ -8,23 +8,9 @@ export module device.registry;
 import util.core;
 import device.desc;
 import device.driver;
+import device.types;
 
 export namespace device {
-    enum class DeviceState : util::u8 {
-        detected,
-        initialized,
-        running,
-        suspended,
-        stopped
-    };
-
-    struct Device {
-        DeviceDesc desc{};
-        void* ctx{nullptr};
-        DeviceState state{DeviceState::detected};
-        const Driver* driver{nullptr};
-    };
-
     struct RegistryBase {
         virtual ~RegistryBase() = default;
         virtual bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept = 0;
@@ -106,12 +92,34 @@ export namespace device {
             match_all();
         }
 
+        void suspend_all() noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                auto& dev = devices_[i];
+                if (dev.driver && dev.driver->ops.suspend) {
+                    if (dev.driver->ops.suspend(dev)) {
+                        dev.state = DeviceState::suspended;
+                    }
+                }
+            }
+        }
+
+        void resume_all() noexcept {
+            for (util::usize i = 0; i < device_count_; ++i) {
+                auto& dev = devices_[i];
+                if (dev.driver && dev.driver->ops.resume) {
+                    if (dev.driver->ops.resume(dev)) {
+                        dev.state = DeviceState::running;
+                    }
+                }
+            }
+        }
+
     private:
         static bool match(const DeviceDesc& dev, const DeviceDesc& drv) noexcept {
             if (drv.class_id && drv.class_id != dev.class_id) return false;
             if (drv.vendor_id && drv.vendor_id != dev.vendor_id) return false;
             if (drv.product_id && drv.product_id != dev.product_id) return false;
-            if (!drv.type.empty() && drv.type != dev.type) return false;
+            if (!drv.type.empty() && drv.type.compare(dev.type) != 0) return false;
             return true;
         }
 

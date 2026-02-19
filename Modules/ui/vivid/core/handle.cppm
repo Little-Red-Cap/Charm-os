@@ -20,6 +20,7 @@ enum class WidgetKind : std::uint8_t {
     ListItem,
     ListView,
     IconList,
+    TextTrackingList,
     ScrollBar,
     SegmentedControl,
     TextArea,
@@ -57,6 +58,8 @@ enum class WidgetKind : std::uint8_t {
     ,ProgressFlowing
     ,CloudyGlass
     ,NumberList
+    ,ProgressBarRound
+    ,SpinZoomWidget
 };
 
 export
@@ -87,6 +90,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::ListItem: return "ListItem";
         case WidgetKind::ListView: return "ListView";
         case WidgetKind::IconList: return "IconList";
+        case WidgetKind::TextTrackingList: return "TextTrackingList";
         case WidgetKind::ScrollBar: return "ScrollBar";
         case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";
@@ -124,6 +128,8 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::ProgressFlowing: return "ProgressFlowing";
         case WidgetKind::CloudyGlass: return "CloudyGlass";
         case WidgetKind::NumberList: return "NumberList";
+        case WidgetKind::ProgressBarRound: return "ProgressBarRound";
+        case WidgetKind::SpinZoomWidget: return "SpinZoomWidget";
     }
     return "Unknown";
 }

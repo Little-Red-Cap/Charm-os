@@ -43,6 +43,9 @@ import charm.widgets.progress_flowing;
 import charm.widgets.cloudy_glass;
 import charm.widgets.icon_list;
 import charm.widgets.number_list;
+import charm.widgets.text_tracking_list;
+import charm.widgets.progress_bar_round;
+import charm.widgets.spin_zoom_widget;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -534,6 +537,9 @@ namespace {
         WidgetHandle histogram{};
         WidgetHandle icon_list{};
         WidgetHandle number_list{};
+        WidgetHandle text_tracking{};
+        WidgetHandle progress_round{};
+        WidgetHandle spin_zoom{};
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
         WidgetHandle cloudy_glass{};
@@ -1496,6 +1502,34 @@ namespace {
             number_list->set_size(200, 160);
         }
 
+        h.text_tracking = factory.create_text_tracking_list();
+        if (auto* tracking = factory.get_text_tracking_list(h.text_tracking)) {
+            static const char* items[] = {
+                "Ambient", "Minimal", "Drive", "Focus", "Lo-fi", "Synth", "Noir", "Pulse"
+            };
+            tracking->set_items(items, static_cast<int>(sizeof(items) / sizeof(items[0])));
+            tracking->set_row_height(28);
+            tracking->set_selected(2);
+            tracking->set_indicator_color({40, 60, 90, 220});
+            tracking->set_size(200, 160);
+        }
+
+        h.progress_round = factory.create_progress_bar_round();
+        if (auto* round = factory.get_progress_bar_round(h.progress_round)) {
+            round->set_value(68);
+            round->set_thickness(10);
+            round->set_size(120, 120);
+        }
+
+        h.spin_zoom = factory.create_spin_zoom_widget();
+        if (auto* spin = factory.get_spin_zoom_widget(h.spin_zoom)) {
+            spin->set_image(render_logo_argb());
+            spin->set_zoom(1.3f);
+            spin->set_auto_spin(true);
+            spin->set_spin_speed(0.8f);
+            spin->set_size(160, 160);
+        }
+
         h.fold_panel = factory.create_foldable_panel("Foldable Panel");
         if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
             panel->set_body("Tap header to expand or collapse.");
@@ -1598,6 +1632,9 @@ namespace {
         factory.link(h.debug_side, h.histogram);
         factory.link(h.debug_side, h.icon_list);
         factory.link(h.debug_side, h.number_list);
+        factory.link(h.debug_side, h.text_tracking);
+        factory.link(h.debug_side, h.progress_round);
+        factory.link(h.debug_side, h.spin_zoom);
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);

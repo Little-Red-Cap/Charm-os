@@ -24,6 +24,7 @@ import charm.widgets.progress;
 import charm.widgets.list;
 import charm.widgets.list_view;
 import charm.widgets.icon_list;
+import charm.widgets.text_tracking_list;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.text_area;
@@ -38,6 +39,7 @@ import charm.widgets.tabview;
 import charm.widgets.roller;
 import charm.widgets.spinner;
 import charm.widgets.bar;
+import charm.widgets.progress_bar_round;
 import charm.widgets.popup_layer;
 import charm.widgets.popup_layer;
 import charm.widgets.menu;
@@ -62,6 +64,7 @@ import charm.widgets.text_box;
 import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
 import charm.widgets.cloudy_glass;
+import charm.widgets.spin_zoom_widget;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -80,10 +83,12 @@ public:
     WidgetHandle create_slider() noexcept { return make_handle(sliders_.create(), WidgetKind::Slider); }
     WidgetHandle create_switch() noexcept { return make_handle(switches_.create(), WidgetKind::Switch); }
     WidgetHandle create_progress() noexcept { return make_handle(progresses_.create(), WidgetKind::Progress); }
+    WidgetHandle create_progress_bar_round() noexcept { return make_handle(progress_round_.create(), WidgetKind::ProgressBarRound); }
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
     WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
     WidgetHandle create_icon_list() noexcept { return make_handle(icon_lists_.create(), WidgetKind::IconList); }
+    WidgetHandle create_text_tracking_list() noexcept { return make_handle(text_tracking_.create(), WidgetKind::TextTrackingList); }
     WidgetHandle create_scroll_bar() noexcept { return make_handle(scroll_bars_.create(), WidgetKind::ScrollBar); }
     WidgetHandle create_segmented_control() noexcept { return make_handle(segments_.create(), WidgetKind::SegmentedControl); }
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
@@ -121,6 +126,7 @@ public:
     WidgetHandle create_foldable_panel(const char* title) noexcept { return make_handle(fold_panels_.create(title), WidgetKind::FoldablePanel); }
     WidgetHandle create_progress_flowing() noexcept { return make_handle(progress_flow_.create(), WidgetKind::ProgressFlowing); }
     WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
+    WidgetHandle create_spin_zoom_widget() noexcept { return make_handle(spin_zoom_.create(), WidgetKind::SpinZoomWidget); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -136,10 +142,12 @@ public:
     Slider* get_slider(const WidgetHandle& h) noexcept { return get_from(sliders_, h, WidgetKind::Slider); }
     Switch* get_switch(const WidgetHandle& h) noexcept { return get_from(switches_, h, WidgetKind::Switch); }
     Progress* get_progress(const WidgetHandle& h) noexcept { return get_from(progresses_, h, WidgetKind::Progress); }
+    ProgressBarRound* get_progress_bar_round(const WidgetHandle& h) noexcept { return get_from(progress_round_, h, WidgetKind::ProgressBarRound); }
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
     ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
     IconList* get_icon_list(const WidgetHandle& h) noexcept { return get_from(icon_lists_, h, WidgetKind::IconList); }
+    TextTrackingList* get_text_tracking_list(const WidgetHandle& h) noexcept { return get_from(text_tracking_, h, WidgetKind::TextTrackingList); }
     ScrollBar* get_scroll_bar(const WidgetHandle& h) noexcept { return get_from(scroll_bars_, h, WidgetKind::ScrollBar); }
     SegmentedControl* get_segmented_control(const WidgetHandle& h) noexcept { return get_from(segments_, h, WidgetKind::SegmentedControl); }
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
@@ -176,6 +184,7 @@ public:
     FoldablePanel* get_foldable_panel(const WidgetHandle& h) noexcept { return get_from(fold_panels_, h, WidgetKind::FoldablePanel); }
     ProgressFlowing* get_progress_flowing(const WidgetHandle& h) noexcept { return get_from(progress_flow_, h, WidgetKind::ProgressFlowing); }
     CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
+    SpinZoomWidget* get_spin_zoom_widget(const WidgetHandle& h) noexcept { return get_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -190,10 +199,12 @@ public:
             case WidgetKind::Slider: return get_slider(h);
             case WidgetKind::Switch: return get_switch(h);
             case WidgetKind::Progress: return get_progress(h);
+            case WidgetKind::ProgressBarRound: return get_progress_bar_round(h);
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
             case WidgetKind::ListView: return get_list_view(h);
             case WidgetKind::IconList: return get_icon_list(h);
+            case WidgetKind::TextTrackingList: return get_text_tracking_list(h);
             case WidgetKind::ScrollBar: return get_scroll_bar(h);
             case WidgetKind::SegmentedControl: return get_segmented_control(h);
             case WidgetKind::TextArea: return get_text_area(h);
@@ -231,6 +242,7 @@ public:
             case WidgetKind::FoldablePanel: return get_foldable_panel(h);
             case WidgetKind::ProgressFlowing: return get_progress_flowing(h);
             case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
+            case WidgetKind::SpinZoomWidget: return get_spin_zoom_widget(h);
             default: return nullptr;
         }
     }
@@ -393,10 +405,12 @@ public:
         case WidgetKind::Slider: destroy_from(sliders_, h, WidgetKind::Slider); break;
         case WidgetKind::Switch: destroy_from(switches_, h, WidgetKind::Switch); break;
         case WidgetKind::Progress: destroy_from(progresses_, h, WidgetKind::Progress); break;
+        case WidgetKind::ProgressBarRound: destroy_from(progress_round_, h, WidgetKind::ProgressBarRound); break;
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
         case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
         case WidgetKind::IconList: destroy_from(icon_lists_, h, WidgetKind::IconList); break;
+        case WidgetKind::TextTrackingList: destroy_from(text_tracking_, h, WidgetKind::TextTrackingList); break;
         case WidgetKind::ScrollBar: destroy_from(scroll_bars_, h, WidgetKind::ScrollBar); break;
         case WidgetKind::SegmentedControl: destroy_from(segments_, h, WidgetKind::SegmentedControl); break;
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
@@ -434,6 +448,7 @@ public:
         case WidgetKind::FoldablePanel: destroy_from(fold_panels_, h, WidgetKind::FoldablePanel); break;
         case WidgetKind::ProgressFlowing: destroy_from(progress_flow_, h, WidgetKind::ProgressFlowing); break;
         case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
+        case WidgetKind::SpinZoomWidget: destroy_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -678,10 +693,12 @@ private:
     HandlePool<Slider, 64> sliders_{};
     HandlePool<Switch, 64> switches_{};
     HandlePool<Progress, 64> progresses_{};
+    HandlePool<ProgressBarRound, 16> progress_round_{};
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
     HandlePool<ListView, 16> list_views_{};
     HandlePool<IconList, 16> icon_lists_{};
+    HandlePool<TextTrackingList, 16> text_tracking_{};
     HandlePool<ScrollBar, 32> scroll_bars_{};
     HandlePool<SegmentedControl, 32> segments_{};
     HandlePool<TextArea, 32> text_areas_{};
@@ -719,6 +736,7 @@ private:
     HandlePool<FoldablePanel, 16> fold_panels_{};
     HandlePool<ProgressFlowing, 16> progress_flow_{};
     HandlePool<CloudyGlass, 16> glass_{};
+    HandlePool<SpinZoomWidget, 8> spin_zoom_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

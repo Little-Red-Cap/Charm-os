@@ -105,6 +105,7 @@ namespace {
         case audio::Errc::decode_error: return "decode_error";
         case audio::Errc::bad_state: return "bad_state";
         case audio::Errc::timeout: return "timeout";
+        case audio::Errc::end_of_stream: return "end_of_stream";
         }
         return "unknown";
     }

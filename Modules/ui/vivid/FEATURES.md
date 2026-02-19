@@ -36,7 +36,7 @@
 - P2 虚拟列表布局
 
 ## 5. 已具备的基础控件（当前已有）
-- P0 button / label / image（缩放/裁剪/对齐/旋转/采样） / checkbox / switch
+- P0 button / label / image（缩放/裁剪/对齐/旋转/采样/裁剪模式） / checkbox / switch
 - P0 radio / radio_group
 - P0 slider / dial / roller / dropdown
 - P0 list / menu / menu_item

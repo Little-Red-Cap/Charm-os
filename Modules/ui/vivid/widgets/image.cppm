@@ -45,6 +45,11 @@ public:
         Bilinear
     };
 
+    enum class CropMode {
+        Clamp,
+        Transparent
+    };
+
     Image() = default;
 
     void set_image(const ImageView& img) noexcept {
@@ -64,6 +69,9 @@ public:
 
     void set_sampling(Sampling s) noexcept { sampling_ = s; }
     Sampling sampling() const noexcept { return sampling_; }
+
+    void set_crop_mode(CropMode m) noexcept { crop_mode_ = m; }
+    CropMode crop_mode() const noexcept { return crop_mode_; }
 
     void set_anchor(float x, float y) noexcept {
         anchor_x_ = (x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x);
@@ -138,14 +146,24 @@ public:
                 draw_image(cvs, dst_x, dst_y, src_view);
             }
         } else {
-            draw_image_transformed(cvs, dst_x, dst_y, dst_w, dst_h, src_view, rotation_, sampling_);
+            draw_image_transformed(cvs, dst_x, dst_y, dst_w, dst_h, src_view, rotation_, sampling_, crop_mode_);
         }
         cvs.restore_clip(clip_state);
     }
 
 private:
-    static rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
+    static rgba decode_pixel(const ImageView& img, int sx, int sy, CropMode mode) noexcept {
         if (!img.data || sx < 0 || sy < 0 || sx >= img.w || sy >= img.h) {
+            if (mode == CropMode::Clamp) {
+                const int cx = (sx < 0) ? 0 : (sx >= img.w ? (img.w - 1) : sx);
+                const int cy = (sy < 0) ? 0 : (sy >= img.h ? (img.h - 1) : sy);
+                sx = cx;
+                sy = cy;
+            } else {
+                return {0, 0, 0, 0};
+            }
+        }
+        if (sx < 0 || sy < 0 || sx >= img.w || sy >= img.h) {
             return {0, 0, 0, 0};
         }
         const int bpp = bytes_per_pixel(img.format);
@@ -206,7 +224,7 @@ private:
         cvs.set_pixel(x, y, out);
     }
 
-    static rgba sample_bilinear(const ImageView& img, float fx, float fy) noexcept {
+    static rgba sample_bilinear(const ImageView& img, float fx, float fy, CropMode mode) noexcept {
         const int x0 = static_cast<int>(fx);
         const int y0 = static_cast<int>(fy);
         const int x1 = (x0 + 1 < img.w) ? (x0 + 1) : x0;
@@ -214,10 +232,10 @@ private:
         const float tx = fx - static_cast<float>(x0);
         const float ty = fy - static_cast<float>(y0);
 
-        const rgba c00 = decode_pixel(img, x0, y0);
-        const rgba c10 = decode_pixel(img, x1, y0);
-        const rgba c01 = decode_pixel(img, x0, y1);
-        const rgba c11 = decode_pixel(img, x1, y1);
+        const rgba c00 = decode_pixel(img, x0, y0, mode);
+        const rgba c10 = decode_pixel(img, x1, y0, mode);
+        const rgba c01 = decode_pixel(img, x0, y1, mode);
+        const rgba c11 = decode_pixel(img, x1, y1, mode);
 
         auto lerp = [](std::uint8_t a, std::uint8_t b, float t) -> float {
             return static_cast<float>(a) + (static_cast<float>(b) - static_cast<float>(a)) * t;
@@ -245,7 +263,8 @@ private:
                                        int dst_x, int dst_y, int dst_w, int dst_h,
                                        const ImageView& img,
                                        Rotation rot,
-                                       Sampling sampling) noexcept {
+                                       Sampling sampling,
+                                       CropMode crop_mode) noexcept {
         if (!img || dst_w <= 0 || dst_h <= 0) return;
         const int sw = img.w;
         const int sh = img.h;
@@ -281,11 +300,11 @@ private:
 
                 rgba src{};
                 if (sampling == Sampling::Bilinear) {
-                    src = sample_bilinear(img, fx, fy);
+                    src = sample_bilinear(img, fx, fy, crop_mode);
                 } else {
                     const int sx = static_cast<int>(fx + 0.5f);
                     const int sy = static_cast<int>(fy + 0.5f);
-                    src = decode_pixel(img, sx, sy);
+                    src = decode_pixel(img, sx, sy, crop_mode);
                 }
                 blend_pixel(cvs, px, py, src, img.premultiplied_alpha);
             }
@@ -316,6 +335,7 @@ private:
     ScaleMode scale_mode_{ScaleMode::Stretch};
     Rotation rotation_{Rotation::None};
     Sampling sampling_{Sampling::Nearest};
+    CropMode crop_mode_{CropMode::Clamp};
     AlignH align_h_{AlignH::Center};
     AlignV align_v_{AlignV::Center};
     float anchor_x_{0.5f};

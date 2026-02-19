@@ -1,5 +1,6 @@
 import audio.player;
 import audio.result;
+import audio.source.fs;
 import charm.core.config;
 import charm.core.container;
 import charm.core.event;
@@ -243,6 +244,26 @@ namespace {
         fs::clear_mounts();
         (void)fs::add_mount("/", fat.mount_point());
         return fs::Status{fs::Err::ok};
+    }
+
+    bool fs_seek_selftest(const char* path) {
+        if (!path || !*path) return false;
+        audio::FsDataSource src;
+        if (!src.open(path)) return false;
+        const auto size = src.size();
+        if (!size || *size < 32) return true;
+        auto pos = src.tell();
+        if (!pos || *pos != 0) return false;
+        if (!src.seek(0, SEEK_SET)) return false;
+        pos = src.tell();
+        if (!pos || *pos != 0) return false;
+        if (!src.seek(16, SEEK_CUR)) return false;
+        pos = src.tell();
+        if (!pos || *pos != 16) return false;
+        if (!src.seek(-8, SEEK_END)) return false;
+        pos = src.tell();
+        if (!pos || *pos != (*size - 8)) return false;
+        return true;
     }
 
     struct UiHandles {
@@ -1024,6 +1045,10 @@ int main(int argc, char** argv) {
         ctx.refresh_list_view();
         if (should_load) {
             ctx.load_track_index(0);
+            if (ctx.track_ready && !fs_seek_selftest(ctx.track_path)) {
+                ctx.set_status("Fs seek selftest failed");
+                ctx.set_status_color({220, 120, 120, 255});
+            }
         } else {
             ctx.track_ready = false;
             ctx.track_path = nullptr;

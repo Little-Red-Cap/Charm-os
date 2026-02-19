@@ -14,8 +14,12 @@ import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
 import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
+import charm.widgets.spinning_wheel;
+import charm.widgets.image_box;
+import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
@@ -201,6 +205,24 @@ export namespace player::ui {
         dropdown_patch.has_font_color = true;
         dropdown_patch.font_color = kUiListFont;
         theme.patch<Dropdown>(dropdown_patch);
+
+        StylePatch image_box_patch = chart_patch;
+        theme.patch<ImageBox>(image_box_patch);
+
+        StylePatch meter_patch = chart_patch;
+        meter_patch.has_border_focus = true;
+        meter_patch.border_focus = kUiOk;
+        theme.patch<MeterPointer>(meter_patch);
+
+        StylePatch drill_patch = chart_patch;
+        drill_patch.has_bg_pressed = true;
+        drill_patch.bg_pressed = kUiSwitchOn;
+        theme.patch<ProgressBarDrill>(drill_patch);
+
+        StylePatch wheel_patch{};
+        wheel_patch.has_font_color = true;
+        wheel_patch.font_color = kUiListFont;
+        theme.patch<SpinningWheel>(wheel_patch);
         StylePatch nebula_patch{};
         nebula_patch.has_font_color = true;
         nebula_patch.font_color = kUiListFont;

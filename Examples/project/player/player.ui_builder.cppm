@@ -37,6 +37,10 @@ import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
 import charm.widgets.switcher;
+import charm.widgets.spinning_wheel;
+import charm.widgets.image_box;
+import charm.widgets.meter_pointer;
+import charm.widgets.progress_bar_drill;
 import player.controller;
 import player.ui;
 #if CHARM_PLAYER_DEBUG_UI
@@ -494,6 +498,31 @@ export namespace player {
             glass->set_size(200, 70);
             glass->set_opacity(140);
         }
+        h.spinning_wheel = factory.create_spinning_wheel();
+        if (auto* wheel = factory.get_spinning_wheel(h.spinning_wheel)) {
+            wheel->set_size(90, 90);
+            wheel->set_thickness(8);
+            wheel->set_speed(5.0f);
+        }
+        h.image_box = factory.create_image_box();
+        if (auto* box = factory.get_image_box(h.image_box)) {
+            box->set_image(render_logo_argb());
+            box->set_scale_mode(ImageBox::ScaleMode::Fit);
+            box->set_alignment(ImageBox::AlignH::Center, ImageBox::AlignV::Center);
+            box->set_size(200, 120);
+        }
+        h.meter_pointer = factory.create_meter_pointer();
+        if (auto* meter = factory.get_meter_pointer(h.meter_pointer)) {
+            meter->set_range(0, 100);
+            meter->set_value(35);
+            meter->set_size(160, 160);
+        }
+        h.progress_drill = factory.create_progress_bar_drill();
+        if (auto* bar = factory.get_progress_bar_drill(h.progress_drill)) {
+            bar->set_range(0, 100);
+            bar->set_value(35);
+            bar->set_size(200, 18);
+        }
         auto fold_btn_primary = factory.create_button("Apply");
         if (auto* btn = factory.get_button(fold_btn_primary)) {
             btn->set_size(90, 32);
@@ -584,6 +613,10 @@ export namespace player {
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);
+        factory.link(h.debug_side, h.spinning_wheel);
+        factory.link(h.debug_side, h.image_box);
+        factory.link(h.debug_side, h.meter_pointer);
+        factory.link(h.debug_side, h.progress_drill);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

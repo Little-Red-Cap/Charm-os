@@ -101,6 +101,10 @@ export namespace player {
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
         WidgetHandle cloudy_glass{};
+        WidgetHandle spinning_wheel{};
+        WidgetHandle image_box{};
+        WidgetHandle meter_pointer{};
+        WidgetHandle progress_drill{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -506,6 +510,14 @@ export namespace player {
             if (auto* bar = factory->get_progress(handles.progress)) {
                 bar->set_value(value);
             }
+#if CHARM_PLAYER_DEBUG_UI
+            if (auto* meter = factory->get_meter_pointer(handles.meter_pointer)) {
+                meter->set_value(value);
+            }
+            if (auto* drill = factory->get_progress_bar_drill(handles.progress_drill)) {
+                drill->set_value(value);
+            }
+#endif
             set_time_label(clamped);
             return true;
         }

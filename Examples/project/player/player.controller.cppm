@@ -107,10 +107,8 @@ export namespace player {
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
-        WidgetHandle btn_play{};
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
-        WidgetHandle btn_stop{};
         WidgetHandle controls{};
         WidgetHandle perf_overlay{};
     };
@@ -190,10 +188,11 @@ export namespace player {
             }
         }
 
-        void set_pause_button_text(const char* text) {
+        void set_play_button_icon(bool playing_now) {
             if (!factory) return;
             if (auto* btn = factory->get_button(handles.btn_pause)) {
-                btn->set_text(text);
+                btn->set_text("");
+                btn->set_icon(playing_now ? icon_pause() : icon_play(), 20, 20);
             }
         }
 
@@ -746,7 +745,7 @@ export namespace player {
             start = std::chrono::steady_clock::now();
             set_status("Opening");
             set_status_color(kUiStatus);
-            set_pause_button_text("Pause");
+            set_play_button_icon(true);
             set_time_label(0);
             sync_progress_value(0);
             apply_pending_seek();
@@ -765,7 +764,7 @@ export namespace player {
             paused = true;
             set_status("Paused");
             set_status_color(kUiPaused);
-            set_pause_button_text("Resume");
+            set_play_button_icon(false);
         }
 
         void resume_playback() {
@@ -782,7 +781,7 @@ export namespace player {
             start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
             set_status("Playing");
             set_status_color(kUiOk);
-            set_pause_button_text("Pause");
+            set_play_button_icon(true);
         }
 
         void stop_playback() {
@@ -794,7 +793,7 @@ export namespace player {
             pending_seek_sec = -1;
             set_status("Stopped");
             set_status_color(kUiStatus);
-            set_pause_button_text("Pause");
+            set_play_button_icon(false);
             set_time_label(0);
             sync_progress_value(0);
         }
@@ -854,7 +853,7 @@ export namespace player {
                 set_status(buf);
             }
             set_status_color(track_ready ? kUiOk : kUiError);
-            set_pause_button_text("Pause");
+            set_play_button_icon(false);
             set_time_label(0);
             sync_progress_value(0);
             pending_seek_sec = -1;

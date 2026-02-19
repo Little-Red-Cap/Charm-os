@@ -159,23 +159,12 @@ namespace {
 
     static PlayerUiContext g_ctx{};
 
-    void on_play_clicked(void* ctx) {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app) return;
-        app->start_playback();
-    }
-
     void on_pause_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         if (app->playing) app->pause_playback();
         else if (app->paused) app->resume_playback();
-    }
-
-    void on_stop_clicked(void* ctx) {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app) return;
-        app->stop_playback();
+        else app->start_playback();
     }
 
     void on_prev_clicked(void* ctx) {
@@ -500,9 +489,7 @@ int main(int argc, char** argv) {
     ui_cb.eq_preset_change = Callback{&on_eq_preset_change, &g_ctx};
     ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
     ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
-    ui_cb.play_click = Callback{&on_play_clicked, &g_ctx};
     ui_cb.pause_click = Callback{&on_pause_clicked, &g_ctx};
-    ui_cb.stop_click = Callback{&on_stop_clicked, &g_ctx};
 
     g_ctx.handles = build_ui(g_factory, g_ctx, ui_cb);
     g_ctx.sync_option_states();
@@ -525,7 +512,7 @@ int main(int argc, char** argv) {
         g_ctx.refresh_list_view();
         g_ctx.track_ready = false;
         g_ctx.track_path = nullptr;
-        g_ctx.set_pause_button_text("Pause");
+    g_ctx.set_play_button_icon(false);
         g_ctx.set_time_label(0);
         g_ctx.sync_progress_value(0);
         g_ctx.reset_duration();
@@ -582,7 +569,7 @@ int main(int argc, char** argv) {
         } else {
             g_ctx.track_ready = false;
             g_ctx.track_path = nullptr;
-            g_ctx.set_pause_button_text("Pause");
+        g_ctx.set_play_button_icon(false);
             g_ctx.set_time_label(0);
             g_ctx.sync_progress_value(0);
             g_ctx.reset_duration();
@@ -620,7 +607,7 @@ int main(int argc, char** argv) {
                 g_ctx.paused = false;
                 g_ctx.set_status("Stopped");
                 g_ctx.set_status_color(kUiStatus);
-                g_ctx.set_pause_button_text("Pause");
+                g_ctx.set_play_button_icon(false);
             } else {
                 g_ctx.handle_track_end();
             }
@@ -648,7 +635,7 @@ int main(int argc, char** argv) {
                           audio_err_text(err.code), audio_stage_text(stage));
             g_ctx.set_status(buf);
             g_ctx.set_status_color(kUiError);
-            g_ctx.set_pause_button_text("Pause");
+            g_ctx.set_play_button_icon(false);
         }
         g_ctx.update_duration_from_player();
         g_ctx.apply_pending_seek();

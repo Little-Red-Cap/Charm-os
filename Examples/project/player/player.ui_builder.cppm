@@ -67,9 +67,7 @@ export namespace player {
         Callback eq_preset_change{};
         Callback prev_click{};
         Callback next_click{};
-        Callback play_click{};
         Callback pause_click{};
-        Callback stop_click{};
     };
 
     UiHandles build_ui(UiFactory& factory, PlayerController& ctx, const UiCallbacks& cb) {
@@ -522,7 +520,7 @@ export namespace player {
 #endif
 
         const int controls_w = kButtonWidth * 3 + kButtonGap * 2;
-        const int controls_h = kButtonHeight * 2 + kButtonGap;
+        const int controls_h = kButtonHeight;
         const int controls_x = (screen_width - controls_w) / 2;
         const int controls_y = screen_height - controls_h - kControlsBottomMargin;
         h.controls = factory.create_container();
@@ -548,22 +546,12 @@ export namespace player {
             next->set_icon(icon_next(), 20, 20);
         }
 
-        h.btn_play = factory.create_button("Play");
-        if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_size(kButtonWidth, kButtonHeight);
-            play->set_on_click(cb.play_click);
-        }
-
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
             pause->set_size(kButtonWidth, kButtonHeight);
             pause->set_on_click(cb.pause_click);
-        }
-
-        h.btn_stop = factory.create_button("Stop");
-        if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_size(kButtonWidth, kButtonHeight);
-            stop->set_on_click(cb.stop_click);
+            pause->set_text("");
+            pause->set_icon(icon_play(), 20, 20);
         }
 
         factory.link(h.root, h.cover);
@@ -608,9 +596,7 @@ export namespace player {
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
-        factory.link(h.controls, h.btn_play);
         factory.link(h.controls, h.btn_pause);
-        factory.link(h.controls, h.btn_stop);
         factory.link(h.controls, h.btn_next);
         factory.bring_to_front(h.root, h.perf_overlay);
 

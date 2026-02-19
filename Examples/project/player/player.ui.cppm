@@ -140,6 +140,34 @@ export namespace player::ui {
             }
         }
 
+        void build_play_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            constexpr int center = 7;
+            constexpr int top = 3;
+            constexpr int bottom = 12;
+            constexpr int base_half = (bottom - top) / 2;
+            constexpr int base_x = 4;
+            constexpr int apex_x = 12;
+            for (int y = top; y <= bottom; ++y) {
+                for (int x = base_x; x <= apex_x; ++x) {
+                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
+                    if (std::abs(y - center) <= span) {
+                        icon_set_pixel(buf, x, y, color);
+                    }
+                }
+            }
+        }
+
+        void build_pause_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int y = 3; y <= 12; ++y) {
+                icon_set_pixel(buf, 5, y, color);
+                icon_set_pixel(buf, 6, y, color);
+                icon_set_pixel(buf, 10, y, color);
+                icon_set_pixel(buf, 11, y, color);
+            }
+        }
+
         void build_next_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
             constexpr int center = 7;
@@ -168,6 +196,38 @@ export namespace player::ui {
         static bool init = false;
         if (!init) {
             detail::build_prev_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_play() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_play_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_pause() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_pause_icon(buf, kUiListFont);
             init = true;
         }
         return make_image_view(PixelFormat::ARGB8888,

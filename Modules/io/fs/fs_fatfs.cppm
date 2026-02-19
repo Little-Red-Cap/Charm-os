@@ -263,6 +263,7 @@ export namespace fs {
                 const char* name = info.fname;
 #if defined(FF_USE_LFN) && FF_USE_LFN
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
+#if (FF_LFN_UNICODE == 1)
                 if (info.fname[0] != 0) {
                     constexpr util::usize lfn_utf8_cap =
 #if defined(FF_MAX_LFN)
@@ -277,6 +278,7 @@ export namespace fs {
                         name = fname_utf8.data();
                     }
                 }
+#endif
 #endif
 #endif
                 MountOps::ListEntry entry{};
@@ -484,7 +486,15 @@ export namespace fs {
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
             std::array<TCHAR, max_path> buf{};
+#if (FF_LFN_UNICODE == 1)
             if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
+#else
+            if (p.size() + 1 > max_path) return std::nullopt;
+            for (util::usize i = 0; i < p.size(); ++i) {
+                buf[i] = static_cast<TCHAR>(p[i]);
+            }
+            buf[p.size()] = 0;
+#endif
             return buf;
 #else
             if (p.size() + 1 > max_path) return std::nullopt;

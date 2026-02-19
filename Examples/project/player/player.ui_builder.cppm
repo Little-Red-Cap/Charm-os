@@ -14,6 +14,7 @@ import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.code_block;
+import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
 import charm.widgets.image;
@@ -61,6 +62,7 @@ export namespace player {
         Callback low_load_toggle{};
         Callback eq_toggle{};
         Callback eq_slider_change{};
+        Callback eq_preset_change{};
         Callback prev_click{};
         Callback next_click{};
         Callback play_click{};
@@ -223,16 +225,40 @@ export namespace player {
             panel->set_background(kUiListBg);
         }
 
-        h.eq_title = factory.create_label("EQ (placeholder)");
+        h.eq_title = factory.create_label("EQ");
+        const int eq_inner_x = kUiPadding + 10;
+        const int eq_inner_w = screen_width - kUiPadding * 2 - 20;
+        const int eq_title_y = eq_y + 6;
+        const int eq_preset_x = eq_inner_x + eq_inner_w -
+            (kEqPresetLabelWidth + kEqRowGapX + kEqPresetWidth);
         if (auto* title = factory.get_label(h.eq_title)) {
             title->set_color(kUiEqTitle);
-            anchor_rect(title, {kUiPadding + 10, eq_y + 6, screen_width - kUiPadding * 2 - 20, kEqTitleHeight});
+            anchor_rect(title, {eq_inner_x, eq_title_y, screen_width - kUiPadding * 2 - 20, kEqTitleHeight});
             title->set_align(TextAlignH::Left, TextAlignV::Center);
         }
 
+        h.eq_preset_label = factory.create_label("Preset");
+        if (auto* label = factory.get_label(h.eq_preset_label)) {
+            label->set_color(kUiOption);
+            anchor_rect(label, {eq_preset_x, eq_title_y, kEqPresetLabelWidth, kEqTitleHeight});
+            label->set_align(TextAlignH::Left, TextAlignV::Center);
+        }
+
+        h.eq_preset = factory.create_dropdown();
+        if (auto* drop = factory.get_dropdown(h.eq_preset)) {
+            drop->set_size(kEqPresetWidth, kEqRowHeight);
+            drop->add_option("Flat");
+            drop->add_option("Bass");
+            drop->add_option("Vocal");
+            drop->add_option("Treble");
+            drop->add_option("Custom");
+            drop->set_selected(0);
+            drop->set_on_change(cb.eq_preset_change);
+            anchor_rect(drop, {eq_preset_x + kEqPresetLabelWidth + kEqRowGapX, eq_title_y,
+                               kEqPresetWidth, kEqRowHeight});
+        }
+
         static const char* kEqLabels[kEqBands] = {"60", "250", "1k", "4k", "12k"};
-        const int eq_inner_x = kUiPadding + 10;
-        const int eq_inner_w = screen_width - kUiPadding * 2 - 20;
         const int slider_w = eq_inner_w - kEqLabelWidth - kEqValueWidth - kEqRowGapX * 2;
         for (int i = 0; i < kEqBands; ++i) {
             const int row_y = eq_y + kEqTitleHeight + 12 + i * (kEqRowHeight + kEqRowGap);
@@ -574,6 +600,8 @@ export namespace player {
         factory.link(h.options_row, h.opt_eq_label);
         factory.link(h.options_row, h.opt_eq_switch);
 
+        factory.link(h.eq_panel, h.eq_preset_label);
+        factory.link(h.eq_panel, h.eq_preset);
         for (int i = 0; i < kEqBands; ++i) {
             factory.link(h.eq_panel, h.eq_band_labels[i]);
             factory.link(h.eq_panel, h.eq_sliders[i]);

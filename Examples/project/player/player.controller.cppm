@@ -26,6 +26,7 @@ import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.switcher;
 import charm.widgets.slider;
+import charm.widgets.dropdown;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.menu_tree;
 #endif
@@ -75,6 +76,8 @@ export namespace player {
         WidgetHandle opt_eq_switch{};
         WidgetHandle eq_panel{};
         WidgetHandle eq_title{};
+        WidgetHandle eq_preset_label{};
+        WidgetHandle eq_preset{};
         std::array<WidgetHandle, kEqBands> eq_band_labels{};
         std::array<WidgetHandle, kEqBands> eq_sliders{};
         std::array<WidgetHandle, kEqBands> eq_value_labels{};
@@ -136,6 +139,8 @@ export namespace player {
         bool spectrum_enabled{true};
         bool spectrum_low_load{false};
         bool eq_enabled{false};
+        bool eq_ui_guard{false};
+        int eq_preset_index{0};
         std::array<int, kEqBands> eq_gains{};
         std::uint32_t spectrum_tick{0};
         bool duration_ready{false};
@@ -237,6 +242,75 @@ export namespace player {
                 std::snprintf(buf, sizeof(buf), "%+d dB", eq_gains[i]);
                 label->set_text(buf);
             }
+        }
+
+        void update_eq_panel_state() {
+            if (!factory) return;
+            const bool show = eq_enabled && !spectrum_low_load;
+            if (auto* panel = factory->get_container(handles.eq_panel)) {
+                panel->set_visible(show);
+            }
+            if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
+                sw->set_enabled(!spectrum_low_load);
+            }
+            if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
+                dropdown->set_enabled(show);
+            }
+            for (auto h : handles.eq_sliders) {
+                if (auto* slider = factory->get_slider(h)) {
+                    slider->set_enabled(show);
+                }
+            }
+        }
+
+        void apply_eq_to_player() {
+            if (!player) return;
+            audio::EqConfig cfg{};
+            cfg.enabled = eq_enabled && !spectrum_low_load;
+            cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
+            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                cfg.bands[i].freq_hz = kEqFrequencies[i];
+                cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
+                cfg.bands[i].q = 1.0f;
+            }
+            (void)player->set_eq(cfg);
+        }
+
+        static constexpr int kPresetFlat = 0;
+        static constexpr int kPresetBass = 1;
+        static constexpr int kPresetVocal = 2;
+        static constexpr int kPresetTreble = 3;
+        static constexpr int kPresetCustom = 4;
+        static constexpr std::array<std::uint32_t, kEqBands> kEqFrequencies = {60, 250, 1000, 4000, 12000};
+
+        void update_eq_sliders_from_gains() {
+            if (!factory) return;
+            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                auto* slider = factory->get_slider(handles.eq_sliders[i]);
+                if (!slider) continue;
+                slider->set_value(eq_gains[i]);
+            }
+        }
+
+        void apply_eq_preset(int preset) {
+            static constexpr int flat[kEqBands] = {0, 0, 0, 0, 0};
+            static constexpr int bass[kEqBands] = {6, 4, 0, -2, -3};
+            static constexpr int vocal[kEqBands] = {-2, 0, 4, 3, -1};
+            static constexpr int treble[kEqBands] = {-3, -1, 1, 4, 6};
+            const int* src = nullptr;
+            switch (preset) {
+            case kPresetFlat: src = flat; break;
+            case kPresetBass: src = bass; break;
+            case kPresetVocal: src = vocal; break;
+            case kPresetTreble: src = treble; break;
+            default: return;
+            }
+            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                eq_gains[i] = src[i];
+            }
+            update_eq_sliders_from_gains();
+            update_eq_panel_labels();
+            apply_eq_to_player();
         }
 
         void update_low_load_label() {
@@ -498,6 +572,8 @@ export namespace player {
                 }
                 update_low_load_label();
             }
+            update_eq_panel_state();
+            apply_eq_to_player();
         }
 
         void set_eq_enabled(bool on) {
@@ -507,19 +583,9 @@ export namespace player {
                     sw->set_on(on);
                 }
                 update_eq_label();
-                if (auto* panel = factory->get_container(handles.eq_panel)) {
-                    panel->set_visible(on);
-                }
             }
-            if (player) {
-                audio::EqConfig cfg{};
-                cfg.enabled = on;
-                cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
-                for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                    cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
-                }
-                (void)player->set_eq(cfg);
-            }
+            update_eq_panel_state();
+            apply_eq_to_player();
         }
 
         void set_play_mode(int mode) {
@@ -538,14 +604,17 @@ export namespace player {
                 if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
                     sw->set_on(eq_enabled);
                 }
-                if (auto* panel = factory->get_container(handles.eq_panel)) {
-                    panel->set_visible(eq_enabled);
+                if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
+                    eq_ui_guard = true;
+                    dropdown->set_selected(eq_preset_index);
+                    eq_ui_guard = false;
                 }
             }
             update_play_mode_label();
             update_low_load_label();
             update_eq_label();
             update_eq_panel_labels();
+            update_eq_panel_state();
         }
 
         void on_spectrum_toggle() {
@@ -571,21 +640,35 @@ export namespace player {
 
         void on_eq_slider_change() {
             if (!factory) return;
+            if (eq_ui_guard) return;
+            eq_ui_guard = true;
             for (std::size_t i = 0; i < eq_gains.size(); ++i) {
                 auto* slider = factory->get_slider(handles.eq_sliders[i]);
                 if (!slider) continue;
                 eq_gains[i] = slider->value();
             }
             update_eq_panel_labels();
-            if (player && eq_enabled) {
-                audio::EqConfig cfg{};
-                cfg.enabled = true;
-                cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
-                for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                    cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
+            if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
+                if (dropdown->selected() != kPresetCustom) {
+                    dropdown->set_selected(kPresetCustom);
+                    eq_preset_index = kPresetCustom;
                 }
-                (void)player->set_eq(cfg);
             }
+            apply_eq_to_player();
+            eq_ui_guard = false;
+        }
+
+        void on_eq_preset_change() {
+            if (!factory) return;
+            if (eq_ui_guard) return;
+            auto* dropdown = factory->get_dropdown(handles.eq_preset);
+            if (!dropdown) return;
+            const int preset = dropdown->selected();
+            eq_preset_index = preset;
+            if (preset == kPresetCustom) return;
+            eq_ui_guard = true;
+            apply_eq_preset(preset);
+            eq_ui_guard = false;
         }
 
         void sync_progress_value(int value) {

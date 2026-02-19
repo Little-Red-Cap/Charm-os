@@ -19,6 +19,7 @@ import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
 import charm.widgets.slider;
+import charm.widgets.dropdown;
 
 export namespace player::ui {
     inline constexpr int kUiPadding = 24;
@@ -47,6 +48,8 @@ export namespace player::ui {
     inline constexpr int kEqLabelWidth = 40;
     inline constexpr int kEqValueWidth = 44;
     inline constexpr int kEqRowGapX = 10;
+    inline constexpr int kEqPresetLabelWidth = 56;
+    inline constexpr int kEqPresetWidth = 140;
     inline constexpr int kListTitleGap = 26;
     inline constexpr int kListBottomReserve = 170;
     inline constexpr int kListScrollWidth = 10;
@@ -182,5 +185,14 @@ export namespace player::ui {
         slider_patch.has_border_color = true;
         slider_patch.border_color = kUiButtonBorder;
         theme.patch<Slider>(slider_patch);
+
+        StylePatch dropdown_patch{};
+        dropdown_patch.has_bg_color = true;
+        dropdown_patch.bg_color = kUiButtonBg;
+        dropdown_patch.has_border_color = true;
+        dropdown_patch.border_color = kUiButtonBorder;
+        dropdown_patch.has_font_color = true;
+        dropdown_patch.font_color = kUiListFont;
+        theme.patch<Dropdown>(dropdown_patch);
     }
 }

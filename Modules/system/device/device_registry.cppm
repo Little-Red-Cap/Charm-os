@@ -8,23 +8,9 @@ export module device.registry;
 import util.core;
 import device.desc;
 import device.driver;
+import device.types;
 
 export namespace device {
-    enum class DeviceState : util::u8 {
-        detected,
-        initialized,
-        running,
-        suspended,
-        stopped
-    };
-
-    struct Device {
-        DeviceDesc desc{};
-        void* ctx{nullptr};
-        DeviceState state{DeviceState::detected};
-        const Driver* driver{nullptr};
-    };
-
     struct RegistryBase {
         virtual ~RegistryBase() = default;
         virtual bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept = 0;

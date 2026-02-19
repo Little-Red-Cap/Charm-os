@@ -52,3 +52,4 @@ export import device.bus;
 export import device.driver;
 export import device.manager;
 export import device.registry;
+export import device.types;

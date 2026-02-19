@@ -6,10 +6,9 @@ export module device.driver;
 
 import util.core;
 import device.desc;
+import device.types;
 
 export namespace device {
-    struct Device;
-
     struct DriverOps {
         bool (*probe)(Device& dev) noexcept { nullptr };
         bool (*init)(Device& dev) noexcept { nullptr };

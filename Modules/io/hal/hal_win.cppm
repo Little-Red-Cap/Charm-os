@@ -16,6 +16,7 @@ import hal_gpio;
 import hal_uart;
 import hal_timer;
 import hal_input;
+import input.raw;
 import util.core;
 
 export namespace hal::win {

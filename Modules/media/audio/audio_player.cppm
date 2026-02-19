@@ -135,6 +135,23 @@ export namespace audio {
         error
     };
 
+    enum class PlayerErrorStage : std::uint8_t {
+        none = 0,
+        open_source,
+        unsupported_format,
+        decode_open,
+        wav_parse,
+        wav_bits,
+        channel_convert,
+        buffer_config,
+        sink_open,
+        buffer_alloc,
+        sink_start,
+        seek,
+        resume,
+        reconfigure
+    };
+
     struct PlayerProfile {
         std::uint32_t low_ms{40};
         std::uint32_t high_ms{150};
@@ -230,6 +247,9 @@ export namespace audio {
             if (!is_wav_ && !is_flac_ && !is_mp3_) {
                 return unexpected(Err{Errc::not_supported, 0});
             }
+            if (total_frames_ == 0) {
+                return unexpected(Err{Errc::not_supported, 0});
+            }
             Command cmd{};
             cmd.type = CommandType::seek_ms;
             cmd.seek_ms = ms;
@@ -299,7 +319,7 @@ export namespace audio {
                 }
                 if (fifo_capacity_ && fifo_.size_bytes() >= high_water_) {
                     if (!sink_.start()) {
-                        state_ = PlayerState::error;
+                        set_error(Errc::io_error, PlayerErrorStage::sink_start);
                         return;
                     }
                     state_ = PlayerState::playing;
@@ -333,6 +353,8 @@ export namespace audio {
         std::uint64_t total_frames() const noexcept { return total_frames_; }
 
         AudioFormat input_format() const noexcept { return input_fmt_; }
+
+        Err last_error() const noexcept { return last_err_; }
 
         PlayerSnapshot snapshot(bool reset_window) {
             PlayerSnapshot snap{};
@@ -416,25 +438,26 @@ export namespace audio {
         void handle_play(const char* path) {
             stop_internal();
             state_ = PlayerState::opening;
+            last_err_ = Err{};
 
             if (!src_.open(path)) {
-                state_ = PlayerState::error;
+                set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
             }
 
-            is_flac_ = ends_with_icase(path, ".flac");
+            is_flac_ = ends_with_icase(path, ".flac") || ends_with_icase(path, ".fla");
             is_wav_ = ends_with_icase(path, ".wav");
             is_mp3_ = ends_with_icase(path, ".mp3");
 
             if (!is_flac_ && !is_wav_ && !is_mp3_) {
-                state_ = PlayerState::error;
+                set_error(Errc::not_supported, PlayerErrorStage::unsupported_format);
                 return;
             }
 
             if (is_flac_) {
                 const auto info = flac_.open(src_);
                 if (!info) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
                 }
                 input_fmt_.rate = info->sample_rate;
@@ -445,7 +468,7 @@ export namespace audio {
             } else if (is_mp3_) {
                 const auto info = mp3_.open(src_);
                 if (!info) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
                 }
                 input_fmt_.rate = info->sample_rate;
@@ -456,11 +479,11 @@ export namespace audio {
             } else {
                 const auto info = parse_wav(src_);
                 if (!info) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::decode_error, PlayerErrorStage::wav_parse);
                     return;
                 }
                 if (info->bits_per_sample != 16) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::not_supported, PlayerErrorStage::wav_bits);
                     return;
                 }
                 input_fmt_.rate = info->sample_rate;
@@ -479,7 +502,7 @@ export namespace audio {
             }
 
             if (!configure_channel_convert()) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::channel_convert);
                 return;
             }
             resample_enabled_ = false;
@@ -494,7 +517,7 @@ export namespace audio {
             }
 
             if (!configure_buffers()) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::buffer_config);
                 return;
             }
 
@@ -502,7 +525,7 @@ export namespace audio {
             cfg.fmt = output_fmt_;
             cfg.preferred_period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
-                state_ = PlayerState::error;
+                set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
             period_frames_ = sink_.actual_period_frames();
@@ -512,7 +535,7 @@ export namespace audio {
             chunk_frames_ = period_frames_ * config_.profile.chunk_mult;
             chunk_bytes_ = static_cast<std::size_t>(chunk_frames_) * output_fmt_.frame_size();
             if (!allocate_buffers(chunk_bytes_)) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
 
@@ -527,7 +550,7 @@ export namespace audio {
             if (is_wav_) {
                 auto seek = src_.seek(static_cast<std::int64_t>(data_offset_), SEEK_SET);
                 if (!seek) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
                 }
             }
@@ -541,7 +564,10 @@ export namespace audio {
             (void)sink_.stop();
             if (fifo_capacity_) fifo_.clear();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
-            const std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
+            std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
+            if (total_frames_ > 0 && clamped_frames >= total_frames_) {
+                clamped_frames = total_frames_ - 1;
+            }
             if (is_wav_) {
                 const std::uint64_t offset = clamped_frames * input_fmt_.frame_size();
                 const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
@@ -549,13 +575,13 @@ export namespace audio {
                 has_more_data_ = remaining_bytes_ > 0;
                 auto res = src_.seek(static_cast<std::int64_t>(data_offset_ + clamped), SEEK_SET);
                 if (!res) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
                 }
             } else if (is_flac_) {
                 auto res = flac_.seek_pcm_frame(clamped_frames);
                 if (!res) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::io_error, PlayerErrorStage::seek);
                     running_ = false;
                     return;
                 }
@@ -563,7 +589,7 @@ export namespace audio {
             } else if (is_mp3_) {
                 auto res = mp3_.seek_pcm_frame(clamped_frames);
                 if (!res) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::io_error, PlayerErrorStage::seek);
                     running_ = false;
                     return;
                 }
@@ -595,7 +621,7 @@ export namespace audio {
             state_ = PlayerState::buffering;
             if (fifo_capacity_ && fifo_.size_bytes() >= high_water_) {
                 if (!sink_.start()) {
-                    state_ = PlayerState::error;
+                    set_error(Errc::io_error, PlayerErrorStage::resume);
                     return;
                 }
                 state_ = PlayerState::playing;
@@ -604,7 +630,7 @@ export namespace audio {
 
         void handle_reconfigure(const AudioFormat& input_fmt) {
             if (input_fmt.channels == 0 || input_fmt.rate == 0) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
                 return;
             }
             (void)sink_.stop();
@@ -618,7 +644,7 @@ export namespace audio {
                 output_fmt_.channels = config_.force_channels;
             }
             if (!configure_channel_convert()) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::channel_convert);
                 return;
             }
             resample_enabled_ = false;
@@ -633,12 +659,12 @@ export namespace audio {
             }
 
             if (config_.fail_reconfig_step == 1) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
                 return;
             }
 
             if (!configure_buffers()) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::buffer_config);
                 return;
             }
 
@@ -646,7 +672,7 @@ export namespace audio {
             cfg.fmt = output_fmt_;
             cfg.preferred_period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
-                state_ = PlayerState::error;
+                set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
             period_frames_ = sink_.actual_period_frames();
@@ -656,7 +682,7 @@ export namespace audio {
             chunk_frames_ = period_frames_ * config_.profile.chunk_mult;
             chunk_bytes_ = static_cast<std::size_t>(chunk_frames_) * output_fmt_.frame_size();
             if (!allocate_buffers(chunk_bytes_)) {
-                state_ = PlayerState::error;
+                set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
             sink_.set_fill_callback(&AudioPlayer::fill_from_fifo, this);
@@ -688,7 +714,13 @@ export namespace audio {
             total_frames_ = 0;
             resample_enabled_ = false;
             resample_cache_frames_ = 0;
+            last_err_ = Err{};
             state_ = PlayerState::idle;
+        }
+
+        void set_error(Errc code, PlayerErrorStage stage) noexcept {
+            last_err_ = Err{code, static_cast<std::uint16_t>(stage)};
+            state_ = PlayerState::error;
         }
 
         bool configure_buffers() {
@@ -1060,6 +1092,7 @@ export namespace audio {
         std::size_t data_size_{0};
         std::size_t remaining_bytes_{0};
         std::uint64_t total_frames_{0};
+        Err last_err_{};
 
         bool is_flac_{false};
         bool is_wav_{false};

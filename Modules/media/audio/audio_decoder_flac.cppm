@@ -68,6 +68,8 @@ export namespace audio {
             if (!flac_) {
                 return unexpected(Err{Errc::invalid_arg, 0});
             }
+            flac_->_noSeekTableSeek = DRFLAC_TRUE;
+            flac_->_noBinarySearchSeek = DRFLAC_TRUE;
             FlacInfo info{};
             info.sample_rate = flac_->sampleRate;
             info.channels = static_cast<std::uint16_t>(flac_->channels);
@@ -82,6 +84,12 @@ export namespace audio {
 
         Result<void> seek_pcm_frame(std::uint64_t frame) {
             if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            const auto total = static_cast<std::uint64_t>(flac_->totalPCMFrameCount);
+            if (total == 0) return unexpected(Err{Errc::not_supported, 0});
+            if (frame >= total) frame = total - 1;
+            flac_->_noSeekTableSeek = DRFLAC_TRUE;
+            flac_->_noBinarySearchSeek = DRFLAC_TRUE;
+            flac_->_noBruteForceSeek = DRFLAC_FALSE;
             const auto ok = drflac_seek_to_pcm_frame(flac_, static_cast<drflac_uint64>(frame));
             return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
         }

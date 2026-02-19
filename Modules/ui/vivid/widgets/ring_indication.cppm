@@ -1,4 +1,5 @@
 module;
+#include <cmath>
 export module charm.widgets.ring_indication;
 
 import charm.core.object;
@@ -30,6 +31,10 @@ public:
     void set_start_angle(int deg) noexcept { start_deg_ = deg; }
     void set_end_angle(int deg) noexcept { end_deg_ = deg; }
     void set_show_track(bool on) noexcept { show_track_ = on; }
+    void set_show_ticks(bool on) noexcept { show_ticks_ = on; }
+    void set_tick_count(int count) noexcept { tick_count_ = (count > 0) ? count : 1; }
+    void set_tick_length(int px) noexcept { tick_len_ = (px > 0) ? px : 1; }
+    void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<RingIndication>();
@@ -47,6 +52,10 @@ public:
         if (radius < 1) radius = 1;
         const int start = start_deg_;
         const int end = end_deg_;
+        if (show_shadow_) {
+            rgba shadow = {0, 0, 0, 80};
+            draw_arc(cvs, cx + 1, cy + 1, radius, thickness_, start, end, shadow);
+        }
         if (show_track_) {
             draw_arc(cvs, cx, cy, radius, thickness_, start, end, border);
         }
@@ -54,6 +63,22 @@ public:
                                                            static_cast<float>(end),
                                                            alg::arc::ratio_from_range(value_, 0, 100));
         draw_arc(cvs, cx, cy, radius, thickness_, start, sweep, font);
+
+        if (show_ticks_ && tick_count_ > 0) {
+            const float range = static_cast<float>(end - start);
+            const float step = range / static_cast<float>(tick_count_);
+            const int inner = radius - thickness_ / 2;
+            const int outer = inner + tick_len_;
+            for (int i = 0; i <= tick_count_; ++i) {
+                const float deg = static_cast<float>(start) + step * static_cast<float>(i);
+                const float rad = deg * 3.1415926f / 180.0f;
+                const int x0 = cx + static_cast<int>(std::cos(rad) * inner);
+                const int y0 = cy + static_cast<int>(std::sin(rad) * inner);
+                const int x1 = cx + static_cast<int>(std::cos(rad) * outer);
+                const int y1 = cy + static_cast<int>(std::sin(rad) * outer);
+                draw_line(cvs, x0, y0, x1, y1, border);
+            }
+        }
     }
 
 private:
@@ -62,4 +87,8 @@ private:
     int start_deg_{-90};
     int end_deg_{270};
     bool show_track_{true};
+    bool show_ticks_{true};
+    int tick_count_{12};
+    int tick_len_{6};
+    bool show_shadow_{true};
 };

@@ -1476,7 +1476,7 @@ namespace {
         h.progress_flow = factory.create_progress_flowing();
         if (auto* flow = factory.get_progress_flowing(h.progress_flow)) {
             flow->set_range(0, 100);
-            flow->set_value(65);
+            flow->set_indeterminate(true);
             flow->set_flow_span(12);
             flow->set_flow_speed(2);
             flow->set_size(200, 16);

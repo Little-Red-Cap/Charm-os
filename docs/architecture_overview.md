@@ -44,6 +44,12 @@ Modules/
   thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
+  # Shell 目录拆分（模块名保持不变）
+  io/shell/
+    core/      # shell_core/shell_stream/shell_time
+    cli/       # shell_cmd/shell_repl/shell_service/shell_stdio
+    facade/    # shell_posix（后续可扩展 arduino_facade）
+
 Examples/     # 示例工程
 docs/         # 架构与协作文档
 Draft/        # 计划/草案（可变动）
@@ -354,6 +360,8 @@ graph LR
     ServiceTrace[service_trace] --> Trace[trace_core]
     DistBus[service_distbus] --> ServiceTrace
 ```
+
+说明：Shell 目录已拆分为 `core/cli/facade`，模块名保持不变（`shell_posix` 仍作为 facade 入口）。
 
 ## 9. 运行期数据流（简化）
 

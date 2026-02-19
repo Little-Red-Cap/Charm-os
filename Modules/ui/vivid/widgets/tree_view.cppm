@@ -27,6 +27,7 @@ public:
         int index{0};
         bool selected{false};
         NodeInfo node{};
+        int slot{-1};
     };
 
     using CountFn = int(*)(void* ctx) noexcept;
@@ -37,6 +38,7 @@ public:
     using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
     using PoolBindFn = void(*)(void* ctx, int slot, int index, const NodeInfo& info) noexcept;
     using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using RowHeightFn = int(*)(void* ctx, int index, const NodeInfo& info) noexcept;
 
     TreeView() {
         set_focusable(true);
@@ -54,6 +56,15 @@ public:
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 6) ? h : 6;
+        row_height_fn_ = nullptr;
+        row_height_ctx_ = nullptr;
+        clear_cache();
+        update_scroll_bounds();
+    }
+
+    void set_row_height_fn(RowHeightFn fn, void* ctx = nullptr) noexcept {
+        row_height_fn_ = fn;
+        row_height_ctx_ = ctx;
         clear_cache();
         update_scroll_bounds();
     }
@@ -106,10 +117,39 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
-        const int start = window.start;
-        const int visible = window.visible;
-        int y = window.offset_y;
+        const bool variable_height = (row_height_fn_ != nullptr);
+        int start = 0;
+        int visible = 0;
+        int y = r.y;
+        if (!variable_height) {
+            const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
+            start = window.start;
+            visible = window.visible;
+            y = window.offset_y;
+        } else {
+            int acc = 0;
+            for (int i = 0; i < count; ++i) {
+                const int h = row_height_for_index(i);
+                if (acc + h > scroll_y_) {
+                    start = i;
+                    break;
+                }
+                acc += h;
+                start = i + 1;
+            }
+            if (prefetch_rows_ > 0) {
+                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
+                    --start;
+                    acc -= row_height_for_index(start);
+                }
+            }
+            y = r.y - (scroll_y_ - acc);
+            int temp_y = y;
+            for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
+                temp_y += row_height_for_index(i);
+                ++visible;
+            }
+        }
         auto on_create = [&](int slot) {
             if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
         };
@@ -119,7 +159,8 @@ public:
         cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
-            Rect row{r.x, y, r.w, row_height_};
+            const int row_h = variable_height ? row_height_for_index(i, info) : row_height_;
+            Rect row{r.x, y, r.w, row_h};
             const bool selected = (i == selected_);
             if (selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
@@ -140,13 +181,13 @@ public:
             }
             draw_node_glyphs(cvs, row, info, border);
             if (draw_fn_) {
-                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info});
+                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info, slot});
             } else if (info.label) {
                 Rect label_box{row.x + st.padding + info.depth * indent_w_, row.y, row.w, row.h};
                 draw_text_box(cvs, label_box, info.label, font, resolve_font(st),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             }
-            y += row_height_;
+            y += row_h;
         }
 
         cache_.recycle_inactive(on_recycle);
@@ -194,12 +235,29 @@ private:
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_;
         if (local < 0 || row_height_ <= 0) return -1;
-        return local / row_height_;
+        if (!row_height_fn_) {
+            return local / row_height_;
+        }
+        int acc = 0;
+        const int count = item_count();
+        for (int i = 0; i < count; ++i) {
+            acc += row_height_for_index(i);
+            if (local < acc) return i;
+        }
+        return -1;
     }
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        const int total_h = item_count() * row_height_;
+        int total_h = 0;
+        if (row_height_fn_) {
+            const int count = item_count();
+            for (int i = 0; i < count; ++i) {
+                total_h += row_height_for_index(i);
+            }
+        } else {
+            total_h = item_count() * row_height_;
+        }
         max_scroll_y_ = std::max(0, total_h - r.h);
         if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
         if (scroll_y_ < 0) scroll_y_ = 0;
@@ -238,6 +296,8 @@ private:
     PoolBindFn pool_bind_fn_{nullptr};
     PoolRecycleFn pool_recycle_fn_{nullptr};
     void* pool_ctx_{nullptr};
+    RowHeightFn row_height_fn_{nullptr};
+    void* row_height_ctx_{nullptr};
     void* data_ctx_{nullptr};
     void* select_ctx_{nullptr};
     int row_height_{20};
@@ -249,4 +309,16 @@ private:
 
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};
+
+    int row_height_for_index(int index) const noexcept {
+        if (!row_height_fn_) return row_height_;
+        const NodeInfo info = node_fn_ ? node_fn_(data_ctx_, index) : NodeInfo{};
+        return row_height_for_index(index, info);
+    }
+
+    int row_height_for_index(int index, const NodeInfo& info) const noexcept {
+        if (!row_height_fn_) return row_height_;
+        int h = row_height_fn_(row_height_ctx_ ? row_height_ctx_ : data_ctx_, index, info);
+        return (h > 6) ? h : 6;
+    }
 };

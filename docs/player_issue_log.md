@@ -53,7 +53,8 @@
 
 1) VFS 桥接缺口
 - 现状：RAMFS/BlockFS 可用，但 PC 端“file-backed block device + FATFS”仍缺
-- 建议：新增 file-backed block device（file_mal），再挂 FATFS
+- 进展：已新增 file-backed block device + FatFs 适配与示例
+- 参考：`Examples/fs/vsf_fs_fatfs_demo`
 
 2) vivid 屏幕尺寸配置
 - 现状：固定 1280x720

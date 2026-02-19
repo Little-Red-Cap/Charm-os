@@ -30,6 +30,8 @@ import audio.format;
 import audio.resampler.linear;
 import audio.result;
 import audio.sink.sdl3;
+import media.stream.filter;
+import media.stream.source;
 import service.queue;
 import util.span;
 
@@ -445,6 +447,11 @@ export namespace audio {
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
             }
+            src_iface_ = &src_;
+            filter_ = nullptr;
+            wav_filter_.close();
+            flac_filter_.close();
+            mp3_filter_.close();
 
             is_flac_ = ends_with_icase(path, ".flac") || ends_with_icase(path, ".fla");
             is_wav_ = ends_with_icase(path, ".wav");
@@ -456,45 +463,51 @@ export namespace audio {
             }
 
             if (is_flac_) {
-                const auto info = flac_.open(src_);
+                const auto info = flac_filter_.open(*src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
                 }
-                input_fmt_.rate = info->sample_rate;
-                input_fmt_.channels = info->channels;
+                const auto fmt = flac_filter_.format();
+                input_fmt_.rate = fmt.rate;
+                input_fmt_.channels = fmt.channels;
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
-                total_frames_ = flac_.total_frames();
+                total_frames_ = flac_filter_.total_frames();
+                filter_ = &flac_filter_;
             } else if (is_mp3_) {
-                const auto info = mp3_.open(src_);
+                const auto info = mp3_filter_.open(*src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
                 }
-                input_fmt_.rate = info->sample_rate;
-                input_fmt_.channels = info->channels;
+                const auto fmt = mp3_filter_.format();
+                input_fmt_.rate = fmt.rate;
+                input_fmt_.channels = fmt.channels;
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
-                total_frames_ = mp3_.total_frames();
+                total_frames_ = mp3_filter_.total_frames();
+                filter_ = &mp3_filter_;
             } else {
-                const auto info = parse_wav(src_);
+                const auto info = wav_filter_.open(*src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::wav_parse);
                     return;
                 }
-                if (info->bits_per_sample != 16) {
+                const auto fmt = wav_filter_.format();
+                if (fmt.bits_per_sample != 16) {
                     set_error(Errc::not_supported, PlayerErrorStage::wav_bits);
                     return;
                 }
-                input_fmt_.rate = info->sample_rate;
-                input_fmt_.channels = info->channels;
+                input_fmt_.rate = fmt.rate;
+                input_fmt_.channels = fmt.channels;
                 input_fmt_.sample_type = SampleType::s16;
-                data_offset_ = info->data_offset;
-                data_size_ = info->data_size;
-                remaining_bytes_ = info->data_size;
+                data_offset_ = wav_filter_.data_offset();
+                data_size_ = wav_filter_.data_size();
+                remaining_bytes_ = data_size_;
                 has_more_data_ = remaining_bytes_ > 0;
                 total_frames_ = data_size_ / input_fmt_.frame_size();
+                filter_ = &wav_filter_;
             }
 
             output_fmt_ = input_fmt_;
@@ -549,7 +562,7 @@ export namespace audio {
             fade_in_remaining_frames_ = fade_in_total_frames();
 
             if (is_wav_) {
-                auto seek = src_.seek(static_cast<std::int64_t>(data_offset_), SEEK_SET);
+                auto seek = src_iface_->seek(static_cast<std::int64_t>(data_offset_), media::SeekWhence::set);
                 if (!seek) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
@@ -574,51 +587,21 @@ export namespace audio {
                 const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
                 remaining_bytes_ = static_cast<std::size_t>(data_size_ - clamped);
                 has_more_data_ = remaining_bytes_ > 0;
-                auto res = src_.seek(static_cast<std::int64_t>(data_offset_ + clamped), SEEK_SET);
+                auto res = src_iface_->seek(static_cast<std::int64_t>(data_offset_ + clamped), media::SeekWhence::set);
                 if (!res) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
                 }
             } else if (is_flac_) {
-                auto reset = src_.seek(0, SEEK_SET);
-                if (!reset) {
-                    set_error(Errc::io_error, PlayerErrorStage::seek);
-                    running_ = false;
-                    return;
-                }
-                flac_.close();
-                auto info = flac_.open(src_);
-                if (!info) {
+                auto res = flac_filter_.seek_pcm_frame(clamped_frames);
+                if (!res) {
                     set_error(Errc::decode_error, PlayerErrorStage::seek);
                     running_ = false;
                     return;
                 }
-                input_fmt_.rate = info->sample_rate;
-                input_fmt_.channels = info->channels;
-                input_fmt_.sample_type = SampleType::s16;
-                total_frames_ = flac_.total_frames();
                 has_more_data_ = true;
-
-                const std::size_t max_frames = s32_in_.size() / input_fmt_.channels;
-                if (max_frames == 0) {
-                    set_error(Errc::bad_state, PlayerErrorStage::seek);
-                    running_ = false;
-                    return;
-                }
-                std::uint64_t remaining = clamped_frames;
-                while (remaining > 0) {
-                    const std::size_t chunk = static_cast<std::size_t>(
-                        std::min<std::uint64_t>(remaining, max_frames));
-                    auto read = flac_.read_s32(s32_in_.data(), chunk);
-                    if (!read || *read == 0) {
-                        set_error(Errc::decode_error, PlayerErrorStage::seek);
-                        running_ = false;
-                        return;
-                    }
-                    remaining -= *read;
-                }
             } else if (is_mp3_) {
-                auto res = mp3_.seek_pcm_frame(clamped_frames);
+                auto res = mp3_filter_.seek_pcm_frame(clamped_frames);
                 if (!res) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     running_ = false;
@@ -634,6 +617,7 @@ export namespace audio {
                 resampler_.reset();
                 resample_cache_frames_ = 0;
             }
+            last_decode_eos_ = false;
             fade_in_remaining_frames_ = fade_in_total_frames();
             state_ = PlayerState::buffering;
         }
@@ -730,9 +714,12 @@ export namespace audio {
             state_ = PlayerState::stopping;
             (void)sink_.stop();
             sink_.close();
-            flac_.close();
-            mp3_.close();
+            flac_filter_.close();
+            mp3_filter_.close();
+            wav_filter_.close();
             src_.close();
+            src_iface_ = nullptr;
+            filter_ = nullptr;
             if (fifo_capacity_) fifo_.clear();
             running_ = false;
             has_more_data_ = false;
@@ -745,6 +732,7 @@ export namespace audio {
             total_frames_ = 0;
             resample_enabled_ = false;
             resample_cache_frames_ = 0;
+            last_decode_eos_ = false;
             last_err_ = Err{};
             state_ = PlayerState::idle;
         }
@@ -831,9 +819,7 @@ export namespace audio {
             }
 
             if (decoded_frames == 0) {
-                if (!resample_enabled_) {
-                    has_more_data_ = false;
-                } else if (resample_cache_frames_ == 0) {
+                if (last_decode_eos_ && (!resample_enabled_ || resample_cache_frames_ == 0)) {
                     has_more_data_ = false;
                 }
             }
@@ -876,35 +862,45 @@ export namespace audio {
 
         std::size_t read_flac(std::size_t frames) {
             if (frames == 0) return 0;
-            auto res = flac_.read_s32(s32_in_.data(), frames);
+            const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int32_t);
+            const std::size_t out_frames = std::min(frames, s32_in_.size() / input_fmt_.channels);
+            const std::size_t out_bytes = out_frames * frame_bytes;
+            auto res = flac_filter_.process(util::span<const std::byte>{},
+                util::span<std::byte>(reinterpret_cast<std::byte*>(s32_in_.data()), out_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
                 return 0;
             }
-            return *res;
+            last_decode_eos_ = res->end_of_stream;
+            const std::size_t produced = res->produced - (res->produced % frame_bytes);
+            return produced / frame_bytes;
         }
 
         std::size_t read_wav(std::size_t frames) {
             if (frames == 0) return 0;
             const std::size_t bytes_per_frame = input_fmt_.frame_size();
-            const std::size_t to_read = std::min(frames * bytes_per_frame, remaining_bytes_);
-            auto res = src_.read(util::span<std::byte>(raw_.data(), to_read));
+            const std::size_t max_bytes = std::min(frames * bytes_per_frame, raw_.size());
+            const auto res = wav_filter_.process(util::span<const std::byte>{},
+                util::span<std::byte>(raw_.data(), max_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
                 return 0;
             }
-            if (*res == 0) {
-                remaining_bytes_ = 0;
+            last_decode_eos_ = res->end_of_stream;
+            const std::size_t produced = res->produced - (res->produced % bytes_per_frame);
+            if (produced == 0) {
+                if (last_decode_eos_) {
+                    remaining_bytes_ = 0;
+                }
                 return 0;
             }
-            remaining_bytes_ -= *res;
-            if (remaining_bytes_ == 0) {
-                has_more_data_ = false;
+            if (remaining_bytes_ > 0) {
+                remaining_bytes_ = (produced >= remaining_bytes_) ? 0 : (remaining_bytes_ - produced);
             }
 
-            const std::size_t samples = *res / sizeof(std::int16_t);
+            const std::size_t samples = produced / sizeof(std::int16_t);
             std::memcpy(s16_in_.data(), raw_.data(), samples * sizeof(std::int16_t));
             for (std::size_t i = 0; i < samples; ++i) {
                 s32_in_[i] = static_cast<std::int32_t>(s16_in_[i]) << 16;
@@ -914,34 +910,26 @@ export namespace audio {
 
         std::size_t read_mp3(std::size_t frames) {
             if (frames == 0) return 0;
-            const std::size_t samples = frames * input_fmt_.channels;
-            if (samples > s16_in_.size()) {
-                if (!s16_in_.resize(samples)) {
-                    state_ = PlayerState::error;
-                    running_ = false;
-                    return 0;
-                }
-                if (!s32_in_.resize(samples)) {
-                    state_ = PlayerState::error;
-                    running_ = false;
-                    return 0;
-                }
-            }
-            auto res = mp3_.read_s16(s16_in_.data(), frames);
+            const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int16_t);
+            const std::size_t out_frames = std::min(frames, s16_in_.size() / input_fmt_.channels);
+            const std::size_t out_bytes = out_frames * frame_bytes;
+            auto res = mp3_filter_.process(util::span<const std::byte>{},
+                util::span<std::byte>(reinterpret_cast<std::byte*>(s16_in_.data()), out_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
                 return 0;
             }
-            if (*res == 0) {
-                has_more_data_ = false;
+            last_decode_eos_ = res->end_of_stream;
+            const std::size_t produced = res->produced - (res->produced % frame_bytes);
+            if (produced == 0) {
                 return 0;
             }
-            const std::size_t read_samples = (*res) * input_fmt_.channels;
+            const std::size_t read_samples = produced / sizeof(std::int16_t);
             for (std::size_t i = 0; i < read_samples; ++i) {
                 s32_in_[i] = static_cast<std::int32_t>(s16_in_[i]) << 16;
             }
-            return *res;
+            return produced / frame_bytes;
         }
 
         std::size_t convert_channels(std::size_t frames) {
@@ -1089,8 +1077,11 @@ export namespace audio {
 #else
         FileDataSource src_{};
 #endif
-        FlacDecoder flac_{};
-        Mp3Decoder mp3_{};
+        media::IStreamSource* src_iface_{nullptr};
+        media::IStreamFilter* filter_{nullptr};
+        FlacFilter flac_filter_{};
+        Mp3Filter mp3_filter_{};
+        WavFilter wav_filter_{};
         Sdl3AudioSink sink_{};
         PcmFifo fifo_{};
 
@@ -1131,6 +1122,7 @@ export namespace audio {
         bool running_{false};
         bool has_more_data_{false};
         std::uint64_t last_underrun_seen_{0};
+        bool last_decode_eos_{false};
 
         std::uint32_t stress_ms_{0};
 #if CHARM_AUDIO_ENABLE_STRESS

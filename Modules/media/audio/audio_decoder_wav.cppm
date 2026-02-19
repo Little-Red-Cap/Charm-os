@@ -129,6 +129,11 @@ export namespace audio {
             return reset();
         }
 
+        void close() noexcept {
+            opened_ = false;
+            src_ = nullptr;
+        }
+
         Result<void> reset() noexcept override {
             if (!src_ || !opened_) return unexpected(Err{Errc::bad_state, 0});
             auto res = src_->seek(static_cast<std::int64_t>(info_.data_offset), media::SeekWhence::set);
@@ -163,6 +168,9 @@ export namespace audio {
             fmt.bits_per_sample = info_.bits_per_sample;
             return fmt;
         }
+
+        std::uint32_t data_offset() const noexcept { return info_.data_offset; }
+        std::uint32_t data_size() const noexcept { return info_.data_size; }
 
     private:
         struct SourceView {

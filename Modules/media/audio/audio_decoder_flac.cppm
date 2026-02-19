@@ -126,6 +126,12 @@ export namespace audio {
             return Result<void>{};
         }
 
+        void close() noexcept {
+            decoder_.close();
+            opened_ = false;
+            view_.src = nullptr;
+        }
+
         Result<void> reset() noexcept override {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return decoder_.seek_pcm_frame(0);
@@ -152,6 +158,15 @@ export namespace audio {
             fmt.channels = info_.channels;
             fmt.bits_per_sample = 32;
             return fmt;
+        }
+
+        Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            return decoder_.seek_pcm_frame(frame);
+        }
+
+        std::uint64_t total_frames() const noexcept {
+            return decoder_.total_frames();
         }
 
     private:

@@ -63,6 +63,8 @@ def main():
     parser.add_argument('--size', type=int, help='Font pixel size (height).')
     parser.add_argument('--chars', help='Character code ranges, e.g. "32-126,160-255".')
     parser.add_argument('--out-module', help='Output C++ module filename.')
+    parser.add_argument('--module-name', help='Override C++ module name.')
+    parser.add_argument('--font-name', help='Override exported font symbol name.')
     parser.add_argument('--format', choices=['hex', 'bin'], default='hex',
                         help='Output format for bitmap data (hex or bin).')
     parser.add_argument('--bpp', type=int, choices=[1, 2, 4, 8], default=4,
@@ -76,6 +78,8 @@ def main():
     size = args.size if args.size is not None else int(input("Enter font size (pixels): ").strip())
     chars = prompt_if_none(args.chars, "Enter character ranges (e.g. 32-126): ")
     out_module = prompt_if_none(args.out_module, "Enter output module filename: ")
+    module_name_override = args.module_name
+    font_name_override = args.font_name
 
     print(f"Using font file: {font_file}")
     print(f"Font size: {size}px")
@@ -224,7 +228,8 @@ def main():
     # Generate C++ module
     try:
         with open(out_module, 'w', encoding='utf-8') as f:
-            module_name = os.path.splitext(os.path.basename(out_module))[0]
+            module_name = module_name_override or os.path.splitext(os.path.basename(out_module))[0]
+            font_name = font_name_override or "font"
 
             # Module header
             f.write('module;\n')
@@ -263,7 +268,7 @@ def main():
             f.write('};\n\n')
 
             # Font structure
-            f.write('export constexpr Font font = {\n')
+            f.write(f'export constexpr Font {font_name} = {{\n')
             f.write(f'    .table = glyph_table,\n')
             f.write(f'    .ranges = glyph_ranges,\n')
             if fallback_index is not None:
@@ -273,6 +278,7 @@ def main():
             f.write(f'    .line_height = {line_height},\n')
             f.write(f'    .baseline = {baseline}\n')
             f.write('};\n')
+            f.write(f'static_assert(validate_font({font_name}));\n')
 
         print(f"\nSuccessfully generated font module: {out_module}")
         print(f"  Glyphs: {len(glyphs)}")

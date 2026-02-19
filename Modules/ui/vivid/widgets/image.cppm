@@ -50,6 +50,11 @@ public:
         Transparent
     };
 
+    enum class EdgeMode {
+        KeepInside,
+        AllowOutside
+    };
+
     Image() = default;
 
     void set_image(const ImageView& img) noexcept {
@@ -72,6 +77,9 @@ public:
 
     void set_crop_mode(CropMode m) noexcept { crop_mode_ = m; }
     CropMode crop_mode() const noexcept { return crop_mode_; }
+
+    void set_edge_mode(EdgeMode m) noexcept { edge_mode_ = m; }
+    EdgeMode edge_mode() const noexcept { return edge_mode_; }
 
     void set_anchor(float x, float y) noexcept {
         anchor_x_ = (x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x);
@@ -138,7 +146,9 @@ public:
         int dst_y = r.y + static_cast<int>((r.h - dst_h) * anchor_y_);
 
         auto clip_state = cvs.save_clip();
-        cvs.set_clip(r);
+        if (edge_mode_ == EdgeMode::KeepInside) {
+            cvs.set_clip(r);
+        }
         if (rotation_ == Rotation::None && sampling_ == Sampling::Nearest) {
             if (dst_w != src_view.w || dst_h != src_view.h) {
                 draw_image_scaled(cvs, dst_x, dst_y, dst_w, dst_h, src_view);
@@ -336,6 +346,7 @@ private:
     Rotation rotation_{Rotation::None};
     Sampling sampling_{Sampling::Nearest};
     CropMode crop_mode_{CropMode::Clamp};
+    EdgeMode edge_mode_{EdgeMode::KeepInside};
     AlignH align_h_{AlignH::Center};
     AlignV align_v_{AlignV::Center};
     float anchor_x_{0.5f};

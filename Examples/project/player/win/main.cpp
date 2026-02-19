@@ -1025,6 +1025,7 @@ namespace {
             logo->set_rotation(Image::Rotation::Rotate90);
             logo->set_sampling(Image::Sampling::Bilinear);
             logo->set_crop_mode(Image::CropMode::Transparent);
+            logo->set_edge_mode(Image::EdgeMode::AllowOutside);
             logo->set_anchor(0.5f, 0.5f);
             logo->set_crop({4, 4, 22, 22});
             logo->set_size(200, 90);

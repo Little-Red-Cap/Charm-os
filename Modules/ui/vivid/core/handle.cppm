@@ -41,6 +41,10 @@ enum class WidgetKind : std::uint8_t {
     ,Gauge
     ,PrimitivesCanvas
     ,PerfOverlay
+    ,Stepper
+    ,Timeline
+    ,RichText
+    ,CodeBlock
 };
 
 export
@@ -92,6 +96,10 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Gauge: return "Gauge";
         case WidgetKind::PrimitivesCanvas: return "PrimitivesCanvas";
         case WidgetKind::PerfOverlay: return "PerfOverlay";
+        case WidgetKind::Stepper: return "Stepper";
+        case WidgetKind::Timeline: return "Timeline";
+        case WidgetKind::RichText: return "RichText";
+        case WidgetKind::CodeBlock: return "CodeBlock";
     }
     return "Unknown";
 }

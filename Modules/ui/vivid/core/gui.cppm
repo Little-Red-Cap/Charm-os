@@ -368,10 +368,19 @@ bool dispatch_to(WidgetHandle target, const Event& e) {
         if (!obj) return;
         if (!obj->is_visible()) return;
         ++debug_nodes_;
-        if (obj->has_flex_layout()) {
+        switch (obj->layout_mode()) {
+        case ObjectBase::LayoutMode::Flex:
             apply_flex_layout(factory_, *obj);
-        } else {
+            break;
+        case ObjectBase::LayoutMode::Flow:
+            apply_flow_layout(factory_, *obj);
+            break;
+        case ObjectBase::LayoutMode::Grid:
+            apply_grid_layout(factory_, *obj);
+            break;
+        default:
             apply_anchor_layout(factory_, *obj);
+            break;
         }
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {

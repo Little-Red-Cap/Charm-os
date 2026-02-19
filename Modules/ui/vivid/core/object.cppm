@@ -34,6 +34,13 @@ public:
         Disabled  = 1 << 3
     };
 
+    enum class LayoutMode : unsigned {
+        Anchor,
+        Flex,
+        Flow,
+        Grid
+    };
+
     void set_state(State s, bool on) noexcept {
         if (on) state_ = static_cast<State>(static_cast<unsigned>(state_) | static_cast<unsigned>(s));
         else    state_ = static_cast<State>(static_cast<unsigned>(state_) & ~static_cast<unsigned>(s));
@@ -57,6 +64,7 @@ public:
 
     void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
         flex_enabled_ = true;
+        layout_mode_ = LayoutMode::Flex;
         flex_flow_ = flow;
         flex_main_align_ = main_align;
         flex_cross_align_ = cross_align;
@@ -66,6 +74,32 @@ public:
 
     void set_flex_grow(int grow) noexcept { flex_grow_ = (grow > 0) ? grow : 0; }
     int flex_grow() const noexcept { return flex_grow_; }
+
+    void set_flow_layout(int gap, int line_gap, int padding) noexcept {
+        layout_mode_ = LayoutMode::Flow;
+        flow_gap_ = gap;
+        flow_line_gap_ = line_gap;
+        flow_padding_ = padding;
+    }
+
+    int flow_gap() const noexcept { return flow_gap_; }
+    int flow_line_gap() const noexcept { return flow_line_gap_; }
+    int flow_padding() const noexcept { return flow_padding_; }
+
+    void set_grid_layout(int columns, int cell_w, int cell_h, int gap, int padding) noexcept {
+        layout_mode_ = LayoutMode::Grid;
+        grid_cols_ = (columns > 0) ? columns : 1;
+        grid_cell_w_ = cell_w;
+        grid_cell_h_ = cell_h;
+        grid_gap_ = gap;
+        grid_padding_ = padding;
+    }
+
+    int grid_columns() const noexcept { return grid_cols_; }
+    int grid_cell_width() const noexcept { return grid_cell_w_; }
+    int grid_cell_height() const noexcept { return grid_cell_h_; }
+    int grid_gap() const noexcept { return grid_gap_; }
+    int grid_padding() const noexcept { return grid_padding_; }
 
     void set_anchor(int left, int top, int right, int bottom) noexcept {
         anchor_enabled_ = true;
@@ -112,6 +146,7 @@ public:
     int flex_cross_align() const noexcept { return flex_cross_align_; }
     int flex_gap() const noexcept { return flex_gap_; }
     int flex_padding() const noexcept { return flex_padding_; }
+    LayoutMode layout_mode() const noexcept { return layout_mode_; }
 
     bool add_child(WidgetHandle child) noexcept {
         if (child_count_ >= kMaxChildren) return false;
@@ -237,6 +272,15 @@ protected:
     int flex_gap_{0};
     int flex_padding_{0};
     int flex_grow_{0};
+    LayoutMode layout_mode_{LayoutMode::Anchor};
+    int flow_gap_{0};
+    int flow_line_gap_{0};
+    int flow_padding_{0};
+    int grid_cols_{1};
+    int grid_cell_w_{0};
+    int grid_cell_h_{0};
+    int grid_gap_{0};
+    int grid_padding_{0};
     bool anchor_enabled_{false};
     int anchor_left_{0};
     int anchor_top_{0};

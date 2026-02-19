@@ -31,7 +31,15 @@ public:
                        bg, border, font);
 
         rgba glass = bg;
-        glass.a = opacity_;
+        int min_a = st.glass_opacity_min;
+        int max_a = st.glass_opacity_max;
+        if (min_a < 0) min_a = 0;
+        if (max_a > 255) max_a = 255;
+        if (max_a < min_a) max_a = min_a;
+        int op = opacity_;
+        if (op < min_a) op = min_a;
+        if (op > max_a) op = max_a;
+        glass.a = static_cast<std::uint8_t>(op);
         const int radius = st.corner_radius;
         if (radius > 0) {
             draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, glass, true);

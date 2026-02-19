@@ -17,6 +17,8 @@ struct Style {
     int       glass_highlight_pos = 10;
     int       glass_highlight_alpha = 70;
     int       glass_shadow_alpha = 40;
+    int       glass_opacity_min = 40;
+    int       glass_opacity_max = 200;
 
     const Font* font         = nullptr;
     rgba        font_color   = {  0,  0,  0,255};
@@ -43,6 +45,8 @@ struct StylePatch {
     bool has_glass_highlight_pos{false};
     bool has_glass_highlight_alpha{false};
     bool has_glass_shadow_alpha{false};
+    bool has_glass_opacity_min{false};
+    bool has_glass_opacity_max{false};
     bool has_font{false};
     bool has_font_color{false};
     bool has_bg_hover{false};
@@ -64,6 +68,8 @@ struct StylePatch {
     int  glass_highlight_pos{0};
     int  glass_highlight_alpha{0};
     int  glass_shadow_alpha{0};
+    int  glass_opacity_min{0};
+    int  glass_opacity_max{0};
     const Font* font{nullptr};
     rgba font_color{};
     rgba bg_hover{};
@@ -86,6 +92,8 @@ struct StylePatch {
         if (has_glass_highlight_pos) s.glass_highlight_pos = glass_highlight_pos;
         if (has_glass_highlight_alpha) s.glass_highlight_alpha = glass_highlight_alpha;
         if (has_glass_shadow_alpha) s.glass_shadow_alpha = glass_shadow_alpha;
+        if (has_glass_opacity_min) s.glass_opacity_min = glass_opacity_min;
+        if (has_glass_opacity_max) s.glass_opacity_max = glass_opacity_max;
         if (has_font) s.font = font;
         if (has_font_color) s.font_color = font_color;
         if (has_bg_hover) s.bg_hover = bg_hover;

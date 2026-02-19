@@ -263,6 +263,7 @@ namespace {
         bool fs_ready{false};
         bool duration_ready{false};
         bool ignore_list_select{false};
+        std::string mount_status{};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -409,6 +410,11 @@ namespace {
         }
 
         void start_playback() {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             if (!player || !track_path) {
                 set_status("No track");
                 set_status_color({220, 120, 120, 255});
@@ -511,6 +517,11 @@ namespace {
         }
 
         bool load_track_index(int idx) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return false;
+            }
             if (!tracks || tracks->empty()) return false;
             if (idx < 0) idx = 0;
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
@@ -546,6 +557,11 @@ namespace {
         }
 
         void switch_track(int delta) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             if (!tracks || tracks->empty()) return;
             const int count = static_cast<int>(tracks->size());
             int next = track_index + delta;
@@ -560,6 +576,11 @@ namespace {
         }
 
         void select_track_index(int idx) {
+            if (!fs_ready) {
+                set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
+                set_status_color({220, 120, 120, 255});
+                return;
+            }
             if (!tracks || tracks->empty()) return;
             const bool was_playing = playing;
             const bool was_paused = paused;
@@ -925,7 +946,18 @@ int main(int argc, char** argv) {
         std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
         ctx.set_status(buf);
         ctx.set_status_color({220, 120, 120, 255});
+        ctx.mount_status = buf;
+        vfs_tracks.clear();
+        ctx.rebuild_track_labels();
+        ctx.refresh_list_view();
+        ctx.track_ready = false;
+        ctx.track_path = nullptr;
+        ctx.set_pause_button_text("Pause");
+        ctx.set_time_label(0);
+        ctx.sync_progress_value(0);
+        ctx.reset_duration();
     } else {
+        ctx.mount_status = "Mounted";
         vfs_tracks.clear();
         fs::Status list_st{fs::Err::ok};
         if (!collect_tracks_from_dir("/music", vfs_tracks, nullptr, list_st)) {

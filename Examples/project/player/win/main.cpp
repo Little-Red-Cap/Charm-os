@@ -252,6 +252,12 @@ namespace {
         bool duration_ready{false};
         bool ignore_list_select{false};
         bool show_debug{false};
+        struct ListCacheEntry {
+            int index{-1};
+            int width{0};
+            std::string text{};
+        };
+        std::array<ListCacheEntry, 32> list_cache{};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -662,6 +668,45 @@ namespace {
         app->select_track_index(index);
     }
 
+    const char* trim_label_utf8(PlayerUiContext::ListCacheEntry& entry,
+                                std::string_view text,
+                                int max_width,
+                                const Font& font) {
+        if (max_width <= 0) {
+            entry.text.clear();
+            return entry.text.c_str();
+        }
+        const int full_width = measure_text_width(text.data(), static_cast<int>(text.size()), font);
+        if (full_width <= max_width) {
+            entry.text.assign(text.begin(), text.end());
+            return entry.text.c_str();
+        }
+        const int ellipsis_w = measure_text_width("...", 3, font);
+        int draw_len = static_cast<int>(text.size());
+        while (draw_len > 0 && (measure_text_width(text.data(), draw_len, font) + ellipsis_w) > max_width) {
+            const char* start = text.data();
+            const char* cur = start + draw_len;
+            while (cur > start && (static_cast<unsigned char>(cur[-1]) & 0xC0u) == 0x80u) {
+                --cur;
+            }
+            draw_len = static_cast<int>(cur - start);
+            if (draw_len == static_cast<int>(text.size())) --draw_len;
+        }
+        entry.text.assign(text.data(), text.data() + draw_len);
+        entry.text.append("...");
+        return entry.text.c_str();
+    }
+
+    void on_list_cache(void* ctx, int slot, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (slot < 0 || slot >= static_cast<int>(app->list_cache.size())) return;
+        auto& entry = app->list_cache[slot];
+        entry.index = index;
+        entry.width = 0;
+        entry.text.clear();
+    }
+
     void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
@@ -673,7 +718,18 @@ namespace {
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
         const rgba color = st.font_color;
-        draw_text_box(cvs, text, app->track_labels[info.index].c_str(), color, font,
+        const char* label = app->track_labels[info.index].c_str();
+        if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
+            auto& entry = app->list_cache[info.slot];
+            if (entry.index == info.index && entry.width == text.w && !entry.text.empty()) {
+                label = entry.text.c_str();
+            } else {
+                entry.index = info.index;
+                entry.width = text.w;
+                label = trim_label_utf8(entry, app->track_labels[info.index], text.w, font);
+            }
+        }
+        draw_text_box(cvs, text, label, color, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
@@ -808,6 +864,7 @@ namespace {
             anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
+            list->set_cache_handler(&on_list_cache, &ctx);
             list->set_row_height(32);
             list->set_wheel_step(32);
         }

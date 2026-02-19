@@ -138,3 +138,10 @@ Modules/ui/vivid/
 3. 样式系统：主题配置文件与运行时切换
 4. 高级控件：表格/树/虚拟列表
 5. 动画系统：简单时间轴 + easing
+
+## 10. Reference Migration Notes (SGL/LVGL/ARM-2D)
+
+- SGL: small widgets (led/msgbox/keyboard) are good fits for Vivid/Ink migration.
+- LVGL: style/layout rules map cleanly to Vivid Theme/Style; keep layout logic in core.
+- ARM-2D: favor tile/dirty-rect thinking; keep render primitives stateless and cache-friendly.
+

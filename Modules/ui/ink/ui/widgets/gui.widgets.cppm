@@ -290,6 +290,28 @@ export namespace gui
     }
 
     template <class R>
+    void draw_led(R& r, const Rect& rc, bool on) noexcept
+    {
+        if (rc.w <= 0 || rc.h <= 0) return;
+        const int cx = rc.x + rc.w / 2;
+        const int cy = rc.y + rc.h / 2;
+        int radius = (rc.w < rc.h ? rc.w : rc.h) / 2;
+        if (radius < 1) {
+            r.setPixel(cx, cy, on);
+            return;
+        }
+        alg::circle::outline(cx, cy, radius, [&](int x, int y) noexcept {
+            r.setPixel(x, y, true);
+        });
+        if (!on || radius <= 1) return;
+        alg::circle::fill(cx, cy, radius - 1, [&](int x0, int x1, int y) noexcept {
+            for (int x = x0; x < x1; ++x) {
+                r.setPixel(x, y, true);
+            }
+        });
+    }
+
+    template <class R>
     void draw_spinner(R& r, const Rect& rc, float phase, bool on = true) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;

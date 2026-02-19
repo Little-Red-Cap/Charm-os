@@ -16,6 +16,7 @@ import gui.theme;
 import gui.layout;
 import gui.font;
 import gui.image_1bpp;
+import gui.ui_msgbox;
 import gui.qr_widget;
 import gui.perf;
 import backend.sdl3;
@@ -95,6 +96,26 @@ inline void progress_bar_demo(Renderer& r, float t) noexcept {
     const std::uint8_t percent = (std::uint8_t)(t * 100.0f);
     r.drawText(6, 2, "Progress", true);
     gui::draw_progress_bar(r, gui::Rect{8, 28, 112, 12}, percent, true);
+}
+
+inline void led_demo(Renderer& r, float t) noexcept {
+    const bool on = t > 0.5f;
+    r.drawText(6, 2, "LED", true);
+    gui::draw_led(r, gui::Rect{56, 28, 16, 16}, on);
+}
+
+inline void msgbox_demo(Renderer& r, float t) noexcept {
+    (void)t;
+    gui::ui::MsgBoxView view{};
+    view.box = gui::Rect{8, 8, 112, 48};
+    view.content.title = "Warning";
+    view.content.message = "Low Battery";
+    view.content.left_btn = "Cancel";
+    view.content.right_btn = "OK";
+    view.content.focus_left = false;
+    view.fill_on = true;
+    view.border_on = true;
+    gui::ui::draw_msgbox(r, view);
 }
 
 inline void dither_demo(Renderer& r, float t) noexcept {
@@ -540,6 +561,8 @@ static constexpr DemoItem kDemos[] = {
     {"FillRound", 1200, &fill_round_rect_demo},
     {"Spinner", 1600, &spinner_demo},
     {"Progress", 1600, &progress_bar_demo},
+    {"LED", 1600, &led_demo},
+    {"MsgBox", 2000, &msgbox_demo},
     {"Dither", 1600, &dither_demo},
     {"Circle", 1200, &circle_demo},
     {"FillCircle", 1200, &fill_circle_demo},

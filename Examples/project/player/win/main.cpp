@@ -41,6 +41,7 @@ import charm.widgets.histogram_view;
 import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
 import charm.widgets.cloudy_glass;
+import charm.widgets.icon_list;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -530,6 +531,7 @@ namespace {
         WidgetHandle waveform{};
         WidgetHandle battery_gauge{};
         WidgetHandle histogram{};
+        WidgetHandle icon_list{};
         WidgetHandle fold_panel{};
         WidgetHandle progress_flow{};
         WidgetHandle cloudy_glass{};
@@ -1467,6 +1469,21 @@ namespace {
             hist->set_size(200, 80);
         }
 
+        h.icon_list = factory.create_icon_list();
+        if (auto* icon_list = factory.get_icon_list(h.icon_list)) {
+            static ImageView icon = render_logo_argb();
+            static IconListItem items[] = {
+                {&icon, "Audio", {120, 160, 220, 255}},
+                {&icon, "Codec", {120, 200, 170, 255}},
+                {&icon, "Storage", {200, 150, 120, 255}},
+                {&icon, "Network", {180, 140, 210, 255}},
+                {&icon, "Display", {200, 180, 120, 255}},
+            };
+            icon_list->set_items(items, static_cast<int>(sizeof(items) / sizeof(items[0])));
+            icon_list->set_row_height(32);
+            icon_list->set_size(200, 160);
+        }
+
         h.fold_panel = factory.create_foldable_panel("Foldable Panel");
         if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
             panel->set_body("Tap header to expand or collapse.");
@@ -1567,6 +1584,7 @@ namespace {
         factory.link(h.debug_side, h.waveform);
         factory.link(h.debug_side, h.battery_gauge);
         factory.link(h.debug_side, h.histogram);
+        factory.link(h.debug_side, h.icon_list);
         factory.link(h.debug_side, h.fold_panel);
         factory.link(h.debug_side, h.progress_flow);
         factory.link(h.debug_side, h.cloudy_glass);

@@ -51,6 +51,7 @@ export import charm.widgets.led;
 export import charm.widgets.list;
 export import charm.widgets.list_utils;
 export import charm.widgets.list_view;
+export import charm.widgets.icon_list;
 export import charm.widgets.menu;
 export import charm.widgets.menu_item;
 export import charm.widgets.menu_tree;

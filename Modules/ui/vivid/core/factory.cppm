@@ -23,6 +23,7 @@ import charm.widgets.switcher;
 import charm.widgets.progress;
 import charm.widgets.list;
 import charm.widgets.list_view;
+import charm.widgets.icon_list;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.text_area;
@@ -81,6 +82,7 @@ public:
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
     WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
+    WidgetHandle create_icon_list() noexcept { return make_handle(icon_lists_.create(), WidgetKind::IconList); }
     WidgetHandle create_scroll_bar() noexcept { return make_handle(scroll_bars_.create(), WidgetKind::ScrollBar); }
     WidgetHandle create_segmented_control() noexcept { return make_handle(segments_.create(), WidgetKind::SegmentedControl); }
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
@@ -135,6 +137,7 @@ public:
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
     ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
+    IconList* get_icon_list(const WidgetHandle& h) noexcept { return get_from(icon_lists_, h, WidgetKind::IconList); }
     ScrollBar* get_scroll_bar(const WidgetHandle& h) noexcept { return get_from(scroll_bars_, h, WidgetKind::ScrollBar); }
     SegmentedControl* get_segmented_control(const WidgetHandle& h) noexcept { return get_from(segments_, h, WidgetKind::SegmentedControl); }
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
@@ -187,6 +190,7 @@ public:
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
             case WidgetKind::ListView: return get_list_view(h);
+            case WidgetKind::IconList: return get_icon_list(h);
             case WidgetKind::ScrollBar: return get_scroll_bar(h);
             case WidgetKind::SegmentedControl: return get_segmented_control(h);
             case WidgetKind::TextArea: return get_text_area(h);
@@ -388,6 +392,7 @@ public:
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
         case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
+        case WidgetKind::IconList: destroy_from(icon_lists_, h, WidgetKind::IconList); break;
         case WidgetKind::ScrollBar: destroy_from(scroll_bars_, h, WidgetKind::ScrollBar); break;
         case WidgetKind::SegmentedControl: destroy_from(segments_, h, WidgetKind::SegmentedControl); break;
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
@@ -671,6 +676,7 @@ private:
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
     HandlePool<ListView, 16> list_views_{};
+    HandlePool<IconList, 16> icon_lists_{};
     HandlePool<ScrollBar, 32> scroll_bars_{};
     HandlePool<SegmentedControl, 32> segments_{};
     HandlePool<TextArea, 32> text_areas_{};

@@ -442,7 +442,7 @@ export namespace audio {
                 return;
             }
 
-            is_flac_ = ends_with_icase(path, ".flac");
+            is_flac_ = ends_with_icase(path, ".flac") || ends_with_icase(path, ".fla");
             is_wav_ = ends_with_icase(path, ".wav");
             is_mp3_ = ends_with_icase(path, ".mp3");
 

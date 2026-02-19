@@ -22,6 +22,7 @@ enum class WidgetKind : std::uint8_t {
     IconList,
     TextTrackingList,
     TextList,
+    ModalDialog,
     ScrollBar,
     SegmentedControl,
     TextArea,
@@ -93,6 +94,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::IconList: return "IconList";
         case WidgetKind::TextTrackingList: return "TextTrackingList";
         case WidgetKind::TextList: return "TextList";
+        case WidgetKind::ModalDialog: return "ModalDialog";
         case WidgetKind::ScrollBar: return "ScrollBar";
         case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";

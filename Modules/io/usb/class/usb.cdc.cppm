@@ -95,6 +95,7 @@ export namespace usb::class_driver {
         std::span<u8> (*rx_buffer)(void* ctx) noexcept { nullptr };
         void (*on_rx_done)(void* ctx, std::size_t len) noexcept { nullptr };
         void (*on_tx_done)(void* ctx, std::size_t len) noexcept { nullptr };
+        bool (*notify)(void* ctx, std::span<const u8> data) noexcept { nullptr };
     };
 
     class CdcAcm {
@@ -118,6 +119,11 @@ export namespace usb::class_driver {
             return std::span<const u8>(
                 reinterpret_cast<const u8*>(&notify_),
                 sizeof(notify_));
+        }
+
+        bool send_serial_state(u16 state_bits) noexcept {
+            if (!ops_.notify) return false;
+            return ops_.notify(ctx_, serial_state_notification(state_bits));
         }
 
     private:

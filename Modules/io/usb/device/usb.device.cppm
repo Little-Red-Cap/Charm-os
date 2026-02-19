@@ -132,6 +132,7 @@ export namespace usb::device {
 
     class Device {
     public:
+        void set_max_packet_size0(u16 mps) noexcept { max_packet_size0_ = mps; }
         void set_descriptor_provider(DescriptorProvider provider) noexcept { provider_ = provider; }
         void set_class(void* ctx, const ClassOps* ops) noexcept { ep0_.set_class(ctx, ops); }
 
@@ -153,7 +154,10 @@ export namespace usb::device {
                 return true;
             }
             if (request_direction(setup.bm_request_type) == RequestDirection::in) {
-                const auto len = static_cast<std::size_t>(resp.data.size());
+                const auto wlen = static_cast<std::size_t>(setup.w_length);
+                const auto len = (resp.data.size() < wlen) ? resp.data.size() : wlen;
+                resp.data = resp.data.subspan(0, len);
+                resp.zlp = (len < wlen) && (max_packet_size0_ > 0) && ((len % max_packet_size0_) == 0);
                 ep0_.begin_data_in(len);
                 return true;
             }
@@ -162,7 +166,9 @@ export namespace usb::device {
         }
 
         bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
-            if (!ep0_.handle_out_data(data, resp)) return false;
+            const auto expected = ep0_.out_expected();
+            const auto len = (data.size() < expected) ? data.size() : expected;
+            if (!ep0_.handle_out_data(data.subspan(0, len), resp)) return false;
             ep0_.finish_data_out();
             return true;
         }
@@ -227,5 +233,6 @@ export namespace usb::device {
         u8 configuration_{0};
         u8 interface_alt_{0};
         u8 status_buf_[2]{0, 0};
+        u16 max_packet_size0_{64};
     };
 } // namespace usb::device

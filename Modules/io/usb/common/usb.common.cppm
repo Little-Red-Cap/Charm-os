@@ -180,6 +180,43 @@ export namespace usb {
         }
     };
 
+    struct DescriptorBuilder {
+        DescriptorWriter writer{};
+        std::size_t config_offset{static_cast<std::size_t>(-1)};
+        u8 interface_count{0};
+
+        explicit DescriptorBuilder(std::span<u8> buffer) noexcept { writer.buffer = buffer; }
+
+        bool begin_config(const ConfigDescriptor& cfg) noexcept {
+            config_offset = writer.offset;
+            interface_count = 0;
+            return writer.write_object(cfg);
+        }
+
+        bool add_interface(const InterfaceDescriptor& desc) noexcept {
+            interface_count = static_cast<u8>(interface_count + 1);
+            return writer.write_object(desc);
+        }
+
+        bool add_endpoint(const EndpointDescriptor& desc) noexcept {
+            return writer.write_object(desc);
+        }
+
+        template <typename T>
+        bool add_class_descriptor(const T& desc) noexcept {
+            return writer.write_object(desc);
+        }
+
+        bool end_config() noexcept {
+            if (config_offset == static_cast<std::size_t>(-1)) return false;
+            if (config_offset + sizeof(ConfigDescriptor) > writer.buffer.size()) return false;
+            auto* cfg = reinterpret_cast<ConfigDescriptor*>(writer.buffer.data() + config_offset);
+            cfg->total_length = static_cast<u16>(writer.offset - config_offset);
+            cfg->num_interfaces = interface_count;
+            return true;
+        }
+    };
+
     inline bool write_lang_id_descriptor(DescriptorWriter& writer, u16 lang_id) noexcept {
         StringDescriptorHeader hdr{};
         hdr.length = static_cast<u8>(2 + sizeof(lang_id));

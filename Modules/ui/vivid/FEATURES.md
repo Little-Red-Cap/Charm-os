@@ -33,6 +33,7 @@
 - P0 容器：ScrollContainer、PopupLayer
 - P1 栅格/流式布局（已提供最小实现）
 - P1 约束布局（Constraint）
+- P1 LayoutSpec 可配置布局引擎（统一入口）
 - P2 虚拟列表布局
 
 ## 5. 已具备的基础控件（当前已有）

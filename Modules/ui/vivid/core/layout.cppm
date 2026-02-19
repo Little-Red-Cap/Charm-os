@@ -196,11 +196,9 @@ inline void apply_flex_layout(UiFactory& factory, ObjectBase& container) {
 }
 
 export
-inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
+inline void apply_flow_layout(UiFactory& factory, ObjectBase& container,
+                              int gap, int line_gap, int padding) {
     const auto rect = container.get_rect();
-    const int padding = container.flow_padding();
-    const int gap = container.flow_gap();
-    const int line_gap = container.flow_line_gap();
     const int inner_x = rect.x + padding;
     const int inner_y = rect.y + padding;
     const int inner_w = rect.w - padding * 2;
@@ -265,20 +263,26 @@ inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
 }
 
 export
-inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
+inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
+    apply_flow_layout(factory, container,
+                      container.flow_gap(),
+                      container.flow_line_gap(),
+                      container.flow_padding());
+}
+
+export
+inline void apply_grid_layout(UiFactory& factory, ObjectBase& container,
+                              int cols, int cell_w, int cell_h,
+                              int gap, int padding) {
     const auto rect = container.get_rect();
-    const int padding = container.grid_padding();
-    const int gap = container.grid_gap();
-    const int cols = (container.grid_columns() > 0) ? container.grid_columns() : 1;
+    cols = (cols > 0) ? cols : 1;
     const int align_h = container.align_h();
     const int align_v = container.align_v();
     const int inner_w = rect.w - padding * 2;
-    int cell_w = container.grid_cell_width();
     if (cell_w <= 0) {
         cell_w = (cols > 0) ? (inner_w - gap * (cols - 1)) / cols : 0;
         if (cell_w < 0) cell_w = 0;
     }
-    int cell_h = container.grid_cell_height();
 
     int visible_count = 0;
     for (std::size_t i = 0; i < container.child_count(); ++i) {
@@ -367,8 +371,16 @@ inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
 }
 
 export
-inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
-    const auto rect = container.get_rect();
+inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
+    apply_grid_layout(factory, container,
+                      container.grid_columns(),
+                      container.grid_cell_width(),
+                      container.grid_cell_height(),
+                      container.grid_gap(),
+                      container.grid_padding());
+}
+
+inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container, Rect rect) {
     for (std::size_t i = 0; i < container.child_count(); ++i) {
         auto h = container.child_at(i);
         auto* ch = factory.get(h);
@@ -488,5 +500,75 @@ inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
         }
 
         ch->set_rect(r);
+    }
+}
+
+export
+inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
+    apply_anchor_layout(factory, container, container.get_rect());
+}
+
+export
+inline void apply_constraint_layout(UiFactory& factory, ObjectBase& container, int padding = 0) {
+    auto rect = container.get_rect();
+    if (padding > 0) {
+        rect.x += padding;
+        rect.y += padding;
+        rect.w -= padding * 2;
+        rect.h -= padding * 2;
+        if (rect.w < 0) rect.w = 0;
+        if (rect.h < 0) rect.h = 0;
+    }
+    apply_anchor_layout(factory, container, rect);
+}
+
+export
+inline void apply_layout(UiFactory& factory, ObjectBase& container) {
+    if (container.has_layout_spec()) {
+        const auto& spec = container.layout_spec();
+        switch (spec.kind) {
+        case ObjectBase::LayoutMode::Flex: {
+            FlexLayoutConfig cfg{};
+            cfg.flow = static_cast<FlexFlow>(spec.flow);
+            cfg.main_align = static_cast<FlexAlign>(spec.main_align);
+            cfg.cross_align = static_cast<FlexCrossAlign>(spec.cross_align);
+            cfg.gap = spec.gap;
+            cfg.padding = spec.padding;
+            apply_flex_layout(factory, container, cfg);
+            break;
+        }
+        case ObjectBase::LayoutMode::Flow:
+            apply_flow_layout(factory, container, spec.gap, spec.line_gap, spec.padding);
+            break;
+        case ObjectBase::LayoutMode::Grid:
+            apply_grid_layout(factory, container, spec.columns, spec.cell_w, spec.cell_h,
+                              spec.grid_gap, spec.grid_padding);
+            break;
+        case ObjectBase::LayoutMode::Constraint:
+            apply_constraint_layout(factory, container, spec.padding);
+            break;
+        default:
+            apply_anchor_layout(factory, container);
+            break;
+        }
+        return;
+    }
+
+    switch (container.layout_mode()) {
+    case ObjectBase::LayoutMode::Flex:
+        apply_flex_layout(factory, container);
+        break;
+    case ObjectBase::LayoutMode::Flow:
+        apply_flow_layout(factory, container);
+        break;
+    case ObjectBase::LayoutMode::Grid:
+        apply_grid_layout(factory, container);
+        break;
+    case ObjectBase::LayoutMode::Constraint:
+        apply_constraint_layout(factory, container);
+        break;
+    default:
+        apply_anchor_layout(factory, container);
+        break;
     }
 }

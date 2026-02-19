@@ -18,6 +18,7 @@
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
+- 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint 预留）。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 

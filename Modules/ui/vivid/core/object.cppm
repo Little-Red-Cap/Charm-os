@@ -38,7 +38,23 @@ public:
         Anchor,
         Flex,
         Flow,
-        Grid
+        Grid,
+        Constraint
+    };
+
+    struct LayoutSpec {
+        LayoutMode kind{LayoutMode::Anchor};
+        int flow{0};
+        int main_align{0};
+        int cross_align{0};
+        int gap{0};
+        int padding{0};
+        int line_gap{0};
+        int columns{1};
+        int cell_w{0};
+        int cell_h{0};
+        int grid_gap{0};
+        int grid_padding{0};
     };
 
     void set_state(State s, bool on) noexcept {
@@ -70,6 +86,14 @@ public:
         flex_cross_align_ = cross_align;
         flex_gap_ = gap;
         flex_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Flex;
+        layout_spec_.flow = flow;
+        layout_spec_.main_align = main_align;
+        layout_spec_.cross_align = cross_align;
+        layout_spec_.gap = gap;
+        layout_spec_.padding = padding;
     }
 
     void set_flex_grow(int grow) noexcept { flex_grow_ = (grow > 0) ? grow : 0; }
@@ -80,6 +104,12 @@ public:
         flow_gap_ = gap;
         flow_line_gap_ = line_gap;
         flow_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Flow;
+        layout_spec_.gap = gap;
+        layout_spec_.line_gap = line_gap;
+        layout_spec_.padding = padding;
     }
 
     int flow_gap() const noexcept { return flow_gap_; }
@@ -93,6 +123,14 @@ public:
         grid_cell_h_ = cell_h;
         grid_gap_ = gap;
         grid_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Grid;
+        layout_spec_.columns = grid_cols_;
+        layout_spec_.cell_w = cell_w;
+        layout_spec_.cell_h = cell_h;
+        layout_spec_.grid_gap = gap;
+        layout_spec_.grid_padding = padding;
     }
 
     int grid_columns() const noexcept { return grid_cols_; }
@@ -100,6 +138,24 @@ public:
     int grid_cell_height() const noexcept { return grid_cell_h_; }
     int grid_gap() const noexcept { return grid_gap_; }
     int grid_padding() const noexcept { return grid_padding_; }
+
+    void set_constraint_layout(int padding = 0) noexcept {
+        layout_mode_ = LayoutMode::Constraint;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Constraint;
+        layout_spec_.padding = padding;
+    }
+
+    void set_layout_spec(const LayoutSpec& spec) noexcept {
+        layout_spec_enabled_ = true;
+        layout_spec_ = spec;
+        layout_mode_ = spec.kind;
+    }
+
+    void clear_layout_spec() noexcept { layout_spec_enabled_ = false; }
+    bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
+    const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
 
     void set_anchor(int left, int top, int right, int bottom) noexcept {
         anchor_enabled_ = true;
@@ -294,6 +350,8 @@ protected:
     int max_h_{0};
     int align_h_{0};
     int align_v_{0};
+    bool layout_spec_enabled_{false};
+    LayoutSpec layout_spec_{};
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};

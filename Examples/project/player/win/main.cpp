@@ -1630,6 +1630,10 @@ int main(int argc, char** argv) {
     preset.perf_overlay.border_color = {70, 90, 120, 255};
     preset.perf_overlay.font_color = {220, 228, 242, 255};
     preset.perf_overlay.padding = 6;
+    preset.has_foldable_panel = true;
+    preset.foldable_panel = theme.get<FoldablePanel>();
+    preset.foldable_panel.header_padding = 10;
+    preset.foldable_panel.content_padding = 10;
     apply_theme_preset(preset);
 
     auto& sheet = StyleSheet::instance();

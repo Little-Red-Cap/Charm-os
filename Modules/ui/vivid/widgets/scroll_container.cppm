@@ -194,6 +194,9 @@ public:
         style_.bg_color = bg;
         style_.border_color = border;
         has_local_style_ = true;
+        if (has_skin_) {
+            update_clip_insets_for_skin();
+        }
     }
 
     void set_skin(const ImageView& img, int left, int top, int right, int bottom) noexcept {
@@ -203,6 +206,7 @@ public:
         slice_right_ = right;
         slice_bottom_ = bottom;
         has_skin_ = true;
+        update_clip_insets_for_skin();
     }
 
     bool should_draw_child(const ObjectBase& ch) const noexcept override {
@@ -300,4 +304,13 @@ private:
     int clip_inset_top_{1};
     int clip_inset_right_{1};
     int clip_inset_bottom_{1};
+
+    void update_clip_insets_for_skin() noexcept {
+        if (!has_skin_) return;
+        const int b = style_.border_width;
+        clip_inset_left_ = (slice_left_ > b) ? slice_left_ : b;
+        clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
+        clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
+        clip_inset_bottom_ = (slice_bottom_ > b) ? slice_bottom_ : b;
+    }
 };

@@ -7,6 +7,8 @@ import charm.gfx.render;
 import charm.core.event;
 import charm.widgets.label;
 import charm.core.style;
+import charm.core.style_sheet;
+import charm.core.handle;
 import charm.gfx.image;
 
 using namespace ui::render;
@@ -44,14 +46,15 @@ public:
     }
 
     void draw(DefaultCanvas& cvs) override {
-        const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Button, state, st);
+        resolve_colors(st, state,
                        bg, border, font);
 
         const bool draw_focus = has_state(State::Focused);

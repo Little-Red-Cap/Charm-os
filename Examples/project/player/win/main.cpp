@@ -8,6 +8,7 @@ import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
 import charm.gfx.assets.render;
@@ -1233,6 +1234,20 @@ int main(int argc, char** argv) {
     preset.perf_overlay.font_color = {220, 228, 242, 255};
     preset.perf_overlay.padding = 6;
     apply_theme_preset(preset);
+
+    auto& sheet = StyleSheet::instance();
+    sheet.clear();
+    StylePatch btn_base{};
+    btn_base.has_bg_color = true;
+    btn_base.bg_color = {34, 40, 58, 255};
+    btn_base.has_border_color = true;
+    btn_base.border_color = {90, 120, 160, 255};
+    sheet.add_rule({WidgetKind::Button, 0}, btn_base);
+
+    StylePatch btn_hover{};
+    btn_hover.has_bg_color = true;
+    btn_hover.bg_color = {44, 60, 82, 255};
+    sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
 
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();

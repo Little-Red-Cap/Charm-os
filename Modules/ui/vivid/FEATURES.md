@@ -62,6 +62,7 @@
 - P0 主题结构化（Theme/Style）
 - P1 样式继承与局部覆盖（已在部分控件落地示例）
 - P1 主题加载（配置/资源入口已提供：ThemePreset）
+- P1 约束式样式表 PoC（StyleSheet）
 - P2 运行时 DSL/CSS
 
 ## 9. 动画与过渡

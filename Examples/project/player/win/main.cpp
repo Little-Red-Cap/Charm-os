@@ -643,6 +643,16 @@ namespace {
     }
 
     UiHandles build_ui(UiFactory& factory, PlayerUiContext& ctx) {
+        auto anchor_pos = [](auto* obj, int x, int y) {
+            if (!obj) return;
+            obj->set_pos(x, y);
+            obj->set_anchor(x, y, -1, -1);
+        };
+        auto anchor_rect = [](auto* obj, const Rect& r) {
+            if (!obj) return;
+            obj->set_rect(r);
+            obj->set_anchor(r.x, r.y, -1, -1);
+        };
         UiHandles h{};
         h.root = factory.create_container();
         auto* root = factory.get_container(h.root);
@@ -651,25 +661,25 @@ namespace {
 
         h.cover = factory.create_container();
         if (auto* cover = factory.get_container(h.cover)) {
-            cover->set_rect({(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
+            anchor_rect(cover, {(screen_width - kCoverSize) / 2, kUiPadding * 2, kCoverSize, kCoverSize});
             cover->set_background({40, 44, 60, 255});
         }
 
         h.title = factory.create_label("Beautiful Trick");
         if (auto* title = factory.get_label(h.title)) {
             title->set_color({236, 238, 246, 255});
-            title->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 20);
+            anchor_pos(title, kUiPadding, kUiPadding * 2 + kCoverSize + 20);
         }
 
         h.subtitle = factory.create_label("FELT · FLAC");
         if (auto* sub = factory.get_label(h.subtitle)) {
             sub->set_color({156, 162, 188, 255});
-            sub->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 46);
+            anchor_pos(sub, kUiPadding, kUiPadding * 2 + kCoverSize + 46);
         }
 
         h.progress = factory.create_progress();
         if (auto* bar = factory.get_progress(h.progress)) {
-            bar->set_rect({kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
+            anchor_rect(bar, {kUiPadding, kUiPadding * 2 + kCoverSize + 90, screen_width - kUiPadding * 2, 16});
             bar->set_range(0, 100);
             bar->set_value(0);
         }
@@ -677,13 +687,13 @@ namespace {
         h.time = factory.create_label("0:00 / 3:00");
         if (auto* time = factory.get_label(h.time)) {
             time->set_color({136, 142, 166, 255});
-            time->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 120);
+            anchor_pos(time, kUiPadding, kUiPadding * 2 + kCoverSize + 120);
         }
 
         h.status = factory.create_label("Stopped");
         if (auto* status = factory.get_label(h.status)) {
             status->set_color({140, 150, 175, 255});
-            status->set_pos(kUiPadding, kUiPadding * 2 + kCoverSize + 150);
+            anchor_pos(status, kUiPadding, kUiPadding * 2 + kCoverSize + 150);
         }
 
         constexpr int button_w = 120;
@@ -694,35 +704,35 @@ namespace {
 
         h.btn_prev = factory.create_button("Prev");
         if (auto* prev = factory.get_button(h.btn_prev)) {
-            prev->set_pos(kUiPadding, row1_y);
+            anchor_pos(prev, kUiPadding, row1_y);
             prev->set_size(button_w, button_h);
             prev->set_on_click(Callback{&on_prev_clicked, &ctx});
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
-            next->set_pos(screen_width - kUiPadding - button_w, row1_y);
+            anchor_pos(next, screen_width - kUiPadding - button_w, row1_y);
             next->set_size(button_w, button_h);
             next->set_on_click(Callback{&on_next_clicked, &ctx});
         }
 
         h.btn_play = factory.create_button("Play");
         if (auto* play = factory.get_button(h.btn_play)) {
-            play->set_pos(kUiPadding, row2_y);
+            anchor_pos(play, kUiPadding, row2_y);
             play->set_size(button_w, button_h);
             play->set_on_click(Callback{&on_play_clicked, &ctx});
         }
 
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
-            pause->set_pos((screen_width - button_w) / 2, row2_y);
+            anchor_pos(pause, (screen_width - button_w) / 2, row2_y);
             pause->set_size(button_w, button_h);
             pause->set_on_click(Callback{&on_pause_clicked, &ctx});
         }
 
         h.btn_stop = factory.create_button("Stop");
         if (auto* stop = factory.get_button(h.btn_stop)) {
-            stop->set_pos(screen_width - kUiPadding - button_w, row2_y);
+            anchor_pos(stop, screen_width - kUiPadding - button_w, row2_y);
             stop->set_size(button_w, button_h);
             stop->set_on_click(Callback{&on_stop_clicked, &ctx});
         }

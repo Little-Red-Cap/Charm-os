@@ -1,6 +1,6 @@
 module;
 
-#if defined(CHARM_USE_ETL)
+#if defined(CHARM_USE_ETL) && !defined(_MSC_VER)
 #include <etl/variant.h>
 #else
 #include <variant>
@@ -9,7 +9,7 @@ module;
 export module util.variant;
 
 export namespace util {
-#if defined(CHARM_USE_ETL)
+#if defined(CHARM_USE_ETL) && !defined(_MSC_VER)
     using etl::variant;
     using etl::monostate;
     using etl::visit;

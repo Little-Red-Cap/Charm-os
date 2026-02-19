@@ -80,9 +80,70 @@ export namespace usb {
         DescriptorType type{DescriptorType::device};
     };
 
+    struct DeviceDescriptor {
+        u8 length{18};
+        DescriptorType type{DescriptorType::device};
+        u16 bcd_usb{0x0200};
+        u8 device_class{0};
+        u8 device_subclass{0};
+        u8 device_protocol{0};
+        u8 max_packet_size0{64};
+        u16 vendor_id{0};
+        u16 product_id{0};
+        u16 bcd_device{0x0100};
+        u8 manufacturer{0};
+        u8 product{0};
+        u8 serial_number{0};
+        u8 num_configurations{1};
+    };
+
+    struct ConfigDescriptor {
+        u8 length{9};
+        DescriptorType type{DescriptorType::configuration};
+        u16 total_length{0};
+        u8 num_interfaces{0};
+        u8 configuration_value{1};
+        u8 configuration{0};
+        u8 attributes{0x80};
+        u8 max_power{50}; // 100mA
+    };
+
+    struct InterfaceDescriptor {
+        u8 length{9};
+        DescriptorType type{DescriptorType::interface};
+        u8 interface_number{0};
+        u8 alternate_setting{0};
+        u8 num_endpoints{0};
+        u8 interface_class{0};
+        u8 interface_subclass{0};
+        u8 interface_protocol{0};
+        u8 interface{0};
+    };
+
+    struct EndpointDescriptor {
+        u8 length{7};
+        DescriptorType type{DescriptorType::endpoint};
+        u8 endpoint_address{0};
+        u8 attributes{0};
+        u16 max_packet_size{0};
+        u8 interval{0};
+    };
+
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)
             | static_cast<u8>(type)
             | static_cast<u8>(recip));
+    }
+
+    constexpr RequestDirection request_direction(u8 bm_request_type) noexcept {
+        return static_cast<RequestDirection>(bm_request_type & 0x80);
+    }
+
+    constexpr RequestType request_type(u8 bm_request_type) noexcept {
+        return static_cast<RequestType>(bm_request_type & 0x60);
+    }
+
+    constexpr RequestRecipient request_recipient(u8 bm_request_type) noexcept {
+        return static_cast<RequestRecipient>(bm_request_type & 0x1F);
     }
 } // namespace usb

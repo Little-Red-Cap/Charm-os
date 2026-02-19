@@ -24,6 +24,8 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.perf_overlay;
+import charm.widgets.ring_indication;
+import charm.widgets.text_box;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.chart;
 import charm.widgets.stepper;
@@ -36,8 +38,7 @@ import charm.widgets.progress_wheel;
 import charm.widgets.waveform_view;
 import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
-import charm.widgets.ring_indication;
-import charm.widgets.text_box;
+import charm.widgets.foldable_panel;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
@@ -510,6 +511,8 @@ namespace {
         WidgetHandle status{};
         WidgetHandle list{};
         WidgetHandle list_scroll{};
+        WidgetHandle ring{};
+        WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
@@ -525,8 +528,7 @@ namespace {
         WidgetHandle waveform{};
         WidgetHandle battery_gauge{};
         WidgetHandle histogram{};
-        WidgetHandle ring{};
-        WidgetHandle text_box{};
+        WidgetHandle fold_panel{};
 #endif
         WidgetHandle progress{};
         WidgetHandle time{};
@@ -1289,6 +1291,18 @@ namespace {
             anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
         }
 
+        h.ring = factory.create_ring_indication();
+        if (auto* ring = factory.get_ring_indication(h.ring)) {
+            anchor_rect(ring, {screen_width - kUiPadding - 90, kUiPadding + 90, 90, 90});
+            ring->set_value(58);
+            ring->set_thickness(10);
+        }
+
+        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
+        if (auto* box = factory.get_text_box(h.text_box)) {
+            anchor_rect(box, {screen_width - kUiPadding - 200, kUiPadding + 190, 200, 70});
+        }
+
 #if CHARM_PLAYER_DEBUG_UI
         h.debug_grid = factory.create_container();
         if (auto* grid = factory.get_container(h.debug_grid)) {
@@ -1449,16 +1463,11 @@ namespace {
             hist->set_size(200, 80);
         }
 
-        h.ring = factory.create_ring_indication();
-        if (auto* ring = factory.get_ring_indication(h.ring)) {
-            ring->set_value(58);
-            ring->set_thickness(10);
-            ring->set_size(90, 90);
-        }
-
-        h.text_box = factory.create_text_box("ARM-2D style text box\nwrap + padding");
-        if (auto* box = factory.get_text_box(h.text_box)) {
-            box->set_size(200, 70);
+        h.fold_panel = factory.create_foldable_panel("Foldable Panel");
+        if (auto* panel = factory.get_foldable_panel(h.fold_panel)) {
+            panel->set_body("Tap header to expand or collapse.");
+            panel->set_expanded(true);
+            panel->set_size(200, 120);
         }
 #endif
 
@@ -1514,6 +1523,8 @@ namespace {
         factory.link(h.root, h.status);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
+        factory.link(h.root, h.ring);
+        factory.link(h.root, h.text_box);
 #if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
@@ -1529,8 +1540,7 @@ namespace {
         factory.link(h.debug_side, h.waveform);
         factory.link(h.debug_side, h.battery_gauge);
         factory.link(h.debug_side, h.histogram);
-        factory.link(h.debug_side, h.ring);
-        factory.link(h.debug_side, h.text_box);
+        factory.link(h.debug_side, h.fold_panel);
 #endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);

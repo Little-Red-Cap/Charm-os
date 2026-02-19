@@ -56,6 +56,7 @@ import charm.widgets.battery_gauge;
 import charm.widgets.histogram_view;
 import charm.widgets.ring_indication;
 import charm.widgets.text_box;
+import charm.widgets.foldable_panel;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -109,6 +110,7 @@ public:
     WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
     WidgetHandle create_ring_indication() noexcept { return make_handle(rings_.create(), WidgetKind::RingIndication); }
     WidgetHandle create_text_box(const char* text) noexcept { return make_handle(text_boxes_.create(text), WidgetKind::TextBox); }
+    WidgetHandle create_foldable_panel(const char* title) noexcept { return make_handle(fold_panels_.create(title), WidgetKind::FoldablePanel); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -158,6 +160,7 @@ public:
     HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
     RingIndication* get_ring_indication(const WidgetHandle& h) noexcept { return get_from(rings_, h, WidgetKind::RingIndication); }
     TextBox* get_text_box(const WidgetHandle& h) noexcept { return get_from(text_boxes_, h, WidgetKind::TextBox); }
+    FoldablePanel* get_foldable_panel(const WidgetHandle& h) noexcept { return get_from(fold_panels_, h, WidgetKind::FoldablePanel); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -207,6 +210,7 @@ public:
             case WidgetKind::HistogramView: return get_histogram_view(h);
             case WidgetKind::RingIndication: return get_ring_indication(h);
             case WidgetKind::TextBox: return get_text_box(h);
+            case WidgetKind::FoldablePanel: return get_foldable_panel(h);
             default: return nullptr;
         }
     }
@@ -404,6 +408,7 @@ public:
         case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
         case WidgetKind::RingIndication: destroy_from(rings_, h, WidgetKind::RingIndication); break;
         case WidgetKind::TextBox: destroy_from(text_boxes_, h, WidgetKind::TextBox); break;
+        case WidgetKind::FoldablePanel: destroy_from(fold_panels_, h, WidgetKind::FoldablePanel); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -683,6 +688,7 @@ private:
     HandlePool<HistogramView, 16> histograms_{};
     HandlePool<RingIndication, 16> rings_{};
     HandlePool<TextBox, 32> text_boxes_{};
+    HandlePool<FoldablePanel, 16> fold_panels_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

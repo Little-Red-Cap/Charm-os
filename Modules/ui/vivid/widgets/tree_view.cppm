@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.virtual_list;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -33,6 +34,9 @@ public:
     using DrawNodeFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using ToggleFn = void(*)(void* ctx, int index) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
+    using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
+    using PoolBindFn = void(*)(void* ctx, int slot, int index, const NodeInfo& info) noexcept;
+    using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
 
     TreeView() {
         set_focusable(true);
@@ -44,11 +48,13 @@ public:
         node_fn_ = node_fn;
         draw_fn_ = draw_fn;
         data_ctx_ = ctx;
+        clear_cache();
         update_scroll_bounds();
     }
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 6) ? h : 6;
+        clear_cache();
         update_scroll_bounds();
     }
 
@@ -56,6 +62,22 @@ public:
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
+    }
+
+    void set_item_pool(PoolCreateFn create_fn,
+                       PoolBindFn bind_fn,
+                       PoolRecycleFn recycle_fn,
+                       void* ctx = nullptr) noexcept {
+        pool_create_fn_ = create_fn;
+        pool_bind_fn_ = bind_fn;
+        pool_recycle_fn_ = recycle_fn;
+        pool_ctx_ = ctx;
+        clear_cache();
+    }
+
+    void set_prefetch_rows(int rows) noexcept {
+        prefetch_rows_ = (rows > 0) ? rows : 0;
+        clear_cache();
     }
 
     void set_selected(int index) noexcept {
@@ -84,14 +106,37 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
-        int y = r.y - (scroll_y_ % row_height_);
+        const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
+        const int start = window.start;
+        const int visible = window.visible;
+        int y = window.offset_y;
+        auto on_create = [&](int slot) {
+            if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
+        };
+        auto on_recycle = [&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        };
+        cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
             Rect row{r.x, y, r.w, row_height_};
             const bool selected = (i == selected_);
             if (selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+            }
+            int slot = -1;
+            if (visible > 0 && visible <= kMaxCache) {
+                slot = i - start;
+                if (slot >= 0 && slot < kMaxCache) {
+                    cache_.bind_slot(slot, i, on_create, on_recycle,
+                                     [&](int bind_slot, int index) {
+                                         if (pool_bind_fn_) {
+                                             pool_bind_fn_(pool_ctx_, bind_slot, index, info);
+                                         }
+                                     });
+                } else {
+                    slot = -1;
+                }
             }
             draw_node_glyphs(cvs, row, info, border);
             if (draw_fn_) {
@@ -103,6 +148,8 @@ public:
             }
             y += row_height_;
         }
+
+        cache_.recycle_inactive(on_recycle);
 
         cvs.restore_clip(clip_state);
 
@@ -175,12 +222,22 @@ private:
         }
     }
 
+    void clear_cache() noexcept {
+        cache_.clear([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        });
+    }
+
     static constexpr int indent_w_ = 12;
     CountFn count_fn_{nullptr};
     NodeFn node_fn_{nullptr};
     DrawNodeFn draw_fn_{nullptr};
     ToggleFn toggle_fn_{nullptr};
     SelectFn select_fn_{nullptr};
+    PoolCreateFn pool_create_fn_{nullptr};
+    PoolBindFn pool_bind_fn_{nullptr};
+    PoolRecycleFn pool_recycle_fn_{nullptr};
+    void* pool_ctx_{nullptr};
     void* data_ctx_{nullptr};
     void* select_ctx_{nullptr};
     int row_height_{20};
@@ -188,4 +245,8 @@ private:
     int max_scroll_y_{0};
     int wheel_step_{24};
     int selected_{-1};
+    int prefetch_rows_{1};
+
+    static constexpr int kMaxCache = 32;
+    VirtualListCache<kMaxCache> cache_{};
 };

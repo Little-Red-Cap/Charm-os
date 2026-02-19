@@ -7,6 +7,7 @@ export module charm.widgets.scroll_container;
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
+import charm.core.input_interaction;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.gfx.image;
@@ -21,6 +22,11 @@ class ScrollContainer : public ObjectBase {
 public:
     ScrollContainer() {
         set_focusable(true);
+        pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
+                                      &ScrollContainer::on_pinch_update,
+                                      &ScrollContainer::on_pinch_end,
+                                      this);
+        add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
@@ -160,6 +166,9 @@ public:
                 swipe_active_ = false;
             }
             return true;
+        } else if (e.type == Event::Type::GesturePinch) {
+            if (!r.contains(e.x, e.y)) return false;
+            return dispatch_interactions(e);
         }
         return false;
     }
@@ -203,6 +212,26 @@ public:
     }
 
 private:
+    static void on_pinch_begin(void* ctx) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->pinch_active_ = true;
+        self->velocity_ = 0;
+    }
+
+    static void on_pinch_update(void* ctx, int dy) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->add_scroll_y(-dy);
+        self->velocity_ = -dy;
+    }
+
+    static void on_pinch_end(void* ctx) {
+        auto* self = static_cast<ScrollContainer*>(ctx);
+        if (!self) return;
+        self->pinch_active_ = false;
+    }
+
     int clamp_scroll(int y) const noexcept {
         if (y < 0) return 0;
         if (y > max_scroll_) return max_scroll_;
@@ -228,6 +257,8 @@ private:
     int drag_threshold_sq_{9};
     bool dragging_{false};
     bool swipe_active_{false};
+    bool pinch_active_{false};
+    PinchScrollStrategy pinch_strategy_{};
     int last_y_{0};
     int velocity_{0};
 

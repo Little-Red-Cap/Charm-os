@@ -18,12 +18,13 @@
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
+- 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint 预留）。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 
 ## 4. 输入与事件
 
-- 输入链路在 UI 层进行语义化处理，控件只关注高层意图。
+- 输入链路由 InputRouter 中心化处理（hit-test/capture/gesture），支持双指 pinch 识别，控件只关注语义事件。
 - 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
 - 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
 

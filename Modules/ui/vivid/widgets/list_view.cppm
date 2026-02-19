@@ -5,6 +5,7 @@ export module charm.widgets.list_view;
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
+import charm.core.virtual_list;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
@@ -25,6 +26,9 @@ public:
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
     using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
+    using PoolBindFn = void(*)(void* ctx, int slot, int index) noexcept;
+    using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
     using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
@@ -68,6 +72,17 @@ public:
         clear_cache();
     }
 
+    void set_item_pool(PoolCreateFn create_fn,
+                       PoolBindFn bind_fn,
+                       PoolRecycleFn recycle_fn,
+                       void* ctx = nullptr) noexcept {
+        pool_create_fn_ = create_fn;
+        pool_bind_fn_ = bind_fn;
+        pool_recycle_fn_ = recycle_fn;
+        pool_ctx_ = ctx;
+        clear_cache();
+    }
+
     void set_on_scroll(ScrollFn fn, void* ctx = nullptr) noexcept {
         scroll_fn_ = fn;
         scroll_ctx_ = ctx;
@@ -77,6 +92,11 @@ public:
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
+    }
+
+    void set_prefetch_rows(int rows) noexcept {
+        prefetch_rows_ = (rows > 0) ? rows : 0;
+        clear_cache();
     }
 
     void set_selected(int index) noexcept {
@@ -129,11 +149,21 @@ public:
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
         const int row_h = row_height_for_render();
-        const int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
-        const int offset_y = r.y + pad - (scroll_y_ % row_h);
-
-        const int visible = (row_h > 0) ? ((r.h + row_h - 1) / row_h + 1) : 0;
-        int y = offset_y;
+        const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
+        const int start = window.start;
+        const int visible = window.visible;
+        int y = window.offset_y;
+        auto on_create = [&](int slot) {
+            if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
+        };
+        auto on_recycle = [&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        };
+        auto on_bind = [&](int slot, int index) {
+            if (pool_bind_fn_) pool_bind_fn_(pool_ctx_, slot, index);
+            else if (cache_fn_) cache_fn_(cache_ctx_, slot, index);
+        };
+        cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             Rect row{content_x, y, content_w, row_h};
             const bool is_selected = (i == selected_);
@@ -144,10 +174,7 @@ public:
             if (visible > 0 && visible <= kMaxCache) {
                 slot = i - start;
                 if (slot >= 0 && slot < kMaxCache) {
-                    if (cache_slots_[slot].index != i) {
-                        cache_slots_[slot].index = i;
-                        if (cache_fn_) cache_fn_(cache_ctx_, slot, i);
-                    }
+                    cache_.bind_slot(slot, i, on_create, on_recycle, on_bind);
                 } else {
                     slot = -1;
                 }
@@ -158,6 +185,8 @@ public:
             }
             y += row_h;
         }
+
+        cache_.recycle_inactive(on_recycle);
 
         cvs.restore_clip(clip_state);
 
@@ -290,9 +319,9 @@ private:
     }
 
     void clear_cache() noexcept {
-        for (int i = 0; i < kMaxCache; ++i) {
-            cache_slots_[i].index = -1;
-        }
+        cache_.clear([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        });
     }
 
     CountFn count_fn_{nullptr};
@@ -303,6 +332,10 @@ private:
     void* select_ctx_{nullptr};
     CacheFn cache_fn_{nullptr};
     void* cache_ctx_{nullptr};
+    PoolCreateFn pool_create_fn_{nullptr};
+    PoolBindFn pool_bind_fn_{nullptr};
+    PoolRecycleFn pool_recycle_fn_{nullptr};
+    void* pool_ctx_{nullptr};
     ScrollFn scroll_fn_{nullptr};
     void* scroll_ctx_{nullptr};
 
@@ -316,10 +349,8 @@ private:
     bool dragging_{false};
     int last_y_{0};
     bool show_scrollbar_{true};
+    int prefetch_rows_{1};
 
-    struct CacheSlot {
-        int index{-1};
-    };
     static constexpr int kMaxCache = 32;
-    CacheSlot cache_slots_[kMaxCache]{};
+    VirtualListCache<kMaxCache> cache_{};
 };

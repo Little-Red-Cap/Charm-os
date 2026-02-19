@@ -19,6 +19,13 @@ enum class WidgetKind : std::uint8_t {
     List,
     ListItem,
     ListView,
+    IconList,
+    TextTrackingList,
+    TextList,
+    ModalDialog,
+    ProgressBarSimple,
+    DynamicNebula,
+    CrtScreen,
     ScrollBar,
     SegmentedControl,
     TextArea,
@@ -55,6 +62,13 @@ enum class WidgetKind : std::uint8_t {
     ,FoldablePanel
     ,ProgressFlowing
     ,CloudyGlass
+    ,NumberList
+    ,ProgressBarRound
+    ,SpinZoomWidget
+    ,SpinningWheel
+    ,ImageBox
+    ,MeterPointer
+    ,ProgressBarDrill
 };
 
 export
@@ -84,6 +98,13 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::List: return "List";
         case WidgetKind::ListItem: return "ListItem";
         case WidgetKind::ListView: return "ListView";
+        case WidgetKind::IconList: return "IconList";
+        case WidgetKind::TextTrackingList: return "TextTrackingList";
+        case WidgetKind::TextList: return "TextList";
+        case WidgetKind::ModalDialog: return "ModalDialog";
+        case WidgetKind::ProgressBarSimple: return "ProgressBarSimple";
+        case WidgetKind::DynamicNebula: return "DynamicNebula";
+        case WidgetKind::CrtScreen: return "CrtScreen";
         case WidgetKind::ScrollBar: return "ScrollBar";
         case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";
@@ -120,6 +141,13 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::FoldablePanel: return "FoldablePanel";
         case WidgetKind::ProgressFlowing: return "ProgressFlowing";
         case WidgetKind::CloudyGlass: return "CloudyGlass";
+        case WidgetKind::NumberList: return "NumberList";
+        case WidgetKind::ProgressBarRound: return "ProgressBarRound";
+        case WidgetKind::SpinZoomWidget: return "SpinZoomWidget";
+        case WidgetKind::SpinningWheel: return "SpinningWheel";
+        case WidgetKind::ImageBox: return "ImageBox";
+        case WidgetKind::MeterPointer: return "MeterPointer";
+        case WidgetKind::ProgressBarDrill: return "ProgressBarDrill";
     }
     return "Unknown";
 }

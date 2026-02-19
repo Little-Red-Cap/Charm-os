@@ -50,7 +50,10 @@ import charm.widgets.number_list;
 import charm.widgets.text_tracking_list;
 import charm.widgets.text_list;
 import charm.widgets.progress_bar_round;
+import charm.widgets.progress_bar_simple;
 import charm.widgets.spin_zoom_widget;
+import charm.widgets.dynamic_nebula;
+import charm.widgets.crt_screen;
 import charm.widgets.popup_layer;
 import charm.widgets.modal_dialog;
 #endif
@@ -548,7 +551,10 @@ namespace {
         WidgetHandle text_tracking{};
         WidgetHandle text_list{};
         WidgetHandle progress_round{};
+        WidgetHandle progress_simple{};
         WidgetHandle spin_zoom{};
+        WidgetHandle nebula{};
+        WidgetHandle crt{};
         WidgetHandle popup{};
         WidgetHandle modal{};
         WidgetHandle fold_panel{};
@@ -1091,6 +1097,13 @@ namespace {
             round->set_size(120, 120);
         }
 
+        h.progress_simple = factory.create_progress_bar_simple();
+        if (auto* simple = factory.get_progress_bar_simple(h.progress_simple)) {
+            simple->set_range(0, 100);
+            simple->set_value(42);
+            simple->set_size(200, 18);
+        }
+
         h.spin_zoom = factory.create_spin_zoom_widget();
         if (auto* spin = factory.get_spin_zoom_widget(h.spin_zoom)) {
             spin->set_image(render_logo_argb());
@@ -1099,6 +1112,25 @@ namespace {
             spin->set_spin_speed(0.8f);
             spin->set_double_tap_restore(true);
             spin->set_size(160, 160);
+        }
+
+        h.nebula = factory.create_dynamic_nebula();
+        if (auto* nebula = factory.get_dynamic_nebula(h.nebula)) {
+            nebula->set_radius(60);
+            nebula->set_visible_ring_width(26);
+            nebula->set_fade_edge_width(10);
+            nebula->set_particle_count(32);
+            nebula->set_particle_size(2);
+            nebula->set_speed(0.8f);
+            nebula->set_size(160, 160);
+        }
+
+        h.crt = factory.create_crt_screen();
+        if (auto* crt = factory.get_crt_screen(h.crt)) {
+            crt->set_image(render_logo_argb());
+            crt->set_noise_enabled(true);
+            crt->set_scan_enabled(true);
+            crt->set_size(200, 140);
         }
 
         h.popup = factory.create_popup_layer();
@@ -1233,7 +1265,10 @@ namespace {
         factory.link(h.debug_side, h.text_tracking);
         factory.link(h.debug_side, h.text_list);
         factory.link(h.debug_side, h.progress_round);
+        factory.link(h.debug_side, h.progress_simple);
         factory.link(h.debug_side, h.spin_zoom);
+        factory.link(h.debug_side, h.nebula);
+        factory.link(h.debug_side, h.crt);
         factory.link(h.root, h.popup);
         factory.link(h.popup, h.modal);
         factory.link(h.debug_side, h.fold_panel);

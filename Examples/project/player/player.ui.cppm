@@ -12,8 +12,11 @@ import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
 import charm.widgets.foldable_panel;
 import charm.widgets.histogram_view;
+import charm.widgets.dynamic_nebula;
+import charm.widgets.crt_screen;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
@@ -90,6 +93,10 @@ export namespace player::ui {
         preset.progress = theme.get<Progress>();
         preset.progress.bg_color = kUiProgressBg;
         preset.progress.border_color = kUiProgressBorder;
+        preset.has_progress_bar_simple = true;
+        preset.progress_bar_simple = theme.get<ProgressBarSimple>();
+        preset.progress_bar_simple.bg_color = kUiProgressBg;
+        preset.progress_bar_simple.border_color = kUiProgressBorder;
         preset.has_scroll_bar = true;
         preset.scroll_bar = theme.get<ScrollBar>();
         preset.scroll_bar.bg_color = kUiScrollBg;
@@ -146,5 +153,13 @@ export namespace player::ui {
 
         StylePatch hist_patch = chart_patch;
         theme.patch<HistogramView>(hist_patch);
+
+        StylePatch nebula_patch{};
+        nebula_patch.has_font_color = true;
+        nebula_patch.font_color = kUiListFont;
+        theme.patch<DynamicNebula>(nebula_patch);
+
+        StylePatch crt_patch = chart_patch;
+        theme.patch<CrtScreen>(crt_patch);
     }
 }

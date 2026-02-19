@@ -46,6 +46,8 @@ import charm.widgets.chart;
 import charm.widgets.gauge;
 import charm.widgets.primitives_canvas;
 import charm.widgets.perf_overlay;
+import charm.widgets.stepper;
+import charm.widgets.timeline;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -89,6 +91,8 @@ public:
     WidgetHandle create_gauge() noexcept { return make_handle(gauges_.create(), WidgetKind::Gauge); }
     WidgetHandle create_primitives_canvas() noexcept { return make_handle(prim_canvas_.create(), WidgetKind::PrimitivesCanvas); }
     WidgetHandle create_perf_overlay() noexcept { return make_handle(perf_overlays_.create(), WidgetKind::PerfOverlay); }
+    WidgetHandle create_stepper() noexcept { return make_handle(steppers_.create(), WidgetKind::Stepper); }
+    WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -128,6 +132,8 @@ public:
     Gauge* get_gauge(const WidgetHandle& h) noexcept { return get_from(gauges_, h, WidgetKind::Gauge); }
     PrimitivesCanvas* get_primitives_canvas(const WidgetHandle& h) noexcept { return get_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); }
     PerfOverlay* get_perf_overlay(const WidgetHandle& h) noexcept { return get_from(perf_overlays_, h, WidgetKind::PerfOverlay); }
+    Stepper* get_stepper(const WidgetHandle& h) noexcept { return get_from(steppers_, h, WidgetKind::Stepper); }
+    Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -167,6 +173,8 @@ public:
             case WidgetKind::Gauge: return get_gauge(h);
             case WidgetKind::PrimitivesCanvas: return get_primitives_canvas(h);
             case WidgetKind::PerfOverlay: return get_perf_overlay(h);
+            case WidgetKind::Stepper: return get_stepper(h);
+            case WidgetKind::Timeline: return get_timeline(h);
             default: return nullptr;
         }
     }
@@ -354,6 +362,8 @@ public:
         case WidgetKind::Gauge: destroy_from(gauges_, h, WidgetKind::Gauge); break;
         case WidgetKind::PrimitivesCanvas: destroy_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); break;
         case WidgetKind::PerfOverlay: destroy_from(perf_overlays_, h, WidgetKind::PerfOverlay); break;
+        case WidgetKind::Stepper: destroy_from(steppers_, h, WidgetKind::Stepper); break;
+        case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -623,6 +633,8 @@ private:
     HandlePool<Gauge, 16> gauges_{};
     HandlePool<PrimitivesCanvas, 8> prim_canvas_{};
     HandlePool<PerfOverlay, 8> perf_overlays_{};
+    HandlePool<Stepper, 16> steppers_{};
+    HandlePool<Timeline, 16> timelines_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

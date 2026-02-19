@@ -17,6 +17,9 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.perf_overlay;
+import charm.widgets.chart;
+import charm.widgets.stepper;
+import charm.widgets.timeline;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import charm.widgets.tree_view;
@@ -225,6 +228,10 @@ namespace {
         WidgetHandle table{};
         WidgetHandle tree{};
         WidgetHandle debug_grid{};
+        WidgetHandle chart{};
+        WidgetHandle debug_side{};
+        WidgetHandle stepper{};
+        WidgetHandle timeline{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -1080,8 +1087,9 @@ namespace {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
             const int list_h = screen_height - list_y - 170;
             const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            const int cell_h = (list_h - kDemoGap) / 2;
             anchor_rect(grid, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
-            grid->set_grid_layout(2, half_w, list_h, kDemoGap, 0);
+            grid->set_grid_layout(2, half_w, cell_h, kDemoGap, 0);
             grid->set_align(static_cast<int>(AlignH::Center), static_cast<int>(AlignV::Center));
             grid->set_visible(false);
         }
@@ -1124,6 +1132,42 @@ namespace {
             table->set_column_width_fn(&table_col_width);
             table->set_on_select(&on_table_select, &g_table_demo);
             table->set_row_height(28);
+        }
+
+        h.chart = factory.create_chart();
+        if (auto* chart = factory.get_chart(h.chart)) {
+            static int points[] = {3, 8, 5, 12, 6, 14, 7, 10, 4};
+            chart->set_points(points, static_cast<int>(sizeof(points) / sizeof(points[0])));
+        }
+
+        h.debug_side = factory.create_container();
+        if (auto* side = factory.get_container(h.debug_side)) {
+            side->set_flex_layout(1, 0, 0, 8, 8);
+            side->set_flex_grow(1);
+        }
+
+        h.stepper = factory.create_stepper();
+        if (auto* stepper = factory.get_stepper(h.stepper)) {
+            stepper->set_steps(4);
+            stepper->set_current(1);
+            stepper->set_label(0, "Init");
+            stepper->set_label(1, "Load");
+            stepper->set_label(2, "Play");
+            stepper->set_label(3, "Done");
+            stepper->set_size(200, 48);
+        }
+
+        h.timeline = factory.create_timeline();
+        if (auto* timeline = factory.get_timeline(h.timeline)) {
+            timeline->set_item_count(4);
+            timeline->set_item_text(0, "Boot");
+            timeline->set_item_text(1, "Scan");
+            timeline->set_item_text(2, "Decode");
+            timeline->set_item_text(3, "Ready");
+            timeline->set_current(2);
+            timeline->set_row_height(26);
+            timeline->set_size(200, 140);
+            timeline->set_flex_grow(1);
         }
 
         constexpr int button_w = 120;
@@ -1182,6 +1226,10 @@ namespace {
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
         factory.link(h.debug_grid, h.table);
+        factory.link(h.debug_grid, h.chart);
+        factory.link(h.debug_grid, h.debug_side);
+        factory.link(h.debug_side, h.stepper);
+        factory.link(h.debug_side, h.timeline);
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_play);

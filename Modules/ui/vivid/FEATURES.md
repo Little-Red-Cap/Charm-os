@@ -53,7 +53,7 @@
 ## 7. 高级组件
 - P1 表格/表头（table_view）
 - P1 树形列表（tree_view）
-- P1 进度与状态：stepper、timeline
+- P1 进度与状态：stepper、timeline（已提供最小骨架）
 - P2 图表扩展（多曲线/交互）
 - P2 富文本/代码编辑
 

@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.virtual_list;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -105,14 +106,17 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
-        if (start > 0 && prefetch_rows_ > 0) {
-            start = (start > prefetch_rows_) ? (start - prefetch_rows_) : 0;
-        }
-        const int offset_y = r.y - (scroll_y_ - start * row_height_);
-        int y = offset_y;
-        int visible = (row_height_ > 0) ? ((r.h + row_height_ - 1) / row_height_ + 1) : 0;
-        if (prefetch_rows_ > 0) visible += prefetch_rows_ * 2;
+        const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
+        const int start = window.start;
+        const int visible = window.visible;
+        int y = window.offset_y;
+        auto on_create = [&](int slot) {
+            if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
+        };
+        auto on_recycle = [&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        };
+        cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
             Rect row{r.x, y, r.w, row_height_};
@@ -124,18 +128,12 @@ public:
             if (visible > 0 && visible <= kMaxCache) {
                 slot = i - start;
                 if (slot >= 0 && slot < kMaxCache) {
-                    touch_slot(slot);
-                    if (cache_slots_[slot].index != i) {
-                        recycle_slot(slot);
-                        cache_slots_[slot].index = i;
-                        if (pool_create_fn_ && !cache_slots_[slot].created) {
-                            pool_create_fn_(pool_ctx_, slot);
-                            cache_slots_[slot].created = true;
-                        }
-                        if (pool_bind_fn_) {
-                            pool_bind_fn_(pool_ctx_, slot, i, info);
-                        }
-                    }
+                    cache_.bind_slot(slot, i, on_create, on_recycle,
+                                     [&](int bind_slot, int index) {
+                                         if (pool_bind_fn_) {
+                                             pool_bind_fn_(pool_ctx_, bind_slot, index, info);
+                                         }
+                                     });
                 } else {
                     slot = -1;
                 }
@@ -151,7 +149,7 @@ public:
             y += row_height_;
         }
 
-        recycle_inactive_slots();
+        cache_.recycle_inactive(on_recycle);
 
         cvs.restore_clip(clip_state);
 
@@ -225,34 +223,9 @@ private:
     }
 
     void clear_cache() noexcept {
-        for (int i = 0; i < kMaxCache; ++i) {
-            recycle_slot(i);
-            cache_slots_[i].index = -1;
-            cache_slots_[i].touched = false;
-            cache_slots_[i].created = false;
-        }
-    }
-
-    void touch_slot(int slot) noexcept {
-        if (slot < 0 || slot >= kMaxCache) return;
-        cache_slots_[slot].touched = true;
-    }
-
-    void recycle_slot(int slot) noexcept {
-        if (slot < 0 || slot >= kMaxCache) return;
-        if (cache_slots_[slot].index >= 0 && pool_recycle_fn_) {
-            pool_recycle_fn_(pool_ctx_, slot, cache_slots_[slot].index);
-        }
-    }
-
-    void recycle_inactive_slots() noexcept {
-        for (int i = 0; i < kMaxCache; ++i) {
-            if (!cache_slots_[i].touched && cache_slots_[i].index >= 0) {
-                recycle_slot(i);
-                cache_slots_[i].index = -1;
-            }
-            cache_slots_[i].touched = false;
-        }
+        cache_.clear([&](int slot, int index) {
+            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        });
     }
 
     static constexpr int indent_w_ = 12;
@@ -274,11 +247,6 @@ private:
     int selected_{-1};
     int prefetch_rows_{1};
 
-    struct CacheSlot {
-        int index{-1};
-        bool touched{false};
-        bool created{false};
-    };
     static constexpr int kMaxCache = 32;
-    CacheSlot cache_slots_[kMaxCache]{};
+    VirtualListCache<kMaxCache> cache_{};
 };

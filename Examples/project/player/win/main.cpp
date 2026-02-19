@@ -4,7 +4,8 @@
 
 import audio.player;
 import audio.result;
-import audio.source.fs;
+import player.fs_utils;
+import player.ui;
 import charm.core.config;
 import charm.core.container;
 import charm.core.event;
@@ -12,8 +13,6 @@ import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
 import charm.core.style;
-import charm.core.style_sheet;
-import charm.core.theme_preset;
 import charm.gfx.canvas;
 import charm.gfx.assets.render;
 import charm.gfx.framebuffer;
@@ -24,24 +23,22 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
+import charm.widgets.chart;
 import charm.widgets.perf_overlay;
 #if CHARM_PLAYER_DEBUG_UI
-import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
 import charm.widgets.table_view;
+import charm.widgets.tree_view;
 #endif
 import charm.widgets.image;
 import charm.widgets.text;
 import fs_core;
 import fs_errno;
-import fs_block;
 import fs_stream;
-import fs_block_file;
-import fs_fatfs;
 import fs_vfs;
 import util.core;
 
@@ -71,52 +68,8 @@ import util.core;
 
 namespace {
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
-    constexpr int kUiPadding = 24;
-    constexpr int kCoverSize = 320;
-    constexpr int kDemoGap = 16;
-    constexpr int kHeaderTitleOffset = 18;
-    constexpr int kHeaderSubtitleOffset = 44;
-    constexpr int kHeaderProgressOffset = 86;
-    constexpr int kHeaderTimeOffset = 114;
-    constexpr int kHeaderStatusOffset = 136;
-    constexpr int kHeaderModeOffset = 160;
-    constexpr int kModeWidth = 240;
-    constexpr int kModeHeight = 28;
-    constexpr int kListTitleGap = 26;
-    constexpr int kListBottomReserve = 170;
-    constexpr int kListScrollWidth = 10;
-    constexpr int kControlsBottomMargin = 20;
-    constexpr int kButtonWidth = 120;
-    constexpr int kButtonHeight = 48;
-    constexpr int kButtonGap = 12;
-    constexpr int kPerfOverlayWidth = 300;
-    constexpr int kPerfOverlayHeight = 72;
-
-    constexpr rgba kUiBackground = {18, 20, 28, 255};
-    constexpr rgba kUiCover = {32, 36, 52, 255};
-    constexpr rgba kUiTitle = {236, 238, 246, 255};
-    constexpr rgba kUiSubtitle = {156, 162, 188, 255};
-    constexpr rgba kUiTime = {136, 142, 166, 255};
-    constexpr rgba kUiStatus = {140, 150, 175, 255};
-    constexpr rgba kUiListTitle = {190, 196, 218, 255};
-    constexpr rgba kUiHint = {120, 128, 150, 255};
-    constexpr rgba kUiError = {220, 120, 120, 255};
-    constexpr rgba kUiOk = {120, 200, 170, 255};
-    constexpr rgba kUiPaused = {230, 185, 90, 255};
-
-    constexpr rgba kUiButtonBg = {26, 30, 44, 255};
-    constexpr rgba kUiButtonBorder = {70, 90, 120, 255};
-    constexpr rgba kUiButtonHover = {44, 60, 82, 255};
-    constexpr rgba kUiListBg = {22, 24, 34, 255};
-    constexpr rgba kUiListBorder = {60, 70, 90, 255};
-    constexpr rgba kUiListFont = {210, 220, 240, 255};
-    constexpr rgba kUiProgressBg = {28, 32, 46, 255};
-    constexpr rgba kUiProgressBorder = {90, 110, 150, 255};
-    constexpr rgba kUiScrollBg = {30, 34, 48, 255};
-    constexpr rgba kUiScrollBorder = {70, 90, 120, 255};
-    constexpr rgba kUiPerfBg = {24, 26, 36, 230};
-    constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
-    constexpr rgba kUiPerfFont = {220, 228, 242, 255};
+    using namespace player::fs_utils;
+    using namespace player::ui;
 
     static DefaultFrameBuffer g_framebuffer{};
     static DefaultCanvas g_canvas(g_framebuffer);
@@ -124,46 +77,7 @@ namespace {
     static audio::PlayerConfig g_player_cfg{};
     static audio::AudioPlayer g_player(g_player_cfg);
     static std::vector<std::string> g_vfs_tracks{};
-    struct MbrPartition {
-        std::uint8_t status;
-        std::uint8_t chs_first[3];
-        std::uint8_t type;
-        std::uint8_t chs_last[3];
-        std::uint32_t lba_first;
-        std::uint32_t sectors;
-    };
-
-    std::uint32_t find_fat_partition_lba(const std::array<std::uint8_t, 512>& sector0) {
-        if (sector0[510] != 0x55 || sector0[511] != 0xAA) return 0;
-        const auto* parts = reinterpret_cast<const MbrPartition*>(sector0.data() + 446);
-        for (int i = 0; i < 4; ++i) {
-            const auto& p = parts[i];
-            if (p.type == 0x0B || p.type == 0x0C) {
-                return p.lba_first;
-            }
-        }
-        return 0;
-    }
-
-    const char* fs_err_text(fs::Err err) {
-        switch (err) {
-        case fs::Err::ok: return "ok";
-        case fs::Err::perm: return "perm";
-        case fs::Err::noent: return "noent";
-        case fs::Err::exist: return "exist";
-        case fs::Err::io: return "io";
-        case fs::Err::busy: return "busy";
-        case fs::Err::inval: return "inval";
-        case fs::Err::nametoolong: return "nametoolong";
-        case fs::Err::nosys: return "nosys";
-        case fs::Err::nomem: return "nomem";
-        case fs::Err::notsup: return "notsup";
-        case fs::Err::rofs: return "rofs";
-        case fs::Err::timeout: return "timeout";
-        case fs::Err::again: return "again";
-        }
-        return "unknown";
-    }
+    
 
     const char* audio_err_text(audio::Errc err) {
         switch (err) {
@@ -196,28 +110,6 @@ namespace {
         case audio::PlayerErrorStage::reconfigure: return "reconfigure";
         }
         return "unknown";
-    }
-
-    bool has_audio_ext(std::string_view name) {
-        const auto dot = name.find_last_of('.');
-        if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
-        const auto ext = name.substr(dot + 1);
-        if (ext.size() == 3) {
-            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-            if (a == 'm' && b == 'p' && c == '3') return true;
-            if (a == 'w' && b == 'a' && c == 'v') return true;
-            if (a == 'f' && b == 'l' && c == 'a') return true;
-        }
-        if (ext.size() == 4) {
-            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
-            if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
-        }
-        return false;
     }
 
 #if CHARM_PLAYER_DEBUG_UI
@@ -423,132 +315,6 @@ namespace {
     }
 #endif
 
-    struct TrackListContext {
-        std::string_view dir{};
-        std::vector<std::string>* out{nullptr};
-        std::vector<std::string>* subdirs{nullptr};
-    };
-
-    fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
-        auto* info = static_cast<TrackListContext*>(ctx);
-        if (!info || !info->out) return fs::Status{fs::Err::inval};
-        if (entry.type == fs::NodeType::dir) {
-            if (!info->subdirs) return fs::Status{fs::Err::ok};
-            std::string path;
-            if (info->dir.empty() || info->dir == "/") {
-                path = "/";
-            } else {
-                path.assign(info->dir.begin(), info->dir.end());
-                if (!path.empty() && path.back() != '/') path.push_back('/');
-            }
-            path.append(entry.name.begin(), entry.name.end());
-            info->subdirs->push_back(path);
-            return fs::Status{fs::Err::ok};
-        }
-        if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
-        if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
-
-        std::string path;
-        if (info->dir.empty() || info->dir == "/") {
-            path = "/";
-        } else {
-            path.assign(info->dir.begin(), info->dir.end());
-            if (!path.empty() && path.back() != '/') path.push_back('/');
-        }
-        path.append(entry.name.begin(), entry.name.end());
-        info->out->push_back(path);
-        return fs::Status{fs::Err::ok};
-    }
-
-    bool collect_tracks_from_dir(std::string_view dir,
-                                 std::vector<std::string>& out,
-                                 std::vector<std::string>* subdirs,
-                                 fs::Status& out_status) {
-        TrackListContext ctx{dir, &out, subdirs};
-        out_status = fs::vfs_list(dir, &ctx, &collect_track);
-        return out_status && !out.empty();
-    }
-
-    struct OffsetDevice {
-        fs::BlockDevice* base{nullptr};
-        std::uint32_t lba_offset{0};
-        fs::BlockDevice device{};
-
-        static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
-            auto* self = static_cast<OffsetDevice*>(ctx);
-            return self->base->read(self->base->ctx, lba + self->lba_offset, out);
-        }
-        static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
-            auto* self = static_cast<OffsetDevice*>(ctx);
-            return self->base->write(self->base->ctx, lba + self->lba_offset, in);
-        }
-        static fs::Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
-            auto* self = static_cast<OffsetDevice*>(ctx);
-            return self->base->erase(self->base->ctx, lba + self->lba_offset, count);
-        }
-        static fs::Status flush_impl(void* ctx) noexcept {
-            auto* self = static_cast<OffsetDevice*>(ctx);
-            return self->base->flush ? self->base->flush(self->base->ctx) : fs::Status{fs::Err::ok};
-        }
-
-        void init(fs::BlockDevice& dev, std::uint32_t offset) noexcept {
-            base = &dev;
-            lba_offset = offset;
-            device.ctx = this;
-            device.read = &OffsetDevice::read_impl;
-            device.write = &OffsetDevice::write_impl;
-            device.erase = &OffsetDevice::erase_impl;
-            device.flush = &OffsetDevice::flush_impl;
-            device.block_size = dev.block_size;
-            device.block_count = dev.block_count > offset ? (dev.block_count - offset) : 0;
-        }
-    };
-
-    fs::Status mount_fatfs_from_vhd(const char* path) {
-        if (!path || !*path) return fs::Status{fs::Err::inval};
-        static fs::BlockFile file_dev;
-        static OffsetDevice part_dev;
-        static fs::FatFsMount fat;
-
-        auto st = file_dev.open(path, 512);
-        if (!st) return st;
-
-        std::array<std::uint8_t, 512> sector0{};
-        st = file_dev.device().read(file_dev.device().ctx, 0,
-            std::span<util::u8>(sector0));
-        if (!st) return st;
-
-        const auto lba = find_fat_partition_lba(sector0);
-        part_dev.init(file_dev.device(), lba);
-
-        st = fat.mount(part_dev.device, false);
-        if (!st) return st;
-
-        fs::clear_mounts();
-        (void)fs::add_mount("/", fat.mount_point());
-        return fs::Status{fs::Err::ok};
-    }
-
-    bool fs_seek_selftest(const char* path) {
-        if (!path || !*path) return false;
-        audio::FsDataSource src;
-        if (!src.open(path)) return false;
-        const auto size = src.size();
-        if (!size || *size < 32) return true;
-        auto pos = src.tell();
-        if (!pos || *pos != 0) return false;
-        if (!src.seek(0, SEEK_SET)) return false;
-        pos = src.tell();
-        if (!pos || *pos != 0) return false;
-        if (!src.seek(16, SEEK_CUR)) return false;
-        pos = src.tell();
-        if (!pos || *pos != 16) return false;
-        if (!src.seek(-8, SEEK_END)) return false;
-        pos = src.tell();
-        if (!pos || *pos != (*size - 8)) return false;
-        return true;
-    }
-
     struct UiHandles {
         WidgetHandle root{};
         WidgetHandle cover{};
@@ -560,6 +326,7 @@ namespace {
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
         WidgetHandle play_mode{};
+        WidgetHandle spectrum{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
@@ -622,6 +389,8 @@ namespace {
         bool ignore_list_select{false};
         std::string mount_status{};
         bool syncing_scrollbar{false};
+        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_values{};
+        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_points{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
 #if CHARM_PLAYER_DEBUG_UI
@@ -810,6 +579,9 @@ namespace {
             if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
                 mode->set_visible(!on);
             }
+            if (auto* chart = factory->get_chart(handles.spectrum)) {
+                chart->set_visible(!on);
+            }
             if (auto* list = factory->get_list_view(handles.list)) {
                 list->set_visible(!on);
             }
@@ -859,6 +631,19 @@ namespace {
                 bar->set_value(value);
             }
             set_time_label(clamped);
+        }
+
+        void update_spectrum() {
+            if (!player || !factory) return;
+            if (!player->read_spectrum(spectrum_values)) return;
+            for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
+                const float v = spectrum_values[i];
+                spectrum_points[i] = static_cast<int>(v * 100.0f);
+            }
+            if (auto* chart = factory->get_chart(handles.spectrum)) {
+                chart->set_points(spectrum_points.data(),
+                                  static_cast<int>(spectrum_points.size()));
+            }
         }
 
         void sync_progress_value(int value) {
@@ -1394,7 +1179,8 @@ namespace {
         const int cover_top = kUiPadding * 2;
         const int header_top = cover_top + kCoverSize;
         const int mode_y = header_top + kHeaderModeOffset;
-        const int list_y = mode_y + kModeHeight + 12;
+        const int spectrum_y = mode_y + kModeHeight + kSpectrumGap;
+        const int list_y = spectrum_y + kSpectrumHeight + kSpectrumGap;
         const int list_h = screen_height - list_y - kListBottomReserve;
 
         h.cover = factory.create_container();
@@ -1450,6 +1236,11 @@ namespace {
             mode->set_selected(0);
             mode->set_on_change(Callback{&on_play_mode_change, &ctx});
             anchor_rect(mode, {(screen_width - kModeWidth) / 2, mode_y, kModeWidth, kModeHeight});
+        }
+
+        h.spectrum = factory.create_chart();
+        if (auto* chart = factory.get_chart(h.spectrum)) {
+            anchor_rect(chart, {kUiPadding, spectrum_y, screen_width - kUiPadding * 2, kSpectrumHeight});
         }
 
         h.perf_overlay = factory.create_perf_overlay();
@@ -1651,6 +1442,7 @@ namespace {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.play_mode);
+        factory.link(h.root, h.spectrum);
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
@@ -1715,63 +1507,12 @@ int main(int argc, char** argv) {
     g_ctx.factory = &g_factory;
     g_ctx.track_path = nullptr;
     g_ctx.tracks = &g_vfs_tracks;
+    g_player.enable_spectrum(true);
 
-    auto& theme = Theme::instance();
-    ThemePreset preset{};
-    preset.has_label = true;
-    preset.label = theme.get<Label>();
-    preset.label.font_color = kUiTitle;
-    preset.has_button = true;
-    preset.button = theme.get<Button>();
-    preset.button.bg_color = kUiButtonBg;
-    preset.button.border_color = kUiButtonBorder;
-    preset.button.padding = 6;
-    preset.has_list_view = true;
-    preset.list_view = theme.get<ListView>();
-    preset.list_view.bg_color = kUiListBg;
-    preset.list_view.border_color = kUiListBorder;
-    preset.list_view.corner_radius = 6;
-    preset.list_view.padding = 6;
-    preset.list_view.font_color = kUiListFont;
-    preset.has_progress = true;
-    preset.progress = theme.get<Progress>();
-    preset.progress.bg_color = kUiProgressBg;
-    preset.progress.border_color = kUiProgressBorder;
-    preset.has_scroll_bar = true;
-    preset.scroll_bar = theme.get<ScrollBar>();
-    preset.scroll_bar.bg_color = kUiScrollBg;
-    preset.scroll_bar.border_color = kUiScrollBorder;
-    preset.scroll_bar.corner_radius = 6;
-    preset.has_segmented_control = true;
-    preset.segmented_control = theme.get<SegmentedControl>();
-    preset.segmented_control.bg_color = kUiButtonBg;
-    preset.segmented_control.border_color = kUiButtonBorder;
-    preset.segmented_control.bg_pressed = kUiButtonHover;
-    preset.segmented_control.border_pressed = kUiButtonBorder;
-    preset.segmented_control.font_color = kUiListFont;
-    preset.has_perf_overlay = true;
-    preset.perf_overlay = theme.get<PerfOverlay>();
-    preset.perf_overlay.bg_color = kUiPerfBg;
-    preset.perf_overlay.border_color = kUiPerfBorder;
-    preset.perf_overlay.font_color = kUiPerfFont;
-    preset.perf_overlay.padding = 6;
-    apply_theme_preset(preset);
-
-    auto& sheet = StyleSheet::instance();
-    sheet.clear();
-    StylePatch btn_base{};
-    btn_base.has_bg_color = true;
-    btn_base.bg_color = kUiButtonBg;
-    btn_base.has_border_color = true;
-    btn_base.border_color = kUiButtonBorder;
-    sheet.add_rule({WidgetKind::Button, 0}, btn_base);
-
-    StylePatch btn_hover{};
-    btn_hover.has_bg_color = true;
-    btn_hover.bg_color = kUiButtonHover;
-    sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
+    apply_player_theme();
 
 #if CHARM_PLAYER_DEBUG_UI
+    auto& theme = Theme::instance();
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
@@ -1929,6 +1670,7 @@ int main(int argc, char** argv) {
         g_ctx.update_duration_from_player();
         g_ctx.apply_pending_seek();
         g_ctx.update_progress();
+        g_ctx.update_spectrum();
 
         const auto now = std::chrono::steady_clock::now();
         const auto ms = static_cast<std::uint32_t>(

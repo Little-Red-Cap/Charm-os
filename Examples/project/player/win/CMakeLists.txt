@@ -7,6 +7,8 @@ option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 
 add_executable(${target_name}
     main.cpp
+    ../player.fs_utils.cppm
+    ../player.ui.cppm
 )
 
 target_compile_definitions(${target_name} PRIVATE

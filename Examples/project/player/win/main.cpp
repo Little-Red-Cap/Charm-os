@@ -505,6 +505,7 @@ namespace {
             }
             playing = false;
             paused = false;
+            pending_seek_sec = -1;
             set_status("Stopped");
             set_status_color({140, 150, 175, 255});
             set_pause_button_text("Pause");

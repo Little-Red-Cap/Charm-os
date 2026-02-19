@@ -571,7 +571,7 @@ namespace {
     bool setup_vfs_from_host(const char* host_path, std::string_view vfs_path) {
         static fs::RamFs<4096, 64, 4096> ramfs;
         static fs::MountOps ops{
-            .open = +[](std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
+            .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
             .flush = +[](fs::Mount*) noexcept { return fs::Status{fs::Err::ok}; },
             .unmount = +[](fs::Mount*, bool) noexcept { return fs::Status{fs::Err::ok}; },
             .unlink = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.unlink(path); },

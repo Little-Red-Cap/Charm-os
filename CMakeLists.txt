@@ -50,7 +50,7 @@ if (CHARM_ENABLE_SDL3)
 endif()
 
 
-file(GLOB_RECURSE MODULE_INTERFACE_UNITS "Modules/*.cppm")
+file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"

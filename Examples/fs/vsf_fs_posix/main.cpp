@@ -17,7 +17,7 @@ int main() {
     std::printf("[fs_posix] start\n");
     static fs::RamFs<64, 4, 16> ramfs;
     static fs::MountOps mops{
-        .open = +[](std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
+        .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
         .unlink = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.unlink(path); },
         .rename = +[](fs::Mount*, std::string_view from, std::string_view to) noexcept { return ramfs.rename(from, to); },
         .truncate = +[](fs::Mount*, std::string_view path, util::u64 size) noexcept { return ramfs.truncate(path, size); }

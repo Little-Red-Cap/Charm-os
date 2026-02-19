@@ -51,8 +51,6 @@ import util.core;
 #include <vector>
 
 namespace {
-    // constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
-    constexpr const char* kDefaultVfsTrack = "/Beautiful Trick-FELT.flac";
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
@@ -1152,7 +1150,6 @@ int main(int argc, char** argv) {
     (void)argv;
     const char* vhd_path = kDefaultVhdPath;
     std::vector<std::string> vfs_tracks;
-    vfs_tracks.emplace_back(kDefaultVfsTrack);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -1190,7 +1187,7 @@ int main(int argc, char** argv) {
     PlayerUiContext ctx{};
     ctx.player = &player;
     ctx.factory = &factory;
-    ctx.track_path = kDefaultVfsTrack;
+    ctx.track_path = nullptr;
     ctx.tracks = &vfs_tracks;
 
     auto& theme = Theme::instance();
@@ -1273,22 +1270,11 @@ int main(int argc, char** argv) {
         }
         bool should_load = true;
         if (vfs_tracks.empty()) {
-            if (!list_st) {
-                vfs_tracks.emplace_back(kDefaultVfsTrack);
-            } else {
-                fs::File f{};
-                auto st = fs::vfs_open(kDefaultVfsTrack, f);
-                if (st) {
-                    (void)fs::vfs_close(f);
-                    vfs_tracks.emplace_back(kDefaultVfsTrack);
-                } else {
-                    char buf[64]{};
-                    std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(st.err));
-                    ctx.set_status(buf);
-                    ctx.set_status_color({220, 120, 120, 255});
-                    should_load = false;
-                }
-            }
+            char buf[64]{};
+            std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
+            ctx.set_status(buf);
+            ctx.set_status_color({220, 120, 120, 255});
+            should_load = false;
         }
         ctx.rebuild_track_labels();
         ctx.refresh_list_view();

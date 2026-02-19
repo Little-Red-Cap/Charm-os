@@ -210,6 +210,10 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 驱动接口：`usb.ep0_driver`
 - 示例：`Examples/usb/usb_cdc_minimal`
 
+### Device Model
+- 设备/驱动/注册表骨架（device.desc/driver/registry）
+- 示例：`Examples/system/device_registry_demo`
+
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme
 

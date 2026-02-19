@@ -311,6 +311,18 @@ public:
             const int target_step = e.wheel_y * wheel_step_;
             add_scroll_y(-target_step);
             return true;
+        } else if (e.type == Event::Type::GestureSwipe) {
+            if (!r.contains(e.x, e.y)) return false;
+            if (e.gesture_phase == Event::GesturePhase::Begin) {
+                swipe_active_ = true;
+            } else if (e.gesture_phase == Event::GesturePhase::Update) {
+                if (swipe_active_) {
+                    add_scroll_y(-e.dy);
+                }
+            } else if (e.gesture_phase == Event::GesturePhase::End) {
+                swipe_active_ = false;
+            }
+            return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
             const int index = index_from_y(e.y);
@@ -562,6 +574,7 @@ private:
     int last_y_{0};
     bool show_scrollbar_{true};
     int prefetch_rows_{1};
+    bool swipe_active_{false};
     int window_start_{0};
     int window_visible_{0};
     int window_offset_y_{0};

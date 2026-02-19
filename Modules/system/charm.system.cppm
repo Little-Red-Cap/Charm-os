@@ -48,5 +48,6 @@ export import boot_storage;
 export import boot_uart;
 
 export import device.desc;
+export import device.bus;
 export import device.driver;
 export import device.registry;

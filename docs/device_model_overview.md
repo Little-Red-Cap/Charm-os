@@ -94,6 +94,7 @@ for dev in devices:
 
 先做 **header-only 草案**（模块化）：
 - `device.desc`（ID/类型）
+- `device.bus`（枚举/attach/detach）
 - `device.driver`（回调接口）
 - `device.registry`（固定容量数组）
 

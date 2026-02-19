@@ -25,13 +25,18 @@ export namespace device {
         const Driver* driver{nullptr};
     };
 
+    struct RegistryBase {
+        virtual ~RegistryBase() = default;
+        virtual bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept = 0;
+    };
+
     template <util::usize MaxDevices, util::usize MaxDrivers>
-    class Registry {
+    class Registry : public RegistryBase {
     public:
         [[nodiscard]] constexpr util::usize device_count() const noexcept { return device_count_; }
         [[nodiscard]] constexpr util::usize driver_count() const noexcept { return driver_count_; }
 
-        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept {
+        bool add_device(const DeviceDesc& desc, void* ctx = nullptr) noexcept override {
             if (device_count_ >= MaxDevices) return false;
             devices_[device_count_++] = Device{desc, ctx, DeviceState::detected, nullptr};
             return true;
@@ -95,6 +100,10 @@ export namespace device {
                 dev.driver = nullptr;
                 dev.state = DeviceState::detected;
             }
+        }
+
+        void init_all() noexcept {
+            match_all();
         }
 
     private:

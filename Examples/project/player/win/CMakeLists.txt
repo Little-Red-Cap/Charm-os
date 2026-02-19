@@ -3,6 +3,7 @@ project(charm-player-win)
 
 set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
+option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 
 add_executable(${target_name}
     main.cpp
@@ -14,6 +15,11 @@ target_compile_definitions(${target_name} PRIVATE
     CHARM_VIVID_SCREEN_WIDTH=480
     CHARM_VIVID_SCREEN_HEIGHT=960
 )
+if (CHARM_PLAYER_DEBUG_UI)
+    target_compile_definitions(${target_name} PRIVATE CHARM_PLAYER_DEBUG_UI=1)
+else()
+    target_compile_definitions(${target_name} PRIVATE CHARM_PLAYER_DEBUG_UI=0)
+endif()
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")

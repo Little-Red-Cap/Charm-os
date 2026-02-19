@@ -1,5 +1,5 @@
 #ifndef CHARM_PLAYER_DEBUG_UI
-#define CHARM_PLAYER_DEBUG_UI 1
+#define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
 import audio.player;

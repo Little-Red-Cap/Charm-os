@@ -22,6 +22,7 @@ import charm.widgets.slider;
 import charm.widgets.switcher;
 import charm.widgets.progress;
 import charm.widgets.list;
+import charm.widgets.list_view;
 import charm.widgets.text_area;
 import charm.widgets.dropdown;
 import charm.widgets.tabview;
@@ -57,6 +58,7 @@ public:
     WidgetHandle create_progress() noexcept { return make_handle(progresses_.create(), WidgetKind::Progress); }
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
+    WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
     WidgetHandle create_dropdown() noexcept { return make_handle(dropdowns_.create(), WidgetKind::Dropdown); }
     WidgetHandle create_tabview() noexcept { return make_handle(tabviews_.create(), WidgetKind::TabView); }
@@ -88,6 +90,7 @@ public:
     Progress* get_progress(const WidgetHandle& h) noexcept { return get_from(progresses_, h, WidgetKind::Progress); }
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
+    ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
     Dropdown* get_dropdown(const WidgetHandle& h) noexcept { return get_from(dropdowns_, h, WidgetKind::Dropdown); }
     TabView* get_tabview(const WidgetHandle& h) noexcept { return get_from(tabviews_, h, WidgetKind::TabView); }
@@ -117,6 +120,7 @@ public:
             case WidgetKind::Progress: return get_progress(h);
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
+            case WidgetKind::ListView: return get_list_view(h);
             case WidgetKind::TextArea: return get_text_area(h);
             case WidgetKind::Dropdown: return get_dropdown(h);
             case WidgetKind::TabView: return get_tabview(h);
@@ -295,6 +299,7 @@ public:
         case WidgetKind::Progress: destroy_from(progresses_, h, WidgetKind::Progress); break;
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
+        case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
         case WidgetKind::Dropdown: destroy_from(dropdowns_, h, WidgetKind::Dropdown); break;
         case WidgetKind::TabView: destroy_from(tabviews_, h, WidgetKind::TabView); break;
@@ -555,6 +560,7 @@ private:
     HandlePool<Progress, 64> progresses_{};
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
+    HandlePool<ListView, 16> list_views_{};
     HandlePool<TextArea, 32> text_areas_{};
     HandlePool<Dropdown, 64> dropdowns_{};
     HandlePool<TabView, 16> tabviews_{};

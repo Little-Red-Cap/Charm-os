@@ -18,6 +18,7 @@ enum class WidgetKind : std::uint8_t {
     Progress,
     List,
     ListItem,
+    ListView,
     TextArea,
     Dropdown,
     TabView,
@@ -60,6 +61,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Progress: return "Progress";
         case WidgetKind::List: return "List";
         case WidgetKind::ListItem: return "ListItem";
+        case WidgetKind::ListView: return "ListView";
         case WidgetKind::TextArea: return "TextArea";
         case WidgetKind::Dropdown: return "Dropdown";
         case WidgetKind::TabView: return "TabView";

@@ -11,6 +11,8 @@ export module audio.decoder.mp3;
 
 import audio.result;
 import util.span;
+import media.stream.source;
+import media.stream.filter;
 
 export namespace audio {
     struct Mp3Info {
@@ -102,5 +104,68 @@ export namespace audio {
     private:
         drmp3 mp3_{};
         void* src_{nullptr};
+    };
+
+    class Mp3Filter : public media::IStreamFilter {
+    public:
+        Result<void> open(media::IStreamSource& src) noexcept {
+            view_.src = &src;
+            auto info = decoder_.open(view_);
+            if (!info) return unexpected(info.error());
+            info_ = *info;
+            opened_ = true;
+            return Result<void>{};
+        }
+
+        Result<void> reset() noexcept override {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            return decoder_.seek_pcm_frame(0);
+        }
+
+        Result<media::FilterResult> process(util::span<const std::byte>,
+                                            util::span<std::byte> out) noexcept override {
+            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int16_t);
+            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            const std::size_t frames = out.size() / frame_bytes;
+            if (frames == 0) return media::FilterResult{};
+            auto* pcm = reinterpret_cast<std::int16_t*>(out.data());
+            auto read = decoder_.read_s16(pcm, frames);
+            if (!read) return unexpected(read.error());
+            const std::size_t produced = (*read) * frame_bytes;
+            return media::FilterResult{0, produced, *read == 0};
+        }
+
+        media::StreamFormat format() const noexcept override {
+            media::StreamFormat fmt{};
+            fmt.kind = media::StreamKind::audio;
+            fmt.rate = info_.sample_rate;
+            fmt.channels = info_.channels;
+            fmt.bits_per_sample = 16;
+            return fmt;
+        }
+
+    private:
+        struct SourceView {
+            media::IStreamSource* src{nullptr};
+
+            Result<std::size_t> read(util::span<std::byte> out) noexcept {
+                return src->read(out);
+            }
+
+            Result<std::int64_t> seek(std::int64_t offset, int whence) noexcept {
+                media::SeekWhence mapped = media::SeekWhence::set;
+                if (whence == SEEK_CUR) mapped = media::SeekWhence::cur;
+                if (whence == SEEK_END) mapped = media::SeekWhence::end;
+                return src->seek(offset, mapped);
+            }
+
+            Result<std::int64_t> tell() noexcept { return src->tell(); }
+        };
+
+        Mp3Decoder decoder_{};
+        SourceView view_{};
+        Mp3Info info_{};
+        bool opened_{false};
     };
 }

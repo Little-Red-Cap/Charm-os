@@ -12,8 +12,10 @@ import charm.widgets.label;
 import charm.widgets.progress;
 import fs_core;
 import fs_errno;
+import fs_block;
 import fs_stream;
-import fs_ramfs;
+import fs_block_file;
+import fs_fatfs;
 import fs_vfs;
 import util.core;
 
@@ -32,12 +34,90 @@ import util.core;
 #include <vector>
 
 namespace {
-    constexpr const char* kDefaultHostTrack = "../../assets/beautiful-trick.flac";
     constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
+    constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
+    struct MbrPartition {
+        std::uint8_t status;
+        std::uint8_t chs_first[3];
+        std::uint8_t type;
+        std::uint8_t chs_last[3];
+        std::uint32_t lba_first;
+        std::uint32_t sectors;
+    };
 
-    bool setup_vfs_from_host(const char* host_path, std::string_view vfs_path);
+    std::uint32_t find_fat_partition_lba(const std::array<std::uint8_t, 512>& sector0) {
+        if (sector0[510] != 0x55 || sector0[511] != 0xAA) return 0;
+        const auto* parts = reinterpret_cast<const MbrPartition*>(sector0.data() + 446);
+        for (int i = 0; i < 4; ++i) {
+            const auto& p = parts[i];
+            if (p.type == 0x0B || p.type == 0x0C) {
+                return p.lba_first;
+            }
+        }
+        return 0;
+    }
+
+    struct OffsetDevice {
+        fs::BlockDevice* base{nullptr};
+        std::uint32_t lba_offset{0};
+        fs::BlockDevice device{};
+
+        static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
+            auto* self = static_cast<OffsetDevice*>(ctx);
+            return self->base->read(self->base->ctx, lba + self->lba_offset, out);
+        }
+        static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
+            auto* self = static_cast<OffsetDevice*>(ctx);
+            return self->base->write(self->base->ctx, lba + self->lba_offset, in);
+        }
+        static fs::Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
+            auto* self = static_cast<OffsetDevice*>(ctx);
+            return self->base->erase(self->base->ctx, lba + self->lba_offset, count);
+        }
+        static fs::Status flush_impl(void* ctx) noexcept {
+            auto* self = static_cast<OffsetDevice*>(ctx);
+            return self->base->flush ? self->base->flush(self->base->ctx) : fs::Status{fs::Err::ok};
+        }
+
+        void init(fs::BlockDevice& dev, std::uint32_t offset) noexcept {
+            base = &dev;
+            lba_offset = offset;
+            device.ctx = this;
+            device.read = &OffsetDevice::read_impl;
+            device.write = &OffsetDevice::write_impl;
+            device.erase = &OffsetDevice::erase_impl;
+            device.flush = &OffsetDevice::flush_impl;
+            device.block_size = dev.block_size;
+            device.block_count = dev.block_count > offset ? (dev.block_count - offset) : 0;
+        }
+    };
+
+    bool mount_fatfs_from_vhd(const char* path) {
+        if (!path || !*path) return false;
+        static fs::BlockFile file_dev;
+        static OffsetDevice part_dev;
+        static fs::FatFsMount fat;
+
+        auto st = file_dev.open(path, 512);
+        if (!st) return false;
+
+        std::array<std::uint8_t, 512> sector0{};
+        st = file_dev.device().read(file_dev.device().ctx, 0,
+            std::span<util::u8>(reinterpret_cast<util::u8*>(sector0.data()), sector0.size()));
+        if (!st) return false;
+
+        const auto lba = find_fat_partition_lba(sector0);
+        part_dev.init(file_dev.device(), lba);
+
+        st = fat.mount(part_dev.device, false);
+        if (!st) return false;
+
+        fs::clear_mounts();
+        (void)fs::add_mount("/", fat.mount_point());
+        return true;
+    }
 
     struct UiHandles {
         WidgetHandle root{};
@@ -74,6 +154,7 @@ namespace {
         std::string subtitle_text{};
         bool paused{false};
         bool updating{false};
+        bool fs_ready{false};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -224,10 +305,10 @@ namespace {
             sync_progress_value(0);
         }
 
-        void set_track_labels(std::string_view host_path) {
-            auto base = host_path;
-            const auto pos = host_path.find_last_of("/\\");
-            if (pos != std::string_view::npos) base = host_path.substr(pos + 1);
+        void set_track_labels(std::string_view vfs_path) {
+            auto base = vfs_path;
+            const auto pos = vfs_path.find_last_of("/\\");
+            if (pos != std::string_view::npos) base = vfs_path.substr(pos + 1);
             title_text.assign(base.begin(), base.end());
             if (title_text.empty()) title_text = "Unknown Track";
 
@@ -255,9 +336,17 @@ namespace {
             if (idx < 0) idx = 0;
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
             track_index = idx;
-            const auto& host_path = (*tracks)[track_index];
-            track_ready = setup_vfs_from_host(host_path.c_str(), kDefaultVfsTrack);
-            set_track_labels(host_path);
+            const auto& vfs_path = (*tracks)[track_index];
+            track_path = vfs_path.c_str();
+            set_track_labels(vfs_path);
+            fs::File f{};
+            auto st = fs::vfs_open(vfs_path, f);
+            if (st) {
+                (void)fs::vfs_close(f);
+                track_ready = true;
+            } else {
+                track_ready = false;
+            }
             set_status(track_ready ? "Ready" : "Load failed");
             set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
             set_pause_button_text("Pause");
@@ -534,89 +623,27 @@ namespace {
         return h;
     }
 
-    bool write_file_to_vfs(std::string_view vfs_path, const char* host_path) {
-        if (!host_path || !*host_path) return false;
-#if defined(_MSC_VER)
-        std::FILE* fp = nullptr;
-        if (fopen_s(&fp, host_path, "rb") != 0) {
-            fp = nullptr;
-        }
-#else
-        std::FILE* fp = std::fopen(host_path, "rb");
-#endif
-        if (!fp) return false;
-
-        fs::File f{};
-        auto st = fs::vfs_open(vfs_path, f);
-        if (!st) {
-            std::fclose(fp);
-            return false;
-        }
-
-        std::array<util::u8, 4096> buf{};
-        while (true) {
-            const std::size_t n = std::fread(buf.data(), 1, buf.size(), fp);
-            if (n == 0) break;
-            auto w = fs::write(f, std::span<const util::u8>(buf.data(), n));
-            if (!w) {
-                std::fclose(fp);
-                return false;
-            }
-        }
-        (void)fs::flush(f);
-        std::fclose(fp);
-        return true;
-    }
-
-    bool setup_vfs_from_host(const char* host_path, std::string_view vfs_path) {
-        static fs::RamFs<4096, 64, 4096> ramfs;
-        static fs::MountOps ops{
-            .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
-            .flush = +[](fs::Mount*) noexcept { return fs::Status{fs::Err::ok}; },
-            .unmount = +[](fs::Mount*, bool) noexcept { return fs::Status{fs::Err::ok}; },
-            .unlink = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.unlink(path); },
-            .rename = +[](fs::Mount*, std::string_view from, std::string_view to) noexcept { return ramfs.rename(from, to); },
-            .truncate = +[](fs::Mount*, std::string_view path, util::u64 size) noexcept { return ramfs.truncate(path, size); },
-            .mkdir = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.mkdir(path); },
-            .list = +[](fs::Mount*, std::string_view path, void* ctx, fs::MountOps::ListFn fn) noexcept {
-                return ramfs.list(path, ctx, fn);
-            }
-        };
-        static fs::Mount mount{&ops, &ramfs};
-
-        fs::clear_mounts();
-        (void)fs::add_mount("/", &mount);
-
-        return write_file_to_vfs(vfs_path, host_path);
-    }
 }
 
 int main(int argc, char** argv) {
-    std::vector<std::string> host_tracks;
-    if (argc >= 2) {
-        for (int i = 1; i < argc; ++i) {
-            if (argv[i] && *argv[i]) host_tracks.emplace_back(argv[i]);
-        }
-    }
-    if (host_tracks.empty()) {
-        host_tracks.emplace_back(kDefaultHostTrack);
-    }
+    (void)argc;
+    (void)argv;
+    const char* vhd_path = kDefaultVhdPath;
+    std::vector<std::string> vfs_tracks;
+    vfs_tracks.emplace_back(kDefaultVfsTrack);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-        std::printf("[player] SDL_Init failed\n");
         return 1;
     }
 
     SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, 0);
     if (!window) {
-        std::printf("[player] SDL_CreateWindow failed\n");
         SDL_Quit();
         return 1;
     }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        std::printf("[player] SDL_CreateRenderer failed\n");
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
@@ -625,30 +652,35 @@ int main(int argc, char** argv) {
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
-        std::printf("[player] SDL_CreateTexture failed\n");
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
 
-    DefaultFrameBuffer fb;
+    static DefaultFrameBuffer fb;
     DefaultCanvas canvas(fb);
 
-    UiFactory factory;
-    audio::PlayerConfig cfg{};
-    audio::AudioPlayer player(cfg);
+    static UiFactory factory;
+    static audio::PlayerConfig cfg{};
+    static audio::AudioPlayer player(cfg);
 
     PlayerUiContext ctx{};
     ctx.player = &player;
     ctx.factory = &factory;
     ctx.track_path = kDefaultVfsTrack;
-    ctx.tracks = &host_tracks;
+    ctx.tracks = &vfs_tracks;
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
 
-    ctx.load_track_index(0);
+    ctx.fs_ready = mount_fatfs_from_vhd(vhd_path);
+    if (!ctx.fs_ready) {
+        ctx.set_status("Mount failed");
+        ctx.set_status_color({220, 120, 120, 255});
+    } else {
+        ctx.load_track_index(0);
+    }
 
     Gui gui(canvas, factory, ctx.handles.root);
 

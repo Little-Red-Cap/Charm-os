@@ -32,7 +32,7 @@ export namespace audio {
         void close() {
             if (opened_) {
                 (void)fs::flush(file_);
-                file_ = {};
+                (void)fs::vfs_close(file_);
                 opened_ = false;
             }
         }

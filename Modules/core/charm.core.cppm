@@ -35,6 +35,7 @@ export import service.static_pool;
 export import service_trace;
 export import service_trace_bus;
 export import service_distbus;
+export import service_dirty_rects;
 export import service_heap;
 export import service_json;
 export import service_pool;

@@ -24,6 +24,8 @@ import fs_block;
 
 #if CHARM_USE_FATFS
 export namespace fs {
+    void fatfs_register_block_device(BlockDevice* dev) noexcept;
+
     struct FatFsFileSlot {
         bool used{false};
         FIL file{};
@@ -354,7 +356,7 @@ extern "C" {
         return 0;
     }
 
-    DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count) {
+    DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
         if (pdrv != 0 || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
         const auto size = static_cast<util::usize>(count) * dev->block_size;
@@ -363,7 +365,7 @@ extern "C" {
         return st ? RES_OK : RES_ERROR;
     }
 
-    DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count) {
+    DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
         if (pdrv != 0 || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
         const auto size = static_cast<util::usize>(count) * dev->block_size;
@@ -379,7 +381,7 @@ extern "C" {
         case CTRL_SYNC:
             return dev->flush ? (dev->flush(dev->ctx) ? RES_OK : RES_ERROR) : RES_OK;
         case GET_SECTOR_COUNT:
-            *reinterpret_cast<LBA_t*>(buff) = static_cast<LBA_t>(dev->block_count);
+            *reinterpret_cast<DWORD*>(buff) = static_cast<DWORD>(dev->block_count);
             return RES_OK;
         case GET_SECTOR_SIZE:
             *reinterpret_cast<WORD*>(buff) = static_cast<WORD>(dev->block_size);

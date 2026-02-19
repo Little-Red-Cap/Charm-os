@@ -56,6 +56,7 @@ public:
     // 渲染一帧
     void render() {
         static util::u32 frame_no = 0;
+        canvas.begin_frame();
         factory_.sanitize_tree(root_);
         const WidgetHandle ov = factory_.overlay();
         if (ov) factory_.sanitize_tree(ov);
@@ -81,6 +82,7 @@ public:
         trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, frame_no);
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, frame_no);
         frame_no++;
+        canvas.end_frame();
     }
 
     // 派发一个输入事件（全局坐标）

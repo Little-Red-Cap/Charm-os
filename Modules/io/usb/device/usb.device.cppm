@@ -43,6 +43,7 @@ export namespace usb::device {
         bool (*get_status)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
         bool (*clear_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
         bool (*set_feature)(void* ctx, const SetupPacket& setup, ControlResponse& resp) noexcept { nullptr };
+        bool (*vendor_setup)(void* ctx, const ControlRequest& req, ControlResponse& resp) noexcept { nullptr };
         void (*reset)(void* ctx) noexcept { nullptr };
     };
 
@@ -188,6 +189,12 @@ export namespace usb::device {
                 if (!ep0_.handle_setup(resp)) return false;
             }
             if (req_type == RequestType::vendor) {
+                if (class_ops_ && class_ops_->vendor_setup) {
+                    ControlRequest req{};
+                    req.setup = setup;
+                    req.data = {};
+                    return class_ops_->vendor_setup(class_ctx_, req, resp);
+                }
                 return false;
             }
             if (setup.w_length == 0) {

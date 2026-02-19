@@ -114,6 +114,7 @@ export namespace usb::class_driver {
         const CdcConfig& config() const noexcept { return cfg_; }
         u16 control_line_state() const noexcept { return control_line_state_; }
         const CdcLineCoding& line_coding() const noexcept { return coding_; }
+        CdcLineCoding get_line_coding() const noexcept { return coding_; }
         void set_line_coding(const CdcLineCoding& coding) noexcept { coding_ = coding; }
         void set_control_line_state(u16 value) noexcept {
             control_line_state_ = value;

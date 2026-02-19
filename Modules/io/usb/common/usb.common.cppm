@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -276,6 +277,20 @@ export namespace usb {
     inline constexpr u8 utf16le_length(std::u16string_view text) noexcept {
         const auto bytes = text.size() * 2;
         return (bytes > 254) ? static_cast<u8>(0) : static_cast<u8>(bytes);
+    }
+
+    template <std::size_t N>
+    consteval auto make_ascii_string_descriptor(const char (&text)[N]) {
+        constexpr std::size_t len = (N > 0) ? (N - 1) : 0;
+        static_assert(len <= 127, "USB string descriptor too long");
+        std::array<u8, 2 + len * 2> out{};
+        out[0] = static_cast<u8>(2 + len * 2);
+        out[1] = static_cast<u8>(DescriptorType::string);
+        for (std::size_t i = 0; i < len; ++i) {
+            out[2 + i * 2] = static_cast<u8>(text[i]);
+            out[2 + i * 2 + 1] = 0;
+        }
+        return out;
     }
 
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {

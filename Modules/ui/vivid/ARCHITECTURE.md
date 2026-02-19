@@ -14,6 +14,7 @@
 - 渲染入口由 UI 主循环驱动，控件在更新阶段提交绘制。
 - 使用脏矩形/脏区域机制减少刷新面积，保持与底层驱动解耦。
 - 绘制 API 统一走 gfx 层，避免控件直接绑定平台细节。
+- 子控件裁剪通过 ClipPolicy 统一管理（Rect/LayoutRect/Custom）。
 
 ## 3. 布局与容器
 
@@ -21,6 +22,7 @@
 - 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint 预留）。
 - ScrollContainer/ScrollBar 负责滚动与可视区域同步。
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
+- FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
 
 ## 4. 输入与事件
 
@@ -40,6 +42,7 @@
 - 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
 - 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
+- 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
 
 ## 7. 诊断与可观测性
 

@@ -19,6 +19,10 @@ export import charm.widgets.foldable_panel;
 export import charm.widgets.cloudy_glass;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
+export import charm.widgets.battery_gasgauge;
+export import charm.widgets.histogram;
+export import charm.widgets.busy_wheel;
+export import charm.widgets.console_box;
 
 export
 struct ThemePreset {
@@ -56,6 +60,14 @@ struct ThemePreset {
     Style dynamic_nebula{};
     bool has_crt_screen{false};
     Style crt_screen{};
+    bool has_battery_gasgauge{false};
+    Style battery_gasgauge{};
+    bool has_histogram{false};
+    Style histogram{};
+    bool has_busy_wheel{false};
+    Style busy_wheel{};
+    bool has_console_box{false};
+    Style console_box{};
 };
 
 export
@@ -78,4 +90,8 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_cloudy_glass) theme.set<CloudyGlass>(preset.cloudy_glass);
     if (preset.has_dynamic_nebula) theme.set<DynamicNebula>(preset.dynamic_nebula);
     if (preset.has_crt_screen) theme.set<CrtScreen>(preset.crt_screen);
+    if (preset.has_battery_gasgauge) theme.set<BatteryGasGauge>(preset.battery_gasgauge);
+    if (preset.has_histogram) theme.set<Histogram>(preset.histogram);
+    if (preset.has_busy_wheel) theme.set<BusyWheel>(preset.busy_wheel);
+    if (preset.has_console_box) theme.set<ConsoleBox>(preset.console_box);
 }

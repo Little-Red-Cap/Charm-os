@@ -42,6 +42,7 @@ import charm.widgets.roller;
 import charm.widgets.spinner;
 import charm.widgets.bar;
 import charm.widgets.progress_bar_round;
+import charm.widgets.progress_bar_simple;
 import charm.widgets.popup_layer;
 import charm.widgets.popup_layer;
 import charm.widgets.menu;
@@ -67,6 +68,8 @@ import charm.widgets.foldable_panel;
 import charm.widgets.progress_flowing;
 import charm.widgets.cloudy_glass;
 import charm.widgets.spin_zoom_widget;
+import charm.widgets.dynamic_nebula;
+import charm.widgets.crt_screen;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -86,6 +89,7 @@ public:
     WidgetHandle create_switch() noexcept { return make_handle(switches_.create(), WidgetKind::Switch); }
     WidgetHandle create_progress() noexcept { return make_handle(progresses_.create(), WidgetKind::Progress); }
     WidgetHandle create_progress_bar_round() noexcept { return make_handle(progress_round_.create(), WidgetKind::ProgressBarRound); }
+    WidgetHandle create_progress_bar_simple() noexcept { return make_handle(progress_simple_.create(), WidgetKind::ProgressBarSimple); }
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
     WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
@@ -131,6 +135,8 @@ public:
     WidgetHandle create_progress_flowing() noexcept { return make_handle(progress_flow_.create(), WidgetKind::ProgressFlowing); }
     WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
     WidgetHandle create_spin_zoom_widget() noexcept { return make_handle(spin_zoom_.create(), WidgetKind::SpinZoomWidget); }
+    WidgetHandle create_dynamic_nebula() noexcept { return make_handle(nebula_.create(), WidgetKind::DynamicNebula); }
+    WidgetHandle create_crt_screen() noexcept { return make_handle(crt_.create(), WidgetKind::CrtScreen); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
@@ -147,6 +153,7 @@ public:
     Switch* get_switch(const WidgetHandle& h) noexcept { return get_from(switches_, h, WidgetKind::Switch); }
     Progress* get_progress(const WidgetHandle& h) noexcept { return get_from(progresses_, h, WidgetKind::Progress); }
     ProgressBarRound* get_progress_bar_round(const WidgetHandle& h) noexcept { return get_from(progress_round_, h, WidgetKind::ProgressBarRound); }
+    ProgressBarSimple* get_progress_bar_simple(const WidgetHandle& h) noexcept { return get_from(progress_simple_, h, WidgetKind::ProgressBarSimple); }
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
     ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
@@ -191,6 +198,8 @@ public:
     ProgressFlowing* get_progress_flowing(const WidgetHandle& h) noexcept { return get_from(progress_flow_, h, WidgetKind::ProgressFlowing); }
     CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
     SpinZoomWidget* get_spin_zoom_widget(const WidgetHandle& h) noexcept { return get_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); }
+    DynamicNebula* get_dynamic_nebula(const WidgetHandle& h) noexcept { return get_from(nebula_, h, WidgetKind::DynamicNebula); }
+    CrtScreen* get_crt_screen(const WidgetHandle& h) noexcept { return get_from(crt_, h, WidgetKind::CrtScreen); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
@@ -206,6 +215,7 @@ public:
             case WidgetKind::Switch: return get_switch(h);
             case WidgetKind::Progress: return get_progress(h);
             case WidgetKind::ProgressBarRound: return get_progress_bar_round(h);
+            case WidgetKind::ProgressBarSimple: return get_progress_bar_simple(h);
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
             case WidgetKind::ListView: return get_list_view(h);
@@ -251,6 +261,8 @@ public:
             case WidgetKind::ProgressFlowing: return get_progress_flowing(h);
             case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
             case WidgetKind::SpinZoomWidget: return get_spin_zoom_widget(h);
+            case WidgetKind::DynamicNebula: return get_dynamic_nebula(h);
+            case WidgetKind::CrtScreen: return get_crt_screen(h);
             default: return nullptr;
         }
     }
@@ -414,6 +426,7 @@ public:
         case WidgetKind::Switch: destroy_from(switches_, h, WidgetKind::Switch); break;
         case WidgetKind::Progress: destroy_from(progresses_, h, WidgetKind::Progress); break;
         case WidgetKind::ProgressBarRound: destroy_from(progress_round_, h, WidgetKind::ProgressBarRound); break;
+        case WidgetKind::ProgressBarSimple: destroy_from(progress_simple_, h, WidgetKind::ProgressBarSimple); break;
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
         case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
@@ -459,6 +472,8 @@ public:
         case WidgetKind::ProgressFlowing: destroy_from(progress_flow_, h, WidgetKind::ProgressFlowing); break;
         case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
         case WidgetKind::SpinZoomWidget: destroy_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); break;
+        case WidgetKind::DynamicNebula: destroy_from(nebula_, h, WidgetKind::DynamicNebula); break;
+        case WidgetKind::CrtScreen: destroy_from(crt_, h, WidgetKind::CrtScreen); break;
             default: break;
         }
         if (overlay_ == h) overlay_ = {};
@@ -704,6 +719,7 @@ private:
     HandlePool<Switch, 64> switches_{};
     HandlePool<Progress, 64> progresses_{};
     HandlePool<ProgressBarRound, 16> progress_round_{};
+    HandlePool<ProgressBarSimple, 32> progress_simple_{};
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
     HandlePool<ListView, 16> list_views_{};
@@ -749,6 +765,8 @@ private:
     HandlePool<ProgressFlowing, 16> progress_flow_{};
     HandlePool<CloudyGlass, 16> glass_{};
     HandlePool<SpinZoomWidget, 8> spin_zoom_{};
+    HandlePool<DynamicNebula, 8> nebula_{};
+    HandlePool<CrtScreen, 8> crt_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

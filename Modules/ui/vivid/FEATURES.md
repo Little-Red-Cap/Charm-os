@@ -76,8 +76,8 @@ flowchart LR
 - P0 list / icon_list / number_list / text_tracking_list / text_list / menu / menu_item
 - P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
-- P0 progress / spinner / bar / progress_bar_round / gauge / arc
-- P0 progress_wheel / progress_flowing（含无值模式） / waveform_view / battery_gauge / histogram_view / ring_indication（含刻度/阴影） / text_box / foldable_panel / cloudy_glass
+- P0 progress / spinner / bar / progress_bar_round / progress_bar_simple / gauge / arc
+- P0 progress_wheel / progress_flowing / dynamic_nebula / crt_screen（含无值模式） / waveform_view / battery_gauge / histogram_view / ring_indication（含刻度/阴影） / text_box / foldable_panel / cloudy_glass
 - P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
 - P0 message_box / modal_dialog / tabview / scroll_container / popup_layer / scrollbar
 - P0 segmented_control / toggle_group
@@ -140,6 +140,7 @@ flowchart LR
 - 前后端拆分：参考 Arm-2D 的“前端校验 + 后端执行”，把几何/裁剪/参数归一化集中在 core。
 - 辅助服务：增加时间滑块/缓动帮助器（线性/半余弦）供动画与进度类控件复用。
 - 资源加载：支持“按需资源加载/虚拟资源”接口，降低大资源对 RAM 的压力。
+
 
 
 

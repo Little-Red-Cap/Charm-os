@@ -23,6 +23,9 @@ enum class WidgetKind : std::uint8_t {
     TextTrackingList,
     TextList,
     ModalDialog,
+    ProgressBarSimple,
+    DynamicNebula,
+    CrtScreen,
     ScrollBar,
     SegmentedControl,
     TextArea,
@@ -95,6 +98,9 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::TextTrackingList: return "TextTrackingList";
         case WidgetKind::TextList: return "TextList";
         case WidgetKind::ModalDialog: return "ModalDialog";
+        case WidgetKind::ProgressBarSimple: return "ProgressBarSimple";
+        case WidgetKind::DynamicNebula: return "DynamicNebula";
+        case WidgetKind::CrtScreen: return "CrtScreen";
         case WidgetKind::ScrollBar: return "ScrollBar";
         case WidgetKind::SegmentedControl: return "SegmentedControl";
         case WidgetKind::TextArea: return "TextArea";

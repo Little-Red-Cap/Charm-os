@@ -20,6 +20,7 @@ public:
         bool selected{false};
     };
 
+    using CountFn = int(*)(void* ctx) noexcept;
     using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
 
@@ -35,6 +36,13 @@ public:
     }
 
     int item_count() const noexcept { return item_count_; }
+
+    void set_data_source(CountFn count_fn, DrawRowFn draw_fn, void* ctx = nullptr) noexcept {
+        count_fn_ = count_fn;
+        draw_fn_ = draw_fn;
+        data_ctx_ = ctx;
+        update_scroll_bounds();
+    }
 
     void set_row_height(int h) noexcept {
         row_height_ = (h > 4) ? h : 4;
@@ -94,20 +102,23 @@ public:
         const int pad = st.padding;
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
-        const int start = (row_height_ > 0) ? (scroll_y_ / row_height_) : 0;
-        const int offset_y = r.y + pad - (scroll_y_ % row_height_);
+        const int count = item_count_for_render();
+        const int row_h = row_height_for_render();
+        const int start = (row_h > 0) ? (scroll_y_ / row_h) : 0;
+        const int offset_y = r.y + pad - (scroll_y_ % row_h);
 
         int y = offset_y;
-        for (int i = start; i < item_count_ && y < r.y + r.h; ++i) {
-            Rect row{content_x, y, content_w, row_height_};
+        for (int i = start; i < count && y < r.y + r.h; ++i) {
+            Rect row{content_x, y, content_w, row_h};
             const bool is_selected = (i == selected_);
             if (is_selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
             }
             if (draw_fn_) {
-                draw_fn_(draw_ctx_, cvs, DrawInfo{row, i, is_selected});
+                const void* ctx = data_ctx_ ? data_ctx_ : draw_ctx_;
+                draw_fn_(const_cast<void*>(ctx), cvs, DrawInfo{row, i, is_selected});
             }
-            y += row_height_;
+            y += row_h;
         }
 
         cvs.restore_clip(clip_state);
@@ -157,7 +168,8 @@ public:
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
             const int index = index_from_y(e.y);
-            if (index >= 0 && index < item_count_) {
+            const int count = item_count_for_render();
+            if (index >= 0 && index < count) {
                 set_selected(index);
                 return true;
             }
@@ -178,7 +190,9 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<ListView>();
-        content_height_ = item_count_ * row_height_ + st.padding * 2;
+        const int count = item_count_for_render();
+        const int row_h = row_height_for_render();
+        content_height_ = count * row_h + st.padding * 2;
         const int max = content_height_ - r.h;
         max_scroll_ = (max > 0) ? max : 0;
         if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
@@ -196,8 +210,9 @@ private:
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
         const int pad = st.padding;
-        const int row_top = index * row_height_;
-        const int row_bottom = row_top + row_height_;
+        const int row_h = row_height_for_render();
+        const int row_top = index * row_h;
+        const int row_bottom = row_top + row_h;
         const int view_top = scroll_y_;
         const int view_bottom = scroll_y_ + (r.h - pad * 2);
         if (row_top < view_top) {
@@ -212,12 +227,27 @@ private:
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_ - st.padding;
         if (local < 0) return -1;
-        if (row_height_ <= 0) return -1;
-        return local / row_height_;
+        const int row_h = row_height_for_render();
+        if (row_h <= 0) return -1;
+        return local / row_h;
     }
 
+    int item_count_for_render() const noexcept {
+        if (count_fn_) {
+            const int count = count_fn_(data_ctx_);
+            return (count > 0) ? count : 0;
+        }
+        return item_count_;
+    }
+
+    int row_height_for_render() const noexcept {
+        return (row_height_ > 4) ? row_height_ : 4;
+    }
+
+    CountFn count_fn_{nullptr};
     DrawRowFn draw_fn_{nullptr};
     void* draw_ctx_{nullptr};
+    void* data_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
 

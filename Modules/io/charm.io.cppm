@@ -16,9 +16,11 @@ export import input.raw_event;
 export import port.kernel;
 
 export import fs_block;
+export import fs_block_file;
 export import fs_blockfs;
 export import fs_core;
 export import fs_errno;
+export import fs_fatfs;
 export import fs_path;
 export import fs_ramfs;
 export import fs_stream;

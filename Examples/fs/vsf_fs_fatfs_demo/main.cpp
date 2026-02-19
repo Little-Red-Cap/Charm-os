@@ -4,11 +4,8 @@
 #include <cstring>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_block_file;
-import fs_fatfs;
-import fs_vfs;
+import charm.foundation;
+import charm.runtime;
 
 namespace {
     struct MbrPartition {

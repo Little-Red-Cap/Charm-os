@@ -2,14 +2,8 @@
 #include <cstdio>
 #include <cstring>
 
-import util.core;
-import util.alias;
-import boot_core;
-import boot_storage;
-import boot_flow;
-import boot_flash;
-import boot_policy;
-import boot_uart;
+import charm.foundation;
+import charm.runtime;
 
 struct MockFlash {
     std::array<util::u8, 2048> data{};

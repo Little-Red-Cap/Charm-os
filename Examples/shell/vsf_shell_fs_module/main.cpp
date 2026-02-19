@@ -6,23 +6,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_ramfs;
-import fs_stream;
-import fs_vfs;
-import fs_errno;
-import shell_core;
-import shell_cmd;
-import shell_posix;
-import shell_repl;
-import shell_service;
-import shell_stdio;
-import module_core;
-import module_loader;
-import module_link;
-import module_registry;
-import module_view;
+import charm.foundation;
+import charm.runtime;
 
 using Posix = shell_posix::PosixApi<8>;
 

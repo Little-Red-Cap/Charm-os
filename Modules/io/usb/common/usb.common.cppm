@@ -2,6 +2,9 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <span>
+#include <string_view>
 
 export module usb.common;
 
@@ -80,9 +83,175 @@ export namespace usb {
         DescriptorType type{DescriptorType::device};
     };
 
+    struct DeviceDescriptor {
+        u8 length{18};
+        DescriptorType type{DescriptorType::device};
+        u16 bcd_usb{0x0200};
+        u8 device_class{0};
+        u8 device_subclass{0};
+        u8 device_protocol{0};
+        u8 max_packet_size0{64};
+        u16 vendor_id{0};
+        u16 product_id{0};
+        u16 bcd_device{0x0100};
+        u8 manufacturer{0};
+        u8 product{0};
+        u8 serial_number{0};
+        u8 num_configurations{1};
+    };
+
+    struct ConfigDescriptor {
+        u8 length{9};
+        DescriptorType type{DescriptorType::configuration};
+        u16 total_length{0};
+        u8 num_interfaces{0};
+        u8 configuration_value{1};
+        u8 configuration{0};
+        u8 attributes{0x80};
+        u8 max_power{50}; // 100mA
+    };
+
+    struct InterfaceDescriptor {
+        u8 length{9};
+        DescriptorType type{DescriptorType::interface};
+        u8 interface_number{0};
+        u8 alternate_setting{0};
+        u8 num_endpoints{0};
+        u8 interface_class{0};
+        u8 interface_subclass{0};
+        u8 interface_protocol{0};
+        u8 interface{0};
+    };
+
+    struct EndpointDescriptor {
+        u8 length{7};
+        DescriptorType type{DescriptorType::endpoint};
+        u8 endpoint_address{0};
+        u8 attributes{0};
+        u16 max_packet_size{0};
+        u8 interval{0};
+    };
+
+    struct DeviceQualifierDescriptor {
+        u8 length{10};
+        DescriptorType type{DescriptorType::device_qualifier};
+        u16 bcd_usb{0x0200};
+        u8 device_class{0};
+        u8 device_subclass{0};
+        u8 device_protocol{0};
+        u8 max_packet_size0{64};
+        u8 num_configurations{1};
+        u8 reserved{0};
+    };
+
+    struct BosDescriptor {
+        u8 length{5};
+        DescriptorType type{DescriptorType::bos};
+        u16 total_length{0};
+        u8 num_caps{0};
+    };
+
+    struct DeviceCapabilityHeader {
+        u8 length{0};
+        u8 type{0x10};
+        u8 capability{0};
+    };
+
+    struct StringDescriptorHeader {
+        u8 length{2};
+        DescriptorType type{DescriptorType::string};
+    };
+
+    struct DescriptorWriter {
+        std::span<u8> buffer{};
+        std::size_t offset{0};
+
+        bool write_bytes(std::span<const u8> data) noexcept {
+            if (offset + data.size() > buffer.size()) return false;
+            std::memcpy(buffer.data() + offset, data.data(), data.size());
+            offset += data.size();
+            return true;
+        }
+
+        template <typename T>
+        bool write_object(const T& obj) noexcept {
+            return write_bytes(std::span<const u8>(
+                reinterpret_cast<const u8*>(&obj), sizeof(T)));
+        }
+    };
+
+    struct DescriptorBuilder {
+        DescriptorWriter writer{};
+        std::size_t config_offset{static_cast<std::size_t>(-1)};
+        u8 interface_count{0};
+
+        explicit DescriptorBuilder(std::span<u8> buffer) noexcept { writer.buffer = buffer; }
+
+        bool begin_config(const ConfigDescriptor& cfg) noexcept {
+            config_offset = writer.offset;
+            interface_count = 0;
+            return writer.write_object(cfg);
+        }
+
+        bool add_interface(const InterfaceDescriptor& desc) noexcept {
+            interface_count = static_cast<u8>(interface_count + 1);
+            return writer.write_object(desc);
+        }
+
+        bool add_endpoint(const EndpointDescriptor& desc) noexcept {
+            return writer.write_object(desc);
+        }
+
+        template <typename T>
+        bool add_class_descriptor(const T& desc) noexcept {
+            return writer.write_object(desc);
+        }
+
+        bool end_config() noexcept {
+            if (config_offset == static_cast<std::size_t>(-1)) return false;
+            if (config_offset + sizeof(ConfigDescriptor) > writer.buffer.size()) return false;
+            auto* cfg = reinterpret_cast<ConfigDescriptor*>(writer.buffer.data() + config_offset);
+            cfg->total_length = static_cast<u16>(writer.offset - config_offset);
+            cfg->num_interfaces = interface_count;
+            return true;
+        }
+    };
+
+    inline bool write_lang_id_descriptor(DescriptorWriter& writer, u16 lang_id) noexcept {
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + sizeof(lang_id));
+        if (!writer.write_object(hdr)) return false;
+        return writer.write_object(lang_id);
+    }
+
+    inline bool write_ascii_string_descriptor(DescriptorWriter& writer, std::string_view text) noexcept {
+        const auto utf16_bytes = text.size() * 2;
+        if (utf16_bytes > 254) return false;
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + utf16_bytes);
+        if (!writer.write_object(hdr)) return false;
+        for (char ch : text) {
+            const u16 le = static_cast<u8>(ch);
+            if (!writer.write_object(le)) return false;
+        }
+        return true;
+    }
+
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)
             | static_cast<u8>(type)
             | static_cast<u8>(recip));
+    }
+
+    constexpr RequestDirection request_direction(u8 bm_request_type) noexcept {
+        return static_cast<RequestDirection>(bm_request_type & 0x80);
+    }
+
+    constexpr RequestType request_type(u8 bm_request_type) noexcept {
+        return static_cast<RequestType>(bm_request_type & 0x60);
+    }
+
+    constexpr RequestRecipient request_recipient(u8 bm_request_type) noexcept {
+        return static_cast<RequestRecipient>(bm_request_type & 0x1F);
     }
 } // namespace usb

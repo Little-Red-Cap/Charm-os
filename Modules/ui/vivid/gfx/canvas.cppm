@@ -6,12 +6,16 @@ export module charm.gfx.canvas;
 export import charm.gfx.framebuffer;
 export import charm.core.config;
 export import charm.core.geometry;
+import service_dirty_rects;
+import util.core;
 
 export
 template<PixelFormat PF, std::size_t W, std::size_t H>
 class Canvas {
 public:
     using FB = FrameBuffer<PF, W, H>;
+    static constexpr util::usize kDirtyCapacity = 16;
+    using DirtyList = service::DirtyRectList<Rect, kDirtyCapacity>;
 
     constexpr Canvas(FB& fb) noexcept : fb_(fb) {}
 
@@ -66,13 +70,32 @@ public:
         }
     }
 
+    void begin_frame() noexcept { dirty_.clear(); }
+    void end_frame() noexcept {}
+
+    void mark_dirty(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        if (dirty_.full()) return;
+        if (!dirty_.add(r)) {
+            dirty_.set_full(full_rect());
+        }
+    }
+
+    [[nodiscard]] const DirtyList& dirty_list() const noexcept { return dirty_; }
+    [[nodiscard]] bool dirty_full() const noexcept { return dirty_.full(); }
+
     FB& raw_buffer() noexcept { return fb_; }
     const FB& raw_buffer() const noexcept { return fb_; }
 
 private:
+    constexpr Rect full_rect() const noexcept {
+        return Rect{0, 0, static_cast<int>(W), static_cast<int>(H)};
+    }
+
     FB& fb_;
     bool clip_enabled_{false};
     Rect clip_{0, 0, static_cast<int>(W), static_cast<int>(H)};
+    DirtyList dirty_{};
 };
 
 export

@@ -9,6 +9,8 @@ module;
 export module gui.canvas_1bpp;
 
 import gui.core;
+import service_dirty_rects;
+import util.core;
 
 
 export namespace gui
@@ -21,6 +23,7 @@ export namespace gui
         static constexpr int kStrideBytes = (W + 7) / 8;
         static constexpr int kBufSize     = kStrideBytes * H;
         static constexpr int kMaxDirty    = 8;
+        using DirtyList = service::DirtyRectList<Rect, static_cast<util::usize>(kMaxDirty)>;
 
         Canvas1bpp() noexcept { clear(false); }
 
@@ -29,6 +32,9 @@ export namespace gui
             std::memset(buf_, on ? 0xFF : 0x00, sizeof(buf_));
             mark_full_dirty();
         }
+
+        void begin_frame() noexcept { clear_dirty(); }
+        void end_frame() noexcept {}
 
         void setPixel(int x, int y, bool on) noexcept
         {
@@ -121,6 +127,23 @@ export namespace gui
                 (std::int16_t)(x1 - x0 + 1),
                 (std::int16_t)(y1 - y0 + 1)
             };
+        }
+
+        void export_dirty(DirtyList& out) const noexcept
+        {
+            out.clear();
+            if (!dirty_) return;
+            const Rect full = Rect{0, 0, static_cast<std::int16_t>(W), static_cast<std::int16_t>(H)};
+            if (dirty_full_) {
+                out.set_full(full);
+                return;
+            }
+            for (int i = 0; i < dirty_count_; ++i) {
+                if (!out.add(dirty_rects_[i])) {
+                    out.set_full(full);
+                    return;
+                }
+            }
         }
 
     private:

@@ -46,3 +46,5 @@ export import out.print;
 export import out.sink;
 
 export import usb.common;
+export import usb.device;
+export import usb.class_cdc;

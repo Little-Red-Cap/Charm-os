@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 export module audio.source.fs;
 
@@ -22,7 +23,7 @@ export namespace audio {
         bool open(const char* path) {
             close();
             if (!path) return false;
-            auto st = fs::vfs_open(util::string_view{path}, file_);
+            auto st = fs::vfs_open(std::string_view{path}, file_);
             if (!st) return false;
             opened_ = true;
             return true;

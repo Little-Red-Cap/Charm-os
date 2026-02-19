@@ -341,6 +341,7 @@ namespace {
         bool fs_ready{false};
         bool duration_ready{false};
         bool ignore_list_select{false};
+        std::string mount_status{};
         bool show_debug{false};
         MenuTree menu_tree{};
         struct ListCacheEntry {

@@ -6,6 +6,7 @@ export module charm.widgets.spin_zoom_widget;
 
 import charm.core.object;
 import charm.core.event;
+import charm.core.input_interaction;
 import charm.core.style;
 import charm.gfx.color;
 import charm.gfx.image;
@@ -20,6 +21,9 @@ public:
     SpinZoomWidget() {
         set_size(180, 180);
         set_focusable(true);
+        double_tap_.set_callback(&SpinZoomWidget::on_double_tap, this);
+        double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
+        add_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
 
     void set_image(const ImageView& img) noexcept { image_ = img; }
@@ -45,20 +49,40 @@ public:
     void set_drag_rotate_scale(float deg_per_px) noexcept { drag_rotate_ = deg_per_px; }
 
     void set_pinch_enabled(bool on) noexcept { pinch_enabled_ = on; }
+    void set_inertia_enabled(bool on) noexcept { inertia_enabled_ = on; }
+    void set_inertia_decay(float decay) noexcept {
+        if (decay <= 0.0f) decay = 0.0f;
+        if (decay > 0.98f) decay = 0.98f;
+        inertia_decay_ = decay;
+    }
+    void set_double_tap_restore(bool on) noexcept { double_tap_.set_enabled(on); }
+    void set_double_tap_ms(int ms) noexcept {
+        double_tap_ms_ = (ms > 0) ? ms : 0;
+        double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
+    }
+    void set_double_tap_radius(int px) noexcept {
+        if (px < 0) px = 0;
+        double_tap_radius_ = px;
+        double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
+    }
 
     bool on_event(const Event& e) override {
+        if (dispatch_interactions(e)) return true;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
             dragging_ = true;
             last_x_ = e.x;
+            rotation_velocity_ = 0.0f;
             return true;
         }
         if (e.type == Event::Type::DragStart || e.type == Event::Type::DragMove) {
             if (!dragging_) return false;
             const int dx = (e.dx != 0) ? e.dx : (e.x - last_x_);
             last_x_ = e.x;
-            rotation_deg_ += static_cast<float>(dx) * drag_rotate_;
+            const float delta = static_cast<float>(dx) * drag_rotate_;
+            rotation_deg_ += delta;
+            rotation_velocity_ = delta;
             return true;
         }
         if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
@@ -68,14 +92,21 @@ public:
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
             set_zoom(zoom_ + static_cast<float>(e.wheel_y) * wheel_step_);
+            zoom_velocity_ = 0.0f;
             return true;
         }
         if (!pinch_enabled_) return false;
         if (e.type == Event::Type::GesturePinch) {
             if (e.gesture_phase == Event::GesturePhase::Begin) {
                 pinch_base_zoom_ = zoom_;
+                pinch_active_ = true;
+                zoom_velocity_ = 0.0f;
             } else if (e.gesture_phase == Event::GesturePhase::Update) {
-                set_zoom(pinch_base_zoom_ * e.scale);
+                const float next = clamp_zoom(pinch_base_zoom_ * e.scale);
+                zoom_velocity_ = next - zoom_;
+                zoom_ = next;
+            } else if (e.gesture_phase == Event::GesturePhase::End) {
+                pinch_active_ = false;
             }
             return true;
         }
@@ -92,6 +123,17 @@ public:
                        bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+
+        if (!pinch_active_ && inertia_enabled_ && !dragging_) {
+            if (std::fabs(rotation_velocity_) > 0.001f) {
+                rotation_deg_ += rotation_velocity_;
+                rotation_velocity_ *= inertia_decay_;
+            }
+            if (std::fabs(zoom_velocity_) > 0.0005f) {
+                zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
+                zoom_velocity_ *= inertia_decay_;
+            }
+        }
 
         if (auto_spin_) {
             rotation_deg_ += spin_speed_;
@@ -215,6 +257,14 @@ private:
         return value;
     }
 
+    void reset_transform() noexcept {
+        zoom_ = 1.0f;
+        rotation_deg_ = 0.0f;
+        rotation_velocity_ = 0.0f;
+        zoom_velocity_ = 0.0f;
+        pinch_active_ = false;
+    }
+
     ImageView image_{};
     float zoom_{1.0f};
     float min_zoom_{0.5f};
@@ -225,7 +275,20 @@ private:
     float wheel_step_{0.1f};
     float drag_rotate_{0.6f};
     bool pinch_enabled_{true};
+    bool inertia_enabled_{true};
+    float inertia_decay_{0.85f};
     bool dragging_{false};
     int last_x_{0};
     float pinch_base_zoom_{1.0f};
+    bool pinch_active_{false};
+    float rotation_velocity_{0.0f};
+    float zoom_velocity_{0.0f};
+    int double_tap_ms_{280};
+    int double_tap_radius_{12};
+    DoubleTapRestoreStrategy double_tap_{};
+
+    static void on_double_tap(void* ctx) {
+        auto* self = static_cast<SpinZoomWidget*>(ctx);
+        if (self) self->reset_transform();
+    }
 };

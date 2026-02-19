@@ -44,6 +44,7 @@ import charm.widgets.cloudy_glass;
 import charm.widgets.icon_list;
 import charm.widgets.number_list;
 import charm.widgets.text_tracking_list;
+import charm.widgets.text_list;
 import charm.widgets.progress_bar_round;
 import charm.widgets.spin_zoom_widget;
 #endif
@@ -538,6 +539,7 @@ namespace {
         WidgetHandle icon_list{};
         WidgetHandle number_list{};
         WidgetHandle text_tracking{};
+        WidgetHandle text_list{};
         WidgetHandle progress_round{};
         WidgetHandle spin_zoom{};
         WidgetHandle fold_panel{};
@@ -1514,10 +1516,24 @@ namespace {
             tracking->set_size(200, 160);
         }
 
+        h.text_list = factory.create_text_list();
+        if (auto* list = factory.get_text_list(h.text_list)) {
+            static const char* items[] = {
+                "Album A", "Album B", "Album C", "Album D", "Album E", "Album F"
+            };
+            list->set_items(items, static_cast<int>(sizeof(items) / sizeof(items[0])));
+            list->set_row_height(26);
+            list->set_format("%s");
+            list->set_selected(1);
+            list->set_size(200, 150);
+        }
+
         h.progress_round = factory.create_progress_bar_round();
         if (auto* round = factory.get_progress_bar_round(h.progress_round)) {
             round->set_value(68);
             round->set_thickness(10);
+            round->set_show_value(true);
+            round->set_value_format("%d");
             round->set_size(120, 120);
         }
 
@@ -1527,6 +1543,7 @@ namespace {
             spin->set_zoom(1.3f);
             spin->set_auto_spin(true);
             spin->set_spin_speed(0.8f);
+            spin->set_double_tap_restore(true);
             spin->set_size(160, 160);
         }
 
@@ -1633,6 +1650,7 @@ namespace {
         factory.link(h.debug_side, h.icon_list);
         factory.link(h.debug_side, h.number_list);
         factory.link(h.debug_side, h.text_tracking);
+        factory.link(h.debug_side, h.text_list);
         factory.link(h.debug_side, h.progress_round);
         factory.link(h.debug_side, h.spin_zoom);
         factory.link(h.debug_side, h.fold_panel);

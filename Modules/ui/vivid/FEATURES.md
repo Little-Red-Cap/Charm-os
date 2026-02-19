@@ -73,7 +73,7 @@ flowchart LR
 - P0 button / label / image（缩放/裁剪/对齐/旋转/采样/裁剪模式/边界模式） / spin_zoom_widget / checkbox / switch
 - P0 radio / radio_group
 - P0 slider / dial / roller / dropdown
-- P0 list / icon_list / number_list / text_tracking_list / menu / menu_item
+- P0 list / icon_list / number_list / text_tracking_list / text_list / menu / menu_item
 - P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / bar / progress_bar_round / gauge / arc
@@ -140,6 +140,7 @@ flowchart LR
 - 前后端拆分：参考 Arm-2D 的“前端校验 + 后端执行”，把几何/裁剪/参数归一化集中在 core。
 - 辅助服务：增加时间滑块/缓动帮助器（线性/半余弦）供动画与进度类控件复用。
 - 资源加载：支持“按需资源加载/虚拟资源”接口，降低大资源对 RAM 的压力。
+
 
 
 

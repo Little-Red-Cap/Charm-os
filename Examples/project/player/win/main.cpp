@@ -498,6 +498,7 @@ namespace {
         bool duration_ready{false};
         bool ignore_list_select{false};
         std::string mount_status{};
+        bool syncing_scrollbar{false};
         bool show_debug{false};
         MenuTree menu_tree{};
         struct ListCacheEntry {
@@ -961,6 +962,28 @@ namespace {
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
+    void on_list_scrolled(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept {
+        (void)content_h;
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        if (!bar) return;
+        app->syncing_scrollbar = true;
+        bar->set_range(0, max_scroll);
+        bar->set_page_size(view_h);
+        bar->set_value(scroll_y);
+        app->syncing_scrollbar = false;
+    }
+
+    void on_list_scrollbar_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || !app->factory || app->syncing_scrollbar) return;
+        auto* bar = app->factory->get_scroll_bar(app->handles.list_scroll);
+        auto* list = app->factory->get_list_view(app->handles.list);
+        if (!bar || !list) return;
+        list->set_scroll_y(bar->value());
+    }
+
     Event::Key map_key(SDL_Keycode key) {
         switch (key) {
         case SDLK_TAB: return Event::Key::Tab;
@@ -1123,6 +1146,7 @@ namespace {
             anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             list->set_on_draw(&on_list_draw, &ctx);
             list->set_on_select(&on_list_selected, &ctx);
+            list->set_on_scroll(&on_list_scrolled, &ctx);
             list->set_row_height(32);
             list->set_wheel_step(32);
         }

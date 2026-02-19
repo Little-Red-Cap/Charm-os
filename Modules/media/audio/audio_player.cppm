@@ -580,7 +580,7 @@ export namespace audio {
             flac_filter_.close();
             mp3_filter_.close();
 
-            is_flac_ = ends_with_icase(path, ".flac") || ends_with_icase(path, ".fla");
+            is_flac_ = ends_with_icase(path, ".flac");
             is_wav_ = ends_with_icase(path, ".wav");
             is_mp3_ = ends_with_icase(path, ".mp3");
 

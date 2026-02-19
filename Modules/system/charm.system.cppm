@@ -50,4 +50,5 @@ export import boot_uart;
 export import device.desc;
 export import device.bus;
 export import device.driver;
+export import device.manager;
 export import device.registry;

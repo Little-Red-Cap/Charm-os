@@ -4,6 +4,7 @@ import device.desc;
 import device.driver;
 import device.registry;
 import device.bus;
+import device.manager;
 import out.print;
 
 namespace {
@@ -45,18 +46,16 @@ int main() {
         }
     };
 
-    device::Registry<8, 8> reg{};
-    (void)reg.add_driver(drv);
+    device::System<8, 8, 4> sys{};
+    (void)sys.add_driver(drv);
 
     device::Bus bus{
         .name = "demo.bus",
         .ctx = nullptr,
         .ops = device::BusOps{.enumerate = demo_enumerate}
     };
+    (void)sys.add_bus(bus);
 
-    if (bus.ops.enumerate) {
-        bus.ops.enumerate(bus.ctx, reg);
-    }
-    reg.init_all();
+    sys.init_all();
     return 0;
 }

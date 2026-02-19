@@ -97,6 +97,7 @@ for dev in devices:
 - `device.bus`（枚举/attach/detach）
 - `device.driver`（回调接口）
 - `device.registry`（固定容量数组）
+- `device.manager`（Bus 聚合 + init_all）
 
 不引入动态分配，容量固定。
 

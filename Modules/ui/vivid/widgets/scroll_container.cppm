@@ -33,12 +33,16 @@ public:
         add_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(y);
         velocity_ = 0;
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     int scroll_y() const noexcept { return scroll_y_; }
@@ -245,6 +249,39 @@ public:
     }
 
 private:
+    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
+        const int left = (a.x > b.x) ? a.x : b.x;
+        const int top = (a.y > b.y) ? a.y : b.y;
+        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
+        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
+        const int w = right - left;
+        const int h = bottom - top;
+        if (w <= 0 || h <= 0) return {};
+        return Rect{left, top, w, h};
+    }
+
+    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto clip = children_clip_rect();
+        if (dy > clip.h || dy < -clip.h) {
+            mark_dirty_hint(clip);
+            return;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{clip.x, clip.y + clip.h - dy, clip.w, dy};
+        } else {
+            band = Rect{clip.x, clip.y, clip.w, -dy};
+        }
+        const auto clipped = intersect_rect(band, clip);
+        if (clipped.w > 0 && clipped.h > 0) {
+            mark_dirty_hint(clipped);
+        } else {
+            mark_dirty_hint(clip);
+        }
+    }
+
     static void on_pinch_begin(void* ctx) {
         auto* self = static_cast<ScrollContainer*>(ctx);
         if (!self) return;

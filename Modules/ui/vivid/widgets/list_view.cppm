@@ -135,17 +135,19 @@ public:
     int selected() const noexcept { return selected_; }
 
     void set_scroll_y(int y) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(y);
         notify_scroll();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
+        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
         notify_scroll();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
+        mark_scroll_dirty(old, scroll_y_);
     }
 
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
@@ -338,6 +340,28 @@ private:
         const int h = bottom - top;
         if (w <= 0 || h <= 0) return {};
         return Rect{left, top, w, h};
+    }
+
+    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
+        const int dy = new_scroll - old_scroll;
+        if (dy == 0) return;
+        const auto r = get_rect();
+        if (dy > r.h || dy < -r.h) {
+            mark_dirty_hint(r);
+            return;
+        }
+        Rect band{};
+        if (dy > 0) {
+            band = Rect{r.x, r.y + r.h - dy, r.w, dy};
+        } else {
+            band = Rect{r.x, r.y, r.w, -dy};
+        }
+        const auto clipped = intersect_rect(band, r);
+        if (clipped.w > 0 && clipped.h > 0) {
+            mark_dirty_hint(clipped);
+        } else {
+            mark_dirty_hint(r);
+        }
     }
 
     void mark_dirty_row(int index) noexcept {

@@ -44,6 +44,10 @@ namespace {
     struct CdcExampleContext {
         std::array<usb::u8, 256> config_buf{};
         std::size_t config_size{0};
+        std::array<usb::u8, 64> rx_buf{};
+        std::array<usb::u8, 64> tx_buf{};
+        std::size_t rx_count{0};
+        std::size_t tx_count{0};
     };
 
     bool get_descriptor(void* ctx, usb::DescriptorType type, usb::u8 index, std::span<const usb::u8>& out) noexcept {
@@ -64,6 +68,26 @@ namespace {
         default:
             return false;
         }
+    }
+
+    std::span<usb::u8> cdc_rx_buffer(void* ctx) noexcept {
+        auto* ex = static_cast<CdcExampleContext*>(ctx);
+        return ex ? std::span<usb::u8>(ex->rx_buf.data(), ex->rx_buf.size()) : std::span<usb::u8>{};
+    }
+
+    std::span<usb::u8> cdc_tx_buffer(void* ctx) noexcept {
+        auto* ex = static_cast<CdcExampleContext*>(ctx);
+        return ex ? std::span<usb::u8>(ex->tx_buf.data(), ex->tx_buf.size()) : std::span<usb::u8>{};
+    }
+
+    void cdc_on_rx_done(void* ctx, std::size_t len) noexcept {
+        auto* ex = static_cast<CdcExampleContext*>(ctx);
+        if (ex) ex->rx_count = len;
+    }
+
+    void cdc_on_tx_done(void* ctx, std::size_t len) noexcept {
+        auto* ex = static_cast<CdcExampleContext*>(ctx);
+        if (ex) ex->tx_count = len;
     }
 }
 
@@ -133,9 +157,27 @@ int main() {
     device.set_descriptor_provider(desc_provider);
 
     usb::class_driver::CdcOps cdc_ops{};
-    usb::class_driver::CdcAcm cdc{ &device, cdc_ops };
+    cdc_ops.rx_buffer = &cdc_rx_buffer;
+    cdc_ops.tx_buffer = &cdc_tx_buffer;
+    cdc_ops.on_rx_done = &cdc_on_rx_done;
+    cdc_ops.on_tx_done = &cdc_on_tx_done;
+
+    usb::class_driver::CdcAcm cdc{ &ctx, cdc_ops };
     auto class_ops = cdc.class_ops();
     device.set_class(&cdc, &class_ops);
+
+    auto tx = cdc.tx_buffer();
+    if (!tx.empty()) {
+        tx[0] = static_cast<usb::u8>('O');
+        tx[1] = static_cast<usb::u8>('K');
+        cdc.on_tx_done(2);
+    }
+
+    auto rx = cdc.rx_buffer();
+    if (!rx.empty()) {
+        rx[0] = static_cast<usb::u8>('?');
+        cdc.on_rx_done(1);
+    }
 
     return 0;
 }

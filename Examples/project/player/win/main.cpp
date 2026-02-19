@@ -38,7 +38,8 @@ import util.core;
 #include <vector>
 
 namespace {
-    constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
+    // constexpr const char* kDefaultVfsTrack = "/music/beautiful-trick.flac";
+    constexpr const char* kDefaultVfsTrack = "/Beautiful Trick-FELT.flac";
     constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     constexpr int kUiPadding = 24;
     constexpr int kCoverSize = 320;
@@ -106,6 +107,7 @@ namespace {
             const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
             if (a == 'm' && b == 'p' && c == '3') return true;
             if (a == 'w' && b == 'a' && c == 'v') return true;
+            if (a == 'f' && b == 'l' && c == 'a') return true;
         }
         if (ext.size() == 4) {
             const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
@@ -983,7 +985,18 @@ int main(int argc, char** argv) {
             if (!list_st) {
                 vfs_tracks.emplace_back(kDefaultVfsTrack);
             } else {
-                should_load = false;
+                fs::File f{};
+                auto st = fs::vfs_open(kDefaultVfsTrack, f);
+                if (st) {
+                    (void)fs::vfs_close(f);
+                    vfs_tracks.emplace_back(kDefaultVfsTrack);
+                } else {
+                    char buf[64]{};
+                    std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(st.err));
+                    ctx.set_status(buf);
+                    ctx.set_status_color({220, 120, 120, 255});
+                    should_load = false;
+                }
             }
         }
         ctx.rebuild_track_labels();

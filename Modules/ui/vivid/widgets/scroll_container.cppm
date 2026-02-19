@@ -22,7 +22,7 @@ class ScrollContainer : public ObjectBase {
 public:
     ScrollContainer() {
         set_focusable(true);
-        set_clip_policy(ClipPolicy::Rect);
+        set_clip_policy(ClipPolicy::Custom);
         pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,
@@ -212,6 +212,31 @@ public:
                  c.y + c.h <= r.y || c.y >= r.y + r.h);
     }
 
+    Rect children_clip_rect() const noexcept override {
+        const auto r = get_rect();
+        int left = clip_inset_left_;
+        int top = clip_inset_top_;
+        int right = clip_inset_right_;
+        int bottom = clip_inset_bottom_;
+        if (has_skin_) {
+            if (slice_left_ > left) left = slice_left_;
+            if (slice_top_ > top) top = slice_top_;
+            if (slice_right_ > right) right = slice_right_;
+            if (slice_bottom_ > bottom) bottom = slice_bottom_;
+        }
+        Rect inner{r.x + left, r.y + top, r.w - left - right, r.h - top - bottom};
+        if (inner.w < 0) inner.w = 0;
+        if (inner.h < 0) inner.h = 0;
+        return inner;
+    }
+
+    void set_clip_insets(int left, int top, int right, int bottom) noexcept {
+        clip_inset_left_ = (left >= 0) ? left : 0;
+        clip_inset_top_ = (top >= 0) ? top : 0;
+        clip_inset_right_ = (right >= 0) ? right : 0;
+        clip_inset_bottom_ = (bottom >= 0) ? bottom : 0;
+    }
+
 private:
     static void on_pinch_begin(void* ctx) {
         auto* self = static_cast<ScrollContainer*>(ctx);
@@ -271,4 +296,8 @@ private:
     int slice_top_{0};
     int slice_right_{0};
     int slice_bottom_{0};
+    int clip_inset_left_{1};
+    int clip_inset_top_{1};
+    int clip_inset_right_{1};
+    int clip_inset_bottom_{1};
 };

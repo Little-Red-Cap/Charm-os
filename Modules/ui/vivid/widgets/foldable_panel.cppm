@@ -33,7 +33,6 @@ public:
     void toggle() noexcept { expanded_ = !expanded_; }
 
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
-    void set_content_padding(int p) noexcept { content_pad_ = (p >= 0) ? p : 0; }
 
     void draw(DefaultCanvas& cvs) override {
         const Style& st = Theme::instance().get<FoldablePanel>();
@@ -49,17 +48,34 @@ public:
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
         draw_rect(cvs, r.x, r.y, r.w, header_h, st.bg_hover, true);
 
-        const Rect title_box{r.x + st.padding, r.y, r.w - st.padding * 2 - 16, header_h};
+        const Rect title_box{r.x + st.header_padding, r.y,
+                             r.w - st.header_padding * 2 - 16, header_h};
         draw_text_box(cvs, title_box, title_, font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 
-        const Rect marker_box{r.x + r.w - st.padding - 12, r.y, 12, header_h};
+        const Rect marker_box{r.x + r.w - st.header_padding - 12, r.y, 12, header_h};
         const char* marker = expanded_ ? "v" : ">";
         draw_text_box(cvs, marker_box, marker, font, resolve_font(st),
                       TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
 
         if (!expanded_) return;
         update_scroll_bounds();
+
+        if (max_scroll_ > 0) {
+            const auto content = content_rect();
+            const int track_w = 4;
+            const int track_x = content.x + content.w - track_w;
+            const int track_h = content.h;
+            const float ratio = static_cast<float>(content.h) / static_cast<float>(content.h + max_scroll_);
+            int thumb_h = static_cast<int>(track_h * ratio);
+            if (thumb_h < 12) thumb_h = 12;
+            const float tpos = (max_scroll_ > 0) ? (static_cast<float>(scroll_y_) / static_cast<float>(max_scroll_)) : 0.0f;
+            const int thumb_y = content.y + static_cast<int>((track_h - thumb_h) * tpos);
+            rgba thumb = st.border_focus;
+            thumb.a = 170;
+            draw_rect(cvs, track_x, content.y, track_w, track_h, rgba{0,0,0,0}, false);
+            draw_rect(cvs, track_x, thumb_y, track_w, thumb_h, thumb, true);
+        }
 
         if (child_count() == 0 && body_len_ > 0) {
             const auto body_box = layout_rect();
@@ -97,8 +113,9 @@ public:
         if (!expanded_) {
             return {r.x, r.y + header_h, r.w, 0};
         }
-        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_ - scroll_y_,
-                   r.w - content_pad_ * 2, r.h - header_h - content_pad_ * 2};
+        const auto& st = Theme::instance().get<FoldablePanel>();
+        Rect inner{r.x + st.content_padding, r.y + header_h + st.content_padding - scroll_y_,
+                   r.w - st.content_padding * 2, r.h - header_h - st.content_padding * 2};
         if (inner.w < 0) inner.w = 0;
         if (inner.h < 0) inner.h = 0;
         return inner;
@@ -115,7 +132,6 @@ private:
     int title_len_{0};
     int body_len_{0};
     int header_h_{28};
-    int content_pad_{8};
     bool expanded_{true};
     int scroll_y_{0};
     int max_scroll_{0};
@@ -163,8 +179,9 @@ private:
     Rect content_rect() const noexcept {
         const auto r = get_rect();
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
-        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_,
-                   r.w - content_pad_ * 2, r.h - header_h - content_pad_ * 2};
+        const auto& st = Theme::instance().get<FoldablePanel>();
+        Rect inner{r.x + st.content_padding, r.y + header_h + st.content_padding,
+                   r.w - st.content_padding * 2, r.h - header_h - st.content_padding * 2};
         if (inner.w < 0) inner.w = 0;
         if (inner.h < 0) inner.h = 0;
         return inner;

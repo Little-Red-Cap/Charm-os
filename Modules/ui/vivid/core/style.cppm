@@ -12,6 +12,8 @@ struct Style {
     int       border_width  = 1;
     int       corner_radius = 4;
     int       padding       = 4;
+    int       header_padding = 4;
+    int       content_padding = 8;
 
     const Font* font         = nullptr;
     rgba        font_color   = {  0,  0,  0,255};
@@ -33,6 +35,8 @@ struct StylePatch {
     bool has_border_width{false};
     bool has_corner_radius{false};
     bool has_padding{false};
+    bool has_header_padding{false};
+    bool has_content_padding{false};
     bool has_font{false};
     bool has_font_color{false};
     bool has_bg_hover{false};
@@ -49,6 +53,8 @@ struct StylePatch {
     int  border_width{0};
     int  corner_radius{0};
     int  padding{0};
+    int  header_padding{0};
+    int  content_padding{0};
     const Font* font{nullptr};
     rgba font_color{};
     rgba bg_hover{};
@@ -66,6 +72,8 @@ struct StylePatch {
         if (has_border_width) s.border_width = border_width;
         if (has_corner_radius) s.corner_radius = corner_radius;
         if (has_padding) s.padding = padding;
+        if (has_header_padding) s.header_padding = header_padding;
+        if (has_content_padding) s.content_padding = content_padding;
         if (has_font) s.font = font;
         if (has_font_color) s.font_color = font_color;
         if (has_bg_hover) s.bg_hover = bg_hover;

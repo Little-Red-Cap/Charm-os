@@ -9,6 +9,7 @@ import charm.core.layout;
 import charm.core.style;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
+import charm.gfx.assets.render;
 import charm.gfx.framebuffer;
 import charm.gfx.color;
 import charm.widgets.button;
@@ -230,6 +231,7 @@ namespace {
         WidgetHandle debug_grid{};
         WidgetHandle chart{};
         WidgetHandle debug_side{};
+        WidgetHandle logo{};
         WidgetHandle stepper{};
         WidgetHandle timeline{};
         WidgetHandle progress{};
@@ -1146,6 +1148,15 @@ namespace {
             side->set_flex_grow(1);
         }
 
+        h.logo = factory.create_image();
+        if (auto* logo = factory.get_image(h.logo)) {
+            logo->set_image(render_logo_argb());
+            logo->set_scale_mode(Image::ScaleMode::Fit);
+            logo->set_alignment(Image::AlignH::Center, Image::AlignV::Center);
+            logo->set_crop({4, 4, 22, 22});
+            logo->set_size(200, 90);
+        }
+
         h.stepper = factory.create_stepper();
         if (auto* stepper = factory.get_stepper(h.stepper)) {
             stepper->set_steps(4);
@@ -1228,6 +1239,7 @@ namespace {
         factory.link(h.debug_grid, h.table);
         factory.link(h.debug_grid, h.chart);
         factory.link(h.debug_grid, h.debug_side);
+        factory.link(h.debug_side, h.logo);
         factory.link(h.debug_side, h.stepper);
         factory.link(h.debug_side, h.timeline);
         factory.link(h.root, h.controls);

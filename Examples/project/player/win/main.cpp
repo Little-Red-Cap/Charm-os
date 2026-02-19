@@ -30,6 +30,7 @@ import charm.widgets.chart;
 import charm.widgets.perf_overlay;
 import charm.widgets.ring_indication;
 import charm.widgets.text_box;
+import charm.widgets.slider;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.stepper;
 import charm.widgets.timeline;
@@ -289,6 +290,12 @@ namespace {
         app->on_eq_toggle();
     }
 
+    void on_eq_slider_change(void* ctx) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        app->on_eq_slider_change();
+    }
+
     Event::Key map_key(SDL_Keycode key) {
         switch (key) {
         case SDLK_TAB: return Event::Key::Tab;
@@ -473,6 +480,7 @@ int main(int argc, char** argv) {
     ui_cb.spectrum_toggle = Callback{&on_spectrum_toggle, &g_ctx};
     ui_cb.low_load_toggle = Callback{&on_low_load_toggle, &g_ctx};
     ui_cb.eq_toggle = Callback{&on_eq_toggle, &g_ctx};
+    ui_cb.eq_slider_change = Callback{&on_eq_slider_change, &g_ctx};
     ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
     ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
     ui_cb.play_click = Callback{&on_play_clicked, &g_ctx};

@@ -18,6 +18,7 @@ import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
+import charm.widgets.slider;
 
 export namespace player::ui {
     inline constexpr int kUiPadding = 24;
@@ -38,6 +39,14 @@ export namespace player::ui {
     inline constexpr int kOptionsHeight = 28;
     inline constexpr int kOptionsGap = 10;
     inline constexpr int kOptionLabelWidth = 86;
+    inline constexpr int kEqBands = 5;
+    inline constexpr int kEqPanelHeight = 148;
+    inline constexpr int kEqTitleHeight = 18;
+    inline constexpr int kEqRowHeight = 22;
+    inline constexpr int kEqRowGap = 6;
+    inline constexpr int kEqLabelWidth = 40;
+    inline constexpr int kEqValueWidth = 44;
+    inline constexpr int kEqRowGapX = 10;
     inline constexpr int kListTitleGap = 26;
     inline constexpr int kListBottomReserve = 170;
     inline constexpr int kListScrollWidth = 10;
@@ -61,6 +70,7 @@ export namespace player::ui {
     inline constexpr rgba kUiPaused = {230, 185, 90, 255};
     inline constexpr rgba kUiOption = {170, 178, 205, 255};
     inline constexpr rgba kUiSwitchOn = {90, 160, 210, 255};
+    inline constexpr rgba kUiEqTitle = {200, 206, 228, 255};
 
     inline constexpr rgba kUiButtonBg = {26, 30, 44, 255};
     inline constexpr rgba kUiButtonBorder = {70, 90, 120, 255};
@@ -165,5 +175,12 @@ export namespace player::ui {
         switch_patch.has_border_pressed = true;
         switch_patch.border_pressed = kUiSwitchOn;
         theme.patch<Switch>(switch_patch);
+
+        StylePatch slider_patch{};
+        slider_patch.has_bg_color = true;
+        slider_patch.bg_color = kUiButtonBg;
+        slider_patch.has_border_color = true;
+        slider_patch.border_color = kUiButtonBorder;
+        theme.patch<Slider>(slider_patch);
     }
 }

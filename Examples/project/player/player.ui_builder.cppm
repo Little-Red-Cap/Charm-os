@@ -60,6 +60,7 @@ export namespace player {
         Callback spectrum_toggle{};
         Callback low_load_toggle{};
         Callback eq_toggle{};
+        Callback eq_slider_change{};
         Callback prev_click{};
         Callback next_click{};
         Callback play_click{};
@@ -90,7 +91,8 @@ export namespace player {
         const int mode_hint_y = mode_y + kModeHeight + kModeHintGap;
         const int spectrum_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
         const int options_y = spectrum_y + kSpectrumHeight + kOptionsGap;
-        const int list_y = options_y + kOptionsHeight + kSpectrumGap;
+        const int eq_y = options_y + kOptionsHeight + kOptionsGap;
+        const int list_y = eq_y + kEqPanelHeight + kSpectrumGap;
         const int list_h = screen_height - list_y - kListBottomReserve;
 
         h.cover = factory.create_container();
@@ -213,6 +215,49 @@ export namespace player {
             sw->set_on(ctx.eq_enabled);
             sw->set_on_change(cb.eq_toggle);
             sw->set_size(44, 24);
+        }
+
+        h.eq_panel = factory.create_container();
+        if (auto* panel = factory.get_container(h.eq_panel)) {
+            anchor_rect(panel, {kUiPadding, eq_y, screen_width - kUiPadding * 2, kEqPanelHeight});
+            panel->set_background(kUiListBg);
+        }
+
+        h.eq_title = factory.create_label("EQ (placeholder)");
+        if (auto* title = factory.get_label(h.eq_title)) {
+            title->set_color(kUiEqTitle);
+            anchor_rect(title, {kUiPadding + 10, eq_y + 6, screen_width - kUiPadding * 2 - 20, kEqTitleHeight});
+            title->set_align(TextAlignH::Left, TextAlignV::Center);
+        }
+
+        static const char* kEqLabels[kEqBands] = {"60", "250", "1k", "4k", "12k"};
+        const int eq_inner_x = kUiPadding + 10;
+        const int eq_inner_w = screen_width - kUiPadding * 2 - 20;
+        const int slider_w = eq_inner_w - kEqLabelWidth - kEqValueWidth - kEqRowGapX * 2;
+        for (int i = 0; i < kEqBands; ++i) {
+            const int row_y = eq_y + kEqTitleHeight + 12 + i * (kEqRowHeight + kEqRowGap);
+            h.eq_band_labels[i] = factory.create_label(kEqLabels[i]);
+            if (auto* label = factory.get_label(h.eq_band_labels[i])) {
+                label->set_color(kUiOption);
+                anchor_rect(label, {eq_inner_x, row_y, kEqLabelWidth, kEqRowHeight});
+                label->set_align(TextAlignH::Left, TextAlignV::Center);
+            }
+
+            h.eq_sliders[i] = factory.create_slider();
+            if (auto* slider = factory.get_slider(h.eq_sliders[i])) {
+                anchor_rect(slider, {eq_inner_x + kEqLabelWidth + kEqRowGapX, row_y, slider_w, kEqRowHeight});
+                slider->set_range(-12, 12);
+                slider->set_value(0);
+                slider->set_on_change(cb.eq_slider_change);
+            }
+
+            h.eq_value_labels[i] = factory.create_label("0 dB");
+            if (auto* value = factory.get_label(h.eq_value_labels[i])) {
+                value->set_color(kUiOption);
+                anchor_rect(value, {eq_inner_x + kEqLabelWidth + kEqRowGapX + slider_w + kEqRowGapX,
+                                    row_y, kEqValueWidth, kEqRowHeight});
+                value->set_align(TextAlignH::Right, TextAlignV::Center);
+            }
         }
 
         h.perf_overlay = factory.create_perf_overlay();
@@ -487,6 +532,8 @@ export namespace player {
         factory.link(h.root, h.spectrum_hist);
         factory.link(h.root, h.spectrum_peak);
         factory.link(h.root, h.options_row);
+        factory.link(h.root, h.eq_panel);
+        factory.link(h.root, h.eq_title);
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
@@ -526,6 +573,12 @@ export namespace player {
         factory.link(h.options_row, h.opt_low_switch);
         factory.link(h.options_row, h.opt_eq_label);
         factory.link(h.options_row, h.opt_eq_switch);
+
+        for (int i = 0; i < kEqBands; ++i) {
+            factory.link(h.eq_panel, h.eq_band_labels[i]);
+            factory.link(h.eq_panel, h.eq_sliders[i]);
+            factory.link(h.eq_panel, h.eq_value_labels[i]);
+        }
 
         return h;
     }

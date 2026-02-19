@@ -25,6 +25,7 @@ import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.segmented_control;
 import charm.widgets.switcher;
+import charm.widgets.slider;
 #if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.menu_tree;
 #endif
@@ -72,6 +73,11 @@ export namespace player {
         WidgetHandle opt_low_switch{};
         WidgetHandle opt_eq_label{};
         WidgetHandle opt_eq_switch{};
+        WidgetHandle eq_panel{};
+        WidgetHandle eq_title{};
+        std::array<WidgetHandle, kEqBands> eq_band_labels{};
+        std::array<WidgetHandle, kEqBands> eq_sliders{};
+        std::array<WidgetHandle, kEqBands> eq_value_labels{};
         WidgetHandle ring{};
         WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
@@ -130,6 +136,7 @@ export namespace player {
         bool spectrum_enabled{true};
         bool spectrum_low_load{false};
         bool eq_enabled{false};
+        std::array<int, kEqBands> eq_gains{};
         std::uint32_t spectrum_tick{0};
         bool duration_ready{false};
         bool ignore_list_select{false};
@@ -219,6 +226,17 @@ export namespace player {
             auto* label = factory->get_label(handles.opt_eq_label);
             if (!label) return;
             label->set_text(eq_enabled ? "EQ On" : "EQ Off");
+        }
+
+        void update_eq_panel_labels() {
+            if (!factory) return;
+            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                auto* label = factory->get_label(handles.eq_value_labels[i]);
+                if (!label) continue;
+                char buf[16]{};
+                std::snprintf(buf, sizeof(buf), "%+d dB", eq_gains[i]);
+                label->set_text(buf);
+            }
         }
 
         void update_low_load_label() {
@@ -487,11 +505,17 @@ export namespace player {
                     sw->set_on(on);
                 }
                 update_eq_label();
+                if (auto* panel = factory->get_container(handles.eq_panel)) {
+                    panel->set_visible(on);
+                }
             }
             if (player) {
                 audio::EqConfig cfg{};
                 cfg.enabled = on;
-                cfg.band_count = 0;
+                cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
+                for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                    cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
+                }
                 (void)player->set_eq(cfg);
             }
         }
@@ -512,10 +536,14 @@ export namespace player {
                 if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
                     sw->set_on(eq_enabled);
                 }
+                if (auto* panel = factory->get_container(handles.eq_panel)) {
+                    panel->set_visible(eq_enabled);
+                }
             }
             update_play_mode_label();
             update_low_load_label();
             update_eq_label();
+            update_eq_panel_labels();
         }
 
         void on_spectrum_toggle() {
@@ -537,6 +565,25 @@ export namespace player {
             auto* sw = factory->get_switch(handles.opt_eq_switch);
             if (!sw) return;
             set_eq_enabled(sw->is_on());
+        }
+
+        void on_eq_slider_change() {
+            if (!factory) return;
+            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                auto* slider = factory->get_slider(handles.eq_sliders[i]);
+                if (!slider) continue;
+                eq_gains[i] = slider->value();
+            }
+            update_eq_panel_labels();
+            if (player && eq_enabled) {
+                audio::EqConfig cfg{};
+                cfg.enabled = true;
+                cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
+                for (std::size_t i = 0; i < eq_gains.size(); ++i) {
+                    cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
+                }
+                (void)player->set_eq(cfg);
+            }
         }
 
         void sync_progress_value(int value) {

@@ -64,6 +64,24 @@ export namespace usb::class_driver {
         u8 channel_names{0};
     };
 
+    struct UacFormatTypeIDescriptor {
+        u8 length{6};
+        u8 type{0x24};
+        u8 sub_type{0x02};
+        u8 format_type{0x01};
+        u8 subslot_size{2};
+        u8 bit_resolution{16};
+    };
+
+    struct UacIsoEndpointDescriptor {
+        u8 length{7};
+        usb::DescriptorType type{usb::DescriptorType::endpoint};
+        u8 endpoint_address{0x01};
+        u8 attributes{0x01};
+        u16 max_packet_size{192};
+        u8 interval{1};
+    };
+
     struct UacConfig {
         u8 ctrl_ifc{0};
         u8 stream_ifc{1};

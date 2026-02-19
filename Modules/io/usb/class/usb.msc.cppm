@@ -37,6 +37,12 @@ export namespace usb::class_driver {
         u8 status{0};
     };
 
+    enum class MscStatus : u8 {
+        passed = 0,
+        failed = 1,
+        phase_error = 2,
+    };
+
     enum class MscPhase : u8 {
         cbw,
         data,
@@ -63,6 +69,16 @@ export namespace usb::class_driver {
         const MscConfig& config() const noexcept { return cfg_; }
         MscPhase phase() const noexcept { return phase_; }
         void reset_phase() noexcept { phase_ = MscPhase::cbw; }
+
+        static bool validate_cbw(const MscCbw& cbw) noexcept {
+            if (cbw.signature != 0x43425355) return false;
+            if (cbw.cb_length == 0 || cbw.cb_length > 16) return false;
+            return true;
+        }
+
+        void begin_data() noexcept { phase_ = MscPhase::data; }
+        void begin_csw() noexcept { phase_ = MscPhase::csw; }
+        void begin_cbw() noexcept { phase_ = MscPhase::cbw; }
 
     private:
         static bool handle_setup(void* ctx, const device::ControlRequest& req, device::ControlResponse& resp) noexcept {

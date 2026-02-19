@@ -102,6 +102,13 @@ export namespace player::ui {
 
     inline void apply_player_theme() {
         auto& theme = Theme::instance();
+        Style baseline = theme.get<Button>();
+        baseline.border_color = kUiButtonBorder;
+        baseline.border_focus = kUiOk;
+        baseline.padding = 6;
+        baseline.corner_radius = 6;
+        apply_baseline_theme_preset(baseline);
+
         ThemePreset preset{};
         preset.has_label = true;
         preset.label = theme.get<Label>();

@@ -1,3 +1,7 @@
+#ifndef CHARM_PLAYER_DEBUG_UI
+#define CHARM_PLAYER_DEBUG_UI 1
+#endif
+
 import audio.player;
 import audio.result;
 import audio.source.fs;
@@ -7,7 +11,6 @@ import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
 import charm.core.layout;
-import charm.core.anim;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
@@ -21,14 +24,16 @@ import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
 import charm.widgets.perf_overlay;
+#if CHARM_PLAYER_DEBUG_UI
 import charm.widgets.chart;
 import charm.widgets.stepper;
 import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
-import charm.widgets.image;
 import charm.widgets.table_view;
+#endif
+import charm.widgets.image;
 import charm.widgets.text;
 import fs_core;
 import fs_errno;
@@ -51,6 +56,7 @@ import util.core;
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -161,6 +167,7 @@ namespace {
         return false;
     }
 
+#if CHARM_PLAYER_DEBUG_UI
     struct TreeDemoNode {
         const char* label{nullptr};
         int depth{0};
@@ -315,6 +322,7 @@ namespace {
         (void)row;
         (void)col;
     }
+#endif
 
     struct TrackListContext {
         std::string_view dir{};
@@ -450,6 +458,7 @@ namespace {
         WidgetHandle status{};
         WidgetHandle list{};
         WidgetHandle list_scroll{};
+#if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
         WidgetHandle debug_grid{};
@@ -460,6 +469,7 @@ namespace {
         WidgetHandle timeline{};
         WidgetHandle rich_text{};
         WidgetHandle code_block{};
+#endif
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -509,8 +519,10 @@ namespace {
         bool ignore_list_select{false};
         std::string mount_status{};
         bool syncing_scrollbar{false};
+#if CHARM_PLAYER_DEBUG_UI
         bool show_debug{false};
         MenuTree menu_tree{};
+#endif
         struct ListCacheEntry {
             int index{-1};
             int width{0};
@@ -603,6 +615,7 @@ namespace {
         }
 
         void set_debug_visible(bool on) {
+#if CHARM_PLAYER_DEBUG_UI
             show_debug = on;
             if (!factory) return;
             if (auto* list = factory->get_list_view(handles.list)) {
@@ -614,10 +627,15 @@ namespace {
             if (auto* grid = factory->get_container(handles.debug_grid)) {
                 grid->set_visible(on);
             }
+#else
+            (void)on;
+#endif
         }
 
         void toggle_debug_view() {
+#if CHARM_PLAYER_DEBUG_UI
             set_debug_visible(!show_debug);
+#endif
         }
 
         void update_duration_from_player() {
@@ -1096,6 +1114,7 @@ namespace {
             gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
             return true;
         case SDL_EVENT_KEY_DOWN:
+#if CHARM_PLAYER_DEBUG_UI
             if (evt.key.key == SDLK_T) {
                 ctx.toggle_debug_view();
                 return true;
@@ -1128,6 +1147,7 @@ namespace {
                     }
                 }
             }
+#endif
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();
@@ -1211,6 +1231,7 @@ namespace {
             anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
         }
 
+#if CHARM_PLAYER_DEBUG_UI
         h.debug_grid = factory.create_container();
         if (auto* grid = factory.get_container(h.debug_grid)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
@@ -1340,6 +1361,7 @@ namespace {
             block->set_wrap(TextWrap::None);
             block->set_size(200, 80);
         }
+#endif
 
         constexpr int button_w = 120;
         constexpr int button_h = 48;
@@ -1393,6 +1415,7 @@ namespace {
         factory.link(h.root, h.status);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
+#if CHARM_PLAYER_DEBUG_UI
         factory.link(h.root, h.debug_grid);
         factory.link(h.debug_grid, h.tree);
         factory.link(h.debug_grid, h.table);
@@ -1403,6 +1426,7 @@ namespace {
         factory.link(h.debug_side, h.timeline);
         factory.link(h.debug_side, h.rich_text);
         factory.link(h.debug_side, h.code_block);
+#endif
         factory.link(h.root, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_play);
@@ -1497,6 +1521,7 @@ int main(int argc, char** argv) {
     btn_hover.bg_color = {44, 60, 82, 255};
     sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
 
+#if CHARM_PLAYER_DEBUG_UI
     theme.inherit<TableView, ListView>();
     theme.inherit<TreeView, ListView>();
     StylePatch table_patch{};
@@ -1510,6 +1535,7 @@ int main(int argc, char** argv) {
     StylePatch tree_patch = table_patch;
     tree_patch.bg_color = {20, 22, 30, 255};
     theme.patch<TreeView>(tree_patch);
+#endif
 
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
@@ -1583,7 +1609,6 @@ int main(int argc, char** argv) {
     gui.set_dirty_tracking(true);
     gui.set_layer_cache(true);
 
-    static anim::Timeline timeline;
     const auto start_time = std::chrono::steady_clock::now();
 
     bool running = true;
@@ -1637,11 +1662,9 @@ int main(int argc, char** argv) {
         const auto now = std::chrono::steady_clock::now();
         const auto ms = static_cast<std::uint32_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count());
-        timeline.tick(ms);
-        if (!timeline.active()) {
-            timeline.clear();
-            timeline.add(&apply_cover_pulse, &ctx, 0.0f, 1.0f, ms, 2000, anim::Ease::InOutQuad);
-        }
+        const float phase = static_cast<float>(ms % 2000) / 2000.0f;
+        const float v = 0.5f - 0.5f * std::cos(phase * 6.2831853f);
+        apply_cover_pulse(&ctx, v);
 
         canvas.clear({18, 20, 28, 255});
         gui.render();

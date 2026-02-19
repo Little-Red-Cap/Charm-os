@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstdio>
 
+import charm.foundation;
 import charm.runtime;
 import platform.win.power;
 
@@ -16,7 +17,21 @@ namespace {
         }
     };
 
-    void trace_emit(void*, trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+    struct TraceSink {
+        service::TraceBuffer<util::u32, 16> buffer{};
+        util::u32 tick{0};
+    };
+
+    void trace_emit(void* ctx, trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+        auto* sink = static_cast<TraceSink*>(ctx);
+        if (!sink) return;
+        service::TraceRecord<util::u32, 16> rec{};
+        rec.time = sink->tick++;
+        rec.id = id;
+        rec.payload = payload;
+        rec.count = 1;
+        rec.kind = kind;
+        sink->buffer.push(rec);
         std::printf("[power] kind=%u id=%u payload=%llu\n",
                     static_cast<unsigned>(kind),
                     id,
@@ -27,6 +42,7 @@ namespace {
 int main() {
     power::Manager mgr{};
     DemoPolicy policy{};
+    TraceSink trace_sink{};
     power::PortOps port_ops{
         .enter = platform::win::NoopPower::enter,
         .exit = platform::win::NoopPower::exit
@@ -35,7 +51,7 @@ int main() {
     mgr.set_port(&port_ops);
 
     power::trace::set_sink(power::trace::Sink{
-        .ctx = nullptr,
+        .ctx = &trace_sink,
         .emit = trace_emit
     });
 
@@ -46,5 +62,7 @@ int main() {
     const auto target = mgr.decide_target();
     mgr.enter_state(target);
     mgr.exit_state(target);
+
+    std::printf("[power] trace_count=%zu\n", trace_sink.buffer.size());
     return 0;
 }

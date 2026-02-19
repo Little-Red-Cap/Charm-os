@@ -12,6 +12,14 @@ Charm（统一架构）
 └─ UI/Vivid（富 UI）
 ```
 
+## 1.0 统一入口模块（强约束入口）
+
+将“分层”落到编译期入口，所有上层代码优先使用这些入口模块：
+
+- Foundation：`charm.foundation`（对外只暴露 util/trace/service/alg）
+- Runtime：`charm.runtime`（system + io）
+- Domains：`charm.domain`（media + ui）
+
 ```mermaid
 graph TD
     A[Charm 统一架构] --> C[Core]
@@ -41,6 +49,9 @@ Modules/
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
+  charm.foundation.cppm  # 分层入口：Foundation
+  charm.runtime.cppm     # 分层入口：Runtime
+  charm.domain.cppm      # 分层入口：Domains
   thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 

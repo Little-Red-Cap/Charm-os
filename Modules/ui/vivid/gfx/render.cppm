@@ -13,6 +13,7 @@ import alg_arc;
 import alg_circle;
 import alg_line;
 import alg_round_rect;
+import alg_tile;
 
 namespace ui::render {
 
@@ -362,6 +363,19 @@ void draw_round_rect(Canvas<PF, W, H>& cvs,
         [&](int xx, int y0, int y1) noexcept {
             cvs.draw_vline(xx, y0, y1, color);
         });
+}
+
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_rect_tiled(Canvas<PF, W, H>& cvs,
+                     int x, int y, int w, int h,
+                     const rgba& color,
+                     int tile_w = 32,
+                     int tile_h = 32,
+                     bool fill = false) noexcept
+{
+    alg::tile::for_each_tile(x, y, w, h, tile_w, tile_h, [&](int tx, int ty, int tw, int th) noexcept {
+        draw_rect(cvs, tx, ty, tw, th, color, fill);
+    });
 }
 
 } // namespace ui::render

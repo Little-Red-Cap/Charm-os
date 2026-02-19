@@ -52,6 +52,7 @@ export import alg_filters;
 export import alg_heatshrink;
 export import alg_line;
 export import alg_round_rect;
+export import alg_tile;
 export import alg_lz4;
 export import alg_packbits;
 export import alg.qr_encode;

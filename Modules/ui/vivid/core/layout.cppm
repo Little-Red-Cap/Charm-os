@@ -270,6 +270,8 @@ inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
     const int padding = container.grid_padding();
     const int gap = container.grid_gap();
     const int cols = (container.grid_columns() > 0) ? container.grid_columns() : 1;
+    const int align_h = container.align_h();
+    const int align_v = container.align_v();
     const int inner_w = rect.w - padding * 2;
     int cell_w = container.grid_cell_width();
     if (cell_w <= 0) {
@@ -277,6 +279,70 @@ inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
         if (cell_w < 0) cell_w = 0;
     }
     int cell_h = container.grid_cell_height();
+
+    int visible_count = 0;
+    for (std::size_t i = 0; i < container.child_count(); ++i) {
+        auto* ch = factory.get(container.child_at(i));
+        if (!ch || !ch->is_visible()) continue;
+        ++visible_count;
+    }
+    if (visible_count == 0) return;
+
+    const int rows = (visible_count + cols - 1) / cols;
+    constexpr int kMaxRows = 64;
+    std::array<int, kMaxRows> row_heights{};
+    std::array<int, kMaxRows + 1> row_offsets{};
+    if (cell_h <= 0) {
+        int index = 0;
+        for (std::size_t i = 0; i < container.child_count(); ++i) {
+            auto h = container.child_at(i);
+            auto* ch = factory.get(h);
+            if (!ch || !ch->is_visible()) continue;
+            auto r = ch->get_rect();
+            const int row = index / cols;
+            if (row < kMaxRows && r.h > row_heights[row]) {
+                row_heights[row] = r.h;
+            }
+            ++index;
+        }
+    } else {
+        const int capped = (rows < kMaxRows) ? rows : kMaxRows;
+        for (int i = 0; i < capped; ++i) {
+            row_heights[i] = cell_h;
+        }
+    }
+
+    const int use_rows = (rows < kMaxRows) ? rows : kMaxRows;
+    int total_h = 0;
+    if (cell_h > 0) {
+        total_h = rows * cell_h + gap * (rows - 1);
+    } else {
+        for (int i = 0; i < use_rows; ++i) {
+            total_h += row_heights[i];
+        }
+        total_h += gap * (rows - 1);
+    }
+
+    const int grid_w = cols * cell_w + gap * (cols - 1);
+    int offset_x = 0;
+    if (align_h == static_cast<int>(AlignH::Center)) {
+        offset_x = (inner_w - grid_w) / 2;
+    } else if (align_h == static_cast<int>(AlignH::End)) {
+        offset_x = inner_w - grid_w;
+    }
+    if (offset_x < 0) offset_x = 0;
+
+    int offset_y = 0;
+    if (align_v == static_cast<int>(AlignV::Center)) {
+        offset_y = (rect.h - padding * 2 - total_h) / 2;
+    } else if (align_v == static_cast<int>(AlignV::End)) {
+        offset_y = rect.h - padding * 2 - total_h;
+    }
+    if (offset_y < 0) offset_y = 0;
+
+    for (int i = 0; i < use_rows; ++i) {
+        row_offsets[i + 1] = row_offsets[i] + row_heights[i] + gap;
+    }
 
     int index = 0;
     for (std::size_t i = 0; i < container.child_count(); ++i) {
@@ -286,8 +352,13 @@ inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
         auto r = ch->get_rect();
         const int col = index % cols;
         const int row = index / cols;
-        const int x = rect.x + padding + col * (cell_w + gap);
-        const int y = rect.y + padding + row * ((cell_h > 0 ? cell_h : r.h) + gap);
+        const int x = rect.x + padding + offset_x + col * (cell_w + gap);
+        int y = rect.y + padding + offset_y;
+        if (row < kMaxRows) {
+            y += row_offsets[row];
+        } else {
+            y += row * ((cell_h > 0 ? cell_h : r.h) + gap);
+        }
         if (cell_w > 0) r.w = cell_w;
         if (cell_h > 0) r.h = cell_h;
         ch->set_rect({x, y, r.w, r.h});

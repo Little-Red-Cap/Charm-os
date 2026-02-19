@@ -1082,6 +1082,7 @@ namespace {
             const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
             anchor_rect(grid, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
             grid->set_grid_layout(2, half_w, list_h, kDemoGap, 0);
+            grid->set_align(static_cast<int>(AlignH::Center), static_cast<int>(AlignV::Center));
             grid->set_visible(false);
         }
 

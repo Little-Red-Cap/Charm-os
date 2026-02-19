@@ -5,12 +5,15 @@ import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
+import charm.core.style;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
 import charm.gfx.color;
 import charm.widgets.button;
 import charm.widgets.label;
+import charm.widgets.list_view;
 import charm.widgets.progress;
+import charm.widgets.text;
 import fs_core;
 import fs_errno;
 import fs_block;
@@ -209,6 +212,7 @@ namespace {
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
+        WidgetHandle list{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -233,6 +237,7 @@ namespace {
         int pending_seek_sec{-1};
         const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
+        std::vector<std::string> track_labels{};
         int track_index{0};
         std::string title_text{};
         std::string subtitle_text{};
@@ -240,6 +245,7 @@ namespace {
         bool updating{false};
         bool fs_ready{false};
         bool duration_ready{false};
+        bool ignore_list_select{false};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -281,6 +287,41 @@ namespace {
         void reset_duration() {
             duration_ready = false;
             duration_sec = 180;
+        }
+
+        void rebuild_track_labels() {
+            track_labels.clear();
+            if (!tracks) return;
+            track_labels.reserve(tracks->size());
+            for (const auto& path : *tracks) {
+                auto base = std::string_view{path};
+                const auto pos = base.find_last_of("/\\");
+                if (pos != std::string_view::npos) base = base.substr(pos + 1);
+                track_labels.emplace_back(base);
+            }
+        }
+
+        void sync_list_selection() {
+            if (!factory) return;
+            auto* list = factory->get_list_view(handles.list);
+            if (!list) return;
+            if (track_index < 0 || track_index >= static_cast<int>(track_labels.size())) return;
+            ignore_list_select = true;
+            list->set_selected(track_index);
+            ignore_list_select = false;
+        }
+
+        void refresh_list_view() {
+            if (!factory) return;
+            auto* list = factory->get_list_view(handles.list);
+            if (!list) return;
+            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            list->set_item_count(count);
+            list->set_row_height(32);
+            list->set_wheel_step(32);
+            if (count > 0) {
+                sync_list_selection();
+            }
         }
 
         void update_duration_from_player() {
@@ -474,6 +515,7 @@ namespace {
             playing = false;
             paused = false;
             reset_duration();
+            sync_list_selection();
             return track_ready;
         }
 
@@ -488,6 +530,20 @@ namespace {
             load_track_index(next);
             if (was_active && track_ready) {
                 start_playback();
+            }
+        }
+
+        void select_track_index(int idx) {
+            if (!tracks || tracks->empty()) return;
+            const bool was_playing = playing;
+            const bool was_paused = paused;
+            stop_playback();
+            load_track_index(idx);
+            if (was_playing && track_ready) {
+                start_playback();
+            } else if (was_paused && track_ready) {
+                start_playback();
+                pause_playback();
             }
         }
 
@@ -574,6 +630,27 @@ namespace {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         app->switch_track(1);
+    }
+
+    void on_list_selected(void* ctx, int index) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app || app->ignore_list_select) return;
+        app->select_track_index(index);
+    }
+
+    void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
+        auto* app = static_cast<PlayerUiContext*>(ctx);
+        if (!app) return;
+        if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
+        const Style& st = Theme::instance().get<ListView>();
+        const auto font = resolve_font(st);
+        Rect text = info.rect;
+        text.x += st.padding;
+        text.w -= st.padding * 2;
+        if (text.w <= 0 || text.h <= 0) return;
+        const rgba color = st.font_color;
+        draw_text_box(cvs, text, app->track_labels[info.index].c_str(), color, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
     Event::Key map_key(SDL_Keycode key) {
@@ -696,6 +773,17 @@ namespace {
             anchor_pos(status, kUiPadding, kUiPadding * 2 + kCoverSize + 150);
         }
 
+        h.list = factory.create_list_view();
+        if (auto* list = factory.get_list_view(h.list)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            anchor_rect(list, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
+            list->set_on_draw(&on_list_draw, &ctx);
+            list->set_on_select(&on_list_selected, &ctx);
+            list->set_row_height(32);
+            list->set_wheel_step(32);
+        }
+
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
@@ -743,6 +831,7 @@ namespace {
         factory.link(h.root, h.progress);
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
+        factory.link(h.root, h.list);
         factory.link(h.root, h.btn_prev);
         factory.link(h.root, h.btn_play);
         factory.link(h.root, h.btn_pause);
@@ -817,6 +906,8 @@ int main(int argc, char** argv) {
                 vfs_tracks.emplace_back(kDefaultVfsTrack);
             }
         }
+        ctx.rebuild_track_labels();
+        ctx.refresh_list_view();
         ctx.load_track_index(0);
     }
 

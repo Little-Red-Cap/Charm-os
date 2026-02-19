@@ -109,7 +109,7 @@ public:
     WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
     WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
     WidgetHandle create_progress_wheel() noexcept { return make_handle(progress_wheels_.create(), WidgetKind::ProgressWheel); }
-    WidgetHandle create_waveform_view() noexcept { return make_handle(waveforms_.create(), WidgetKind::WaveformView); }
+    WidgetHandle create_waveform_view() noexcept { return make_handle(waveform_views_.create(), WidgetKind::WaveformView); }
     WidgetHandle create_battery_gauge() noexcept { return make_handle(batteries_.create(), WidgetKind::BatteryGauge); }
     WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
     WidgetHandle create_ring_indication() noexcept { return make_handle(rings_.create(), WidgetKind::RingIndication); }
@@ -162,7 +162,7 @@ public:
     RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
     CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
     ProgressWheel* get_progress_wheel(const WidgetHandle& h) noexcept { return get_from(progress_wheels_, h, WidgetKind::ProgressWheel); }
-    WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::WaveformView); }
+    WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveform_views_, h, WidgetKind::WaveformView); }
     BatteryGauge* get_battery_gauge(const WidgetHandle& h) noexcept { return get_from(batteries_, h, WidgetKind::BatteryGauge); }
     HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
     RingIndication* get_ring_indication(const WidgetHandle& h) noexcept { return get_from(rings_, h, WidgetKind::RingIndication); }
@@ -416,7 +416,7 @@ public:
         case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
         case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
         case WidgetKind::ProgressWheel: destroy_from(progress_wheels_, h, WidgetKind::ProgressWheel); break;
-        case WidgetKind::WaveformView: destroy_from(waveforms_, h, WidgetKind::WaveformView); break;
+        case WidgetKind::WaveformView: destroy_from(waveform_views_, h, WidgetKind::WaveformView); break;
         case WidgetKind::BatteryGauge: destroy_from(batteries_, h, WidgetKind::BatteryGauge); break;
         case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
         case WidgetKind::RingIndication: destroy_from(rings_, h, WidgetKind::RingIndication); break;
@@ -699,7 +699,7 @@ private:
     HandlePool<RichText, 16> rich_texts_{};
     HandlePool<CodeBlock, 16> code_blocks_{};
     HandlePool<ProgressWheel, 16> progress_wheels_{};
-    HandlePool<WaveformView, 16> waveforms_{};
+    HandlePool<WaveformView, 16> waveform_views_{};
     HandlePool<BatteryGauge, 16> batteries_{};
     HandlePool<HistogramView, 16> histograms_{};
     HandlePool<RingIndication, 16> rings_{};

@@ -15,6 +15,7 @@ export module audio.sink.sdl3;
 import audio.format;
 import audio.result;
 import media.stream.sink;
+import media.stream.types;
 import util.span;
 
 export namespace audio {
@@ -45,8 +46,8 @@ export namespace audio {
     public:
         Result<void> open(const SinkConfig& cfg) noexcept override {
             fmt_ = from_stream_format(cfg.format);
-            const std::uint32_t period = cfg.preferred_period_frames != 0
-                ? cfg.preferred_period_frames
+            const std::uint32_t period = cfg.period_frames != 0
+                ? cfg.period_frames
                 : (fmt_.rate / 100);
             callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
             period_frames_ = period;

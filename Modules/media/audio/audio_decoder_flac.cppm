@@ -13,6 +13,7 @@ import audio.result;
 import util.span;
 import media.stream.source;
 import media.stream.filter;
+import media.stream.types;
 
 export namespace audio {
     struct FlacInfo {

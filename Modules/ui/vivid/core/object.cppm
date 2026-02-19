@@ -52,7 +52,8 @@ public:
         Flex,
         Flow,
         Grid,
-        Constraint
+        Constraint,
+        Custom
     };
 
     struct LayoutSpec {
@@ -68,6 +69,11 @@ public:
         int cell_h{0};
         int grid_gap{0};
         int grid_padding{0};
+        int custom_id{0};
+        int custom_param0{0};
+        int custom_param1{0};
+        int custom_param2{0};
+        int custom_param3{0};
     };
 
     void set_state(State s, bool on) noexcept {
@@ -160,13 +166,33 @@ public:
         layout_spec_.padding = padding;
     }
 
+    void set_custom_layout(int custom_id,
+                           int p0 = 0,
+                           int p1 = 0,
+                           int p2 = 0,
+                           int p3 = 0) noexcept {
+        layout_mode_ = LayoutMode::Custom;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Custom;
+        layout_spec_.custom_id = custom_id;
+        layout_spec_.custom_param0 = p0;
+        layout_spec_.custom_param1 = p1;
+        layout_spec_.custom_param2 = p2;
+        layout_spec_.custom_param3 = p3;
+    }
+
     void set_layout_spec(const LayoutSpec& spec) noexcept {
         layout_spec_enabled_ = true;
         layout_spec_ = spec;
         layout_mode_ = spec.kind;
     }
 
-    void clear_layout_spec() noexcept { layout_spec_enabled_ = false; }
+    void clear_layout_spec() noexcept {
+        layout_spec_enabled_ = false;
+        layout_spec_ = {};
+        layout_mode_ = LayoutMode::Anchor;
+    }
     bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
     const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
 

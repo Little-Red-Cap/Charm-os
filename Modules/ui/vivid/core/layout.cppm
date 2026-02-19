@@ -57,6 +57,37 @@ private:
 };
 
 export
+using LayoutHandler = void(*)(UiFactory&, ObjectBase&, const ObjectBase::LayoutSpec&);
+
+namespace {
+    constexpr int kMaxLayoutEngines = 8;
+    LayoutHandler g_layout_engines[kMaxLayoutEngines]{};
+}
+
+export
+inline bool register_layout_engine(int id, LayoutHandler handler) noexcept {
+    if (id <= 0 || id >= kMaxLayoutEngines) return false;
+    g_layout_engines[id] = handler;
+    return true;
+}
+
+export
+inline void clear_layout_engine(int id) noexcept {
+    if (id <= 0 || id >= kMaxLayoutEngines) return;
+    g_layout_engines[id] = nullptr;
+}
+
+inline bool apply_custom_layout(UiFactory& factory, ObjectBase& container,
+                                const ObjectBase::LayoutSpec& spec) {
+    const int id = spec.custom_id;
+    if (id <= 0 || id >= kMaxLayoutEngines) return false;
+    auto handler = g_layout_engines[id];
+    if (!handler) return false;
+    handler(factory, container, spec);
+    return true;
+}
+
+export
 enum class FlexFlow {
     Row,
     Column
@@ -549,49 +580,38 @@ inline void apply_layout(UiFactory& factory, ObjectBase& container) {
         container.set_children_bounds(bounds, has_bounds);
     };
 
-    if (container.has_layout_spec()) {
-        const auto& spec = container.layout_spec();
-        switch (spec.kind) {
-        case ObjectBase::LayoutMode::Flex: {
-            FlexLayoutConfig cfg{};
-            cfg.flow = static_cast<FlexFlow>(spec.flow);
-            cfg.main_align = static_cast<FlexAlign>(spec.main_align);
-            cfg.cross_align = static_cast<FlexCrossAlign>(spec.cross_align);
-            cfg.gap = spec.gap;
-            cfg.padding = spec.padding;
-            apply_flex_layout(factory, container, cfg);
-            break;
-        }
-        case ObjectBase::LayoutMode::Flow:
-            apply_flow_layout(factory, container, spec.gap, spec.line_gap, spec.padding);
-            break;
-        case ObjectBase::LayoutMode::Grid:
-            apply_grid_layout(factory, container, spec.columns, spec.cell_w, spec.cell_h,
-                              spec.grid_gap, spec.grid_padding);
-            break;
-        case ObjectBase::LayoutMode::Constraint:
-            apply_constraint_layout(factory, container, spec.padding);
-            break;
-        default:
-            apply_anchor_layout(factory, container);
-            break;
-        }
+    if (!container.has_layout_spec()) {
+        apply_anchor_layout(factory, container);
         update_bounds();
         return;
     }
 
-    switch (container.layout_mode()) {
-    case ObjectBase::LayoutMode::Flex:
-        apply_flex_layout(factory, container);
+    const auto& spec = container.layout_spec();
+    switch (spec.kind) {
+    case ObjectBase::LayoutMode::Flex: {
+        FlexLayoutConfig cfg{};
+        cfg.flow = static_cast<FlexFlow>(spec.flow);
+        cfg.main_align = static_cast<FlexAlign>(spec.main_align);
+        cfg.cross_align = static_cast<FlexCrossAlign>(spec.cross_align);
+        cfg.gap = spec.gap;
+        cfg.padding = spec.padding;
+        apply_flex_layout(factory, container, cfg);
         break;
+    }
     case ObjectBase::LayoutMode::Flow:
-        apply_flow_layout(factory, container);
+        apply_flow_layout(factory, container, spec.gap, spec.line_gap, spec.padding);
         break;
     case ObjectBase::LayoutMode::Grid:
-        apply_grid_layout(factory, container);
+        apply_grid_layout(factory, container, spec.columns, spec.cell_w, spec.cell_h,
+                          spec.grid_gap, spec.grid_padding);
         break;
     case ObjectBase::LayoutMode::Constraint:
-        apply_constraint_layout(factory, container);
+        apply_constraint_layout(factory, container, spec.padding);
+        break;
+    case ObjectBase::LayoutMode::Custom:
+        if (!apply_custom_layout(factory, container, spec)) {
+            apply_anchor_layout(factory, container);
+        }
         break;
     default:
         apply_anchor_layout(factory, container);

@@ -115,3 +115,12 @@ flowchart LR
   Fold[FoldablePanel] --> Rect
   Custom --> Render[Clip in render]
 ```
+
+## 13. 架构改进清单（参考 ARM-2D / LVGL）
+- 布局助手：提供轻量 layout iterator，输入区域与 item size/spacing，输出序列 Rect（减轻控件内部计算）。
+- 缓存策略：引入 CachePolicy（控件/容器声明可缓存性），统一渲染阶段决策与配置入口。
+- 可观测性扩展：trace 记录 layout rect / clip rect / draw rect，便于回放与性能定位。
+- 主题基线：支持主题包/默认样式基线与一键切换，减少 demo 内零散配置。
+- 前后端拆分：参考 Arm-2D 的“前端校验 + 后端执行”，把几何/裁剪/参数归一化集中在 core。
+- 辅助服务：增加时间滑块/缓动帮助器（线性/半余弦）供动画与进度类控件复用。
+- 资源加载：支持“按需资源加载/虚拟资源”接口，降低大资源对 RAM 的压力。

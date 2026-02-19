@@ -31,7 +31,7 @@
 ## 4. 布局与容器
 - P0 基础布局：Flex/Anchor
 - P0 容器：ScrollContainer、PopupLayer
-- P1 栅格/流式布局
+- P1 栅格/流式布局（已提供最小实现）
 - P1 约束布局（Constraint）
 - P2 虚拟列表布局
 

@@ -223,6 +223,7 @@ namespace {
         WidgetHandle list_scroll{};
         WidgetHandle table{};
         WidgetHandle tree{};
+        WidgetHandle debug_grid{};
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
@@ -230,6 +231,7 @@ namespace {
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
         WidgetHandle btn_stop{};
+        WidgetHandle controls{};
         WidgetHandle perf_overlay{};
     };
 
@@ -363,11 +365,8 @@ namespace {
             if (auto* bar = factory->get_scroll_bar(handles.list_scroll)) {
                 bar->set_visible(!on);
             }
-            if (auto* table = factory->get_table_view(handles.table)) {
-                table->set_visible(on);
-            }
-            if (auto* tree = factory->get_tree_view(handles.tree)) {
-                tree->set_visible(on);
+            if (auto* grid = factory->get_container(handles.debug_grid)) {
+                grid->set_visible(on);
             }
         }
 
@@ -1075,6 +1074,16 @@ namespace {
             anchor_rect(perf, {screen_width - 320, kUiPadding, 300, 72});
         }
 
+        h.debug_grid = factory.create_container();
+        if (auto* grid = factory.get_container(h.debug_grid)) {
+            const int list_y = kUiPadding * 2 + kCoverSize + 190;
+            const int list_h = screen_height - list_y - 170;
+            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
+            anchor_rect(grid, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
+            grid->set_grid_layout(2, half_w, list_h, kDemoGap, 0);
+            grid->set_visible(false);
+        }
+
         h.list = factory.create_list_view();
         if (auto* list = factory.get_list_view(h.list)) {
             const int list_y = kUiPadding * 2 + kCoverSize + 190;
@@ -1100,68 +1109,60 @@ namespace {
 
         h.tree = factory.create_tree_view();
         if (auto* tree = factory.get_tree_view(h.tree)) {
-            const int list_y = kUiPadding * 2 + kCoverSize + 190;
-            const int list_h = screen_height - list_y - 170;
-            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
-            anchor_rect(tree, {kUiPadding, list_y, half_w, list_h});
             tree_rebuild_visible(g_tree_demo);
             tree->set_data_source(&tree_row_count, &tree_node_info, &on_tree_draw, &g_tree_demo);
             tree->set_on_toggle(&on_tree_toggle);
             tree->set_row_height(28);
-            tree->set_visible(false);
         }
 
         h.table = factory.create_table_view();
         if (auto* table = factory.get_table_view(h.table)) {
-            const int list_y = kUiPadding * 2 + kCoverSize + 190;
-            const int list_h = screen_height - list_y - 170;
-            const int half_w = (screen_width - kUiPadding * 2 - kDemoGap) / 2;
-            anchor_rect(table, {kUiPadding + half_w + kDemoGap, list_y, half_w, list_h});
             table_rebuild_order(g_table_demo);
             table->set_data_source(&table_row_count, &table_col_count, &on_table_draw, &g_table_demo);
             table->set_column_width_fn(&table_col_width);
             table->set_on_select(&on_table_select, &g_table_demo);
             table->set_row_height(28);
-            table->set_visible(false);
         }
 
         constexpr int button_w = 120;
         constexpr int button_h = 48;
         constexpr int gap = 12;
-        const int row1_y = screen_height - 140;
-        const int row2_y = screen_height - 80;
+        const int controls_w = button_w * 3 + gap * 2;
+        const int controls_h = button_h * 2 + gap;
+        const int controls_x = (screen_width - controls_w) / 2;
+        const int controls_y = screen_height - controls_h - 20;
+        h.controls = factory.create_container();
+        if (auto* controls = factory.get_container(h.controls)) {
+            anchor_rect(controls, {controls_x, controls_y, controls_w, controls_h});
+            controls->set_flow_layout(gap, gap, 0);
+        }
 
         h.btn_prev = factory.create_button("Prev");
         if (auto* prev = factory.get_button(h.btn_prev)) {
-            anchor_pos(prev, kUiPadding, row1_y);
             prev->set_size(button_w, button_h);
             prev->set_on_click(Callback{&on_prev_clicked, &ctx});
         }
 
         h.btn_next = factory.create_button("Next");
         if (auto* next = factory.get_button(h.btn_next)) {
-            anchor_pos(next, screen_width - kUiPadding - button_w, row1_y);
             next->set_size(button_w, button_h);
             next->set_on_click(Callback{&on_next_clicked, &ctx});
         }
 
         h.btn_play = factory.create_button("Play");
         if (auto* play = factory.get_button(h.btn_play)) {
-            anchor_pos(play, kUiPadding, row2_y);
             play->set_size(button_w, button_h);
             play->set_on_click(Callback{&on_play_clicked, &ctx});
         }
 
         h.btn_pause = factory.create_button("Pause");
         if (auto* pause = factory.get_button(h.btn_pause)) {
-            anchor_pos(pause, (screen_width - button_w) / 2, row2_y);
             pause->set_size(button_w, button_h);
             pause->set_on_click(Callback{&on_pause_clicked, &ctx});
         }
 
         h.btn_stop = factory.create_button("Stop");
         if (auto* stop = factory.get_button(h.btn_stop)) {
-            anchor_pos(stop, screen_width - kUiPadding - button_w, row2_y);
             stop->set_size(button_w, button_h);
             stop->set_on_click(Callback{&on_stop_clicked, &ctx});
         }
@@ -1175,13 +1176,15 @@ namespace {
         factory.link(h.root, h.perf_overlay);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);
-        factory.link(h.root, h.tree);
-        factory.link(h.root, h.table);
-        factory.link(h.root, h.btn_prev);
-        factory.link(h.root, h.btn_play);
-        factory.link(h.root, h.btn_pause);
-        factory.link(h.root, h.btn_next);
-        factory.link(h.root, h.btn_stop);
+        factory.link(h.root, h.debug_grid);
+        factory.link(h.debug_grid, h.tree);
+        factory.link(h.debug_grid, h.table);
+        factory.link(h.root, h.controls);
+        factory.link(h.controls, h.btn_prev);
+        factory.link(h.controls, h.btn_play);
+        factory.link(h.controls, h.btn_pause);
+        factory.link(h.controls, h.btn_stop);
+        factory.link(h.controls, h.btn_next);
         factory.bring_to_front(h.root, h.perf_overlay);
 
         return h;

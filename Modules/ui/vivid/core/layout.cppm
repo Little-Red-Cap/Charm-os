@@ -195,6 +195,68 @@ inline void apply_flex_layout(UiFactory& factory, ObjectBase& container) {
 }
 
 export
+inline void apply_flow_layout(UiFactory& factory, ObjectBase& container) {
+    const auto rect = container.get_rect();
+    const int padding = container.flow_padding();
+    const int gap = container.flow_gap();
+    const int line_gap = container.flow_line_gap();
+    const int inner_x = rect.x + padding;
+    const int inner_y = rect.y + padding;
+    const int inner_w = rect.w - padding * 2;
+    const int max_x = inner_x + inner_w;
+
+    int cursor_x = inner_x;
+    int cursor_y = inner_y;
+    int line_h = 0;
+    for (std::size_t i = 0; i < container.child_count(); ++i) {
+        auto h = container.child_at(i);
+        auto* ch = factory.get(h);
+        if (!ch || !ch->is_visible()) continue;
+        auto r = ch->get_rect();
+        if (r.w <= 0 || r.h <= 0) continue;
+        if (cursor_x != inner_x && (cursor_x + r.w) > max_x) {
+            cursor_x = inner_x;
+            cursor_y += line_h + line_gap;
+            line_h = 0;
+        }
+        ch->set_pos(cursor_x, cursor_y);
+        cursor_x += r.w + gap;
+        if (r.h > line_h) line_h = r.h;
+    }
+}
+
+export
+inline void apply_grid_layout(UiFactory& factory, ObjectBase& container) {
+    const auto rect = container.get_rect();
+    const int padding = container.grid_padding();
+    const int gap = container.grid_gap();
+    const int cols = (container.grid_columns() > 0) ? container.grid_columns() : 1;
+    const int inner_w = rect.w - padding * 2;
+    int cell_w = container.grid_cell_width();
+    if (cell_w <= 0) {
+        cell_w = (cols > 0) ? (inner_w - gap * (cols - 1)) / cols : 0;
+        if (cell_w < 0) cell_w = 0;
+    }
+    int cell_h = container.grid_cell_height();
+
+    int index = 0;
+    for (std::size_t i = 0; i < container.child_count(); ++i) {
+        auto h = container.child_at(i);
+        auto* ch = factory.get(h);
+        if (!ch || !ch->is_visible()) continue;
+        auto r = ch->get_rect();
+        const int col = index % cols;
+        const int row = index / cols;
+        const int x = rect.x + padding + col * (cell_w + gap);
+        const int y = rect.y + padding + row * ((cell_h > 0 ? cell_h : r.h) + gap);
+        if (cell_w > 0) r.w = cell_w;
+        if (cell_h > 0) r.h = cell_h;
+        ch->set_rect({x, y, r.w, r.h});
+        ++index;
+    }
+}
+
+export
 inline void apply_anchor_layout(UiFactory& factory, ObjectBase& container) {
     const auto rect = container.get_rect();
     for (std::size_t i = 0; i < container.child_count(); ++i) {

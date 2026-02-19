@@ -72,6 +72,8 @@ Draft/        # 计划/草案（可变动）
 - VSF USB 映射：`docs/vsf_usb_map.md`
 - VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
 - USB 体系规划：`docs/usb_arch_plan.md`
+- trace_core 统一入口：`docs/trace_core_entry.md`
+- VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
 
 ## 1.2 依赖红线（单向依赖）
 

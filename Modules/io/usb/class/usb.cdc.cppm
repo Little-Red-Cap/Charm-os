@@ -113,6 +113,8 @@ export namespace usb::class_driver {
 
         const CdcConfig& config() const noexcept { return cfg_; }
         u16 control_line_state() const noexcept { return control_line_state_; }
+        const CdcLineCoding& line_coding() const noexcept { return coding_; }
+        void set_line_coding(const CdcLineCoding& coding) noexcept { coding_ = coding; }
 
         std::span<const u8> serial_state_notification(u16 state_bits) noexcept {
             notify_.w_index = cfg_.ctrl_ifc;

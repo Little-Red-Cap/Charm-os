@@ -184,8 +184,15 @@ export namespace usb {
         DescriptorWriter writer{};
         std::size_t config_offset{static_cast<std::size_t>(-1)};
         u8 interface_count{0};
+        bool interface_count_override{false};
+        u8 interface_count_value{0};
 
         explicit DescriptorBuilder(std::span<u8> buffer) noexcept { writer.buffer = buffer; }
+
+        void set_interface_count(u8 value) noexcept {
+            interface_count_override = true;
+            interface_count_value = value;
+        }
 
         bool begin_config(const ConfigDescriptor& cfg) noexcept {
             config_offset = writer.offset;
@@ -212,7 +219,7 @@ export namespace usb {
             if (config_offset + sizeof(ConfigDescriptor) > writer.buffer.size()) return false;
             auto* cfg = reinterpret_cast<ConfigDescriptor*>(writer.buffer.data() + config_offset);
             cfg->total_length = static_cast<u16>(writer.offset - config_offset);
-            cfg->num_interfaces = interface_count;
+            cfg->num_interfaces = interface_count_override ? interface_count_value : interface_count;
             return true;
         }
     };

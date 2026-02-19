@@ -18,6 +18,9 @@ import charm.widgets.image;
 import charm.widgets.image_box;
 import charm.widgets.busy_wheel;
 import charm.widgets.console_box;
+import charm.widgets.battery_gasgauge;
+import charm.widgets.histogram;
+import charm.widgets.progress_bar_flowing;
 import charm.widgets.label;
 import charm.widgets.button;
 import charm.widgets.checkbox;
@@ -91,6 +94,8 @@ public:
     WidgetHandle create_image_box() noexcept { return make_handle(image_boxes_.create(), WidgetKind::ImageBox); }
     WidgetHandle create_busy_wheel() noexcept { return make_handle(busy_wheels_.create(), WidgetKind::BusyWheel); }
     WidgetHandle create_console_box() noexcept { return make_handle(console_boxes_.create(), WidgetKind::ConsoleBox); }
+    WidgetHandle create_battery_gasgauge() noexcept { return make_handle(battery_gasgauge_.create(), WidgetKind::BatteryGasGauge); }
+    WidgetHandle create_histogram() noexcept { return make_handle(histogram_.create(), WidgetKind::Histogram); }
     WidgetHandle create_label(const char* text) noexcept { return make_handle(labels_.create(text), WidgetKind::Label); }
     WidgetHandle create_button(const char* text) noexcept { return make_handle(buttons_.create(text), WidgetKind::Button); }
     WidgetHandle create_checkbox(const char* text) noexcept { return make_handle(checkboxes_.create(text), WidgetKind::Checkbox); }
@@ -161,6 +166,8 @@ public:
     ImageBox* get_image_box(const WidgetHandle& h) noexcept { return get_from(image_boxes_, h, WidgetKind::ImageBox); }
     BusyWheel* get_busy_wheel(const WidgetHandle& h) noexcept { return get_from(busy_wheels_, h, WidgetKind::BusyWheel); }
     ConsoleBox* get_console_box(const WidgetHandle& h) noexcept { return get_from(console_boxes_, h, WidgetKind::ConsoleBox); }
+    BatteryGasGauge* get_battery_gasgauge(const WidgetHandle& h) noexcept { return get_from(battery_gasgauge_, h, WidgetKind::BatteryGasGauge); }
+    Histogram* get_histogram(const WidgetHandle& h) noexcept { return get_from(histogram_, h, WidgetKind::Histogram); }
     Label* get_label(const WidgetHandle& h) noexcept { return get_from(labels_, h, WidgetKind::Label); }
     Button* get_button(const WidgetHandle& h) noexcept { return get_from(buttons_, h, WidgetKind::Button); }
     Checkbox* get_checkbox(const WidgetHandle& h) noexcept { return get_from(checkboxes_, h, WidgetKind::Checkbox); }
@@ -229,6 +236,8 @@ public:
             case WidgetKind::ImageBox: return get_image_box(h);
             case WidgetKind::BusyWheel: return get_busy_wheel(h);
             case WidgetKind::ConsoleBox: return get_console_box(h);
+            case WidgetKind::BatteryGasGauge: return get_battery_gasgauge(h);
+            case WidgetKind::Histogram: return get_histogram(h);
             case WidgetKind::Label: return get_label(h);
             case WidgetKind::Button: return get_button(h);
             case WidgetKind::Checkbox: return get_checkbox(h);
@@ -446,6 +455,8 @@ public:
         case WidgetKind::ImageBox: destroy_from(image_boxes_, h, WidgetKind::ImageBox); break;
         case WidgetKind::BusyWheel: destroy_from(busy_wheels_, h, WidgetKind::BusyWheel); break;
         case WidgetKind::ConsoleBox: destroy_from(console_boxes_, h, WidgetKind::ConsoleBox); break;
+        case WidgetKind::BatteryGasGauge: destroy_from(battery_gasgauge_, h, WidgetKind::BatteryGasGauge); break;
+        case WidgetKind::Histogram: destroy_from(histogram_, h, WidgetKind::Histogram); break;
         case WidgetKind::Label: destroy_from(labels_, h, WidgetKind::Label); break;
         case WidgetKind::Button: destroy_from(buttons_, h, WidgetKind::Button); break;
         case WidgetKind::Checkbox: destroy_from(checkboxes_, h, WidgetKind::Checkbox); break;
@@ -745,6 +756,8 @@ private:
     HandlePool<ImageBox, 16> image_boxes_{};
     HandlePool<BusyWheel, 16> busy_wheels_{};
     HandlePool<ConsoleBox, 8> console_boxes_{};
+    HandlePool<BatteryGasGauge, 16> battery_gasgauge_{};
+    HandlePool<Histogram, 16> histogram_{};
     HandlePool<Label, 128> labels_{};
     HandlePool<Button, 64> buttons_{};
     HandlePool<Checkbox, 64> checkboxes_{};

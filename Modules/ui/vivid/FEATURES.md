@@ -77,7 +77,7 @@ flowchart LR
 - P0 menu 支持多级展开/收起（menu_tree，含键盘导航）
 - P0 list_view（含虚拟化与固定行缓存槽位）
 - P0 progress / spinner / spinning_wheel / busy_wheel / bar / progress_bar_round / progress_bar_simple / progress_bar_drill / gauge / meter_pointer / arc
-- P0 progress_wheel / progress_flowing / dynamic_nebula / crt_screen（含无值模式） / waveform_view / battery_gauge / histogram_view / ring_indication（含刻度/阴影） / text_box / foldable_panel / cloudy_glass
+- P0 progress_wheel / progress_flowing / progress_bar_flowing / dynamic_nebula / crt_screen（含无值模式） / waveform_view / battery_gauge / battery_gasgauge / histogram / histogram_view / ring_indication（含刻度/阴影） / text_box / foldable_panel / cloudy_glass
 - P0 text / text_area / text_input / number_input / rich_text（粗体/颜色/等宽） / code_block
 - P0 message_box / modal_dialog / tabview / scroll_container / popup_layer / scrollbar / console_box
 - P0 segmented_control / toggle_group

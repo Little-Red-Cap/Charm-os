@@ -50,6 +50,7 @@ export namespace usb::device {
             stage_ = Ep0Stage::setup;
             in_remaining_ = 0;
             out_expected_ = 0;
+            zlp_pending_ = false;
         }
 
         void set_class(void* ctx, const ClassOps* ops) noexcept {
@@ -65,6 +66,7 @@ export namespace usb::device {
             stage_ = Ep0Stage::setup;
             in_remaining_ = 0;
             out_expected_ = 0;
+            zlp_pending_ = false;
         }
 
         bool handle_setup(ControlResponse& resp) noexcept {
@@ -87,9 +89,10 @@ export namespace usb::device {
             return false;
         }
 
-        void begin_data_in(std::size_t len) noexcept {
+        void begin_data_in(std::size_t len, bool zlp) noexcept {
             stage_ = Ep0Stage::data_in;
             in_remaining_ = static_cast<u16>(len);
+            zlp_pending_ = zlp;
         }
 
         void begin_data_out(std::size_t len) noexcept {
@@ -100,6 +103,7 @@ export namespace usb::device {
         void finish_data_in() noexcept {
             stage_ = Ep0Stage::status_out;
             in_remaining_ = 0;
+            zlp_pending_ = false;
         }
 
         void finish_data_out() noexcept {
@@ -107,8 +111,20 @@ export namespace usb::device {
             out_expected_ = 0;
         }
 
+        void mark_data_in_done() noexcept {
+            if (zlp_pending_) return;
+            finish_data_in();
+        }
+
+        void mark_zlp_sent() noexcept {
+            if (!zlp_pending_) return;
+            zlp_pending_ = false;
+            finish_data_in();
+        }
+
         u16 in_remaining() const noexcept { return in_remaining_; }
         u16 out_expected() const noexcept { return out_expected_; }
+        bool zlp_pending() const noexcept { return zlp_pending_; }
 
         void set_address(u8 addr) noexcept {
             address_ = addr;
@@ -128,6 +144,7 @@ export namespace usb::device {
         const ClassOps* class_ops_{nullptr};
         u16 in_remaining_{0};
         u16 out_expected_{0};
+        bool zlp_pending_{false};
     };
 
     class Device {
@@ -140,6 +157,7 @@ export namespace usb::device {
         Ep0Stage stage() const noexcept { return ep0_.stage(); }
         u16 in_remaining() const noexcept { return ep0_.in_remaining(); }
         u16 out_expected() const noexcept { return ep0_.out_expected(); }
+        bool zlp_pending() const noexcept { return ep0_.zlp_pending(); }
 
         bool handle_setup(const SetupPacket& setup, ControlResponse& resp) noexcept {
             ep0_.on_setup(setup);
@@ -158,7 +176,7 @@ export namespace usb::device {
                 const auto len = (resp.data.size() < wlen) ? resp.data.size() : wlen;
                 resp.data = resp.data.subspan(0, len);
                 resp.zlp = (len < wlen) && (max_packet_size0_ > 0) && ((len % max_packet_size0_) == 0);
-                ep0_.begin_data_in(len);
+                ep0_.begin_data_in(len, resp.zlp);
                 return true;
             }
             ep0_.begin_data_out(setup.w_length);
@@ -173,7 +191,13 @@ export namespace usb::device {
             return true;
         }
 
-        void finish_in_status() noexcept { ep0_.finish_data_in(); }
+        void finish_in_data(bool sent_zlp) noexcept {
+            if (sent_zlp) {
+                ep0_.mark_zlp_sent();
+            } else {
+                ep0_.mark_data_in_done();
+            }
+        }
 
     private:
         bool handle_standard(const SetupPacket& setup, ControlResponse& resp) noexcept {

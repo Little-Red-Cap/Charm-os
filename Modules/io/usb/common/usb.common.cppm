@@ -237,6 +237,19 @@ export namespace usb {
         return true;
     }
 
+    inline bool write_utf16_string_descriptor(DescriptorWriter& writer, std::u16string_view text) noexcept {
+        const auto utf16_bytes = text.size() * 2;
+        if (utf16_bytes > 254) return false;
+        StringDescriptorHeader hdr{};
+        hdr.length = static_cast<u8>(2 + utf16_bytes);
+        if (!writer.write_object(hdr)) return false;
+        for (char16_t ch : text) {
+            const u16 le = static_cast<u16>(ch);
+            if (!writer.write_object(le)) return false;
+        }
+        return true;
+    }
+
     constexpr u8 make_request_type(RequestDirection dir, RequestType type, RequestRecipient recip) noexcept {
         return static_cast<u8>(static_cast<u8>(dir)
             | static_cast<u8>(type)

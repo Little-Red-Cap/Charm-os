@@ -2,6 +2,7 @@ export module charm.io;
 
 export import hal_clock;
 export import hal_core;
+export import hal_device;
 export import hal_gpio;
 export import hal_i2c;
 export import hal_input;

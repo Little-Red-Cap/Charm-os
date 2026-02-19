@@ -1,4 +1,5 @@
-﻿import audio.player;
+import audio.player;
+import audio.result;
 import charm.core.config;
 import charm.core.container;
 import charm.core.event;
@@ -59,6 +60,89 @@ namespace {
         return 0;
     }
 
+    const char* fs_err_text(fs::Err err) {
+        switch (err) {
+        case fs::Err::ok: return "ok";
+        case fs::Err::perm: return "perm";
+        case fs::Err::noent: return "noent";
+        case fs::Err::exist: return "exist";
+        case fs::Err::io: return "io";
+        case fs::Err::busy: return "busy";
+        case fs::Err::inval: return "inval";
+        case fs::Err::nametoolong: return "nametoolong";
+        case fs::Err::nosys: return "nosys";
+        case fs::Err::nomem: return "nomem";
+        case fs::Err::notsup: return "notsup";
+        case fs::Err::rofs: return "rofs";
+        case fs::Err::timeout: return "timeout";
+        case fs::Err::again: return "again";
+        }
+        return "unknown";
+    }
+
+    const char* audio_err_text(audio::Errc err) {
+        switch (err) {
+        case audio::Errc::ok: return "ok";
+        case audio::Errc::invalid_arg: return "invalid_arg";
+        case audio::Errc::not_supported: return "not_supported";
+        case audio::Errc::io_error: return "io_error";
+        case audio::Errc::decode_error: return "decode_error";
+        case audio::Errc::bad_state: return "bad_state";
+        case audio::Errc::timeout: return "timeout";
+        }
+        return "unknown";
+    }
+
+    bool has_audio_ext(std::string_view name) {
+        const auto dot = name.find_last_of('.');
+        if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
+        const auto ext = name.substr(dot + 1);
+        if (ext.size() == 3) {
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            if (a == 'm' && b == 'p' && c == '3') return true;
+            if (a == 'w' && b == 'a' && c == 'v') return true;
+        }
+        if (ext.size() == 4) {
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
+            if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
+        }
+        return false;
+    }
+
+    struct TrackListContext {
+        std::string_view dir{};
+        std::vector<std::string>* out{nullptr};
+    };
+
+    fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* info = static_cast<TrackListContext*>(ctx);
+        if (!info || !info->out) return fs::Status{fs::Err::inval};
+        if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
+        if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
+
+        std::string path;
+        if (info->dir.empty() || info->dir == "/") {
+            path = "/";
+        } else {
+            path.assign(info->dir.begin(), info->dir.end());
+            if (!path.empty() && path.back() != '/') path.push_back('/');
+        }
+        path.append(entry.name.begin(), entry.name.end());
+        info->out->push_back(path);
+        return fs::Status{fs::Err::ok};
+    }
+
+    bool collect_tracks_from_dir(std::string_view dir, std::vector<std::string>& out) {
+        TrackListContext ctx{dir, &out};
+        const auto st = fs::vfs_list(dir, &ctx, &collect_track);
+        return st && !out.empty();
+    }
+
     struct OffsetDevice {
         fs::BlockDevice* base{nullptr};
         std::uint32_t lba_offset{0};
@@ -94,29 +178,29 @@ namespace {
         }
     };
 
-    bool mount_fatfs_from_vhd(const char* path) {
-        if (!path || !*path) return false;
+    fs::Status mount_fatfs_from_vhd(const char* path) {
+        if (!path || !*path) return fs::Status{fs::Err::inval};
         static fs::BlockFile file_dev;
         static OffsetDevice part_dev;
         static fs::FatFsMount fat;
 
         auto st = file_dev.open(path, 512);
-        if (!st) return false;
+        if (!st) return st;
 
         std::array<std::uint8_t, 512> sector0{};
         st = file_dev.device().read(file_dev.device().ctx, 0,
             std::span<util::u8>(reinterpret_cast<util::u8*>(sector0.data()), sector0.size()));
-        if (!st) return false;
+        if (!st) return st;
 
         const auto lba = find_fat_partition_lba(sector0);
         part_dev.init(file_dev.device(), lba);
 
         st = fat.mount(part_dev.device, false);
-        if (!st) return false;
+        if (!st) return st;
 
         fs::clear_mounts();
         (void)fs::add_mount("/", fat.mount_point());
-        return true;
+        return fs::Status{fs::Err::ok};
     }
 
     struct UiHandles {
@@ -155,6 +239,7 @@ namespace {
         bool paused{false};
         bool updating{false};
         bool fs_ready{false};
+        bool duration_ready{false};
 
         void set_label(WidgetHandle h, const char* text) {
             if (!factory) return;
@@ -191,6 +276,27 @@ namespace {
             const int total_s = total % 60;
             std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
             set_label(handles.time, buf);
+        }
+
+        void reset_duration() {
+            duration_ready = false;
+            duration_sec = 180;
+        }
+
+        void update_duration_from_player() {
+            if (duration_ready || !player) return;
+            const auto total = player->total_frames();
+            const auto fmt = player->input_format();
+            if (total == 0 || fmt.rate == 0) return;
+            const auto secs = static_cast<int>(total / fmt.rate);
+            duration_sec = (secs > 0) ? secs : 1;
+            duration_ready = true;
+            if (current_sec > duration_sec) {
+                set_time_label(duration_sec);
+                sync_progress_value(100);
+            } else {
+                set_time_label(current_sec);
+            }
         }
 
         void update_progress() {
@@ -249,7 +355,9 @@ namespace {
             (void)player->stop();
             auto res = player->play(track_path);
             if (!res) {
-                set_status("Play failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             playing = true;
@@ -267,7 +375,9 @@ namespace {
             if (!player || !playing) return;
             auto res = player->pause();
             if (!res) {
-                set_status("Pause failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             playing = false;
@@ -281,7 +391,9 @@ namespace {
             if (!player || !paused) return;
             auto res = player->resume();
             if (!res) {
-                set_status("Resume failed");
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error().code));
+                set_status(buf);
                 return;
             }
             paused = false;
@@ -347,7 +459,13 @@ namespace {
             } else {
                 track_ready = false;
             }
-            set_status(track_ready ? "Ready" : "Load failed");
+            if (track_ready) {
+                set_status("Ready");
+            } else {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
+                set_status(buf);
+            }
             set_status_color(track_ready ? rgba{120, 200, 170, 255} : rgba{220, 120, 120, 255});
             set_pause_button_text("Pause");
             set_time_label(0);
@@ -355,6 +473,7 @@ namespace {
             pending_seek_sec = -1;
             playing = false;
             paused = false;
+            reset_duration();
             return track_ready;
         }
 
@@ -674,11 +793,20 @@ int main(int argc, char** argv) {
     ctx.handles = build_ui(factory, ctx);
     ctx.set_time_label(0);
 
-    ctx.fs_ready = mount_fatfs_from_vhd(vhd_path);
+    const auto mount_st = mount_fatfs_from_vhd(vhd_path);
+    ctx.fs_ready = static_cast<bool>(mount_st);
     if (!ctx.fs_ready) {
-        ctx.set_status("Mount failed");
+        char buf[64]{};
+        std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
+        ctx.set_status(buf);
         ctx.set_status_color({220, 120, 120, 255});
     } else {
+        vfs_tracks.clear();
+        if (!collect_tracks_from_dir("/music", vfs_tracks)) {
+            if (!collect_tracks_from_dir("/", vfs_tracks)) {
+                vfs_tracks.emplace_back(kDefaultVfsTrack);
+            }
+        }
         ctx.load_track_index(0);
     }
 
@@ -703,6 +831,14 @@ int main(int argc, char** argv) {
             ctx.set_status_color({140, 150, 175, 255});
             ctx.set_pause_button_text("Pause");
         }
+        if (player.state() == audio::PlayerState::error) {
+            ctx.playing = false;
+            ctx.paused = false;
+            ctx.set_status("Player error");
+            ctx.set_status_color({220, 120, 120, 255});
+            ctx.set_pause_button_text("Pause");
+        }
+        ctx.update_duration_from_player();
         ctx.apply_pending_seek();
         ctx.update_progress();
 

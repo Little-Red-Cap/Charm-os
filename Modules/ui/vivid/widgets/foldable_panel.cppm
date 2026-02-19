@@ -19,6 +19,7 @@ public:
         set_size(220, 140);
         set_title(title);
         set_flow_layout(8, 8, 0);
+        set_clip_policy(ClipPolicy::LayoutRect);
     }
 
     void set_title(const char* text) noexcept { assign(title_, title_len_, text); }
@@ -58,10 +59,10 @@ public:
                       TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
 
         if (!expanded_) return;
+        update_scroll_bounds();
 
         if (child_count() == 0 && body_len_ > 0) {
-            const Rect body_box{r.x + st.padding, r.y + header_h + st.padding,
-                                r.w - st.padding * 2, r.h - header_h - st.padding * 2};
+            const auto body_box = layout_rect();
             draw_text_box(cvs, body_box, body_, font, resolve_font(st),
                           TextAlignH::Left, TextAlignV::Top, TextWrap::Word, TextEllipsis::None);
         }
@@ -75,6 +76,18 @@ public:
             toggle();
             return true;
         }
+        if (expanded_ && e.type == Event::Type::MouseWheel) {
+            if (r.contains(e.x, e.y)) {
+                add_scroll_y(-e.wheel_y * wheel_step_);
+                return true;
+            }
+        }
+        if (expanded_ && e.type == Event::Type::DragMove) {
+            if (r.contains(e.x, e.y)) {
+                add_scroll_y(-e.dy);
+                return true;
+            }
+        }
         return false;
     }
 
@@ -84,7 +97,7 @@ public:
         if (!expanded_) {
             return {r.x, r.y + header_h, r.w, 0};
         }
-        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_,
+        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_ - scroll_y_,
                    r.w - content_pad_ * 2, r.h - header_h - content_pad_ * 2};
         if (inner.w < 0) inner.w = 0;
         if (inner.h < 0) inner.h = 0;
@@ -93,14 +106,6 @@ public:
 
     bool should_draw_child(const ObjectBase&) const noexcept override {
         return expanded_;
-    }
-
-    bool clip_children() const noexcept override {
-        return true;
-    }
-
-    Rect children_clip_rect() const noexcept override {
-        return layout_rect();
     }
 
 private:
@@ -112,6 +117,19 @@ private:
     int header_h_{28};
     int content_pad_{8};
     bool expanded_{true};
+    int scroll_y_{0};
+    int max_scroll_{0};
+    int wheel_step_{24};
+
+    int clamp_scroll(int y) const noexcept {
+        if (y < 0) return 0;
+        if (y > max_scroll_) return max_scroll_;
+        return y;
+    }
+
+    void add_scroll_y(int dy) noexcept {
+        scroll_y_ = clamp_scroll(scroll_y_ + dy);
+    }
 
     static void assign(char* dst, int& len, const char* src) noexcept {
         len = 0;
@@ -121,5 +139,34 @@ private:
             ++len;
         }
         dst[len] = '\0';
+    }
+
+    void update_scroll_bounds() noexcept {
+        if (!expanded_) {
+            max_scroll_ = 0;
+            scroll_y_ = 0;
+            return;
+        }
+        const auto content = content_rect();
+        int content_h = 0;
+        if (has_children_bounds()) {
+            const auto bounds = children_bounds();
+            const int bottom = bounds.y + bounds.h;
+            content_h = bottom - (content.y - scroll_y_);
+            if (content_h < 0) content_h = 0;
+        }
+        const int view_h = content.h;
+        max_scroll_ = (content_h > view_h) ? (content_h - view_h) : 0;
+        scroll_y_ = clamp_scroll(scroll_y_);
+    }
+
+    Rect content_rect() const noexcept {
+        const auto r = get_rect();
+        const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
+        Rect inner{r.x + content_pad_, r.y + header_h + content_pad_,
+                   r.w - content_pad_ * 2, r.h - header_h - content_pad_ * 2};
+        if (inner.w < 0) inner.w = 0;
+        if (inner.h < 0) inner.h = 0;
+        return inner;
     }
 };

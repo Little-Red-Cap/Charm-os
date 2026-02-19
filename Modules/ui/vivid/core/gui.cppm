@@ -205,10 +205,24 @@ private:
             target.mark_dirty(obj->get_rect());
         }
 
-        const bool clip_children = (h.kind == WidgetKind::ScrollContainer) || obj->clip_children();
+        const auto clip_policy = obj->clip_policy();
+        const bool clip_children = (clip_policy != ObjectBase::ClipPolicy::None);
         auto clip_state = target.save_clip();
         if (clip_children) {
-            const auto clip_rect = (h.kind == WidgetKind::ScrollContainer) ? obj->get_rect() : obj->children_clip_rect();
+            Rect clip_rect = obj->get_rect();
+            switch (clip_policy) {
+            case ObjectBase::ClipPolicy::Rect:
+                clip_rect = obj->get_rect();
+                break;
+            case ObjectBase::ClipPolicy::LayoutRect:
+                clip_rect = obj->layout_rect();
+                break;
+            case ObjectBase::ClipPolicy::Custom:
+                clip_rect = obj->children_clip_rect();
+                break;
+            default:
+                break;
+            }
             target.set_clip(clip_rect);
         }
 

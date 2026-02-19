@@ -18,7 +18,16 @@ public:
     void set_size(int w, int h) noexcept { rect_.w = w; rect_.h = h; }
     void set_rect(Rect r) noexcept { rect_ = r; }
     virtual Rect layout_rect() const noexcept { return rect_; }
-    virtual bool clip_children() const noexcept { return false; }
+
+    enum class ClipPolicy : unsigned {
+        None,
+        Rect,
+        LayoutRect,
+        Custom
+    };
+
+    void set_clip_policy(ClipPolicy policy) noexcept { clip_policy_ = policy; }
+    ClipPolicy clip_policy() const noexcept { return clip_policy_; }
     virtual Rect children_clip_rect() const noexcept { return rect_; }
 
     void set_visible(bool v) noexcept {
@@ -360,11 +369,19 @@ public:
     virtual bool on_event(const Event&) { return false; }
 
     virtual bool should_draw_child(const ObjectBase&) const noexcept { return true; }
+    void set_children_bounds(const Rect& bounds, bool valid) noexcept {
+        children_bounds_ = bounds;
+        children_bounds_valid_ = valid;
+    }
+    bool has_children_bounds() const noexcept { return children_bounds_valid_; }
+    Rect children_bounds() const noexcept { return children_bounds_; }
 
 protected:
     static constexpr std::size_t kMaxChildren = 64;
 
     Rect rect_{};
+    Rect children_bounds_{};
+    bool children_bounds_valid_{false};
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
@@ -399,6 +416,7 @@ protected:
     int align_v_{0};
     bool layout_spec_enabled_{false};
     LayoutSpec layout_spec_{};
+    ClipPolicy clip_policy_{ClipPolicy::None};
     InteractionList<> interactions_{};
     DragStrategy default_drag_{};
     LongPressStrategy default_long_press_{};

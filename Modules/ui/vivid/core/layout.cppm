@@ -524,6 +524,31 @@ inline void apply_constraint_layout(UiFactory& factory, ObjectBase& container, i
 
 export
 inline void apply_layout(UiFactory& factory, ObjectBase& container) {
+    auto update_bounds = [&]() {
+        Rect bounds{};
+        bool has_bounds = false;
+        for (std::size_t i = 0; i < container.child_count(); ++i) {
+            auto h = container.child_at(i);
+            auto* ch = factory.get(h);
+            if (!ch || !ch->is_visible()) continue;
+            const auto r = ch->get_rect();
+            if (!has_bounds) {
+                bounds = r;
+                has_bounds = true;
+            } else {
+                const int left = (r.x < bounds.x) ? r.x : bounds.x;
+                const int top = (r.y < bounds.y) ? r.y : bounds.y;
+                const int right = ((r.x + r.w) > (bounds.x + bounds.w)) ? (r.x + r.w) : (bounds.x + bounds.w);
+                const int bottom = ((r.y + r.h) > (bounds.y + bounds.h)) ? (r.y + r.h) : (bounds.y + bounds.h);
+                bounds.x = left;
+                bounds.y = top;
+                bounds.w = right - left;
+                bounds.h = bottom - top;
+            }
+        }
+        container.set_children_bounds(bounds, has_bounds);
+    };
+
     if (container.has_layout_spec()) {
         const auto& spec = container.layout_spec();
         switch (spec.kind) {
@@ -551,6 +576,7 @@ inline void apply_layout(UiFactory& factory, ObjectBase& container) {
             apply_anchor_layout(factory, container);
             break;
         }
+        update_bounds();
         return;
     }
 
@@ -571,4 +597,5 @@ inline void apply_layout(UiFactory& factory, ObjectBase& container) {
         apply_anchor_layout(factory, container);
         break;
     }
+    update_bounds();
 }

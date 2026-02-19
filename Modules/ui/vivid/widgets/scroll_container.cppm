@@ -22,6 +22,7 @@ class ScrollContainer : public ObjectBase {
 public:
     ScrollContainer() {
         set_focusable(true);
+        set_clip_policy(ClipPolicy::Rect);
         pinch_strategy_.set_callbacks(&ScrollContainer::on_pinch_begin,
                                       &ScrollContainer::on_pinch_update,
                                       &ScrollContainer::on_pinch_end,

@@ -35,6 +35,7 @@ import audio.sink.sdl3;
 import alg_fft;
 import media.stream.filter;
 import media.stream.source;
+import media.stream.types;
 import service.queue;
 import util.span;
 
@@ -480,6 +481,15 @@ export namespace audio {
             }
         }
 
+        static media::StreamFormat to_stream_format(const AudioFormat& fmt) noexcept {
+            media::StreamFormat out{};
+            out.kind = media::StreamKind::audio;
+            out.rate = fmt.rate;
+            out.channels = fmt.channels;
+            out.bits_per_sample = static_cast<std::uint16_t>(fmt.bytes_per_sample() * 8u);
+            return out;
+        }
+
         void push_spectrum_samples(std::span<const std::byte> data) noexcept {
             if (!spectrum_enabled_.load(std::memory_order_relaxed)) return;
             const std::size_t channels = output_fmt_.channels ? output_fmt_.channels : 1;
@@ -653,8 +663,8 @@ export namespace audio {
             }
 
             SinkConfig cfg{};
-            cfg.fmt = output_fmt_;
-            cfg.preferred_period_frames = config_.preferred_period_frames;
+            cfg.format = to_stream_format(output_fmt_);
+            cfg.period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
@@ -801,8 +811,8 @@ export namespace audio {
             }
 
             SinkConfig cfg{};
-            cfg.fmt = output_fmt_;
-            cfg.preferred_period_frames = config_.preferred_period_frames;
+            cfg.format = to_stream_format(output_fmt_);
+            cfg.period_frames = config_.preferred_period_frames;
             if (!sink_.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;

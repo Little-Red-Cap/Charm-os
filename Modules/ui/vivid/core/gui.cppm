@@ -205,10 +205,11 @@ private:
             target.mark_dirty(obj->get_rect());
         }
 
-        const bool clip_children = (h.kind == WidgetKind::ScrollContainer);
+        const bool clip_children = (h.kind == WidgetKind::ScrollContainer) || obj->clip_children();
         auto clip_state = target.save_clip();
         if (clip_children) {
-            target.set_clip(obj->get_rect());
+            const auto clip_rect = (h.kind == WidgetKind::ScrollContainer) ? obj->get_rect() : obj->children_clip_rect();
+            target.set_clip(clip_rect);
         }
 
         for (std::size_t i = 0; i < obj->child_count(); ++i) {

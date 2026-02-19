@@ -95,6 +95,14 @@ public:
         return expanded_;
     }
 
+    bool clip_children() const noexcept override {
+        return true;
+    }
+
+    Rect children_clip_rect() const noexcept override {
+        return layout_rect();
+    }
+
 private:
     static constexpr int kMax = 256;
     char title_[kMax + 1]{};

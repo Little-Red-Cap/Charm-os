@@ -25,6 +25,7 @@ import charm.widgets.timeline;
 import charm.widgets.menu_tree;
 import charm.widgets.rich_text;
 import charm.widgets.code_block;
+import charm.widgets.image;
 import charm.widgets.table_view;
 import charm.widgets.text;
 import fs_core;
@@ -36,7 +37,15 @@ import fs_fatfs;
 import fs_vfs;
 import util.core;
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
 #include <SDL3/SDL.h>
+#if defined(_WIN32)
+#undef NOMINMAX
+#undef WIN32_LEAN_AND_MEAN
+#endif
 
 #include <array>
 #include <chrono>
@@ -47,7 +56,6 @@ import util.core;
 #include <span>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 namespace {
@@ -1533,7 +1541,7 @@ int main(int argc, char** argv) {
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        SDL_Delay(16);
     }
 
     SDL_DestroyTexture(texture);

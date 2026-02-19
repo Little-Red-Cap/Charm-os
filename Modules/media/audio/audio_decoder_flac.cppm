@@ -68,6 +68,7 @@ export namespace audio {
             if (!flac_) {
                 return unexpected(Err{Errc::invalid_arg, 0});
             }
+            flac_->_noSeekTableSeek = DRFLAC_TRUE;
             flac_->_noBinarySearchSeek = DRFLAC_TRUE;
             FlacInfo info{};
             info.sample_rate = flac_->sampleRate;

@@ -71,6 +71,7 @@ Draft/        # 计划/草案（可变动）
 - Audio：`Modules/media/audio/audio_design.md`
 - HAL：`Modules/io/hal/charm_hal_design.md`
 - FS：`Modules/io/fs/fs_migration_notes.md`
+- Block cache：`docs/fs_block_cache_strategy.md`
 - FatFs 示例：`docs/fs_fatfs_demo.md`
 - Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
 - Service：`Modules/core/service/vsf_migration_service_detail.md`

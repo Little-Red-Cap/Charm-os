@@ -14,6 +14,7 @@
 - fs_ramfs：RAMFS 简化实现
 - fs_blockfs：BlockFs 简化实现
 - fs_fatfs：FatFs 适配入口（支持 Block/MAL）
+- fs_posix：POSIX facade（VFS 薄封装）
 
 ## 已完成特性
 - LFN 列目录支持（lfname 优先，UTF‑16 → UTF‑8）
@@ -24,13 +25,13 @@
 - FatFs 多盘注册（pdrv 多实例）
 - VFS 调度全链（open/close/read/write/seek/flush）
 - Block cache 策略落点确认（见 docs/fs_block_cache_strategy.md）
-- POSIX facade（fs_posix）薄封装
+- POSIX facade（见 docs/fs_posix_facade.md）
 
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`
 
 ## 待办
-- Block cache（可选，位于 MAL 或 VFS 层）
-- POSIX facade 桥接
+- Block cache 实现（cached_mal）
 - RAMFS 完整实现（多块/目录）
+- POSIX facade 扩展（mkdir/stat/readdir/pipe）
 - 后续适配层：ROMFS/FlashFS

@@ -17,7 +17,10 @@ export import hal_uart;
 export import hal_win;
 export import input.raw;
 export import input.raw_event;
+export import input.queue;
 export import input.sampler;
+export import input.raw_sampler;
+export import input.trace;
 
 export import at.parser;
 export import at.session;
@@ -53,6 +56,7 @@ export import shell_time;
 export import input.encoder_decoder;
 export import input.events;
 export import input.intent;
+export import input.nav;
 
 export import out.ansi;
 export import out.api;

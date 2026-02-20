@@ -16,7 +16,7 @@ export module gui.ui_list_page;
 
 import gui.core;
 import gui.layout;
-import gui.list_layout;
+import alg_list_layout;
 import gui.list_view;
 import gui.ui_context;
 import gui.ui_focus;
@@ -64,7 +64,7 @@ export namespace gui::ui {
 
     struct ListPageFrame {
         gui::Rect         list_area{};
-        gui::list::Layout layout{};
+        alg::list::Layout layout{};
         std::int16_t      focus_index{-1};
     };
 
@@ -243,7 +243,7 @@ export namespace gui::ui {
                                                      spec.viewport_policy,
                                                      ctx.now_ms);
 
-            frame.layout = gui::list::derive_layout(frame.list_area.h,
+            frame.layout = alg::list::derive_layout(frame.list_area.h,
                                                     spec.item_h,
                                                     spec.gap,
                                                     spec.item_count,

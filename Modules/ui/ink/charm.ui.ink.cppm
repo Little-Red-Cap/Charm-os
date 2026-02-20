@@ -37,7 +37,7 @@ export import gui.ui_list_shell;
 export import gui.ui_perf;
 export import gui.ui_popup;
 export import gui.ui_scrollbar;
-export import gui.list_layout;
+export import alg_list_layout;
 export import gui.list_view;
 
 export import gui.ui_context;
@@ -50,6 +50,7 @@ export import gui.ui_input_policy;
 export import gui.ui_input_adapter;
 export import gui.ui_nav;
 export import gui.ui_semantics;
+export import gui.ui_semantics_bridge;
 export import gui.ui_settings;
 export import gui.ui_tree;
 export import gui.ui_vtree;

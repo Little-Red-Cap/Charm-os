@@ -14,6 +14,7 @@ import charm.gfx.image;
 import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
+import alg_scroll;
 
 using namespace ui::render;
 
@@ -268,15 +269,12 @@ public:
     }
 
 private:
-    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
-        const int left = (a.x > b.x) ? a.x : b.x;
-        const int top = (a.y > b.y) ? a.y : b.y;
-        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
-        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
-        const int w = right - left;
-        const int h = bottom - top;
-        if (w <= 0 || h <= 0) return {};
-        return Rect{left, top, w, h};
+    static alg::scroll::Rect to_alg_rect(const Rect& r) noexcept {
+        return alg::scroll::Rect{r.x, r.y, r.w, r.h};
+    }
+
+    static Rect from_alg_rect(const alg::scroll::Rect& r) noexcept {
+        return Rect{r.x, r.y, r.w, r.h};
     }
 
     void accumulate_scroll_dirty(const Rect& r) noexcept {
@@ -311,25 +309,10 @@ private:
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
         const auto clip = children_clip_rect();
-        if (dy > clip.h || dy < -clip.h) {
-            accumulate_scroll_dirty(clip);
-            return;
-        }
-        if (dy > clip.h / 2 || dy < -clip.h / 2) {
-            accumulate_scroll_dirty(clip);
-            return;
-        }
-        Rect band{};
-        if (dy > 0) {
-            band = Rect{clip.x, clip.y + clip.h - dy, clip.w, dy};
-        } else {
-            band = Rect{clip.x, clip.y, clip.w, -dy};
-        }
-        const auto clipped = intersect_rect(band, clip);
-        if (clipped.w > 0 && clipped.h > 0) {
-            accumulate_scroll_dirty(clipped);
-        } else {
-            accumulate_scroll_dirty(clip);
+        const auto band = alg::scroll::dirty_band_simple(to_alg_rect(clip), dy);
+        const auto out = from_alg_rect(band);
+        if (out.w > 0 && out.h > 0) {
+            accumulate_scroll_dirty(out);
         }
     }
 
@@ -337,28 +320,15 @@ private:
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
         const auto clip = children_clip_rect();
-        const int fast = static_cast<int>(clip.h * inertia_fast_ratio_);
-        const int medium = static_cast<int>(clip.h * inertia_medium_ratio_);
-        const int extra_band = static_cast<int>(clip.h * inertia_extra_ratio_);
-        if (fast > 0 && abs_v > fast) {
-            accumulate_scroll_dirty(clip);
-            return;
-        }
-        int extra = 0;
-        if (medium > 0 && abs_v > medium) {
-            extra = extra_band;
-        }
-        Rect band{};
-        if (dy > 0) {
-            band = Rect{clip.x, clip.y + clip.h - dy - extra, clip.w, dy + extra};
-        } else {
-            band = Rect{clip.x, clip.y, clip.w, -dy + extra};
-        }
-        const auto clipped = intersect_rect(band, clip);
-        if (clipped.w > 0 && clipped.h > 0) {
-            accumulate_scroll_dirty(clipped);
-        } else {
-            accumulate_scroll_dirty(clip);
+        const auto band = alg::scroll::dirty_band_inertia(to_alg_rect(clip),
+                                                          dy,
+                                                          abs_v,
+                                                          inertia_fast_ratio_,
+                                                          inertia_medium_ratio_,
+                                                          inertia_extra_ratio_);
+        const auto out = from_alg_rect(band);
+        if (out.w > 0 && out.h > 0) {
+            accumulate_scroll_dirty(out);
         }
     }
 

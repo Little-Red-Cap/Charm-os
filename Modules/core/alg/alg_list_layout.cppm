@@ -3,11 +3,9 @@
 
 module;
 #include <cstdint>
-export module gui.list_layout;
-// UI_INTERNAL_ONLY
-// CALL_VIA_gui_ui_list_page
+export module alg_list_layout;
 
-export namespace gui::list {
+export namespace alg::list {
 
     struct Layout {
         std::int16_t visible_full{0};
@@ -72,4 +70,4 @@ export namespace gui::list {
 
     static_assert(test_empty_layout());
     static_assert(test_scroll_clamp());
-} // namespace gui::list
+} // namespace alg::list

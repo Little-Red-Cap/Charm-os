@@ -4,6 +4,7 @@ import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
+import charm.core.input_adapter;
 import charm.core.style;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
@@ -12,6 +13,7 @@ import charm.gfx.framebuffer;
 import charm.widgets.waveform;
 import charm.widgets.label;
 import charm.widgets.button;
+import input.raw_event;
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -346,6 +348,26 @@ namespace {
         }
     };
 
+    std::optional<input::Button> map_sdl_button(SDL_Keycode key) noexcept {
+        switch (key) {
+        case SDLK_UP: return input::Button::Up;
+        case SDLK_DOWN: return input::Button::Down;
+        case SDLK_RETURN: return input::Button::Enter;
+        case SDLK_ESCAPE: return input::Button::Back;
+        case SDLK_BACKSPACE: return input::Button::Back;
+        default:
+            break;
+        }
+        return std::nullopt;
+    }
+
+    void dispatch_raw_event(Gui& gui, const input::RawInputEvent& ev) {
+        const auto bridge = input::adapter::bridge_from_raw(ev);
+        if (bridge.event) {
+            gui.dispatch_event(*bridge.event);
+        }
+    }
+
     bool dispatch_sdl_event(Gui& gui, ScopeUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION:
@@ -353,7 +375,17 @@ namespace {
                 ctx.update_drag(evt.motion.y);
                 return true;
             }
-            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, evt.motion.x, evt.motion.y));
+            {
+                input::RawInputEvent raw{};
+                raw.type = input::RawInputEventType::Pointer;
+                raw.ms = SDL_GetTicks();
+                raw.pointer = input::PointerRaw{false,
+                                               static_cast<std::int16_t>(evt.motion.x),
+                                               static_cast<std::int16_t>(evt.motion.y),
+                                               0};
+                raw.pointer_action = input::PointerAction::Move;
+                dispatch_raw_event(gui, raw);
+            }
             return true;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (evt.button.button == SDL_BUTTON_LEFT) {
@@ -371,14 +403,34 @@ namespace {
                     return true;
                 }
             }
-            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, evt.button.x, evt.button.y, evt.button.button));
+            {
+                input::RawInputEvent raw{};
+                raw.type = input::RawInputEventType::Pointer;
+                raw.ms = SDL_GetTicks();
+                raw.pointer = input::PointerRaw{true,
+                                               static_cast<std::int16_t>(evt.button.x),
+                                               static_cast<std::int16_t>(evt.button.y),
+                                               0};
+                raw.pointer_action = input::PointerAction::Down;
+                dispatch_raw_event(gui, raw);
+            }
             return true;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             if (evt.button.button == SDL_BUTTON_LEFT && ctx.dragging) {
                 ctx.end_drag();
                 return true;
             }
-            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, evt.button.x, evt.button.y, evt.button.button));
+            {
+                input::RawInputEvent raw{};
+                raw.type = input::RawInputEventType::Pointer;
+                raw.ms = SDL_GetTicks();
+                raw.pointer = input::PointerRaw{false,
+                                               static_cast<std::int16_t>(evt.button.x),
+                                               static_cast<std::int16_t>(evt.button.y),
+                                               0};
+                raw.pointer_action = input::PointerAction::Up;
+                dispatch_raw_event(gui, raw);
+            }
             return true;
         case SDL_EVENT_MOUSE_WHEEL: {
             const SDL_Keymod mods = SDL_GetModState();
@@ -409,6 +461,24 @@ namespace {
             if (evt.key.key == SDLK_T) {
                 if (ctx.app) ctx.app->cycle_trigger_mode();
                 return true;
+            }
+            if (auto b = map_sdl_button(evt.key.key)) {
+                input::RawInputEvent raw{};
+                raw.type = input::RawInputEventType::Button;
+                raw.ms = SDL_GetTicks();
+                raw.button = *b;
+                raw.pressed = true;
+                dispatch_raw_event(gui, raw);
+            }
+            return true;
+        case SDL_EVENT_KEY_UP:
+            if (auto b = map_sdl_button(evt.key.key)) {
+                input::RawInputEvent raw{};
+                raw.type = input::RawInputEventType::Button;
+                raw.ms = SDL_GetTicks();
+                raw.button = *b;
+                raw.pressed = false;
+                dispatch_raw_event(gui, raw);
             }
             return true;
         default:

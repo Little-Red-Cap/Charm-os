@@ -53,9 +53,9 @@ export namespace player::ui {
     inline constexpr int kModeHintGap = 6;
     inline constexpr int kSpectrumHeight = 80;
     inline constexpr int kSpectrumGap = 12;
-    inline constexpr int kOptionsHeight = 32;
+    inline constexpr int kOptionsHeight = 34;
     inline constexpr int kOptionsGap = 10;
-    inline constexpr int kOptionLabelWidth = 86;
+    inline constexpr int kOptionLabelWidth = 92;
     inline constexpr int kEqBands = 5;
     inline constexpr int kEqPanelHeight = 148;
     inline constexpr int kEqTitleHeight = 18;
@@ -67,13 +67,13 @@ export namespace player::ui {
     inline constexpr int kEqPresetLabelWidth = 56;
     inline constexpr int kEqPresetWidth = 140;
     inline constexpr int kListTitleGap = 26;
-    inline constexpr int kListBottomReserve = 170;
+    inline constexpr int kListBottomReserve = 150;
     inline constexpr int kListScrollWidth = 10;
-    inline constexpr int kControlsBottomMargin = 20;
-    inline constexpr int kButtonWidth = 120;
-    inline constexpr int kButtonHeight = 48;
-    inline constexpr int kButtonGap = 12;
-    inline constexpr int kModeButtonWidth = 72;
+    inline constexpr int kControlsBottomMargin = 18;
+    inline constexpr int kButtonWidth = 112;
+    inline constexpr int kButtonHeight = 52;
+    inline constexpr int kButtonGap = 10;
+    inline constexpr int kModeButtonWidth = 76;
     inline constexpr int kPerfOverlayWidth = 300;
     inline constexpr int kPerfOverlayHeight = 72;
 
@@ -176,21 +176,21 @@ export namespace player::ui {
 
         void build_loop_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int x = 3; x <= 12; ++x) {
+            for (int x = 4; x <= 11; ++x) {
                 icon_set_pixel(buf, x, 4, color);
                 icon_set_pixel(buf, x, 11, color);
             }
             for (int y = 4; y <= 11; ++y) {
-                icon_set_pixel(buf, 3, y, color);
-                icon_set_pixel(buf, 12, y, color);
+                icon_set_pixel(buf, 4, y, color);
+                icon_set_pixel(buf, 11, y, color);
             }
-            // arrow heads
-            icon_set_pixel(buf, 11, 3, color);
-            icon_set_pixel(buf, 12, 4, color);
-            icon_set_pixel(buf, 13, 5, color);
-            icon_set_pixel(buf, 4, 12, color);
-            icon_set_pixel(buf, 3, 11, color);
-            icon_set_pixel(buf, 2, 10, color);
+            // arrow heads (top right, bottom left)
+            icon_set_pixel(buf, 10, 3, color);
+            icon_set_pixel(buf, 11, 4, color);
+            icon_set_pixel(buf, 12, 5, color);
+            icon_set_pixel(buf, 5, 12, color);
+            icon_set_pixel(buf, 4, 11, color);
+            icon_set_pixel(buf, 3, 10, color);
         }
 
         void build_single_icon(IconBuffer& buf, const rgba& color) {
@@ -205,21 +205,22 @@ export namespace player::ui {
 
         void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int x = 3; x <= 12; ++x) {
-                const int y1 = 4 + (x - 3) / 2;
-                const int y2 = 11 - (x - 3) / 2;
+            for (int x = 4; x <= 11; ++x) {
+                const int y1 = 5 + (x - 4) / 2;
+                const int y2 = 10 - (x - 4) / 2;
                 icon_set_pixel(buf, x, y1, color);
                 icon_set_pixel(buf, x, y2, color);
             }
-            // arrow heads
-            icon_set_pixel(buf, 12, 4, color);
-            icon_set_pixel(buf, 13, 5, color);
-            icon_set_pixel(buf, 12, 11, color);
-            icon_set_pixel(buf, 13, 10, color);
-            icon_set_pixel(buf, 2, 6, color);
-            icon_set_pixel(buf, 3, 5, color);
-            icon_set_pixel(buf, 2, 9, color);
-            icon_set_pixel(buf, 3, 10, color);
+            // arrow heads (right side)
+            icon_set_pixel(buf, 11, 5, color);
+            icon_set_pixel(buf, 12, 6, color);
+            icon_set_pixel(buf, 11, 10, color);
+            icon_set_pixel(buf, 12, 9, color);
+            // arrow heads (left side)
+            icon_set_pixel(buf, 4, 6, color);
+            icon_set_pixel(buf, 3, 7, color);
+            icon_set_pixel(buf, 4, 9, color);
+            icon_set_pixel(buf, 3, 8, color);
         }
 
         void build_next_icon(IconBuffer& buf, const rgba& color) {
@@ -362,8 +363,8 @@ export namespace player::ui {
         Style baseline = theme.get<Button>();
         baseline.border_color = kUiButtonBorder;
         baseline.border_focus = kUiOk;
-        baseline.padding = 6;
-        baseline.corner_radius = 6;
+        baseline.padding = 8;
+        baseline.corner_radius = 8;
         apply_baseline_theme_preset(baseline);
 
         ThemePreset preset{};
@@ -374,7 +375,8 @@ export namespace player::ui {
         preset.button = theme.get<Button>();
         preset.button.bg_color = kUiButtonBg;
         preset.button.border_color = kUiButtonBorder;
-        preset.button.padding = 6;
+        preset.button.padding = 8;
+        preset.button.font_color = kUiListFont;
         preset.has_list_view = true;
         preset.list_view = theme.get<ListView>();
         preset.list_view.bg_color = kUiListBg;
@@ -461,6 +463,13 @@ export namespace player::ui {
         btn_hover.has_bg_color = true;
         btn_hover.bg_color = kUiButtonHover;
         sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Hovered)}, btn_hover);
+
+        StylePatch btn_pressed{};
+        btn_pressed.has_bg_color = true;
+        btn_pressed.bg_color = kUiSwitchOn;
+        btn_pressed.has_border_color = true;
+        btn_pressed.border_color = kUiSwitchOn;
+        sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Pressed)}, btn_pressed);
 
         StylePatch chart_patch{};
         chart_patch.has_bg_color = true;

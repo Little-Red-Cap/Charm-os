@@ -98,6 +98,7 @@ namespace {
     constexpr bool kLowLoadDefault = false;
     using namespace player::fs_utils;
     using namespace player::ui;
+    using namespace ui::render;
 #if CHARM_PLAYER_DEBUG_UI
     using namespace player::ui_debug;
 #endif
@@ -219,12 +220,24 @@ namespace {
         entry.text.clear();
     }
 
-    void on_list_draw(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
+    void on_list_draw(void* ctx, CanvasBase& cvs, const ListView::DrawInfo& info) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         const Style& st = Theme::instance().get<ListView>();
         const auto font = resolve_font(st);
-        Rect text = info.rect;
+        const Rect row = info.rect;
+        if (row.w <= 0 || row.h <= 0) return;
+
+        const bool selected = info.selected;
+        const rgba alt = (info.index & 1) ? rgba{26, 30, 44, 255} : rgba{22, 24, 34, 255};
+        const rgba bg = selected ? rgba{32, 40, 58, 255} : alt;
+        draw_rect(cvs, row.x, row.y, row.w, row.h, bg, true);
+        draw_rect(cvs, row.x, row.y, row.w, 1, rgba{40, 46, 64, 255}, true);
+        if (selected) {
+            draw_rect(cvs, row.x, row.y, 3, row.h, kUiOk, true);
+        }
+
+        Rect text = row;
         text.x += st.padding;
         text.w -= st.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
@@ -239,8 +252,54 @@ namespace {
             if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
             label = app->track_labels[info.index].c_str();
         }
-        const rgba color = st.font_color;
-        draw_text_box(cvs, text, label, color, font,
+        const rgba color = selected ? kUiTitle : st.font_color;
+
+        const int badge_w = 30;
+        const int badge_h = row.h - 10;
+        const int badge_x = text.x;
+        const int badge_y = row.y + (row.h - badge_h) / 2;
+        draw_round_rect(cvs, badge_x, badge_y, badge_w, badge_h, 6,
+                        selected ? kUiSwitchOn : rgba{40, 48, 68, 255}, true);
+        char index_buf[8]{};
+        std::snprintf(index_buf, sizeof(index_buf), "%d", info.index + 1);
+        Rect badge_text{badge_x, badge_y, badge_w, badge_h};
+        draw_text_box(cvs, badge_text, index_buf, rgba{230, 236, 250, 255}, font,
+                      TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+
+        const int text_x = badge_x + badge_w + 10;
+        const int text_w = text.w - (text_x - text.x);
+        Rect name_rect{text_x, row.y, text_w, row.h};
+
+        const char* ext = nullptr;
+        char ext_buf[12]{};
+        if (label) {
+            const char* dot = std::strrchr(label, '.');
+            if (dot && *(dot + 1)) {
+                std::snprintf(ext_buf, sizeof(ext_buf), "%s", dot + 1);
+                for (auto* p = ext_buf; *p; ++p) {
+                    *p = static_cast<char>(std::toupper(static_cast<unsigned char>(*p)));
+                }
+                if (std::strlen(ext_buf) <= 6) {
+                    ext = ext_buf;
+                }
+            }
+        }
+
+        if (ext && text_w > 80) {
+            const int chip_w = 48;
+            const int chip_h = badge_h - 2;
+            const int chip_x = row.x + row.w - st.padding - chip_w;
+            const int chip_y = row.y + (row.h - chip_h) / 2;
+            draw_round_rect(cvs, chip_x, chip_y, chip_w, chip_h, 8,
+                            selected ? rgba{60, 90, 140, 255} : rgba{34, 40, 56, 255}, true);
+            draw_round_rect(cvs, chip_x, chip_y, chip_w, chip_h, 8, rgba{70, 90, 120, 255}, false);
+            Rect chip_text{chip_x, chip_y, chip_w, chip_h};
+            draw_text_box(cvs, chip_text, ext, rgba{210, 220, 240, 255}, font,
+                          TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            name_rect.w = chip_x - text_x - 8;
+        }
+
+        draw_text_box(cvs, name_rect, label, color, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 

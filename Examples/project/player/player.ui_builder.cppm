@@ -157,7 +157,7 @@ export namespace player {
         h.options_row = factory.create_container();
         if (auto* row = factory.get_container(h.options_row)) {
             anchor_rect(row, {kUiPadding, options_y, screen_width - kUiPadding * 2, kOptionsHeight});
-            row->set_flow_layout(12, 0, 0);
+            row->set_flow_layout(10, 0, 0);
             row->set_align(static_cast<int>(AlignH::Start), static_cast<int>(AlignV::Center));
         }
 
@@ -172,7 +172,7 @@ export namespace player {
         if (auto* sw = factory.get_switch(h.opt_spectrum_switch)) {
             sw->set_on(ctx.spectrum_enabled);
             sw->set_on_change(cb.spectrum_toggle);
-            sw->set_size(44, 24);
+            sw->set_size(48, 26);
         }
 
         h.opt_low_label = factory.create_label("Low load");
@@ -186,21 +186,21 @@ export namespace player {
         if (auto* sw = factory.get_switch(h.opt_low_switch)) {
             sw->set_on(ctx.spectrum_low_load);
             sw->set_on_change(cb.low_load_toggle);
-            sw->set_size(44, 24);
+            sw->set_size(48, 26);
         }
 
         h.opt_eq_label = factory.create_label("EQ Off");
         if (auto* label = factory.get_label(h.opt_eq_label)) {
             label->set_color(kUiOption);
             label->set_align(TextAlignH::Left, TextAlignV::Center);
-            label->set_size(70, kOptionsHeight);
+            label->set_size(kOptionLabelWidth, kOptionsHeight);
         }
 
         h.opt_eq_switch = factory.create_switch();
         if (auto* sw = factory.get_switch(h.opt_eq_switch)) {
             sw->set_on(ctx.eq_enabled);
             sw->set_on_change(cb.eq_toggle);
-            sw->set_size(44, 24);
+            sw->set_size(48, 26);
         }
 
         h.eq_panel = factory.create_container();
@@ -302,8 +302,8 @@ export namespace player {
             list->set_on_select(cb.list_select, cb.list_ctx);
             list->set_item_pool(cb.list_pool_create, cb.list_pool_bind, cb.list_pool_recycle, cb.list_ctx);
             list->set_prefetch_rows(2);
-            list->set_row_height(32);
-            list->set_wheel_step(32);
+            list->set_row_height(34);
+            list->set_wheel_step(34);
         }
 
         h.list_scroll = factory.create_scroll_bar();
@@ -519,7 +519,7 @@ export namespace player {
             prev->set_size(kButtonWidth, kButtonHeight);
             prev->set_on_click(cb.prev_click);
             prev->set_text("");
-            prev->set_icon(icon_prev(), 20, 20);
+            prev->set_icon(icon_prev(), 24, 24);
         }
 
         h.btn_next = factory.create_button("Next");
@@ -527,7 +527,7 @@ export namespace player {
             next->set_size(kButtonWidth, kButtonHeight);
             next->set_on_click(cb.next_click);
             next->set_text("");
-            next->set_icon(icon_next(), 20, 20);
+            next->set_icon(icon_next(), 24, 24);
         }
 
         h.btn_mode = factory.create_button("Mode");
@@ -543,7 +543,7 @@ export namespace player {
             pause->set_size(kButtonWidth, kButtonHeight);
             pause->set_on_click(cb.pause_click);
             pause->set_text("");
-            pause->set_icon(icon_play(), 20, 20);
+            pause->set_icon(icon_play(), 24, 24);
         }
 
         factory.link(h.root, h.cover);

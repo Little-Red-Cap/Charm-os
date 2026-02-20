@@ -31,7 +31,10 @@ export namespace usb::device {
                 return stall();
             }
             if (setup.w_length == 0) {
-                return send_zlp();
+                if (dev_->stage() == Ep0Stage::status_in) {
+                    return send_zlp();
+                }
+                return Ep0Result::ok;
             }
             if (request_direction(setup.bm_request_type) == RequestDirection::in) {
                 return send_in(resp.data, resp.zlp);
@@ -43,6 +46,9 @@ export namespace usb::device {
             if (!dev_) return Ep0Result::stall;
             if (!dev_->handle_out_data(data, resp)) {
                 return stall();
+            }
+            if (dev_->stage() == Ep0Stage::status_out) {
+                return Ep0Result::ok;
             }
             return send_zlp();
         }

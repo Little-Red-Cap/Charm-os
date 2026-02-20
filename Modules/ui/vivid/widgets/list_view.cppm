@@ -6,6 +6,7 @@ import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.virtual_list;
+import alg_list_layout;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
@@ -281,10 +282,32 @@ public:
         int y = r.y + pad;
         if (!variable_height) {
             const int row_h = row_height_for_render();
-            const auto window = compute_virtual_window(scroll_y_, row_h, r.h, r.y + pad, prefetch_rows_);
-            start = window.start;
-            visible = window.visible;
-            y = window.offset_y;
+            const int view_h = r.h - pad * 2;
+            auto layout = alg::list::derive_layout(
+                static_cast<std::int16_t>(view_h),
+                static_cast<std::int16_t>(row_h),
+                0,
+                static_cast<std::int16_t>(count),
+                static_cast<std::int16_t>(scroll_y_));
+            start = layout.top_index;
+            visible = layout.row_count;
+            y = r.y + pad + layout.row_offset;
+            if (prefetch_rows_ > 0 && count > 0) {
+                int pref = prefetch_rows_;
+                int pref_start = start - pref;
+                if (pref_start < 0) pref_start = 0;
+                const int actual_pref = start - pref_start;
+                start = pref_start;
+                y -= actual_pref * row_h;
+                visible += actual_pref;
+                int extra = pref;
+                const int max_extra = count - (start + visible);
+                if (extra > max_extra) extra = max_extra;
+                if (extra > 0) visible += extra;
+            }
+            if (visible < 0) visible = 0;
+            if (start < 0) start = 0;
+            if (start + visible > count) visible = count - start;
         } else {
             int acc = 0;
             for (int i = 0; i < count; ++i) {

@@ -81,6 +81,12 @@ export namespace fs {
         FatFsMount(const FatFsMount&) = delete;
         FatFsMount& operator=(const FatFsMount&) = delete;
 
+        void set_path_buffers(std::span<TCHAR> buf0, std::span<TCHAR> buf1 = {}) noexcept {
+            path_bufs_[0] = buf0.empty() ? std::span<TCHAR>{path_buf_store_[0]} : buf0;
+            path_bufs_[1] = buf1.empty() ? std::span<TCHAR>{path_buf_store_[1]} : buf1;
+            path_buf_next_ = 0;
+        }
+
         void set_file_slots(std::span<FatFsFileSlot> slots) noexcept {
             if (slots.empty()) {
                 slots_ = std::span<FatFsFileSlot>{files_};
@@ -530,16 +536,17 @@ export namespace fs {
         }
 #endif
 
-        std::optional<std::array<TCHAR, max_path>> build_path(std::string_view path) noexcept {
+        std::optional<std::span<TCHAR>> build_path(std::string_view path) noexcept {
             auto norm = normalize(path);
             std::string_view p{norm.data, norm.size};
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
+            auto buf = next_path_buf();
+            if (buf.empty()) return std::nullopt;
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-            std::array<TCHAR, max_path> buf{};
 #if (FF_LFN_UNICODE == 1)
             if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
 #else
-            if (p.size() + 1 > max_path) return std::nullopt;
+            if (p.size() + 1 > buf.size()) return std::nullopt;
             for (util::usize i = 0; i < p.size(); ++i) {
                 buf[i] = static_cast<TCHAR>(p[i]);
             }
@@ -547,8 +554,7 @@ export namespace fs {
 #endif
             return buf;
 #else
-            if (p.size() + 1 > max_path) return std::nullopt;
-            std::array<TCHAR, max_path> buf{};
+            if (p.size() + 1 > buf.size()) return std::nullopt;
             std::memcpy(buf.data(), p.data(), p.size());
             buf[p.size()] = '\0';
             return buf;
@@ -560,6 +566,10 @@ export namespace fs {
         BlockDevice mal_block_{};
         FATFS fs_{};
         Mount mount_{};
+        std::array<std::array<TCHAR, max_path>, 2> path_buf_store_{};
+        std::array<std::span<TCHAR>, 2> path_bufs_{std::span<TCHAR>{path_buf_store_[0]},
+            std::span<TCHAR>{path_buf_store_[1]}};
+        util::u8 path_buf_next_{0};
         std::array<FatFsFileSlot, max_files> files_{};
         std::span<FatFsFileSlot> slots_{files_};
         NodeOps node_ops_{
@@ -569,6 +579,12 @@ export namespace fs {
             .flush = &file_flush_impl,
             .close = &close_impl
         };
+
+        std::span<TCHAR> next_path_buf() noexcept {
+            const auto idx = static_cast<util::usize>(path_buf_next_ & 1u);
+            path_buf_next_ = static_cast<util::u8>((path_buf_next_ + 1u) & 1u);
+            return path_bufs_[idx];
+        }
     };
 
     inline MountOps FatFsMount::ops_{

@@ -338,3 +338,68 @@ inline void apply_material3_light_preset() noexcept {
 
     apply_theme_preset(preset);
 }
+
+export
+inline void apply_lvgl_default_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kLvBg{240, 240, 240, 255};
+    constexpr rgba kLvBgHover{224, 224, 224, 255};
+    constexpr rgba kLvBgPressed{200, 200, 200, 255};
+    constexpr rgba kLvBorder{160, 160, 160, 255};
+    constexpr rgba kLvBorderFocus{80, 120, 200, 255};
+    constexpr rgba kLvText{40, 40, 40, 255};
+    constexpr rgba kLvAccent{0, 136, 255, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kLvText;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kLvBg;
+    preset.button.bg_hover = kLvBgHover;
+    preset.button.bg_pressed = kLvBgPressed;
+    preset.button.border_color = kLvBorder;
+    preset.button.border_hover = kLvBorder;
+    preset.button.border_pressed = kLvBorder;
+    preset.button.border_focus = kLvBorderFocus;
+    preset.button.font_color = kLvText;
+    preset.button.corner_radius = 6;
+    preset.button.padding = 6;
+
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kLvBg;
+    preset.segmented_control.border_color = kLvBorder;
+    preset.segmented_control.bg_pressed = kLvBgPressed;
+    preset.segmented_control.border_pressed = kLvBorder;
+    preset.segmented_control.font_color = kLvText;
+    preset.segmented_control.corner_radius = 6;
+    preset.segmented_control.padding = 4;
+
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    preset.slider.bg_color = kLvAccent;
+    preset.slider.bg_hover = kLvAccent;
+    preset.slider.bg_pressed = kLvAccent;
+    preset.slider.border_color = kLvBorder;
+    preset.slider.border_hover = kLvBorder;
+    preset.slider.border_pressed = kLvBorder;
+    preset.slider.font_color = kLvText;
+    preset.slider.border_focus = kLvBorderFocus;
+    preset.slider.padding = 6;
+
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    preset.switcher.bg_color = kLvBg;
+    preset.switcher.border_color = kLvBorder;
+    preset.switcher.bg_pressed = kLvAccent;
+    preset.switcher.border_pressed = kLvAccent;
+    preset.switcher.border_focus = kLvBorderFocus;
+    preset.switcher.corner_radius = 6;
+    preset.switcher.padding = 4;
+
+    apply_theme_preset(preset);
+}

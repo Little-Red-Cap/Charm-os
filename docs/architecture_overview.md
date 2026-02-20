@@ -84,6 +84,7 @@ Draft/        # 计划/草案（可变动）
 - VSF USB 映射：`docs/vsf_usb_map.md`
 - VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
 - USB 体系规划：`docs/usb_arch_plan.md`
+- USB DSL 概览：`docs/usb_dsl_overview.md`
 - 设备模型草案：`docs/device_model_overview.md`
 - trace_core 统一入口：`docs/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace_core_ids.md`

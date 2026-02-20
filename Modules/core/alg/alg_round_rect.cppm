@@ -76,7 +76,8 @@ export namespace alg::round_rect {
             hline(x, x2 + 1, yy);
         }
         for (int dy = 0; dy < radius; ++dy) {
-            const int dx = static_cast<int>(std::sqrt(radius * radius - dy * dy));
+            const int ry = radius - dy;
+            const int dx = static_cast<int>(std::sqrt(radius * radius - ry * ry));
             hline(x + radius - dx, x2 - (radius - dx) + 1, y + dy);
             hline(x + radius - dx, x2 - (radius - dx) + 1, y2 - dy);
         }

@@ -20,17 +20,17 @@ export namespace alg::round_rect {
         const int y2 = y + h - 1;
 
         if (radius <= 0) {
-            hline(x, x + w, y);
-            hline(x, x + w, y2);
-            vline(x, y, y + h);
-            vline(x2, y, y + h);
+            hline(x, x2 + 1, y);
+            hline(x, x2 + 1, y2);
+            vline(x, y, y2 + 1);
+            vline(x2, y, y2 + 1);
             return;
         }
 
-        hline(x + radius, x2 - radius, y);
-        hline(x + radius, x2 - radius, y2);
-        vline(x, y + radius, y2 - radius);
-        vline(x2, y + radius, y2 - radius);
+        hline(x + radius, x2 - radius + 1, y);
+        hline(x + radius, x2 - radius + 1, y2);
+        vline(x, y + radius, y2 - radius + 1);
+        vline(x2, y + radius, y2 - radius + 1);
 
         int xc = 0;
         int yc = radius;
@@ -67,18 +67,18 @@ export namespace alg::round_rect {
 
         if (radius <= 0) {
             for (int yy = y; yy <= y2; ++yy) {
-                hline(x, x + w, yy);
+                hline(x, x2 + 1, yy);
             }
             return;
         }
 
         for (int yy = y + radius; yy <= y2 - radius; ++yy) {
-            hline(x, x + w, yy);
+            hline(x, x2 + 1, yy);
         }
         for (int dy = 0; dy < radius; ++dy) {
             const int dx = static_cast<int>(std::sqrt(radius * radius - dy * dy));
-            hline(x + radius - dx, x2 - (radius - dx), y + dy);
-            hline(x + radius - dx, x2 - (radius - dx), y2 - dy);
+            hline(x + radius - dx, x2 - (radius - dx) + 1, y + dy);
+            hline(x + radius - dx, x2 - (radius - dx) + 1, y2 - dy);
         }
     }
 

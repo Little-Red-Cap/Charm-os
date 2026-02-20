@@ -74,3 +74,5 @@ export import usb.class_msc;
 export import usb.driver;
 export import usb.dsl;
 export import usb.host.core;
+
+export import io.proto.xmodem;

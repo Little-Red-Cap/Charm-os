@@ -9,6 +9,24 @@ import input.raw_event;
 import input.nav;
 
 export namespace input::adapter {
+    enum class EncoderMap : std::uint8_t {
+        NavKey = 0,
+        MouseWheel = 1
+    };
+
+    inline EncoderMap& encoder_map_ref() noexcept {
+        static EncoderMap mode = EncoderMap::NavKey;
+        return mode;
+    }
+
+    inline void set_encoder_map(EncoderMap mode) noexcept {
+        encoder_map_ref() = mode;
+    }
+
+    inline EncoderMap encoder_map() noexcept {
+        return encoder_map_ref();
+    }
+
     inline std::optional<Intent> intent_from_button(Button b) noexcept {
         switch (b) {
         case Button::Up:
@@ -58,6 +76,9 @@ export namespace input::adapter {
         }
         case RawInputEventType::Encoder: {
             if (raw.encoder_delta == 0) return std::nullopt;
+            if (encoder_map() == EncoderMap::MouseWheel) {
+                return Event::wheel(0, 0, raw.encoder_delta);
+            }
             const Intent it{.type = IntentType::Adjust, .a = raw.encoder_delta, .b = 0, .ms = raw.ms};
             const auto nav = nav_from_intent(it);
             const auto key = key_from_nav(nav);

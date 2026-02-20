@@ -20,6 +20,7 @@ export import input.raw_event;
 export import input.sampler;
 
 export import at.parser;
+export import at.session;
 
 export import port.kernel;
 

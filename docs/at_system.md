@@ -25,7 +25,8 @@ L3 Adapter（设备层）
 ## 当前模块
 
 - `at.parser`：最小行解析器
-- 后续计划：`at.session` / `at.transport` / `at.device.*`
+- `at.session`：命令队列 + 超时 + 重试 + URC 分发
+- 后续计划：`at.transport` / `at.device.*`
 
 ## 最小事件模型
 
@@ -45,6 +46,7 @@ AT input bytes
 
 ```cpp
 import at.parser;
+import at.session;
 
 using AtParser = at::Parser<128>;
 
@@ -60,6 +62,17 @@ void demo_feed(std::span<const util::u8> data) {
 }
 ```
 
+## Session 使用要点
+
+```
+enqueue(cmd) -> send -> wait OK/ERROR -> done
+```
+
+说明：
+- 解析事件由 `at.session` 内部转发。
+- `URC` 独立回调，不打断当前命令。
+- 超时触发重试，超过 `retries` 后回调失败。
+
 ## 约束与注意事项
 
 - 解析器只做“行”与“状态”识别，不负责命令队列。
@@ -68,6 +81,5 @@ void demo_feed(std::span<const util::u8> data) {
 
 ## 下一步计划
 
-- `at.session`：命令队列 + 超时 + 重试
 - `at.transport`：与 UART/CDC 绑定
 - 最小 Demo：发送 `AT` → `OK`

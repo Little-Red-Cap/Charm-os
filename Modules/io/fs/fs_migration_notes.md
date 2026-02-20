@@ -32,6 +32,22 @@
 - `vfs_close` 仅释放资源，不保证落盘。
 - 强一致路径：`vfs_flush(file)` 或 `vfs_flush(prefix)` 由上层显式调用。
 
+## VFS 调度全链（最小闭环）
+- 挂载选择：`add_mount(prefix, mount)` 按最长前缀匹配。
+- `vfs_open(path, flags)`：
+  - 选中 mount → `MountOps::open` → `NodeOps` 绑定 → `File` 返回。
+- `vfs_read/write/seek`：
+  - 走 `NodeOps::{read,write,seek}`。
+  - `write` 成功后仅标记 `Mount` dirty。
+- `vfs_close(file)`：
+  - 走 `NodeOps::close`，仅释放资源。
+- `vfs_flush(file)`：
+  - 走 `NodeOps::flush`（文件级）。
+- `vfs_flush(prefix)`：
+  - 走 `MountOps::flush`（挂载级），成功后清 dirty。
+- `vfs_unlink/rename/truncate/mkdir/list`：
+  - 走 `MountOps`，成功后标记 dirty。
+
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`
 

@@ -59,10 +59,8 @@ private:
 export
 using LayoutHandler = void(*)(UiFactory&, ObjectBase&, const ObjectBase::LayoutSpec&);
 
-namespace {
-    constexpr int kMaxLayoutEngines = 8;
-    LayoutHandler g_layout_engines[kMaxLayoutEngines]{};
-}
+inline constexpr int kMaxLayoutEngines = 8;
+inline LayoutHandler g_layout_engines[kMaxLayoutEngines]{};
 
 export
 inline bool register_layout_engine(int id, LayoutHandler handler) noexcept {

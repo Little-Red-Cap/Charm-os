@@ -26,12 +26,12 @@
 - VFS 调度全链（open/close/read/write/seek/flush）
 - Block cache 策略落点确认（见 docs/fs_block_cache_strategy.md）
 - POSIX facade（见 docs/fs_posix_facade.md）
+- MAL cache（fs_mal_cache）落地
 
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`
 
 ## 待办
-- Block cache 实现（cached_mal）
 - RAMFS 完整实现（多块/目录）
 - POSIX facade 扩展（mkdir/stat/readdir/pipe）
 - 后续适配层：ROMFS/FlashFS

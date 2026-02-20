@@ -56,6 +56,6 @@ fat.mount(cache.device(), ...);
 
 ## 后续动作
 
-- 实现 `cached_mal` 模块（可选）
+- 引入 `fs_mal_cache`（可选）作为 MAL 层缓存封装
 - 在 `docs/fs_fatfs_demo.md` 中注明缓存策略选择
 - 为 USB MSC / 网络盘场景准备可插拔缓存策略

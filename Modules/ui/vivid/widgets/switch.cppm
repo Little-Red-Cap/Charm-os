@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 export module charm.widgets.switcher;
 
 import charm.core.object;
@@ -31,6 +32,14 @@ public:
         const Style& st = Theme::instance().get<Switch>();
         const auto r = get_rect();
 
+        auto adjust = [](rgba c, int delta) noexcept {
+            auto clamp = [](int v) noexcept { return (v < 0) ? 0 : (v > 255 ? 255 : v); };
+            c.r = static_cast<std::uint8_t>(clamp(static_cast<int>(c.r) + delta));
+            c.g = static_cast<std::uint8_t>(clamp(static_cast<int>(c.g) + delta));
+            c.b = static_cast<std::uint8_t>(clamp(static_cast<int>(c.b) + delta));
+            return c;
+        };
+
         rgba track{};
         rgba border{};
         rgba knob{};
@@ -46,6 +55,13 @@ public:
         if (on_) {
             track = st.bg_pressed;
             border = st.border_pressed;
+            if (has_state(State::Hovered) && !has_state(State::Pressed)) {
+                track = adjust(track, 12);
+                border = adjust(border, 12);
+            } else if (has_state(State::Pressed)) {
+                track = adjust(track, -12);
+                border = adjust(border, -12);
+            }
         }
 
         const int track_h = r.h;
@@ -75,8 +91,6 @@ public:
             knob_cx_max = knob_cx_min;
         }
         const int knob_cx = on_ ? knob_cx_max : knob_cx_min;
-        const rgba knob_shadow{0, 0, 0, 60};
-        draw_circle(cvs, knob_cx + 1, knob_cy + 1, knob_radius, knob_shadow, true);
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, knob, true);
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, border, false);
 

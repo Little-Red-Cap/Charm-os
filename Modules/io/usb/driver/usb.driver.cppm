@@ -45,6 +45,7 @@ export namespace usb::driver {
         EpDriverOps ep{};
         bool (*set_address)(void* ctx, u8 address) noexcept { nullptr };
         bool (*set_configured)(void* ctx, bool configured) noexcept { nullptr };
+        bool (*connect)(void* ctx, bool enable) noexcept { nullptr };
     };
 
     struct DcdDeviceCallbacks {
@@ -53,6 +54,9 @@ export namespace usb::driver {
         void (*on_out_data)(void* ctx, std::span<const u8> data) noexcept { nullptr };
         void (*on_in_complete)(void* ctx, std::size_t sent, bool sent_zlp) noexcept { nullptr };
         void (*on_reset)(void* ctx) noexcept { nullptr };
+        void (*on_connect)(void* ctx, bool connected) noexcept { nullptr };
+        void (*on_suspend)(void* ctx) noexcept { nullptr };
+        void (*on_resume)(void* ctx) noexcept { nullptr };
     };
 
     struct DcdDeviceAdapter {
@@ -72,6 +76,18 @@ export namespace usb::driver {
 
         void handle_reset() noexcept {
             if (callbacks.on_reset) callbacks.on_reset(callbacks.ctx);
+        }
+
+        void handle_connect(bool connected) noexcept {
+            if (callbacks.on_connect) callbacks.on_connect(callbacks.ctx, connected);
+        }
+
+        void handle_suspend() noexcept {
+            if (callbacks.on_suspend) callbacks.on_suspend(callbacks.ctx);
+        }
+
+        void handle_resume() noexcept {
+            if (callbacks.on_resume) callbacks.on_resume(callbacks.ctx);
         }
     };
 }

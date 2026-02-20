@@ -125,6 +125,21 @@ export namespace usb::device {
                 return true;
             });
         }
+
+        inline bool build_cdc_acm_table(DescriptorTable& table,
+                                        ConfigTree& tree,
+                                        std::span<const u8> device_desc,
+                                        const CdcAcmConfig& cfg,
+                                        const std::span<const u8>* strings,
+                                        std::size_t string_count) noexcept {
+            if (device_desc.empty()) return false;
+            if (!build_cdc_acm_config(tree, cfg)) return false;
+            table.device = device_desc;
+            table.configuration = tree.view;
+            table.strings = strings;
+            table.string_count = string_count;
+            return !table.configuration.empty();
+        }
     }
 
     struct ClassOps {

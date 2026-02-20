@@ -10,14 +10,13 @@ import charm.gfx.color;
 import charm.font;
 import charm.font.typography;
 
-template<PixelFormat PF, std::size_t W, std::size_t H>
-inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
+inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
     if (alpha == 0) return;
     if (alpha == 255) {
         cvs.set_pixel(x, y, color);
         return;
     }
-    const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+    const rgba dst = cvs.get_pixel(x, y);
     const int ia = 255 - alpha;
     rgba out{
         static_cast<std::uint8_t>((color.r * alpha + dst.r * ia) / 255),
@@ -139,8 +138,23 @@ inline int measure_text_width(const char* text) noexcept {
     return measure_text_width(text, get_font(FontId::Normal));
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text(Canvas<PF, W, H>& cvs,
+export
+void draw_text_baseline(CanvasBase& cvs,
+                        int x, int baseline_y,
+                        const char* text,
+                        const rgba& color,
+                        const Font& font) noexcept;
+
+export
+void draw_text_baseline_range(CanvasBase& cvs,
+                              int x, int baseline_y,
+                              const char* text,
+                              int len,
+                              const rgba& color,
+                              const Font& font) noexcept;
+
+export
+void draw_text(CanvasBase& cvs,
                int x, int y,
                const char* text,
                const rgba& color,
@@ -150,14 +164,15 @@ void draw_text(Canvas<PF, W, H>& cvs,
     draw_text_baseline(cvs, x, baseline_y, text, color, font);
 }
 
-template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text_baseline_range(Canvas<PF, W, H>& cvs,
+void draw_text_baseline_range(CanvasBase& cvs,
                               int x, int baseline_y,
                               const char* text,
                               int len,
                               const rgba& color,
                               const Font& font) noexcept {
     if (!text || len <= 0) return;
+    const int cw = cvs.width();
+    const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
     const char* p = text;
@@ -187,10 +202,10 @@ void draw_text_baseline_range(Canvas<PF, W, H>& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= static_cast<int>(H)) continue;
+            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= static_cast<int>(W)) continue;
+                if (px < 0 || px >= cw) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;
@@ -222,21 +237,23 @@ void draw_text_baseline_range(Canvas<PF, W, H>& cvs,
     }
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text(Canvas<PF, W, H>& cvs,
+export
+void draw_text(CanvasBase& cvs,
                int x, int y,
                const char* text,
                const rgba& color) noexcept {
     draw_text(cvs, x, y, text, color, get_font(FontId::Normal));
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text_baseline(Canvas<PF, W, H>& cvs,
+export
+void draw_text_baseline(CanvasBase& cvs,
                         int x, int baseline_y,
                         const char* text,
                         const rgba& color,
                         const Font& font) noexcept {
     if (!text) return;
+    const int cw = cvs.width();
+    const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
     const char* p = text;
@@ -266,10 +283,10 @@ void draw_text_baseline(Canvas<PF, W, H>& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= static_cast<int>(H)) continue;
+            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= static_cast<int>(W)) continue;
+                if (px < 0 || px >= cw) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;
@@ -301,8 +318,8 @@ void draw_text_baseline(Canvas<PF, W, H>& cvs,
     }
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text_baseline(Canvas<PF, W, H>& cvs,
+export
+void draw_text_baseline(CanvasBase& cvs,
                         int x, int baseline_y,
                         const char* text,
                         const rgba& color) noexcept {
@@ -336,8 +353,8 @@ enum class TextEllipsis {
     End
 };
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_text_box(Canvas<PF, W, H>& cvs,
+export
+void draw_text_box(CanvasBase& cvs,
                    const Rect& rect,
                    const char* text,
                    const rgba& color,

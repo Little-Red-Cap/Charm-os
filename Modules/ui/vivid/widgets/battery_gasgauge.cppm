@@ -48,7 +48,7 @@ public:
     void set_wave_speed(float s) noexcept { wave_speed_ = s; }
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<BatteryGasGauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -123,7 +123,7 @@ private:
     float wave_phase_{0.0f};
     int wave_amplitude_{2};
 
-    static void draw_bolt(DefaultCanvas& cvs, int x, int y, int w, int h, const rgba& col) {
+    static void draw_bolt(CanvasBase& cvs, int x, int y, int w, int h, const rgba& col) {
         const int cx = x + w / 2;
         const int top = y + h / 4;
         const int mid = y + h / 2;

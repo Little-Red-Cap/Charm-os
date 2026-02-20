@@ -109,7 +109,7 @@ public:
 
     void set_text(const char* text) { text_.assign(text ? text : ""); }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<RichText>();
         const auto r = get_rect();
         const Font& normal = resolve_font(st);

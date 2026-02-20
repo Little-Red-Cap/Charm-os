@@ -34,7 +34,7 @@ public:
     void set_show_value(bool on) noexcept { show_value_ = on; }
     void set_value_format(const char* fmt) noexcept { value_format_ = (fmt && *fmt) ? fmt : "%d"; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ProgressBarRound>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

@@ -21,7 +21,7 @@ public:
         bool selected{false};
     };
 
-    using DrawCellFn = void(*)(void* ctx, DefaultCanvas& cvs, const CellInfo& info) noexcept;
+    using DrawCellFn = void(*)(void* ctx, CanvasBase& cvs, const CellInfo& info) noexcept;
     using CountFn = int(*)(void* ctx) noexcept;
     using ColumnWidthFn = int(*)(void* ctx, int col) noexcept;
     using SelectFn = void(*)(void* ctx, int row, int col) noexcept;
@@ -62,7 +62,7 @@ public:
         if (select_fn_) select_fn_(select_ctx_, row, col);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TableView>();
         const auto r = get_rect();
 

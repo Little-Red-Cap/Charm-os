@@ -34,7 +34,7 @@ public:
     void set_mode(bool reverse) noexcept { reverse_ = reverse; }
     void set_secondary(int v) noexcept { secondary_ = v; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Bar>();
         const auto r = get_rect();
 

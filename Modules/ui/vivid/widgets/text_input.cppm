@@ -34,7 +34,7 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
     void set_on_submit(Callback cb) noexcept { on_submit_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TextInput>();
         const auto r = get_rect();
 

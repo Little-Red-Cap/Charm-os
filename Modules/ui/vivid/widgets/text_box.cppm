@@ -29,7 +29,7 @@ public:
     void set_align(TextAlignH h, TextAlignV v) noexcept { align_h_ = h; align_v_ = v; }
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TextBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

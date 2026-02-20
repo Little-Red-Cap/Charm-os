@@ -10,8 +10,8 @@ export
 class Layout {
 public:
     virtual ~Layout() = default;
-    // 根据容器的尺寸和子节点的固有/优先尺寸，
-    // 计算并设置每个子节点的 x,y,width,height
+    // 根据容器的尺寸和子节点的固有/优先尺寸�?
+    // 计算并设置每个子节点�?x,y,width,height
     virtual void apply(UiFactory& factory, ObjectBase& container) = 0;
 };
 

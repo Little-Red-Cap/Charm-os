@@ -39,7 +39,7 @@ public:
         has_sample_ = false;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<PerfOverlay>();
         const auto r = get_rect();
 

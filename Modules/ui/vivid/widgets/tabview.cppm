@@ -44,7 +44,7 @@ public:
 
     int active() const noexcept { return active_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TabView>();
         const auto r = get_rect();
         rgba bg{};

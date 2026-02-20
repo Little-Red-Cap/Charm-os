@@ -33,7 +33,7 @@ public:
     void set_readonly(bool on) noexcept { readonly_ = on; }
     bool is_readonly() const noexcept { return readonly_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TextArea>();
         const auto r = get_rect();
 

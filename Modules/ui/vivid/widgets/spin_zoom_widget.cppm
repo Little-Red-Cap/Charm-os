@@ -120,7 +120,7 @@ public:
         return false;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         if (!image_) return;
         const Style& st = Theme::instance().get<SpinZoomWidget>();
         const auto r = get_rect();
@@ -186,15 +186,14 @@ private:
         return src;
     }
 
-    template<PixelFormat PF, std::size_t W, std::size_t H>
-    static void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y,
+    static void blend_pixel(CanvasBase& cvs, int x, int y,
                             const rgba& src, bool premultiplied) noexcept {
         if (src.a == 255) {
             cvs.set_pixel(x, y, src);
             return;
         }
         if (src.a == 0) return;
-        const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+        const rgba dst = cvs.get_pixel(x, y);
         const int ia = 255 - src.a;
         rgba out{};
         if (premultiplied) {
@@ -224,7 +223,7 @@ private:
         }
     }
 
-    static void draw_image_rotated(DefaultCanvas& cvs,
+    static void draw_image_rotated(CanvasBase& cvs,
                                    const Rect& r,
                                    const ImageView& img,
                                    float zoom,

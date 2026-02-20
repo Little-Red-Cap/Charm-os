@@ -39,7 +39,7 @@ public:
     void set_icon_gap(int px) noexcept { icon_gap_ = (px >= 0) ? px : 0; }
 
 private:
-    static void draw_item(void* ctx, DefaultCanvas& cvs, const ListView::DrawInfo& info) noexcept {
+    static void draw_item(void* ctx, CanvasBase& cvs, const ListView::DrawInfo& info) noexcept {
         auto* self = static_cast<IconList*>(ctx);
         if (!self || !self->items_) return;
         if (info.index < 0 || info.index >= self->item_count_) return;

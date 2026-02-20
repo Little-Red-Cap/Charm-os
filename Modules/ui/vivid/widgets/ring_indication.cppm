@@ -38,7 +38,7 @@ public:
     void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<RingIndication>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

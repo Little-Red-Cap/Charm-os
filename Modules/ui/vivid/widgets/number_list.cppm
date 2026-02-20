@@ -83,7 +83,7 @@ public:
     void set_smooth_scroll(bool on) noexcept { smooth_scroll_ = on; }
     void set_wheel_step(int step) noexcept { wheel_step_ = (step > 0) ? step : 1; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<NumberList>();
         const auto r = get_rect();
 

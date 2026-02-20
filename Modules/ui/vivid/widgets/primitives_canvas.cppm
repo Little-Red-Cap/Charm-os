@@ -23,7 +23,7 @@ public:
     void set_mode(int m) noexcept { mode_ = m; }
     void set_time(float t) noexcept { time_ = t; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<PrimitivesCanvas>();
         const auto r = get_rect();
 
@@ -54,7 +54,7 @@ private:
     int mode_{0};
     float time_{0.0f};
 
-    static void draw_thick_line(DefaultCanvas& cvs,
+    static void draw_thick_line(CanvasBase& cvs,
                                 int x0, int y0, int x1, int y1,
                                 int thickness, const rgba& color) {
         if (thickness <= 1) {
@@ -74,7 +74,7 @@ private:
         }
     }
 
-    void draw_cell(DefaultCanvas& cvs, int idx, int x, int y, int w, int h,
+    void draw_cell(CanvasBase& cvs, int idx, int x, int y, int w, int h,
                    const rgba& main, const rgba& border) {
         draw_rect(cvs, x, y, w, h, rgba{0,0,0,0}, false);
         const int cx = x + w / 2;

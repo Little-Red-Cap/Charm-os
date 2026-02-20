@@ -22,7 +22,7 @@ public:
         has_bg_image_ = true;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         if (has_bg_image_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, bg_image_,

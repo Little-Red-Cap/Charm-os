@@ -44,7 +44,7 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
     void set_on_open(Callback cb) noexcept { on_open_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Dropdown>();
         const auto r = get_rect();
 

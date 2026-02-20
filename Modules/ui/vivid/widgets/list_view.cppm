@@ -25,7 +25,7 @@ public:
     };
 
     using CountFn = int(*)(void* ctx) noexcept;
-    using DrawRowFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
+    using DrawRowFn = void(*)(void* ctx, CanvasBase& cvs, const DrawInfo& info) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
     using CacheFn = void(*)(void* ctx, int slot, int index) noexcept;
     using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
@@ -183,7 +183,7 @@ public:
     int max_scroll() const noexcept { return max_scroll_; }
     int content_height() const noexcept { return content_height_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
 

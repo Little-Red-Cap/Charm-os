@@ -160,7 +160,7 @@ public:
         return true;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         if (!image_) return;
         if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
             zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
@@ -277,15 +277,14 @@ private:
         return src;
     }
 
-    template<PixelFormat PF, std::size_t W, std::size_t H>
-    static void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y,
+    static void blend_pixel(CanvasBase& cvs, int x, int y,
                             const rgba& src, bool premultiplied) noexcept {
         if (src.a == 255) {
             cvs.set_pixel(x, y, src);
             return;
         }
         if (src.a == 0) return;
-        const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+        const rgba dst = cvs.get_pixel(x, y);
         const int ia = 255 - src.a;
         rgba out{};
         if (premultiplied) {
@@ -340,8 +339,7 @@ private:
         return out;
     }
 
-    template<PixelFormat PF, std::size_t W, std::size_t H>
-    static void draw_image_transformed(Canvas<PF, W, H>& cvs,
+    static void draw_image_transformed(CanvasBase& cvs,
                                        int dst_x, int dst_y, int dst_w, int dst_h,
                                        const ImageView& img,
                                        Rotation rot,

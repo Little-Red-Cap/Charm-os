@@ -43,7 +43,7 @@ public:
 
     void set_row_height(int h) noexcept { row_h_ = (h > 0) ? h : row_h_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Timeline>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

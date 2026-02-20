@@ -31,7 +31,7 @@ public:
     void set_start_angle(int deg) noexcept { start_deg_ = deg; }
     void set_show_track(bool on) noexcept { show_track_ = on; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ProgressWheel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

@@ -18,7 +18,7 @@ public:
         set_flex_layout(1, 0, 0, 0, 0);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Menu>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

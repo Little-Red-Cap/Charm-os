@@ -138,7 +138,7 @@ public:
 
     void set_support_negative(bool on) noexcept { support_negative_ = on; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Histogram>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

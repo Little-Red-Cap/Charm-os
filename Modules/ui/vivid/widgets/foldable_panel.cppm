@@ -34,7 +34,7 @@ public:
 
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<FoldablePanel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

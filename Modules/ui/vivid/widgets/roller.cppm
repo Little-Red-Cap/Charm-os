@@ -38,7 +38,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Roller>();
         const auto r = get_rect();
         rgba bg{};

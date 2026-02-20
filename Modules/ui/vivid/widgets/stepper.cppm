@@ -41,7 +41,7 @@ public:
         labels_[index].assign(text ? text : "");
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Stepper>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

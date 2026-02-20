@@ -52,7 +52,7 @@ public:
         has_skin_ = true;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto r = get_rect();
 

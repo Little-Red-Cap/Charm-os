@@ -23,7 +23,7 @@ public:
     void set_text(const char* text) { text_.assign(text ? text : ""); }
     void set_wrap(TextWrap wrap) noexcept { wrap_ = wrap; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<CodeBlock>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

@@ -43,7 +43,7 @@ public:
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ProgressFlowing>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

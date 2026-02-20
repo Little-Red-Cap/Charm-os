@@ -22,7 +22,7 @@ public:
     void set_on_color(const rgba& c) noexcept { on_color_ = c; }
     void set_off_color(const rgba& c) noexcept { off_color_ = c; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         if (r.w <= 0 || r.h <= 0) return;
         const Style& st = Theme::instance().get<Led>();

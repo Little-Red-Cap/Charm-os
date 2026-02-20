@@ -9,6 +9,7 @@ export namespace kernel {
     struct KernelConfig {
         static constexpr bool enable_timer = false;
         static constexpr bool enable_dynamic_priority = false;
+        static constexpr bool enable_event_queue_list = false;
         static constexpr std::size_t priority_levels = 4;
         static constexpr std::size_t evtq_capacity = 64;
         static constexpr std::size_t timer_capacity = 16;
@@ -75,4 +76,7 @@ export namespace kernel {
                 "alert enabled but thresholds are zero");
         }
     }
+
+    template <typename Config>
+    inline constexpr bool use_list_queue = Config::enable_dynamic_priority || Config::enable_event_queue_list;
 }

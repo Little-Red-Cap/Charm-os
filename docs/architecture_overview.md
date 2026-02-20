@@ -76,6 +76,7 @@ Draft/        # 计划/草案（可变动）
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
+- Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
 - IO 分层总览：`docs/io_layering_overview.md`
 - 输入分层决策：`docs/input_layering_decision.md`
 - 输入协议映射：`docs/input_protocol_map.md`

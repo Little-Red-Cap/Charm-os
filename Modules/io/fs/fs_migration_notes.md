@@ -10,6 +10,7 @@
 - fs_core: node/file/mount 基础结构
 - fs_path: 轻量 path 辅助（占位）
 - fs_block: 块设备抽象
+- fs_mal: 统一 block/flash/file 的 MAL 抽象（可选）
 - fs_ramfs: RAMFS 占位实现（简化版）
 - fs_fatfs: FatFs 适配入口（需 CHARM_ENABLE_FATFS + FatFs 源码）
 

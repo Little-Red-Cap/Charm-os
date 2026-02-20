@@ -283,6 +283,49 @@ export namespace usb::device {
             return dcd.ep.send(dcd_ctx, ep, data, false);
         }
 
+        inline bool open_cdc_endpoints(const driver::DcdOps& dcd,
+                                       void* dcd_ctx,
+                                       class_driver::CdcAcm& cdc,
+                                       const CdcEndpointCallbacks& cb) noexcept {
+            if (!dcd.ep.open) return false;
+
+            const auto cfg = cdc.config();
+            driver::EpConfig notify{};
+            notify.address = cfg.ep_notify;
+            notify.direction = driver::EpDirection::in;
+            notify.type = driver::EpType::interrupt;
+            notify.max_packet_size = cfg.ep_mps;
+            notify.interval = 10;
+
+            driver::EpConfig out{};
+            out.address = cfg.ep_out;
+            out.direction = driver::EpDirection::out;
+            out.type = driver::EpType::bulk;
+            out.max_packet_size = cfg.ep_mps;
+
+            driver::EpConfig in{};
+            in.address = cfg.ep_in;
+            in.direction = driver::EpDirection::in;
+            in.type = driver::EpType::bulk;
+            in.max_packet_size = cfg.ep_mps;
+
+            driver::EpCallbacks notify_cb = cb.in;
+            if (!dcd.ep.open(dcd_ctx, notify, notify_cb)) return false;
+            if (!dcd.ep.open(dcd_ctx, out, cb.out)) return false;
+            if (!dcd.ep.open(dcd_ctx, in, cb.in)) return false;
+            return true;
+        }
+
+        inline void close_cdc_endpoints(const driver::DcdOps& dcd,
+                                        void* dcd_ctx,
+                                        class_driver::CdcAcm& cdc) noexcept {
+            if (!dcd.ep.close) return;
+            const auto cfg = cdc.config();
+            dcd.ep.close(dcd_ctx, cfg.ep_notify);
+            dcd.ep.close(dcd_ctx, cfg.ep_out);
+            dcd.ep.close(dcd_ctx, cfg.ep_in);
+        }
+
         inline bool attach_cdc_acm(Device& dev,
                                    class_driver::CdcAcm& cdc,
                                    DescriptorTable& table,
@@ -316,6 +359,25 @@ export namespace usb::device {
                 return false;
             }
             return attach_cdc_acm(dev, cdc, *build_ctx.table, *build_ctx.tree);
+        }
+
+        inline bool build_attach_open_cdc(Device& dev,
+                                          class_driver::CdcAcm& cdc,
+                                          dsl::DeviceBuildContext& build_ctx,
+                                          const dsl::DeviceInfo& dev_info,
+                                          const dsl::ConfigInfo& cfg_info,
+                                          const class_driver::CdcConfig& cdc_cfg,
+                                          std::span<const u8> class_desc,
+                                          const std::span<const u8>* strings,
+                                          std::size_t string_count,
+                                          const driver::DcdOps& dcd,
+                                          void* dcd_ctx,
+                                          const CdcEndpointCallbacks& cb) noexcept {
+            if (!build_and_attach_cdc_acm(dev, cdc, build_ctx,
+                    dev_info, cfg_info, cdc_cfg, class_desc, strings, string_count)) {
+                return false;
+            }
+            return open_cdc_endpoints(dcd, dcd_ctx, cdc, cb);
         }
     }
 }

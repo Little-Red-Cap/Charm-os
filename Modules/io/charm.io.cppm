@@ -1,4 +1,4 @@
-export module charm.io;
+﻿export module charm.io;
 
 export import hal_clock;
 export import hal_core;
@@ -32,8 +32,10 @@ export import fs_errno;
 export import fs_fatfs;
 export import fs_mal;
 export import fs_mal_block;
+export import fs_mal_cache;
 export import fs_mal_file;
 export import fs_path;
+export import fs_posix;
 export import fs_ramfs;
 export import fs_stream;
 export import fs_vfs;

@@ -1,11 +1,11 @@
-# VFS 挂载与多盘规则（草案）
+﻿# VFS 挂载与多盘规则（草案）
 
 目标：统一 VFS 路径解析与多盘规划，避免上层协议出现隐式耦合。
 
 ## 1. 当前规则
 
 - VFS 通过 `add_mount(prefix, mount)` 注册前缀，按“最长前缀匹配”选中挂载点。
-- FatFs 目前仍是 **单盘活跃**（`g_fatfs_pdrv`），但已支持配置 pdrv。
+- FatFs 支持多盘注册，`disk_*` 按 `pdrv` 路由到对应设备。
 
 ## 2. 建议的多盘前缀规则
 
@@ -25,17 +25,15 @@
 
 ## 3. FatFs 的 pdrv 对接
 
-当前 FatFs 注册函数支持 pdrv：
+注册接口：
 - `fatfs_register_block_device(dev, pdrv)`
 
-短期约束：
-- 仍是 **单盘活动**（单个 `g_fatfs_pdrv`）
-- 若要多盘并存，需要把注册表扩展为数组或 map
+建议约定：
+- 每个 `FatFsMount` 对应一个 `pdrv`
+- 多盘时保持 `pdrv` 与 VFS 前缀一一对应
 
-## 4. 未来扩展（不强制）
+## 4. 约束与注意事项
 
-可选的多盘注册表：
-- `fatfs_register_block_device(dev, pdrv)` -> 写入 `g_fatfs_devices[pdrv]`
-- `disk_*` 依 pdrv 查询对应设备
+- `pdrv` 上限由 `CHARM_FATFS_MAX_PDRV` 控制（默认 4）。
+- `disk_*` 仅在对应 `pdrv` 注册设备后可用。
 
-这样 VFS 的 `/dN` 前缀能与 FatFs 多盘一一对应。

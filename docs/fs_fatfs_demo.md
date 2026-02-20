@@ -1,6 +1,6 @@
-# FatFs 文件镜像示例（PC 端验证）
+﻿# FatFs 文件镜像示例（PC 端验证）
 
-目标：用 **file-backed block device + FatFs** 打通 “块设备 -> FAT32 -> VFS -> 上层” 链路。
+目标：用 **file-backed block device + FatFs** 打通“块设备 → FAT32 → VFS → 上层”链路。
 
 ## 前置条件
 
@@ -14,8 +14,9 @@
 - `FF_MAX_LFN` 按需设置
 
 可选工程开关（构建时）：
-- `CHARM_FATFS_MAX_FILES`（最大打开文件数）
-- `CHARM_FATFS_MAX_PATH`（路径长度上限）
+- `CHARM_FATFS_MAX_FILES`（最大打开文件数，默认 8）
+- `CHARM_FATFS_MAX_PATH`（路径长度上限，默认 256）
+- `CHARM_FATFS_MAX_PDRV`（多盘上限，默认 4）
 
 ## 示例工程
 
@@ -42,6 +43,13 @@ Examples/fs/vsf_fs_fatfs_demo/<build>/vsf-fs-fatfs-demo G:\Project\dev.vhd
 ## 说明与注意事项
 
 - 默认 block size 为 512。
-- `vfs_open(path)` 默认只读；创建/截断需使用 `OpenFlags`。
-- LFN 需要 `FF_USE_LFN` 开启且 `FILINFO.lfname/lfsize` 已传入。
-- `BlockFile` 已改为 64-bit seek，可支持 2GB 以上镜像。
+- `vfs_open(path)` 默认只读；创建/截断需使用 `OpenFlags`（写权限）。
+- LFN 需 `FF_USE_LFN` 开启且 `FILINFO.lfname/lfsize` 已传入。
+- `BlockFile` 使用 64-bit seek，支持 2GB 以上镜像。
+- `vfs_close` 仅释放资源，不保证落盘；需要时显式 `vfs_flush(file)` 或 `vfs_flush(prefix)`。
+
+## 可选优化入口
+
+- 外部缓存：`FatFsMount::mount(dev, cache, ..., pdrv)`
+- 自定义文件槽：`FatFsMount::set_file_slots(span<FatFsFileSlot>)`
+- 自定义路径缓冲：`FatFsMount::set_path_buffers(span<TCHAR> buf0, span<TCHAR> buf1)`

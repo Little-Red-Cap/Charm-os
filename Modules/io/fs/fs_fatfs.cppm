@@ -26,6 +26,7 @@ import fs_mal;
 #if CHARM_USE_FATFS
 export namespace fs {
     void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
+    void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept;
 
     struct FatFsFileSlot {
         bool used{false};
@@ -80,9 +81,25 @@ export namespace fs {
         FatFsMount(const FatFsMount&) = delete;
         FatFsMount& operator=(const FatFsMount&) = delete;
 
+        void set_path_buffers(std::span<TCHAR> buf0, std::span<TCHAR> buf1 = {}) noexcept {
+            path_bufs_[0] = buf0.empty() ? std::span<TCHAR>{path_buf_store_[0]} : buf0;
+            path_bufs_[1] = buf1.empty() ? std::span<TCHAR>{path_buf_store_[1]} : buf1;
+            path_buf_next_ = 0;
+        }
+
+        void set_file_slots(std::span<FatFsFileSlot> slots) noexcept {
+            if (slots.empty()) {
+                slots_ = std::span<FatFsFileSlot>{files_};
+            } else {
+                slots_ = slots;
+            }
+            clear_slots();
+        }
+
         Status mount(BlockDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             dev_ = &dev;
             mal_ = nullptr;
+            clear_slots();
             fatfs_register_block_device(dev_, pdrv);
             auto fr = f_mount(&fs_, "", 1);
             if (fr == FR_NO_FILESYSTEM && format_if_needed) {
@@ -108,10 +125,23 @@ export namespace fs {
             return Status{Err::ok};
         }
 
+        Status mount(BlockDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
+            util::u8 pdrv = 0) noexcept {
+            fatfs_set_cache(pdrv, cache.data(), cache.size());
+            return mount(dev, format_if_needed, pdrv);
+        }
+
         Status mount(MalDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             mal_ = &dev;
             mal_to_block(dev, mal_block_);
             return mount(mal_block_, format_if_needed, pdrv);
+        }
+
+        Status mount(MalDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
+            util::u8 pdrv = 0) noexcept {
+            mal_ = &dev;
+            mal_to_block(dev, mal_block_);
+            return mount(mal_block_, cache, format_if_needed, pdrv);
         }
 
         Status unmount(bool force = false) noexcept {
@@ -263,6 +293,11 @@ export namespace fs {
             auto fr = f_opendir(&dir, buf->data());
             if (fr != FR_OK) return status_from_fr(fr);
             FILINFO info{};
+#if defined(FF_USE_LFN) && FF_USE_LFN
+            std::array<TCHAR, max_path> lfn{};
+            info.lfname = lfn.data();
+            info.lfsize = static_cast<UINT>(lfn.size());
+#endif
             while (true) {
                 fr = f_readdir(&dir, &info);
                 if (fr != FR_OK) {
@@ -274,7 +309,7 @@ export namespace fs {
 #if defined(FF_USE_LFN) && FF_USE_LFN
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
 #if (FF_LFN_UNICODE == 1)
-                if (info.fname[0] != 0) {
+                if (info.lfname && info.lfname[0] != 0) {
                     constexpr util::usize lfn_utf8_cap =
 #if defined(FF_MAX_LFN)
                         static_cast<util::usize>(FF_MAX_LFN) * 4 + 1;
@@ -282,11 +317,15 @@ export namespace fs {
                         256 * 4 + 1;
 #endif
                     std::array<char, lfn_utf8_cap> fname_utf8{};
-                    const auto written = utf16_to_utf8(info.fname, fname_utf8.data(), fname_utf8.size());
+                    const auto written = utf16_to_utf8(info.lfname, fname_utf8.data(), fname_utf8.size());
                     if (written > 0) {
                         fname_utf8[std::min(written, fname_utf8.size() - 1)] = '\0';
                         name = fname_utf8.data();
                     }
+                }
+#else
+                if (info.lfname && info.lfname[0] != 0) {
+                    name = info.lfname;
                 }
 #endif
 #endif
@@ -352,7 +391,7 @@ export namespace fs {
         }
 
         FatFsFileSlot* alloc_slot() noexcept {
-            for (auto& slot : files_) {
+            for (auto& slot : slots_) {
                 if (!slot.used) {
                     slot.used = true;
                     std::memset(&slot.file, 0, sizeof(slot.file));
@@ -366,6 +405,13 @@ export namespace fs {
             if (slot) {
                 slot->used = false;
                 std::memset(&slot->file, 0, sizeof(slot->file));
+            }
+        }
+
+        void clear_slots() noexcept {
+            for (auto& slot : slots_) {
+                slot.used = false;
+                std::memset(&slot.file, 0, sizeof(slot.file));
             }
         }
 
@@ -490,16 +536,17 @@ export namespace fs {
         }
 #endif
 
-        std::optional<std::array<TCHAR, max_path>> build_path(std::string_view path) noexcept {
+        std::optional<std::span<TCHAR>> build_path(std::string_view path) noexcept {
             auto norm = normalize(path);
             std::string_view p{norm.data, norm.size};
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
+            auto buf = next_path_buf();
+            if (buf.empty()) return std::nullopt;
 #if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-            std::array<TCHAR, max_path> buf{};
 #if (FF_LFN_UNICODE == 1)
             if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
 #else
-            if (p.size() + 1 > max_path) return std::nullopt;
+            if (p.size() + 1 > buf.size()) return std::nullopt;
             for (util::usize i = 0; i < p.size(); ++i) {
                 buf[i] = static_cast<TCHAR>(p[i]);
             }
@@ -507,8 +554,7 @@ export namespace fs {
 #endif
             return buf;
 #else
-            if (p.size() + 1 > max_path) return std::nullopt;
-            std::array<TCHAR, max_path> buf{};
+            if (p.size() + 1 > buf.size()) return std::nullopt;
             std::memcpy(buf.data(), p.data(), p.size());
             buf[p.size()] = '\0';
             return buf;
@@ -519,8 +565,13 @@ export namespace fs {
         MalDevice* mal_{nullptr};
         BlockDevice mal_block_{};
         FATFS fs_{};
-        std::array<FatFsFileSlot, max_files> files_{};
         Mount mount_{};
+        std::array<std::array<TCHAR, max_path>, 2> path_buf_store_{};
+        std::array<std::span<TCHAR>, 2> path_bufs_{std::span<TCHAR>{path_buf_store_[0]},
+            std::span<TCHAR>{path_buf_store_[1]}};
+        util::u8 path_buf_next_{0};
+        std::array<FatFsFileSlot, max_files> files_{};
+        std::span<FatFsFileSlot> slots_{files_};
         NodeOps node_ops_{
             .read = &read_impl,
             .write = &write_impl,
@@ -528,6 +579,12 @@ export namespace fs {
             .flush = &file_flush_impl,
             .close = &close_impl
         };
+
+        std::span<TCHAR> next_path_buf() noexcept {
+            const auto idx = static_cast<util::usize>(path_buf_next_ & 1u);
+            path_buf_next_ = static_cast<util::u8>((path_buf_next_ + 1u) & 1u);
+            return path_bufs_[idx];
+        }
     };
 
     inline MountOps FatFsMount::ops_{
@@ -541,48 +598,104 @@ export namespace fs {
         .list = &FatFsMount::list_impl,
     };
 
-    inline BlockDevice* g_fatfs_device = nullptr;
-    inline BYTE g_fatfs_pdrv = 0;
+    static constexpr util::usize fatfs_max_pdrv =
+#ifdef CHARM_FATFS_MAX_PDRV
+        static_cast<util::usize>(CHARM_FATFS_MAX_PDRV);
+#else
+        4;
+#endif
+    inline std::array<BlockDevice*, fatfs_max_pdrv> g_fatfs_devices{};
+    struct FatFsCache {
+        util::u8* data{nullptr};
+        util::usize size{0};
+        util::u64 block_size{0};
+        util::u64 sector{0};
+        bool valid{false};
+    };
+    inline std::array<FatFsCache, fatfs_max_pdrv> g_fatfs_cache{};
 
     inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv) noexcept {
-        g_fatfs_device = dev;
-        g_fatfs_pdrv = static_cast<BYTE>(pdrv);
+        if (pdrv >= g_fatfs_devices.size()) return;
+        g_fatfs_devices[pdrv] = dev;
+        g_fatfs_cache[pdrv].block_size = dev ? dev->block_size : 0;
+        g_fatfs_cache[pdrv].valid = false;
+    }
+
+    inline void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept {
+        if (pdrv >= g_fatfs_cache.size()) return;
+        g_fatfs_cache[pdrv].data = buf;
+        g_fatfs_cache[pdrv].size = size;
+        g_fatfs_cache[pdrv].valid = false;
     }
 
 } // namespace fs
 
 extern "C" {
     DSTATUS disk_initialize(BYTE pdrv) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return STA_NOINIT;
         return 0;
     }
 
     DSTATUS disk_status(BYTE pdrv) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return STA_NOINIT;
         return 0;
     }
 
     DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
-        const auto size = static_cast<util::usize>(count) * dev->block_size;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
+        auto& cache = fs::g_fatfs_cache[pdrv];
+        if (count == 1 && cache.data && cache.block_size == dev->block_size &&
+            cache.block_size <= cache.size) {
+            const auto lba = static_cast<util::u64>(sector);
+            if (cache.valid && cache.sector == lba) {
+                std::memcpy(buff, cache.data, static_cast<util::usize>(cache.block_size));
+                return RES_OK;
+            }
+            auto st = dev->read(dev->ctx, lba,
+                std::span<util::u8>(cache.data, static_cast<util::usize>(cache.block_size)));
+            if (!st) return RES_ERROR;
+            cache.sector = lba;
+            cache.valid = true;
+            std::memcpy(buff, cache.data, static_cast<util::usize>(cache.block_size));
+            return RES_OK;
+        }
+        const auto size = static_cast<util::usize>(count) * static_cast<util::usize>(dev->block_size);
         auto st = dev->read(dev->ctx, static_cast<util::u64>(sector),
             std::span<util::u8>(reinterpret_cast<util::u8*>(buff), size));
         return st ? RES_OK : RES_ERROR;
     }
 
     DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
-        const auto size = static_cast<util::usize>(count) * dev->block_size;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
+        auto& cache = fs::g_fatfs_cache[pdrv];
+        if (count == 1 && cache.data && cache.block_size == dev->block_size &&
+            cache.block_size <= cache.size) {
+            const auto lba = static_cast<util::u64>(sector);
+            auto st = dev->write(dev->ctx, lba,
+                std::span<const util::u8>(reinterpret_cast<const util::u8*>(buff),
+                    static_cast<util::usize>(cache.block_size)));
+            if (!st) return RES_ERROR;
+            std::memcpy(cache.data, buff, static_cast<util::usize>(cache.block_size));
+            cache.sector = lba;
+            cache.valid = true;
+            return RES_OK;
+        }
+        const auto size = static_cast<util::usize>(count) * static_cast<util::usize>(dev->block_size);
         auto st = dev->write(dev->ctx, static_cast<util::u64>(sector),
             std::span<const util::u8>(reinterpret_cast<const util::u8*>(buff), size));
+        if (cache.valid) {
+            const auto lba = static_cast<util::u64>(sector);
+            const auto end = lba + count;
+            if (cache.sector >= lba && cache.sector < end) cache.valid = false;
+        }
         return st ? RES_OK : RES_ERROR;
     }
 
     DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
         switch (cmd) {
         case CTRL_SYNC:
             return dev->flush ? (dev->flush(dev->ctx) ? RES_OK : RES_ERROR) : RES_OK;

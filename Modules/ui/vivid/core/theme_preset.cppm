@@ -262,3 +262,79 @@ inline void apply_ios_light_preset() noexcept {
 
     apply_theme_preset(preset);
 }
+
+export
+inline void apply_material3_light_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kPrimary{103, 80, 164, 255};
+    constexpr rgba kPrimaryHover{96, 74, 154, 255};
+    constexpr rgba kPrimaryPressed{88, 68, 142, 255};
+    constexpr rgba kOnPrimary{255, 255, 255, 255};
+    constexpr rgba kSurface{255, 251, 254, 255};
+    constexpr rgba kSurfaceVariant{231, 224, 236, 255};
+    constexpr rgba kOutline{121, 116, 126, 255};
+    constexpr rgba kOnSurface{28, 27, 31, 255};
+    constexpr rgba kTonal{234, 221, 255, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kOnSurface;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kPrimary;
+    preset.button.bg_hover = kPrimaryHover;
+    preset.button.bg_pressed = kPrimaryPressed;
+    preset.button.border_color = kPrimary;
+    preset.button.border_hover = kPrimaryHover;
+    preset.button.border_pressed = kPrimaryPressed;
+    preset.button.border_focus = kPrimary;
+    preset.button.font_color = kOnPrimary;
+    preset.button.corner_radius = 12;
+    preset.button.padding = 10;
+
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kSurfaceVariant;
+    preset.segmented_control.border_color = kOutline;
+    preset.segmented_control.bg_pressed = kSurface;
+    preset.segmented_control.border_pressed = kOutline;
+    preset.segmented_control.font_color = kOnSurface;
+    preset.segmented_control.corner_radius = 12;
+    preset.segmented_control.padding = 4;
+
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    preset.slider.bg_color = kPrimary;
+    preset.slider.bg_hover = kPrimaryHover;
+    preset.slider.bg_pressed = kPrimaryPressed;
+    preset.slider.border_color = kOutline;
+    preset.slider.border_hover = kOutline;
+    preset.slider.border_pressed = kOutline;
+    preset.slider.font_color = kOnPrimary;
+    preset.slider.border_focus = kPrimary;
+    preset.slider.padding = 8;
+
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    preset.switcher.bg_color = kSurfaceVariant;
+    preset.switcher.border_color = kOutline;
+    preset.switcher.bg_pressed = kPrimary;
+    preset.switcher.border_pressed = kPrimary;
+    preset.switcher.border_focus = kPrimary;
+    preset.switcher.font_color = kOnPrimary;
+    preset.switcher.corner_radius = 12;
+    preset.switcher.padding = 4;
+
+    // Tonal button feel via hover/pressed on surface variant.
+    theme.patch<Button>(StylePatch{
+        .has_bg_hover = true,
+        .bg_hover = kTonal,
+        .has_bg_pressed = true,
+        .bg_pressed = kPrimaryPressed,
+    });
+
+    apply_theme_preset(preset);
+}

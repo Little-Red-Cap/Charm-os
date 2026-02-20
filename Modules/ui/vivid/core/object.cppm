@@ -26,9 +26,19 @@ public:
         Custom
     };
 
+    enum class CachePolicy : unsigned {
+        None,
+        Subtree
+    };
+
     void set_clip_policy(ClipPolicy policy) noexcept { clip_policy_ = policy; }
     ClipPolicy clip_policy() const noexcept { return clip_policy_; }
     virtual Rect children_clip_rect() const noexcept { return rect_; }
+    void set_cache_policy(CachePolicy policy) noexcept { cache_policy_ = policy; }
+    CachePolicy cache_policy() const noexcept { return cache_policy_; }
+    void mark_cache_dirty() noexcept { cache_dirty_ = true; }
+    bool cache_dirty() const noexcept { return cache_dirty_; }
+    void clear_cache_dirty() noexcept { cache_dirty_ = false; }
 
     void set_visible(bool v) noexcept {
         visible_ = v;
@@ -459,6 +469,8 @@ protected:
     bool layout_spec_enabled_{false};
     LayoutSpec layout_spec_{};
     ClipPolicy clip_policy_{ClipPolicy::None};
+    CachePolicy cache_policy_{CachePolicy::None};
+    bool cache_dirty_{false};
     InteractionList<> interactions_{};
     DragStrategy default_drag_{};
     LongPressStrategy default_long_press_{};
@@ -470,6 +482,7 @@ protected:
 
     void mark_dirty_hint(const Rect& r) noexcept {
         if (r.w <= 0 || r.h <= 0) return;
+        cache_dirty_ = true;
         if (!dirty_hint_valid_) {
             dirty_hint_ = r;
             dirty_hint_valid_ = true;

@@ -54,8 +54,8 @@ public:
                        {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
                        bg, border, font);
 
-        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
-        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
 
         if (count_ <= 0) return;
 
@@ -66,14 +66,14 @@ public:
                 seg.w = r.x + r.w - seg.x;
             }
 
-            rgba seg_bg = bg;
-            rgba seg_border = border;
             if (i == selected_) {
-                seg_bg = st.bg_pressed;
-                seg_border = st.border_pressed;
+                const int radius = (i == 0 || i == count_ - 1) ? st.corner_radius : 0;
+                if (radius > 0) {
+                    draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, st.bg_pressed, true);
+                } else {
+                    draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, st.bg_pressed, true);
+                }
             }
-            draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_bg, true);
-            draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_border, false);
             if (i > 0) {
                 draw_line(cvs, seg.x, seg.y + 2, seg.x, seg.y + seg.h - 3, border);
             }
@@ -84,7 +84,7 @@ public:
         }
 
         if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
+            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, st.border_focus, false);
         }
     }
 

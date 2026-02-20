@@ -24,10 +24,12 @@ public:
     WidgetHandle pressed() const noexcept { return pressed_; }
     WidgetHandle captured() const noexcept { return captured_; }
     bool dragging() const noexcept { return dragging_; }
+    WidgetHandle last_event_target() const noexcept { return last_event_target_; }
 
     void set_drag_threshold(int px) noexcept { drag_threshold_sq_ = px * px; }
 
     void dispatch_event(const Event& e) {
+        last_event_target_ = {};
         sanitize_handles();
         const WidgetHandle overlay = factory_.overlay();
         auto* overlay_obj = factory_.get(overlay);
@@ -359,6 +361,7 @@ private:
     bool dispatch_to(WidgetHandle target, const Event& e) {
         auto* obj = factory_.get(target);
         if (!obj) return false;
+        last_event_target_ = target;
         if (obj->on_event(e)) return true;
         auto p = obj->parent();
         while (p) {
@@ -498,6 +501,7 @@ private:
     WidgetHandle pressed_{};
     WidgetHandle focused_{};
     WidgetHandle captured_{};
+    WidgetHandle last_event_target_{};
     WidgetHandle gesture_target_{};
     WidgetHandle pinch_target_{};
     bool dragging_{false};

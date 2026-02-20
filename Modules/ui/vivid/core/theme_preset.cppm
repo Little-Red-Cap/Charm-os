@@ -9,6 +9,8 @@ export import charm.widgets.progress;
 export import charm.widgets.progress_bar_simple;
 export import charm.widgets.scrollbar;
 export import charm.widgets.segmented_control;
+export import charm.widgets.slider;
+export import charm.widgets.switcher;
 export import charm.widgets.text_input;
 export import charm.widgets.number_input;
 export import charm.widgets.toggle_group;
@@ -41,6 +43,10 @@ struct ThemePreset {
     Style scroll_bar{};
     bool has_segmented_control{false};
     Style segmented_control{};
+    bool has_slider{false};
+    Style slider{};
+    bool has_switch{false};
+    Style switcher{};
     bool has_text_input{false};
     Style text_input{};
     bool has_number_input{false};
@@ -83,6 +89,8 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_progress_bar_simple) theme.set<ProgressBarSimple>(preset.progress_bar_simple);
     if (preset.has_scroll_bar) theme.set<ScrollBar>(preset.scroll_bar);
     if (preset.has_segmented_control) theme.set<SegmentedControl>(preset.segmented_control);
+    if (preset.has_slider) theme.set<Slider>(preset.slider);
+    if (preset.has_switch) theme.set<Switch>(preset.switcher);
     if (preset.has_text_input) theme.set<TextInput>(preset.text_input);
     if (preset.has_number_input) theme.set<NumberInput>(preset.number_input);
     if (preset.has_toggle_group) theme.set<ToggleGroup>(preset.toggle_group);
@@ -133,6 +141,12 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
     preset.has_segmented_control = true;
     preset.segmented_control = theme.get<SegmentedControl>();
     apply_base(preset.segmented_control);
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    apply_base(preset.slider);
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    apply_base(preset.switcher);
     preset.has_text_input = true;
     preset.text_input = theme.get<TextInput>();
     apply_base(preset.text_input);
@@ -178,6 +192,284 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
     preset.has_console_box = true;
     preset.console_box = theme.get<ConsoleBox>();
     apply_base(preset.console_box);
+
+    apply_theme_preset(preset);
+}
+
+export
+inline void apply_ios_light_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kSystemBlue{0, 122, 255, 255};
+    constexpr rgba kSystemBlueHover{0, 112, 245, 255};
+    constexpr rgba kSystemBluePressed{0, 102, 235, 255};
+    constexpr rgba kSystemGreen{52, 199, 89, 255};
+    constexpr rgba kSurface{242, 242, 247, 255};
+    constexpr rgba kSurfaceElevated{255, 255, 255, 255};
+    constexpr rgba kBorder{199, 199, 204, 255};
+    constexpr rgba kText{28, 28, 30, 255};
+    constexpr rgba kTrack{209, 209, 214, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kText;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kSystemBlue;
+    preset.button.bg_hover = kSystemBlueHover;
+    preset.button.bg_pressed = kSystemBluePressed;
+    preset.button.border_color = kSystemBlue;
+    preset.button.border_hover = kSystemBlueHover;
+    preset.button.border_pressed = kSystemBluePressed;
+    preset.button.border_focus = kSystemBlue;
+    preset.button.font_color = kSurfaceElevated;
+    preset.button.corner_radius = 10;
+    preset.button.padding = 8;
+
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kSurface;
+    preset.segmented_control.border_color = kBorder;
+    preset.segmented_control.bg_pressed = kSurfaceElevated;
+    preset.segmented_control.border_pressed = kBorder;
+    preset.segmented_control.font_color = kText;
+    preset.segmented_control.corner_radius = 10;
+    preset.segmented_control.padding = 4;
+
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    preset.slider.bg_color = kSystemBlue;
+    preset.slider.bg_hover = kSystemBlueHover;
+    preset.slider.bg_pressed = kSystemBluePressed;
+    preset.slider.border_color = kTrack;
+    preset.slider.border_hover = kTrack;
+    preset.slider.border_pressed = kTrack;
+    preset.slider.font_color = kSurfaceElevated;
+    preset.slider.border_focus = kSystemBlue;
+    preset.slider.padding = 8;
+
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    preset.switcher.bg_color = kSurface;
+    preset.switcher.border_color = kBorder;
+    preset.switcher.bg_pressed = kSystemGreen;
+    preset.switcher.border_pressed = kSystemGreen;
+    preset.switcher.border_focus = kSystemBlue;
+    preset.switcher.corner_radius = 10;
+    preset.switcher.padding = 4;
+
+    apply_theme_preset(preset);
+}
+
+export
+inline void apply_material3_light_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kPrimary{103, 80, 164, 255};
+    constexpr rgba kPrimaryHover{96, 74, 154, 255};
+    constexpr rgba kPrimaryPressed{88, 68, 142, 255};
+    constexpr rgba kOnPrimary{255, 255, 255, 255};
+    constexpr rgba kSurface{255, 251, 254, 255};
+    constexpr rgba kSurfaceVariant{231, 224, 236, 255};
+    constexpr rgba kOutline{121, 116, 126, 255};
+    constexpr rgba kOnSurface{28, 27, 31, 255};
+    constexpr rgba kTonal{234, 221, 255, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kOnSurface;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kPrimary;
+    preset.button.bg_hover = kPrimaryHover;
+    preset.button.bg_pressed = kPrimaryPressed;
+    preset.button.border_color = kPrimary;
+    preset.button.border_hover = kPrimaryHover;
+    preset.button.border_pressed = kPrimaryPressed;
+    preset.button.border_focus = kPrimary;
+    preset.button.font_color = kOnPrimary;
+    preset.button.corner_radius = 12;
+    preset.button.padding = 10;
+
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kSurfaceVariant;
+    preset.segmented_control.border_color = kOutline;
+    preset.segmented_control.bg_pressed = kSurface;
+    preset.segmented_control.border_pressed = kOutline;
+    preset.segmented_control.font_color = kOnSurface;
+    preset.segmented_control.corner_radius = 12;
+    preset.segmented_control.padding = 4;
+
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    preset.slider.bg_color = kPrimary;
+    preset.slider.bg_hover = kPrimaryHover;
+    preset.slider.bg_pressed = kPrimaryPressed;
+    preset.slider.border_color = kOutline;
+    preset.slider.border_hover = kOutline;
+    preset.slider.border_pressed = kOutline;
+    preset.slider.font_color = kOnPrimary;
+    preset.slider.border_focus = kPrimary;
+    preset.slider.padding = 8;
+
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    preset.switcher.bg_color = kSurfaceVariant;
+    preset.switcher.border_color = kOutline;
+    preset.switcher.bg_pressed = kPrimary;
+    preset.switcher.border_pressed = kPrimary;
+    preset.switcher.border_focus = kPrimary;
+    preset.switcher.font_color = kOnPrimary;
+    preset.switcher.corner_radius = 12;
+    preset.switcher.padding = 4;
+
+    // Tonal button feel via hover/pressed on surface variant.
+    theme.patch<Button>(StylePatch{
+        .has_bg_hover = true,
+        .bg_hover = kTonal,
+        .has_bg_pressed = true,
+        .bg_pressed = kPrimaryPressed,
+    });
+
+    apply_theme_preset(preset);
+}
+
+export
+inline void apply_lvgl_default_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kLvBg{240, 240, 240, 255};
+    constexpr rgba kLvBgHover{224, 224, 224, 255};
+    constexpr rgba kLvBgPressed{200, 200, 200, 255};
+    constexpr rgba kLvBorder{160, 160, 160, 255};
+    constexpr rgba kLvBorderFocus{80, 120, 200, 255};
+    constexpr rgba kLvText{40, 40, 40, 255};
+    constexpr rgba kLvAccent{0, 136, 255, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kLvText;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kLvBg;
+    preset.button.bg_hover = kLvBgHover;
+    preset.button.bg_pressed = kLvBgPressed;
+    preset.button.border_color = kLvBorder;
+    preset.button.border_hover = kLvBorder;
+    preset.button.border_pressed = kLvBorder;
+    preset.button.border_focus = kLvBorderFocus;
+    preset.button.font_color = kLvText;
+    preset.button.corner_radius = 6;
+    preset.button.padding = 6;
+
+    preset.has_segmented_control = true;
+    preset.segmented_control = theme.get<SegmentedControl>();
+    preset.segmented_control.bg_color = kLvBg;
+    preset.segmented_control.border_color = kLvBorder;
+    preset.segmented_control.bg_pressed = kLvBgPressed;
+    preset.segmented_control.border_pressed = kLvBorder;
+    preset.segmented_control.font_color = kLvText;
+    preset.segmented_control.corner_radius = 6;
+    preset.segmented_control.padding = 4;
+
+    preset.has_slider = true;
+    preset.slider = theme.get<Slider>();
+    preset.slider.bg_color = kLvAccent;
+    preset.slider.bg_hover = kLvAccent;
+    preset.slider.bg_pressed = kLvAccent;
+    preset.slider.border_color = kLvBorder;
+    preset.slider.border_hover = kLvBorder;
+    preset.slider.border_pressed = kLvBorder;
+    preset.slider.font_color = kLvText;
+    preset.slider.border_focus = kLvBorderFocus;
+    preset.slider.padding = 6;
+
+    preset.has_switch = true;
+    preset.switcher = theme.get<Switch>();
+    preset.switcher.bg_color = kLvBg;
+    preset.switcher.border_color = kLvBorder;
+    preset.switcher.bg_pressed = kLvAccent;
+    preset.switcher.border_pressed = kLvAccent;
+    preset.switcher.border_focus = kLvBorderFocus;
+    preset.switcher.corner_radius = 6;
+    preset.switcher.padding = 4;
+
+    apply_theme_preset(preset);
+}
+
+export
+inline void apply_arm2d_demo_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kPanel{24, 28, 36, 255};
+    constexpr rgba kPanelBorder{58, 72, 92, 255};
+    constexpr rgba kPanelHover{32, 38, 50, 255};
+    constexpr rgba kPanelPressed{36, 44, 58, 255};
+    constexpr rgba kAccent{48, 198, 255, 255};
+    constexpr rgba kAccentSoft{90, 220, 255, 255};
+    constexpr rgba kText{210, 220, 235, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kText;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kPanel;
+    preset.button.bg_hover = kPanelHover;
+    preset.button.bg_pressed = kPanelPressed;
+    preset.button.border_color = kPanelBorder;
+    preset.button.border_hover = kPanelBorder;
+    preset.button.border_pressed = kAccent;
+    preset.button.border_focus = kAccent;
+    preset.button.font_color = kText;
+    preset.button.corner_radius = 8;
+    preset.button.padding = 6;
+
+    preset.has_progress = true;
+    preset.progress = theme.get<Progress>();
+    preset.progress.bg_color = kPanel;
+    preset.progress.border_color = kPanelBorder;
+    preset.progress.bg_pressed = kAccent;
+    preset.progress.border_focus = kAccent;
+    preset.progress.corner_radius = 6;
+    preset.progress.padding = 4;
+
+    preset.has_progress_bar_simple = true;
+    preset.progress_bar_simple = theme.get<ProgressBarSimple>();
+    preset.progress_bar_simple.bg_color = kPanel;
+    preset.progress_bar_simple.border_color = kPanelBorder;
+    preset.progress_bar_simple.bg_pressed = kAccent;
+    preset.progress_bar_simple.border_focus = kAccent;
+    preset.progress_bar_simple.corner_radius = 6;
+    preset.progress_bar_simple.padding = 4;
+
+    preset.has_cloudy_glass = true;
+    preset.cloudy_glass = theme.get<CloudyGlass>();
+    preset.cloudy_glass.bg_color = kPanel;
+    preset.cloudy_glass.border_color = kPanelBorder;
+    preset.cloudy_glass.corner_radius = 10;
+    preset.cloudy_glass.glass_highlight_pos = 18;
+    preset.cloudy_glass.glass_highlight_alpha = 90;
+    preset.cloudy_glass.glass_shadow_alpha = 50;
+    preset.cloudy_glass.glass_opacity_min = 40;
+    preset.cloudy_glass.glass_opacity_max = 190;
+
+    preset.has_dynamic_nebula = true;
+    preset.dynamic_nebula = theme.get<DynamicNebula>();
+    preset.dynamic_nebula.font_color = kAccentSoft;
+
+    preset.has_busy_wheel = true;
+    preset.busy_wheel = theme.get<BusyWheel>();
+    preset.busy_wheel.font_color = kAccent;
 
     apply_theme_preset(preset);
 }

@@ -24,6 +24,16 @@ public:
 
     void clear(const rgba& c = {0,0,0,0}) noexcept { fb_.clear(c); }
 
+    void set_origin(int ox, int oy) noexcept {
+        origin_x_ = ox;
+        origin_y_ = oy;
+    }
+
+    void clear_origin() noexcept {
+        origin_x_ = 0;
+        origin_y_ = 0;
+    }
+
     void set_clip(const Rect& r) noexcept {
         clip_enabled_ = true;
         clip_ = r;
@@ -49,24 +59,48 @@ public:
 
     void set_pixel(int x, int y, const rgba& c) noexcept {
         if (!in_clip(x, y)) return;
-        fb_.set_pixel(static_cast<std::size_t>(x), static_cast<std::size_t>(y), c);
+        const int lx = x + origin_x_;
+        const int ly = y + origin_y_;
+        if (lx < 0 || ly < 0) return;
+        if (lx >= static_cast<int>(W) || ly >= static_cast<int>(H)) return;
+        fb_.set_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly), c);
     }
 
     void draw_hline(std::size_t x0, std::size_t x1, std::size_t y, const rgba& c) noexcept {
-        if (y >= H) return;
-        if (x0 > x1) std::swap(x0, x1);
-        if (x1 > W) x1 = W;
-        for (std::size_t x = x0; x < x1; ++x) {
-            set_pixel(static_cast<int>(x), static_cast<int>(y), c);
+        int gx0 = static_cast<int>(x0);
+        int gx1 = static_cast<int>(x1);
+        const int gy = static_cast<int>(y);
+        if (gx0 > gx1) std::swap(gx0, gx1);
+        const int ly = gy + origin_y_;
+        if (ly < 0 || ly >= static_cast<int>(H)) return;
+        int lx0 = gx0 + origin_x_;
+        int lx1 = gx1 + origin_x_;
+        if (lx0 > lx1) std::swap(lx0, lx1);
+        if (lx1 <= 0 || lx0 >= static_cast<int>(W)) return;
+        if (lx0 < 0) lx0 = 0;
+        if (lx1 > static_cast<int>(W)) lx1 = static_cast<int>(W);
+        for (int lx = lx0; lx < lx1; ++lx) {
+            const int gx = lx - origin_x_;
+            set_pixel(gx, gy, c);
         }
     }
 
     void draw_vline(std::size_t x, std::size_t y0, std::size_t y1, const rgba& c) noexcept {
-        if (x >= W) return;
-        if (y0 > y1) std::swap(y0, y1);
-        if (y1 > H) y1 = H;
-        for (std::size_t y = y0; y < y1; ++y) {
-            set_pixel(static_cast<int>(x), static_cast<int>(y), c);
+        const int gx = static_cast<int>(x);
+        int gy0 = static_cast<int>(y0);
+        int gy1 = static_cast<int>(y1);
+        if (gy0 > gy1) std::swap(gy0, gy1);
+        const int lx = gx + origin_x_;
+        if (lx < 0 || lx >= static_cast<int>(W)) return;
+        int ly0 = gy0 + origin_y_;
+        int ly1 = gy1 + origin_y_;
+        if (ly0 > ly1) std::swap(ly0, ly1);
+        if (ly1 <= 0 || ly0 >= static_cast<int>(H)) return;
+        if (ly0 < 0) ly0 = 0;
+        if (ly1 > static_cast<int>(H)) ly1 = static_cast<int>(H);
+        for (int ly = ly0; ly < ly1; ++ly) {
+            const int gy = ly - origin_y_;
+            set_pixel(gx, gy, c);
         }
     }
 
@@ -93,6 +127,8 @@ private:
     }
 
     FB& fb_;
+    int origin_x_{0};
+    int origin_y_{0};
     bool clip_enabled_{false};
     Rect clip_{0, 0, static_cast<int>(W), static_cast<int>(H)};
     DirtyList dirty_{};

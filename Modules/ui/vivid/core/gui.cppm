@@ -6,6 +6,7 @@ module;
 export module charm.core.gui;
 
 export import charm.gfx.canvas;
+export import charm.gfx.render;
 export import charm.core.event;
 export import charm.core.object;
 export import charm.core.handle;
@@ -42,6 +43,8 @@ public:
     bool layer_cache() const noexcept { return layer_cache_; }
     void set_subtree_cache(bool on) noexcept { subtree_cache_ = on; }
     bool subtree_cache() const noexcept { return subtree_cache_; }
+    void set_cache_debug(bool on) noexcept { cache_debug_ = on; }
+    bool cache_debug() const noexcept { return cache_debug_; }
     void invalidate_cache() noexcept { cache_valid_ = false; }
     int last_frame_nodes() const noexcept { return debug_nodes_; }
     int last_depth_hits() const noexcept { return debug_depth_hits_; }
@@ -99,40 +102,60 @@ public:
         if (layer_cache_) {
             cache_valid_ = false;
         }
-        if (subtree_cache_) {
-            cache_.invalidate_all();
-        }
         router_.dispatch_event(e);
+        if (subtree_cache_) {
+            auto target = router_.last_event_target();
+            if (target) {
+                mark_cache_dirty_chain(target);
+            } else {
+                cache_.invalidate_all();
+            }
+        }
     }
 
     void dispatch_touch_down(int id, int x, int y) {
         if (layer_cache_) {
             cache_valid_ = false;
         }
-        if (subtree_cache_) {
-            cache_.invalidate_all();
-        }
         router_.on_touch_down(id, x, y);
+        if (subtree_cache_) {
+            auto target = router_.last_event_target();
+            if (target) {
+                mark_cache_dirty_chain(target);
+            } else {
+                cache_.invalidate_all();
+            }
+        }
     }
 
     void dispatch_touch_move(int id, int x, int y) {
         if (layer_cache_) {
             cache_valid_ = false;
         }
-        if (subtree_cache_) {
-            cache_.invalidate_all();
-        }
         router_.on_touch_move(id, x, y);
+        if (subtree_cache_) {
+            auto target = router_.last_event_target();
+            if (target) {
+                mark_cache_dirty_chain(target);
+            } else {
+                cache_.invalidate_all();
+            }
+        }
     }
 
     void dispatch_touch_up(int id, int x, int y) {
         if (layer_cache_) {
             cache_valid_ = false;
         }
-        if (subtree_cache_) {
-            cache_.invalidate_all();
-        }
         router_.on_touch_up(id, x, y);
+        if (subtree_cache_) {
+            auto target = router_.last_event_target();
+            if (target) {
+                mark_cache_dirty_chain(target);
+            } else {
+                cache_.invalidate_all();
+            }
+        }
     }
 
 private:
@@ -150,6 +173,8 @@ private:
     static constexpr util::usize kTraceCapacity = 256;
     using TraceRecord = service::TraceRecord<util::u32, kTraceCapacity>;
     using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
+    using LayerFrameBuffer = DefaultFrameBuffer;
+    using LayerCanvas = DefaultCanvas;
 
     void trace_counter(GuiTraceId id, util::u64 payload, util::u32 frame) noexcept {
         TraceRecord rec{};
@@ -198,24 +223,6 @@ private:
         std::memcpy(dst, src, DefaultFrameBuffer::buffer_bytes);
     }
 
-    static void blit_layer(const LayerSlot& slot, DefaultCanvas& target, const Rect& r) {
-        if (!slot.valid) return;
-        const int left = (r.x < 0) ? 0 : r.x;
-        const int top = (r.y < 0) ? 0 : r.y;
-        const int right = (r.x + r.w > screen_width) ? screen_width : (r.x + r.w);
-        const int bottom = (r.y + r.h > screen_height) ? screen_height : (r.y + r.h);
-        if (right <= left || bottom <= top) return;
-        constexpr std::size_t stride = DefaultFrameBuffer::stride_bytes;
-        constexpr std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
-        auto* dst = target.raw_buffer().data();
-        const auto* src = slot.fb.data();
-        for (int y = top; y < bottom; ++y) {
-            const std::size_t offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(left) * bpp;
-            const std::size_t bytes = static_cast<std::size_t>(right - left) * bpp;
-            std::memcpy(dst + offset, src + offset, bytes);
-        }
-    }
-
     bool draw_recursive(DefaultCanvas& target,
                         WidgetHandle h,
                         int depth,
@@ -240,29 +247,47 @@ private:
         ++debug_nodes_;
         apply_layout(factory_, *obj);
         Rect obj_rect = obj->get_rect();
+        Rect cache_rect = clamp_to_screen(obj_rect);
 
         const bool cacheable = (allow_cache && subtree_cache_
             && layer_cache_slots > 0
             && obj->cache_policy() == ObjectBase::CachePolicy::Subtree);
         if (cacheable) {
+            if (cache_rect.w <= 0 || cache_rect.h <= 0) return false;
+            if (cache_rect.w > layer_cache_width || cache_rect.h > layer_cache_height) {
+                obj->mark_cache_dirty();
+            } else {
             auto* slot = cache_.find_or_assign(h);
             if (slot && slot->valid && !obj->cache_dirty()) {
-                blit_layer(*slot, target, obj_rect);
-                return false;
+                if (slot->rect.x == cache_rect.x && slot->rect.y == cache_rect.y
+                    && slot->rect.w == cache_rect.w && slot->rect.h == cache_rect.h) {
+                    blit_layer(*slot, target, cache_rect);
+                    draw_cache_debug(target, cache_rect, true);
+                    return false;
+                }
+                slot->valid = false;
             }
             if (slot) {
                 obj->clear_cache_dirty();
-                slot->valid = false;
-                slot->rect = obj_rect;
+                if (slot->rect.x != cache_rect.x || slot->rect.y != cache_rect.y
+                    || slot->rect.w != cache_rect.w || slot->rect.h != cache_rect.h) {
+                    slot->valid = false;
+                }
+                slot->rect = cache_rect;
+                slot->canvas.set_origin(-cache_rect.x, -cache_rect.y);
                 auto clip_state = slot->canvas.save_clip();
-                slot->canvas.set_clip(obj_rect);
+                slot->canvas.set_clip(cache_rect);
+                slot->canvas.clear();
                 slot->canvas.begin_frame();
                 draw_recursive(slot->canvas, h, depth, stack, false, false, static_cast<std::size_t>(-1));
                 slot->canvas.end_frame();
                 slot->canvas.restore_clip(clip_state);
+                slot->canvas.clear_origin();
                 slot->valid = true;
-                blit_layer(*slot, target, obj_rect);
+                blit_layer(*slot, target, cache_rect);
+                draw_cache_debug(target, cache_rect, false);
                 return false;
+            }
             }
         }
 
@@ -353,12 +378,13 @@ private:
     bool layer_cache_{false};
     bool cache_valid_{false};
     bool subtree_cache_{false};
+    bool cache_debug_{false};
     DefaultFrameBuffer cache_fb_{};
     DefaultCanvas cache_canvas_;
     struct LayerSlot {
         LayerSlot() : canvas(fb) {}
-        DefaultFrameBuffer fb{};
-        DefaultCanvas canvas;
+        LayerFrameBuffer fb{};
+        LayerCanvas canvas;
         WidgetHandle owner{};
         Rect rect{};
         bool valid{false};
@@ -386,6 +412,52 @@ private:
         }
         std::array<LayerSlot, static_cast<std::size_t>(layer_cache_slots)> slots{};
     };
+    static void blit_layer(const LayerSlot& slot, DefaultCanvas& target, const Rect& r) {
+        if (!slot.valid) return;
+        const Rect cached = slot.rect;
+        const int left = (r.x > cached.x) ? r.x : cached.x;
+        const int top = (r.y > cached.y) ? r.y : cached.y;
+        const int right = (r.x + r.w < cached.x + cached.w) ? (r.x + r.w) : (cached.x + cached.w);
+        const int bottom = (r.y + r.h < cached.y + cached.h) ? (r.y + r.h) : (cached.y + cached.h);
+        if (right <= left || bottom <= top) return;
+        constexpr std::size_t dst_stride = DefaultFrameBuffer::stride_bytes;
+        constexpr std::size_t dst_bpp = DefaultFrameBuffer::bytes_per_pixel;
+        constexpr std::size_t src_stride = LayerFrameBuffer::stride_bytes;
+        constexpr std::size_t src_bpp = LayerFrameBuffer::bytes_per_pixel;
+        auto* dst = target.raw_buffer().data();
+        const auto* src = slot.fb.data();
+        for (int y = top; y < bottom; ++y) {
+            const int src_y = y - cached.y;
+            const std::size_t dst_off = static_cast<std::size_t>(y) * dst_stride
+                + static_cast<std::size_t>(left) * dst_bpp;
+            const std::size_t src_off = static_cast<std::size_t>(src_y) * src_stride
+                + static_cast<std::size_t>(left - cached.x) * src_bpp;
+            const std::size_t bytes = static_cast<std::size_t>(right - left) * dst_bpp;
+            std::memcpy(dst + dst_off, src + src_off, bytes);
+        }
+    }
+
+    static Rect clamp_to_screen(const Rect& r) noexcept {
+        const int left = (r.x < 0) ? 0 : r.x;
+        const int top = (r.y < 0) ? 0 : r.y;
+        const int right = (r.x + r.w > screen_width) ? screen_width : (r.x + r.w);
+        const int bottom = (r.y + r.h > screen_height) ? screen_height : (r.y + r.h);
+        return Rect{left, top, right - left, bottom - top};
+    }
+
+    void mark_cache_dirty_chain(WidgetHandle h) noexcept {
+        while (h) {
+            auto* obj = factory_.get(h);
+            if (!obj) return;
+            obj->mark_cache_dirty();
+            h = obj->parent();
+        }
+    }
+    void draw_cache_debug(DefaultCanvas& target, const Rect& rect, bool hit) noexcept {
+        if (!cache_debug_) return;
+        const rgba color = hit ? rgba{0, 200, 0, 255} : rgba{200, 0, 0, 255};
+        ui::render::draw_rect(target, rect.x, rect.y, rect.w, rect.h, color, false);
+    }
     LayerCache cache_{};
     RenderTree<512> render_tree_{};
     TraceBuffer trace_{};

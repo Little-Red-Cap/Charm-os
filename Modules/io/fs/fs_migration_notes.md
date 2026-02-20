@@ -24,6 +24,7 @@
 - FatFs 多盘注册（pdrv 多实例）
 - VFS 调度全链（open/close/read/write/seek/flush）
 - Block cache 策略落点确认（见 docs/fs_block_cache_strategy.md）
+- POSIX facade（fs_posix）薄封装
 
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`

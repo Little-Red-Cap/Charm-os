@@ -15,3 +15,9 @@ export constexpr int screen_height = 960;
 #endif
 
 export constexpr PixelFormat screen_pixel_format = PixelFormat::RGB888;
+
+#ifdef CHARM_VIVID_LAYER_CACHE_SLOTS
+export constexpr int layer_cache_slots = CHARM_VIVID_LAYER_CACHE_SLOTS;
+#else
+export constexpr int layer_cache_slots = 1;
+#endif

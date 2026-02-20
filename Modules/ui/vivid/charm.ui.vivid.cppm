@@ -18,6 +18,7 @@ export import charm.core.string;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
+export import charm.core.render_tree;
 
 export import charm.gfx.canvas;
 export import charm.gfx.color;

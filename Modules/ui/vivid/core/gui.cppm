@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,6 +14,8 @@ export import charm.core.layout;
 export import charm.core.input_router;
 export import charm.widgets.scroll_container;
 export import charm.widgets.list_view;
+export import charm.core.config;
+export import charm.core.render_tree;
 import service_trace;
 import util.core;
 import out.api;
@@ -37,6 +40,8 @@ public:
     bool dirty_tracking() const noexcept { return dirty_tracking_; }
     void set_layer_cache(bool on) noexcept { layer_cache_ = on; cache_valid_ = false; }
     bool layer_cache() const noexcept { return layer_cache_; }
+    void set_subtree_cache(bool on) noexcept { subtree_cache_ = on; }
+    bool subtree_cache() const noexcept { return subtree_cache_; }
     void invalidate_cache() noexcept { cache_valid_ = false; }
     int last_frame_nodes() const noexcept { return debug_nodes_; }
     int last_depth_hits() const noexcept { return debug_depth_hits_; }
@@ -94,12 +99,18 @@ public:
         if (layer_cache_) {
             cache_valid_ = false;
         }
+        if (subtree_cache_) {
+            cache_.invalidate_all();
+        }
         router_.dispatch_event(e);
     }
 
     void dispatch_touch_down(int id, int x, int y) {
         if (layer_cache_) {
             cache_valid_ = false;
+        }
+        if (subtree_cache_) {
+            cache_.invalidate_all();
         }
         router_.on_touch_down(id, x, y);
     }
@@ -108,12 +119,18 @@ public:
         if (layer_cache_) {
             cache_valid_ = false;
         }
+        if (subtree_cache_) {
+            cache_.invalidate_all();
+        }
         router_.on_touch_move(id, x, y);
     }
 
     void dispatch_touch_up(int id, int x, int y) {
         if (layer_cache_) {
             cache_valid_ = false;
+        }
+        if (subtree_cache_) {
+            cache_.invalidate_all();
         }
         router_.on_touch_up(id, x, y);
     }
@@ -168,7 +185,8 @@ private:
         debug_depth_hits_ = 0;
         debug_cycle_hits_ = 0;
         WidgetHandle stack[kMaxDepth]{};
-        draw_recursive(target, root_, 0, stack);
+        render_tree_.clear();
+        (void)draw_recursive(target, root_, 0, stack, true, true, static_cast<std::size_t>(-1));
         trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
         trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
@@ -180,31 +198,96 @@ private:
         std::memcpy(dst, src, DefaultFrameBuffer::buffer_bytes);
     }
 
-    void draw_recursive(DefaultCanvas& target, WidgetHandle h, int depth, WidgetHandle* stack) {
+    static void blit_layer(const LayerSlot& slot, DefaultCanvas& target, const Rect& r) {
+        if (!slot.valid) return;
+        const int left = (r.x < 0) ? 0 : r.x;
+        const int top = (r.y < 0) ? 0 : r.y;
+        const int right = (r.x + r.w > screen_width) ? screen_width : (r.x + r.w);
+        const int bottom = (r.y + r.h > screen_height) ? screen_height : (r.y + r.h);
+        if (right <= left || bottom <= top) return;
+        constexpr std::size_t stride = DefaultFrameBuffer::stride_bytes;
+        constexpr std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
+        auto* dst = target.raw_buffer().data();
+        const auto* src = slot.fb.data();
+        for (int y = top; y < bottom; ++y) {
+            const std::size_t offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(left) * bpp;
+            const std::size_t bytes = static_cast<std::size_t>(right - left) * bpp;
+            std::memcpy(dst + offset, src + offset, bytes);
+        }
+    }
+
+    bool draw_recursive(DefaultCanvas& target,
+                        WidgetHandle h,
+                        int depth,
+                        WidgetHandle* stack,
+                        bool allow_cache,
+                        bool build_tree,
+                        std::size_t parent_index) {
         if (depth > kMaxDepth) {
             ++debug_depth_hits_;
-            return;
+            return false;
         }
         for (int i = 0; i < depth; ++i) {
             if (stack[i] == h) {
                 ++debug_cycle_hits_;
-                return;
+                return false;
             }
         }
         stack[depth] = h;
         auto* obj = factory_.get(h);
-        if (!obj) return;
-        if (!obj->is_visible()) return;
+        if (!obj) return false;
+        if (!obj->is_visible()) return false;
         ++debug_nodes_;
         apply_layout(factory_, *obj);
-        obj->draw(target);
-        if (dirty_tracking_) {
-            Rect hint{};
-            if (obj->take_dirty_hint(hint)) {
-                target.mark_dirty(hint);
-            } else {
-                target.mark_dirty(obj->get_rect());
+        Rect obj_rect = obj->get_rect();
+
+        const bool cacheable = (allow_cache && subtree_cache_
+            && layer_cache_slots > 0
+            && obj->cache_policy() == ObjectBase::CachePolicy::Subtree);
+        if (cacheable) {
+            auto* slot = cache_.find_or_assign(h);
+            if (slot && slot->valid && !obj->cache_dirty()) {
+                blit_layer(*slot, target, obj_rect);
+                return false;
             }
+            if (slot) {
+                obj->clear_cache_dirty();
+                slot->valid = false;
+                slot->rect = obj_rect;
+                auto clip_state = slot->canvas.save_clip();
+                slot->canvas.set_clip(obj_rect);
+                slot->canvas.begin_frame();
+                draw_recursive(slot->canvas, h, depth, stack, false, false, static_cast<std::size_t>(-1));
+                slot->canvas.end_frame();
+                slot->canvas.restore_clip(clip_state);
+                slot->valid = true;
+                blit_layer(*slot, target, obj_rect);
+                return false;
+            }
+        }
+
+        obj->draw(target);
+        bool subtree_dirty = false;
+        Rect hint{};
+        if (obj->take_dirty_hint(hint)) {
+            subtree_dirty = true;
+            if (dirty_tracking_) {
+                target.mark_dirty(hint);
+            }
+        } else if (dirty_tracking_) {
+            target.mark_dirty(obj_rect);
+        }
+
+        std::size_t node_index = static_cast<std::size_t>(-1);
+        if (build_tree) {
+            node_index = render_tree_.push(RenderNode{
+                .handle = h,
+                .rect = obj_rect,
+                .clip = obj_rect,
+                .parent = parent_index,
+                .first_child = 0,
+                .child_count = 0,
+            });
         }
 
         const auto clip_policy = obj->clip_policy();
@@ -226,19 +309,37 @@ private:
                 break;
             }
             target.set_clip(clip_rect);
+            if (node_index != static_cast<std::size_t>(-1)) {
+                render_tree_.node_mut(node_index).clip = clip_rect;
+            }
         }
 
+        std::size_t child_start = build_tree ? render_tree_.size() : 0;
         for (std::size_t i = 0; i < obj->child_count(); ++i) {
             auto ch = obj->child_at(i);
             auto* ch_obj = factory_.get(ch);
             if (!ch_obj) continue;
             if (!obj->should_draw_child(*ch_obj)) continue;
-            draw_recursive(target, ch, depth + 1, stack);
+            if (draw_recursive(target, ch, depth + 1, stack, true, build_tree, node_index)) {
+                subtree_dirty = true;
+            }
+        }
+        if (build_tree && node_index != static_cast<std::size_t>(-1)) {
+            auto& node = render_tree_.node_mut(node_index);
+            if (render_tree_.size() > child_start) {
+                node.first_child = child_start;
+                node.child_count = render_tree_.size() - child_start;
+            }
         }
 
         if (clip_children) {
             target.restore_clip(clip_state);
         }
+
+        if (subtree_dirty && obj->cache_policy() == ObjectBase::CachePolicy::Subtree) {
+            obj->mark_cache_dirty();
+        }
+        return subtree_dirty;
     }
 
     DefaultCanvas& canvas;
@@ -251,8 +352,42 @@ private:
     bool dirty_tracking_{false};
     bool layer_cache_{false};
     bool cache_valid_{false};
+    bool subtree_cache_{false};
     DefaultFrameBuffer cache_fb_{};
     DefaultCanvas cache_canvas_;
+    struct LayerSlot {
+        LayerSlot() : canvas(fb) {}
+        DefaultFrameBuffer fb{};
+        DefaultCanvas canvas;
+        WidgetHandle owner{};
+        Rect rect{};
+        bool valid{false};
+        bool used{false};
+    };
+    struct LayerCache {
+        LayerSlot* find_or_assign(WidgetHandle h) {
+            for (auto& slot : slots) {
+                if (slot.used && slot.owner == h) return &slot;
+            }
+            for (auto& slot : slots) {
+                if (!slot.used) {
+                    slot.used = true;
+                    slot.owner = h;
+                    slot.valid = false;
+                    return &slot;
+                }
+            }
+            return nullptr;
+        }
+        void invalidate_all() noexcept {
+            for (auto& slot : slots) {
+                slot.valid = false;
+            }
+        }
+        std::array<LayerSlot, static_cast<std::size_t>(layer_cache_slots)> slots{};
+    };
+    LayerCache cache_{};
+    RenderTree<512> render_tree_{};
     TraceBuffer trace_{};
     InputRouter router_;
 

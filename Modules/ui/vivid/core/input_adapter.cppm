@@ -6,16 +6,31 @@ export module charm.core.input_adapter;
 import charm.core.event;
 import input.raw;
 import input.raw_event;
+import input.nav;
 
 export namespace input::adapter {
-    inline Event::Key map_button_key(Button b) noexcept {
+    inline std::optional<Intent> intent_from_button(Button b) noexcept {
         switch (b) {
-        case Button::Up: return Event::Key::Up;
-        case Button::Down: return Event::Key::Down;
-        case Button::Enter: return Event::Key::Enter;
-        case Button::Back: return Event::Key::Backspace;
-        default: return Event::Key::Unknown;
+        case Button::Up:
+            return Intent{.type = IntentType::NavPrev, .a = 0, .b = 0, .ms = 0};
+        case Button::Down:
+            return Intent{.type = IntentType::NavNext, .a = 0, .b = 0, .ms = 0};
+        case Button::Enter:
+            return Intent{.type = IntentType::Activate, .a = 0, .b = 0, .ms = 0};
+        case Button::Back:
+            return Intent{.type = IntentType::Back, .a = 0, .b = 0, .ms = 0};
+        default:
+            break;
         }
+        return std::nullopt;
+    }
+
+    inline Event::Key key_from_nav(const NavResult& nav) noexcept {
+        if (nav.activated) return Event::Key::Enter;
+        if (nav.back) return Event::Key::Backspace;
+        if (nav.focus_delta < 0) return Event::Key::Up;
+        if (nav.focus_delta > 0) return Event::Key::Down;
+        return Event::Key::Unknown;
     }
 
     inline std::optional<Event> to_vivid_event(const RawInputEvent& raw) noexcept {
@@ -34,14 +49,20 @@ export namespace input::adapter {
             }
         }
         case RawInputEventType::Button: {
-            const auto key = map_button_key(raw.button);
+            const auto intent = intent_from_button(raw.button);
+            const auto nav = nav_from_intent(intent);
+            const auto key = key_from_nav(nav);
             if (key == Event::Key::Unknown) return std::nullopt;
             const auto type = raw.pressed ? Event::Type::KeyDown : Event::Type::KeyUp;
             return Event::key(type, key);
         }
         case RawInputEventType::Encoder: {
             if (raw.encoder_delta == 0) return std::nullopt;
-            return Event::wheel(0, 0, raw.encoder_delta);
+            const Intent it{.type = IntentType::Adjust, .a = raw.encoder_delta, .b = 0, .ms = raw.ms};
+            const auto nav = nav_from_intent(it);
+            const auto key = key_from_nav(nav);
+            if (key == Event::Key::Unknown) return std::nullopt;
+            return Event::key(Event::Type::KeyDown, key);
         }
         case RawInputEventType::Axis:
         case RawInputEventType::None:

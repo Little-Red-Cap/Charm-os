@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 #include <optional>
 
 export module charm.core.input_adapter;
@@ -43,6 +44,16 @@ export namespace input::adapter {
         return std::nullopt;
     }
 
+    inline Event::Key key_from_button(Button b) noexcept {
+        switch (b) {
+        case Button::Up: return Event::Key::Up;
+        case Button::Down: return Event::Key::Down;
+        case Button::Enter: return Event::Key::Enter;
+        case Button::Back: return Event::Key::Backspace;
+        default: return Event::Key::Unknown;
+        }
+    }
+
     inline Event::Key key_from_nav(const NavResult& nav) noexcept {
         if (nav.activated) return Event::Key::Enter;
         if (nav.back) return Event::Key::Backspace;
@@ -51,44 +62,95 @@ export namespace input::adapter {
         return Event::Key::Unknown;
     }
 
-    inline std::optional<Event> to_vivid_event(const RawInputEvent& raw) noexcept {
+    inline std::optional<Intent> intent_from_raw(const RawInputEvent& raw) noexcept {
         switch (raw.type) {
         case RawInputEventType::Pointer: {
             const auto& p = raw.pointer;
             switch (raw.pointer_action) {
             case PointerAction::Down:
-                return Event::mouse(Event::Type::MouseDown, p.x, p.y, 0);
+                return Intent{.type = IntentType::PointerDown, .a = p.x, .b = p.y, .ms = raw.ms};
             case PointerAction::Move:
-                return Event::mouse(Event::Type::MouseMove, p.x, p.y, 0);
+                return Intent{.type = IntentType::PointerMove, .a = p.x, .b = p.y, .ms = raw.ms};
             case PointerAction::Up:
-                return Event::mouse(Event::Type::MouseUp, p.x, p.y, 0);
+                return Intent{.type = IntentType::PointerUp, .a = p.x, .b = p.y, .ms = raw.ms};
             default:
                 return std::nullopt;
             }
         }
         case RawInputEventType::Button: {
-            const auto intent = intent_from_button(raw.button);
-            const auto nav = nav_from_intent(intent);
-            const auto key = key_from_nav(nav);
-            if (key == Event::Key::Unknown) return std::nullopt;
-            const auto type = raw.pressed ? Event::Type::KeyDown : Event::Type::KeyUp;
-            return Event::key(type, key);
+            if (!raw.pressed) return std::nullopt;
+            return intent_from_button(raw.button);
         }
         case RawInputEventType::Encoder: {
             if (raw.encoder_delta == 0) return std::nullopt;
-            if (encoder_map() == EncoderMap::MouseWheel) {
-                return Event::wheel(0, 0, raw.encoder_delta);
-            }
-            const Intent it{.type = IntentType::Adjust, .a = raw.encoder_delta, .b = 0, .ms = raw.ms};
-            const auto nav = nav_from_intent(it);
-            const auto key = key_from_nav(nav);
-            if (key == Event::Key::Unknown) return std::nullopt;
-            return Event::key(Event::Type::KeyDown, key);
+            return Intent{.type = IntentType::Adjust, .a = raw.encoder_delta, .b = 0, .ms = raw.ms};
         }
         case RawInputEventType::Axis:
         case RawInputEventType::None:
         default:
             return std::nullopt;
         }
+    }
+
+    struct SemanticBridge {
+        std::optional<Intent> intent{};
+        NavResult nav{};
+        std::optional<Event> event{};
+    };
+
+    inline SemanticBridge bridge_from_raw(const RawInputEvent& raw) noexcept {
+        SemanticBridge out{};
+        out.intent = intent_from_raw(raw);
+        out.nav = nav_from_intent(out.intent);
+
+        switch (raw.type) {
+        case RawInputEventType::Pointer: {
+            const auto& p = raw.pointer;
+            switch (raw.pointer_action) {
+            case PointerAction::Down:
+                out.event = Event::mouse(Event::Type::MouseDown, p.x, p.y, 0);
+                break;
+            case PointerAction::Move:
+                out.event = Event::mouse(Event::Type::MouseMove, p.x, p.y, 0);
+                break;
+            case PointerAction::Up:
+                out.event = Event::mouse(Event::Type::MouseUp, p.x, p.y, 0);
+                break;
+            default:
+                break;
+            }
+            break;
+        }
+        case RawInputEventType::Button: {
+            const auto key = raw.pressed ? key_from_nav(out.nav) : key_from_button(raw.button);
+            if (key != Event::Key::Unknown) {
+                const auto type = raw.pressed ? Event::Type::KeyDown : Event::Type::KeyUp;
+                out.event = Event::key(type, key);
+            }
+            break;
+        }
+        case RawInputEventType::Encoder: {
+            if (raw.encoder_delta == 0) break;
+            if (encoder_map() == EncoderMap::MouseWheel) {
+                out.event = Event::wheel(0, 0, raw.encoder_delta);
+                break;
+            }
+            const auto key = key_from_nav(out.nav);
+            if (key != Event::Key::Unknown) {
+                out.event = Event::key(Event::Type::KeyDown, key);
+            }
+            break;
+        }
+        case RawInputEventType::Axis:
+        case RawInputEventType::None:
+        default:
+            break;
+        }
+
+        return out;
+    }
+
+    inline std::optional<Event> to_vivid_event(const RawInputEvent& raw) noexcept {
+        return bridge_from_raw(raw).event;
     }
 } // namespace input::adapter

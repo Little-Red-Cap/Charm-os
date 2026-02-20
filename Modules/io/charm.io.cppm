@@ -27,6 +27,8 @@ export import fs_core;
 export import fs_errno;
 export import fs_fatfs;
 export import fs_mal;
+export import fs_mal_block;
+export import fs_mal_file;
 export import fs_path;
 export import fs_ramfs;
 export import fs_stream;

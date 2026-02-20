@@ -88,6 +88,7 @@ Draft/        # 计划/草案（可变动）
 - trace_core ID 清单：`docs/trace_core_ids.md`
 - VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
 - MAL 概览：`docs/mal_overview.md`
+- MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
 - VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
 
 ## 1.2 依赖红线（单向依赖）

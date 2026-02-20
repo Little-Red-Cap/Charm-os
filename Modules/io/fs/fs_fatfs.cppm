@@ -26,7 +26,7 @@ import fs_mal;
 #if CHARM_USE_FATFS
 export namespace fs {
     void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
-    void fatfs_set_cache(util::u8* buf, util::usize size) noexcept;
+    void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept;
 
     struct FatFsFileSlot {
         bool used{false};
@@ -127,7 +127,7 @@ export namespace fs {
 
         Status mount(BlockDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
             util::u8 pdrv = 0) noexcept {
-            fatfs_set_cache(cache.data(), cache.size());
+            fatfs_set_cache(pdrv, cache.data(), cache.size());
             return mount(dev, format_if_needed, pdrv);
         }
 
@@ -598,8 +598,13 @@ export namespace fs {
         .list = &FatFsMount::list_impl,
     };
 
-    inline BlockDevice* g_fatfs_device = nullptr;
-    inline BYTE g_fatfs_pdrv = 0;
+    static constexpr util::usize fatfs_max_pdrv =
+#ifdef CHARM_FATFS_MAX_PDRV
+        static_cast<util::usize>(CHARM_FATFS_MAX_PDRV);
+#else
+        4;
+#endif
+    inline std::array<BlockDevice*, fatfs_max_pdrv> g_fatfs_devices{};
     struct FatFsCache {
         util::u8* data{nullptr};
         util::usize size{0};
@@ -607,38 +612,39 @@ export namespace fs {
         util::u64 sector{0};
         bool valid{false};
     };
-    inline FatFsCache g_fatfs_cache{};
+    inline std::array<FatFsCache, fatfs_max_pdrv> g_fatfs_cache{};
 
     inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv) noexcept {
-        g_fatfs_device = dev;
-        g_fatfs_pdrv = static_cast<BYTE>(pdrv);
-        g_fatfs_cache.block_size = dev ? dev->block_size : 0;
-        g_fatfs_cache.valid = false;
+        if (pdrv >= g_fatfs_devices.size()) return;
+        g_fatfs_devices[pdrv] = dev;
+        g_fatfs_cache[pdrv].block_size = dev ? dev->block_size : 0;
+        g_fatfs_cache[pdrv].valid = false;
     }
 
-    inline void fatfs_set_cache(util::u8* buf, util::usize size) noexcept {
-        g_fatfs_cache.data = buf;
-        g_fatfs_cache.size = size;
-        g_fatfs_cache.valid = false;
+    inline void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept {
+        if (pdrv >= g_fatfs_cache.size()) return;
+        g_fatfs_cache[pdrv].data = buf;
+        g_fatfs_cache[pdrv].size = size;
+        g_fatfs_cache[pdrv].valid = false;
     }
 
 } // namespace fs
 
 extern "C" {
     DSTATUS disk_initialize(BYTE pdrv) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return STA_NOINIT;
         return 0;
     }
 
     DSTATUS disk_status(BYTE pdrv) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return STA_NOINIT;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return STA_NOINIT;
         return 0;
     }
 
     DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
-        auto& cache = fs::g_fatfs_cache;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
+        auto& cache = fs::g_fatfs_cache[pdrv];
         if (count == 1 && cache.data && cache.block_size == dev->block_size &&
             cache.block_size <= cache.size) {
             const auto lba = static_cast<util::u64>(sector);
@@ -661,9 +667,9 @@ extern "C" {
     }
 
     DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
-        auto& cache = fs::g_fatfs_cache;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
+        auto& cache = fs::g_fatfs_cache[pdrv];
         if (count == 1 && cache.data && cache.block_size == dev->block_size &&
             cache.block_size <= cache.size) {
             const auto lba = static_cast<util::u64>(sector);
@@ -688,8 +694,8 @@ extern "C" {
     }
 
     DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
-        if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
-        auto* dev = fs::g_fatfs_device;
+        if (pdrv >= fs::g_fatfs_devices.size() || !fs::g_fatfs_devices[pdrv]) return RES_NOTRDY;
+        auto* dev = fs::g_fatfs_devices[pdrv];
         switch (cmd) {
         case CTRL_SYNC:
             return dev->flush ? (dev->flush(dev->ctx) ? RES_OK : RES_ERROR) : RES_OK;

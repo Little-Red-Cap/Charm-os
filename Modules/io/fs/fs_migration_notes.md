@@ -22,12 +22,12 @@
 - FatFs 外部缓存与路径缓冲入口
 - FatFs 自定义文件槽（可配置最大打开数）
 - FatFs 多盘注册（pdrv 多实例）
+- VFS 调度全链（open/close/read/write/seek/flush）
 
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`
 
 ## 待办
-- 完善 VFS 调度：mount/open/close/read/write/seek/flush 走 NodeOps
 - Block cache（可选，位于 MAL 或 VFS 层）
 - POSIX facade 桥接
 - RAMFS 完整实现（多块/目录）

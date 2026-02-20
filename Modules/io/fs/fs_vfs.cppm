@@ -162,6 +162,22 @@ export namespace fs {
         return close(f);
     }
 
+    inline Status vfs_read(File& f, std::span<util::u8> buf) noexcept {
+        return read(f, buf);
+    }
+
+    inline Status vfs_write(File& f, std::span<const util::u8> buf) noexcept {
+        return write(f, buf);
+    }
+
+    inline Status vfs_seek(File& f, util::i64 off) noexcept {
+        return seek(f, off);
+    }
+
+    inline Status vfs_flush(File& f) noexcept {
+        return flush(f);
+    }
+
     inline Status vfs_unlink(std::string_view path) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);

@@ -94,6 +94,7 @@ export namespace usb::class_driver {
         void (*on_control_line)(void* ctx, u16 value) noexcept { nullptr };
         std::span<u8> (*tx_buffer)(void* ctx) noexcept { nullptr };
         std::span<u8> (*rx_buffer)(void* ctx) noexcept { nullptr };
+        std::size_t (*tx_length)(void* ctx) noexcept { nullptr };
         void (*on_rx_done)(void* ctx, std::size_t len) noexcept { nullptr };
         void (*on_tx_done)(void* ctx, std::size_t len) noexcept { nullptr };
         bool (*notify)(void* ctx, std::span<const u8> data) noexcept { nullptr };
@@ -184,7 +185,11 @@ export namespace usb::class_driver {
         std::span<const u8> on_in_request(std::size_t max_len) noexcept {
             auto buf = tx_buffer();
             if (buf.empty()) return {};
-            const auto len = (std::min)(buf.size(), max_len);
+            auto len = (std::min)(buf.size(), max_len);
+            if (ops_.tx_length) {
+                const auto avail = ops_.tx_length(ctx_);
+                len = (std::min)(len, avail);
+            }
             return std::span<const u8>(buf.data(), len);
         }
 

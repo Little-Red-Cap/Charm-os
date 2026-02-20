@@ -40,7 +40,7 @@ public:
         scan_opacity1_ = a1;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<CrtScreen>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -64,7 +64,7 @@ public:
     }
 
 private:
-    void draw_noise(DefaultCanvas& cvs, const Rect& r, const rgba& base) noexcept {
+    void draw_noise(CanvasBase& cvs, const Rect& r, const rgba& base) noexcept {
         const int count = (r.w * r.h) / (noise_strength_ * noise_strength_ * 64);
         for (int i = 0; i < count; ++i) {
             const int x = r.x + (random_u32() % (r.w > 0 ? r.w : 1));
@@ -77,7 +77,7 @@ private:
         }
     }
 
-    void draw_scan_bars(DefaultCanvas& cvs, const Rect& r, const rgba& base) noexcept {
+    void draw_scan_bars(CanvasBase& cvs, const Rect& r, const rgba& base) noexcept {
         scan_pos0_ += scan_speed0_;
         scan_pos1_ += scan_speed1_;
         if (scan_pos0_ > r.h) scan_pos0_ = -scan_bar_h0_;

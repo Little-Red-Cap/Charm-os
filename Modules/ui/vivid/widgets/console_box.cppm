@@ -58,7 +58,7 @@ public:
         max_lines_ = (max_lines == 0) ? 1 : max_lines;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ConsoleBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

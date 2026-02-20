@@ -26,7 +26,7 @@ public:
     [[nodiscard]] bool is_checked() const noexcept { return checked_; }
     void set_on_change(Callback cb) noexcept { callback_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         const int box_size = r.h;
         const Style& st = Theme::instance().get<Checkbox>();

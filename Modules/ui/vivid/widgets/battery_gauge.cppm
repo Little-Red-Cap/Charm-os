@@ -23,7 +23,7 @@ public:
 
     int value() const noexcept { return value_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<BatteryGauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

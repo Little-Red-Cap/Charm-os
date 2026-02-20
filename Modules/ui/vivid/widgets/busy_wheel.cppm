@@ -26,7 +26,7 @@ public:
     void set_speed(float deg_per_frame) noexcept { speed_ = deg_per_frame; }
     void set_color(const rgba& c) noexcept { color_ = c; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<BusyWheel>();
         const auto r = get_rect();
 

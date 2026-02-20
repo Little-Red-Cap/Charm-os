@@ -21,7 +21,7 @@ public:
         value_ = alg::arc::clamp01(v);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;

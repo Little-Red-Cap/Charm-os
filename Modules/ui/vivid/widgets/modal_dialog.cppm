@@ -36,7 +36,7 @@ public:
     void set_on_ok(Callback cb) noexcept { on_ok_ = cb; }
     void set_on_cancel(Callback cb) noexcept { on_cancel_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         if (!is_visible()) return;
         const Style& st = Theme::instance().get<ModalDialog>();
         const auto layout = compute_layout(st);
@@ -158,7 +158,7 @@ private:
         return ButtonId::None;
     }
 
-    static void draw_button(DefaultCanvas& cvs, const Rect& r, const Style& st,
+    static void draw_button(CanvasBase& cvs, const Rect& r, const Style& st,
                             const char* label, bool hot, bool pressed) noexcept {
         rgba fill = st.bg_color;
         rgba border = st.border_color;

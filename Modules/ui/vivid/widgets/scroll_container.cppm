@@ -83,7 +83,7 @@ public:
         apply_scroll(resolve);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         const Style& st = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
         rgba bg{};

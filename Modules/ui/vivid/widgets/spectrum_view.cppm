@@ -52,7 +52,7 @@ public:
 
     void set_peak_decay(float v) noexcept { peak_decay_ = (v > 0.0f) ? v : 0.0f; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<SpectrumView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -83,7 +83,7 @@ private:
     std::array<float, kMax> values_{};
     std::array<float, kMax> peaks_{};
 
-    void draw_bars(DefaultCanvas& cvs, const Rect& r, const Style& st) {
+    void draw_bars(CanvasBase& cvs, const Rect& r, const Style& st) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
         const int top = r.y + 4;
@@ -112,7 +112,7 @@ private:
         }
     }
 
-    void draw_ring(DefaultCanvas& cvs, const Rect& r, const Style& st) {
+    void draw_ring(CanvasBase& cvs, const Rect& r, const Style& st) {
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         int radius = (r.w < r.h ? r.w : r.h) / 2 - 6;
@@ -137,7 +137,7 @@ private:
         }
     }
 
-    void draw_wave(DefaultCanvas& cvs, const Rect& r, const Style& st) {
+    void draw_wave(CanvasBase& cvs, const Rect& r, const Style& st) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
         const int top = r.y + 4;

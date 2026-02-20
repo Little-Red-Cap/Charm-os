@@ -22,7 +22,7 @@ public:
     void set_shadow(std::uint8_t a) noexcept { shadow_ = a; }
     void set_highlight_pos(int percent) noexcept { highlight_pos_ = percent; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<CloudyGlass>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

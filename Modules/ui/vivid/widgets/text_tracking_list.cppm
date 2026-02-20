@@ -67,7 +67,7 @@ public:
         select_ctx_ = ctx;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TextTrackingList>();
         const auto r = get_rect();
 

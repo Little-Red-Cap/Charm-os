@@ -43,7 +43,7 @@ public:
     void set_pointer_color(const rgba& c) noexcept { pointer_color_ = c; }
     void set_knob_color(const rgba& c) noexcept { knob_color_ = c; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<MeterPointer>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

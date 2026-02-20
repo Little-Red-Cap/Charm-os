@@ -32,7 +32,7 @@ public:
 
     using CountFn = int(*)(void* ctx) noexcept;
     using NodeFn = NodeInfo(*)(void* ctx, int index) noexcept;
-    using DrawNodeFn = void(*)(void* ctx, DefaultCanvas& cvs, const DrawInfo& info) noexcept;
+    using DrawNodeFn = void(*)(void* ctx, CanvasBase& cvs, const DrawInfo& info) noexcept;
     using ToggleFn = void(*)(void* ctx, int index) noexcept;
     using SelectFn = void(*)(void* ctx, int index) noexcept;
     using PoolCreateFn = void(*)(void* ctx, int slot) noexcept;
@@ -96,7 +96,7 @@ public:
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TreeView>();
         const auto r = get_rect();
 
@@ -269,7 +269,7 @@ private:
         if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
     }
 
-    void draw_node_glyphs(DefaultCanvas& cvs, const Rect& row, const NodeInfo& info, const rgba& color) const noexcept {
+    void draw_node_glyphs(CanvasBase& cvs, const Rect& row, const NodeInfo& info, const rgba& color) const noexcept {
         if (!info.has_children) return;
         const int cx = row.x + info.depth * indent_w_ + indent_w_ / 2;
         const int cy = row.y + row.h / 2;

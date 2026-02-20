@@ -47,7 +47,7 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
     void set_particle_size(int px) noexcept { particle_size_ = (px > 0) ? px : 1; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<DynamicNebula>();
         const auto r = get_rect();
         const int cx = r.x + r.w / 2;

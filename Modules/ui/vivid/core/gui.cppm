@@ -25,7 +25,7 @@ import out.api;
 export
 class Gui {
 public:
-    Gui(DefaultCanvas& cvs, UiFactory& factory, WidgetHandle root)
+    Gui(CanvasBase& cvs, UiFactory& factory, WidgetHandle root)
         : canvas(cvs),
           factory_(factory),
           root_(root),
@@ -76,7 +76,7 @@ public:
         dump_trace();
     }
 
-    // 渲染一帧
+    // 渲染一�?
     void render() {
         static util::u32 frame_no = 0;
         canvas.begin_frame();
@@ -97,7 +97,7 @@ public:
         canvas.end_frame();
     }
 
-    // 派发一个输入事件（全局坐标）
+    // 派发一个输入事件（全局坐标�?
     void dispatch_event(const Event& e) {
         if (layer_cache_) {
             cache_valid_ = false;
@@ -173,8 +173,8 @@ private:
     static constexpr util::usize kTraceCapacity = 256;
     using TraceRecord = service::TraceRecord<util::u32, kTraceCapacity>;
     using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
-    using LayerFrameBuffer = DefaultFrameBuffer;
-    using LayerCanvas = DefaultCanvas;
+    using LayerFrameBuffer = FrameBuffer<screen_pixel_format, static_cast<std::size_t>(layer_cache_width), static_cast<std::size_t>(layer_cache_height)>;
+    using LayerCanvas = Canvas<screen_pixel_format, static_cast<std::size_t>(layer_cache_width), static_cast<std::size_t>(layer_cache_height)>;
 
     void trace_counter(GuiTraceId id, util::u64 payload, util::u32 frame) noexcept {
         TraceRecord rec{};
@@ -204,7 +204,7 @@ private:
         }
     }
 
-    void render_tree(DefaultCanvas& target) {
+    void render_tree(CanvasBase& target) {
         register_layout_engines();
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
@@ -218,12 +218,12 @@ private:
     }
 
     void blit_cache() {
-        auto* dst = canvas.raw_buffer().data();
+        auto* dst = canvas.data();
         const auto* src = cache_fb_.data();
         std::memcpy(dst, src, DefaultFrameBuffer::buffer_bytes);
     }
 
-    bool draw_recursive(DefaultCanvas& target,
+    bool draw_recursive(CanvasBase& target,
                         WidgetHandle h,
                         int depth,
                         WidgetHandle* stack,
@@ -367,7 +367,7 @@ private:
         return subtree_dirty;
     }
 
-    DefaultCanvas& canvas;
+    CanvasBase& canvas;
     UiFactory& factory_;
     WidgetHandle root_;
     static constexpr int kMaxDepth = 128;
@@ -412,7 +412,7 @@ private:
         }
         std::array<LayerSlot, static_cast<std::size_t>(layer_cache_slots)> slots{};
     };
-    static void blit_layer(const LayerSlot& slot, DefaultCanvas& target, const Rect& r) {
+    static void blit_layer(const LayerSlot& slot, CanvasBase& target, const Rect& r) {
         if (!slot.valid) return;
         const Rect cached = slot.rect;
         const int left = (r.x > cached.x) ? r.x : cached.x;
@@ -420,23 +420,22 @@ private:
         const int right = (r.x + r.w < cached.x + cached.w) ? (r.x + r.w) : (cached.x + cached.w);
         const int bottom = (r.y + r.h < cached.y + cached.h) ? (r.y + r.h) : (cached.y + cached.h);
         if (right <= left || bottom <= top) return;
-        constexpr std::size_t dst_stride = DefaultFrameBuffer::stride_bytes;
-        constexpr std::size_t dst_bpp = DefaultFrameBuffer::bytes_per_pixel;
+        const std::size_t dst_stride = target.stride_bytes();
+        const std::size_t dst_bpp = target.bytes_per_pixel();
+        const std::size_t dst_row_bytes = dst_stride / dst_bpp;
+        if (dst_row_bytes == 0) return;
+        if (left < 0 || right > static_cast<int>(dst_row_bytes)) return;
         constexpr std::size_t src_stride = LayerFrameBuffer::stride_bytes;
         constexpr std::size_t src_bpp = LayerFrameBuffer::bytes_per_pixel;
-        auto* dst = target.raw_buffer().data();
         const auto* src = slot.fb.data();
         for (int y = top; y < bottom; ++y) {
             const int src_y = y - cached.y;
-            const std::size_t dst_off = static_cast<std::size_t>(y) * dst_stride
-                + static_cast<std::size_t>(left) * dst_bpp;
             const std::size_t src_off = static_cast<std::size_t>(src_y) * src_stride
                 + static_cast<std::size_t>(left - cached.x) * src_bpp;
             const std::size_t bytes = static_cast<std::size_t>(right - left) * dst_bpp;
-            std::memcpy(dst + dst_off, src + src_off, bytes);
+            target.blit_span(left, y, src + src_off, bytes);
         }
     }
-
     static Rect clamp_to_screen(const Rect& r) noexcept {
         const int left = (r.x < 0) ? 0 : r.x;
         const int top = (r.y < 0) ? 0 : r.y;
@@ -453,7 +452,7 @@ private:
             h = obj->parent();
         }
     }
-    void draw_cache_debug(DefaultCanvas& target, const Rect& rect, bool hit) noexcept {
+    void draw_cache_debug(CanvasBase& target, const Rect& rect, bool hit) noexcept {
         if (!cache_debug_) return;
         const rgba color = hit ? rgba{0, 200, 0, 255} : rgba{200, 0, 0, 255};
         ui::render::draw_rect(target, rect.x, rect.y, rect.w, rect.h, color, false);
@@ -483,3 +482,4 @@ private:
         view.update_visible_window();
     }
 };
+

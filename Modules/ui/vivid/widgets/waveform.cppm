@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <algorithm>
 #include <cstddef>
 #include <span>
@@ -69,7 +69,7 @@ public:
     void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; mark_dirty_trigger(); }
     void set_center_color(const rgba& c) noexcept { center_color_ = c; mark_dirty_hint(get_rect()); }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Waveform>();
         const auto r = get_rect();
 

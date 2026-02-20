@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <cmath>
 #include <utility>
 #include <cstddef>
@@ -17,9 +17,9 @@ import alg_tile;
 
 namespace ui::render {
 
-// Bresenham 鐩寸嚎
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_line(Canvas<PF, W, H>& cvs,
+// Bresenham 直线
+export
+void draw_line(CanvasBase& cvs,
                int x0, int y0,
                int x1, int y1,
                const rgba& color) noexcept
@@ -29,9 +29,9 @@ void draw_line(Canvas<PF, W, H>& cvs,
     });
 }
 
-// 鐭╁舰锛堝～鍏呮垨鎻忚竟锛?
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_rect(Canvas<PF, W, H>& cvs,
+// 矩形（填充或描边�?
+export
+void draw_rect(CanvasBase& cvs,
                int x, int y,
                int w, int h,
                const rgba& color,
@@ -49,9 +49,9 @@ void draw_rect(Canvas<PF, W, H>& cvs,
 }
 
 
-// 涓偣鍦嗙畻娉?
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_circle(Canvas<PF, W, H>& cvs,
+// 中点圆算�?
+export
+void draw_circle(CanvasBase& cvs,
                  int cx, int cy,
                  int radius,
                  const rgba& color,
@@ -66,8 +66,8 @@ void draw_circle(Canvas<PF, W, H>& cvs,
         });
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_arc(Canvas<PF, W, H>& cvs,
+export
+void draw_arc(CanvasBase& cvs,
               int cx, int cy,
               int radius,
               int thickness,
@@ -93,8 +93,8 @@ void draw_arc(Canvas<PF, W, H>& cvs,
     });
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_image(Canvas<PF, W, H>& cvs,
+export
+void draw_image(CanvasBase& cvs,
                 int dst_x, int dst_y,
                 const ImageView& img) noexcept
 {
@@ -103,14 +103,16 @@ void draw_image(Canvas<PF, W, H>& cvs,
     int y0 = dst_y;
     int x1 = dst_x + img.w;
     int y1 = dst_y + img.h;
-    if (x1 <= 0 || y1 <= 0 || x0 >= static_cast<int>(W) || y0 >= static_cast<int>(H)) return;
+    const int w = cvs.width();
+    const int h = cvs.height();
+    if (x1 <= 0 || y1 <= 0 || x0 >= w || y0 >= h) return;
 
     int sx = 0;
     int sy = 0;
     if (x0 < 0) { sx = -x0; x0 = 0; }
     if (y0 < 0) { sy = -y0; y0 = 0; }
-    if (x1 > static_cast<int>(W)) x1 = static_cast<int>(W);
-    if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
+    if (x1 > w) x1 = w;
+    if (y1 > h) y1 = h;
 
     for (int y = y0; y < y1; ++y) {
         const std::byte* row = img.data + (sy + (y - y0)) * img.stride_bytes;
@@ -147,7 +149,7 @@ void draw_image(Canvas<PF, W, H>& cvs,
                 if (src.a == 255) {
                     cvs.set_pixel(x, y, src);
                 } else if (src.a != 0) {
-                    const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+                    const rgba dst = cvs.get_pixel(x, y);
                     const int ia = 255 - src.a;
                     rgba out{};
                     if (img.premultiplied_alpha) {
@@ -215,14 +217,13 @@ inline rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
     return src;
 }
 
-template<PixelFormat PF, std::size_t W, std::size_t H>
-inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
+inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
     if (src.a == 255) {
         cvs.set_pixel(x, y, src);
         return;
     }
     if (src.a == 0) return;
-    const rgba dst = cvs.raw_buffer().get_pixel(x, y);
+    const rgba dst = cvs.get_pixel(x, y);
     const int ia = 255 - src.a;
     rgba out{};
     if (premultiplied) {
@@ -250,8 +251,8 @@ inline ImageView make_subview(const ImageView& img, int x, int y, int w, int h) 
 }
 } // namespace detail
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_image_scaled(Canvas<PF, W, H>& cvs,
+export
+void draw_image_scaled(CanvasBase& cvs,
                        int dst_x, int dst_y,
                        int dst_w, int dst_h,
                        const ImageView& img) noexcept
@@ -261,14 +262,16 @@ void draw_image_scaled(Canvas<PF, W, H>& cvs,
     int y0 = dst_y;
     int x1 = dst_x + dst_w;
     int y1 = dst_y + dst_h;
-    if (x1 <= 0 || y1 <= 0 || x0 >= static_cast<int>(W) || y0 >= static_cast<int>(H)) return;
+    const int w = cvs.width();
+    const int h = cvs.height();
+    if (x1 <= 0 || y1 <= 0 || x0 >= w || y0 >= h) return;
 
     int sx0 = 0;
     int sy0 = 0;
     if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
     if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
-    if (x1 > static_cast<int>(W)) x1 = static_cast<int>(W);
-    if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
+    if (x1 > w) x1 = w;
+    if (y1 > h) y1 = h;
 
     for (int y = y0; y < y1; ++y) {
         const int sy = sy0 + (y - y0) * img.h / dst_h;
@@ -281,8 +284,8 @@ void draw_image_scaled(Canvas<PF, W, H>& cvs,
     }
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_image_nine_slice(Canvas<PF, W, H>& cvs,
+export
+void draw_image_nine_slice(CanvasBase& cvs,
                            int dst_x, int dst_y,
                            int dst_w, int dst_h,
                            const ImageView& img,
@@ -345,9 +348,9 @@ void draw_image_nine_slice(Canvas<PF, W, H>& cvs,
 }
 
 
-// 鍦嗚鐭╁舰缁樺埗锛歳adius=r锛宖ill=true 濉厖锛宖ill=false 鎻忚竟
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_round_rect(Canvas<PF, W, H>& cvs,
+// 圆角矩形绘制：radius=r，fill=true 填充，fill=false 描边
+export
+void draw_round_rect(CanvasBase& cvs,
                      int x, int y, int w, int h,
                      int radius,
                      const rgba& color,
@@ -365,8 +368,8 @@ void draw_round_rect(Canvas<PF, W, H>& cvs,
         });
 }
 
-export template<PixelFormat PF, std::size_t W, std::size_t H>
-void draw_rect_tiled(Canvas<PF, W, H>& cvs,
+export
+void draw_rect_tiled(CanvasBase& cvs,
                      int x, int y, int w, int h,
                      const rgba& color,
                      int tile_w = 32,

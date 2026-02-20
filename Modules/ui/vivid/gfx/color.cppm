@@ -24,7 +24,7 @@ struct rgba {
         : r(rr), g(gg), b(bb), a(aa) {}
 
     [[nodiscard]] constexpr rgba blend_over(const rgba& bg) const noexcept {
-        // 简单 alpha 混合：out = src + bg*(1 - α)
+        // 简�?alpha 混合：out = src + bg*(1 - α)
         float alpha = a / 255.0f;
         auto blend_comp = [&](uint8_t src_c, uint8_t bg_c){
             return uint8_t(src_c * alpha + bg_c * (1 - alpha));
@@ -38,7 +38,7 @@ struct rgba {
     }
 };
 
-// 色彩空间转换（仅示例：RGB->HSV）
+// 色彩空间转换（仅示例：RGB->HSV�?
 export
 constexpr std::tuple<float, float, float> rgb_to_hsv(const rgb& c) noexcept {
     float r = c.r / 255.0f;

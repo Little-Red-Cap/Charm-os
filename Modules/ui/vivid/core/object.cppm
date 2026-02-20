@@ -409,7 +409,7 @@ public:
         return child_count_;
     }
 
-    virtual void draw(DefaultCanvas& cvs) = 0;
+    virtual void draw(CanvasBase& cvs) = 0;
 
     virtual bool on_event(const Event&) { return false; }
 

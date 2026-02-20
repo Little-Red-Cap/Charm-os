@@ -50,7 +50,7 @@ public:
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
     void set_hole_color(const rgba& c) noexcept { hole_color_ = c; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ProgressBarDrill>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

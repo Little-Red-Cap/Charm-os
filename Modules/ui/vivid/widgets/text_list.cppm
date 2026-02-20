@@ -63,7 +63,7 @@ public:
         select_ctx_ = ctx;
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<TextList>();
         const auto r = get_rect();
 

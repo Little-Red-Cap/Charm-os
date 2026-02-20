@@ -23,7 +23,7 @@ public:
     void set_title(const char* t) { title_.set_text(t); }
     void set_message(const char* t) { text_.set_text(t); }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const auto& st = Theme::instance().get<MessageBox>();
         const auto r = get_rect();
         draw_rect(cvs, r.x, r.y, r.w, r.h, st.bg_color, true);

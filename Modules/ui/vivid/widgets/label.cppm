@@ -78,7 +78,7 @@ public:
     void set_wrap(TextWrap w) noexcept { wrap_ = w; }
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         if (!font_) return;
         const auto r = get_rect();
 

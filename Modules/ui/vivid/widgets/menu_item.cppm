@@ -26,7 +26,7 @@ public:
     void set_expanded(bool on) noexcept { expanded_ = on; }
     void set_selected(bool on) noexcept { selected_ = on; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<MenuItem>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

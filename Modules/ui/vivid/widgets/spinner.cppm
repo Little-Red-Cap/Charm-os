@@ -22,7 +22,7 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
     void set_speed(float delta) noexcept { speed_ = delta; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Spinner>();
         const auto r = get_rect();
         const int cx = r.x + r.w / 2;

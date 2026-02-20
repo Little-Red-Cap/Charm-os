@@ -403,3 +403,73 @@ inline void apply_lvgl_default_preset() noexcept {
 
     apply_theme_preset(preset);
 }
+
+export
+inline void apply_arm2d_demo_preset() noexcept {
+    auto& theme = Theme::instance();
+
+    constexpr rgba kPanel{24, 28, 36, 255};
+    constexpr rgba kPanelBorder{58, 72, 92, 255};
+    constexpr rgba kPanelHover{32, 38, 50, 255};
+    constexpr rgba kPanelPressed{36, 44, 58, 255};
+    constexpr rgba kAccent{48, 198, 255, 255};
+    constexpr rgba kAccentSoft{90, 220, 255, 255};
+    constexpr rgba kText{210, 220, 235, 255};
+
+    ThemePreset preset{};
+    preset.has_label = true;
+    preset.label = theme.get<Label>();
+    preset.label.font_color = kText;
+
+    preset.has_button = true;
+    preset.button = theme.get<Button>();
+    preset.button.bg_color = kPanel;
+    preset.button.bg_hover = kPanelHover;
+    preset.button.bg_pressed = kPanelPressed;
+    preset.button.border_color = kPanelBorder;
+    preset.button.border_hover = kPanelBorder;
+    preset.button.border_pressed = kAccent;
+    preset.button.border_focus = kAccent;
+    preset.button.font_color = kText;
+    preset.button.corner_radius = 8;
+    preset.button.padding = 6;
+
+    preset.has_progress = true;
+    preset.progress = theme.get<Progress>();
+    preset.progress.bg_color = kPanel;
+    preset.progress.border_color = kPanelBorder;
+    preset.progress.bg_pressed = kAccent;
+    preset.progress.border_focus = kAccent;
+    preset.progress.corner_radius = 6;
+    preset.progress.padding = 4;
+
+    preset.has_progress_bar_simple = true;
+    preset.progress_bar_simple = theme.get<ProgressBarSimple>();
+    preset.progress_bar_simple.bg_color = kPanel;
+    preset.progress_bar_simple.border_color = kPanelBorder;
+    preset.progress_bar_simple.bg_pressed = kAccent;
+    preset.progress_bar_simple.border_focus = kAccent;
+    preset.progress_bar_simple.corner_radius = 6;
+    preset.progress_bar_simple.padding = 4;
+
+    preset.has_cloudy_glass = true;
+    preset.cloudy_glass = theme.get<CloudyGlass>();
+    preset.cloudy_glass.bg_color = kPanel;
+    preset.cloudy_glass.border_color = kPanelBorder;
+    preset.cloudy_glass.corner_radius = 10;
+    preset.cloudy_glass.glass_highlight_pos = 18;
+    preset.cloudy_glass.glass_highlight_alpha = 90;
+    preset.cloudy_glass.glass_shadow_alpha = 50;
+    preset.cloudy_glass.glass_opacity_min = 40;
+    preset.cloudy_glass.glass_opacity_max = 190;
+
+    preset.has_dynamic_nebula = true;
+    preset.dynamic_nebula = theme.get<DynamicNebula>();
+    preset.dynamic_nebula.font_color = kAccentSoft;
+
+    preset.has_busy_wheel = true;
+    preset.busy_wheel = theme.get<BusyWheel>();
+    preset.busy_wheel.font_color = kAccent;
+
+    apply_theme_preset(preset);
+}

@@ -86,6 +86,7 @@ Draft/        # 计划/草案（可变动）
 - USB 体系规划：`docs/usb_arch_plan.md`
 - USB DSL 概览：`docs/usb_dsl_overview.md`
 - USB CDC 回调契约：`docs/usb_cdc_contract.md`
+- USB String/Lang 装配：`docs/usb_strings_overview.md`
 - 设备模型草案：`docs/device_model_overview.md`
 - trace_core 统一入口：`docs/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace_core_ids.md`

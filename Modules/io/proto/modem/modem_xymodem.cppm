@@ -6,11 +6,11 @@ module;
 #include <span>
 #include <string_view>
 
-export module io.proto.xmodem;
+export module io.proto.modem_xymodem;
 
 import util.core;
 
-export namespace xmodem {
+export namespace modem {
     using ReadByteFn = bool (*)(void* ctx, util::u8& out, util::u32 timeout_ms) noexcept;
     using WriteByteFn = void (*)(void* ctx, util::u8 byte) noexcept;
     using WriteDataFn = void (*)(void* ctx, std::span<const util::u8> data) noexcept;

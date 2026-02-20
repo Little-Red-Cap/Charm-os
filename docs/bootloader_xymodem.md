@@ -94,8 +94,9 @@ SOH | 0x00 | 0xFF | "filename\0size\0" | CRC16
 
 ## 9. Charm 落地点建议
 
-- 模块路径：`Modules/io/proto/xmodem/`
-- 只实现 XModem-CRC（最小闭环）
+- 模块路径：`Modules/io/proto/modem/`
+- 模块名：`io.proto.modem_xymodem`
+- 只实现 XModem-CRC + YModem 头帧解析（最小闭环）
 ## 8. 参考常量
 
 ```

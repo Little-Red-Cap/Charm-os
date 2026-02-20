@@ -79,4 +79,4 @@ export import usb.driver;
 export import usb.dsl;
 export import usb.host.core;
 
-export import io.proto.xmodem;
+export import io.proto.modem_xymodem;

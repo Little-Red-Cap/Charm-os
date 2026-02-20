@@ -34,7 +34,20 @@
 - FatFs 内部仍有自己的“扇区缓冲机制”，但它依赖 `disk_*` 的行为。
 - 建议：
   - 当启用 MAL cache 时，**不要**再额外启用 FatFs 自定义 cache（避免双层缓存）。
-  - 如果你需要 FatFs 的特定缓存行为，可关闭 MAL cache 或仅保留最薄的 read‑through。
+  - 若必须使用 FatFs cache，则关闭 MAL cache（或仅保留最薄的 read‑through）。
+
+## 决策速查（避免双层缓存）
+
+| 场景 | 推荐缓存层 | 备注 |
+| --- | --- | --- |
+| MCU 默认 / 简单存储 | MAL | 统一策略，最低耦合 |
+| 已依赖 FatFs 自带缓存行为 | FatFs | 关闭 MAL cache |
+| 高并发小文件随机 IO | FS 层（独立模块） | 与 MAL cache 互斥或只保留极薄 read‑through |
+
+## 明确约束（工程规范）
+
+- 默认只启用 **一层** block cache。
+- `MAL cache` 与 `FatFs cache` 不可同时启用（除非明确评估并记录）。
 
 ## 接口草案（仅作为规范说明）
 

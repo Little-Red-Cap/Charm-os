@@ -72,8 +72,8 @@ import charm.domain;
 1. 新文件默认只 import 入口模块。
 2. 若必须直连具体模块，先在本页“例外”说明并标注理由。
 3. 违反规则的 import 视为构建失败。
+4. CMake 将在配置阶段进行基础校验（Foundation/Runtime 违规直接失败）。
 
 ## 参考
 
 - VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
-

@@ -97,6 +97,16 @@ Draft/        # 计划/草案（可变动）
 Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ```
 
+### 初始化顺序（统一约束）
+
+应用层按固定顺序完成初始化，避免组件过早访问 HAL/服务：
+
+1) `service_init`（Foundation 服务层）
+2) `hal_init`（HAL/Port/平台）
+3) `component_init`（按需启用组件）
+
+> 说明：组件初始化由应用显式控制，避免默认启用全部子系统。
+
 ### Foundation（能力基座）
 范围：
 - `Modules/core/*`（util/trace/service/alg）

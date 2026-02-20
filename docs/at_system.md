@@ -1,0 +1,73 @@
+# AT 子系统（文档草案）
+
+目标：为 MCU 常见 AT 设备提供最小可复用的解析与会话骨架，并与 EDA 事件流对齐。
+
+## 分层设计
+
+L0 Transport（HAL/IO）
+- UART / USB CDC / Socket 的字节流读写
+- 提供 `read(span<u8>)` 与 `write(span<u8>)` 能力
+
+L1 Parser（核心层）
+- 输入字节流，按行解析
+- 输出事件：`OK / ERROR / URC / LINE`
+- 无动态分配、无阻塞
+
+L2 Session（服务层）
+- 命令队列、超时、重试
+- URC 分发与订阅
+- 与 EDA 事件循环对接
+
+L3 Adapter（设备层）
+- 设备指令集封装（如 LTE/BT/WiFi/GNSS）
+- 状态机与重连策略
+
+## 当前模块
+
+- `at.parser`：最小行解析器
+- 后续计划：`at.session` / `at.transport` / `at.device.*`
+
+## 最小事件模型
+
+```
+AT input bytes
+    -> Parser
+    -> Event(kind, text)
+```
+
+事件类型：
+- `ok`：行内容为 `OK`
+- `error`：行内容为 `ERROR`
+- `urc`：以 `+` 开头的异步通知
+- `line`：普通行
+
+## 最小使用示例
+
+```cpp
+import at.parser;
+
+using AtParser = at::Parser<128>;
+
+static void on_event(void*, const at::Event& ev) noexcept {
+    // 按需分发到 EDA/日志
+    (void)ev;
+}
+
+void demo_feed(std::span<const util::u8> data) {
+    AtParser p;
+    p.set_handler(on_event, nullptr);
+    p.feed(data);
+}
+```
+
+## 约束与注意事项
+
+- 解析器只做“行”与“状态”识别，不负责命令队列。
+- 事件 `text` 视图只在下一次 `feed()` 前有效。
+- 超时、重试、URC 路由由 `at.session` 处理。
+
+## 下一步计划
+
+- `at.session`：命令队列 + 超时 + 重试
+- `at.transport`：与 UART/CDC 绑定
+- 最小 Demo：发送 `AT` → `OK`

@@ -19,6 +19,8 @@ export import input.raw;
 export import input.raw_event;
 export import input.sampler;
 
+export import at.parser;
+
 export import port.kernel;
 
 export import fs_block;

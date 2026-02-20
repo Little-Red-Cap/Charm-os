@@ -46,6 +46,7 @@ Examples/fs/vsf_fs_fatfs_demo/<build>/vsf-fs-fatfs-demo G:\Project\dev.vhd
 - `vfs_open(path)` 默认只读；创建/截断需使用 `OpenFlags`（写权限）。
 - LFN 需 `FF_USE_LFN` 开启且 `FILINFO.lfname/lfsize` 已传入。
 - `BlockFile` 使用 64-bit seek，支持 2GB 以上镜像。
+- `vfs_close` 仅释放资源，不保证落盘；需要时显式 `vfs_flush(file)` 或 `vfs_flush(prefix)`。
 
 ## 可选优化入口
 

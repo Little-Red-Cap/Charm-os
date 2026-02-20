@@ -28,6 +28,10 @@
 - POSIX facade（见 docs/fs_posix_facade.md）
 - MAL cache（fs_mal_cache）落地
 
+## 语义约定（回收/落盘）
+- `vfs_close` 仅释放资源，不保证落盘。
+- 强一致路径：`vfs_flush(file)` 或 `vfs_flush(prefix)` 由上层显式调用。
+
 ## 示例
 - `Examples/fs/vsf_fs_fatfs_demo`
 

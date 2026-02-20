@@ -58,15 +58,19 @@ public:
         const int max_knob = r.w - pad * 2;
         if (max_knob < knob_size) knob_size = max_knob;
         if (knob_size <= 0) {
-            knob_size = (r.h > 2) ? (r.h - 2) : r.h;
-            pad = (r.h - knob_size) / 2;
+            const int fallback = (r.h < r.w) ? r.h : r.w;
+            knob_size = (fallback > 1) ? (fallback - 1) : fallback;
         }
-        const int knob_y = r.y + pad;
-        int knob_x = on_ ? (r.x + r.w - knob_size - pad) : (r.x + pad);
-        if (knob_x < r.x + pad) knob_x = r.x + pad;
-        if (knob_x + knob_size > r.x + r.w - pad) {
-            knob_x = r.x + r.w - pad - knob_size;
+        if (knob_size <= 0) return;
+
+        const int knob_y = r.y + (r.h - knob_size) / 2;
+        int knob_x_min = r.x + pad;
+        int knob_x_max = r.x + r.w - pad - knob_size;
+        if (knob_x_max < knob_x_min) {
+            knob_x_min = r.x + (r.w - knob_size) / 2;
+            knob_x_max = knob_x_min;
         }
+        int knob_x = on_ ? knob_x_max : knob_x_min;
         draw_round_rect(cvs, knob_x, knob_y, knob_size, knob_size, knob_size / 2, knob, true);
 
         if (has_state(State::Focused)) {

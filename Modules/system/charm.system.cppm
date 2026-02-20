@@ -53,6 +53,8 @@ export import power.port;
 export import power.trace;
 export import power.types;
 
+export import charm.system.init;
+
 export import device.desc;
 export import device.bus;
 export import device.driver;

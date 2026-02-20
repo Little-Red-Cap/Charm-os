@@ -125,6 +125,21 @@ export namespace usb::device {
                 return true;
             });
         }
+
+        inline bool build_cdc_acm_table(DescriptorTable& table,
+                                        ConfigTree& tree,
+                                        std::span<const u8> device_desc,
+                                        const CdcAcmConfig& cfg,
+                                        const std::span<const u8>* strings,
+                                        std::size_t string_count) noexcept {
+            if (device_desc.empty()) return false;
+            if (!build_cdc_acm_config(tree, cfg)) return false;
+            table.device = device_desc;
+            table.configuration = tree.view;
+            table.strings = strings;
+            table.string_count = string_count;
+            return !table.configuration.empty();
+        }
     }
 
     struct ClassOps {
@@ -196,6 +211,14 @@ export namespace usb::device {
             out_expected_ = static_cast<u16>(len);
         }
 
+        void begin_status_in() noexcept {
+            stage_ = Ep0Stage::status_in;
+        }
+
+        void begin_status_out() noexcept {
+            stage_ = Ep0Stage::status_out;
+        }
+
         void finish_data_in() noexcept {
             stage_ = Ep0Stage::status_out;
             in_remaining_ = 0;
@@ -207,18 +230,34 @@ export namespace usb::device {
             out_expected_ = 0;
         }
 
+        void finish_status_in() noexcept {
+            stage_ = Ep0Stage::setup;
+        }
+
+        void finish_status_out() noexcept {
+            stage_ = Ep0Stage::setup;
+        }
+
         void mark_data_in_done() noexcept {
             if (zlp_pending_) return;
             finish_data_in();
         }
 
         void mark_zlp_sent() noexcept {
+            if (stage_ == Ep0Stage::status_in) {
+                finish_status_in();
+                return;
+            }
             if (!zlp_pending_) return;
             zlp_pending_ = false;
             finish_data_in();
         }
 
         void on_in_packet(std::size_t sent) noexcept {
+            if (stage_ == Ep0Stage::status_in) {
+                finish_status_in();
+                return;
+            }
             if (in_remaining_ > sent) {
                 in_remaining_ = static_cast<u16>(in_remaining_ - sent);
                 return;
@@ -296,6 +335,11 @@ export namespace usb::device {
                 if (!handle_vendor(req, resp)) return false;
             }
             if (setup.w_length == 0) {
+                if (request_direction(setup.bm_request_type) == RequestDirection::in) {
+                    ep0_.begin_status_out();
+                } else {
+                    ep0_.begin_status_in();
+                }
                 return true;
             }
             if (request_direction(setup.bm_request_type) == RequestDirection::in) {
@@ -313,6 +357,13 @@ export namespace usb::device {
         }
 
         bool handle_out_data(std::span<const u8> data, ControlResponse& resp) noexcept {
+            if (ep0_.stage() == Ep0Stage::status_out) {
+                ep0_.finish_status_out();
+                return true;
+            }
+            if (ep0_.stage() != Ep0Stage::data_out) {
+                return false;
+            }
             // DATA OUT: accept up to wLength bytes, then move to status stage.
             const auto expected = ep0_.out_expected();
             const auto len = (data.size() < expected) ? data.size() : expected;

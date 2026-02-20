@@ -109,6 +109,15 @@ export namespace usb::device {
             }
         }
 
+        void on_connect(bool) noexcept {
+        }
+
+        void on_suspend() noexcept {
+        }
+
+        void on_resume() noexcept {
+        }
+
         driver::DcdDeviceCallbacks callbacks() noexcept {
             driver::DcdDeviceCallbacks cb{};
             cb.ctx = this;
@@ -116,6 +125,9 @@ export namespace usb::device {
             cb.on_out_data = &DeviceDriver::handle_out_cb;
             cb.on_in_complete = &DeviceDriver::handle_in_complete_cb;
             cb.on_reset = &DeviceDriver::handle_reset_cb;
+            cb.on_connect = &DeviceDriver::handle_connect_cb;
+            cb.on_suspend = &DeviceDriver::handle_suspend_cb;
+            cb.on_resume = &DeviceDriver::handle_resume_cb;
             return cb;
         }
 
@@ -138,6 +150,21 @@ export namespace usb::device {
         static void handle_reset_cb(void* ctx) noexcept {
             auto* self = static_cast<DeviceDriver*>(ctx);
             if (self) self->on_reset();
+        }
+
+        static void handle_connect_cb(void* ctx, bool connected) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_connect(connected);
+        }
+
+        static void handle_suspend_cb(void* ctx) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_suspend();
+        }
+
+        static void handle_resume_cb(void* ctx) noexcept {
+            auto* self = static_cast<DeviceDriver*>(ctx);
+            if (self) self->on_resume();
         }
 
         static Ep0Result ep0_send_in(void* ctx, std::span<const u8> data, bool zlp) noexcept {
@@ -243,6 +270,16 @@ export namespace usb::device {
             auto data = cdc.on_in_request(max_len);
             if (data.empty()) return false;
             const auto ep = cdc.config().ep_in;
+            return dcd.ep.send(dcd_ctx, ep, data, false);
+        }
+
+        inline bool send_cdc_serial_state(const driver::DcdOps& dcd,
+                                          void* dcd_ctx,
+                                          class_driver::CdcAcm& cdc,
+                                          u16 state_bits) noexcept {
+            if (!dcd.ep.send) return false;
+            const auto ep = cdc.config().ep_notify;
+            auto data = cdc.serial_state_notification(state_bits);
             return dcd.ep.send(dcd_ctx, ep, data, false);
         }
 

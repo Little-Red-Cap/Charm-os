@@ -331,8 +331,8 @@ inline void apply_material3_light_preset() noexcept {
     // Tonal button feel via hover/pressed on surface variant.
     theme.patch<Button>(StylePatch{
         .has_bg_hover = true,
-        .bg_hover = kTonal,
         .has_bg_pressed = true,
+        .bg_hover = kTonal,
         .bg_pressed = kPrimaryPressed,
     });
 

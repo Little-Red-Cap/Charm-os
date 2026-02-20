@@ -76,6 +76,7 @@ Draft/        # 计划/草案（可变动）
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
+- Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
 - IO 分层总览：`docs/io_layering_overview.md`
 - 输入分层决策：`docs/input_layering_decision.md`
 - 输入协议映射：`docs/input_protocol_map.md`
@@ -83,6 +84,8 @@ Draft/        # 计划/草案（可变动）
 - VSF USB 映射：`docs/vsf_usb_map.md`
 - VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
 - USB 体系规划：`docs/usb_arch_plan.md`
+- USB DSL 概览：`docs/usb_dsl_overview.md`
+- USB CDC 回调契约：`docs/usb_cdc_contract.md`
 - 设备模型草案：`docs/device_model_overview.md`
 - trace_core 统一入口：`docs/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace_core_ids.md`
@@ -90,6 +93,7 @@ Draft/        # 计划/草案（可变动）
 - MAL 概览：`docs/mal_overview.md`
 - MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
 - VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
+- Service/Component 初始化顺序：`docs/service_component_init.md`
 
 ## 1.2 依赖红线（单向依赖）
 

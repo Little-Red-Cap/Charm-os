@@ -50,6 +50,7 @@ export import gui.ui_input_policy;
 export import gui.ui_input_adapter;
 export import gui.ui_nav;
 export import gui.ui_semantics;
+export import gui.ui_semantics_bridge;
 export import gui.ui_settings;
 export import gui.ui_tree;
 export import gui.ui_vtree;

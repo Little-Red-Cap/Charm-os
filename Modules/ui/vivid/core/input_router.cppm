@@ -3,6 +3,7 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 export module charm.core.input_router;
 
 export import charm.core.event;
@@ -10,6 +11,7 @@ export import charm.core.object;
 export import charm.core.handle;
 export import charm.core.factory;
 export import charm.widgets.scroll_container;
+import input.nav;
 
 export
 class InputRouter {
@@ -143,19 +145,13 @@ public:
                 if (dispatch_to(overlay, e)) return;
             }
             if (e.type == Event::Type::KeyDown) {
-                if (e.key_code == Event::Key::Tab) {
-                    auto next = next_focus(true);
+                const auto nav = input::nav_from_intent(intent_from_key(e.key_code));
+                if (nav.focus_delta != 0) {
+                    auto next = next_focus(nav.focus_delta > 0);
                     if (next) set_focus(next);
-                } else if (e.key_code == Event::Key::Up || e.key_code == Event::Key::Left) {
-                    auto prev = next_focus(false);
-                    if (prev) set_focus(prev);
-                } else if (e.key_code == Event::Key::Down || e.key_code == Event::Key::Right) {
-                    auto next = next_focus(true);
-                    if (next) set_focus(next);
-                } else if (e.key_code == Event::Key::Enter || e.key_code == Event::Key::Space) {
-                    if (focused_) {
-                        dispatch_to(focused_, Event::mouse(Event::Type::Click, 0, 0, 0));
-                    }
+                }
+                if (nav.activated && focused_) {
+                    dispatch_to(focused_, Event::mouse(Event::Type::Click, 0, 0, 0));
                 }
             }
             if (focused_) dispatch_to(focused_, e);
@@ -323,6 +319,30 @@ private:
         const int dx = a.x - b.x;
         const int dy = a.y - b.y;
         return dx * dx + dy * dy;
+    }
+
+    static std::optional<input::Intent> intent_from_key(Event::Key key) noexcept {
+        using input::Intent;
+        using input::IntentType;
+        switch (key) {
+        case Event::Key::Tab:
+            return Intent{.type = IntentType::NavNext, .a = 0, .b = 0, .ms = 0};
+        case Event::Key::Up:
+        case Event::Key::Left:
+            return Intent{.type = IntentType::NavPrev, .a = 0, .b = 0, .ms = 0};
+        case Event::Key::Down:
+        case Event::Key::Right:
+            return Intent{.type = IntentType::NavNext, .a = 0, .b = 0, .ms = 0};
+        case Event::Key::Enter:
+        case Event::Key::Space:
+            return Intent{.type = IntentType::Activate, .a = 0, .b = 0, .ms = 0};
+        case Event::Key::Backspace:
+        case Event::Key::Escape:
+            return Intent{.type = IntentType::Back, .a = 0, .b = 0, .ms = 0};
+        default:
+            break;
+        }
+        return std::nullopt;
     }
 
     void sanitize_handles() {

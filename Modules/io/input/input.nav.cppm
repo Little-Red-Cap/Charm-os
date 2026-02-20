@@ -4,7 +4,7 @@ module;
 
 export module input.nav;
 
-import input.intent;
+export import input.intent;
 
 export namespace input {
 

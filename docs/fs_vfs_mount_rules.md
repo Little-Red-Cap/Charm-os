@@ -37,3 +37,32 @@
 - `pdrv` 上限由 `CHARM_FATFS_MAX_PDRV` 控制（默认 4）。
 - `disk_*` 仅在对应 `pdrv` 注册设备后可用。
 
+## 5. VFS 调度流程（最小闭环）
+
+```mermaid
+sequenceDiagram
+  participant App as App
+  participant VFS as fs_vfs
+  participant M as MountOps
+  participant N as NodeOps
+
+  App->>VFS: vfs_open(path, flags)
+  VFS->>VFS: longest-prefix match
+  VFS->>M: open(path, flags)
+  M-->>VFS: File + NodeOps
+
+  App->>VFS: vfs_read/write/seek
+  VFS->>N: read/write/seek
+  N-->>VFS: status/data
+
+  App->>VFS: vfs_flush(file)
+  VFS->>N: flush
+
+  App->>VFS: vfs_flush(prefix)
+  VFS->>M: flush
+```
+
+说明：
+- `vfs_close` 仅释放资源，不保证落盘。
+- 需要强一致时，显式调用 `vfs_flush(file)` 或 `vfs_flush(prefix)`。
+

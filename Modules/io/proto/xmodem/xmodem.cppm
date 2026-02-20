@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 export module io.proto.xmodem;
 
@@ -62,10 +63,13 @@ export namespace xmodem {
         return crc;
     }
 
+    using HeaderFn = void (*)(void* ctx, std::string_view name, util::u32 size) noexcept;
+
     template <util::usize MaxBlock>
     Result receive(const Callbacks& cb, const Config& cfg,
                    void (*on_block)(void* ctx, std::span<const util::u8> data, util::usize len) noexcept,
-                   void* out_ctx) noexcept {
+                   void* out_ctx,
+                   HeaderFn on_header = nullptr) noexcept {
         if (!cb.read || !cb.write) return Result{Status::io_error, 0};
         const util::usize block_len = cfg.use_1k ? 1024 : 128;
         if (block_len > MaxBlock) return Result{Status::format_error, 0};
@@ -124,6 +128,35 @@ export namespace xmodem {
                 continue;
             }
 
+            if (seq == 0 && on_header) {
+                const char* base = reinterpret_cast<const char*>(block.data());
+                util::usize name_len = 0;
+                while (name_len < expect_len && base[name_len] != '\0') {
+                    ++name_len;
+                }
+                if (name_len == 0) {
+                    cb.write(cb.ctx, ACK);
+                    return Result{Status::ok, total};
+                }
+                const std::string_view fname{base, name_len};
+                util::usize pos = name_len + 1;
+                util::u32 fsize = 0;
+                while (pos < expect_len) {
+                    const char chp = base[pos];
+                    if (chp < '0' || chp > '9') break;
+                    fsize = static_cast<util::u32>(fsize * 10u + static_cast<util::u32>(chp - '0'));
+                    ++pos;
+                }
+                on_header(out_ctx, fname, fsize);
+                cb.write(cb.ctx, ACK);
+                cb.write(cb.ctx, C);
+                retries = 0;
+                continue;
+            }
+            if (seq == static_cast<util::u8>(blk - 1)) {
+                cb.write(cb.ctx, ACK);
+                continue;
+            }
             if (seq == blk) {
                 if (on_block) on_block(out_ctx, std::span<const util::u8>(block.data(), expect_len), expect_len);
                 total += static_cast<util::u32>(expect_len);

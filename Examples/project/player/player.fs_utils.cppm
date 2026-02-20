@@ -14,7 +14,8 @@ import fs_core;
 import fs_errno;
 import fs_block;
 import fs_stream;
-import fs_block_file;
+import fs_mal_block;
+import fs_mal_file;
 import fs_fatfs;
 import fs_vfs;
 import util.core;
@@ -168,22 +169,24 @@ export namespace player::fs_utils {
 
     fs::Status mount_fatfs_from_vhd(const char* path) {
         if (!path || !*path) return fs::Status{fs::Err::inval};
-        static fs::BlockFile file_dev;
+        static fs::MalFile file_dev;
         static detail::OffsetDevice part_dev;
+        static fs::MalBlock mal_part;
         static fs::FatFsMount fat;
 
         auto st = file_dev.open(path, 512);
         if (!st) return st;
 
         std::array<std::uint8_t, 512> sector0{};
-        st = file_dev.device().read(file_dev.device().ctx, 0,
-            std::span<util::u8>(sector0));
+        auto& base = file_dev.block_file().device();
+        st = base.read(base.ctx, 0, std::span<util::u8>(sector0));
         if (!st) return st;
 
         const auto lba = detail::find_fat_partition_lba(sector0);
-        part_dev.init(file_dev.device(), lba);
+        part_dev.init(base, lba);
+        (void)mal_part.bind(part_dev.device);
 
-        st = fat.mount(part_dev.device, false);
+        st = fat.mount(mal_part.device(), false);
         if (!st) return st;
 
         fs::clear_mounts();

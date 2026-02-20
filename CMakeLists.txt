@@ -12,6 +12,7 @@ option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_USE_ETL_EXPECTED "Use ETL expected instead of std::expected" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
+option(CHARM_ENABLE_DEPENDENCY_WHITELIST "Enforce dependency whitelist at configure time" ON)
 
 add_library(${target_name})
 
@@ -48,6 +49,11 @@ if (CHARM_AUDIO_USE_VFS)
 endif()
 if (CHARM_ENABLE_SDL3)
     target_compile_definitions(${target_name} PRIVATE CHARM_ENABLE_SDL3=1)
+endif()
+
+if (CHARM_ENABLE_DEPENDENCY_WHITELIST)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DependencyWhitelist.cmake")
+    charm_enforce_dependency_whitelist()
 endif()
 
 

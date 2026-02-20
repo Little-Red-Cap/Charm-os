@@ -1,6 +1,6 @@
 # 依赖白名单（编译期入口约束）
 
-目标：把“层级”从约定变成编译期约束。所有模块优先只 import 入口模块，禁止跨层直连。
+目标：把“分层规则”落到编译期约束，所有模块优先只 import 入口模块，禁止跨层直连。
 
 ## 入口模块
 
@@ -20,7 +20,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - `import charm.foundation`
 
 禁止：
-- 任何 `charm.runtime`/`charm.domain`
+- 任何 `charm.runtime` / `charm.domain`
 - 任何 `kernel/*` / `fs/*` / `hal/*` / `ui/*` / `audio/*`
 
 ### Runtime（运行时与系统能力）
@@ -45,21 +45,21 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ## 例外（仅允许在平台/适配层）
 
-平台/适配层允许引入具体模块以实现绑定：
+平台/适配层可直接引入具体模块以实现绑定：
 
 - `Modules/platform/*`
 - `Examples/*`（示例允许直连，但优先入口）
 
 ## 代码示例
 
-### 示例：Runtime 模块
+### Runtime 模块
 
 ```
 import charm.foundation;
 import charm.runtime;
 ```
 
-### 示例：Domain 模块
+### Domain 模块
 
 ```
 import charm.foundation;
@@ -70,5 +70,10 @@ import charm.domain;
 ## 执行规则
 
 1. 新文件默认只 import 入口模块。
-2. 若必须直连具体模块，先写入 `docs/dependency_whitelist.md` 的“例外”说明，并标注理由。
+2. 若必须直连具体模块，先在本页“例外”说明并标注理由。
 3. 违反规则的 import 视为构建失败。
+4. CMake 将在配置阶段进行基础校验（Foundation/Runtime 违规直接失败）。
+
+## 参考
+
+- VSF 对照与可借鉴清单：`docs/vsf_comparison.md`

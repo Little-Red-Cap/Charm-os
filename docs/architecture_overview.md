@@ -87,6 +87,9 @@ Draft/        # 计划/草案（可变动）
 - trace_core 统一入口：`docs/trace_core_entry.md`
 - trace_core ID 清单：`docs/trace_core_ids.md`
 - VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
+- MAL 概览：`docs/mal_overview.md`
+- MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
+- VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -95,6 +98,16 @@ Draft/        # 计划/草案（可变动）
 ```
 Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ```
+
+### 初始化顺序（统一约束）
+
+应用层按固定顺序完成初始化，避免组件过早访问 HAL/服务：
+
+1) `service_init`（Foundation 服务层）
+2) `hal_init`（HAL/Port/平台）
+3) `component_init`（按需启用组件）
+
+> 说明：组件初始化由应用显式控制，避免默认启用全部子系统。
 
 ### Foundation（能力基座）
 范围：

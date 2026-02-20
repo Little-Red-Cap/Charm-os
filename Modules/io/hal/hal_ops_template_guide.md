@@ -110,3 +110,27 @@ export namespace hal {
 - Keep ISR/clock/reset/pinmux in platform code; do not leak into HAL interfaces.
 - Handles are cheap: `{ctx, ops}` only.
 - If a backend does not support a feature, return `Status::unsupported`.
+
+## Driver Template Rules (strict)
+
+This section defines what the HAL backend must implement vs what the platform must provide.
+
+### Backend responsibilities
+
+- Only implement the peripheral core logic.
+- Do not own clock/reset/irq/pinmux decisions.
+- Return `Status::unsupported` for unsupported operations.
+
+### Platform hooks (outside HAL backend)
+
+- Clock enable/disable
+- Reset assert/deassert
+- IRQ routing/priority
+- Pinmux configuration
+
+### Minimal binding checklist
+
+1) Provide `ctx` storage (register base, DMA handle, etc.)
+2) Bind ops table with `constexpr` function pointers
+3) Expose `make_*_handle(ctx)` to upper layers
+4) Register device/driver with registry if needed

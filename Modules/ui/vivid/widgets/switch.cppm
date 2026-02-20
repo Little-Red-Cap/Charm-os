@@ -55,10 +55,10 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, track, true);
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, border, false);
 
-        int pad = st.padding;
-        if (pad < 2) pad = 2;
-        int knob_size = track_h - pad * 2;
-        const int max_knob = r.w - pad * 2;
+        int inset = st.padding / 2;
+        if (inset < 1) inset = 1;
+        int knob_size = track_h - inset * 2;
+        const int max_knob = r.w - inset * 2;
         if (max_knob < knob_size) knob_size = max_knob;
         if (knob_size <= 0) {
             const int fallback = (r.h < r.w) ? r.h : r.w;
@@ -68,8 +68,8 @@ public:
         const int knob_radius = knob_size / 2;
         if (knob_radius <= 0) return;
         const int knob_cy = r.y + r.h / 2;
-        int knob_cx_min = r.x + pad + knob_radius;
-        int knob_cx_max = r.x + r.w - pad - knob_radius - 1;
+        int knob_cx_min = r.x + inset + knob_radius;
+        int knob_cx_max = r.x + r.w - inset - knob_radius - 1;
         if (knob_cx_max < knob_cx_min) {
             knob_cx_min = r.x + r.w / 2;
             knob_cx_max = knob_cx_min;

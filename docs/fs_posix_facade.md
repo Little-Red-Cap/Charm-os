@@ -45,6 +45,25 @@ void demo_posix() {
 }
 ```
 
+## 使用示例（VFS 前缀挂载）
+
+```cpp
+import fs_posix;
+import fs_vfs;
+import fs_fatfs;
+
+using Posix = fs_posix::PosixApi<8>;
+
+void demo_posix_fatfs(fs::FatFsMount& fatfs) {
+    (void)fs::add_mount("/sd", fatfs.mount_point());
+    int fd = Posix::open("/sd/hello.txt", fs_posix::O_RDONLY);
+    if (fd < 0) return;
+    char buf[32]{};
+    (void)Posix::read(fd, buf, sizeof(buf));
+    (void)Posix::close(fd);
+}
+```
+
 ## 约束与注意事项
 
 - `MaxFd` 为编译期上限，超出返回 `-Err::busy`。

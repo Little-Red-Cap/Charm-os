@@ -17,7 +17,10 @@ export import hal_uart;
 export import hal_win;
 export import input.raw;
 export import input.raw_event;
+export import input.queue;
 export import input.sampler;
+export import input.raw_sampler;
+export import input.trace;
 
 export import port.kernel;
 

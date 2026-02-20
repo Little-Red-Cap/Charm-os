@@ -49,6 +49,7 @@ export import shell_time;
 export import input.encoder_decoder;
 export import input.events;
 export import input.intent;
+export import input.nav;
 
 export import out.ansi;
 export import out.api;

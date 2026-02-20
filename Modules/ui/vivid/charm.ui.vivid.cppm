@@ -108,3 +108,4 @@ export import charm.widgets.spinning_wheel;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
 export import charm.widgets.meter_pointer;
+export import charm.widgets.spectrum_view;

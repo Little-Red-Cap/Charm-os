@@ -17,13 +17,11 @@ import charm.core.factory;
 import charm.core.handle;
 import charm.gfx.color;
 import charm.widgets.button;
-import charm.widgets.chart;
-import charm.widgets.histogram_view;
+import charm.widgets.spectrum_view;
 import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.switcher;
 import charm.widgets.slider;
 import charm.widgets.dropdown;
@@ -63,10 +61,8 @@ export namespace player {
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
-        WidgetHandle play_mode{};
         WidgetHandle mode_hint{};
-        WidgetHandle spectrum_hist{};
-        WidgetHandle spectrum_peak{};
+        WidgetHandle spectrum_view{};
         WidgetHandle options_row{};
         WidgetHandle opt_spectrum_label{};
         WidgetHandle opt_spectrum_switch{};
@@ -81,8 +77,6 @@ export namespace player {
         std::array<WidgetHandle, kEqBands> eq_band_labels{};
         std::array<WidgetHandle, kEqBands> eq_sliders{};
         std::array<WidgetHandle, kEqBands> eq_value_labels{};
-        WidgetHandle ring{};
-        WidgetHandle text_box{};
 #if CHARM_PLAYER_DEBUG_UI
         WidgetHandle table{};
         WidgetHandle tree{};
@@ -109,10 +103,9 @@ export namespace player {
         WidgetHandle progress{};
         WidgetHandle time{};
         WidgetHandle btn_prev{};
-        WidgetHandle btn_play{};
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
-        WidgetHandle btn_stop{};
+        WidgetHandle btn_mode{};
         WidgetHandle controls{};
         WidgetHandle perf_overlay{};
     };
@@ -141,6 +134,7 @@ export namespace player {
         bool fs_ready{false};
         int play_mode{0};
         bool spectrum_enabled{true};
+        int spectrum_style{0};
         bool spectrum_low_load{false};
         bool eq_enabled{false};
         bool eq_ui_guard{false};
@@ -154,8 +148,6 @@ export namespace player {
         std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_values{};
         std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_bars{};
         std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_peaks{};
-        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_bar_points{};
-        std::array<int, audio::AudioPlayer::spectrum_bins> spectrum_peak_points{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
 #if CHARM_PLAYER_DEBUG_UI
@@ -192,10 +184,11 @@ export namespace player {
             }
         }
 
-        void set_pause_button_text(const char* text) {
+        void set_play_button_icon(bool playing_now) {
             if (!factory) return;
             if (auto* btn = factory->get_button(handles.btn_pause)) {
-                btn->set_text(text);
+                btn->set_text("");
+                btn->set_icon(playing_now ? icon_pause() : icon_play(), 20, 20);
             }
         }
 
@@ -228,6 +221,20 @@ export namespace player {
             char buf[32]{};
             std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
             set_label(handles.mode_hint, buf);
+        }
+
+        void update_play_mode_icon() {
+            if (!factory) return;
+            if (auto* btn = factory->get_button(handles.btn_mode)) {
+                btn->set_text("");
+                if (play_mode == 1) {
+                    btn->set_icon(icon_single(), 24, 24);
+                } else if (play_mode == 2) {
+                    btn->set_icon(icon_shuffle(), 24, 24);
+                } else {
+                    btn->set_icon(icon_loop(), 24, 24);
+                }
+            }
         }
 
         void update_eq_label() {
@@ -447,17 +454,14 @@ export namespace player {
             if (auto* hint = factory->get_label(handles.list_hint)) {
                 hint->set_visible(!on);
             }
-            if (auto* mode = factory->get_segmented_control(handles.play_mode)) {
-                mode->set_visible(!on);
-            }
             if (auto* hint = factory->get_label(handles.mode_hint)) {
                 hint->set_visible(!on);
             }
-            if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
-                hist->set_visible(!on);
+            if (auto* btn = factory->get_button(handles.btn_mode)) {
+                btn->set_visible(!on);
             }
-            if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
-                chart->set_visible(!on);
+            if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                view->set_visible(!on);
             }
             if (auto* row = factory->get_container(handles.options_row)) {
                 row->set_visible(!on);
@@ -531,10 +535,10 @@ export namespace player {
                 spectrum_tick = 0;
             }
             if (!player->read_spectrum(spectrum_values)) return false;
-            constexpr float kBarDecay = 2.0f;
-            constexpr float kPeakDecay = 1.0f;
+            constexpr float kBarDecay = 0.03f;
+            constexpr float kPeakDecay = 0.015f;
             for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
-                const float target = spectrum_values[i] * 100.0f;
+                const float target = spectrum_values[i];
                 float bar = spectrum_bars[i];
                 if (target > bar) bar = target;
                 else bar = (bar > kBarDecay) ? (bar - kBarDecay) : 0.0f;
@@ -545,17 +549,9 @@ export namespace player {
                 else peak = (peak > kPeakDecay) ? (peak - kPeakDecay) : 0.0f;
                 spectrum_peaks[i] = peak;
 
-                spectrum_bar_points[i] = static_cast<int>(bar + 0.5f);
-                spectrum_peak_points[i] = static_cast<int>(peak + 0.5f);
             }
-            if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
-                hist->set_values(spectrum_bar_points.data(),
-                                 static_cast<int>(spectrum_bar_points.size()));
-                hist->set_range(0, 100);
-            }
-            if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
-                chart->set_points(spectrum_peak_points.data(),
-                                  static_cast<int>(spectrum_peak_points.size()));
+            if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                view->set_values(spectrum_bars.data(), static_cast<int>(spectrum_bars.size()));
             }
             return true;
         }
@@ -564,16 +560,39 @@ export namespace player {
             spectrum_enabled = on;
             if (player) player->enable_spectrum(on);
             if (factory) {
-                if (auto* hist = factory->get_histogram_view(handles.spectrum_hist)) {
-                    hist->set_visible(on);
-                }
-                if (auto* chart = factory->get_chart(handles.spectrum_peak)) {
-                    chart->set_visible(on);
+                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                    view->set_visible(on);
                 }
                 if (auto* sw = factory->get_switch(handles.opt_spectrum_switch)) {
                     sw->set_on(on);
                 }
             }
+        }
+
+        void update_spectrum_label() {
+            if (!factory) return;
+            auto* label = factory->get_label(handles.opt_spectrum_label);
+            if (!label) return;
+            const char* name = "Neon";
+            if (spectrum_style == 1) name = "Ring";
+            else if (spectrum_style == 2) name = "Wave";
+            char buf[32]{};
+            std::snprintf(buf, sizeof(buf), "Spec %s", name);
+            label->set_text(buf);
+        }
+
+        void set_spectrum_style(int style) {
+            spectrum_style = (style < 0) ? 0 : (style % 3);
+            if (factory) {
+                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                    view->set_mode(static_cast<SpectrumView::Mode>(spectrum_style));
+                }
+            }
+            update_spectrum_label();
+        }
+
+        void cycle_spectrum_style() {
+            set_spectrum_style((spectrum_style + 1) % 3);
         }
 
         void set_low_load(bool on) {
@@ -603,6 +622,11 @@ export namespace player {
         void set_play_mode(int mode) {
             play_mode = mode;
             update_play_mode_label();
+            update_play_mode_icon();
+        }
+
+        void cycle_play_mode() {
+            set_play_mode((play_mode + 1) % 3);
         }
 
         void sync_option_states() {
@@ -621,8 +645,13 @@ export namespace player {
                     dropdown->set_selected(eq_preset_index);
                     eq_ui_guard = false;
                 }
+                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                    view->set_mode(static_cast<SpectrumView::Mode>(spectrum_style));
+                }
             }
             update_play_mode_label();
+            update_play_mode_icon();
+            update_spectrum_label();
             update_low_load_label();
             update_eq_label();
             update_eq_panel_labels();
@@ -748,7 +777,7 @@ export namespace player {
             start = std::chrono::steady_clock::now();
             set_status("Opening");
             set_status_color(kUiStatus);
-            set_pause_button_text("Pause");
+            set_play_button_icon(true);
             set_time_label(0);
             sync_progress_value(0);
             apply_pending_seek();
@@ -767,7 +796,7 @@ export namespace player {
             paused = true;
             set_status("Paused");
             set_status_color(kUiPaused);
-            set_pause_button_text("Resume");
+            set_play_button_icon(false);
         }
 
         void resume_playback() {
@@ -784,7 +813,7 @@ export namespace player {
             start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
             set_status("Playing");
             set_status_color(kUiOk);
-            set_pause_button_text("Pause");
+            set_play_button_icon(true);
         }
 
         void stop_playback() {
@@ -796,7 +825,7 @@ export namespace player {
             pending_seek_sec = -1;
             set_status("Stopped");
             set_status_color(kUiStatus);
-            set_pause_button_text("Pause");
+            set_play_button_icon(false);
             set_time_label(0);
             sync_progress_value(0);
         }
@@ -856,7 +885,7 @@ export namespace player {
                 set_status(buf);
             }
             set_status_color(track_ready ? kUiOk : kUiError);
-            set_pause_button_text("Pause");
+            set_play_button_icon(false);
             set_time_label(0);
             sync_progress_value(0);
             pending_seek_sec = -1;

@@ -48,19 +48,25 @@ public:
             border = st.border_pressed;
         }
 
-        const int radius = (r.h / 2);
+        const int radius = (r.h < r.w ? r.h : r.w) / 2;
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, track, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, border, false);
 
         int pad = st.padding;
         if (pad < 2) pad = 2;
         int knob_size = r.h - pad * 2;
+        const int max_knob = r.w - pad * 2;
+        if (max_knob < knob_size) knob_size = max_knob;
         if (knob_size <= 0) {
             knob_size = (r.h > 2) ? (r.h - 2) : r.h;
             pad = (r.h - knob_size) / 2;
         }
         const int knob_y = r.y + pad;
-        const int knob_x = on_ ? (r.x + r.w - knob_size - pad) : (r.x + pad);
+        int knob_x = on_ ? (r.x + r.w - knob_size - pad) : (r.x + pad);
+        if (knob_x < r.x + pad) knob_x = r.x + pad;
+        if (knob_x + knob_size > r.x + r.w - pad) {
+            knob_x = r.x + r.w - pad - knob_size;
+        }
         draw_round_rect(cvs, knob_x, knob_y, knob_size, knob_size, knob_size / 2, knob, true);
 
         if (has_state(State::Focused)) {

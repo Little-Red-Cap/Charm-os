@@ -73,3 +73,96 @@
 ## 冲突记录
 
 无。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+USBHost（你现在只有Device）：Host的管线/Hub/枚举流程可借鉴，但实现可自研。
+2.TCP/IP（IwIP/NSFTCPIP）接口层：不急着搬协议栈，先定义socket/packet/endpoint 抽象。
+3.驱动框架（设备模型+统一init/probe)：VSF有较完整的 driver组织方式，适合抽成”设备注册表”。
+4. Power / Low-Power 管理：时钟域、休眠、唤醒策略，这块现在你的 Kernel/Port还没覆盖。
+5. Audio/Video 中间件 (VSF stream/pipeline 的接口形状): 可对标你音频 pipeline的分层设计。
+   我更激进的建议：
+   先把**"设备注册表+ driver lifecycle"**抽象出来（ModuleX+Kernel + IO 很好承载)，让 USB/TCPIP/FS 都能挂到统一设备模型上。
+   这样后续再扩VSF模块时，不会成为孤岛。
+   如果你同意，我可以先做一份"设备模型草案"（driver/init/probe/remove/pm hooks+注册表），再对照VSF的设备层结构给出迁移路线。
+
+
+
+
+
+
+
+1. progress_bar_drill
+2.
+progress_bar_round
+(已迁移)
+3.
+progress_bar_simple
+(已迁移)
+4.
+progress_bar_flowing
+(已迁移)
+5.
+progress_bar_round
+(已迁移)
+6.
+spinning_wheel
+7.
+image_box
+8.
+icon_list
+(已迁移)
+9. text_list / text_tracking_list
+   (已迁移)
+10.
+number_list
+(已迁移)
+11.
+meter_pointer
+(可做指针类仪表）
+12.
+progress_bar_drill
+13.
+progress_bar_round
+14. progress_bar_simple
+    （带刻度/钻孔风格）(已迁移)(已迁移)
+
+
+
+
+
+Histogram/Chart 的数据源回调路径补“局部脏区”标记（目前只在 set_values 路径优化）。
+ListView 的缓存回收策略再加一层“行高度变化/数据源变更时的最小失效区”。
+
+ClipPolicy与 LayoutSpec已统一，建议补一个“渲染缓存/dirty rect"的策略接口，让控件可声明"需缓存/无需缓存”，便于scene graph 迁移。
+
+·输入路由建议引l入可配置优先级/命中策略（穿透、独占、hover-only），减少复杂控件的定制代码。
+
+·文本部分可加入“可插拔字体回退链”，避免后续多语言难以扩展
+
+
+
+
+
+
+
+QRCode优化：
+1.体积/内存（减少全局数组、缩小MAX_*)
+2.速度（减少EncodeData计算量、减少兄余步骤）
+3. 显示质量（添加quiet zone /可选缩放 /边缘更干净)
+4. API 易用性(输入 text、输出 Image1bpp 或直接 draw)
+5. 纠错等级/版本控制 (可配置 L/M/Q/H)

@@ -25,7 +25,6 @@ import charm.widgets.label;
 import charm.widgets.list_view;
 import charm.widgets.progress;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.chart;
 import charm.widgets.perf_overlay;
 import charm.widgets.ring_indication;
@@ -159,23 +158,12 @@ namespace {
 
     static PlayerUiContext g_ctx{};
 
-    void on_play_clicked(void* ctx) {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app) return;
-        app->start_playback();
-    }
-
     void on_pause_clicked(void* ctx) {
         auto* app = static_cast<PlayerUiContext*>(ctx);
         if (!app) return;
         if (app->playing) app->pause_playback();
         else if (app->paused) app->resume_playback();
-    }
-
-    void on_stop_clicked(void* ctx) {
-        auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app) return;
-        app->stop_playback();
+        else app->start_playback();
     }
 
     void on_prev_clicked(void* ctx) {
@@ -275,12 +263,10 @@ namespace {
         list->set_scroll_y(bar->value());
     }
 
-    void on_play_mode_change(void* ctx) noexcept {
+    void on_play_mode_click(void* ctx) noexcept {
         auto* app = static_cast<PlayerUiContext*>(ctx);
-        if (!app || !app->factory) return;
-        auto* mode = app->factory->get_segmented_control(app->handles.play_mode);
-        if (!mode) return;
-        app->set_play_mode(mode->selected());
+        if (!app) return;
+        app->cycle_play_mode();
     }
 
     void on_spectrum_toggle(void* ctx) noexcept {
@@ -414,6 +400,10 @@ namespace {
                 ctx.switch_track(-1);
                 return true;
             }
+            if (evt.key.key == SDLK_V) {
+                ctx.cycle_spectrum_style();
+                return true;
+            }
             gui.dispatch_event(Event::key(Event::Type::KeyDown, map_key(evt.key.key)));
             return true;
         case SDL_EVENT_KEY_UP:
@@ -492,7 +482,6 @@ int main(int argc, char** argv) {
     ui_cb.list_pool_recycle = &on_list_pool_recycle;
     ui_cb.list_ctx = &g_ctx;
     ui_cb.list_scroll_change = Callback{&on_list_scrollbar_change, &g_ctx};
-    ui_cb.play_mode_change = Callback{&on_play_mode_change, &g_ctx};
     ui_cb.spectrum_toggle = Callback{&on_spectrum_toggle, &g_ctx};
     ui_cb.low_load_toggle = Callback{&on_low_load_toggle, &g_ctx};
     ui_cb.eq_toggle = Callback{&on_eq_toggle, &g_ctx};
@@ -500,9 +489,8 @@ int main(int argc, char** argv) {
     ui_cb.eq_preset_change = Callback{&on_eq_preset_change, &g_ctx};
     ui_cb.prev_click = Callback{&on_prev_clicked, &g_ctx};
     ui_cb.next_click = Callback{&on_next_clicked, &g_ctx};
-    ui_cb.play_click = Callback{&on_play_clicked, &g_ctx};
+    ui_cb.mode_click = Callback{&on_play_mode_click, &g_ctx};
     ui_cb.pause_click = Callback{&on_pause_clicked, &g_ctx};
-    ui_cb.stop_click = Callback{&on_stop_clicked, &g_ctx};
 
     g_ctx.handles = build_ui(g_factory, g_ctx, ui_cb);
     g_ctx.sync_option_states();
@@ -525,7 +513,7 @@ int main(int argc, char** argv) {
         g_ctx.refresh_list_view();
         g_ctx.track_ready = false;
         g_ctx.track_path = nullptr;
-        g_ctx.set_pause_button_text("Pause");
+    g_ctx.set_play_button_icon(false);
         g_ctx.set_time_label(0);
         g_ctx.sync_progress_value(0);
         g_ctx.reset_duration();
@@ -582,7 +570,7 @@ int main(int argc, char** argv) {
         } else {
             g_ctx.track_ready = false;
             g_ctx.track_path = nullptr;
-            g_ctx.set_pause_button_text("Pause");
+        g_ctx.set_play_button_icon(false);
             g_ctx.set_time_label(0);
             g_ctx.sync_progress_value(0);
             g_ctx.reset_duration();
@@ -620,7 +608,7 @@ int main(int argc, char** argv) {
                 g_ctx.paused = false;
                 g_ctx.set_status("Stopped");
                 g_ctx.set_status_color(kUiStatus);
-                g_ctx.set_pause_button_text("Pause");
+                g_ctx.set_play_button_icon(false);
             } else {
                 g_ctx.handle_track_end();
             }
@@ -648,7 +636,7 @@ int main(int argc, char** argv) {
                           audio_err_text(err.code), audio_stage_text(stage));
             g_ctx.set_status(buf);
             g_ctx.set_status_color(kUiError);
-            g_ctx.set_pause_button_text("Pause");
+            g_ctx.set_play_button_icon(false);
         }
         g_ctx.update_duration_from_player();
         g_ctx.apply_pending_seek();

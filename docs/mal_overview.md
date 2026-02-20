@@ -53,4 +53,4 @@ mal_to_block(mal, block);
 ## 5. 下一步计划
 
 - 引入 `mal_block`/`mal_file` 示例适配
-- 在 FatFs 挂载接口中增加 MAL 入口（保留 BlockDevice 入口）
+- FatFs 挂载接口已支持 MAL 入口（保留 BlockDevice 入口）

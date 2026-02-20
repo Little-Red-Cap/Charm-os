@@ -21,6 +21,7 @@ import fs_errno;
 import fs_stream;
 import fs_path;
 import fs_block;
+import fs_mal;
 
 #if CHARM_USE_FATFS
 export namespace fs {
@@ -81,6 +82,7 @@ export namespace fs {
 
         Status mount(BlockDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             dev_ = &dev;
+            mal_ = nullptr;
             fatfs_register_block_device(dev_, pdrv);
             auto fr = f_mount(&fs_, "", 1);
             if (fr == FR_NO_FILESYSTEM && format_if_needed) {
@@ -106,10 +108,18 @@ export namespace fs {
             return Status{Err::ok};
         }
 
+        Status mount(MalDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
+            mal_ = &dev;
+            mal_to_block(dev, mal_block_);
+            return mount(mal_block_, format_if_needed, pdrv);
+        }
+
         Status unmount(bool force = false) noexcept {
             (void)force;
             (void)f_mount(nullptr, "", 1);
             dev_ = nullptr;
+            mal_ = nullptr;
+            mal_block_ = {};
             mount_.ops = nullptr;
             mount_.data = nullptr;
             return Status{Err::ok};
@@ -506,6 +516,8 @@ export namespace fs {
         }
 
         BlockDevice* dev_{nullptr};
+        MalDevice* mal_{nullptr};
+        BlockDevice mal_block_{};
         FATFS fs_{};
         std::array<FatFsFileSlot, max_files> files_{};
         Mount mount_{};

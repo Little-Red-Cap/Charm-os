@@ -48,9 +48,31 @@ public:
             border = st.border_pressed;
         }
 
-        const int radius = (r.h < r.w ? r.h : r.w) / 2;
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, track, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, border, false);
+        const int track_h = (r.h > 0 && (r.h & 1) == 0) ? (r.h - 1) : r.h;
+        if (track_h <= 0) return;
+        const int track_y = r.y + (r.h - track_h) / 2;
+        const int radius = track_h / 2;
+        const int cx_left = r.x + radius;
+        int cx_right = r.x + r.w - radius - 1;
+        if (cx_right < cx_left) cx_right = cx_left;
+        const int mid_w = cx_right - cx_left + 1;
+
+        if (mid_w > 0) {
+            draw_rect(cvs, cx_left, track_y, mid_w, track_h, track, true);
+        }
+        draw_circle(cvs, cx_left, track_y + radius, radius, track, true);
+        if (cx_right != cx_left) {
+            draw_circle(cvs, cx_right, track_y + radius, radius, track, true);
+        }
+
+        draw_circle(cvs, cx_left, track_y + radius, radius, border, false);
+        if (cx_right != cx_left) {
+            draw_circle(cvs, cx_right, track_y + radius, radius, border, false);
+        }
+        if (mid_w > 0) {
+            draw_line(cvs, cx_left, track_y, cx_right, track_y, border);
+            draw_line(cvs, cx_left, track_y + track_h - 1, cx_right, track_y + track_h - 1, border);
+        }
 
         int pad = st.padding;
         if (pad < 2) pad = 2;
@@ -58,19 +80,32 @@ public:
         const int max_knob = r.w - pad * 2;
         if (max_knob < knob_size) knob_size = max_knob;
         if (knob_size <= 0) {
-            knob_size = (r.h > 2) ? (r.h - 2) : r.h;
-            pad = (r.h - knob_size) / 2;
+            const int fallback = (r.h < r.w) ? r.h : r.w;
+            knob_size = (fallback > 1) ? (fallback - 1) : fallback;
         }
-        const int knob_y = r.y + pad;
-        int knob_x = on_ ? (r.x + r.w - knob_size - pad) : (r.x + pad);
-        if (knob_x < r.x + pad) knob_x = r.x + pad;
-        if (knob_x + knob_size > r.x + r.w - pad) {
-            knob_x = r.x + r.w - pad - knob_size;
+        if (knob_size <= 0) return;
+        if ((knob_size & 1) == 0) knob_size -= 1;
+        if (knob_size <= 0) return;
+
+        const int knob_y = r.y + (r.h - knob_size) / 2;
+        int knob_x_min = r.x + pad;
+        int knob_x_max = r.x + r.w - pad - knob_size;
+        if (knob_x_max < knob_x_min) {
+            knob_x_min = r.x + (r.w - knob_size) / 2;
+            knob_x_max = knob_x_min;
         }
-        draw_round_rect(cvs, knob_x, knob_y, knob_size, knob_size, knob_size / 2, knob, true);
+        int knob_x = on_ ? knob_x_max : knob_x_min;
+        draw_circle(cvs, knob_x + knob_size / 2, knob_y + knob_size / 2, knob_size / 2, knob, true);
 
         if (has_state(State::Focused)) {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, st.border_focus, false);
+            draw_circle(cvs, cx_left, track_y + radius, radius, st.border_focus, false);
+            if (cx_right != cx_left) {
+                draw_circle(cvs, cx_right, track_y + radius, radius, st.border_focus, false);
+            }
+            if (mid_w > 0) {
+                draw_line(cvs, cx_left, track_y, cx_right, track_y, st.border_focus);
+                draw_line(cvs, cx_left, track_y + track_h - 1, cx_right, track_y + track_h - 1, st.border_focus);
+            }
         }
     }
 

@@ -81,9 +81,19 @@ export namespace fs {
         FatFsMount(const FatFsMount&) = delete;
         FatFsMount& operator=(const FatFsMount&) = delete;
 
+        void set_file_slots(std::span<FatFsFileSlot> slots) noexcept {
+            if (slots.empty()) {
+                slots_ = std::span<FatFsFileSlot>{files_};
+            } else {
+                slots_ = slots;
+            }
+            clear_slots();
+        }
+
         Status mount(BlockDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             dev_ = &dev;
             mal_ = nullptr;
+            clear_slots();
             fatfs_register_block_device(dev_, pdrv);
             auto fr = f_mount(&fs_, "", 1);
             if (fr == FR_NO_FILESYSTEM && format_if_needed) {
@@ -375,7 +385,7 @@ export namespace fs {
         }
 
         FatFsFileSlot* alloc_slot() noexcept {
-            for (auto& slot : files_) {
+            for (auto& slot : slots_) {
                 if (!slot.used) {
                     slot.used = true;
                     std::memset(&slot.file, 0, sizeof(slot.file));
@@ -389,6 +399,13 @@ export namespace fs {
             if (slot) {
                 slot->used = false;
                 std::memset(&slot->file, 0, sizeof(slot->file));
+            }
+        }
+
+        void clear_slots() noexcept {
+            for (auto& slot : slots_) {
+                slot.used = false;
+                std::memset(&slot.file, 0, sizeof(slot.file));
             }
         }
 
@@ -542,8 +559,9 @@ export namespace fs {
         MalDevice* mal_{nullptr};
         BlockDevice mal_block_{};
         FATFS fs_{};
-        std::array<FatFsFileSlot, max_files> files_{};
         Mount mount_{};
+        std::array<FatFsFileSlot, max_files> files_{};
+        std::span<FatFsFileSlot> slots_{files_};
         NodeOps node_ops_{
             .read = &read_impl,
             .write = &write_impl,

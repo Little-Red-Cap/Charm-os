@@ -91,6 +91,7 @@ Draft/        # 计划/草案（可变动）
 - MAL 概览：`docs/mal_overview.md`
 - MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
 - VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
+- Service/Component 初始化顺序：`docs/service_component_init.md`
 
 ## 1.2 依赖红线（单向依赖）
 

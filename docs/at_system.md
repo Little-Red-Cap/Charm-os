@@ -73,6 +73,28 @@ enqueue(cmd) -> send -> wait OK/ERROR -> done
 - `URC` 独立回调，不打断当前命令。
 - 超时触发重试，超过 `retries` 后回调失败。
 
+## Transport 绑定（UART/CDC）
+
+最小约束：
+- `send` 只负责发出字节流，不保证阻塞完成。
+- 接收侧以回调或轮询形式调用 `session.feed(...)`。
+
+UART 轮询示例（伪码）：
+
+```
+UartBridge<8, 128, 128> bridge(session);
+bridge.set_io(rx_fn, tx_fn, uart_ctx);
+bridge.poll(); // 在 EDA tick 中调用
+```
+
+CDC 回调示例（伪码）：
+
+```
+CdcBridge<8, 128, 512, 64> bridge(session);
+auto cb = bridge.callbacks();
+// usb.class_cdc 侧：on_out -> feed，on_in_request -> 取发送队列
+```
+
 ## 约束与注意事项
 
 - 解析器只做“行”与“状态”识别，不负责命令队列。

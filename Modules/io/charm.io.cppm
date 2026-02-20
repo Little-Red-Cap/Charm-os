@@ -21,6 +21,8 @@ export import input.sampler;
 
 export import at.parser;
 export import at.session;
+export import at.transport_uart;
+export import at.transport_cdc;
 
 export import port.kernel;
 

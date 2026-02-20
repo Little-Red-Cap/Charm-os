@@ -13,6 +13,7 @@ import input.events;
 import input.queue;
 import input.encoder_decoder;
 import input.sampler;
+import input.raw_sampler;
 
 export namespace gui::input {
     using ::input::AxisRaw;

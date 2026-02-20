@@ -26,6 +26,7 @@ import fs_mal;
 #if CHARM_USE_FATFS
 export namespace fs {
     void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
+    void fatfs_set_cache(util::u8* buf, util::usize size) noexcept;
 
     struct FatFsFileSlot {
         bool used{false};
@@ -108,10 +109,23 @@ export namespace fs {
             return Status{Err::ok};
         }
 
+        Status mount(BlockDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
+            util::u8 pdrv = 0) noexcept {
+            fatfs_set_cache(cache.data(), cache.size());
+            return mount(dev, format_if_needed, pdrv);
+        }
+
         Status mount(MalDevice& dev, bool format_if_needed = false, util::u8 pdrv = 0) noexcept {
             mal_ = &dev;
             mal_to_block(dev, mal_block_);
             return mount(mal_block_, format_if_needed, pdrv);
+        }
+
+        Status mount(MalDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
+            util::u8 pdrv = 0) noexcept {
+            mal_ = &dev;
+            mal_to_block(dev, mal_block_);
+            return mount(mal_block_, cache, format_if_needed, pdrv);
         }
 
         Status unmount(bool force = false) noexcept {
@@ -552,10 +566,26 @@ export namespace fs {
 
     inline BlockDevice* g_fatfs_device = nullptr;
     inline BYTE g_fatfs_pdrv = 0;
+    struct FatFsCache {
+        util::u8* data{nullptr};
+        util::usize size{0};
+        util::u64 block_size{0};
+        util::u64 sector{0};
+        bool valid{false};
+    };
+    inline FatFsCache g_fatfs_cache{};
 
     inline void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv) noexcept {
         g_fatfs_device = dev;
         g_fatfs_pdrv = static_cast<BYTE>(pdrv);
+        g_fatfs_cache.block_size = dev ? dev->block_size : 0;
+        g_fatfs_cache.valid = false;
+    }
+
+    inline void fatfs_set_cache(util::u8* buf, util::usize size) noexcept {
+        g_fatfs_cache.data = buf;
+        g_fatfs_cache.size = size;
+        g_fatfs_cache.valid = false;
     }
 
 } // namespace fs
@@ -574,7 +604,23 @@ extern "C" {
     DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
         if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
-        const auto size = static_cast<util::usize>(count) * dev->block_size;
+        auto& cache = fs::g_fatfs_cache;
+        if (count == 1 && cache.data && cache.block_size == dev->block_size &&
+            cache.block_size <= cache.size) {
+            const auto lba = static_cast<util::u64>(sector);
+            if (cache.valid && cache.sector == lba) {
+                std::memcpy(buff, cache.data, static_cast<util::usize>(cache.block_size));
+                return RES_OK;
+            }
+            auto st = dev->read(dev->ctx, lba,
+                std::span<util::u8>(cache.data, static_cast<util::usize>(cache.block_size)));
+            if (!st) return RES_ERROR;
+            cache.sector = lba;
+            cache.valid = true;
+            std::memcpy(buff, cache.data, static_cast<util::usize>(cache.block_size));
+            return RES_OK;
+        }
+        const auto size = static_cast<util::usize>(count) * static_cast<util::usize>(dev->block_size);
         auto st = dev->read(dev->ctx, static_cast<util::u64>(sector),
             std::span<util::u8>(reinterpret_cast<util::u8*>(buff), size));
         return st ? RES_OK : RES_ERROR;
@@ -583,9 +629,27 @@ extern "C" {
     DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
         if (pdrv != fs::g_fatfs_pdrv || !fs::g_fatfs_device) return RES_NOTRDY;
         auto* dev = fs::g_fatfs_device;
-        const auto size = static_cast<util::usize>(count) * dev->block_size;
+        auto& cache = fs::g_fatfs_cache;
+        if (count == 1 && cache.data && cache.block_size == dev->block_size &&
+            cache.block_size <= cache.size) {
+            const auto lba = static_cast<util::u64>(sector);
+            auto st = dev->write(dev->ctx, lba,
+                std::span<const util::u8>(reinterpret_cast<const util::u8*>(buff),
+                    static_cast<util::usize>(cache.block_size)));
+            if (!st) return RES_ERROR;
+            std::memcpy(cache.data, buff, static_cast<util::usize>(cache.block_size));
+            cache.sector = lba;
+            cache.valid = true;
+            return RES_OK;
+        }
+        const auto size = static_cast<util::usize>(count) * static_cast<util::usize>(dev->block_size);
         auto st = dev->write(dev->ctx, static_cast<util::u64>(sector),
             std::span<const util::u8>(reinterpret_cast<const util::u8*>(buff), size));
+        if (cache.valid) {
+            const auto lba = static_cast<util::u64>(sector);
+            const auto end = lba + count;
+            if (cache.sector >= lba && cache.sector < end) cache.valid = false;
+        }
         return st ? RES_OK : RES_ERROR;
     }
 

@@ -56,8 +56,10 @@ export namespace fs {
             auto trimmed = rstrip_seps(norm);
             PathView pv{trimmed.data, trimmed.size};
             if (pv.size == 0) return Status{Err::inval};
+            const bool want_write = has_flag(flags, OpenFlags::write);
             const bool want_create = has_flag(flags, OpenFlags::create);
             const bool want_trunc = has_flag(flags, OpenFlags::trunc);
+            if ((want_create || want_trunc) && !want_write) return Status{Err::perm};
 
             auto cur_idx = root_index;
             while (true) {

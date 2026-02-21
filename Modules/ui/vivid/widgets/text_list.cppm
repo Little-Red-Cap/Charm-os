@@ -9,6 +9,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
 import charm.core.virtual_list;
+import alg_list_scroll;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
@@ -157,17 +158,14 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<TextList>();
-        content_height_ = item_count_ * row_height_ + st.padding * 2;
-        const int max = content_height_ - r.h;
-        max_scroll_ = (max > 0) ? max : 0;
-        if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
-        if (scroll_y_ < 0) scroll_y_ = 0;
+        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.padding, r.h);
+        content_height_ = bounds.content_h;
+        max_scroll_ = bounds.max_scroll;
+        scroll_y_ = alg::list_scroll::clamp_scroll(scroll_y_, max_scroll_);
     }
 
     int clamp_scroll(int y) const noexcept {
-        if (y < 0) return 0;
-        if (y > max_scroll_) return max_scroll_;
-        return y;
+        return alg::list_scroll::clamp_scroll(y, max_scroll_);
     }
 
     void add_scroll_y(int dy) noexcept {
@@ -177,28 +175,18 @@ private:
     int index_from_y(int y) const noexcept {
         const Style& st = Theme::instance().get<TextList>();
         const auto r = get_rect();
-        const int local = y - r.y + scroll_y_ - st.padding;
-        if (local < 0) return 0;
-        const int idx = local / row_height_;
-        if (idx < 0) return 0;
-        if (idx >= item_count_) return item_count_ - 1;
-        return idx;
+        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.padding, row_height_, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
         const Style& st = Theme::instance().get<TextList>();
         const auto r = get_rect();
-        const int pad = st.padding;
-        const int row_top = index * row_height_;
-        const int row_bottom = row_top + row_height_;
-        const int view_top = scroll_y_;
-        const int view_bottom = scroll_y_ + (r.h - pad * 2);
-        if (row_top < view_top) {
-            scroll_y_ = row_top;
-        } else if (row_bottom > view_bottom) {
-            scroll_y_ = row_bottom - (r.h - pad * 2);
-        }
-        scroll_y_ = clamp_scroll(scroll_y_);
+        scroll_y_ = alg::list_scroll::ensure_visible(index,
+                                                     row_height_,
+                                                     r.h,
+                                                     st.padding,
+                                                     scroll_y_,
+                                                     max_scroll_);
     }
 
     const char** items_{nullptr};

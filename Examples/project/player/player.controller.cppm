@@ -188,7 +188,7 @@ export namespace player {
             if (!factory) return;
             if (auto* btn = factory->get_button(handles.btn_pause)) {
                 btn->set_text("");
-                btn->set_icon(playing_now ? icon_pause() : icon_play(), 20, 20);
+                btn->set_icon(playing_now ? icon_pause() : icon_play(), 24, 24);
             }
         }
 
@@ -359,8 +359,8 @@ export namespace player {
             if (!list) return;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             list->set_item_count(count);
-            list->set_row_height(32);
-            list->set_wheel_step(32);
+            list->set_row_height(34);
+            list->set_wheel_step(34);
             if (count > 0) {
                 sync_list_selection();
             }
@@ -534,9 +534,39 @@ export namespace player {
             } else {
                 spectrum_tick = 0;
             }
-            if (!player->read_spectrum(spectrum_values)) return false;
             constexpr float kBarDecay = 0.03f;
             constexpr float kPeakDecay = 0.015f;
+            constexpr float kPauseBarDecay = 0.015f;
+            constexpr float kPausePeakDecay = 0.01f;
+            auto decay_only = [&](float bar_decay, float peak_decay) {
+                bool changed = false;
+                for (std::size_t i = 0; i < spectrum_bars.size(); ++i) {
+                    float bar = spectrum_bars[i];
+                    if (bar > 0.0f) {
+                        const float next = (bar > bar_decay) ? (bar - bar_decay) : 0.0f;
+                        if (next != bar) changed = true;
+                        bar = next;
+                    }
+                    float peak = spectrum_peaks[i];
+                    if (peak > 0.0f) {
+                        const float next = (peak > peak_decay) ? (peak - peak_decay) : 0.0f;
+                        if (next != peak) changed = true;
+                        peak = next;
+                    }
+                    if (peak < bar) peak = bar;
+                    spectrum_bars[i] = bar;
+                    spectrum_peaks[i] = peak;
+                }
+                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
+                    view->set_values(spectrum_bars.data(), static_cast<int>(spectrum_bars.size()));
+                }
+                return changed;
+            };
+
+            if (paused || !playing) {
+                return decay_only(kPauseBarDecay, kPausePeakDecay);
+            }
+            if (!player->read_spectrum(spectrum_values)) return false;
             for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
                 const float target = spectrum_values[i];
                 float bar = spectrum_bars[i];

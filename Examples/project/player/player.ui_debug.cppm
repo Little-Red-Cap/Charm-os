@@ -77,7 +77,7 @@ export namespace player::ui_debug {
         return TreeView::NodeInfo{node.depth, node.expanded, node.has_children, node.label};
     }
 
-    inline void on_tree_draw(void* ctx, DefaultCanvas& cvs, const TreeView::DrawInfo& info) noexcept {
+    inline void on_tree_draw(void* ctx, CanvasBase& cvs, const TreeView::DrawInfo& info) noexcept {
         auto* demo = static_cast<TreeDemo*>(ctx);
         const auto& st = Theme::instance().get<TreeView>();
         Rect text = info.rect;
@@ -185,7 +185,7 @@ export namespace player::ui_debug {
         return (col == 0) ? 140 : 80;
     }
 
-    inline void on_table_draw(void* ctx, DefaultCanvas& cvs, const TableView::CellInfo& info) noexcept {
+    inline void on_table_draw(void* ctx, CanvasBase& cvs, const TableView::CellInfo& info) noexcept {
         auto* demo = static_cast<TableDemo*>(ctx);
         if (!demo || info.row < 0 || info.row >= TableDemo::kRows) return;
         const int row = demo->order[info.row];

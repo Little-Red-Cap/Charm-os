@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -10,6 +11,7 @@ export module at.transport_cdc;
 import util.core;
 import service_ring_buffer;
 import at.session;
+import usb.common;
 import usb.class_cdc;
 
 export namespace at {

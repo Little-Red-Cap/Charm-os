@@ -56,6 +56,7 @@ export import alg_line;
 export import alg_list_viewport;
 export import alg_list_scroll;
 export import alg_virtual_list;
+export import alg_scroll_bounds;
 export import alg_round_rect;
 export import alg_scroll;
 export import alg_tile;

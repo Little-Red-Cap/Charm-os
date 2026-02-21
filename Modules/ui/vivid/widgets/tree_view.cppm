@@ -9,6 +9,7 @@ import charm.gfx.render;
 import charm.core.style;
 import charm.core.virtual_list;
 import charm.widgets.text;
+import alg_scroll_bounds;
 
 using namespace ui::render;
 
@@ -258,15 +259,12 @@ private:
         } else {
             total_h = item_count() * row_height_;
         }
-        max_scroll_y_ = std::max(0, total_h - r.h);
-        if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
-        if (scroll_y_ < 0) scroll_y_ = 0;
+        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ += dy;
-        if (scroll_y_ < 0) scroll_y_ = 0;
-        if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
+        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
     }
 
     void draw_node_glyphs(CanvasBase& cvs, const Rect& row, const NodeInfo& info, const rgba& color) const noexcept {

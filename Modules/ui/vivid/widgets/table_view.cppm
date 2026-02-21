@@ -8,6 +8,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
 import charm.widgets.text;
+import alg_scroll_bounds;
 
 using namespace ui::render;
 
@@ -172,18 +173,14 @@ private:
         int total_w = 0;
         for (int i = 0; i < cols; ++i) total_w += column_width(i);
         const int total_h = rows * row_height_;
-        max_scroll_x_ = std::max(0, total_w - r.w);
-        max_scroll_y_ = std::max(0, total_h - r.h);
-        if (scroll_x_ > max_scroll_x_) scroll_x_ = max_scroll_x_;
-        if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
-        if (scroll_x_ < 0) scroll_x_ = 0;
-        if (scroll_y_ < 0) scroll_y_ = 0;
+        max_scroll_x_ = alg::scroll_bounds::compute_max(total_w, r.w);
+        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+        scroll_x_ = alg::scroll_bounds::clamp(scroll_x_, max_scroll_x_);
+        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ += dy;
-        if (scroll_y_ < 0) scroll_y_ = 0;
-        if (scroll_y_ > max_scroll_y_) scroll_y_ = max_scroll_y_;
+        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
     }
 
     CountFn row_count_fn_{nullptr};

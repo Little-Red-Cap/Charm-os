@@ -39,6 +39,10 @@ export namespace input {
         case IntentType::Back:
             r.back = true;
             break;
+        case IntentType::PointerDown:
+        case IntentType::PointerMove:
+        case IntentType::PointerUp:
+            break;
         default:
             break;
         }

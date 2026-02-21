@@ -61,6 +61,10 @@ export namespace usb::device {
         case DescriptorType::configuration:
             out = table->configuration;
             return !out.empty();
+        case DescriptorType::interface:
+        case DescriptorType::endpoint:
+        case DescriptorType::interface_power:
+            return false;
         case DescriptorType::other_speed_configuration:
             out = table->other_speed;
             return !out.empty();
@@ -473,6 +477,9 @@ export namespace usb::device {
                 resp.data = {};
                 resp.zlp = true;
                 return true;
+            case StandardRequest::set_descriptor:
+            case StandardRequest::syn_frame:
+                return false;
             default:
                 return false;
             }

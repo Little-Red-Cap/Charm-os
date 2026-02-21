@@ -166,4 +166,66 @@ export namespace modem {
             retries = 0;
         }
     }
+
+    template <util::usize MaxBlock>
+    Result send(const Callbacks& cb, const Config& cfg,
+                bool (*next_block)(void* ctx, std::span<util::u8> out, util::usize& len) noexcept,
+                void* in_ctx) noexcept {
+        if (!cb.read || !cb.write || !cb.write_data) return Result{Status::io_error, 0};
+        const util::usize block_len = cfg.use_1k ? 1024 : 128;
+        if (block_len > MaxBlock) return Result{Status::format_error, 0};
+
+        util::u32 total = 0;
+        util::u8 blk = 1;
+        util::u8 retries = 0;
+
+        util::u8 ch{};
+        while (true) {
+            if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) {
+                if (++retries > cfg.max_retries) return Result{Status::timeout, total};
+                continue;
+            }
+            if (ch == C || ch == NAK) break;
+            if (ch == CAN) return Result{Status::cancel, total};
+        }
+
+        std::array<util::u8, MaxBlock> block{};
+        while (true) {
+            util::usize len = 0;
+            if (!next_block(in_ctx, std::span<util::u8>(block.data(), block_len), len)) {
+                cb.write(cb.ctx, EOT);
+                if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) return Result{Status::timeout, total};
+                if (ch == ACK) return Result{Status::ok, total};
+                return Result{Status::io_error, total};
+            }
+            if (len < block_len) {
+                for (util::usize i = len; i < block_len; ++i) block[i] = 0x1A;
+            }
+
+            const util::u8 head = (block_len == 1024) ? STX : SOH;
+            cb.write(cb.ctx, head);
+            cb.write(cb.ctx, blk);
+            cb.write(cb.ctx, static_cast<util::u8>(~blk));
+            cb.write_data(cb.ctx, std::span<const util::u8>(block.data(), block_len));
+            const util::u16 crc = crc16_ccitt(std::span<const util::u8>(block.data(), block_len));
+            cb.write(cb.ctx, static_cast<util::u8>(crc >> 8));
+            cb.write(cb.ctx, static_cast<util::u8>(crc & 0xFF));
+
+            if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) {
+                if (++retries > cfg.max_retries) return Result{Status::timeout, total};
+                continue;
+            }
+            if (ch == ACK) {
+                total += static_cast<util::u32>(block_len);
+                ++blk;
+                retries = 0;
+                continue;
+            }
+            if (ch == NAK) {
+                if (++retries > cfg.max_retries) return Result{Status::retries_exhausted, total};
+                continue;
+            }
+            if (ch == CAN) return Result{Status::cancel, total};
+        }
+    }
 }

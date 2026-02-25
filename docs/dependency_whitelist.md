@@ -1,65 +1,74 @@
-# 依赖白名单（编译期入口约束）
+﻿# Dependency Whitelist (Build-time Entry Contract)
 
-目标：把“分层规则”落到编译期约束，所有模块优先只 import 入口模块，禁止跨层直连。
+Goal: enforce layering rules at configure/build time. Modules should import only entry modules by default and avoid cross-layer direct imports.
 
-## 入口模块
+## Entry Modules
 
-- Foundation：`charm.foundation`
-- Runtime：`charm.runtime`
-- Domains：`charm.domain`
+- Foundation: `charm.foundation`
+- Runtime: `charm.runtime`
+- Domains: `charm.domain`
 
-## 分层规则（单向依赖）
+## Layering (one-way dependency)
 
 ```
 Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ```
 
-### Foundation（能力基座）
+### Foundation (capability base)
 
-允许：
+Allowed:
 - `import charm.foundation`
 
-禁止：
-- 任何 `charm.runtime` / `charm.domain`
-- 任何 `kernel/*` / `fs/*` / `hal/*` / `ui/*` / `audio/*`
+Forbidden:
+- `charm.runtime` / `charm.domain`
+- any `kernel/*` / `fs/*` / `hal/*` / `ui/*` / `audio/*`
 
-### Runtime（运行时与系统能力）
+### Runtime (system/runtime capabilities)
 
-允许：
+Allowed:
 - `import charm.foundation`
 - `import charm.runtime`
 
-禁止：
+Forbidden:
 - `charm.domain`
-- 任何 `ui/*` / `audio/*` 直连
+- any direct `ui/*` / `audio/*`
 
-### Domains（领域系统）
+### Domains (feature systems)
 
-允许：
+Allowed:
 - `import charm.foundation`
 - `import charm.runtime`
 - `import charm.domain`
 
-禁止：
-- 反向依赖 Foundation/Runtime 的具体实现细节（用入口模块代替）
+Forbidden:
+- reverse dependency into Foundation/Runtime implementation details
 
-## 例外（仅允许在平台/适配层）
-
-平台/适配层可直接引入具体模块以实现绑定：
+## Exceptions (platform/adapters only)
 
 - `Modules/platform/*`
-- `Examples/*`（示例允许直连，但优先入口）
+- `Examples/*` (examples may import directly, but prefer entry modules)
 
-## 代码示例
+## Execution Rules
 
-### Runtime 模块
+1. New modules import entry modules only by default.
+2. If direct import is required, record it in the exception list with rationale.
+3. Violations are treated as build failures.
+
+## Checkpoints
+
+- CMake flag: `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON`
+- Rule implementation: `cmake/DependencyWhitelist.cmake`
+
+## Examples
+
+### Runtime module
 
 ```
 import charm.foundation;
 import charm.runtime;
 ```
 
-### Domain 模块
+### Domain module
 
 ```
 import charm.foundation;
@@ -67,13 +76,6 @@ import charm.runtime;
 import charm.domain;
 ```
 
-## 执行规则
+## Reference
 
-1. 新文件默认只 import 入口模块。
-2. 若必须直连具体模块，先在本页“例外”说明并标注理由。
-3. 违反规则的 import 视为构建失败。
-4. CMake 将在配置阶段进行基础校验（Foundation/Runtime 违规直接失败）。
-
-## 参考
-
-- VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
+- VSF comparison: `docs/vsf_comparison.md`

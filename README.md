@@ -35,6 +35,30 @@
 - `docs/` —— 架构与协作文档
 - `Draft/` —— 计划/草案（可变动）
 
+## 🧩 现有拼图（按层级）
+
+**Foundation**
+- util/expected/units
+- service：ring_buffer/pool/trace/stream/json
+- out：格式化与日志统一通路
+
+**IO / HAL**
+- hal：UART/SPI/I2C/GPIO/IRQ/Timer/Clock
+- input：RawInputEvent/Sampler/Intent/导航
+- fs：VFS + RamFs + BlockFs + FatFs + MAL + POSIX facade
+- usb：common/device/driver + CDC/UAC/MSC 骨架
+- proto：X/YModem（含最小 demo）
+
+**Kernel / System**
+- EDA 事件队列与调度骨架
+- 设备模型/registry/driver 生命周期
+- Power/Low-Power 基础框架
+
+**Domains**
+- Audio：sink/pipeline/player + SDL3 验证链路
+- UI：Ink/Vivid 能力迁移与统一（容器/trace/算法复用）
+- Bootloader：分层/阶段文档 + 传输协议落点
+
 ## 🎯 参与入口（按方向快速上手）
 
 ### Audio

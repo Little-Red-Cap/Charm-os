@@ -57,6 +57,7 @@ export namespace kernel {
             util::u64 dropped{0};
             util::u64 dispatched{0};
             util::u64 filtered{0};
+            util::u64 filtered_run{0};
             util::u64 budget_limited{0};
             std::size_t max_queue{0};
             std::size_t max_timer{0};
@@ -423,20 +424,24 @@ export namespace kernel {
                 if (node.has_value()) {
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         ++stats_.filtered;
+                        ++stats_.filtered_run;
                         continue;
                     }
                     if (!registry_->template is_active<Config>(node->task)) {
                         ++stats_.filtered;
+                        ++stats_.filtered_run;
                         continue;
                     }
                     if (task_caps_[node->task.value] != 0 && task_counts_[node->task.value] >= task_caps_[node->task.value]) {
                         ++stats_.filtered;
+                        ++stats_.filtered_run;
                         continue;
                     }
                     const auto eid = static_cast<std::size_t>(node->event.id);
                     if (task_event_caps_[node->task.value][eid] != 0
                         && task_event_counts_[node->task.value][eid] >= task_event_caps_[node->task.value][eid]) {
                         ++stats_.filtered;
+                        ++stats_.filtered_run;
                         continue;
                     }
                     task_states_[node->task.value] = TaskState::running;
@@ -517,13 +522,14 @@ export namespace kernel {
             return static_cast<std::size_t>(std::snprintf(
                 out,
                 max,
-                "{\"posted\":%llu,\"dropped\":%llu,\"dispatched\":%llu,\"filtered\":%llu,\"budget\":%llu,"
+                "{\"posted\":%llu,\"dropped\":%llu,\"dispatched\":%llu,\"filtered\":%llu,\"filtered_run\":%llu,\"budget\":%llu,"
                 "\"maxQ\":%llu,\"maxT\":%llu,\"queue\":%llu,\"timers\":%llu,\"active\":%llu,"
                 "\"dedup\":%llu,\"debounce\":%llu,\"coalesce\":%llu,\"idle\":%llu}",
                 static_cast<unsigned long long>(snap.stats.posted),
                 static_cast<unsigned long long>(snap.stats.dropped),
                 static_cast<unsigned long long>(snap.stats.dispatched),
                 static_cast<unsigned long long>(snap.stats.filtered),
+                static_cast<unsigned long long>(snap.stats.filtered_run),
                 static_cast<unsigned long long>(snap.stats.budget_limited),
                 static_cast<unsigned long long>(snap.stats.max_queue),
                 static_cast<unsigned long long>(snap.stats.max_timer),
@@ -616,11 +622,12 @@ export namespace kernel {
             return static_cast<std::size_t>(std::snprintf(
                 out,
                 max,
-                "posted=%lld dropped=%lld dispatched=%lld filtered=%lld budget=%lld",
+                "posted=%lld dropped=%lld dispatched=%lld filtered=%lld filtered_run=%lld budget=%lld",
                 static_cast<long long>(current.stats.posted - prev.stats.posted),
                 static_cast<long long>(current.stats.dropped - prev.stats.dropped),
                 static_cast<long long>(current.stats.dispatched - prev.stats.dispatched),
                 static_cast<long long>(current.stats.filtered - prev.stats.filtered),
+                static_cast<long long>(current.stats.filtered_run - prev.stats.filtered_run),
                 static_cast<long long>(current.stats.budget_limited - prev.stats.budget_limited)));
         }
 
@@ -708,11 +715,12 @@ export namespace kernel {
             return static_cast<std::size_t>(std::snprintf(
                 out,
                 max,
-                "posted=%llu dropped=%llu dispatched=%llu filtered=%llu budget=%llu maxQ=%llu maxT=%llu queue=%llu timers=%llu active=%llu dedup=%llu debounce=%llu coalesce=%llu idle=%llu",
+                "posted=%llu dropped=%llu dispatched=%llu filtered=%llu filtered_run=%llu budget=%llu maxQ=%llu maxT=%llu queue=%llu timers=%llu active=%llu dedup=%llu debounce=%llu coalesce=%llu idle=%llu",
                 static_cast<unsigned long long>(snap.stats.posted),
                 static_cast<unsigned long long>(snap.stats.dropped),
                 static_cast<unsigned long long>(snap.stats.dispatched),
                 static_cast<unsigned long long>(snap.stats.filtered),
+                static_cast<unsigned long long>(snap.stats.filtered_run),
                 static_cast<unsigned long long>(snap.stats.budget_limited),
                 static_cast<unsigned long long>(snap.stats.max_queue),
                 static_cast<unsigned long long>(snap.stats.max_timer),

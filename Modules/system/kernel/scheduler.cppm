@@ -410,21 +410,21 @@ export namespace kernel {
                 if (node.has_value()) {
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     if (!registry_->template is_active<Config>(node->task)) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     if (task_caps_[node->task.value] != 0 && task_counts_[node->task.value] >= task_caps_[node->task.value]) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     const auto eid = static_cast<std::size_t>(node->event.id);
                     if (task_event_caps_[node->task.value][eid] != 0
                         && task_event_counts_[node->task.value][eid] >= task_event_caps_[node->task.value][eid]) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);

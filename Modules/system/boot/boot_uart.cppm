@@ -48,14 +48,19 @@ export namespace boot {
         util::usize size{0};
     };
 
+    inline bool within_partition(util::u32 offset, util::u32 size, const Partition& p) noexcept {
+        if (size == 0) return false;
+        const util::u32 end = offset + size;
+        const util::u32 p_end = p.offset + p.size;
+        return offset >= p.offset && end <= p_end;
+    }
+
     inline bool uart_apply_frame_policy(const Storage& s, FlashConfig cfg, const UartFrame& f,
                                         UartRx rx, const UartPolicy& policy, UartState& state) noexcept {
         if (f.magic != 0xB007) return false;
         if (policy.require_unlocked && !state.unlocked) return false;
         if (policy.enforce_range) {
-            const util::u32 end = f.offset + f.size;
-            const util::u32 allowed_end = policy.allowed.offset + policy.allowed.size;
-            if (f.offset < policy.allowed.offset || end > allowed_end) return false;
+            if (!within_partition(f.offset, f.size, policy.allowed)) return false;
         }
         if (policy.enforce_seq) {
             if (f.seq == state.last_seq) return false;

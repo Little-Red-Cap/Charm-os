@@ -11,7 +11,7 @@ import module_view;
 import util.core;
 
 export namespace modulex {
-    using ResolveExternal = bool (*)(std::string_view name, util::usize& out_addr) noexcept;
+    using ResolveExternal = bool (*)(std::string_view name, Addr& out_addr) noexcept;
     using ResolveDependency = bool (*)(std::string_view name, std::string_view version) noexcept;
     using ResolveDependencyCtx = bool (*)(void* ctx, std::string_view name, std::string_view version) noexcept;
 
@@ -33,7 +33,7 @@ export namespace modulex {
             const auto status = validate(view);
             if (!status.ok) return false;
             const auto& img = *view.header;
-            const auto base_addr = reinterpret_cast<util::usize>(view.base);
+            const auto base_addr = to_addr(view.base);
             if (img.sym_size == 0) return true;
             const auto sym_base = base_addr + layout_sym(img);
             const auto sym_count = img.sym_size / sizeof(Symbol);
@@ -47,14 +47,14 @@ export namespace modulex {
                 const char* base = reinterpret_cast<const char*>(str_base + s.name_offset);
                 util::u32 len = 0;
                 while (s.name_offset + len < str_size && base[len] != '\0') ++len;
-                util::usize addr = 0;
+                Addr addr = 0;
                 if (!resolver(std::string_view{base, len}, addr)) return false;
                 s.value = addr;
             }
             return true;
         }
 
-        static bool bind_externals(const ImageHeader* img, util::usize base_addr, ResolveExternal resolver) noexcept {
+        static bool bind_externals(const ImageHeader* img, Addr base_addr, ResolveExternal resolver) noexcept {
             if (!img || !resolver) return false;
             if (img->sym_size == 0) return true;
             const auto sym_base = base_addr + (img->sym_offset != 0
@@ -71,7 +71,7 @@ export namespace modulex {
                 const char* base = reinterpret_cast<const char*>(str_base + s.name_offset);
                 util::u32 len = 0;
                 while (s.name_offset + len < str_size && base[len] != '\0') ++len;
-                util::usize addr = 0;
+                Addr addr = 0;
                 if (!resolver(std::string_view{base, len}, addr)) return false;
                 s.value = addr;
             }
@@ -84,7 +84,7 @@ export namespace modulex {
             if (!status.ok) return false;
             const auto& img = *view.header;
             if (img.dep_size == 0) return true;
-            const auto base_addr = reinterpret_cast<util::usize>(view.base);
+            const auto base_addr = to_addr(view.base);
             const auto dep_base = base_addr + layout_dep(img);
             const auto dep_count = img.dep_size / sizeof(Dependency);
             const auto str_base = base_addr + layout_str(img);
@@ -109,7 +109,7 @@ export namespace modulex {
             return true;
         }
 
-        static bool validate_deps(const ImageHeader* img, util::usize base_addr, ResolveDependency resolver) noexcept {
+        static bool validate_deps(const ImageHeader* img, Addr base_addr, ResolveDependency resolver) noexcept {
             if (!img || !resolver) return false;
             if (img->dep_size == 0) return true;
             const auto dep_base = base_addr + (img->dep_offset != 0
@@ -146,7 +146,7 @@ export namespace modulex {
             if (!status.ok) return {false, 0, DepError::bad_name};
             const auto& img = *view.header;
             if (img.dep_size == 0) return {true, 0, DepError::ok};
-            const auto base_addr = reinterpret_cast<util::usize>(view.base);
+            const auto base_addr = to_addr(view.base);
             const auto dep_base = base_addr + layout_dep(img);
             const auto dep_count = img.dep_size / sizeof(Dependency);
             const auto str_base = base_addr + layout_str(img);
@@ -171,7 +171,7 @@ export namespace modulex {
             return {true, 0, DepError::ok};
         }
 
-        static DepStatus validate_deps_ctx(const ImageHeader* img, util::usize base_addr,
+        static DepStatus validate_deps_ctx(const ImageHeader* img, Addr base_addr,
                                       ResolveDependencyCtx resolver, void* ctx) noexcept {
             if (!img || !resolver) return {false, 0, DepError::bad_name};
             if (img->dep_size == 0) return {true, 0, DepError::ok};
@@ -211,7 +211,7 @@ export namespace modulex {
             if (!status.ok) return false;
             const auto& img = *view.header;
             if (img.rel_size == 0) return true;
-            const auto base_addr = reinterpret_cast<util::usize>(view.base);
+            const auto base_addr = to_addr(view.base);
             const auto rel_base = base_addr + layout_rel(img);
             const auto count = img.rel_size / sizeof(Reloc);
             auto rels = reinterpret_cast<const Reloc*>(rel_base);
@@ -222,11 +222,11 @@ export namespace modulex {
             for (util::u32 i = 0; i < count; ++i) {
                 const auto& r = rels[i];
                 const auto target = resolve_target(img, bases, r.offset);
-                util::usize sym_addr = 0;
+                Addr sym_addr = 0;
                 if (r.sym_index != 0xFFFFFFFFu && r.sym_index < sym_count) {
                     const auto& s = syms[r.sym_index];
                     if (s.kind == SymbolKind::external) {
-                        sym_addr = static_cast<util::usize>(s.value);
+                        sym_addr = static_cast<Addr>(s.value);
                     } else {
                         sym_addr = bases.text_base + s.value;
                     }
@@ -235,7 +235,7 @@ export namespace modulex {
                 }
                 switch (r.type) {
                 case RelocType::abs_addr: {
-                    auto* slot = reinterpret_cast<util::usize*>(target);
+                    auto* slot = addr_to_ptr<Addr>(target);
                     *slot = sym_addr + r.addend;
                     break;
                 }
@@ -254,7 +254,7 @@ export namespace modulex {
             return true;
         }
 
-        static bool relocate(const ImageHeader* img, util::usize base_addr) noexcept {
+        static bool relocate(const ImageHeader* img, Addr base_addr) noexcept {
             if (!img || img->magic != k_magic || img->version != k_version) return false;
             if (img->rel_size == 0) return true;
             if (img->rel_size % sizeof(Reloc) != 0) return false;
@@ -272,11 +272,11 @@ export namespace modulex {
             for (util::u32 i = 0; i < count; ++i) {
                 const auto& r = rels[i];
                 const auto target = base_addr + r.offset;
-                util::usize sym_addr = 0;
+                Addr sym_addr = 0;
                 if (r.sym_index != 0xFFFFFFFFu && r.sym_index < sym_count) {
                     const auto& s = syms[r.sym_index];
                     if (s.kind == SymbolKind::external) {
-                        sym_addr = static_cast<util::usize>(s.value);
+                        sym_addr = static_cast<Addr>(s.value);
                     } else {
                         const auto text_base = base_addr + (img->text_offset != 0
                             ? img->text_offset
@@ -288,7 +288,7 @@ export namespace modulex {
                 }
                 switch (r.type) {
                 case RelocType::abs_addr: {
-                    auto* slot = reinterpret_cast<util::usize*>(target);
+                    auto* slot = addr_to_ptr<Addr>(target);
                     *slot = sym_addr + r.addend;
                     break;
                 }

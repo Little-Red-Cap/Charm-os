@@ -115,6 +115,26 @@ int main() {
         const bool ok = boot::uart_apply_frame(storage, cfgf, frame, rx);
         std::printf("[boot] uart_apply=%d\n", ok ? 1 : 0);
     }
+    {
+        std::array<util::u8, 64> packet{};
+        boot::UartFrame frame{};
+        frame.seq = 2;
+        frame.offset = cfg.slot_a.offset + cfg.slot_a.size;
+        const char* patch = "x";
+        frame.size = static_cast<util::u16>(std::strlen(patch));
+        std::memcpy(packet.data(), &frame, sizeof(frame));
+        std::memcpy(packet.data() + sizeof(frame), patch, frame.size);
+        frame.crc = boot::crc16(packet.data() + sizeof(frame), frame.size);
+        std::memcpy(packet.data(), &frame, sizeof(frame));
+        boot::UartRx rx{packet.data(), static_cast<util::usize>(sizeof(frame) + frame.size)};
+        std::array<util::u8, 64> scratch{};
+        boot::FlashConfig cfgf{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
+                               .scratch_size = static_cast<util::u32>(scratch.size())};
+        boot::UartPolicy policy{.allowed = cfg.slot_a, .enforce_range = true};
+        boot::UartState state{};
+        const bool ok = boot::uart_apply_frame_policy(storage, cfgf, frame, rx, policy, state);
+        std::printf("[boot] uart_apply_oob=%d\n", ok ? 1 : 0);
+    }
 
     const bool marked = boot::mark_success(storage, cfg, info, pick.slot);
     std::printf("[boot] mark_success=%d\n", marked ? 1 : 0);

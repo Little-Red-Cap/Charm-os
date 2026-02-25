@@ -7,12 +7,13 @@ module;
 export module module_registry;
 
 import util.core;
+import module_core;
 
 export namespace modulex {
     struct ModuleInfo {
         std::string_view name{};
         std::string_view version{};
-        util::usize base{0};
+        Addr base{0};
     };
 
     constexpr util::u32 parse_major(std::string_view v) noexcept {

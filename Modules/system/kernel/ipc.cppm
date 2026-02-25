@@ -23,7 +23,6 @@ export namespace kernel {
                 return true;
             }
             return sync_.pend(task);
-            return false;
         }
 
         [[nodiscard]] bool post() noexcept {

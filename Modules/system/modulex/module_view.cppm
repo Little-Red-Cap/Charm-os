@@ -168,6 +168,20 @@ export namespace modulex {
         if (!section_fits(sym, h.sym_size, total)) return {false, ImageError::bad_sym};
         if (!section_fits(str, h.str_size, total)) return {false, ImageError::bad_size};
         if (!section_fits(dep, h.dep_size, total)) return {false, ImageError::bad_dep};
+
+        if (h.rel_size != 0) {
+            const auto rel_base = to_addr(view.base) + rel;
+            const auto rel_count = h.rel_size / sizeof(Reloc);
+            const auto sym_count = h.sym_size / sizeof(Symbol);
+            const auto rels = reinterpret_cast<const Reloc*>(rel_base);
+            for (util::u32 i = 0; i < rel_count; ++i) {
+                const auto& r = rels[i];
+                if (r.offset + sizeof(util::u32) > total) return {false, ImageError::bad_reloc};
+                if (r.sym_index != 0xFFFFFFFFu && r.sym_index >= sym_count) {
+                    return {false, ImageError::bad_sym};
+                }
+            }
+        }
         return {true, ImageError::ok};
     }
 }

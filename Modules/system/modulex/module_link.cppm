@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <limits>
 
 export module module_link;
 
@@ -28,6 +29,13 @@ export namespace modulex {
     };
 
     struct Linker {
+        static bool rel32_fits(Addr target, Addr sym_addr, util::u32 addend) noexcept {
+            const auto lhs = static_cast<long long>(sym_addr + addend);
+            const auto rhs = static_cast<long long>(target + sizeof(util::u32));
+            const auto diff = lhs - rhs;
+            return diff >= std::numeric_limits<std::int32_t>::min()
+                && diff <= std::numeric_limits<std::int32_t>::max();
+        }
         static bool bind_externals(const ImageView& view, ResolveExternal resolver) noexcept {
             if (!resolver) return false;
             const auto status = validate(view);
@@ -240,7 +248,8 @@ export namespace modulex {
                     break;
                 }
                 case RelocType::rel32: {
-                    auto* slot = reinterpret_cast<util::u32*>(target);
+                    if (!rel32_fits(target, sym_addr, r.addend)) return false;
+                    auto* slot = addr_to_ptr<util::u32>(target);
                     const auto value = static_cast<util::u32>(
                         (sym_addr + r.addend) - (target + sizeof(util::u32)));
                     *slot = value;
@@ -293,7 +302,8 @@ export namespace modulex {
                     break;
                 }
                 case RelocType::rel32: {
-                    auto* slot = reinterpret_cast<util::u32*>(target);
+                    if (!rel32_fits(target, sym_addr, r.addend)) return false;
+                    auto* slot = addr_to_ptr<util::u32>(target);
                     const auto value = static_cast<util::u32>(
                         (sym_addr + r.addend) - (target + sizeof(util::u32)));
                     *slot = value;

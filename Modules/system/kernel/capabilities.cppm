@@ -22,6 +22,7 @@ export namespace kernel {
 
     struct NoopWakeup {
         static constexpr void signal() noexcept { }
+        static constexpr void wait() noexcept { }
     };
 
     struct NoopSwiTrigger {

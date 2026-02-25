@@ -194,6 +194,25 @@ export namespace alg::text_layout {
         return line_count;
     }
 
+    inline int glyph_advance(const Font& font, std::uint32_t cp, std::uint16_t& prev_gid) noexcept {
+        const auto* g = find_glyph(font, cp);
+        if (!g) {
+            prev_gid = 0;
+            return 8;
+        }
+        const std::uint16_t gid = static_cast<std::uint16_t>(g - font.table.data());
+        int adv = g->x_advance;
+        if (prev_gid) {
+            adv += get_glyph_kern(font, prev_gid, gid);
+        }
+        prev_gid = gid;
+        return adv;
+    }
+
+    inline bool should_wrap(int pen_x, int adv, int right_edge) noexcept {
+        return (pen_x + adv) > right_edge;
+    }
+
     inline int align_x(int rect_x, int rect_w, int text_w, AlignH align) noexcept {
         switch (align) {
         case AlignH::Center:

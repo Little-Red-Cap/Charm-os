@@ -68,7 +68,7 @@ export namespace gui::ui {
         const int w = gui::layout::text_width(font, label);
         const Rect rc{
             (std::int16_t)(drawer.x + style.title_dx),
-            (std::int16_t)(base - font.baseline),
+            (std::int16_t)gui::layout::top_from_baseline(font, base),
             (std::int16_t)w,
             (std::int16_t)font.line_height
         };

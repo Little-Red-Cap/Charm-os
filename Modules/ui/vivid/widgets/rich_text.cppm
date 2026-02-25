@@ -48,20 +48,6 @@ namespace {
         return true;
     }
 
-    int glyph_advance(const Font& font, std::uint32_t cp, std::uint16_t& prev_gid) noexcept {
-        const auto* g = find_glyph(font, cp);
-        if (!g) {
-            prev_gid = 0;
-            return 8;
-        }
-        const std::uint16_t gid = static_cast<std::uint16_t>(g - font.table.data());
-        int adv = g->x_advance;
-        if (prev_gid) {
-            adv += get_glyph_kern(font, prev_gid, gid);
-        }
-        prev_gid = gid;
-        return adv;
-    }
 }
 
 export
@@ -142,8 +128,8 @@ public:
             if (y + line_height > r.y + r.h) break;
 
             const Font& font = *state.font;
-            const int adv = glyph_advance(font, cp, prev_gid);
-            if (x + adv > r.x + r.w - st.padding) {
+            const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid);
+            if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.padding)) {
                 x = r.x + st.padding;
                 y += line_height;
                 prev_gid = 0;

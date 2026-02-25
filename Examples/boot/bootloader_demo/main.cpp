@@ -112,7 +112,8 @@ int main() {
         std::printf("[boot] uart_apply=%d\n", ok ? 1 : 0);
     }
 
-    boot::mark_success(storage, cfg, info, pick.slot);
+    const bool marked = boot::mark_success(storage, cfg, info, pick.slot);
+    std::printf("[boot] mark_success=%d\n", marked ? 1 : 0);
     std::printf("[boot] active=%s\n", info.active == boot::Slot::a ? "A" : "B");
     return 0;
 }

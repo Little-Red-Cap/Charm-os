@@ -443,21 +443,7 @@ export namespace kernel {
                             1,
                             TraceKind::event
                         };
-                        const auto& data = trace_.data();
-                        const auto head = trace_.head();
-                        if (trace_.size() > 0) {
-                            const auto last_idx = (head + Config::trace_capacity - 1) % Config::trace_capacity;
-                            const auto& last = data[last_idx];
-                            if (last.task.value == rec.task.value
-                                && last.id == rec.id
-                                && last.payload == rec.payload
-                                && last.kind == rec.kind) {
-                                auto& mut = const_cast<TraceRecord<Tick>&>(data[last_idx]);
-                                mut.count += 1;
-                            } else {
-                                trace_.push(rec);
-                            }
-                        } else {
+                        if (!trace_.try_merge_last(rec)) {
                             trace_.push(rec);
                         }
                     }

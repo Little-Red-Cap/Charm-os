@@ -46,24 +46,21 @@ export namespace kernel {
             if (count_ == 0) {
                 return false;
             }
-            std::array<Entry, Capacity> new_entries{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
             bool found = false;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& entry = entries_[idx];
                 if (!found && entry.token.value == token.value) {
                     task = entry.task;
                     found = true;
                 } else {
-                    new_entries[new_count++] = entry;
+                    entries_[(head_ + write) % Capacity] = entry;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
-            entries_ = new_entries;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            count_ = new_count;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return found;
         }
 

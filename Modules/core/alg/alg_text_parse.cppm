@@ -1,10 +1,28 @@
 module;
+#include <cstdint>
+#include <cstring>
 
 export module alg_text_parse;
 
 import charm.gfx.color;
 
 export namespace alg::text_parse {
+    enum class TagKind {
+        None,
+        BoldOn,
+        BoldOff,
+        MonoOn,
+        MonoOff,
+        Color,
+        LineBreak
+    };
+
+    struct Tag {
+        TagKind kind{TagKind::None};
+        rgba color{};
+        bool reset_color{false};
+    };
+
     inline bool parse_hex_u8(const char* p, std::uint8_t& out) noexcept {
         auto hex = [](char c) -> int {
             if (c >= '0' && c <= '9') return c - '0';
@@ -29,5 +47,43 @@ export namespace alg::text_parse {
         if (!parse_hex_u8(p + 4, b)) return false;
         color = {r, g, b, 255};
         return true;
+    }
+
+    inline bool parse_tag(const char* tag, Tag& out) noexcept {
+        if (!tag || tag[0] == '\0') return false;
+        out = Tag{};
+        if (std::strcmp(tag, "b") == 0) {
+            out.kind = TagKind::BoldOn;
+            return true;
+        }
+        if (std::strcmp(tag, "/b") == 0) {
+            out.kind = TagKind::BoldOff;
+            return true;
+        }
+        if (std::strcmp(tag, "mono") == 0 || std::strcmp(tag, "code") == 0) {
+            out.kind = TagKind::MonoOn;
+            return true;
+        }
+        if (std::strcmp(tag, "/mono") == 0 || std::strcmp(tag, "/code") == 0) {
+            out.kind = TagKind::MonoOff;
+            return true;
+        }
+        if (std::strcmp(tag, "br") == 0) {
+            out.kind = TagKind::LineBreak;
+            return true;
+        }
+        if (std::strncmp(tag, "color=", 6) == 0) {
+            rgba c{};
+            if (!parse_color_hex(tag + 6, c)) return false;
+            out.kind = TagKind::Color;
+            out.color = c;
+            return true;
+        }
+        if (std::strcmp(tag, "/color") == 0) {
+            out.kind = TagKind::Color;
+            out.reset_color = true;
+            return true;
+        }
+        return false;
     }
 } // namespace alg::text_parse

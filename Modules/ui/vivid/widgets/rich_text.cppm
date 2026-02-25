@@ -66,25 +66,38 @@ public:
                         char tag[32]{};
                         for (std::size_t i = 0; i < len; ++i) tag[i] = tag_start[i];
                         tag[len] = '\0';
-                        if (tag[0] == '/') {
-                            if (std::strcmp(tag + 1, "b") == 0) state.bold = false;
-                            else if (std::strcmp(tag + 1, "color") == 0) state.color = st.font_color;
-                            else if (std::strcmp(tag + 1, "mono") == 0 || std::strcmp(tag + 1, "code") == 0) {
+                        alg::text_parse::Tag parsed{};
+                        if (alg::text_parse::parse_tag(tag, parsed)) {
+                            switch (parsed.kind) {
+                            case alg::text_parse::TagKind::BoldOn:
+                                state.bold = true;
+                                break;
+                            case alg::text_parse::TagKind::BoldOff:
+                                state.bold = false;
+                                break;
+                            case alg::text_parse::TagKind::MonoOn:
+                                state.mono = true;
+                                state.font = &mono;
+                                break;
+                            case alg::text_parse::TagKind::MonoOff:
                                 state.mono = false;
                                 state.font = &normal;
+                                break;
+                            case alg::text_parse::TagKind::Color:
+                                if (parsed.reset_color) {
+                                    state.color = st.font_color;
+                                } else {
+                                    state.color = parsed.color;
+                                }
+                                break;
+                            case alg::text_parse::TagKind::LineBreak:
+                                x = r.x + st.padding;
+                                y += line_height;
+                                prev_gid = 0;
+                                break;
+                            default:
+                                break;
                             }
-                        } else if (std::strcmp(tag, "b") == 0) {
-                            state.bold = true;
-                        } else if (std::strncmp(tag, "color=", 6) == 0) {
-                            rgba c{};
-                            if (alg::text_parse::parse_color_hex(tag + 6, c)) state.color = c;
-                        } else if (std::strcmp(tag, "mono") == 0 || std::strcmp(tag, "code") == 0) {
-                            state.mono = true;
-                            state.font = &mono;
-                        } else if (std::strcmp(tag, "br") == 0) {
-                            x = r.x + st.padding;
-                            y += line_height;
-                            prev_gid = 0;
                         }
                     }
                     p = tag_end + 1;

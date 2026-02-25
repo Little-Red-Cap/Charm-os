@@ -12,6 +12,7 @@ import charm.core.style;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
+import alg_scroll_bounds;
 
 using namespace ui::render;
 
@@ -198,8 +199,7 @@ public:
 private:
     void clamp_scroll() noexcept {
         const float max_scroll = (item_count_ > 0) ? static_cast<float>((item_count_ - 1) * item_h_) : 0.0f;
-        if (scroll_offset_ < 0.0f) scroll_offset_ = 0.0f;
-        if (scroll_offset_ > max_scroll) scroll_offset_ = max_scroll;
+        scroll_offset_ = alg::scroll_bounds::clampf(scroll_offset_, max_scroll);
     }
 
     void update_selected_from_scroll() noexcept {

@@ -59,10 +59,11 @@ public:
                        {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
                        track, border, thumb);
 
-        draw_rect(cvs, r.x, r.y, r.w, r.h, track, true);
+        const Rect track_rect = calc_track_rect(st);
+        draw_rect(cvs, track_rect.x, track_rect.y, track_rect.w, track_rect.h, track, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect thumb_rect = calc_thumb_rect();
+        const Rect thumb_rect = calc_thumb_rect(st);
         draw_rect(cvs, thumb_rect.x, thumb_rect.y, thumb_rect.w, thumb_rect.h, thumb, true);
 
         if (has_state(State::Focused)) {
@@ -75,9 +76,10 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
+            const Style& st = Theme::instance().get<ScrollBar>();
             drag_start_pos_ = (orient_ == Orientation::Horizontal) ? e.x : e.y;
             drag_start_value_ = value_;
-            const Rect thumb = calc_thumb_rect();
+            const Rect thumb = calc_thumb_rect(st);
             dragging_ = thumb.contains(e.x, e.y);
             if (!dragging_) {
                 const int step = page_size_ > 0 ? page_size_ : 1;
@@ -93,7 +95,8 @@ public:
             if (!dragging_) return false;
             const int cur = (orient_ == Orientation::Horizontal) ? e.x : e.y;
             const int delta = cur - drag_start_pos_;
-            const int span = track_span();
+            const Style& st = Theme::instance().get<ScrollBar>();
+            const int span = track_span(st);
             if (span > 0) {
                 const int range = max_ - min_;
                 const int dv = (range > 0) ? (delta * range) / span : 0;
@@ -114,34 +117,46 @@ private:
         return v;
     }
 
-    int track_span() const noexcept {
+    Rect calc_track_rect(const Style& st) const noexcept {
         const auto r = get_rect();
-        const int track_len = (orient_ == Orientation::Horizontal) ? r.w : r.h;
-        const int thumb_len = thumb_length(track_len);
+        int margin = st.scrollbar_margin;
+        if (margin < 0) margin = 0;
+        Rect out{r.x + margin, r.y + margin, r.w - margin * 2, r.h - margin * 2};
+        if (out.w < 1) out.w = 1;
+        if (out.h < 1) out.h = 1;
+        return out;
+    }
+
+    int track_span(const Style& st) const noexcept {
+        const auto track = calc_track_rect(st);
+        const int track_len = (orient_ == Orientation::Horizontal) ? track.w : track.h;
+        const int thumb_len = thumb_length(track_len, st);
         return track_len - thumb_len;
     }
 
-    int thumb_length(int track_len) const noexcept {
+    int thumb_length(int track_len, const Style& st) const noexcept {
         const int range = max_ - min_;
         if (range <= 0) return track_len;
         const int total = range + page_size_;
         int len = (track_len * page_size_) / total;
-        if (len < 8) len = 8;
+        int min_len = st.scrollbar_thumb_min;
+        if (min_len < 2) min_len = 2;
+        if (len < min_len) len = min_len;
         if (len > track_len) len = track_len;
         return len;
     }
 
-    Rect calc_thumb_rect() const noexcept {
-        const auto r = get_rect();
-        const int track_len = (orient_ == Orientation::Horizontal) ? r.w : r.h;
-        const int thumb_len = thumb_length(track_len);
+    Rect calc_thumb_rect(const Style& st) const noexcept {
+        const auto track = calc_track_rect(st);
+        const int track_len = (orient_ == Orientation::Horizontal) ? track.w : track.h;
+        const int thumb_len = thumb_length(track_len, st);
         const int span = track_len - thumb_len;
         const int range = max_ - min_;
         const int offset = (range > 0 && span > 0) ? ((value_ - min_) * span) / range : 0;
         if (orient_ == Orientation::Horizontal) {
-            return Rect{r.x + offset, r.y, thumb_len, r.h};
+            return Rect{track.x + offset, track.y, thumb_len, track.h};
         }
-        return Rect{r.x, r.y + offset, r.w, thumb_len};
+        return Rect{track.x, track.y + offset, track.w, thumb_len};
     }
 
     Orientation orient_{Orientation::Horizontal};

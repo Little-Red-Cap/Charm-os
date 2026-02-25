@@ -10,6 +10,8 @@ import charm.core.event;
 import charm.core.style;
 import charm.widgets.text;
 import charm.core.string;
+import alg_scroll_bounds;
+import alg_text_scroll;
 
 using namespace ui::render;
 
@@ -227,12 +229,12 @@ private:
         const int inner_h = r.h - st.padding * 2;
         const int caret_y = cursor_row() * line_h;
         const int margin = line_h / 2;
+        const int max_scroll = alg::text_scroll::max_scroll_px(buf_, len_, line_h, inner_h);
         if (caret_y - scroll_y_px_ < margin) {
             scroll_y_px_ = caret_y - margin;
-            if (scroll_y_px_ < 0) scroll_y_px_ = 0;
         } else if (caret_y - scroll_y_px_ > inner_h - line_h) {
             scroll_y_px_ = caret_y - (inner_h - line_h);
-            if (scroll_y_px_ < 0) scroll_y_px_ = 0;
         }
+        scroll_y_px_ = alg::scroll_bounds::clamp(scroll_y_px_, max_scroll);
     }
 };

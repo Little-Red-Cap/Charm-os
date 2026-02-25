@@ -10,6 +10,7 @@ export module gui.layout;
 
 import gui.core;
 import gui.font;
+import alg_layout_box;
 
 export namespace gui::layout
 {
@@ -29,53 +30,36 @@ export namespace gui::layout
 
     [[nodiscard]] inline Constraints tighten(const Constraints& c, int w, int h) noexcept
     {
-        Constraints out = c;
-        out.min_w       = std::max(out.min_w, w);
-        out.max_w       = std::min(out.max_w, w);
-        out.min_h       = std::max(out.min_h, h);
-        out.max_h       = std::min(out.max_h, h);
-        return out;
+        const auto out = alg::layout_box::tighten({c.min_w, c.max_w, c.min_h, c.max_h}, w, h);
+        return Constraints{out.min_w, out.max_w, out.min_h, out.max_h};
     }
 
     [[nodiscard]] inline Constraints loosen(const Constraints& c) noexcept
     {
-        Constraints out = c;
-        out.min_w       = 0;
-        out.min_h       = 0;
-        return out;
+        const auto out = alg::layout_box::loosen({c.min_w, c.max_w, c.min_h, c.max_h});
+        return Constraints{out.min_w, out.max_w, out.min_h, out.max_h};
     }
 
     [[nodiscard]] inline Constraints deflate(const Constraints& c, const Insets& pad) noexcept
     {
-        Constraints out = c;
-        const int   dw  = pad.left + pad.right;
-        const int   dh  = pad.top + pad.bottom;
-        out.min_w       = std::max(0, out.min_w - dw);
-        out.max_w       = std::max(0, out.max_w - dw);
-        out.min_h       = std::max(0, out.min_h - dh);
-        out.max_h       = std::max(0, out.max_h - dh);
-        return out;
+        const auto out = alg::layout_box::deflate({c.min_w, c.max_w, c.min_h, c.max_h},
+                                                  {pad.left, pad.top, pad.right, pad.bottom});
+        return Constraints{out.min_w, out.max_w, out.min_h, out.max_h};
     }
 
     [[nodiscard]] inline Size clamp_size(const Constraints& c, Size s) noexcept
     {
-        s.w = (std::int16_t)std::clamp<int>(s.w, c.min_w, c.max_w);
-        s.h = (std::int16_t)std::clamp<int>(s.h, c.min_h, c.max_h);
-        return s;
+        const auto out = alg::layout_box::clamp_size({c.min_w, c.max_w, c.min_h, c.max_h},
+                                                     {s.w, s.h});
+        return Size{(std::int16_t)out.w, (std::int16_t)out.h};
     }
 
     [[nodiscard]] inline Rect inset_rect(const Rect& r, const Insets& pad) noexcept
     {
-        const int x = r.x + pad.left;
-        const int y = r.y + pad.top;
-        const int w = r.w - pad.left - pad.right;
-        const int h = r.h - pad.top - pad.bottom;
-        return Rect{
-            (std::int16_t)x,
-            (std::int16_t)y,
-            (std::int16_t)std::max(0, w),
-            (std::int16_t)std::max(0, h)
-        };
+        const auto out = alg::layout_box::inset_rect({r.x, r.y, r.w, r.h},
+                                                     {pad.left, pad.top, pad.right, pad.bottom});
+        return Rect{(std::int16_t)out.x, (std::int16_t)out.y,
+                    (std::int16_t)out.w, (std::int16_t)out.h};
     }
 
     struct LayoutItem {
@@ -247,28 +231,31 @@ export namespace gui::layout
     inline void arrange_spacer(void*, const Rect&) noexcept {
     }
 
-    [[nodiscard]] inline int align_left_x(const Rect& area) noexcept { return area.x; }
+    [[nodiscard]] inline int align_left_x(const Rect& area) noexcept
+    {
+        return alg::layout_box::align_left_x(area.x);
+    }
 
     [[nodiscard]] inline int align_center_x(const Rect& area, const int text_width) noexcept
     {
-        return area.x + (area.w - text_width) / 2;
+        return alg::layout_box::align_center_x(area.x, area.w, text_width);
     }
 
     [[nodiscard]] inline int align_right_x(const Rect& area, const int text_width) noexcept
     {
-        return area.x + area.w - text_width;
+        return alg::layout_box::align_right_x(area.x, area.w, text_width);
     }
 
     // Baseline y from a top-aligned area (single line).
     [[nodiscard]] inline int baseline_from_top(const Font& font, const int top_y) noexcept
     {
-        return top_y + font.baseline;
+        return alg::layout_box::baseline_from_top(top_y, font.baseline);
     }
 
     // Top y from a baseline y.
     [[nodiscard]] inline int top_from_baseline(const Font& font, const int baseline_y) noexcept
     {
-        return baseline_y - font.baseline;
+        return alg::layout_box::top_from_baseline(baseline_y, font.baseline);
     }
 
     [[nodiscard]] inline int text_width(const Font& font, std::string_view text) noexcept
@@ -280,13 +267,12 @@ export namespace gui::layout
     // Baseline for a row with top padding.
     [[nodiscard]] inline int row_baseline(const Font& font, const Rect& rc, const int pad_top = 3) noexcept
     {
-        return baseline_from_top(font, rc.y + pad_top);
+        return alg::layout_box::row_baseline(rc.y, pad_top, font.baseline);
     }
 
     // Baseline for a row centered vertically.
     [[nodiscard]] inline int row_baseline_centered(const Font& font, const Rect& rc) noexcept
     {
-        const int top = rc.y + (rc.h - font.line_height) / 2;
-        return baseline_from_top(font, top);
+        return alg::layout_box::row_baseline_centered(rc.y, rc.h, font.line_height, font.baseline);
     }
 } // namespace gui::layout

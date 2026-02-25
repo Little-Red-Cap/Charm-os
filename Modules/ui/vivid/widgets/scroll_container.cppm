@@ -15,6 +15,8 @@ import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
 import alg_scroll;
+import alg_scroll_bounds;
+import alg_scroll_thumb;
 
 using namespace ui::render;
 
@@ -109,19 +111,20 @@ public:
             draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
         }
 
-        if (content_height_ > r.h) {
+        if (max_scroll_ > 0) {
+            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
             const int track_w = 6;
-            const int track_x = r.x + r.w - track_w - 2;
-            const int track_h = r.h - 4;
-            const float ratio = static_cast<float>(r.h) / static_cast<float>(content_height_);
-            int thumb_h = static_cast<int>(track_h * ratio);
-            if (thumb_h < 12) thumb_h = 12;
-            const float tpos = (max_scroll_ > 0) ? (static_cast<float>(scroll_y_) / static_cast<float>(max_scroll_)) : 0.0f;
-            const int thumb_y = r.y + 2 + static_cast<int>((track_h - thumb_h) * tpos);
-            rgba thumb = st.border_focus;
-            thumb.a = 180;
-            draw_rect(cvs, track_x, r.y + 2, track_w, track_h, rgba{0,0,0,0}, false);
-            draw_rect(cvs, track_x, thumb_y, track_w, thumb_h, thumb, true);
+            const int track_x = r.x + r.w - track_w - margin;
+            const int track_y = r.y + margin;
+            const int track_h = r.h - margin * 2;
+            const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
+                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+            if (thumb.visible && thumb.thumb_h > 0) {
+                rgba thumb_col = st.border_focus;
+                thumb_col.a = 180;
+                draw_rect(cvs, track_x, track_y, track_w, track_h, rgba{0,0,0,0}, false);
+                draw_rect(cvs, thumb.thumb_x, thumb.thumb_y, thumb.thumb_w, thumb.thumb_h, thumb_col, true);
+            }
         }
 
         if (show_scroll_hint_ && dragging_) {
@@ -353,15 +356,12 @@ private:
     }
 
     int clamp_scroll(int y) const noexcept {
-        if (y < 0) return 0;
-        if (y > max_scroll_) return max_scroll_;
-        return y;
+        return alg::scroll_bounds::clamp(y, max_scroll_);
     }
 
     void update_scroll_bounds() {
         const auto r = get_rect();
-        const int max = content_height_ - r.h;
-        max_scroll_ = (max > 0) ? max : 0;
+        max_scroll_ = alg::scroll_bounds::compute_max(content_height_, r.h);
     }
 
     static constexpr std::size_t kMax = 64;

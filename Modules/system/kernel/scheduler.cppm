@@ -109,6 +109,7 @@ export namespace kernel {
                 ++stats_.dropped;
                 return EventToken{0};
             }
+            // Filter chain order: dedup -> debounce -> rate_limit -> coalesce.
             if constexpr (Config::enable_event_dedup) {
                 if (evt.id != EventId::terminate) {
                     const auto sig = event_signature(evt);
@@ -246,18 +247,27 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t post_many_dedup(const PostItem* items, std::size_t count) noexcept {
             std::size_t posted = 0;
-            for (std::size_t i = 0; i < count; ++i) {
-                bool superseded = false;
-                for (std::size_t j = i + 1; j < count; ++j) {
-                    if (items[i].task.value == items[j].task.value
-                        && items[i].event.id == items[j].event.id) {
-                        superseded = true;
-                        break;
+            if (count == 0) {
+                return posted;
+            }
+            // Dedup is per (task, event.id) using a fixed bitmap.
+            constexpr std::size_t dedup_slots = Registry::count * event_id_count;
+            static_assert(dedup_slots > 0);
+            std::array<bool, dedup_slots> seen{};
+            for (std::size_t i = count; i-- > 0;) {
+                const auto task = items[i].task.value;
+                if (task >= Registry::count) {
+                    if (post(items[i].task, items[i].event)) {
+                        ++posted;
                     }
-                }
-                if (superseded) {
                     continue;
                 }
+                const auto evt = static_cast<std::size_t>(items[i].event.id);
+                const auto idx = task * event_id_count + evt;
+                if (seen[idx]) {
+                    continue;
+                }
+                seen[idx] = true;
                 if (post(items[i].task, items[i].event)) {
                     ++posted;
                 }
@@ -881,7 +891,15 @@ export namespace kernel {
                 const auto order = ++timer_seq_;
                 const auto tag = order;
                 const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, order, tag};
-                (void)timers_.schedule(entry);
+                if (!timers_.schedule(entry)) {
+                    ++stats_.dropped;
+                    if constexpr (Config::enable_alert) {
+                        if (alert_hook_) {
+                            alert_hook_(AlertType::timer, AlertLevel::error, timers_.size());
+                        }
+                    }
+                    return EventToken{0};
+                }
                 if constexpr (Config::enable_timer) {
                     const auto depth = timers_.size();
                     if (depth > stats_.max_timer) {

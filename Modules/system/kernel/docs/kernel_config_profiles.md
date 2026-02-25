@@ -65,6 +65,21 @@ trace_capacity = 256..1024
   - `alert_queue_err  = evtq_capacity * 0.9`
 - RingQueue 模式下，`max_queue` 是**单优先级队列深度**，阈值应按单队列容量设置。
 
+### 事件抑制链顺序
+
+调度器的抑制/合并顺序为：
+1) dedup
+2) debounce
+3) rate_limit
+4) coalesce（队列内替换）
+
+该顺序影响统计含义与观测解读，建议保持固定并在调参时同步考虑。
+
+### 定时器失败策略
+
+- `schedule()` 失败会被视作一次投递失败（计入 `dropped`）。
+- 若启用告警钩子，将触发 `AlertType::timer` 的 error 级别。
+
 ### EventId 扩展
 
 - `EventId` 的“最后一个枚举值”建议显式命名为 `count` 或 `max`，用于数组长度。

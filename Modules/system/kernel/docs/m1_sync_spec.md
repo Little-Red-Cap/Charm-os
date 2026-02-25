@@ -33,6 +33,10 @@
 - `notify_*` return `false` if no waiters
 - `cancel(...)` returns `false` if token not found
 
+### Token & Waiter Assumptions
+- `SyncUnified` 依赖 `WaitToken` 的唯一性（至少在同一 Sync 实例内唯一）。
+- `erase(token)` 只移除第一个匹配项；若允许重复 token 会导致残留。
+
 ---
 
 ## 2. IPC Semantics (Minimal)
@@ -45,6 +49,12 @@
 
 ### TriggerIpc
 - `trigger(task)` posts sync event with `WaitResult::ok`
+
+---
+
+## 3. SyncBase Semantics (Legacy/Minimal)
+- `SyncBase::pend()` 只做等待登记，不带 token 去重。
+- 同一 task 重复 pend 不会被阻止（上层需保证一致性）。
 
 ---
 

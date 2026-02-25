@@ -735,6 +735,28 @@ export namespace kernel {
             }
         }
 
+        [[nodiscard]] bool run_idle(typename Caps::TimeSource::Tick now, std::size_t budget) noexcept {
+            if (run_budget(budget)) {
+                return true;
+            }
+            if (tick(now)) {
+                return true;
+            }
+            ++idle_rounds_;
+            if constexpr (requires { Caps::Wakeup::wait(); }) {
+                Caps::Wakeup::wait();
+            }
+            return false;
+        }
+
+        [[nodiscard]] bool run_idle(typename Caps::TimeSource::Tick now) noexcept {
+            if constexpr (Config::dispatch_budget == 0) {
+                return run_idle(now, 1);
+            } else {
+                return run_idle(now, Config::dispatch_budget);
+            }
+        }
+
         [[nodiscard]] std::size_t dispatch_batch(std::size_t budget) noexcept {
             std::size_t count = 0;
             for (std::size_t i = 0; i < budget; ++i) {

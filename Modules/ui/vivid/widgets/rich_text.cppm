@@ -13,6 +13,7 @@ import charm.widgets.text;
 import charm.font;
 import charm.font.typography;
 import alg_text_layout;
+import alg_text_parse;
 
 namespace {
     struct RunState {
@@ -21,32 +22,6 @@ namespace {
         bool bold{false};
         bool mono{false};
     };
-
-    bool parse_hex(const char* p, std::uint8_t& out) noexcept {
-        auto hex = [](char c) -> int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-            if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-            return -1;
-        };
-        const int hi = hex(p[0]);
-        const int lo = hex(p[1]);
-        if (hi < 0 || lo < 0) return false;
-        out = static_cast<std::uint8_t>((hi << 4) | lo);
-        return true;
-    }
-
-    bool parse_color(const char* tag, rgba& color) noexcept {
-        const char* p = tag;
-        if (p[0] == '#') ++p;
-        if (!p[0] || !p[1] || !p[2] || !p[3] || !p[4] || !p[5]) return false;
-        std::uint8_t r{}, g{}, b{};
-        if (!parse_hex(p, r)) return false;
-        if (!parse_hex(p + 2, g)) return false;
-        if (!parse_hex(p + 4, b)) return false;
-        color = {r, g, b, 255};
-        return true;
-    }
 
 }
 
@@ -102,7 +77,7 @@ public:
                             state.bold = true;
                         } else if (std::strncmp(tag, "color=", 6) == 0) {
                             rgba c{};
-                            if (parse_color(tag + 6, c)) state.color = c;
+                            if (alg::text_parse::parse_color_hex(tag + 6, c)) state.color = c;
                         } else if (std::strcmp(tag, "mono") == 0 || std::strcmp(tag, "code") == 0) {
                             state.mono = true;
                             state.font = &mono;

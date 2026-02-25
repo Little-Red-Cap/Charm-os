@@ -62,6 +62,7 @@ export import alg_scrollbar_metrics;
 export import alg_text_scroll;
 #if CHARM_ENABLE_UI_VIVID
 export import alg_text_layout;
+export import alg_text_parse;
 #endif
 export import alg_layout_box;
 export import alg_round_rect;

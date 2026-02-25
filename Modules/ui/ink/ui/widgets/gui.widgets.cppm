@@ -963,7 +963,9 @@ export namespace gui
                                             static_cast<unsigned>(value));
         }
         const int text_w = gui::layout::text_width(*th.font_default, text);
-        int x = rc.x + rc.w - th.pad_xs - text_w;
+        const Rect content{(std::int16_t)(rc.x + th.pad_xs), rc.y,
+                           (std::int16_t)(rc.w - th.pad_xs * 2), rc.h};
+        int x = gui::layout::align_right_x(content, text_w);
         if (x < rc.x + th.pad_xs) x = rc.x + th.pad_xs;
         const int base = gui::layout::row_baseline_centered(*th.font_default, rc);
         if (invert) {
@@ -993,7 +995,9 @@ export namespace gui
 
         const char* text = value_text ? value_text : "";
         const int text_w = gui::layout::text_width(*th.font_default, text);
-        int x = rc.x + rc.w - th.pad_xs - text_w;
+        const Rect content{(std::int16_t)(rc.x + th.pad_xs), rc.y,
+                           (std::int16_t)(rc.w - th.pad_xs * 2), rc.h};
+        int x = gui::layout::align_right_x(content, text_w);
         if (x < rc.x + th.pad_xs) x = rc.x + th.pad_xs;
         const int base = gui::layout::row_baseline_centered(*th.font_default, rc);
         if (invert) {

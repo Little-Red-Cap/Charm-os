@@ -28,8 +28,7 @@ export namespace kernel {
             if (!waiters_.add(task, token)) {
                 return false;
             }
-            timeout_tokens_[token_slot_++] = {token, timeout_token};
-            token_slot_ %= MaxWaiters;
+            record_timeout(token, timeout_token);
             return true;
         }
 
@@ -77,6 +76,29 @@ export namespace kernel {
             WaitToken token{};
             EventToken timeout{};
         };
+
+        void record_timeout(WaitToken token, EventToken timeout_token) noexcept {
+            for (auto& entry : timeout_tokens_) {
+                if (entry.token.value == token.value) {
+                    entry.timeout = timeout_token;
+                    return;
+                }
+            }
+            for (auto& entry : timeout_tokens_) {
+                if (entry.timeout.value == 0) {
+                    entry.token = token;
+                    entry.timeout = timeout_token;
+                    return;
+                }
+            }
+            auto& entry = timeout_tokens_[token_slot_];
+            if (entry.timeout.value != 0) {
+                (void)scheduler_->cancel_event(entry.timeout);
+            }
+            entry.token = token;
+            entry.timeout = timeout_token;
+            token_slot_ = (token_slot_ + 1) % MaxWaiters;
+        }
 
         void cancel_timeout(WaitToken token) noexcept {
             for (auto& entry : timeout_tokens_) {

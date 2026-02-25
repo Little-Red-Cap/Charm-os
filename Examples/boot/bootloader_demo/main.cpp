@@ -46,7 +46,9 @@ static void write_image(MockFlash& flash, util::u32 offset, const char* payload,
     const auto total = static_cast<util::u32>(sizeof(h) + len);
     std::memcpy(data.data(), &h, sizeof(h));
     std::memcpy(data.data() + sizeof(h), payload, len);
-    boot::FlashConfig cfg{.erase_size = 64, .write_size = 16};
+    std::array<util::u8, 64> scratch{};
+    boot::FlashConfig cfg{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
+                          .scratch_size = static_cast<util::u32>(scratch.size())};
     boot::flash_write(boot::Storage{&flash,
                       +[](void* ctx, util::u32 off, util::span<util::u8> out) noexcept {
                           return static_cast<MockFlash*>(ctx)->read(off, out);
@@ -107,7 +109,9 @@ int main() {
         frame.crc = boot::crc16(packet.data() + sizeof(frame), frame.size);
         std::memcpy(packet.data(), &frame, sizeof(frame));
         boot::UartRx rx{packet.data(), static_cast<util::usize>(sizeof(frame) + frame.size)};
-        boot::FlashConfig cfgf{.erase_size = 64, .write_size = 16};
+        std::array<util::u8, 64> scratch{};
+        boot::FlashConfig cfgf{.erase_size = 64, .write_size = 16, .scratch = scratch.data(),
+                               .scratch_size = static_cast<util::u32>(scratch.size())};
         const bool ok = boot::uart_apply_frame(storage, cfgf, frame, rx);
         std::printf("[boot] uart_apply=%d\n", ok ? 1 : 0);
     }

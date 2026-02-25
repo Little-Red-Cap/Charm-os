@@ -27,6 +27,24 @@ export namespace boot {
         return rem == 0 ? v : (v + (align - rem));
     }
 
+    inline bool flash_write_chunked(const Storage& s, util::u32 dst,
+                                    util::span<const util::u8> src, FlashConfig cfg) noexcept {
+        util::u32 written = 0;
+        const util::u32 total = static_cast<util::u32>(src.size());
+        while (written < total) {
+            const util::u32 remain = total - written;
+            const util::u32 chunk = (cfg.write_size == 0 || remain <= cfg.write_size)
+                ? remain
+                : cfg.write_size;
+            if (!storage_write(s, dst + written,
+                util::span<const util::u8>(src.data() + written, chunk))) {
+                return false;
+            }
+            written += chunk;
+        }
+        return true;
+    }
+
     inline bool flash_write(const Storage& s, util::u32 offset,
                             util::span<const util::u8> data, FlashConfig cfg) noexcept {
         if (data.empty()) return true;
@@ -35,22 +53,6 @@ export namespace boot {
         const util::u32 end = align_up(offset + static_cast<util::u32>(data.size()), cfg.erase_size);
         const bool full_block_write = (offset % cfg.erase_size == 0) &&
                                       (data.size() % cfg.erase_size == 0);
-
-        auto write_chunked = [&](util::u32 dst, std::span<const util::u8> src) noexcept {
-            util::u32 written = 0;
-            while (written < src.size()) {
-                const auto remain = static_cast<util::u32>(src.size() - written);
-                const auto chunk = (cfg.write_size == 0 || remain <= cfg.write_size)
-                    ? remain
-                    : cfg.write_size;
-                if (!storage_write(s, dst + written,
-                    util::span<const util::u8>(src.data() + written, chunk))) {
-                    return false;
-                }
-                written += chunk;
-            }
-            return true;
-        };
 
         for (util::u32 blk = start; blk < end; blk += cfg.erase_size) {
             const util::u32 blk_end = blk + cfg.erase_size;
@@ -68,12 +70,12 @@ export namespace boot {
                 const util::u32 data_off = seg_start - offset;
                 std::memcpy(scratch.data() + (seg_start - blk), data.data() + data_off, seg_len);
                 if (!storage_erase(s, blk, cfg.erase_size)) return false;
-                if (!write_chunked(blk, scratch)) return false;
+                if (!flash_write_chunked(s, blk, scratch, cfg)) return false;
             } else {
                 if (!storage_erase(s, blk, cfg.erase_size)) return false;
                 const util::u32 data_off = blk - offset;
                 auto block_span = util::span<const util::u8>(data.data() + data_off, cfg.erase_size);
-                if (!write_chunked(blk, block_span)) return false;
+                if (!flash_write_chunked(s, blk, block_span, cfg)) return false;
             }
         }
         return true;

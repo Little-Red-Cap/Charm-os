@@ -1,12 +1,8 @@
-﻿#include <cstdint>
+#include <cstdint>
 #include <cstdio>
 
-import util.core;
-import hal_core;
-import hal_time;
-import shell_time;
-import shell_core;
-import shell_stdio;
+import charm.foundation;
+import charm.runtime;
 
 struct DummyTime {
     using Tick = hal::tick_t;

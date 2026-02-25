@@ -1,14 +1,7 @@
 #include <cstdio>
 #include <cstdint>
 
-import util.core;
-import service.fifo;
-import service.queue;
-import service.small_vector;
-import service.linked_list;
-import service.lru_cache;
-import service.fixed_hash_map;
-import service.rb_tree;
+import charm.foundation;
 
 int main() {
     service::Fifo<int, 4> fifo{};

@@ -11,6 +11,18 @@ import boot_storage;
 import boot_flash;
 
 export namespace boot {
+    struct UartPolicy {
+        Partition allowed{};
+        bool enforce_range{false};
+        bool enforce_seq{false};
+        bool require_unlocked{false};
+    };
+
+    struct UartState {
+        bool unlocked{false};
+        util::u16 last_seq{0};
+    };
+
     struct UartFrame {
         util::u16 magic{0xB007};
         util::u16 seq{0};
@@ -36,12 +48,41 @@ export namespace boot {
         util::usize size{0};
     };
 
-    inline bool uart_apply_frame(const Storage& s, FlashConfig cfg, const UartFrame& f, UartRx rx) noexcept {
+    inline bool within_partition(util::u32 offset, util::u32 size, const Partition& p) noexcept {
+        if (size == 0) return false;
+        const util::u32 end = offset + size;
+        const util::u32 p_end = p.offset + p.size;
+        return offset >= p.offset && end <= p_end;
+    }
+
+    inline bool uart_apply_frame_policy(const Storage& s, FlashConfig cfg, const UartFrame& f,
+                                        UartRx rx, const UartPolicy& policy, UartState& state) noexcept {
         if (f.magic != 0xB007) return false;
+        if (policy.require_unlocked && !state.unlocked) return false;
+        if (policy.enforce_range) {
+            if (!within_partition(f.offset, f.size, policy.allowed)) return false;
+        }
+        if (policy.enforce_seq) {
+            if (f.seq == state.last_seq) return false;
+            if (state.last_seq != 0) {
+                const util::u16 expected = static_cast<util::u16>(state.last_seq + 1);
+                if (f.seq != expected) return false;
+            }
+        }
         if (rx.size < sizeof(UartFrame) + f.size) return false;
         const util::u8* payload = rx.buf + sizeof(UartFrame);
         const auto calc = crc16(payload, f.size);
         if (calc != f.crc) return false;
-        return flash_write(s, f.offset, util::span<const util::u8>(payload, f.size), cfg);
+        if (!flash_write(s, f.offset, util::span<const util::u8>(payload, f.size), cfg)) return false;
+        if (policy.enforce_seq) {
+            state.last_seq = f.seq;
+        }
+        return true;
+    }
+
+    inline bool uart_apply_frame(const Storage& s, FlashConfig cfg, const UartFrame& f, UartRx rx) noexcept {
+        UartPolicy policy{};
+        UartState state{};
+        return uart_apply_frame_policy(s, cfg, f, rx, policy, state);
     }
 }

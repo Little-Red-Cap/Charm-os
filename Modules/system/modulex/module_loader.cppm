@@ -32,7 +32,7 @@ export namespace modulex {
 
     struct LoadResult {
         bool ok{false};
-        util::usize entry{0};
+        Addr entry{0};
         const Symbol* symtab{nullptr};
         util::u32 sym_count{0};
         SymReader sym_reader{};
@@ -47,7 +47,7 @@ export namespace modulex {
             }
             if (img->text_size == 0) return {false, 0};
             if (img->entry_offset >= img->text_size) return {false, 0};
-            const auto base = reinterpret_cast<util::usize>(img);
+            const auto base = to_addr(img);
             const auto text_base = base + (img->text_offset != 0 ? img->text_offset : sizeof(ImageHeader));
             const auto entry = text_base + img->entry_offset;
             const auto sym_base = (img->sym_offset != 0)
@@ -78,7 +78,7 @@ export namespace modulex {
                 return {false, 0};
             }
             const auto& img = *view.header;
-            const auto base = reinterpret_cast<util::usize>(view.base);
+            const auto base = to_addr(view.base);
             const auto entry = bases.text_base + img.entry_offset;
             const auto sym_base = base + layout_sym(img);
             const auto sym_count = static_cast<util::u32>(img.sym_size / sizeof(Symbol));

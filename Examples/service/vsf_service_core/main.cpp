@@ -1,16 +1,9 @@
-﻿#include <array>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <span>
 
-import util.core;
-import service_fifo;
-import service_heap;
-import service_pool;
-import service_json;
-import service_trace;
-import service_distbus;
-import service_trace_bus;
+import charm.foundation;
 
 static void on_msg(const service::BusMessage& msg) noexcept {
     std::printf("[distbus] id=%u size=%zu kind=%u\n", msg.id, msg.size, static_cast<unsigned>(msg.kind));

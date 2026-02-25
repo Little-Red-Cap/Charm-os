@@ -51,11 +51,15 @@ export namespace fs {
             init_root();
         }
 
-        Status open(std::string_view path, File& out) noexcept {
+        Status open(std::string_view path, File& out, OpenFlags flags) noexcept {
             auto norm = normalize(path);
             auto trimmed = rstrip_seps(norm);
             PathView pv{trimmed.data, trimmed.size};
             if (pv.size == 0) return Status{Err::inval};
+            const bool want_write = has_flag(flags, OpenFlags::write);
+            const bool want_create = has_flag(flags, OpenFlags::create);
+            const bool want_trunc = has_flag(flags, OpenFlags::trunc);
+            if ((want_create || want_trunc) && !want_write) return Status{Err::perm};
 
             auto cur_idx = root_index;
             while (true) {
@@ -64,11 +68,19 @@ export namespace fs {
                 const bool last = (rest.size == 0);
                 auto* fe = find_child(cur_idx, head);
                 if (!fe) {
-                    fe = create_entry(cur_idx, head, !last);
-                    if (!fe) return Status{Err::nomem};
+                    if (last && want_create) {
+                        fe = create_entry(cur_idx, head, false);
+                        if (!fe) return Status{Err::nomem};
+                    } else {
+                        return Status{Err::noent};
+                    }
                 }
                 if (last) {
                     if (fe->is_dir) return Status{Err::inval};
+                    if (want_trunc) {
+                        auto st = truncate(path, 0);
+                        if (!st) return st;
+                    }
                     out.node = fe->node;
                     out.node.data = fe;
                     out.node.ops = &node_ops;
@@ -111,8 +123,14 @@ export namespace fs {
             if (!st) return st;
             auto* fe = find_child(parent, leaf);
             if (!fe || !fe->used) return Status{Err::noent};
-            if (fe->is_dir) return Status{Err::notsup};
-            free_blocks(fe->start_block, fe->blocks_used);
+            if (fe->is_dir) {
+                const util::usize idx = static_cast<util::usize>(fe - files_.data());
+                for (const auto& child : files_) {
+                    if (child.used && child.parent == idx) return Status{Err::busy};
+                }
+            } else if (fe->blocks_used > 0) {
+                free_blocks(fe->start_block, fe->blocks_used);
+            }
             *fe = FileEntry{};
             fe->owner = this;
             return Status{Err::ok};
@@ -345,17 +363,21 @@ export namespace fs {
 
         FileEntry* create_entry(util::usize parent, PathView name, bool dir) noexcept {
             auto* f = free_file();
-            auto blk = alloc_block();
-            if (!f || blk == MaxDataBlocks) return nullptr;
+            if (!f) return nullptr;
+            util::usize blk = 0;
+            if (!dir) {
+                blk = alloc_block();
+                if (blk == MaxDataBlocks) return nullptr;
+            }
             f->used = true;
             f->parent = parent;
             f->name_len = (name.size > FileEntry::max_name) ? FileEntry::max_name : name.size;
             if (f->name_len > 0) {
                 std::memcpy(f->name_buf.data(), name.data, f->name_len);
             }
-            f->start_block = blk;
+            f->start_block = dir ? 0 : blk;
             f->size = 0;
-            f->blocks_used = 1;
+            f->blocks_used = dir ? 0 : 1;
             f->is_dir = dir;
             f->node.type = dir ? NodeType::dir : NodeType::file;
             f->node.ops = &node_ops;
@@ -433,6 +455,7 @@ export namespace fs {
             n.offset = off;
             return Status{Err::ok};
         },
-        .flush = [](Node&) noexcept { return Status{Err::ok}; }
+        .flush = [](Node&) noexcept { return Status{Err::ok}; },
+        .close = [](Node&) noexcept { return Status{Err::ok}; }
     };
 }

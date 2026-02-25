@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <thread>
 
@@ -14,6 +15,8 @@ import hal_time;
 import hal_gpio;
 import hal_uart;
 import hal_timer;
+import hal_input;
+import input.raw;
 import util.core;
 
 export namespace hal::win {
@@ -60,5 +63,22 @@ export namespace hal::win {
         static Result start(TimerHandle) noexcept { return ok(); }
         static Result stop(TimerHandle) noexcept { return ok(); }
         static Result set_callback(TimerHandle, TimerCallback) noexcept { return ok(); }
+    };
+
+    struct RawInput {
+        static bool is_down(void*, input::Button) noexcept { return false; }
+        static input::PointerRaw read_pointer(void*) noexcept { return input::PointerRaw{}; }
+        static input::AxisRaw read_axis(void*) noexcept { return input::AxisRaw{}; }
+        static std::optional<std::uint8_t> pop_encoder_ab(void*) noexcept { return std::nullopt; }
+
+        static hal::RawInputDriver driver() noexcept {
+            return hal::RawInputDriver{
+                .ctx = nullptr,
+                .is_down = &RawInput::is_down,
+                .read_pointer = &RawInput::read_pointer,
+                .read_axis = &RawInput::read_axis,
+                .pop_encoder_ab = &RawInput::pop_encoder_ab
+            };
+        }
     };
 }

@@ -23,6 +23,7 @@ export namespace fs {
         Status (*write)(Node&, std::span<const util::u8>) noexcept { nullptr };
         Status (*seek)(Node&, util::i64) noexcept { nullptr };
         Status (*flush)(Node&) noexcept { nullptr };
+        Status (*close)(Node&) noexcept { nullptr };
     };
 
     struct Node {
@@ -38,8 +39,19 @@ export namespace fs {
         Mount* mount{nullptr};
     };
 
+    enum class OpenFlags : util::u32 {
+        read = 1u << 0,
+        write = 1u << 1,
+        create = 1u << 2,
+        trunc = 1u << 3,
+    };
+
+    [[nodiscard]] inline bool has_flag(OpenFlags value, OpenFlags flag) noexcept {
+        return (static_cast<util::u32>(value) & static_cast<util::u32>(flag)) != 0u;
+    }
+
     struct MountOps {
-        Status (*open)(std::string_view path, File&) noexcept { nullptr };
+        Status (*open)(Mount*, std::string_view path, File&, OpenFlags flags) noexcept { nullptr };
         Status (*flush)(Mount*) noexcept { nullptr };
         Status (*unmount)(Mount*, bool force) noexcept { nullptr };
         Status (*unlink)(Mount*, std::string_view path) noexcept { nullptr };
@@ -108,5 +120,15 @@ export namespace fs {
     inline Status flush(File& f) noexcept {
         if (!f.node.ops || !f.node.ops->flush) return Status{Err::nosys};
         return f.node.ops->flush(f.node);
+    }
+
+    inline Status close(File& f) noexcept {
+        if (!f.node.ops || !f.node.ops->close) return Status{Err::nosys};
+        auto st = f.node.ops->close(f.node);
+        if (st) {
+            f.node = {};
+            f.mount = nullptr;
+        }
+        return st;
     }
 }

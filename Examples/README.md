@@ -1,22 +1,23 @@
 # Examples 总览
 
-此目录收纳可复现的示例工程，均可独立配置与编译（不运行）。
+此目录收录可复现的示例工程，均可独立配置与编译（不运行）。
 
 ## 目录结构
 
-- `kernel/windows`：内核 M0–M3 主线
-- `boot/bootloader_demo`：bootloader 示例
+- `kernel/windows`：内核 M0/M3 主线
+- `boot/bootloader_demo`：Bootloader 示例
 - `audio/sdl3_wav_demo`：SDL3 音频示例
+- `project/player`：播放器项目化示例（win 子目录）
 - `fs/`：VFS/BlockFS/POSIX 示例
 - `shell/`：Shell/ModuleX 组合示例
-- `service/`：Service 核心与 DS 示例
+- `service/`：Service 核心/DS 示例
 - `hal/hal_demo`：HAL 接口示例
 - `alg/alg_demo`：算法与压缩示例
 
 ## 快速构建（Windows + Ninja）
 
 ```bash
-# Kernel M0–M3
+# Kernel M0/M3
 cmake -S Examples/kernel/windows -B Examples/kernel/windows/build -G Ninja
 cmake --build Examples/kernel/windows/build
 
@@ -27,6 +28,10 @@ cmake --build Examples/boot/bootloader_demo/build
 # Audio (SDL3)
 cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
 cmake --build Examples/audio/sdl3_wav_demo/build
+
+# Player (Windows)
+cmake -S Examples/project/player -B Examples/project/player/build -G Ninja
+cmake --build Examples/project/player/build
 
 # FS (VFS / BlockFS / POSIX)
 cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja
@@ -86,10 +91,10 @@ cmake --build Examples/alg/alg_demo/build
 
 ### 方式 B：项目内源码
 
-把 SDL3 源码放到：
+将 SDL3 源码放到：
 
 ```
 Examples/ThirdParty/SDL3
 ```
 
-示例会自动优先 `find_package`，找不到时回退到本地源码目录。
+示例会优先使用 `find_package`，找不到时回退到本地源码目录。

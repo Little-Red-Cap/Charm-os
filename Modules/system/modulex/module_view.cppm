@@ -33,10 +33,10 @@ export namespace modulex {
     };
 
     struct SegmentBases {
-        util::usize image_base{0};
-        util::usize text_base{0};
-        util::usize ro_base{0};
-        util::usize data_base{0};
+        Addr image_base{0};
+        Addr text_base{0};
+        Addr ro_base{0};
+        Addr data_base{0};
     };
 
     inline ImageView make_view(const void* data, util::u32 size) noexcept {
@@ -84,7 +84,7 @@ export namespace modulex {
 
     inline SegmentBases default_bases(const ImageView& view) noexcept {
         if (!view.header || !view.base) return {};
-        const auto base = reinterpret_cast<util::usize>(view.base);
+        const auto base = to_addr(view.base);
         const auto& h = *view.header;
         return SegmentBases{
             base,
@@ -98,7 +98,7 @@ export namespace modulex {
         return (h.flags & static_cast<util::u16>(ImageFlags::xip_text)) != 0;
     }
 
-    inline bool entry_in_text(const ImageView& view, util::usize entry) noexcept {
+    inline bool entry_in_text(const ImageView& view, Addr entry) noexcept {
         if (!view.header || !view.base) return false;
         const auto bases = default_bases(view);
         const auto start = bases.text_base;
@@ -106,13 +106,13 @@ export namespace modulex {
         return entry >= start && entry < end;
     }
 
-    inline bool can_exec_internal(const ImageView& view, util::usize entry) noexcept {
+    inline bool can_exec_internal(const ImageView& view, Addr entry) noexcept {
         if (!view.header) return false;
         if (!is_xip_text(*view.header)) return false;
         return entry_in_text(view, entry);
     }
 
-    inline util::usize resolve_target(const ImageHeader& h, const SegmentBases& bases, util::u32 offset) noexcept {
+    inline Addr resolve_target(const ImageHeader& h, const SegmentBases& bases, util::u32 offset) noexcept {
         const auto text = layout_text(h);
         const auto ro = layout_ro(h);
         const auto data = layout_data(h);

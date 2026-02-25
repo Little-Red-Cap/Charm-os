@@ -1,10 +1,9 @@
-module;
+﻿module;
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <expected>
 #include <span>
 
 export module audio.channel.convert;
@@ -27,7 +26,7 @@ export namespace audio {
     public:
         Result<void> init(ChannelConvertConfig cfg) {
             if (cfg.in_ch == 0 || cfg.out_ch == 0) {
-                return std::unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Err{Errc::invalid_arg, 0});
             }
             in_ch_ = cfg.in_ch;
             out_ch_ = cfg.out_ch;
@@ -44,7 +43,7 @@ export namespace audio {
                 mode_ = ChannelMode::downmix_2_to_1;
                 return {};
             }
-            return std::unexpected(Err{Errc::not_supported, 0});
+            return unexpected(Err{Errc::not_supported, 0});
         }
 
         void reset() noexcept {}

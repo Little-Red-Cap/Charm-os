@@ -17,7 +17,7 @@ public:
 
     void set_background(rgba bg) noexcept { bg_ = bg; has_bg_ = true; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         if (!is_visible()) return;
         const auto r = get_rect();
         if (has_bg_) {

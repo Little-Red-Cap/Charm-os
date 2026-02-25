@@ -35,7 +35,7 @@ public:
     int min() const noexcept { return min_; }
     int max() const noexcept { return max_; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<Progress>();
         const auto r = get_rect();
 

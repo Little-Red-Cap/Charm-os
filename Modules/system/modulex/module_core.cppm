@@ -8,6 +8,7 @@ export module module_core;
 import util.core;
 
 export namespace modulex {
+    using Addr = std::uintptr_t;
     constexpr util::u32 k_magic = 0x43484D4D; // 'CHMM'
     constexpr util::u16 k_version = 2;
 
@@ -62,7 +63,7 @@ export namespace modulex {
 
     struct Symbol {
         util::u32 name_offset{0};
-        util::usize value{0};
+        Addr value{0};
         util::u32 size{0};
         SymbolKind kind{SymbolKind::local};
         util::u16 flags{0};
@@ -72,4 +73,13 @@ export namespace modulex {
         util::u32 name_offset{0};
         util::u32 version_offset{0};
     };
+
+    inline Addr to_addr(const void* ptr) noexcept {
+        return reinterpret_cast<Addr>(ptr);
+    }
+
+    template <typename T>
+    inline T* addr_to_ptr(Addr addr) noexcept {
+        return reinterpret_cast<T*>(addr);
+    }
 }

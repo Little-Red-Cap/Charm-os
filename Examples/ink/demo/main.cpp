@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <span>
 #include <thread>
 #include <utility>
 #include <SDL3/SDL_log.h>
@@ -15,8 +16,15 @@ import gui.theme;
 import gui.layout;
 import gui.font;
 import gui.image_1bpp;
+import gui.ui_msgbox;
 import gui.qr_widget;
+import gui.perf;
 import backend.sdl3;
+import out.api;
+import alg_dither;
+import service_trace;
+import trace_core;
+import util.core;
 
 using Canvas = gui::Canvas1bpp<128, 64>;
 using Renderer = gui::Renderer<Canvas>;
@@ -75,6 +83,73 @@ inline void fill_round_rect_demo(Renderer& r, float t) noexcept {
     const int x = (128 - w) / 2;
     const int y = (64 - h) / 2;
     gui::fill_round_rect(r, gui::Rect{(std::int16_t)x, (std::int16_t)y, (std::int16_t)w, (std::int16_t)h});
+}
+
+inline void spinner_demo(Renderer& r, float t) noexcept {
+    const gui::Rect rc{48, 16, 32, 32};
+    const float phase = t * 2.0f * kPi;
+    r.drawText(6, 2, "Spinner", true);
+    gui::draw_spinner(r, rc, phase, true);
+}
+
+inline void progress_bar_demo(Renderer& r, float t) noexcept {
+    const std::uint8_t percent = (std::uint8_t)(t * 100.0f);
+    r.drawText(6, 2, "Progress", true);
+    gui::draw_progress_bar(r, gui::Rect{8, 28, 112, 12}, percent, true);
+}
+
+inline void led_demo(Renderer& r, float t) noexcept {
+    const bool on = t > 0.5f;
+    r.drawText(6, 2, "LED", true);
+    gui::draw_led(r, gui::Rect{56, 28, 16, 16}, on);
+}
+
+inline void msgbox_demo(Renderer& r, float t) noexcept {
+    (void)t;
+    gui::ui::MsgBoxView view{};
+    view.box = gui::Rect{8, 8, 112, 48};
+    view.content.title = "Warning";
+    view.content.message = "Low Battery";
+    view.content.left_btn = "Cancel";
+    view.content.right_btn = "OK";
+    view.content.focus_left = false;
+    view.fill_on = true;
+    view.border_on = true;
+    gui::ui::draw_msgbox(r, view);
+}
+
+inline void dither_demo(Renderer& r, float t) noexcept {
+    (void)t;
+    constexpr int w = 96;
+    constexpr int h = 32;
+    constexpr int stride = (w + 7) / 8;
+    static std::uint8_t gray[w * h]{};
+    static std::uint8_t bits[stride * h]{};
+    static bool init = false;
+    if (!init) {
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                gray[y * w + x] = (std::uint8_t)((x * 255) / (w - 1));
+            }
+        }
+        init = true;
+    }
+    alg::DitherConfig cfg{};
+    cfg.op = alg::DitherOperator::ordered;
+    cfg.ordered_mode = alg::DitherMode::bayer4;
+    cfg.params.threshold = 128;
+    gui::dither_gray_to_1bpp(std::span<const util::u8>{gray, (std::size_t)(w * h)},
+                             w, h, cfg,
+                             std::span<util::u8>{bits, (std::size_t)(stride * h)});
+    const gui::Image1bpp img{
+        (std::int16_t)w,
+        (std::int16_t)h,
+        (std::int16_t)stride,
+        bits,
+        gui::ImageLayout::RowMajorMsb
+    };
+    r.drawText(6, 2, "Dither", true);
+    gui::draw_image_1bpp(r, 16, 18, img, true);
 }
 
 inline void draw_circle(Renderer& r, int cx, int cy, int rad, bool on) noexcept {
@@ -484,6 +559,11 @@ static constexpr DemoItem kDemos[] = {
     {"Invert", 1200, &invert_demo},
     {"RoundRect", 1200, &round_rect_demo},
     {"FillRound", 1200, &fill_round_rect_demo},
+    {"Spinner", 1600, &spinner_demo},
+    {"Progress", 1600, &progress_bar_demo},
+    {"LED", 1600, &led_demo},
+    {"MsgBox", 2000, &msgbox_demo},
+    {"Dither", 1600, &dither_demo},
     {"Circle", 1200, &circle_demo},
     {"FillCircle", 1200, &fill_circle_demo},
     {"Ellipse", 1200, &ellipse_demo},
@@ -519,10 +599,67 @@ int main() try {
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
 
+    constexpr std::uint32_t kTraceFpsId = 1001;
+    constexpr std::uint32_t kTraceFrameId = 1002;
+    constexpr util::usize kTraceCap = 128;
+
+    struct TraceSink {
+        service::TraceBuffer<util::u32, kTraceCap> buffer{};
+        util::u32 now_ms{0};
+
+        void emit(trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+            service::TraceRecord<util::u32, kTraceCap> rec{};
+            rec.time = now_ms;
+            rec.id = id;
+            rec.payload = payload;
+            rec.count = 1;
+            rec.kind = kind;
+            buffer.push(rec);
+        }
+    };
+
+    auto trace_emit = [](void* ctx, trace::TraceKind kind, std::uint32_t id, std::uint64_t payload) noexcept {
+        auto* sink = static_cast<TraceSink*>(ctx);
+        if (!sink) return;
+        sink->emit(kind, id, payload);
+    };
+
+    auto trace_latest = [](const TraceSink& sink,
+                           std::uint32_t id,
+                           trace::TraceKind kind,
+                           std::uint64_t& out) noexcept -> bool {
+        const auto total = sink.buffer.size();
+        if (total == 0) return false;
+        const auto cap = sink.buffer.capacity();
+        const auto head = sink.buffer.head();
+        const auto& data = sink.buffer.data();
+        for (util::usize i = 0; i < total; ++i) {
+            const auto idx = (head + cap - 1 - i) % cap;
+            const auto& rec = data[idx];
+            if (rec.id == id && rec.kind == kind) {
+                out = rec.payload;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    TraceSink trace{};
+    gui::perf::FpsCounter fps{};
+    fps.set_trace_hook(gui::perf::TraceHook{&trace, trace_emit, kTraceFpsId, kTraceFrameId});
+
     std::size_t index = 0;
     while (true) {
         const auto now = clock::now();
         const auto ms = (std::uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - t0).count();
+        trace.now_ms = ms;
+        if (fps.update(ms)) {
+            std::uint64_t fps_x1000 = 0;
+            std::uint64_t frames = 0;
+            (void)trace_latest(trace, kTraceFpsId, trace::TraceKind::counter, fps_x1000);
+            (void)trace_latest(trace, kTraceFrameId, trace::TraceKind::counter_delta, frames);
+            (void)out::raw().template try_println<"trace_fps,{},{}">(fps_x1000, frames);
+        }
 
         const auto& demo = demo::kDemos[index];
         const std::uint32_t t_in = ms % demo.duration_ms;

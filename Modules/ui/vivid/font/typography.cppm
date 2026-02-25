@@ -4,6 +4,7 @@ export module charm.font.typography;
 
 export import charm.font;
 import charm.font.font_12;
+import charm.font.lv_font_montserrat_12;
 import charm.font.lv_font_montserrat_16;
 
 export enum class FontId : uint8_t {
@@ -16,6 +17,7 @@ export enum class FontId : uint8_t {
 export
 const Font& get_font(const FontId id) noexcept {
     switch (id) {
+    // case FontId::Small: return font_montserrat_12;
     case FontId::Small: return font_montserrat_16;
     case FontId::Normal: return font_montserrat_16;
     case FontId::Large: return font_montserrat_16;

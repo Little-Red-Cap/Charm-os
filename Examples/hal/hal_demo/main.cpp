@@ -5,12 +5,8 @@
 #include <thread>
 #include <chrono>
 
-import util.core;
-import hal_core;
-import hal_time;
-import hal_gpio;
-import hal_uart;
-import hal_timer;
+import charm.foundation;
+import charm.runtime;
 
 struct WinTime {
     using Tick = hal::tick_t;

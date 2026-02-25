@@ -1,4 +1,10 @@
+module;
+#include <cstddef>
+#include <expected>
+
 module out.port;
+
+import out.core;
 
 namespace out::port {
     static console_sink* g_default_console = nullptr;

@@ -29,7 +29,7 @@ public:
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<ListItem>();
         const auto r = get_rect();
 
@@ -90,7 +90,7 @@ public:
         set_flex_layout(1, 0, 0, 6, 6);
     }
 
-    void draw(DefaultCanvas& cvs) override {
+    void draw(CanvasBase& cvs) override {
         const Style& st = Theme::instance().get<List>();
         const auto r = get_rect();
         rgba bg = st.bg_color;

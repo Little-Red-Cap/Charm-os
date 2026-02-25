@@ -16,8 +16,7 @@ import gui.theme;
 import out.core;
 import out.format;
 
-namespace gui::detail
-{
+namespace {
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -82,13 +81,13 @@ export namespace gui::ui
         const int fps_f = fps10 % 10;
         std::string_view text;
         if (fps_aux < 0.0) {
-            text = detail::format_to<"{}:{}.{}">(buf, sizeof(buf), label, fps_i, fps_f);
+            text = format_to<"{}:{}.{}">(buf, sizeof(buf), label, fps_i, fps_f);
         } else {
             const int aux10 = (int)(fps_aux * 10.0 + 0.5);
             const int aux_i = aux10 / 10;
             const int aux_f = aux10 % 10;
-            text = detail::format_to<"{}:{}.{} / {}.{}">(buf, sizeof(buf),
-                                                       label, fps_i, fps_f, aux_i, aux_f);
+            text = format_to<"{}:{}.{} / {}.{}">(buf, sizeof(buf),
+                                                label, fps_i, fps_f, aux_i, aux_f);
         }
         const int w = gui::layout::text_width(*st.font, text);
         const int base = gui::layout::baseline_from_top(*st.font, st.pad_x);

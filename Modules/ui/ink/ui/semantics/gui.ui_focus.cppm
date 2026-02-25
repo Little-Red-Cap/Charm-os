@@ -8,40 +8,51 @@ export module gui.ui_focus;
 
 import gui.ui_tree;
 import gui.ui_semantics;
+import gui.trace;
+import service.fixed_list;
+import util.core;
 
 export namespace gui::ui {
 
     template<int Max>
     struct FocusList {
-        NodeId ids[Max]{};
-        int count{0};
+        service::FixedList<NodeId, static_cast<util::usize>(Max)> ids{};
         int index{0};
 
         void reset() noexcept {
-            count = 0;
+            ids.clear();
             index = 0;
         }
 
         void add(NodeId id) noexcept {
-            if (count >= Max) return;
-            ids[count++] = id;
+            (void)ids.push_back(id);
+        }
+
+        [[nodiscard]] int count() const noexcept {
+            return static_cast<int>(ids.size());
+        }
+
+        [[nodiscard]] NodeId at(int i) const noexcept {
+            return ids[static_cast<util::usize>(i)];
         }
 
         [[nodiscard]] NodeId current() const noexcept {
-            if (count <= 0) return kNullId;
-            const int i = (index < 0) ? 0 : (index >= count ? (count - 1) : index);
-            return ids[i];
+            const int n = count();
+            if (n <= 0) return kNullId;
+            const int i = (index < 0) ? 0 : (index >= n ? (n - 1) : index);
+            return at(i);
         }
 
         void move(int delta, bool ring = true) noexcept {
-            if (count <= 0 || delta == 0) return;
+            const int n = count();
+            if (n <= 0 || delta == 0) return;
             int i = index + delta;
             if (ring) {
-                i %= count;
-                if (i < 0) i += count;
+                i %= n;
+                if (i < 0) i += n;
             } else {
                 if (i < 0) i = 0;
-                if (i >= count) i = count - 1;
+                if (i >= n) i = n - 1;
             }
             index = i;
         }
@@ -94,8 +105,9 @@ export namespace gui::ui {
     template<int Max>
     [[nodiscard]] int index_of(const FocusList<Max>& list, NodeId id) noexcept
     {
-        for (int i = 0; i < list.count; ++i) {
-            if (list.ids[i] == id) return i;
+        const int n = list.count();
+        for (int i = 0; i < n; ++i) {
+            if (list.at(i) == id) return i;
         }
         return -1;
     }
@@ -140,7 +152,7 @@ export namespace gui::ui {
         const std::int16_t prev_index = focus.index;
         const NodeId prev_target = focus.target_id;
 
-        const std::int16_t count = (std::int16_t)domain.count;
+        const std::int16_t count = (std::int16_t)domain.count();
         const bool empty = (count <= 0);
         const bool domain_changed = (focus.domain_id != domain_id) || (focus.count != count);
         const int target_idx = empty ? -1 : index_of(domain, focus.target_id);
@@ -168,7 +180,13 @@ export namespace gui::ui {
             focus.domain_id = domain_id;
             focus.count = count;
             focus.index = (std::int16_t)new_index;
-            focus.target_id = domain.ids[new_index];
+            focus.target_id = domain.at(new_index);
+        }
+
+        if (out.reason != FocusSyncReason::None) {
+            const auto id = static_cast<util::u32>(gui::trace::TraceId::FocusSyncReasonBase)
+                + static_cast<util::u32>(out.reason);
+            gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
         }
 
         out.changed = (focus.domain_id != prev_domain)
@@ -190,7 +208,7 @@ export namespace gui::ui {
         const std::int16_t prev_index = focus.index;
         const NodeId prev_target = focus.target_id;
 
-        const std::int16_t count = (std::int16_t)domain.count;
+        const std::int16_t count = (std::int16_t)domain.count();
         const bool empty = (count <= 0);
         const bool domain_changed = (focus.domain_id != domain_id) || (focus.count != count);
         const int target_idx = empty ? -1 : index_of(domain, focus.target_id);
@@ -218,7 +236,13 @@ export namespace gui::ui {
             focus.domain_id = domain_id;
             focus.count = count;
             focus.index = (std::int16_t)new_index;
-            focus.target_id = domain.ids[new_index];
+            focus.target_id = domain.at(new_index);
+        }
+
+        if (out.reason != FocusSyncReason::None) {
+            const auto id = static_cast<util::u32>(gui::trace::TraceId::FocusSyncReasonBase)
+                + static_cast<util::u32>(out.reason);
+            gui::trace::trace_counter_delta(static_cast<gui::trace::TraceId>(id), 1);
         }
 
         out.changed = (focus.domain_id != prev_domain)

@@ -50,6 +50,7 @@ export namespace kernel {
                         remove_ready(TaskId{static_cast<std::size_t>(drop_task)});
                     }
                     release_node(drop_node);
+                    if (count_ > 0) --count_;
                     return push(task, event, tag, prio, policy);
                 }
                 return false;
@@ -57,6 +58,7 @@ export namespace kernel {
             nodes_[static_cast<util::usize>(node)] = EventNode{task, event, tag};
             next_[static_cast<util::usize>(node)] = -1;
             append_event(task, node);
+            ++count_;
             if (!ready_[task.value].in_list) {
                 add_ready(task, prio);
             }
@@ -85,6 +87,7 @@ export namespace kernel {
                 evt_tail_[task.value] = -1;
             }
             release_node(node);
+            if (count_ > 0) --count_;
 
             if (evt_head_[task.value] != -1) {
                 add_ready(task, ready_[task.value].prio);
@@ -109,6 +112,7 @@ export namespace kernel {
                             evt_tail_[t] = prev;
                         }
                         release_node(current);
+                        if (count_ > 0) --count_;
                         if (evt_head_[t] == -1) {
                             remove_ready(TaskId{t});
                         }
@@ -145,6 +149,7 @@ export namespace kernel {
             while (current != -1) {
                 const auto next = next_[static_cast<util::usize>(current)];
                 release_node(current);
+                if (count_ > 0) --count_;
                 current = next;
                 removed = true;
             }
@@ -174,6 +179,7 @@ export namespace kernel {
                         evt_tail_[task.value] = prev;
                     }
                     release_node(current);
+                    if (count_ > 0) --count_;
                     removed = true;
                 } else {
                     prev = current;
@@ -206,6 +212,7 @@ export namespace kernel {
                         evt_tail_[task.value] = prev;
                     }
                     release_node(current);
+                    if (count_ > 0) --count_;
                     removed = true;
                 } else {
                     prev = current;
@@ -220,12 +227,17 @@ export namespace kernel {
                 nodes_[static_cast<util::usize>(node)] = EventNode{task, evt, tag};
                 next_[static_cast<util::usize>(node)] = -1;
                 append_event(task, node);
+                ++count_;
                 if (!ready_[task.value].in_list) {
                     add_ready(task, ready_[task.value].prio);
                 }
                 return true;
             }
             return false;
+        }
+
+        [[nodiscard]] std::size_t size() const noexcept {
+            return count_;
         }
 
     private:
@@ -240,6 +252,7 @@ export namespace kernel {
         std::array<ReadyLink, TaskCount> ready_{};
         std::array<int, PriorityLevels> ready_head_{};
         std::array<int, PriorityLevels> ready_tail_{};
+        std::size_t count_{0};
 
         constexpr void init_state() noexcept {
             for (util::usize i = 0; i < Capacity; ++i) {
@@ -255,6 +268,7 @@ export namespace kernel {
                 ready_head_[p] = -1;
                 ready_tail_[p] = -1;
             }
+            count_ = 0;
         }
 
         int alloc_node() noexcept {

@@ -39,7 +39,7 @@ public:
         set_checked([&](WidgetHandle wh) { return f.get_radio(wh); }, h);
     }
 
-    void draw(DefaultCanvas&) override {}
+    void draw(CanvasBase&) override {}
 
 private:
     WidgetHandle radios_[kMax]{};

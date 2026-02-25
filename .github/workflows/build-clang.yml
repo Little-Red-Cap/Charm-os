@@ -1,10 +1,7 @@
-name: Windows (Clang)
+﻿name: Windows (Clang)
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build-clang:
@@ -25,25 +22,43 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
 
       - name: Configure
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --version
           clang --version
           ninja --version
+          ccache --version
 
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++ -fno-exceptions -fno-rtti -ffreestanding" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
       - name: Build
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --build build
+          ccache --show-stats
 
       - name: Test
         shell: msys2 {0}
@@ -68,19 +83,105 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
 
-      - name: Configure (Windows example)
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
+
+      - name: Configure (Kernel Windows example)
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
-          cmake -G Ninja -S Examples/windows -B build-win \
+          cmake -G Ninja -S Examples/kernel/windows -B build-win \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
             -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++"
 
-      - name: Build (Windows example)
+      - name: Build (Kernel Windows example)
         shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
         run: |
           cmake --build build-win
+          ccache --show-stats
 
+  build-examples:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - { name: alg, path: Examples/alg/alg_demo, target: alg-demo }
+          - { name: boot, path: Examples/boot/bootloader_demo, target: bootloader-demo }
+          - { name: fs-demo, path: Examples/fs/vsf_fs_demo, target: vsf-fs-demo }
+          - { name: fs-block, path: Examples/fs/vsf_fs_block_demo, target: vsf-fs-block-demo }
+          - { name: fs-vfs, path: Examples/fs/vsf_fs_vfs_demo, target: vsf-fs-vfs-demo }
+          - { name: fs-posix, path: Examples/fs/vsf_fs_posix, target: vsf-fs-posix-demo }
+          - { name: hal, path: Examples/hal/hal_demo, target: hal-demo }
+          - { name: service-core, path: Examples/service/vsf_service_core, target: vsf-service-core-demo }
+          - { name: service-ds, path: Examples/service/service_ds_demo, target: service-ds-demo }
+          - { name: shell, path: Examples/shell/vsf_service_shell, target: vsf-service-shell-demo }
+          - { name: shell-fs, path: Examples/shell/vsf_shell_fs_module, target: vsf-shell-fs-module-demo }
+          - { name: audio, path: Examples/audio/sdl3_wav_demo, target: sdl3-wav-demo }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2 (CLANG64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          cache: true
+          cache-key: msys2-${{ runner.os }}-clang64
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-libc++
+            mingw-w64-clang-x86_64-ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\.cache\ccache
+          key: ccache-${{ runner.os }}-clang-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-${{ github.ref }}-
+            ccache-${{ runner.os }}-clang-
+
+      - name: Configure (${{ matrix.example.name }})
+        shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
+        run: |
+          cmake -G Ninja -S ${{ matrix.example.path }} -B build-${{ matrix.example.name }} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+            -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+            -DCHARM_USE_SYSTEM_SDL3=OFF \
+            -DCHARM_FETCHCONTENT_SDL3=ON \
+            -DCHARM_FETCHCONTENT_ETL=ON
+
+      - name: Build (${{ matrix.example.name }})
+        shell: msys2 {0}
+        env:
+          CCACHE_DIR: C:\Users\runneradmin\.cache\ccache
+        run: |
+          cmake --build build-${{ matrix.example.name }} --target ${{ matrix.example.target }}
+          ccache --show-stats

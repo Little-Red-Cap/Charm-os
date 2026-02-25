@@ -17,6 +17,7 @@ export namespace boot {
         bool require_signature{false};
     };
 
+    // NOTE: This is a weak checksum-based signature and is NOT secure.
     inline util::u32 calc_signature(util::u32 key, const util::u8* data, util::usize len) noexcept {
         util::u32 crc = key;
         return crc32_update(crc, data, len);
@@ -34,14 +35,16 @@ export namespace boot {
         return true;
     }
 
-    inline bool verify_partition_policy(const Storage& s, const Partition& p,
-                                        const Policy& policy, const BootInfo& info) noexcept {
+    inline BootStatus verify_partition_policy_status(const Storage& s, const Partition& p,
+                                                     const Policy& policy, const BootInfo& info) noexcept {
         ImageHeader h{};
-        if (!read_header(s, p, h)) return false;
-        if (h.magic != k_magic || h.version != k_version) return false;
-        if (h.image_size > p.size || h.payload_size > p.size) return false;
-        if (h.payload_size == 0) return false;
-        if (!verify_version(h, policy, info)) return false;
+        if (!read_header(s, p, h)) return BootStatus::io_error;
+        if (h.magic != k_magic || h.version != k_version) return BootStatus::invalid;
+        if (h.payload_size == 0) return BootStatus::invalid;
+        const util::u32 header_size = static_cast<util::u32>(sizeof(ImageHeader));
+        if (h.payload_size + header_size > p.size) return BootStatus::invalid;
+        if (h.image_size < h.payload_size + header_size || h.image_size > p.size) return BootStatus::invalid;
+        if (!verify_version(h, policy, info)) return BootStatus::invalid;
 
         std::array<util::u8, 128> buf{};
         util::u32 crc = 0;
@@ -49,16 +52,21 @@ export namespace boot {
         util::u32 offset = p.offset + static_cast<util::u32>(sizeof(ImageHeader));
         while (remaining > 0) {
             const auto chunk = remaining > buf.size() ? static_cast<util::u32>(buf.size()) : remaining;
-            if (!storage_read(s, offset, util::span<util::u8>(buf.data(), chunk))) return false;
+            if (!storage_read(s, offset, util::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
             crc = crc32_update(crc, buf.data(), chunk);
             offset += chunk;
             remaining -= chunk;
         }
-        if (crc != h.payload_crc32) return false;
+        if (crc != h.payload_crc32) return BootStatus::invalid;
         if (policy.require_signature || (h.flags & static_cast<util::u16>(ImageFlags::signed_image)) != 0) {
-            if (!verify_signature(h, policy.sign_key, crc)) return false;
+            if (!verify_signature(h, policy.sign_key, crc)) return BootStatus::invalid;
         }
-        return true;
+        return BootStatus::ok;
+    }
+
+    inline bool verify_partition_policy(const Storage& s, const Partition& p,
+                                        const Policy& policy, const BootInfo& info) noexcept {
+        return verify_partition_policy_status(s, p, policy, info) == BootStatus::ok;
     }
 
     inline BootResult select_slot_policy(const Storage& s, const BootConfig& cfg,
@@ -66,8 +74,10 @@ export namespace boot {
         if (!read_boot_info(s, cfg.info, info)) {
             info = {};
         }
-        const bool a_ok = verify_partition_policy(s, cfg.slot_a, policy, info);
-        const bool b_ok = verify_partition_policy(s, cfg.slot_b, policy, info);
+        const auto a_status = verify_partition_policy_status(s, cfg.slot_a, policy, info);
+        const auto b_status = verify_partition_policy_status(s, cfg.slot_b, policy, info);
+        const bool a_ok = a_status == BootStatus::ok;
+        const bool b_ok = b_status == BootStatus::ok;
 
         auto pick = [&](Slot slot) -> BootResult {
             return {BootStatus::ok, slot};
@@ -79,6 +89,9 @@ export namespace boot {
         if (info.active == Slot::b && b_ok) return pick(Slot::b);
         if (a_ok) return pick(Slot::a);
         if (b_ok) return pick(Slot::b);
+        if (a_status == BootStatus::io_error || b_status == BootStatus::io_error) {
+            return {BootStatus::io_error, Slot::a};
+        }
         return {BootStatus::invalid, Slot::a};
     }
 }

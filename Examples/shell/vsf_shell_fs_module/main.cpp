@@ -6,23 +6,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_core;
-import fs_ramfs;
-import fs_stream;
-import fs_vfs;
-import fs_errno;
-import shell_core;
-import shell_cmd;
-import shell_posix;
-import shell_repl;
-import shell_service;
-import shell_stdio;
-import module_core;
-import module_loader;
-import module_link;
-import module_registry;
-import module_view;
+import charm.foundation;
+import charm.runtime;
 
 using Posix = shell_posix::PosixApi<8>;
 
@@ -607,7 +592,7 @@ static const std::array<shell::Command, 4> cmds{{
 int main() {
     static fs::RamFs<64, 8, 32> ramfs;
     static fs::MountOps mops{
-        .open = +[](std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
+        .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return ramfs.open(path, f); },
         .unlink = +[](fs::Mount*, std::string_view path) noexcept { return ramfs.unlink(path); },
         .rename = +[](fs::Mount*, std::string_view from, std::string_view to) noexcept { return ramfs.rename(from, to); },
         .truncate = +[](fs::Mount*, std::string_view path, util::u64 size) noexcept { return ramfs.truncate(path, size); },

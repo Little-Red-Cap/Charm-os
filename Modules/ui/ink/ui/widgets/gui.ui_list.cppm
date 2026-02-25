@@ -11,7 +11,7 @@ import gui.core;
 import gui.layout;
 import gui.ui_tree;
 import gui.ui_focus;
-import gui.list_layout;
+import alg_list_layout;
 import gui.list_view;
 import gui.widgets;
 import gui.motion;
@@ -116,7 +116,7 @@ export namespace gui::ui {
 
         template<class R>
         void draw_scrollbar_if_needed(R& r,
-                                      const gui::list::Layout& layout,
+                                      const alg::list::Layout& layout,
                                       std::int16_t count,
                                       std::int16_t focus_index,
                                       std::uint32_t now_ms) noexcept
@@ -204,7 +204,7 @@ export namespace gui::ui {
         void draw(R& r,
                   std::span<const gui::ListItem<Ctx>> items,
                   std::int16_t count,
-                  const gui::list::Layout& layout,
+                  const alg::list::Layout& layout,
                   std::int16_t focus_index,
                   std::int16_t pressed_index,
                   std::uint32_t now_ms,
@@ -344,7 +344,7 @@ export namespace gui::ui {
         void draw(R& r,
                   GetItemFn&& get_item,
                   std::int16_t count,
-                  const gui::list::Layout& layout,
+                  const alg::list::Layout& layout,
                   std::int16_t focus_index,
                   std::int16_t pressed_index,
                   std::uint32_t now_ms,

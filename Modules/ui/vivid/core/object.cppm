@@ -6,6 +6,7 @@ export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.gfx.canvas;
 export import charm.core.event;
+export import charm.core.input_interaction;
 
 export
 class ObjectBase {
@@ -16,6 +17,28 @@ public:
     void set_pos(int x, int y) noexcept { rect_.x = x; rect_.y = y; }
     void set_size(int w, int h) noexcept { rect_.w = w; rect_.h = h; }
     void set_rect(Rect r) noexcept { rect_ = r; }
+    virtual Rect layout_rect() const noexcept { return rect_; }
+
+    enum class ClipPolicy : unsigned {
+        None,
+        Rect,
+        LayoutRect,
+        Custom
+    };
+
+    enum class CachePolicy : unsigned {
+        None,
+        Subtree
+    };
+
+    void set_clip_policy(ClipPolicy policy) noexcept { clip_policy_ = policy; }
+    ClipPolicy clip_policy() const noexcept { return clip_policy_; }
+    virtual Rect children_clip_rect() const noexcept { return rect_; }
+    void set_cache_policy(CachePolicy policy) noexcept { cache_policy_ = policy; }
+    CachePolicy cache_policy() const noexcept { return cache_policy_; }
+    void mark_cache_dirty() noexcept { cache_dirty_ = true; }
+    bool cache_dirty() const noexcept { return cache_dirty_; }
+    void clear_cache_dirty() noexcept { cache_dirty_ = false; }
 
     void set_visible(bool v) noexcept {
         visible_ = v;
@@ -32,6 +55,35 @@ public:
         Pressed   = 1 << 1,
         Focused   = 1 << 2,
         Disabled  = 1 << 3
+    };
+
+    enum class LayoutMode : unsigned {
+        Anchor,
+        Flex,
+        Flow,
+        Grid,
+        Constraint,
+        Custom
+    };
+
+    struct LayoutSpec {
+        LayoutMode kind{LayoutMode::Anchor};
+        int flow{0};
+        int main_align{0};
+        int cross_align{0};
+        int gap{0};
+        int padding{0};
+        int line_gap{0};
+        int columns{1};
+        int cell_w{0};
+        int cell_h{0};
+        int grid_gap{0};
+        int grid_padding{0};
+        int custom_id{0};
+        int custom_param0{0};
+        int custom_param1{0};
+        int custom_param2{0};
+        int custom_param3{0};
     };
 
     void set_state(State s, bool on) noexcept {
@@ -57,15 +109,102 @@ public:
 
     void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
         flex_enabled_ = true;
+        layout_mode_ = LayoutMode::Flex;
         flex_flow_ = flow;
         flex_main_align_ = main_align;
         flex_cross_align_ = cross_align;
         flex_gap_ = gap;
         flex_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Flex;
+        layout_spec_.flow = flow;
+        layout_spec_.main_align = main_align;
+        layout_spec_.cross_align = cross_align;
+        layout_spec_.gap = gap;
+        layout_spec_.padding = padding;
     }
 
     void set_flex_grow(int grow) noexcept { flex_grow_ = (grow > 0) ? grow : 0; }
     int flex_grow() const noexcept { return flex_grow_; }
+
+    void set_flow_layout(int gap, int line_gap, int padding) noexcept {
+        layout_mode_ = LayoutMode::Flow;
+        flow_gap_ = gap;
+        flow_line_gap_ = line_gap;
+        flow_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Flow;
+        layout_spec_.gap = gap;
+        layout_spec_.line_gap = line_gap;
+        layout_spec_.padding = padding;
+    }
+
+    int flow_gap() const noexcept { return flow_gap_; }
+    int flow_line_gap() const noexcept { return flow_line_gap_; }
+    int flow_padding() const noexcept { return flow_padding_; }
+
+    void set_grid_layout(int columns, int cell_w, int cell_h, int gap, int padding) noexcept {
+        layout_mode_ = LayoutMode::Grid;
+        grid_cols_ = (columns > 0) ? columns : 1;
+        grid_cell_w_ = cell_w;
+        grid_cell_h_ = cell_h;
+        grid_gap_ = gap;
+        grid_padding_ = padding;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Grid;
+        layout_spec_.columns = grid_cols_;
+        layout_spec_.cell_w = cell_w;
+        layout_spec_.cell_h = cell_h;
+        layout_spec_.grid_gap = gap;
+        layout_spec_.grid_padding = padding;
+    }
+
+    int grid_columns() const noexcept { return grid_cols_; }
+    int grid_cell_width() const noexcept { return grid_cell_w_; }
+    int grid_cell_height() const noexcept { return grid_cell_h_; }
+    int grid_gap() const noexcept { return grid_gap_; }
+    int grid_padding() const noexcept { return grid_padding_; }
+
+    void set_constraint_layout(int padding = 0) noexcept {
+        layout_mode_ = LayoutMode::Constraint;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Constraint;
+        layout_spec_.padding = padding;
+    }
+
+    void set_custom_layout(int custom_id,
+                           int p0 = 0,
+                           int p1 = 0,
+                           int p2 = 0,
+                           int p3 = 0) noexcept {
+        layout_mode_ = LayoutMode::Custom;
+        layout_spec_enabled_ = true;
+        layout_spec_ = {};
+        layout_spec_.kind = LayoutMode::Custom;
+        layout_spec_.custom_id = custom_id;
+        layout_spec_.custom_param0 = p0;
+        layout_spec_.custom_param1 = p1;
+        layout_spec_.custom_param2 = p2;
+        layout_spec_.custom_param3 = p3;
+    }
+
+    void set_layout_spec(const LayoutSpec& spec) noexcept {
+        layout_spec_enabled_ = true;
+        layout_spec_ = spec;
+        layout_mode_ = spec.kind;
+    }
+
+    void clear_layout_spec() noexcept {
+        layout_spec_enabled_ = false;
+        layout_spec_ = {};
+        layout_mode_ = LayoutMode::Anchor;
+    }
+    bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
+    const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
 
     void set_anchor(int left, int top, int right, int bottom) noexcept {
         anchor_enabled_ = true;
@@ -92,6 +231,58 @@ public:
     int percent_height() const noexcept { return percent_h_; }
     bool has_percent_size() const noexcept { return percent_w_ >= 0 || percent_h_ >= 0; }
 
+    bool add_interaction(InteractionStrategy* strategy,
+                         InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
+        return interactions_.add(strategy, mask);
+    }
+
+    bool remove_interaction(InteractionStrategy* strategy) noexcept {
+        return interactions_.remove(strategy);
+    }
+
+    bool enable_interaction(InteractionStrategy* strategy,
+                            InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
+        return interactions_.add(strategy, mask);
+    }
+
+    bool disable_interaction(InteractionStrategy* strategy) noexcept {
+        return interactions_.remove(strategy);
+    }
+
+    bool dispatch_interactions(const Event& e) {
+        return interactions_.on_event(e);
+    }
+
+    void enable_default_drag(DragStrategy::BeginFn begin_fn,
+                             DragStrategy::UpdateFn update_fn,
+                             DragStrategy::EndFn end_fn,
+                             void* ctx) noexcept {
+        default_drag_.set_callbacks(begin_fn, update_fn, end_fn, ctx);
+        const auto mask = InteractionList<>::mask(Event::Type::DragStart)
+            | InteractionList<>::mask(Event::Type::DragMove)
+            | InteractionList<>::mask(Event::Type::DragEnd);
+        interactions_.add(&default_drag_, mask);
+    }
+
+    void disable_default_drag() noexcept { interactions_.remove(&default_drag_); }
+
+    void enable_default_long_press(LongPressStrategy::Callback fn,
+                                   void* ctx,
+                                   int ms = 500,
+                                   int move_px = 6) noexcept {
+        default_long_press_.set_callback(fn, ctx);
+        default_long_press_.set_threshold(ms, move_px);
+        const auto mask = InteractionList<>::mask(Event::Type::MouseDown)
+            | InteractionList<>::mask(Event::Type::MouseMove)
+            | InteractionList<>::mask(Event::Type::MouseUp)
+            | InteractionList<>::mask(Event::Type::DragStart)
+            | InteractionList<>::mask(Event::Type::DragMove)
+            | InteractionList<>::mask(Event::Type::DragEnd);
+        interactions_.add(&default_long_press_, mask);
+    }
+
+    void disable_default_long_press() noexcept { interactions_.remove(&default_long_press_); }
+
     void set_min_size(int w, int h) noexcept { min_w_ = w; min_h_ = h; }
     void clear_min_size() noexcept { min_w_ = 0; min_h_ = 0; }
     int min_width() const noexcept { return min_w_; }
@@ -112,6 +303,7 @@ public:
     int flex_cross_align() const noexcept { return flex_cross_align_; }
     int flex_gap() const noexcept { return flex_gap_; }
     int flex_padding() const noexcept { return flex_padding_; }
+    LayoutMode layout_mode() const noexcept { return layout_mode_; }
 
     bool add_child(WidgetHandle child) noexcept {
         if (child_count_ >= kMaxChildren) return false;
@@ -217,16 +409,31 @@ public:
         return child_count_;
     }
 
-    virtual void draw(DefaultCanvas& cvs) = 0;
+    virtual void draw(CanvasBase& cvs) = 0;
 
     virtual bool on_event(const Event&) { return false; }
 
     virtual bool should_draw_child(const ObjectBase&) const noexcept { return true; }
+    void set_children_bounds(const Rect& bounds, bool valid) noexcept {
+        children_bounds_ = bounds;
+        children_bounds_valid_ = valid;
+    }
+    bool has_children_bounds() const noexcept { return children_bounds_valid_; }
+    Rect children_bounds() const noexcept { return children_bounds_; }
+
+    bool take_dirty_hint(Rect& out) noexcept {
+        if (!dirty_hint_valid_) return false;
+        out = dirty_hint_;
+        dirty_hint_valid_ = false;
+        return true;
+    }
 
 protected:
     static constexpr std::size_t kMaxChildren = 64;
 
     Rect rect_{};
+    Rect children_bounds_{};
+    bool children_bounds_valid_{false};
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
@@ -237,6 +444,15 @@ protected:
     int flex_gap_{0};
     int flex_padding_{0};
     int flex_grow_{0};
+    LayoutMode layout_mode_{LayoutMode::Anchor};
+    int flow_gap_{0};
+    int flow_line_gap_{0};
+    int flow_padding_{0};
+    int grid_cols_{1};
+    int grid_cell_w_{0};
+    int grid_cell_h_{0};
+    int grid_gap_{0};
+    int grid_padding_{0};
     bool anchor_enabled_{false};
     int anchor_left_{0};
     int anchor_top_{0};
@@ -250,9 +466,37 @@ protected:
     int max_h_{0};
     int align_h_{0};
     int align_v_{0};
+    bool layout_spec_enabled_{false};
+    LayoutSpec layout_spec_{};
+    ClipPolicy clip_policy_{ClipPolicy::None};
+    CachePolicy cache_policy_{CachePolicy::None};
+    bool cache_dirty_{false};
+    InteractionList<> interactions_{};
+    DragStrategy default_drag_{};
+    LongPressStrategy default_long_press_{};
     WidgetHandle parent_{};
     WidgetHandle children_[kMaxChildren]{};
     std::size_t child_count_{0};
+    Rect dirty_hint_{};
+    bool dirty_hint_valid_{false};
+
+    void mark_dirty_hint(const Rect& r) noexcept {
+        if (r.w <= 0 || r.h <= 0) return;
+        cache_dirty_ = true;
+        if (!dirty_hint_valid_) {
+            dirty_hint_ = r;
+            dirty_hint_valid_ = true;
+            return;
+        }
+        const int left = (r.x < dirty_hint_.x) ? r.x : dirty_hint_.x;
+        const int top = (r.y < dirty_hint_.y) ? r.y : dirty_hint_.y;
+        const int right = ((r.x + r.w) > (dirty_hint_.x + dirty_hint_.w)) ? (r.x + r.w) : (dirty_hint_.x + dirty_hint_.w);
+        const int bottom = ((r.y + r.h) > (dirty_hint_.y + dirty_hint_.h)) ? (r.y + r.h) : (dirty_hint_.y + dirty_hint_.h);
+        dirty_hint_.x = left;
+        dirty_hint_.y = top;
+        dirty_hint_.w = right - left;
+        dirty_hint_.h = bottom - top;
+    }
 };
 
 export

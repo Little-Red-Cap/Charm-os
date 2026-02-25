@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 export module boot_core;
 
@@ -10,6 +11,7 @@ import util.core;
 export namespace boot {
     constexpr util::u32 k_magic = 0x424F4F54; // 'BOOT'
     constexpr util::u16 k_version = 1;
+    constexpr util::u32 k_boot_info_magic = 0x42494E46; // 'BINF'
 
     enum class ImageFlags : util::u16 {
         none = 0,
@@ -44,6 +46,10 @@ export namespace boot {
     };
 
     struct BootInfo {
+        util::u32 magic{k_boot_info_magic};
+        util::u16 version{k_version};
+        util::u16 size{sizeof(BootInfo)};
+        util::u32 crc{0};
         Slot active{Slot::a};
         Slot pending{Slot::a};
         util::u32 flags{0};
@@ -51,6 +57,10 @@ export namespace boot {
         util::u32 last_good_version{0};
         util::u32 min_version{0};
     };
+
+    static_assert(std::is_trivially_copyable_v<ImageHeader>);
+    static_assert(std::is_trivially_copyable_v<BootInfo>);
+    // TODO: define explicit serialization/endianness for on-flash structures.
 
     inline util::u32 crc32_update(util::u32 crc, const util::u8* data, util::usize len) noexcept {
         crc = ~crc;

@@ -13,6 +13,7 @@ export import gui.layout;
 export import gui.motion;
 export import gui.perf;
 export import gui.qr_encode;
+export import gui.trace;
 
 export import gui.renderer;
 
@@ -21,10 +22,14 @@ export import input.events;
 export import input.intent;
 export import input.queue;
 export import input.raw;
+export import input.raw_event;
 export import input.sampler;
+export import input.raw_sampler;
+export import input.trace;
 
 export import gui.qr_widget;
 export import gui.widgets;
+export import gui.ui_msgbox;
 export import gui.ui_button;
 export import gui.ui_immediate;
 export import gui.ui_list;
@@ -34,7 +39,7 @@ export import gui.ui_list_shell;
 export import gui.ui_perf;
 export import gui.ui_popup;
 export import gui.ui_scrollbar;
-export import gui.list_layout;
+export import alg_list_layout;
 export import gui.list_view;
 
 export import gui.ui_context;
@@ -44,8 +49,10 @@ export import gui.ui_focus_bookmark;
 export import gui.ui_highlight;
 export import gui.ui_hit_test;
 export import gui.ui_input_policy;
+export import gui.ui_input_adapter;
 export import gui.ui_nav;
 export import gui.ui_semantics;
+export import gui.ui_semantics_bridge;
 export import gui.ui_settings;
 export import gui.ui_tree;
 export import gui.ui_vtree;

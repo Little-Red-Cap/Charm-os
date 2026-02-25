@@ -6,6 +6,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
+<br>
+[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
 > 统一的模块化架构拼图：核心/系统/IO/媒体/UI 一体化组织，随取随插。
 
@@ -27,9 +30,34 @@
 - `Modules/ui/ink/` —— Charm-ink UI
 - `Modules/ui/vivid/` —— Charm-vivid UI
 - `Modules/platform/` —— 平台适配（win/未来 MCU）
+- `Modules/io/usb/` —— USB 设备端骨架与类草案
 - `Examples/` —— 示例工程（内核/boot/audio/fs/shell/service/alg/hal）
 - `docs/` —— 架构与协作文档
 - `Draft/` —— 计划/草案（可变动）
+
+## 🧩 现有拼图（按层级）
+
+**Foundation**
+- util/expected/units
+- service：ring_buffer/pool/trace/stream/json
+- out：格式化与日志统一通路
+
+**IO / HAL**
+- hal：UART/SPI/I2C/GPIO/IRQ/Timer/Clock
+- input：RawInputEvent/Sampler/Intent/导航
+- fs：VFS + RamFs + BlockFs + FatFs + MAL + POSIX facade
+- usb：common/device/driver + CDC/UAC/MSC 骨架
+- proto：X/YModem（含最小 demo）
+
+**Kernel / System**
+- EDA 事件队列与调度骨架
+- 设备模型/registry/driver 生命周期
+- Power/Low-Power 基础框架
+
+**Domains**
+- Audio：sink/pipeline/player + SDL3 验证链路
+- UI：Ink/Vivid 能力迁移与统一（容器/trace/算法复用）
+- Bootloader：分层/阶段文档 + 传输协议落点
 
 ## 🎯 参与入口（按方向快速上手）
 
@@ -62,6 +90,16 @@
 1. 读文档：`Modules/system/modulex/ModuleX_格式草案.md`
 2. 看实现：`Modules/system/modulex/`
 3. 跑示例：`Examples/shell/vsf_shell_fs_module`
+
+### USB
+1. 读文档：`docs/usb_arch_plan.md`
+2. 看实现：`Modules/io/usb/`
+3. 跑示例：`Examples/usb/usb_cdc_minimal`
+
+### UI/Vivid
+1. 读文档：`Modules/ui/vivid/ARCHITECTURE.md`、`Modules/ui/vivid/FEATURES.md`
+2. 看实现：`Modules/ui/vivid/`
+3. 跑示例：`Examples/project/scope`
 
 ## 🚀 主线 Demos（Windows）
 - **M0** `Examples/kernel/windows/main.cpp` ：kernel + timer + event queue
@@ -122,6 +160,7 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 - `Examples/alg/alg_demo`：算法/压缩示例
 - `Examples/boot/bootloader_demo`：bootloader 示例
 - `Examples/audio/sdl3_wav_demo`：SDL3 音频示例
+- `Examples/usb/usb_cdc_minimal`：CDC 最小枚举示例
 
 ### 示例构建
 ```bash

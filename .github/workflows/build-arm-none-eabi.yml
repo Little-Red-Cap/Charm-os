@@ -1,10 +1,7 @@
-name: STM32 (arm-none-eabi 15.2.rel1)
+﻿name: STM32 (arm-none-eabi 15.2.rel1)
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   stm32:
@@ -17,7 +14,7 @@ jobs:
         with:
           release: "15.2.Rel1"
 
-      # 固定使用新版 CMake + Ninja，避免 runner 自带CMake版本 < 4.0
+      # 固定使用新版 CMake + Ninja，避免 runner 自带 CMake 版本 < 4.0
       - name: Install CMake 4.1.2 and Ninja
         uses: lukka/get-cmake@latest
         with:
@@ -30,14 +27,14 @@ jobs:
           cmake --version
           ninja --version
 
-      - name: Configure (STM32 subproject)
+      - name: Configure (STM32 Ink example)
         run: |
           cmake -G Ninja `
-            -S examples/stm32f103c8 `
+            -S Examples/ink/stm32f103c8 `
             -B build-stm32 `
             -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build (STM32)
+      - name: Build (STM32 Ink)
         run: |
           cmake --build build-stm32
 

@@ -12,6 +12,14 @@ Charm（统一架构）
 └─ UI/Vivid（富 UI）
 ```
 
+## 1.0 统一入口模块（强约束入口）
+
+将“分层”落到编译期入口，所有上层代码优先使用这些入口模块：
+
+- Foundation：`charm.foundation`（对外只暴露 util/trace/service/alg）
+- Runtime：`charm.runtime`（system + io）
+- Domains：`charm.domain`（media + ui）
+
 ```mermaid
 graph TD
     A[Charm 统一架构] --> C[Core]
@@ -28,6 +36,7 @@ graph TD
     IO --> F[FS/VFS]
     IO --> SH[Shell]
     IO --> OUT[Out]
+    IO --> USB[USB]
 ```
 
 ## 1.1 目录布局（统一）
@@ -36,11 +45,21 @@ graph TD
 Modules/
   core/        # util/trace/service/alg
   system/      # kernel/modulex/boot
-  io/          # hal/port/fs/shell/out
+  io/          # hal/port/fs/shell/out/usb
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
+  charm.foundation.cppm  # 分层入口：Foundation
+  charm.runtime.cppm     # 分层入口：Runtime
+  charm.domain.cppm      # 分层入口：Domains
+  thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
+
+  # Shell 目录拆分（模块名保持不变）
+  io/shell/
+    core/      # shell_core/shell_stream/shell_time
+    cli/       # shell_cmd/shell_repl/shell_service/shell_stdio
+    facade/    # shell_posix（后续可扩展 arduino_facade）
 
 Examples/     # 示例工程
 docs/         # 架构与协作文档
@@ -52,10 +71,32 @@ Draft/        # 计划/草案（可变动）
 - Audio：`Modules/media/audio/audio_design.md`
 - HAL：`Modules/io/hal/charm_hal_design.md`
 - FS：`Modules/io/fs/fs_migration_notes.md`
+- Block cache：`docs/fs_block_cache_strategy.md`
+- POSIX facade：`docs/fs_posix_facade.md`
+- FatFs 示例：`docs/fs_fatfs_demo.md`
 - Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
+- Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
+- IO 分层总览：`docs/io_layering_overview.md`
+- 输入分层决策：`docs/input_layering_decision.md`
+- 输入协议映射：`docs/input_protocol_map.md`
+- 能力回收规则：`docs/capability_recovery_rules.md`
+- VSF USB 映射：`docs/vsf_usb_map.md`
+- VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
+- USB 体系规划：`docs/usb_arch_plan.md`
+- USB DSL 概览：`docs/usb_dsl_overview.md`
+- USB CDC 回调契约：`docs/usb_cdc_contract.md`
+- USB String/Lang 装配：`docs/usb_strings_overview.md`
+- 设备模型草案：`docs/device_model_overview.md`
+- trace_core 统一入口：`docs/trace_core_entry.md`
+- trace_core ID 清单：`docs/trace_core_ids.md`
+- VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
+- MAL 概览：`docs/mal_overview.md`
+- MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
+- VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
+- Service/Component 初始化顺序：`docs/service_component_init.md`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -64,6 +105,16 @@ Draft/        # 计划/草案（可变动）
 ```
 Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ```
+
+### 初始化顺序（统一约束）
+
+应用层按固定顺序完成初始化，避免组件过早访问 HAL/服务：
+
+1) `service_init`（Foundation 服务层）
+2) `hal_init`（HAL/Port/平台）
+3) `component_init`（按需启用组件）
+
+> 说明：组件初始化由应用显式控制，避免默认启用全部子系统。
 
 ### Foundation（能力基座）
 范围：
@@ -133,6 +184,20 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 2. 依赖验证：非法 import 必须在编译期失败
 3. 最小回归：编译 + 一个行为验证（不要求完整测试）
 
+## 1.4 第三方依赖与可替换策略
+
+统一策略：**系统优先 → 本地目录 → FetchContent**。这样 PC/CI/MCU 三端行为一致，且便于替换。
+
+### 依赖清单（当前）
+- SDL3：`cmake/SDL3.cmake`（PC 音频/窗口）
+- ETL：`cmake/ETL.cmake`（可切换实现）
+- dr_mp3 / dr_flac：`cmake/DRLibs.cmake`（音频解码头文件）
+
+### 关键开关
+- `CHARM_USE_SYSTEM_SDL3` / `CHARM_FETCHCONTENT_SDL3`
+- `CHARM_USE_ETL` / `CHARM_FETCHCONTENT_ETL`
+- `CHARM_USE_ETL_EXPECTED`（默认 OFF，避免编译器模块兼容问题）
+
 ## 2. 当前已具备的拼图
 
 ### Kernel
@@ -170,6 +235,17 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - out.core/out.api/out.format/out.ansi/out.logger
 - out.sink/out.print/out.domain/out.port
 
+### USB
+- 设备端骨架：descriptor/common、EP0 状态机
+- 类草案：CDC/UAC/MSC
+- 驱动接口：`usb.ep0_driver`
+- 示例：`Examples/usb/usb_cdc_minimal`
+
+### Device Model
+- 设备/驱动/注册表骨架（device.desc/driver/registry）
+- 示例：`Examples/system/device_registry_demo`
+- 示例：`Examples/system/device_bus_demo`
+
 ### UI/Ink
 - core/render/ui/widgets/platform/input/semantics/theme
 
@@ -178,6 +254,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### FS/VFS
 - fs_core/vfs/ramfs/block/blockfs/path/errno/stream
+- fatfs 适配入口（需 `CHARM_ENABLE_FATFS`）
 - list/mkdir/dirty 支持
 
 ### ModuleX
@@ -192,6 +269,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Algorithms
 - FFT/滤波/统计
 - 颜色空间转换与像素打包
+- 抖动算法（Bayer/Floyd-Steinberg）
 - 压缩（RLE/PackBits/Heatshrink/LZ4）
 
 ## 3. 典型运行路径（简图）
@@ -322,6 +400,8 @@ graph LR
     ServiceTrace[service_trace] --> Trace[trace_core]
     DistBus[service_distbus] --> ServiceTrace
 ```
+
+说明：Shell 目录已拆分为 `core/cli/facade`，模块名保持不变（`shell_posix` 仍作为 facade 入口）。
 
 ## 9. 运行期数据流（简化）
 

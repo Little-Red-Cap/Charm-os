@@ -2,6 +2,12 @@ export module charm.core.event;
 
 export class Event {
 public:
+    enum class GesturePhase {
+        Begin = 0,
+        Update = 1,
+        End = 2
+    };
+
     enum class Type {
         HoverEnter,
         HoverLeave,
@@ -13,6 +19,8 @@ public:
         DragStart,
         DragMove,
         DragEnd,
+        GestureSwipe,
+        GesturePinch,
         FocusIn,
         FocusOut,
         KeyDown,
@@ -25,6 +33,8 @@ public:
     int dy = 0;
     int button = 0;
     int wheel_y = 0;
+    GesturePhase gesture_phase = GesturePhase::Begin;
+    float scale = 1.0f;
     int ch = 0; // UTF-32 codepoint when available
 
     enum class Key {
@@ -65,6 +75,14 @@ public:
 
     static Event drag(Type t, int px, int py, int ddx, int ddy, int btn = 0) noexcept {
         return Event(t, px, py, ddx, ddy, btn);
+    }
+
+    static Event gesture(Type t, int px, int py, int ddx, int ddy, GesturePhase phase,
+                         float scale_value = 1.0f) noexcept {
+        Event e(t, px, py, ddx, ddy, 0);
+        e.gesture_phase = phase;
+        e.scale = scale_value;
+        return e;
     }
 
     Event(Type t, int px = 0, int py = 0, int ddx = 0, int ddy = 0, int btn = 0)

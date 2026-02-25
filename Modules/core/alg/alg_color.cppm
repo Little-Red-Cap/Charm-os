@@ -1,6 +1,8 @@
 module;
 
+#include <array>
 #include <cstdint>
+#include <cstddef>
 #include <cmath>
 
 export module alg_color;

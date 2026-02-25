@@ -25,7 +25,7 @@ import util.core;
 export namespace kernel {
     template <typename Config, typename Registry>
     using SchedulerQueueStorage = std::conditional_t<
-        Config::enable_dynamic_priority,
+        use_list_queue<Config>,
         EventQueueList<Config::evtq_capacity, Registry::count, Config::priority_levels>,
         std::array<EventQueue<Config::evtq_capacity>, Config::priority_levels>>;
 
@@ -159,7 +159,7 @@ export namespace kernel {
             auto guard = Caps::IrqGuard::enter();
             const auto tag = ++evt_seq_;
             bool ok = false;
-            if constexpr (Config::enable_dynamic_priority) {
+            if constexpr (use_list_queue<Config>) {
                 if constexpr (Config::enable_event_coalesce) {
                     ok = queues_.coalesce(task, evt.id, evt, tag);
                     if (!ok) {
@@ -199,11 +199,12 @@ export namespace kernel {
                         Caps::Wakeup::signal();
                     }
                 }
-                if constexpr (!Config::enable_dynamic_priority) {
+                if constexpr (use_list_queue<Config>) {
+                    const auto depth = queues_.size();
+                    if (depth > stats_.max_queue) stats_.max_queue = depth;
+                } else {
                     const auto depth = queues_[prio_index].size();
-                    if (depth > stats_.max_queue) {
-                        stats_.max_queue = depth;
-                    }
+                    if (depth > stats_.max_queue) stats_.max_queue = depth;
                 }
                 check_alerts();
                 if constexpr (Config::enable_event_dedup) {
@@ -314,7 +315,7 @@ export namespace kernel {
             }
             task_enabled_[task.value] = false;
             task_states_[task.value] = TaskState::stopped;
-            if constexpr (Config::enable_dynamic_priority) {
+            if constexpr (use_list_queue<Config>) {
                 (void)queues_.drop_task(task);
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {
@@ -348,7 +349,7 @@ export namespace kernel {
             }
             task_enabled_[task.value] = false;
             task_states_[task.value] = TaskState::terminated;
-            if constexpr (Config::enable_dynamic_priority) {
+            if constexpr (use_list_queue<Config>) {
                 (void)queues_.drop_task(task);
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {
@@ -401,7 +402,7 @@ export namespace kernel {
             for (std::size_t iter = 0; iter < Config::priority_levels; ++iter) {
                 const std::size_t i = (level + Config::priority_levels - iter) % Config::priority_levels;
                 std::optional<EventNode> node{};
-                if constexpr (Config::enable_dynamic_priority) {
+                if constexpr (use_list_queue<Config>) {
                     node = queues_.pop(i);
                 } else {
                     node = queues_[i].pop();
@@ -409,21 +410,21 @@ export namespace kernel {
                 if (node.has_value()) {
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     if (!registry_->template is_active<Config>(node->task)) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     if (task_caps_[node->task.value] != 0 && task_counts_[node->task.value] >= task_caps_[node->task.value]) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     const auto eid = static_cast<std::size_t>(node->event.id);
                     if (task_event_caps_[node->task.value][eid] != 0
                         && task_event_counts_[node->task.value][eid] >= task_event_caps_[node->task.value][eid]) {
                         ++stats_.filtered;
-                        return true;
+                        continue;
                     }
                     task_states_[node->task.value] = TaskState::running;
                     set_current(node->task, node->event);
@@ -494,8 +495,8 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t queue_depth() const noexcept {
             std::size_t total = 0;
-            if constexpr (Config::enable_dynamic_priority) {
-                return 0;
+            if constexpr (use_list_queue<Config>) {
+                return queues_.size();
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {
                     total += queues_[i].size();
@@ -774,7 +775,7 @@ export namespace kernel {
 
         [[nodiscard]] bool cancel_event(util::u64 tag) noexcept {
             bool removed = false;
-            if constexpr (Config::enable_dynamic_priority) {
+            if constexpr (use_list_queue<Config>) {
                 removed = queues_.cancel(tag);
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {
@@ -789,7 +790,7 @@ export namespace kernel {
 
         [[nodiscard]] bool cancel_event(TaskId task, util::u64 tag) noexcept {
             bool removed = false;
-            if constexpr (Config::enable_dynamic_priority) {
+            if constexpr (use_list_queue<Config>) {
                 removed = queues_.drop_task_with_tag(task, tag);
             } else {
                 for (std::size_t i = 0; i < Config::priority_levels; ++i) {

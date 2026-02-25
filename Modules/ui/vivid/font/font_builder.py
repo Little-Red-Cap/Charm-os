@@ -63,8 +63,12 @@ def main():
     parser.add_argument('--size', type=int, help='Font pixel size (height).')
     parser.add_argument('--chars', help='Character code ranges, e.g. "32-126,160-255".')
     parser.add_argument('--out-module', help='Output C++ module filename.')
+    parser.add_argument('--module-name', help='Override C++ module name.')
+    parser.add_argument('--font-name', help='Override exported font symbol name.')
     parser.add_argument('--format', choices=['hex', 'bin'], default='hex',
                         help='Output format for bitmap data (hex or bin).')
+    parser.add_argument('--bpp', type=int, choices=[1, 2, 4, 8], default=4,
+                        help='Bits per pixel for glyph bitmaps (default: 4).')
     parser.add_argument('--fallback-char', type=int, default=63,
                         help='Character code to use as fallback glyph (default: 63 for "?").')
     args = parser.parse_args()
@@ -74,6 +78,8 @@ def main():
     size = args.size if args.size is not None else int(input("Enter font size (pixels): ").strip())
     chars = prompt_if_none(args.chars, "Enter character ranges (e.g. 32-126): ")
     out_module = prompt_if_none(args.out_module, "Enter output module filename: ")
+    module_name_override = args.module_name
+    font_name_override = args.font_name
 
     print(f"Using font file: {font_file}")
     print(f"Font size: {size}px")
@@ -81,6 +87,7 @@ def main():
     print(f"Output module: {out_module}")
     print(f"Output format: {args.format}")
     print(f"Fallback character: {args.fallback_char} ('{chr(args.fallback_char)}')")
+    print(f"Bitmap bpp: {args.bpp}")
 
     if not os.path.isfile(font_file):
         print(f"Error: font file '{font_file}' does not exist.")
@@ -141,25 +148,58 @@ def main():
             offset_y = 0
 
         # Get bitmap
-        mask = font.getmask(ch, mode='1')
+        mask_mode = '1' if args.bpp == 1 else 'L'
+        mask = font.getmask(ch, mode=mask_mode)
         width, height = mask.size
 
         # Pack bitmap into bytes
         rows = []
         for y in range(height):
-            row_bits = 0
-            bits_count = 0
-            for x in range(width):
-                pixel = mask.getpixel((x, y))
-                row_bits = (row_bits << 1) | (1 if pixel else 0)
-                bits_count += 1
-                if bits_count == 8:
+            if args.bpp == 1:
+                row_bits = 0
+                bits_count = 0
+                for x in range(width):
+                    pixel = mask.getpixel((x, y))
+                    row_bits = (row_bits << 1) | (1 if pixel else 0)
+                    bits_count += 1
+                    if bits_count == 8:
+                        rows.append(row_bits)
+                        row_bits = 0
+                        bits_count = 0
+                if bits_count > 0:
+                    row_bits <<= (8 - bits_count)
                     rows.append(row_bits)
-                    row_bits = 0
-                    bits_count = 0
-            if bits_count > 0:
-                row_bits <<= (8 - bits_count)
-                rows.append(row_bits)
+            elif args.bpp == 2:
+                row_bits = 0
+                bits_count = 0
+                for x in range(width):
+                    pixel = mask.getpixel((x, y))
+                    value = (pixel >> 6) & 0x03
+                    row_bits = (row_bits << 2) | value
+                    bits_count += 2
+                    if bits_count == 8:
+                        rows.append(row_bits)
+                        row_bits = 0
+                        bits_count = 0
+                if bits_count > 0:
+                    row_bits <<= (8 - bits_count)
+                    rows.append(row_bits)
+            elif args.bpp == 4:
+                nibble = None
+                for x in range(width):
+                    pixel = mask.getpixel((x, y))
+                    value = (pixel >> 4) & 0x0F
+                    if nibble is None:
+                        nibble = value
+                    else:
+                        rows.append((nibble << 4) | value)
+                        nibble = None
+                if nibble is not None:
+                    rows.append((nibble << 4) & 0xF0)
+            else:
+                for x in range(width):
+                    pixel = mask.getpixel((x, y))
+                    rows.append(pixel)
 
         # Get advance width (horizontal spacing)
         try:
@@ -176,7 +216,7 @@ def main():
         if ch in 'yesABC':
             print(f"Char '{ch}': bbox={bbox}, offset_x={offset_x}, offset_y={offset_y}, width={width}, height={height}")
 
-        glyphs.append((code, width, height, advance, offset_x, offset_y, rows))
+        glyphs.append((code, width, height, advance, offset_x, offset_y, args.bpp, rows))
 
         # Track fallback glyph index
         if code == args.fallback_char:
@@ -188,7 +228,8 @@ def main():
     # Generate C++ module
     try:
         with open(out_module, 'w', encoding='utf-8') as f:
-            module_name = os.path.splitext(os.path.basename(out_module))[0]
+            module_name = module_name_override or os.path.splitext(os.path.basename(out_module))[0]
+            font_name = font_name_override or "font"
 
             # Module header
             f.write('module;\n')
@@ -201,7 +242,7 @@ def main():
 
             # Bitmap data
             f.write('static constexpr uint8_t glyph_bitmaps[] = {\n')
-            for code, w, h, adv, off_x, off_y, rows in glyphs:
+            for code, w, h, adv, off_x, off_y, bpp, rows in glyphs:
                 f.write(f'    // code {code} (\'{chr(code) if 32 <= code < 127 else "?"}\')\n')
                 for b in rows:
                     if args.format == 'hex':
@@ -213,10 +254,10 @@ def main():
             # Glyph table
             f.write('static constexpr Glyph glyph_table[] = {\n')
             pos = 0
-            for code, w, h, adv, off_x, off_y, rows in glyphs:
+            for code, w, h, adv, off_x, off_y, bpp, rows in glyphs:
                 ch_display = chr(code) if 32 <= code < 127 else '?'
                 f.write(f'    // {ch_display} (code {code})\n')
-                f.write(f'    {{ glyph_bitmaps + {pos}, {w}, {h}, {adv}, {off_x}, {off_y} }},\n')
+                f.write(f'    {{ glyph_bitmaps + {pos}, {w}, {h}, {adv}, {off_x}, {off_y}, {bpp} }},\n')
                 pos += len(rows)
             f.write('};\n\n')
 
@@ -227,7 +268,7 @@ def main():
             f.write('};\n\n')
 
             # Font structure
-            f.write('export constexpr Font font = {\n')
+            f.write(f'export constexpr Font {font_name} = {{\n')
             f.write(f'    .table = glyph_table,\n')
             f.write(f'    .ranges = glyph_ranges,\n')
             if fallback_index is not None:
@@ -237,6 +278,7 @@ def main():
             f.write(f'    .line_height = {line_height},\n')
             f.write(f'    .baseline = {baseline}\n')
             f.write('};\n')
+            f.write(f'static_assert(validate_font({font_name}));\n')
 
         print(f"\nSuccessfully generated font module: {out_module}")
         print(f"  Glyphs: {len(glyphs)}")
@@ -264,6 +306,7 @@ if __name__ == "__main__":
             '--size', '12',
             '--chars', '32-126',
             '--out-module', os.path.join(script_dir, 'font_generated.cppm'),
-            '--format', 'bin'
+            '--format', 'bin',
+            '--bpp', '4'
         ])
     main()

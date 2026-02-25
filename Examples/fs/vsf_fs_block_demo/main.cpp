@@ -5,14 +5,8 @@
 #include <span>
 #include <string_view>
 
-import util.core;
-import fs_block;
-import fs_blockfs;
-import fs_core;
-import fs_errno;
-import fs_stream;
-import fs_vfs;
-import shell_posix;
+import charm.foundation;
+import charm.runtime;
 
 struct MemBlock {
     static constexpr util::usize block_size = 128;
@@ -78,7 +72,7 @@ int main() {
     }
 
     static fs::MountOps mops{
-        .open = +[](std::string_view path, fs::File& f) noexcept {
+        .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept {
             return g_bfs ? g_bfs->open(path, f) : fs::Status{fs::Err::nosys};
         },
         .flush = +[](fs::Mount* m) noexcept {

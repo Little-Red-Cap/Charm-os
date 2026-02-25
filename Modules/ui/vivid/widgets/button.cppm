@@ -7,6 +7,8 @@ import charm.gfx.render;
 import charm.core.event;
 import charm.widgets.label;
 import charm.core.style;
+import charm.core.style_sheet;
+import charm.core.handle;
 import charm.gfx.image;
 
 using namespace ui::render;
@@ -22,6 +24,17 @@ public:
     }
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
+
+    void set_text(const char* text) noexcept {
+        label_.set_text(text);
+    }
+
+    void set_icon(const ImageView& img, int w = 0, int h = 0) noexcept {
+        icon_ = img;
+        icon_w_ = w;
+        icon_h_ = h;
+        has_icon_ = static_cast<bool>(icon_);
+    }
 
     void set_style(const Style& s) noexcept {
         style_ = s;
@@ -39,15 +52,16 @@ public:
         has_skin_ = true;
     }
 
-    void draw(DefaultCanvas& cvs) override {
-        const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+    void draw(CanvasBase& cvs) override {
+        Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Button, state, st);
+        resolve_colors(st, state,
                        bg, border, font);
 
         const bool draw_focus = has_state(State::Focused);
@@ -79,9 +93,24 @@ public:
         label_.set_color(font);
         label_.set_baseline_pos(lx, baseline_y);
         label_.draw(cvs);
+
+        if (has_icon_) {
+            const int iw = icon_w_ > 0 ? icon_w_ : icon_.w;
+            const int ih = icon_h_ > 0 ? icon_h_ : icon_.h;
+            if (iw > 0 && ih > 0) {
+                const int ix = r.x + (r.w - iw) / 2;
+                const int iy = r.y + (r.h - ih) / 2;
+                if (iw == icon_.w && ih == icon_.h) {
+                    draw_image(cvs, ix, iy, icon_);
+                } else {
+                    draw_image_scaled(cvs, ix, iy, iw, ih, icon_);
+                }
+            }
+        }
     }
 
     bool on_event(const Event& e) override {
+        if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
                 if (callback_) callback_();
@@ -108,4 +137,8 @@ private:
     int slice_top_{0};
     int slice_right_{0};
     int slice_bottom_{0};
+    ImageView icon_{};
+    bool has_icon_{false};
+    int icon_w_{0};
+    int icon_h_{0};
 };

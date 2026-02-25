@@ -786,6 +786,13 @@ t=1.0s rate=44100 cb_frames=441 cb_dt(ms)=9.47/10.01/21.11 water(ms)=0..200 unde
 t=1.0s rate=48000 cb_frames=480 cb_dt(ms)=9.50/10.02/21.11 water(ms)=0..160 underrun=0 refill=13 refill_ms=0.09/0.25/0.68
 ```
 
+> Regression sample（seek 回归，CUR/END）
+
+```text
+[audio] seek file=sample.flac
+[audio] expect: seek_set=0 ok; seek_cur=+16 ok; seek_end=-8 ok; tell=size-8
+```
+
 用途：
 - 以后改 SRC/Player/动态重配时，按同一命令输出对比即可判断是否退化。
 

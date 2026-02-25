@@ -7,6 +7,9 @@ module;
 export module gui.ui_tree;
 
 import gui.core;
+import gui.trace;
+import service.fixed_store;
+import util.core;
 
 export namespace gui::ui {
 
@@ -69,6 +72,7 @@ export namespace gui::ui {
         void begin_frame() noexcept {
             count_ = 0;
             depth_ = 0;
+            gui::trace::trace_counter_delta(gui::trace::TraceId::TreeBeginFrame, 1);
         }
 
         NodeIndex begin(NodeId id) noexcept {
@@ -77,6 +81,7 @@ export namespace gui::ui {
             Node& n = nodes_[idx];
             n = Node{};
             n.id = id;
+            gui::trace::trace_counter_delta(gui::trace::TraceId::TreeNodeBegin, 1);
             n.parent = (depth_ > 0) ? stack_[depth_ - 1] : kNullIndex;
             if (n.parent != kNullIndex) {
                 append_child(n.parent, idx);
@@ -117,39 +122,6 @@ export namespace gui::ui {
     };
 
     template<class T, int N>
-    class StateStore {
-    public:
-        void clear() noexcept {
-            for (auto& e : entries_) e.used = false;
-        }
-
-        [[nodiscard]] T* find(NodeId id) noexcept {
-            for (auto& e : entries_) {
-                if (e.used && e.id == id) return &e.state;
-            }
-            return nullptr;
-        }
-
-        [[nodiscard]] T* get_or_create(NodeId id, const T& init = {}) noexcept {
-            if (auto* s = find(id)) return s;
-            for (auto& e : entries_) {
-                if (!e.used) {
-                    e.used = true;
-                    e.id = id;
-                    e.state = init;
-                    return &e.state;
-                }
-            }
-            return nullptr;
-        }
-
-    private:
-        struct Entry {
-            NodeId id{};
-            T state{};
-            bool used{false};
-        };
-        Entry entries_[N]{};
-    };
+    using StateStore = service::FixedStore<NodeId, T, static_cast<util::usize>(N)>;
 
 } // namespace gui::ui

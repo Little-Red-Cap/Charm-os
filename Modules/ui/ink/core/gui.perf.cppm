@@ -12,9 +12,10 @@ export module gui.perf;
 
 import out.core;
 import out.format;
+import trace_core;
+import util.units;
 
-namespace gui::detail
-{
+namespace {
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -52,9 +53,9 @@ export namespace gui::perf
         void* ctx{nullptr};
         std::uint32_t (*now_ms)(void*){nullptr};
 
-        [[nodiscard]] inline std::uint32_t now() const noexcept
+        [[nodiscard]] inline util::Milliseconds now() const noexcept
         {
-            return now_ms ? now_ms(ctx) : 0u;
+            return util::ms(now_ms ? now_ms(ctx) : 0u);
         }
     };
 
@@ -66,24 +67,47 @@ export namespace gui::perf
         return out;
     }
 
+    struct TraceHook {
+        void* ctx{nullptr};
+        void (*emit)(void*, trace::TraceKind, std::uint32_t, std::uint64_t) noexcept {nullptr};
+        std::uint32_t fps_id{0};
+        std::uint32_t frame_id{0};
+    };
+
     struct FpsCounter {
-        std::uint32_t last_ms{0};
+        util::Milliseconds last_ms{};
         std::uint32_t frames{0};
         float fps{0.0f};
+        TraceHook trace{};
 
         // Returns true when fps has been updated (about once per second).
         bool update(std::uint32_t now_ms) noexcept
         {
+            return update(util::ms(now_ms));
+        }
+
+        bool update(util::Milliseconds now_ms) noexcept
+        {
             ++frames;
-            if (last_ms == 0) {
+            if (last_ms.value == 0) {
                 last_ms = now_ms;
                 return false;
             }
-            const std::uint32_t span = now_ms - last_ms;
+            const std::uint64_t span = now_ms.value - last_ms.value;
             if (span < 1000) return false;
             fps = span ? (static_cast<float>(frames) * 1000.0f / static_cast<float>(span)) : 0.0f;
+            const std::uint32_t frames_last = frames;
             frames = 0;
             last_ms = now_ms;
+            if (trace.emit) {
+                if (trace.fps_id != 0) {
+                    const std::uint64_t fps_x1000 = (std::uint64_t)(fps * 1000.0f + 0.5f);
+                    trace.emit(trace.ctx, trace::TraceKind::counter, trace.fps_id, fps_x1000);
+                }
+                if (trace.frame_id != 0) {
+                    trace.emit(trace.ctx, trace::TraceKind::counter_delta, trace.frame_id, frames_last);
+                }
+            }
             return true;
         }
 
@@ -95,11 +119,16 @@ export namespace gui::perf
 
         [[nodiscard]] inline float value() const noexcept { return fps; }
 
+        void set_trace_hook(TraceHook hook) noexcept { trace = hook; }
+
         void format(char* out, std::size_t out_size, const char* label) const noexcept
         {
             if (!out || out_size == 0) return;
             const char* name = label ? label : "FPS";
-            (void)detail::format_to<"{}: {:.1f}">(out, out_size, name, fps);
+            const auto fps_x10 = static_cast<std::uint32_t>(fps * 10.0f + 0.5f);
+            const auto whole = fps_x10 / 10;
+            const auto frac = fps_x10 % 10;
+            (void)format_to<"{}: {}.{}">(out, out_size, name, whole, frac);
         }
     };
 } // namespace gui::perf

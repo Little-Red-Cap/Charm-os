@@ -3,10 +3,13 @@
 
 module;
 #include <cstdint>
+#include <span>
 
 export module gui.image_1bpp;
 
+import alg_dither;
 import gui.core;
+import util.core;
 
 export namespace gui
 {
@@ -98,5 +101,15 @@ export namespace gui
                 }
             }
         }
+    }
+
+    inline void dither_gray_to_1bpp(std::span<const util::u8> gray,
+                                    std::size_t width,
+                                    std::size_t height,
+                                    const alg::DitherConfig& cfg,
+                                    std::span<util::u8> out,
+                                    std::span<util::i16> scratch = {}) noexcept
+    {
+        alg::dither_1bit(gray, width, height, cfg, out, scratch);
     }
 } // namespace gui

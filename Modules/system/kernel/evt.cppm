@@ -18,14 +18,15 @@ export namespace kernel {
         message,
         terminate,
         user0,
-        user1
+        user1,
+        count
     };
 
     constexpr EventMask event_mask(EventId id) noexcept {
         return EventMask{1u} << static_cast<std::uint32_t>(id);
     }
 
-    constexpr std::size_t event_id_count = static_cast<std::size_t>(EventId::user1) + 1;
+    constexpr std::size_t event_id_count = static_cast<std::size_t>(EventId::count);
 
     using EventPayload = util::variant<util::monostate, util::u32, util::u64>;
 

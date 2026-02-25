@@ -3,7 +3,7 @@
 ## Frozen Types
 - `kernel::ThreadControl`
 - `kernel::ThreadTask<Context, StepFn, Priority>`
-- `kernel::ThreadBlockingTask<Context, Handler, Priority>`
+- `kernel::ThreadBlockingTask<Context, Handler, Priority, UnblockMask>`
 - `kernel::ThreadBlockingControl`
 - `kernel::ThreadState<Context>`
 
@@ -15,7 +15,7 @@
 - `ThreadBlockingTask`:
   - `block()` suppresses non-sync events
   - `resume()` allows events
-  - `sync/init/terminate` always delivered
+  - `UnblockMask` defines which events pass through while blocked (default: sync/init/terminate)
 
 ## Frozen Events
 - `EventId::init`

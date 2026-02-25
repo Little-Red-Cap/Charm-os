@@ -12,6 +12,7 @@ import charm.gfx.color;
 import charm.widgets.text;
 import charm.font;
 import charm.font.typography;
+import alg_text_layout;
 
 namespace {
     struct RunState {
@@ -20,42 +21,6 @@ namespace {
         bool bold{false};
         bool mono{false};
     };
-
-    bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) noexcept {
-        if (p >= end) return false;
-        const std::uint8_t c = static_cast<std::uint8_t>(*p);
-        if (c < 0x80) {
-            out = c;
-            ++p;
-            return true;
-        }
-        if ((c >> 5) == 0x6) {
-            if (p + 1 >= end) return false;
-            out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
-            p += 2;
-            return true;
-        }
-        if ((c >> 4) == 0xE) {
-            if (p + 2 >= end) return false;
-            out = ((c & 0x0F) << 12)
-                | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
-                | (static_cast<std::uint8_t>(p[2]) & 0x3F);
-            p += 3;
-            return true;
-        }
-        if ((c >> 3) == 0x1E) {
-            if (p + 3 >= end) return false;
-            out = ((c & 0x07) << 18)
-                | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
-                | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
-                | (static_cast<std::uint8_t>(p[3]) & 0x3F);
-            p += 4;
-            return true;
-        }
-        out = '?';
-        ++p;
-        return true;
-    }
 
     bool parse_hex(const char* p, std::uint8_t& out) noexcept {
         auto hex = [](char c) -> int {
@@ -167,7 +132,7 @@ public:
             }
 
             std::uint32_t cp = 0;
-            if (!next_codepoint(p, end, cp)) break;
+            if (!alg::text_layout::next_codepoint(p, end, cp)) break;
             if (cp == '\n') {
                 x = r.x + st.padding;
                 y += line_height;

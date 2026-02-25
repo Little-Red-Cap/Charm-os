@@ -7,6 +7,7 @@ export import charm.widgets.label;
 export import charm.widgets.list_view;
 export import charm.widgets.progress;
 export import charm.widgets.progress_bar_simple;
+export import charm.widgets.scroll_container;
 export import charm.widgets.scrollbar;
 export import charm.widgets.segmented_control;
 export import charm.widgets.slider;
@@ -39,6 +40,8 @@ struct ThemePreset {
     Style progress{};
     bool has_progress_bar_simple{false};
     Style progress_bar_simple{};
+    bool has_scroll_container{false};
+    Style scroll_container{};
     bool has_scroll_bar{false};
     Style scroll_bar{};
     bool has_segmented_control{false};
@@ -87,6 +90,7 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_list_view) theme.set<ListView>(preset.list_view);
     if (preset.has_progress) theme.set<Progress>(preset.progress);
     if (preset.has_progress_bar_simple) theme.set<ProgressBarSimple>(preset.progress_bar_simple);
+    if (preset.has_scroll_container) theme.set<ScrollContainer>(preset.scroll_container);
     if (preset.has_scroll_bar) theme.set<ScrollBar>(preset.scroll_bar);
     if (preset.has_segmented_control) theme.set<SegmentedControl>(preset.segmented_control);
     if (preset.has_slider) theme.set<Slider>(preset.slider);
@@ -117,6 +121,8 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
         s.border_width = base.border_width;
         s.border_color = base.border_color;
         s.border_focus = base.border_focus;
+        s.scrollbar_margin = base.scrollbar_margin;
+        s.scrollbar_thumb_min = base.scrollbar_thumb_min;
     };
 
     ThemePreset preset{};
@@ -135,6 +141,9 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
     preset.has_progress_bar_simple = true;
     preset.progress_bar_simple = theme.get<ProgressBarSimple>();
     apply_base(preset.progress_bar_simple);
+    preset.has_scroll_container = true;
+    preset.scroll_container = theme.get<ScrollContainer>();
+    apply_base(preset.scroll_container);
     preset.has_scroll_bar = true;
     preset.scroll_bar = theme.get<ScrollBar>();
     apply_base(preset.scroll_bar);
@@ -260,6 +269,16 @@ inline void apply_ios_light_preset() noexcept {
     preset.switcher.corner_radius = 10;
     preset.switcher.padding = 4;
 
+    preset.has_list_view = true;
+    preset.list_view = theme.get<ListView>();
+    preset.list_view.scrollbar_margin = 2;
+    preset.list_view.scrollbar_thumb_min = 12;
+
+    preset.has_scroll_container = true;
+    preset.scroll_container = theme.get<ScrollContainer>();
+    preset.scroll_container.scrollbar_margin = 2;
+    preset.scroll_container.scrollbar_thumb_min = 12;
+
     apply_theme_preset(preset);
 }
 
@@ -327,6 +346,16 @@ inline void apply_material3_light_preset() noexcept {
     preset.switcher.font_color = kOnPrimary;
     preset.switcher.corner_radius = 12;
     preset.switcher.padding = 4;
+
+    preset.has_list_view = true;
+    preset.list_view = theme.get<ListView>();
+    preset.list_view.scrollbar_margin = 2;
+    preset.list_view.scrollbar_thumb_min = 12;
+
+    preset.has_scroll_container = true;
+    preset.scroll_container = theme.get<ScrollContainer>();
+    preset.scroll_container.scrollbar_margin = 2;
+    preset.scroll_container.scrollbar_thumb_min = 12;
 
     // Tonal button feel via hover/pressed on surface variant.
     theme.patch<Button>(StylePatch{
@@ -400,6 +429,16 @@ inline void apply_lvgl_default_preset() noexcept {
     preset.switcher.border_focus = kLvBorderFocus;
     preset.switcher.corner_radius = 6;
     preset.switcher.padding = 4;
+
+    preset.has_list_view = true;
+    preset.list_view = theme.get<ListView>();
+    preset.list_view.scrollbar_margin = 2;
+    preset.list_view.scrollbar_thumb_min = 12;
+
+    preset.has_scroll_container = true;
+    preset.scroll_container = theme.get<ScrollContainer>();
+    preset.scroll_container.scrollbar_margin = 2;
+    preset.scroll_container.scrollbar_thumb_min = 12;
 
     apply_theme_preset(preset);
 }

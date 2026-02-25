@@ -9,6 +9,7 @@ import charm.gfx.canvas;
 import charm.gfx.color;
 import charm.font;
 import charm.font.typography;
+import alg_text_layout;
 
 inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
     if (alpha == 0) return;
@@ -64,73 +65,14 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
     return true;
 }
 
-inline const char* prev_codepoint_start(const char* start, const char* p) noexcept {
-    if (p <= start) return start;
-    const char* q = p - 1;
-    while (q > start && (static_cast<std::uint8_t>(*q) & 0xC0u) == 0x80u) {
-        --q;
-    }
-    return q;
-}
-
 export
 inline int measure_text_width(const char* text, const Font& font) noexcept {
-    int width = 0;
-    if (!text) return 0;
-    uint16_t prev_gid = 0;
-    const char* p = text;
-    const char* end = text + std::strlen(text);
-    while (p < end) {
-        std::uint32_t cp = 0;
-        if (!next_codepoint(p, end, cp)) break;
-        if (cp == '\n') {
-            prev_gid = 0;
-            continue;
-        }
-        const auto* g = find_glyph(font, cp);
-        if (g) {
-            const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-            width += g->x_advance;
-            if (prev_gid) {
-                width += get_glyph_kern(font, prev_gid, gid);
-            }
-            prev_gid = gid;
-        } else {
-            width += 8;
-            prev_gid = 0;
-        }
-    }
-    return width;
+    return alg::text_layout::measure_text_width(text, font);
 }
 
 export
 inline int measure_text_width(const char* text, int len, const Font& font) noexcept {
-    int width = 0;
-    if (!text || len <= 0) return 0;
-    uint16_t prev_gid = 0;
-    const char* p = text;
-    const char* end = text + len;
-    while (p < end) {
-        std::uint32_t cp = 0;
-        if (!next_codepoint(p, end, cp)) break;
-        if (cp == '\n') {
-            prev_gid = 0;
-            continue;
-        }
-        const auto* g = find_glyph(font, cp);
-        if (g) {
-            const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-            width += g->x_advance;
-            if (prev_gid) {
-                width += get_glyph_kern(font, prev_gid, gid);
-            }
-            prev_gid = gid;
-        } else {
-            width += 8;
-            prev_gid = 0;
-        }
-    }
-    return width;
+    return alg::text_layout::measure_text_width(text, len, font);
 }
 
 export
@@ -367,94 +309,25 @@ void draw_text_box(CanvasBase& cvs,
     const int line_height = font.line_height;
     if (line_height <= 0 || rect.w <= 0 || rect.h <= 0) return;
 
-    struct LineInfo {
-        const char* start{};
-        int len{};
-        int width{};
-    };
-
-    std::array<LineInfo, 64> lines{};
-    int line_count = 0;
-
-    const char* p = text;
-    const char* end = text + std::strlen(text);
-    while (p < end && line_count < static_cast<int>(lines.size())) {
-        const char* line_start = p;
-        int line_len = 0;
-        int line_width = 0;
-        const char* last_space = nullptr;
-        int width_at_space = 0;
-        int len_at_space = 0;
-        bool overflowed = false;
-        uint16_t prev_gid = 0;
-
-        const char* q = p;
-        while (q < end) {
-            std::uint32_t cp = 0;
-            const char* before = q;
-            if (!next_codepoint(q, end, cp)) break;
-            if (cp == '\n') break;
-            const auto* g = find_glyph(font, cp);
-            const int adv = g ? g->x_advance : 8;
-            const uint16_t gid = g ? static_cast<uint16_t>(g - font.table.data()) : 0;
-            const int kern = (prev_gid && gid) ? get_glyph_kern(font, prev_gid, gid) : 0;
-            if (wrap != TextWrap::None && line_width + kern + adv > rect.w) {
-                overflowed = true;
-                if (wrap == TextWrap::Char || line_len == 0) {
-                    line_width += kern + adv;
-                    line_len += static_cast<int>(q - before);
-                    prev_gid = gid;
-                } else {
-                    q = before;
-                }
-                break;
-            }
-            line_width += kern + adv;
-            line_len += static_cast<int>(q - before);
-            if (wrap == TextWrap::Word && cp == ' ') {
-                last_space = before;
-                width_at_space = line_width;
-                len_at_space = line_len;
-            }
-            prev_gid = gid;
-        }
-        p = q;
-
-        if (wrap == TextWrap::Word && overflowed && last_space) {
-            line_len = len_at_space;
-            line_width = width_at_space;
-            p = last_space + 1;
-            while (*p == ' ') ++p;
-        }
-
-        lines[line_count++] = { line_start, line_len, line_width };
-        if (*p == '\n') ++p;
-        if (wrap == TextWrap::None) break;
-        if (line_len == 0 && p < end) {
-            const char* next = p;
-            std::uint32_t cp = 0;
-            if (next_codepoint(next, end, cp)) {
-                p = next;
-            } else {
-                ++p;
-            }
-        }
-    }
+    std::array<alg::text_layout::Line, 64> lines{};
+    const auto wrap_mode = (wrap == TextWrap::Word)
+        ? alg::text_layout::Wrap::Word
+        : (wrap == TextWrap::Char ? alg::text_layout::Wrap::Char : alg::text_layout::Wrap::None);
+    int line_count = alg::text_layout::layout_lines(text, font, rect.w, wrap_mode,
+                                                    lines.data(), static_cast<int>(lines.size()));
 
     int max_lines = rect.h / line_height;
     if (max_lines <= 0) return;
     if (line_count > max_lines) line_count = max_lines;
 
-    int total_height = line_count * line_height;
-    int start_y = rect.y;
-    if (align_v == TextAlignV::Center) {
-        start_y = rect.y + (rect.h - total_height) / 2;
-    } else if (align_v == TextAlignV::Bottom) {
-        start_y = rect.y + rect.h - total_height;
-    }
+    const auto align_v_mode = (align_v == TextAlignV::Center)
+        ? alg::text_layout::AlignV::Center
+        : (align_v == TextAlignV::Bottom ? alg::text_layout::AlignV::Bottom
+                                         : alg::text_layout::AlignV::Top);
+    const int start_y = alg::text_layout::start_y(rect.y, rect.h, line_height, line_count, align_v_mode);
 
     const int ellipsis_width = (ellipsis == TextEllipsis::End)
-        ? measure_text_width("...", 3, font)
+        ? alg::text_layout::measure_text_width("...", 3, font)
         : 0;
 
     for (int i = 0; i < line_count; ++i) {
@@ -470,25 +343,22 @@ void draw_text_box(CanvasBase& cvs,
                 add_ellipsis = true;
             }
             if (draw_width > rect.w) {
-                while (draw_len > 0 && draw_width + ellipsis_width > rect.w) {
-                    const char* new_end = prev_codepoint_start(line.start, line.start + draw_len);
-                    if (new_end == line.start + draw_len) {
-                        --draw_len;
-                    } else {
-                        draw_len = static_cast<int>(new_end - line.start);
-                    }
-                    draw_width = measure_text_width(line.start, draw_len, font);
-                }
+                const auto trimmed = alg::text_layout::trim_for_ellipsis(line.start,
+                                                                         draw_len,
+                                                                         rect.w,
+                                                                         ellipsis_width,
+                                                                         font);
+                draw_len = trimmed.len;
+                draw_width = trimmed.width;
                 add_ellipsis = true;
             }
         }
 
-        int x = rect.x;
-        if (align_h == TextAlignH::Center) {
-            x = rect.x + (rect.w - draw_width) / 2;
-        } else if (align_h == TextAlignH::Right) {
-            x = rect.x + rect.w - draw_width;
-        }
+        const auto align_h_mode = (align_h == TextAlignH::Center)
+            ? alg::text_layout::AlignH::Center
+            : (align_h == TextAlignH::Right ? alg::text_layout::AlignH::Right
+                                            : alg::text_layout::AlignH::Left);
+        const int x = alg::text_layout::align_x(rect.x, rect.w, draw_width, align_h_mode);
 
         const int line_top = start_y + i * line_height;
         const int baseline_y = line_top + font.baseline;

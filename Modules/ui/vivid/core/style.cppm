@@ -14,6 +14,8 @@ struct Style {
     int       padding       = 4;
     int       header_padding = 4;
     int       content_padding = 8;
+    int       scrollbar_margin = 2;
+    int       scrollbar_thumb_min = 12;
     int       glass_highlight_pos = 10;
     int       glass_highlight_alpha = 70;
     int       glass_shadow_alpha = 40;
@@ -42,6 +44,8 @@ struct StylePatch {
     bool has_padding{false};
     bool has_header_padding{false};
     bool has_content_padding{false};
+    bool has_scrollbar_margin{false};
+    bool has_scrollbar_thumb_min{false};
     bool has_glass_highlight_pos{false};
     bool has_glass_highlight_alpha{false};
     bool has_glass_shadow_alpha{false};
@@ -65,6 +69,8 @@ struct StylePatch {
     int  padding{0};
     int  header_padding{0};
     int  content_padding{0};
+    int  scrollbar_margin{0};
+    int  scrollbar_thumb_min{0};
     int  glass_highlight_pos{0};
     int  glass_highlight_alpha{0};
     int  glass_shadow_alpha{0};
@@ -89,6 +95,8 @@ struct StylePatch {
         if (has_padding) s.padding = padding;
         if (has_header_padding) s.header_padding = header_padding;
         if (has_content_padding) s.content_padding = content_padding;
+        if (has_scrollbar_margin) s.scrollbar_margin = scrollbar_margin;
+        if (has_scrollbar_thumb_min) s.scrollbar_thumb_min = scrollbar_thumb_min;
         if (has_glass_highlight_pos) s.glass_highlight_pos = glass_highlight_pos;
         if (has_glass_highlight_alpha) s.glass_highlight_alpha = glass_highlight_alpha;
         if (has_glass_shadow_alpha) s.glass_shadow_alpha = glass_shadow_alpha;

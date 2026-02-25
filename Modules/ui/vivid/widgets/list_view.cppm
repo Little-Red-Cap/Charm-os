@@ -7,6 +7,8 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.virtual_list;
 import alg_list_layout;
+import alg_scroll_bounds;
+import alg_scroll_thumb;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
@@ -250,19 +252,20 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (show_scrollbar_ && content_height_ > r.h) {
+        if (show_scrollbar_ && max_scroll_ > 0) {
+            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
             const int track_w = 6;
-            const int track_x = r.x + r.w - track_w - 2;
-            const int track_h = r.h - 4;
-            const float ratio = static_cast<float>(r.h) / static_cast<float>(content_height_);
-            int thumb_h = static_cast<int>(track_h * ratio);
-            if (thumb_h < 12) thumb_h = 12;
-            const float tpos = (max_scroll_ > 0) ? (static_cast<float>(scroll_y_) / static_cast<float>(max_scroll_)) : 0.0f;
-            const int thumb_y = r.y + 2 + static_cast<int>((track_h - thumb_h) * tpos);
-            rgba thumb = st.border_focus;
-            thumb.a = 180;
-            draw_rect(cvs, track_x, r.y + 2, track_w, track_h, rgba{0,0,0,0}, false);
-            draw_rect(cvs, track_x, thumb_y, track_w, thumb_h, thumb, true);
+            const int track_x = r.x + r.w - track_w - margin;
+            const int track_y = r.y + margin;
+            const int track_h = r.h - margin * 2;
+            const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
+                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+            if (thumb.visible && thumb.thumb_h > 0) {
+                rgba thumb_col = st.border_focus;
+                thumb_col.a = 180;
+                draw_rect(cvs, track_x, track_y, track_w, track_h, rgba{0,0,0,0}, false);
+                draw_rect(cvs, thumb.thumb_x, thumb.thumb_y, thumb.thumb_w, thumb.thumb_h, thumb_col, true);
+            }
         }
 
         if (has_state(State::Focused)) {
@@ -543,17 +546,13 @@ private:
             const int row_h = row_height_for_render();
             content_height_ = count * row_h + st.padding * 2;
         }
-        const int max = content_height_ - r.h;
-        max_scroll_ = (max > 0) ? max : 0;
-        if (scroll_y_ > max_scroll_) scroll_y_ = max_scroll_;
-        if (scroll_y_ < 0) scroll_y_ = 0;
+        max_scroll_ = alg::scroll_bounds::compute_max(content_height_, r.h);
+        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_);
         notify_scroll();
     }
 
     int clamp_scroll(int y) const noexcept {
-        if (y < 0) return 0;
-        if (y > max_scroll_) return max_scroll_;
-        return y;
+        return alg::scroll_bounds::clamp(y, max_scroll_);
     }
 
     void ensure_visible(int index) noexcept {

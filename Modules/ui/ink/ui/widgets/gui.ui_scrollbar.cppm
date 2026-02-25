@@ -8,6 +8,7 @@ export module gui.ui_scrollbar;
 
 import gui.core;
 import gui.motion;
+import alg_scrollbar_metrics;
 
 export namespace gui::ui
 {
@@ -30,23 +31,13 @@ export namespace gui::ui
     {
         ScrollbarMetrics out{};
         out.track = track;
-        if (count <= 0 || track.h <= 0) return out;
-
-        int thumb_h = track.h / count;
-        if (thumb_h < min_thumb_h) thumb_h = min_thumb_h;
-        if (thumb_h > track.h) thumb_h = track.h;
-        int travel = track.h - thumb_h;
-        if (travel < 0) travel = 0;
-        int thumb_y = track.y;
-        if (travel > 0 && count > 1) {
-            const int idx = (focus_index < 0) ? 0 : (focus_index >= count ? (count - 1) : focus_index);
-            thumb_y = track.y + (travel * idx) / (count - 1);
-        }
-        if (thumb_y < track.y) thumb_y = track.y;
-        if (thumb_y > track.y + travel) thumb_y = track.y + travel;
-
-        out.thumb_y = (std::int16_t)thumb_y;
-        out.thumb_h = (std::int16_t)thumb_h;
+        const auto metrics = alg::scrollbar_metrics::compute_thumb(track.y,
+                                                                    track.h,
+                                                                    count,
+                                                                    focus_index,
+                                                                    min_thumb_h);
+        out.thumb_y = static_cast<std::int16_t>(metrics.thumb_y);
+        out.thumb_h = static_cast<std::int16_t>(metrics.thumb_h);
         return out;
     }
 

@@ -20,3 +20,7 @@ Optional modules and features only. Default OFF in main route.
 - trace buffer and format APIs remain stable
 - replay API stable
 - alert hook signature stable
+
+## Trace Export (Structured)
+- `format_trace_json()` for machine-friendly JSON array
+- `format_trace_csv()` for line-based export (header: `trace_v1,t,task,id,payload,count,kind`)

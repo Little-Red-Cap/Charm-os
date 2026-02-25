@@ -57,6 +57,14 @@ trace_capacity = 256..1024
 
 ## 关键行为/约束
 
+### 队列告警阈值策略
+
+- 动态优先级（ListQueue）模式下，`queue_depth()`/`max_queue` 表示**总队列深度**。  
+  推荐阈值（基于 `evtq_capacity`）：  
+  - `alert_queue_warn = evtq_capacity * 0.7`  
+  - `alert_queue_err  = evtq_capacity * 0.9`
+- RingQueue 模式下，`max_queue` 是**单优先级队列深度**，阈值应按单队列容量设置。
+
 ### EventId 扩展
 
 - `EventId` 的“最后一个枚举值”建议显式命名为 `count` 或 `max`，用于数组长度。
@@ -71,4 +79,3 @@ trace_capacity = 256..1024
 
 - 动态优先级（ListQueue）模式下，`queue_depth()` 仍返回真实深度。
 - 若使用非统计型队列实现，应在此处明确返回不可用值并记录到诊断输出。
-

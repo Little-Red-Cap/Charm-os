@@ -638,6 +638,37 @@ export namespace kernel {
             }
         }
 
+        [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
+            std::size_t offset = 0;
+            offset += static_cast<std::size_t>(std::snprintf(
+                out + offset,
+                max - offset,
+                "trace_v1,t,task,id,payload,count,kind\n"));
+            if constexpr (!Config::enable_trace) {
+                return offset;
+            } else {
+                const auto& data = trace_.data();
+                for (std::size_t i = 0; i < trace_.size(); ++i) {
+                    const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
+                    const auto& rec = data[idx];
+                    offset += static_cast<std::size_t>(std::snprintf(
+                        out + offset,
+                        max - offset,
+                        "%llu,%llu,%u,%llu,%u,%u\n",
+                        static_cast<unsigned long long>(rec.time),
+                        static_cast<unsigned long long>(rec.task.value),
+                        static_cast<unsigned>(rec.id),
+                        static_cast<unsigned long long>(rec.payload),
+                        static_cast<unsigned>(rec.count),
+                        static_cast<unsigned>(rec.kind)));
+                    if (offset >= max) {
+                        break;
+                    }
+                }
+                return offset;
+            }
+        }
+
         struct Snapshot {
             Stats stats{};
             std::size_t queue_depth{0};

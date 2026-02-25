@@ -1,4 +1,4 @@
-﻿// Reusable widget drawing helpers (no list state or viewport).
+// Reusable widget drawing helpers (no list state or viewport).
 // Keeps rendering details in one place for UI pages and list views.
 
 module;
@@ -22,8 +22,6 @@ import out.core;
 import out.format;
 import alg_arc;
 import alg_circle;
-import alg_line;
-import alg_round_rect;
 
 namespace gui::detail
 {
@@ -138,9 +136,18 @@ export namespace gui
     template <class R>
     void draw_line(R& r, int x0, int y0, int x1, int y1, bool on) noexcept
     {
-        alg::line::raster(x0, y0, x1, y1, [&](int x, int y) noexcept {
-            r.setPixel(x, y, on);
-        });
+        int dx = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+        int sx = (x0 < x1) ? 1 : -1;
+        int dy = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+        int sy = (y0 < y1) ? 1 : -1;
+        int err = (dx > dy ? dx : -dy) / 2;
+        while (true) {
+            r.setPixel(x0, y0, on);
+            if (x0 == x1 && y0 == y1) break;
+            const int e2 = err;
+            if (e2 > -dx) { err -= dy; x0 += sx; }
+            if (e2 < dy)  { err += dx; y0 += sy; }
+        }
     }
 
     template <class R>
@@ -241,34 +248,38 @@ export namespace gui
     inline void fill_round_rect(auto& r, const Rect& rc) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
-        constexpr int kRoundRadius = 2;
-        alg::round_rect::fill(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
-            [&](int x0, int x1, int y) noexcept {
-                for (int x = x0; x < x1; ++x) {
-                    r.setPixel(x, y, true);
-                }
-            });
+        r.fillRect(rc, true);
+        if (rc.w < 3 || rc.h < 3) return;
+        r.setPixel(rc.x, rc.y, false);
+        r.setPixel(rc.x + rc.w - 1, rc.y, false);
+        r.setPixel(rc.x, rc.y + rc.h - 1, false);
+        r.setPixel(rc.x + rc.w - 1, rc.y + rc.h - 1, false);
     }
 
     template <class R>
     void draw_round_rect(R& r, const Rect& rc, bool on) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
-        constexpr int kRoundRadius = 2;
-        alg::round_rect::outline(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
-            [&](int x, int y) noexcept {
-                r.setPixel(x, y, on);
-            },
-            [&](int x0, int x1, int y) noexcept {
-                for (int x = x0; x < x1; ++x) {
-                    r.setPixel(x, y, on);
-                }
-            },
-            [&](int x, int y0, int y1) noexcept {
-                for (int y = y0; y < y1; ++y) {
-                    r.setPixel(x, y, on);
-                }
-            });
+        if (rc.w < 4 || rc.h < 4) {
+            r.drawRect(rc, on);
+            return;
+        }
+        const int x0 = rc.x;
+        const int y0 = rc.y;
+        const int x1 = rc.x + rc.w - 1;
+        const int y1 = rc.y + rc.h - 1;
+        for (int x = x0 + 2; x <= x1 - 2; ++x) {
+            r.setPixel(x, y0, on);
+            r.setPixel(x, y1, on);
+        }
+        for (int y = y0 + 2; y <= y1 - 2; ++y) {
+            r.setPixel(x0, y, on);
+            r.setPixel(x1, y, on);
+        }
+        r.setPixel(x0 + 1, y0 + 1, on);
+        r.setPixel(x1 - 1, y0 + 1, on);
+        r.setPixel(x0 + 1, y1 - 1, on);
+        r.setPixel(x1 - 1, y1 - 1, on);
     }
 
     template <class R>
@@ -287,69 +298,6 @@ export namespace gui
         alg::circle::outline(cx, cy, rad, [&](int x, int y) noexcept {
             r.setPixel(x, y, on);
         });
-    }
-
-    template <class R>
-    void draw_led(R& r, const Rect& rc, bool on) noexcept
-    {
-        if (rc.w <= 0 || rc.h <= 0) return;
-        const int cx = rc.x + rc.w / 2;
-        const int cy = rc.y + rc.h / 2;
-        int radius = (rc.w < rc.h ? rc.w : rc.h) / 2;
-        if (radius < 1) {
-            r.setPixel(cx, cy, on);
-            return;
-        }
-        alg::circle::outline(cx, cy, radius, [&](int x, int y) noexcept {
-            r.setPixel(x, y, true);
-        });
-        if (!on || radius <= 1) return;
-        alg::circle::fill(cx, cy, radius - 1, [&](int x0, int x1, int y) noexcept {
-            for (int x = x0; x < x1; ++x) {
-                r.setPixel(x, y, true);
-            }
-        });
-    }
-
-    template <class R>
-    void draw_spinner(R& r, const Rect& rc, float phase, bool on = true) noexcept
-    {
-        if (rc.w <= 0 || rc.h <= 0) return;
-        const int cx = rc.x + rc.w / 2;
-        const int cy = rc.y + rc.h / 2;
-        int radius = (rc.w < rc.h ? rc.w : rc.h) / 2 - 1;
-        if (radius < 3) radius = 3;
-        const int inner = radius - 2;
-        const float base = alg::arc::wrap_angle_0_2pi(phase);
-        for (int i = 0; i < 3; ++i) {
-            const float a = base - (float)i * (alg::arc::kPi / 6.0f);
-            const auto p0 = alg::arc::point_on_circle_rad(cx, cy, radius, a);
-            const auto p1 = alg::arc::point_on_circle_rad(cx, cy, inner, a);
-            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
-        }
-        for (int i = 3; i < 8; ++i) {
-            const float a = base - (float)i * (alg::arc::kPi / 6.0f);
-            const auto p = alg::arc::point_on_circle_rad(cx, cy, radius, a);
-            r.setPixel(p.x, p.y, on);
-        }
-    }
-
-    template <class R>
-    void draw_progress_bar(R& r, const Rect& rc, std::uint8_t percent, bool on = true) noexcept
-    {
-        if (rc.w <= 2 || rc.h <= 2) return;
-        r.drawRect(rc, on);
-        const int inner_w = rc.w - 2;
-        const int inner_h = rc.h - 2;
-        const int p = (percent > 100) ? 100 : percent;
-        const int fill_w = (inner_w * p) / 100;
-        if (fill_w <= 0 || inner_h <= 0) return;
-        r.fillRect(Rect{
-            (std::int16_t)(rc.x + 1),
-            (std::int16_t)(rc.y + 1),
-            (std::int16_t)fill_w,
-            (std::int16_t)inner_h
-        }, on);
     }
 
     template <class R>
@@ -895,13 +843,13 @@ export namespace gui
             r.drawText(*th.font_default, rc.x + th.pad_xs, base, label ? label : "", true);
         }
 
-        // 杩涘害鏉″尯鍩?
+        // 进度条区�?
         const int barX = rc.x + 54;
         const int barY = rc.y + (rc.h - 9) / 2;
         const int barW = rc.w - 58;
         const int barH = 9;
 
-        // 杈规涓庢枃鏈竴鑷达細浣跨敤 !focused锛屼娇鍙嶈壊/闈炲弽鑹查兘娓呮櫚
+        // 边框与文本一致：使用 !focused，使反色/非反色都清晰
         r.drawRect(Rect{(int16_t)barX, (int16_t)barY, (int16_t)barW, (int16_t)barH}, true);
 
 

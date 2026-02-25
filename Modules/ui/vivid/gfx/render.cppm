@@ -11,27 +11,47 @@ export import charm.gfx.color;
 export import charm.gfx.image;
 import alg_arc;
 import alg_circle;
-import alg_line;
 import alg_round_rect;
-import alg_tile;
 
 namespace ui::render {
 
 // Bresenham 直线
-export
-void draw_line(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_line(Canvas<PF, W, H>& cvs,
                int x0, int y0,
                int x1, int y1,
                const rgba& color) noexcept
 {
-    alg::line::raster(x0, y0, x1, y1, [&](int x, int y) noexcept {
-        cvs.set_pixel(x, y, color);
-    });
+    const bool steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
+    if (steep) {
+        std::swap(x0, y0);
+        std::swap(x1, y1);
+    }
+    if (x0 > x1) {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+    const int dx = x1 - x0;
+    const int dy = std::abs(y1 - y0);
+    int err = dx / 2;
+    const int y_step = (y0 < y1) ? 1 : -1;
+    int y = y0;
+    for (int x = x0; x <= x1; ++x) {
+        if (steep)
+            cvs.set_pixel(y, x, color);
+        else
+            cvs.set_pixel(x, y, color);
+        err -= dy;
+        if (err < 0) {
+            y += y_step;
+            err += dx;
+        }
+    }
 }
 
 // 矩形（填充或描边�?
-export
-void draw_rect(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_rect(Canvas<PF, W, H>& cvs,
                int x, int y,
                int w, int h,
                const rgba& color,
@@ -50,8 +70,8 @@ void draw_rect(CanvasBase& cvs,
 
 
 // 中点圆算�?
-export
-void draw_circle(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_circle(Canvas<PF, W, H>& cvs,
                  int cx, int cy,
                  int radius,
                  const rgba& color,
@@ -66,8 +86,8 @@ void draw_circle(CanvasBase& cvs,
         });
 }
 
-export
-void draw_arc(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_arc(Canvas<PF, W, H>& cvs,
               int cx, int cy,
               int radius,
               int thickness,
@@ -93,8 +113,8 @@ void draw_arc(CanvasBase& cvs,
     });
 }
 
-export
-void draw_image(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_image(Canvas<PF, W, H>& cvs,
                 int dst_x, int dst_y,
                 const ImageView& img) noexcept
 {
@@ -103,16 +123,14 @@ void draw_image(CanvasBase& cvs,
     int y0 = dst_y;
     int x1 = dst_x + img.w;
     int y1 = dst_y + img.h;
-    const int w = cvs.width();
-    const int h = cvs.height();
-    if (x1 <= 0 || y1 <= 0 || x0 >= w || y0 >= h) return;
+    if (x1 <= 0 || y1 <= 0 || x0 >= static_cast<int>(W) || y0 >= static_cast<int>(H)) return;
 
     int sx = 0;
     int sy = 0;
     if (x0 < 0) { sx = -x0; x0 = 0; }
     if (y0 < 0) { sy = -y0; y0 = 0; }
-    if (x1 > w) x1 = w;
-    if (y1 > h) y1 = h;
+    if (x1 > static_cast<int>(W)) x1 = static_cast<int>(W);
+    if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
 
     for (int y = y0; y < y1; ++y) {
         const std::byte* row = img.data + (sy + (y - y0)) * img.stride_bytes;
@@ -149,7 +167,7 @@ void draw_image(CanvasBase& cvs,
                 if (src.a == 255) {
                     cvs.set_pixel(x, y, src);
                 } else if (src.a != 0) {
-                    const rgba dst = cvs.get_pixel(x, y);
+                    const rgba dst = cvs.raw_buffer().get_pixel(x, y);
                     const int ia = 255 - src.a;
                     rgba out{};
                     if (img.premultiplied_alpha) {
@@ -217,13 +235,14 @@ inline rgba decode_pixel(const ImageView& img, int sx, int sy) noexcept {
     return src;
 }
 
-inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
+template<PixelFormat PF, std::size_t W, std::size_t H>
+inline void blend_pixel(Canvas<PF, W, H>& cvs, int x, int y, const rgba& src, bool premultiplied) noexcept {
     if (src.a == 255) {
         cvs.set_pixel(x, y, src);
         return;
     }
     if (src.a == 0) return;
-    const rgba dst = cvs.get_pixel(x, y);
+    const rgba dst = cvs.raw_buffer().get_pixel(x, y);
     const int ia = 255 - src.a;
     rgba out{};
     if (premultiplied) {
@@ -251,8 +270,8 @@ inline ImageView make_subview(const ImageView& img, int x, int y, int w, int h) 
 }
 } // namespace detail
 
-export
-void draw_image_scaled(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_image_scaled(Canvas<PF, W, H>& cvs,
                        int dst_x, int dst_y,
                        int dst_w, int dst_h,
                        const ImageView& img) noexcept
@@ -262,16 +281,14 @@ void draw_image_scaled(CanvasBase& cvs,
     int y0 = dst_y;
     int x1 = dst_x + dst_w;
     int y1 = dst_y + dst_h;
-    const int w = cvs.width();
-    const int h = cvs.height();
-    if (x1 <= 0 || y1 <= 0 || x0 >= w || y0 >= h) return;
+    if (x1 <= 0 || y1 <= 0 || x0 >= static_cast<int>(W) || y0 >= static_cast<int>(H)) return;
 
     int sx0 = 0;
     int sy0 = 0;
     if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
     if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
-    if (x1 > w) x1 = w;
-    if (y1 > h) y1 = h;
+    if (x1 > static_cast<int>(W)) x1 = static_cast<int>(W);
+    if (y1 > static_cast<int>(H)) y1 = static_cast<int>(H);
 
     for (int y = y0; y < y1; ++y) {
         const int sy = sy0 + (y - y0) * img.h / dst_h;
@@ -284,8 +301,8 @@ void draw_image_scaled(CanvasBase& cvs,
     }
 }
 
-export
-void draw_image_nine_slice(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_image_nine_slice(Canvas<PF, W, H>& cvs,
                            int dst_x, int dst_y,
                            int dst_w, int dst_h,
                            const ImageView& img,
@@ -349,8 +366,8 @@ void draw_image_nine_slice(CanvasBase& cvs,
 
 
 // 圆角矩形绘制：radius=r，fill=true 填充，fill=false 描边
-export
-void draw_round_rect(CanvasBase& cvs,
+export template<PixelFormat PF, std::size_t W, std::size_t H>
+void draw_round_rect(Canvas<PF, W, H>& cvs,
                      int x, int y, int w, int h,
                      int radius,
                      const rgba& color,
@@ -367,18 +384,121 @@ void draw_round_rect(CanvasBase& cvs,
             cvs.draw_vline(xx, y0, y1, color);
         });
 }
-
-export
-void draw_rect_tiled(CanvasBase& cvs,
-                     int x, int y, int w, int h,
+                     int radius,
                      const rgba& color,
-                     int tile_w = 32,
-                     int tile_h = 32,
                      bool fill = false) noexcept
 {
-    alg::tile::for_each_tile(x, y, w, h, tile_w, tile_h, [&](int tx, int ty, int tw, int th) noexcept {
-        draw_rect(cvs, tx, ty, tw, th, color, fill);
-    });
+    // 限制圆角半径不超过矩形一�?
+    radius = std::fmin(radius, std::fmin(w/2, h/2));
+
+    // 准备引用 h-1, w-1 末端
+    int x2 = x + w - 1;
+    int y2 = y + h - 1;
+
+    if (fill) {
+        // --- 填充部分 ---
+        // 1) 中心矩形
+        for (int yy = y + radius; yy <= y2 - radius; ++yy) {
+            cvs.draw_hline(x, x + w, yy, color);
+        }
+        // 2) 顶部和底部的四个弧线区域
+        for (int dy = 0; dy < radius; ++dy) {
+            // 使用标准圆方程计�?dx
+            const int dx = static_cast<int>(std::sqrt(radius*radius - dy*dy));
+            // 顶部
+            cvs.draw_hline(x + radius - dx, x2 - (radius - dx), y + dy, color);
+            // 底部
+            cvs.draw_hline(x + radius - dx, x2 - (radius - dx), y2 - dy, color);
+        }
+    } else {
+        // --- 描边部分 ---
+        // 1) 四条直边（不含圆角区域）
+        cvs.draw_hline(x + radius, x2 - radius, y,    color); // 顶部
+        cvs.draw_hline(x + radius, x2 - radius, y2,   color); // 底部
+        cvs.draw_vline(x,             y + radius, y2 - radius, color); // �?
+        cvs.draw_vline(x2,            y + radius, y2 - radius, color); // �?
+
+        // 2) 四个圆角 - 使用中点圆算法绘�?0度圆�?
+        if (radius > 0) {
+            // 定义四个圆角圆心
+            const int cx1 = x + radius;      // 左上角圆�?
+            const int cy1 = y + radius;
+            const int cx2 = x2 - radius;     // 右上角圆�?
+            const int cy2 = y + radius;
+            const int cx3 = x + radius;      // 左下角圆�?
+            const int cy3 = y2 - radius;
+            const int cx4 = x2 - radius;     // 右下角圆�?
+            const int cy4 = y2 - radius;
+
+            // 左上角圆�?
+            {
+                int xc = 0, yc = radius;
+                int d = 1 - radius;
+                while (xc <= yc) {
+                cvs.set_pixel(cx1 - xc, cy1 - yc, color);
+                cvs.set_pixel(cx1 - yc, cy1 - xc, color);
+                    if (d < 0) {
+                        d += 2 * xc + 1;
+                    } else {
+                        d += 2 * (xc - yc) + 1;
+                        yc--;
+                    }
+                    xc++;
+                }
+            }
+
+            // 右上角圆�?
+            {
+                int xc = 0, yc = radius;
+                int d = 1 - radius;
+                while (xc <= yc) {
+                    cvs.set_pixel(cx2 + xc, cy2 - yc, color);
+                    cvs.set_pixel(cx2 + yc, cy2 - xc, color);
+                    if (d < 0) {
+                        d += 2 * xc + 1;
+                    } else {
+                        d += 2 * (xc - yc) + 1;
+                        yc--;
+                    }
+                    xc++;
+                }
+            }
+
+            // 左下角圆�?
+            {
+                int xc = 0, yc = radius;
+                int d = 1 - radius;
+                while (xc <= yc) {
+                    cvs.set_pixel(cx3 - xc, cy3 + yc, color);
+                    cvs.set_pixel(cx3 - yc, cy3 + xc, color);
+                    if (d < 0) {
+                        d += 2 * xc + 1;
+                    } else {
+                        d += 2 * (xc - yc) + 1;
+                        yc--;
+                    }
+                    xc++;
+                }
+            }
+
+            // 右下角圆�?
+            {
+                int xc = 0, yc = radius;
+                int d = 1 - radius;
+                while (xc <= yc) {
+                    cvs.set_pixel(cx4 + xc, cy4 + yc, color);
+                    cvs.set_pixel(cx4 + yc, cy4 + xc, color);
+                    if (d < 0) {
+                        d += 2 * xc + 1;
+                    } else {
+                        d += 2 * (xc - yc) + 1;
+                        yc--;
+                    }
+                    xc++;
+                }
+            }
+        }
+    }
 }
 
 } // namespace ui::render

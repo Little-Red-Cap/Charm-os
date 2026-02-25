@@ -6,7 +6,7 @@ function(charm_add_stm32_hal target)
   cmake_parse_arguments(CHARM_HAL "${options}" "${oneValueArgs}" "" ${ARGN})
 
   if (NOT CHARM_HAL_ROOT)
-    set(CHARM_HAL_ROOT "${CHARM_ROOT}/Modules/thirdparty/stm32")
+    set(CHARM_HAL_ROOT "${CHARM_ROOT}/Modules/thirdparty/stm32/stm32f4xx-hal-driver")
   endif()
 
   set(_hal_inc "${CHARM_HAL_ROOT}/Inc")

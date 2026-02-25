@@ -95,7 +95,7 @@ export namespace kernel {
             post_init_events();
         }
 
-        [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
+        [[nodiscard]] EventToken post_token_with_tag(TaskId task, Event evt, util::u64 tag) noexcept {
             ++stats_.source_post;
             if (task.value >= Registry::count) {
                 ++stats_.dropped;
@@ -158,7 +158,6 @@ export namespace kernel {
                 }
             }
             auto guard = Caps::IrqGuard::enter();
-            const auto tag = ++evt_seq_;
             bool ok = false;
             if constexpr (use_list_queue<Config>) {
                 if constexpr (Config::enable_event_coalesce) {
@@ -229,6 +228,10 @@ export namespace kernel {
                 ++stats_.dropped;
             }
             return ok ? EventToken{tag} : EventToken{0};
+        }
+
+        [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
+            return post_token_with_tag(task, evt, ++seq_);
         }
 
         [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
@@ -866,7 +869,7 @@ export namespace kernel {
                     return false;
                 }
                 ++stats_.source_timer;
-                (void)post_token(entry->task, entry->event);
+                (void)post_token_with_tag(entry->task, entry->event, entry->tag);
                 return true;
             }
         }
@@ -888,8 +891,8 @@ export namespace kernel {
                         (void)cancel_event(task, old_tag);
                     }
                 }
-                const auto order = ++timer_seq_;
-                const auto tag = order;
+                const auto tag = ++seq_;
+                const auto order = tag;
                 const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, order, tag};
                 if (!timers_.schedule(entry)) {
                     ++stats_.dropped;
@@ -932,8 +935,7 @@ export namespace kernel {
             TimerQueue<Tick, Config::timer_capacity, TimerPolicy>,
             NoopTimerQueue<Tick>>;
         TimerStorage timers_{};
-        util::u64 timer_seq_{0};
-        util::u64 evt_seq_{0};
+        util::u64 seq_{0};
         std::array<std::size_t, Registry::count> current_priorities_{};
         std::array<bool, Registry::count> task_enabled_{};
         std::array<TaskState, Registry::count> task_states_{};

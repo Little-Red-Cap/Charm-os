@@ -4,6 +4,7 @@ export module charm.widgets.progress_bar_drill;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import alg_arc;
@@ -51,12 +52,12 @@ public:
     void set_hole_color(const rgba& c) noexcept { hole_color_ = c; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ProgressBarDrill>();
+        Style st = Theme::instance().get<ProgressBarDrill>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ProgressBarDrill, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);

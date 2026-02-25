@@ -7,6 +7,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -29,39 +30,24 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Switch>();
+        Style st = Theme::instance().get<Switch>();
         const auto r = get_rect();
-
-        auto adjust = [](rgba c, int delta) noexcept {
-            auto clamp = [](int v) noexcept { return (v < 0) ? 0 : (v > 255 ? 255 : v); };
-            c.r = static_cast<std::uint8_t>(clamp(static_cast<int>(c.r) + delta));
-            c.g = static_cast<std::uint8_t>(clamp(static_cast<int>(c.g) + delta));
-            c.b = static_cast<std::uint8_t>(clamp(static_cast<int>(c.b) + delta));
-            return c;
-        };
 
         rgba track{};
         rgba border{};
-        rgba knob{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       track, border, knob);
+        rgba font{};
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Switch, state, st);
+        resolve_colors(st, state, track, border, font);
+        const rgba accent = resolve_accent(st, state);
+
+        rgba knob = st.on_accent;
         if (!is_enabled()) {
             knob = st.font_color_disabled;
-        } else {
-            knob = {250, 250, 252, 255};
         }
-
         if (on_) {
-            track = st.bg_pressed;
-            border = st.border_pressed;
-            if (has_state(State::Hovered) && !has_state(State::Pressed)) {
-                track = adjust(track, 12);
-                border = adjust(border, 12);
-            } else if (has_state(State::Pressed)) {
-                track = adjust(track, -12);
-                border = adjust(border, -12);
-            }
+            track = accent;
+            border = accent;
         }
 
         const int track_h = r.h;
@@ -94,9 +80,7 @@ public:
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, knob, true);
         draw_circle(cvs, knob_cx, knob_cy, knob_radius, border, false);
 
-        if (has_state(State::Focused)) {
-            draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, radius);
     }
 
     bool on_event(const Event& e) override {

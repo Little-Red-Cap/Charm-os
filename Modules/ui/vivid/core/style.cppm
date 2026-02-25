@@ -33,6 +33,12 @@ struct Style {
     rgba      border_disabled= {160,160,160,255};
     rgba      border_focus  = { 80,120,200,255};
     rgba      font_color_disabled = {120,120,120,255};
+
+    rgba      accent_color  = { 80,120,200,255};
+    rgba      accent_hover  = {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
+    rgba      accent_pressed= {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
+    rgba      accent_disabled= { 0,  0,  0,  0}; // 0 alpha = derive from accent_color
+    rgba      on_accent     = {255,255,255,255};
 };
 
 export
@@ -61,6 +67,11 @@ struct StylePatch {
     bool has_border_disabled{false};
     bool has_border_focus{false};
     bool has_font_color_disabled{false};
+    bool has_accent_color{false};
+    bool has_accent_hover{false};
+    bool has_accent_pressed{false};
+    bool has_accent_disabled{false};
+    bool has_on_accent{false};
 
     rgba bg_color{};
     rgba border_color{};
@@ -86,6 +97,11 @@ struct StylePatch {
     rgba border_disabled{};
     rgba border_focus{};
     rgba font_color_disabled{};
+    rgba accent_color{};
+    rgba accent_hover{};
+    rgba accent_pressed{};
+    rgba accent_disabled{};
+    rgba on_accent{};
 
     void apply_to(Style& s) const noexcept {
         if (has_bg_color) s.bg_color = bg_color;
@@ -112,6 +128,11 @@ struct StylePatch {
         if (has_border_disabled) s.border_disabled = border_disabled;
         if (has_border_focus) s.border_focus = border_focus;
         if (has_font_color_disabled) s.font_color_disabled = font_color_disabled;
+        if (has_accent_color) s.accent_color = accent_color;
+        if (has_accent_hover) s.accent_hover = accent_hover;
+        if (has_accent_pressed) s.accent_pressed = accent_pressed;
+        if (has_accent_disabled) s.accent_disabled = accent_disabled;
+        if (has_on_accent) s.on_accent = on_accent;
     }
 };
 
@@ -146,9 +167,28 @@ inline void resolve_colors(const Style& st, const StyleState& state,
     } else if (state.hovered) {
         bg = st.bg_hover;
         border = st.border_hover;
-    } else if (state.focused) {
-        border = st.border_focus;
     }
+}
+
+inline rgba adjust_color(rgba c, int delta) noexcept {
+    auto clamp = [](int v) noexcept { return (v < 0) ? 0 : (v > 255 ? 255 : v); };
+    c.r = static_cast<std::uint8_t>(clamp(static_cast<int>(c.r) + delta));
+    c.g = static_cast<std::uint8_t>(clamp(static_cast<int>(c.g) + delta));
+    c.b = static_cast<std::uint8_t>(clamp(static_cast<int>(c.b) + delta));
+    return c;
+}
+
+export inline rgba resolve_accent(const Style& st, const StyleState& state) noexcept {
+    if (!state.enabled) {
+        return st.accent_disabled.a ? st.accent_disabled : adjust_color(st.accent_color, -40);
+    }
+    if (state.pressed) {
+        return st.accent_pressed.a ? st.accent_pressed : adjust_color(st.accent_color, -24);
+    }
+    if (state.hovered) {
+        return st.accent_hover.a ? st.accent_hover : adjust_color(st.accent_color, 12);
+    }
+    return st.accent_color;
 }
 
 export

@@ -3,6 +3,7 @@ export module charm.widgets.progress_flowing;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import alg_arc;
@@ -44,12 +45,12 @@ public:
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ProgressFlowing>();
+        Style st = Theme::instance().get<ProgressFlowing>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ProgressFlowing, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);

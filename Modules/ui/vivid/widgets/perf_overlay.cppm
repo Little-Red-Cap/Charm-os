@@ -9,6 +9,7 @@ import charm.gfx.render;
 import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -40,15 +41,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<PerfOverlay>();
+        Style st = Theme::instance().get<PerfOverlay>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::PerfOverlay, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         for (int i = 0; i < st.border_width; ++i) {

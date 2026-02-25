@@ -12,6 +12,7 @@ import alg_scroll_thumb;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -187,15 +188,15 @@ public:
     int content_height() const noexcept { return content_height_; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ListView>();
+        Style st = Theme::instance().get<ListView>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ListView, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         flush_scroll_dirty();
 
@@ -268,9 +269,7 @@ public:
             }
         }
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     void update_visible_window() noexcept {

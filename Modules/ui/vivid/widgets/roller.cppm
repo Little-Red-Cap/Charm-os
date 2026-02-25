@@ -5,6 +5,7 @@ export module charm.widgets.roller;
 import charm.core.object;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.string;
 import charm.gfx.color;
 import charm.gfx.render;
@@ -39,14 +40,14 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Roller>();
+        Style st = Theme::instance().get<Roller>();
         const auto r = get_rect();
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Roller, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);

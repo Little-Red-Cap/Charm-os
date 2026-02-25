@@ -4,6 +4,7 @@ export module charm.widgets.menu_item;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
@@ -27,12 +28,12 @@ public:
     void set_selected(bool on) noexcept { selected_ = on; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<MenuItem>();
+        Style st = Theme::instance().get<MenuItem>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::MenuItem, state, st);
+        resolve_colors(st, state, bg, border, font);
         if (selected_) {
             bg = st.bg_pressed;
         }
@@ -59,9 +60,7 @@ public:
             }
         }
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {

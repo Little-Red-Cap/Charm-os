@@ -123,6 +123,11 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
         s.border_focus = base.border_focus;
         s.scrollbar_margin = base.scrollbar_margin;
         s.scrollbar_thumb_min = base.scrollbar_thumb_min;
+        s.accent_color = base.accent_color;
+        s.accent_hover = base.accent_hover;
+        s.accent_pressed = base.accent_pressed;
+        s.accent_disabled = base.accent_disabled;
+        s.on_accent = base.on_accent;
     };
 
     ThemePreset preset{};
@@ -256,6 +261,10 @@ inline void apply_ios_light_preset() noexcept {
     preset.slider.border_hover = kTrack;
     preset.slider.border_pressed = kTrack;
     preset.slider.font_color = kSurfaceElevated;
+    preset.slider.accent_color = kSystemBlue;
+    preset.slider.accent_hover = kSystemBlueHover;
+    preset.slider.accent_pressed = kSystemBluePressed;
+    preset.slider.on_accent = kSurfaceElevated;
     preset.slider.border_focus = kSystemBlue;
     preset.slider.padding = 8;
 
@@ -265,6 +274,8 @@ inline void apply_ios_light_preset() noexcept {
     preset.switcher.border_color = kBorder;
     preset.switcher.bg_pressed = kSystemGreen;
     preset.switcher.border_pressed = kSystemGreen;
+    preset.switcher.accent_color = kSystemGreen;
+    preset.switcher.on_accent = kSurfaceElevated;
     preset.switcher.border_focus = kSystemBlue;
     preset.switcher.corner_radius = 10;
     preset.switcher.padding = 4;
@@ -333,6 +344,10 @@ inline void apply_material3_light_preset() noexcept {
     preset.slider.border_hover = kOutline;
     preset.slider.border_pressed = kOutline;
     preset.slider.font_color = kOnPrimary;
+    preset.slider.accent_color = kPrimary;
+    preset.slider.accent_hover = kPrimaryHover;
+    preset.slider.accent_pressed = kPrimaryPressed;
+    preset.slider.on_accent = kOnPrimary;
     preset.slider.border_focus = kPrimary;
     preset.slider.padding = 8;
 
@@ -342,6 +357,8 @@ inline void apply_material3_light_preset() noexcept {
     preset.switcher.border_color = kOutline;
     preset.switcher.bg_pressed = kPrimary;
     preset.switcher.border_pressed = kPrimary;
+    preset.switcher.accent_color = kPrimary;
+    preset.switcher.on_accent = kOnPrimary;
     preset.switcher.border_focus = kPrimary;
     preset.switcher.font_color = kOnPrimary;
     preset.switcher.corner_radius = 12;
@@ -417,6 +434,8 @@ inline void apply_lvgl_default_preset() noexcept {
     preset.slider.border_hover = kLvBorder;
     preset.slider.border_pressed = kLvBorder;
     preset.slider.font_color = kLvText;
+    preset.slider.accent_color = kLvAccent;
+    preset.slider.on_accent = kLvText;
     preset.slider.border_focus = kLvBorderFocus;
     preset.slider.padding = 6;
 
@@ -426,6 +445,8 @@ inline void apply_lvgl_default_preset() noexcept {
     preset.switcher.border_color = kLvBorder;
     preset.switcher.bg_pressed = kLvAccent;
     preset.switcher.border_pressed = kLvAccent;
+    preset.switcher.accent_color = kLvAccent;
+    preset.switcher.on_accent = kLvText;
     preset.switcher.border_focus = kLvBorderFocus;
     preset.switcher.corner_radius = 6;
     preset.switcher.padding = 4;
@@ -478,6 +499,8 @@ inline void apply_arm2d_demo_preset() noexcept {
     preset.progress.bg_color = kPanel;
     preset.progress.border_color = kPanelBorder;
     preset.progress.bg_pressed = kAccent;
+    preset.progress.accent_color = kAccent;
+    preset.progress.on_accent = kText;
     preset.progress.border_focus = kAccent;
     preset.progress.corner_radius = 6;
     preset.progress.padding = 4;
@@ -487,6 +510,8 @@ inline void apply_arm2d_demo_preset() noexcept {
     preset.progress_bar_simple.bg_color = kPanel;
     preset.progress_bar_simple.border_color = kPanelBorder;
     preset.progress_bar_simple.bg_pressed = kAccent;
+    preset.progress_bar_simple.accent_color = kAccent;
+    preset.progress_bar_simple.on_accent = kText;
     preset.progress_bar_simple.border_focus = kAccent;
     preset.progress_bar_simple.corner_radius = 6;
     preset.progress_bar_simple.padding = 4;

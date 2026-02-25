@@ -5,6 +5,7 @@ export module charm.widgets.radio;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
@@ -40,13 +41,14 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Radio>();
+        Style st = Theme::instance().get<Radio>();
         const auto r = get_rect();
 
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Radio, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         // circle
         const int radius = 9;
@@ -54,7 +56,7 @@ public:
         const int cy = r.y + r.h / 2;
         draw_circle(cvs, cx, cy, radius, border, false);
         if (checked_) {
-            draw_circle(cvs, cx, cy, radius - 3, font, true);
+            draw_circle(cvs, cx, cy, radius - 3, accent, true);
         }
 
         label_.set_color(font);
@@ -63,9 +65,7 @@ public:
         label_.set_baseline_pos(cx + radius + st.padding, baseline_y);
         label_.draw(cvs);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {

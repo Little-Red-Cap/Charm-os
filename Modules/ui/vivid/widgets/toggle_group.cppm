@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -51,15 +52,15 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ToggleGroup>();
+        Style st = Theme::instance().get<ToggleGroup>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ToggleGroup, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -86,7 +87,7 @@ public:
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 
             if (has_state(State::Focused) && i == focus_idx_) {
-                draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, st.border_focus, false);
+                draw_focus_ring(cvs, seg, st, true);
             }
         }
     }

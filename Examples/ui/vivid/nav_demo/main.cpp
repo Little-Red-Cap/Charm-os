@@ -5,6 +5,9 @@ import charm.core.factory;
 import charm.core.input_router;
 import charm.core.input_adapter;
 import charm.core.handle;
+import charm.core.style;
+import charm.core.style_sheet;
+import charm.core.theme_preset;
 import charm.widgets.button;
 import input.raw_event;
 
@@ -23,6 +26,26 @@ namespace {
 }
 
 int main() {
+    ThemeTokens tokens{};
+    tokens.surface = {244, 244, 248, 255};
+    tokens.surface_variant = {230, 232, 238, 255};
+    tokens.on_surface = {32, 32, 38, 255};
+    tokens.on_surface_muted = {120, 120, 128, 255};
+    tokens.outline = {180, 182, 190, 255};
+    tokens.accent = {64, 120, 220, 255};
+    tokens.on_accent = {255, 255, 255, 255};
+    tokens.focus_ring = {64, 120, 220, 255};
+    apply_theme_tokens(tokens);
+
+    StyleRolePatch btn_roles{};
+    btn_roles.has_bg_hover = true;
+    btn_roles.has_bg_pressed = true;
+    btn_roles.has_border_color = true;
+    btn_roles.bg_hover = StyleRole::SurfaceVariant;
+    btn_roles.bg_pressed = StyleRole::AccentPressed;
+    btn_roles.border_color = StyleRole::Accent;
+    StyleSheet::instance().add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
+
     UiFactory factory{};
     auto root = factory.create_container();
     auto b1 = factory.create_button("A");

@@ -1,5 +1,6 @@
 module;
 #include <cmath>
+#include <cstdint>
 export module charm.widgets.roller;
 
 import charm.core.object;

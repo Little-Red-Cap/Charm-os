@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.spectrum_view;
 
 import charm.core.object;

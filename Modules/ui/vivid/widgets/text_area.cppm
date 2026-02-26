@@ -66,7 +66,9 @@ public:
             int caret_x = inner.x + caret_w;
             int caret_y1 = inner.y + cursor_row() * line_h - scroll_y_px_;
             int caret_y2 = caret_y1 + line_h;
-            caret_x = std::min(inner.x + inner.w - 2, std::max(inner.x + 1, caret_x));
+            const int min_x = static_cast<int>(inner.x + 1);
+            const int max_x = static_cast<int>(inner.x + inner.w - 2);
+            caret_x = std::min(max_x, std::max(min_x, caret_x));
             draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.border_focus);
             draw_focus_ring(cvs, r, st, true);
         }

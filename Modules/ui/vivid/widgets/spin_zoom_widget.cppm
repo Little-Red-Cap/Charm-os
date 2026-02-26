@@ -2,6 +2,7 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 export module charm.widgets.spin_zoom_widget;
 
 import charm.core.object;

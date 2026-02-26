@@ -16,11 +16,9 @@ import alg_text_layout;
 #endif
 
 #if CHARM_TEXT_PROFILE
-namespace {
-    std::uint64_t g_text_draw_calls = 0;
-    std::uint64_t g_text_glyphs = 0;
-    std::uint64_t g_text_pixels = 0;
-}
+inline std::uint64_t g_text_draw_calls = 0;
+inline std::uint64_t g_text_glyphs = 0;
+inline std::uint64_t g_text_pixels = 0;
 #endif
 
 export

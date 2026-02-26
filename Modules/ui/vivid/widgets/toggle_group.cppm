@@ -98,7 +98,7 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y) || count_ <= 0) return false;
-            const int idx = (e.x - r.x) * count_ / std::max(1, r.w);
+            const int idx = (e.x - r.x) * count_ / std::max(1, static_cast<int>(r.w));
             focus_idx_ = idx;
             if (single_select_) {
                 set_checked(idx, true);

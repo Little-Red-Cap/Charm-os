@@ -34,11 +34,11 @@ int main()
     constexpr std::size_t kTileStride = static_cast<std::size_t>(screen_width) * 2;
     constexpr std::size_t kTileBytes = kTileStride * static_cast<std::size_t>(kTileHeight);
     static std::array<std::byte, kTileBytes> g_tile_buf{};
-    ui::RuntimeCanvas canvas(g_tile_buf.data(),
-                             screen_width,
-                             kTileHeight,
-                             PixelFormat::RGB565,
-                             kTileStride);
+    RuntimeCanvas canvas(g_tile_buf.data(),
+                         screen_width,
+                         kTileHeight,
+                         PixelFormat::RGB565,
+                         kTileStride);
 
     while (true) {
         HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);

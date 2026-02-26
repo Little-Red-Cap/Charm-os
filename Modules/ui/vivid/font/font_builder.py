@@ -69,6 +69,8 @@ def main():
                         help='Output format for bitmap data (hex or bin).')
     parser.add_argument('--bpp', type=int, choices=[1, 2, 4, 8], default=4,
                         help='Bits per pixel for glyph bitmaps (default: 4).')
+    parser.add_argument('--gamma', type=float, default=1.0,
+                        help='Gamma correction for grayscale quantization (default: 1.0).')
     parser.add_argument('--fallback-char', type=int, default=63,
                         help='Character code to use as fallback glyph (default: 63 for "?").')
     args = parser.parse_args()
@@ -88,6 +90,7 @@ def main():
     print(f"Output format: {args.format}")
     print(f"Fallback character: {args.fallback_char} ('{chr(args.fallback_char)}')")
     print(f"Bitmap bpp: {args.bpp}")
+    print(f"Gamma: {args.gamma}")
 
     if not os.path.isfile(font_file):
         print(f"Error: font file '{font_file}' does not exist.")
@@ -174,7 +177,7 @@ def main():
                 bits_count = 0
                 for x in range(width):
                     pixel = mask.getpixel((x, y))
-                    value = (pixel >> 6) & 0x03
+                    value = int(round(((pixel / 255.0) ** args.gamma) * 3))
                     row_bits = (row_bits << 2) | value
                     bits_count += 2
                     if bits_count == 8:
@@ -188,7 +191,7 @@ def main():
                 nibble = None
                 for x in range(width):
                     pixel = mask.getpixel((x, y))
-                    value = (pixel >> 4) & 0x0F
+                    value = int(round(((pixel / 255.0) ** args.gamma) * 15))
                     if nibble is None:
                         nibble = value
                     else:
@@ -268,7 +271,7 @@ def main():
             f.write('};\n\n')
 
             # Font structure
-            f.write(f'export constexpr Font {font_name} = {{\n')
+            f.write(f'static constexpr Font {font_name}_impl = {{\n')
             f.write(f'    .table = glyph_table,\n')
             f.write(f'    .ranges = glyph_ranges,\n')
             if fallback_index is not None:
@@ -278,7 +281,8 @@ def main():
             f.write(f'    .line_height = {line_height},\n')
             f.write(f'    .baseline = {baseline}\n')
             f.write('};\n')
-            f.write(f'static_assert(validate_font({font_name}));\n')
+            f.write(f'static_assert(validate_font({font_name}_impl));\n')
+            f.write(f'export const Font {font_name} = {font_name}_impl;\n')
 
         print(f"\nSuccessfully generated font module: {out_module}")
         print(f"  Glyphs: {len(glyphs)}")

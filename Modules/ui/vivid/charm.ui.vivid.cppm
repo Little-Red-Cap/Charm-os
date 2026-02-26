@@ -30,8 +30,10 @@ export import charm.gfx.render;
 
 export import charm.font;
 export import charm.font.typography;
-export import charm.font.font_jbm_12;
-export import charm.font.font_jbm_16;
+export import charm.font.font_noto_ascii_12;
+export import charm.font.font_noto_ascii_16;
+export import charm.font.font_noto_sc_12;
+export import charm.font.font_noto_sc_16;
 
 export import charm.widgets.arc;
 export import charm.widgets.bar;

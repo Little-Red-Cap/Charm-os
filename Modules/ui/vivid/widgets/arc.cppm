@@ -5,6 +5,7 @@ import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import alg_arc;
 
 using namespace ui::render;
@@ -22,6 +23,10 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
+        Style st = Theme::instance().get<Arc>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::Arc, state, st);
+        const rgba accent = resolve_accent(st, state);
         const auto r = get_rect();
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
@@ -29,7 +34,7 @@ public:
         const float end = alg::arc::sweep_deg_from_value(start_deg_, end_deg_, value_);
         rgba use = color_;
         if (use.a == 0) {
-            use = Theme::instance().get<Arc>().border_color;
+            use = accent;
         }
         draw_arc(cvs, cx, cy, radius, thickness_, start_deg_, end, use);
     }

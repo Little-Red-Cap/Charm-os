@@ -7,6 +7,7 @@ export module charm.widgets.rich_text;
 import charm.core.object;
 import charm.core.string;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.canvas;
 import charm.gfx.color;
 import charm.widgets.text;
@@ -36,8 +37,12 @@ public:
     void set_text(const char* text) { text_.assign(text ? text : ""); }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<RichText>();
+        Style st = Theme::instance().get<RichText>();
         const auto r = get_rect();
+        rgba bg{}, border{}, font_color{};
+        const StyleState st_state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::RichText, st_state, st);
+        resolve_colors(st, st_state, bg, border, font_color);
         const Font& normal = resolve_font(st);
         const Font& mono = get_font(FontId::Mono);
         const int line_height = (normal.line_height > mono.line_height) ? normal.line_height : mono.line_height;
@@ -48,7 +53,7 @@ public:
 
         RunState state{};
         state.font = &normal;
-        state.color = st.font_color;
+        state.color = font_color;
         state.bold = false;
         state.mono = false;
 
@@ -85,7 +90,7 @@ public:
                                 break;
                             case alg::text_parse::TagKind::Color:
                                 if (parsed.reset_color) {
-                                    state.color = st.font_color;
+                                    state.color = font_color;
                                 } else {
                                     state.color = parsed.color;
                                 }

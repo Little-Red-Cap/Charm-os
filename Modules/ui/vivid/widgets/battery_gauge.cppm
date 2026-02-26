@@ -31,6 +31,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::BatteryGauge, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
 
@@ -58,7 +59,7 @@ public:
 
         const int fill_w = static_cast<int>(inner_w * alg::arc::ratio_from_range(value_, 0, 100));
         if (fill_w > 0) {
-            draw_rect(cvs, inner_x, inner_y, fill_w, inner_h, st.bg_pressed, true);
+            draw_rect(cvs, inner_x, inner_y, fill_w, inner_h, accent, true);
         }
     }
 

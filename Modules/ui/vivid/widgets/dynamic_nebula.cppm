@@ -7,6 +7,7 @@ export module charm.widgets.dynamic_nebula;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -48,8 +49,13 @@ public:
     void set_particle_size(int px) noexcept { particle_size_ = (px > 0) ? px : 1; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<DynamicNebula>();
+        Style st = Theme::instance().get<DynamicNebula>();
         const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::DynamicNebula, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
 
@@ -57,7 +63,7 @@ public:
         const int fade_edge = (fade_edge_ > vis) ? vis : fade_edge_;
         const int solid = (fully_visible_ > vis) ? vis : fully_visible_;
         const float invisible = static_cast<float>(radius_ - vis);
-        const rgba col = color_.a ? color_ : st.font_color;
+        const rgba col = color_.a ? color_ : accent;
 
         for (int i = 0; i < particle_count_; ++i) {
             auto& p = particles_[i];

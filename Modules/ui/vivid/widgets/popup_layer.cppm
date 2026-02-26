@@ -2,6 +2,8 @@ module;
 export module charm.widgets.popup_layer;
 
 import charm.core.object;
+import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -20,8 +22,14 @@ public:
     void draw(CanvasBase& cvs) override {
         if (!is_visible()) return;
         const auto r = get_rect();
-        if (has_bg_) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, bg_, true);
+        Style st = Theme::instance().get<PopupLayer>();
+        rgba bg{}, border{}, font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::PopupLayer, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba fill = has_bg_ ? bg_ : bg;
+        if (fill.a) {
+            draw_rect(cvs, r.x, r.y, r.w, r.h, fill, true);
         }
         // border optional
     }

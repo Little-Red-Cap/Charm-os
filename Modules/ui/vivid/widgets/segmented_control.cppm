@@ -54,6 +54,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::SegmentedControl, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
@@ -70,9 +71,9 @@ public:
             if (i == selected_) {
                 const int radius = (i == 0 || i == count_ - 1) ? st.corner_radius : 0;
                 if (radius > 0) {
-                    draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, st.bg_pressed, true);
+                    draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, accent, true);
                 } else {
-                    draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, st.bg_pressed, true);
+                    draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, accent, true);
                 }
             }
             if (i > 0) {

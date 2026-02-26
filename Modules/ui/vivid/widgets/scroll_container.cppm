@@ -15,6 +15,7 @@ import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
 import charm.core.style_sheet;
+import charm.widgets.scroll_dirty;
 import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
@@ -280,31 +281,13 @@ private:
     }
 
     void accumulate_scroll_dirty(const Rect& r) noexcept {
-        if (r.w <= 0 || r.h <= 0) return;
-        if (!scroll_dirty_valid_) {
-            scroll_dirty_accum_ = r;
-            scroll_dirty_valid_ = true;
-            return;
-        }
-        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
-        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
-        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
-            ? (r.x + r.w)
-            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
-        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
-            ? (r.y + r.h)
-            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
-        scroll_dirty_accum_.x = left;
-        scroll_dirty_accum_.y = top;
-        scroll_dirty_accum_.w = right - left;
-        scroll_dirty_accum_.h = bottom - top;
+        scroll_dirty_.add(r);
     }
 
     void flush_scroll_dirty() noexcept {
-        if (!scroll_dirty_valid_) return;
-        mark_dirty_hint(scroll_dirty_accum_);
-        scroll_dirty_valid_ = false;
-        scroll_dirty_accum_ = {};
+        Rect merged{};
+        if (!scroll_dirty_.take(merged)) return;
+        mark_dirty_hint(merged);
     }
 
     void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
@@ -394,8 +377,7 @@ private:
     int clip_inset_top_{1};
     int clip_inset_right_{1};
     int clip_inset_bottom_{1};
-    Rect scroll_dirty_accum_{};
-    bool scroll_dirty_valid_{false};
+    ScrollDirtyAccumulator scroll_dirty_{};
     float inertia_fast_ratio_{0.5f};
     float inertia_medium_ratio_{0.25f};
     float inertia_extra_ratio_{0.125f};

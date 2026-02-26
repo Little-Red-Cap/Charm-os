@@ -54,14 +54,15 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::TabView, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         // tab bar
         const int tab_h = 26;
-        draw_rect(cvs, r.x, r.y, r.w, tab_h, st.bg_color, true);
-        draw_rect(cvs, r.x, r.y, r.w, tab_h, st.border_color, false);
+        draw_rect(cvs, r.x, r.y, r.w, tab_h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, tab_h, border, false);
 
         // content border
-        draw_rect(cvs, r.x, r.y + tab_h, r.w, r.h - tab_h, st.border_color, false);
+        draw_rect(cvs, r.x, r.y + tab_h, r.w, r.h - tab_h, border, false);
 
         // tab buttons
         int x = r.x + st.padding;
@@ -69,14 +70,14 @@ public:
             const bool on = (i == active_);
             const auto txt = titles_[i].c_str();
             Label lbl{txt};
-            lbl.set_color(on ? st.font_color : st.font_color_disabled);
+            lbl.set_color(on ? font : st.font_color_disabled);
             lbl.set_font(resolve_font(st));
             const int btn_w = lbl.get_rect().w + st.padding * 2;
             const int btn_h = tab_h - 4;
             const int btn_x = x;
             const int btn_y = r.y + 2;
-            rgba tbg = on ? st.bg_pressed : st.bg_color;
-            rgba tborder = on ? st.border_pressed : st.border_color;
+            rgba tbg = on ? accent : bg;
+            rgba tborder = on ? accent : border;
             draw_rect(cvs, btn_x, btn_y, btn_w, btn_h, tbg, true);
             draw_rect(cvs, btn_x, btn_y, btn_w, btn_h, tborder, false);
             const int baseline_y = btn_y + (btn_h - lbl.line_height()) / 2 + lbl.baseline();

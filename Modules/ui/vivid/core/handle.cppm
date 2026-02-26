@@ -41,6 +41,7 @@ enum class WidgetKind : std::uint8_t {
     Spinner,
     Bar,
     PopupLayer,
+    MessageBox,
     Menu,
     MenuItem,
     Radio,
@@ -126,6 +127,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Spinner: return "Spinner";
         case WidgetKind::Bar: return "Bar";
         case WidgetKind::PopupLayer: return "PopupLayer";
+        case WidgetKind::MessageBox: return "MessageBox";
         case WidgetKind::Menu: return "Menu";
         case WidgetKind::MenuItem: return "MenuItem";
         case WidgetKind::Radio: return "Radio";

@@ -8,6 +8,7 @@ import charm.font.typography;
 import charm.widgets.text;
 import charm.core.string;
 import charm.core.style;
+import charm.core.style_sheet;
 
 export
 class Label : public ObjectBase {
@@ -23,7 +24,7 @@ public:
         text_.assign(txt);
         const Style& st = Theme::instance().get<Label>();
         font_ = &resolve_font(st);
-        color_ = st.font_color;
+        color_ = {};
         v_align_ = VerticalAlign::Center;
         align_h_ = TextAlignH::Left;
         align_v_ = TextAlignV::Center;
@@ -37,10 +38,14 @@ public:
         resize();
     }
 
-    void set_color(const rgba& c) noexcept { color_ = c; }
+    void set_color(const rgba& c) noexcept {
+        color_ = c;
+        has_color_ = true;
+    }
 
     void set_font(const Font& f) noexcept {
         font_ = &f;
+        has_font_ = true;
         resize();
     }
 
@@ -79,16 +84,29 @@ public:
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
     void draw(CanvasBase& cvs) override {
+        Style st = Theme::instance().get<Label>();
+        rgba bg{}, border{}, font_color{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::Label, state, st);
+        resolve_colors(st, state, bg, border, font_color);
+        if (!has_font_) {
+            const Font* resolved = &resolve_font(st);
+            if (font_ != resolved) {
+                font_ = resolved;
+                resize();
+            }
+        }
         if (!font_) return;
         const auto r = get_rect();
+        const rgba use_color = has_color_ ? color_ : font_color;
 
         if (v_align_ == VerticalAlign::Baseline) {
             const int baseline_y = r.y + font_->baseline;
-            draw_text_baseline(cvs, r.x, baseline_y, text_.c_str(), color_, *font_);
+            draw_text_baseline(cvs, r.x, baseline_y, text_.c_str(), use_color, *font_);
             return;
         }
 
-        draw_text_box(cvs, r, text_.c_str(), color_, *font_, align_h_, align_v_, wrap_, ellipsis_);
+        draw_text_box(cvs, r, text_.c_str(), use_color, *font_, align_h_, align_v_, wrap_, ellipsis_);
     }
 
 private:
@@ -102,6 +120,8 @@ private:
     StaticString<64> text_;
     const Font* font_{nullptr};
     rgba color_{};
+    bool has_color_{false};
+    bool has_font_{false};
     VerticalAlign v_align_{VerticalAlign::Center};
     TextAlignH align_h_{TextAlignH::Left};
     TextAlignV align_v_{TextAlignV::Center};

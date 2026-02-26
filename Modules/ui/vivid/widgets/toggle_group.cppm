@@ -61,6 +61,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::ToggleGroup, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -74,8 +75,8 @@ public:
                 seg.w = r.x + r.w - seg.x;
             }
 
-            rgba seg_bg = checked_[i] ? st.bg_pressed : bg;
-            rgba seg_border = checked_[i] ? st.border_pressed : border;
+            rgba seg_bg = checked_[i] ? accent : bg;
+            rgba seg_border = checked_[i] ? accent : border;
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_bg, true);
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_border, false);
             if (i > 0) {

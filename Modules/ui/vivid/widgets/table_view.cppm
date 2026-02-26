@@ -10,6 +10,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.widgets.text;
 import alg_scroll_bounds;
+import alg_list_scroll;
 
 using namespace ui::render;
 
@@ -171,9 +172,9 @@ private:
         const int cols = col_count();
         int total_w = 0;
         for (int i = 0; i < cols; ++i) total_w += column_width(i);
-        const int total_h = rows * row_height_;
         max_scroll_x_ = alg::scroll_bounds::compute_max(total_w, r.w);
-        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+        const auto bounds = alg::list_scroll::compute_bounds(rows, row_height_, 0, r.h);
+        max_scroll_y_ = bounds.max_scroll;
         scroll_x_ = alg::scroll_bounds::clamp(scroll_x_, max_scroll_x_);
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }

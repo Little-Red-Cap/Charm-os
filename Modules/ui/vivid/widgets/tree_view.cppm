@@ -11,6 +11,7 @@ import charm.core.style_sheet;
 import charm.core.virtual_list;
 import charm.widgets.text;
 import alg_scroll_bounds;
+import alg_list_scroll;
 
 using namespace ui::render;
 
@@ -233,11 +234,12 @@ private:
 
     int index_from_y(int y) const noexcept {
         const auto r = get_rect();
-        const int local = y - r.y + scroll_y_;
-        if (local < 0 || row_height_ <= 0) return -1;
+        if (row_height_ <= 0) return -1;
         if (!row_height_fn_) {
-            return local / row_height_;
+            return alg::list_scroll::index_from_y(y, r.y, scroll_y_, 0, row_height_, item_count());
         }
+        const int local = y - r.y + scroll_y_;
+        if (local < 0) return -1;
         int acc = 0;
         const int count = item_count();
         for (int i = 0; i < count; ++i) {
@@ -249,16 +251,17 @@ private:
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        int total_h = 0;
-        if (row_height_fn_) {
+        if (!row_height_fn_) {
+            const auto bounds = alg::list_scroll::compute_bounds(item_count(), row_height_, 0, r.h);
+            max_scroll_y_ = bounds.max_scroll;
+        } else {
+            int total_h = 0;
             const int count = item_count();
             for (int i = 0; i < count; ++i) {
                 total_h += row_height_for_index(i);
             }
-        } else {
-            total_h = item_count() * row_height_;
+            max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
         }
-        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 

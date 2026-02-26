@@ -28,6 +28,74 @@ struct StyleRule {
 };
 
 export
+enum class StyleRole : std::uint8_t {
+    Surface,
+    SurfaceVariant,
+    OnSurface,
+    OnSurfaceMuted,
+    Outline,
+    Accent,
+    OnAccent,
+    Danger,
+    OnDanger,
+    FocusRing
+};
+
+export
+struct StyleRolePatch {
+    bool has_bg_color{false};
+    bool has_border_color{false};
+    bool has_font_color{false};
+    bool has_accent_color{false};
+    bool has_on_accent{false};
+    bool has_border_focus{false};
+
+    StyleRole bg_color{StyleRole::Surface};
+    StyleRole border_color{StyleRole::Outline};
+    StyleRole font_color{StyleRole::OnSurface};
+    StyleRole accent_color{StyleRole::Accent};
+    StyleRole on_accent{StyleRole::OnAccent};
+    StyleRole border_focus{StyleRole::FocusRing};
+};
+
+enum class StyleRuleKind : std::uint8_t {
+    Patch,
+    RolePatch
+};
+
+struct StyleRuleEntry {
+    StyleSelector selector{};
+    StyleRuleKind kind{StyleRuleKind::Patch};
+    StylePatch patch{};
+    StyleRolePatch role_patch{};
+};
+
+inline rgba role_color(StyleRole role, const ThemeTokens& t) noexcept {
+    switch (role) {
+    case StyleRole::Surface: return t.surface;
+    case StyleRole::SurfaceVariant: return t.surface_variant;
+    case StyleRole::OnSurface: return t.on_surface;
+    case StyleRole::OnSurfaceMuted: return t.on_surface_muted;
+    case StyleRole::Outline: return t.outline;
+    case StyleRole::Accent: return t.accent;
+    case StyleRole::OnAccent: return t.on_accent;
+    case StyleRole::Danger: return t.danger;
+    case StyleRole::OnDanger: return t.on_danger;
+    case StyleRole::FocusRing: return t.focus_ring;
+    default: return t.surface;
+    }
+}
+
+inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const ThemeTokens& tokens) noexcept {
+    if (patch.has_bg_color) style.bg_color = role_color(patch.bg_color, tokens);
+    if (patch.has_border_color) style.border_color = role_color(patch.border_color, tokens);
+    if (patch.has_font_color) style.font_color = role_color(patch.font_color, tokens);
+    if (patch.has_accent_color) style.accent_color = role_color(patch.accent_color, tokens);
+    if (patch.has_on_accent) style.on_accent = role_color(patch.on_accent, tokens);
+    if (patch.has_border_focus) style.border_focus = role_color(patch.border_focus, tokens);
+}
+
+export
 class StyleSheet {
 public:
     static StyleSheet& instance() {
@@ -39,7 +107,17 @@ public:
 
     bool add_rule(const StyleSelector& sel, const StylePatch& patch) noexcept {
         if (count_ >= rules_.size()) return false;
-        rules_[count_++] = StyleRule{sel, patch};
+        rules_[count_++] = StyleRuleEntry{sel, StyleRuleKind::Patch, patch, {}};
+        return true;
+    }
+
+    bool add_role_rule(const StyleSelector& sel, const StyleRolePatch& patch) noexcept {
+        if (count_ >= rules_.size()) return false;
+        StyleRuleEntry entry{};
+        entry.selector = sel;
+        entry.kind = StyleRuleKind::RolePatch;
+        entry.role_patch = patch;
+        rules_[count_++] = entry;
         return true;
     }
 
@@ -53,7 +131,11 @@ public:
             if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
                 continue;
             }
-            rule.patch.apply_to(style);
+            if (rule.kind == StyleRuleKind::Patch) {
+                rule.patch.apply_to(style);
+            } else {
+                apply_role_patch(style, rule.role_patch, Theme::instance().get_tokens());
+            }
         }
     }
 
@@ -67,7 +149,7 @@ private:
         return mask;
     }
 
-    std::array<StyleRule, 32> rules_{};
+    std::array<StyleRuleEntry, 32> rules_{};
     std::size_t count_{0};
 };
 

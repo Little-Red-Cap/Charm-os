@@ -14,10 +14,10 @@
 - 临时修复：`export import input.raw;`
 - 建议：明确 raw_event 的导出契约并补测试
 
-3) `Modules/ui/vivid/font/typography.cppm` 漏 import `lv_font_montserrat_12`
-- 现象：`font_montserrat_12` 未定义
-- 临时修复：补 `import charm.font.lv_font_montserrat_12;`
-- 建议：字体注册统一入口/生成脚本校验
+3) `Modules/ui/vivid/font/typography.cppm` 漏 import 字体模块
+- 现象：字体符号未定义
+- 临时修复：补导入对应字体模块
+- 建议：字体注册统一入口/生成脚本校验；已迁移为 `font_builder.py` 生成字体
 
 4) `Modules/io/out/out.port.template.cpp` 缺少基础 include/import
 - 现象：`std::size_t`/`std::unexpected` 等未识别

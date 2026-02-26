@@ -465,7 +465,7 @@ export namespace audio {
             }
         };
 
-        static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
+        static std::size_t fill_from_fifo(util::span<std::byte> dst, void* user) noexcept {
             auto* self = static_cast<AudioPlayer*>(user);
             if (!self || self->fifo_capacity_ == 0) return 0;
             const std::size_t frame = self->output_fmt_.frame_size();
@@ -478,7 +478,7 @@ export namespace audio {
                 auto v = self->fifo_.readable_view();
                 if (v.a.empty() && v.b.empty()) break;
 
-                auto copy_one = [&](std::span<std::byte> src) {
+                auto copy_one = [&](util::span<std::byte> src) {
                     std::size_t n = std::min(src.size(), need - filled);
                     n -= n % frame;
                     if (n == 0) return;

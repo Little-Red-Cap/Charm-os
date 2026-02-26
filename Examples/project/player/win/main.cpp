@@ -2,6 +2,10 @@
 #define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
+#ifndef CHARM_PLAYER_PFB
+#define CHARM_PLAYER_PFB 1
+#endif
+
 import audio.player;
 import audio.result;
 import player.controller;
@@ -102,6 +106,8 @@ namespace {
 #if CHARM_PLAYER_DEBUG_UI
     using namespace player::ui_debug;
 #endif
+    const bool kUsePartialBuffer = (CHARM_PLAYER_PFB != 0);
+    constexpr int kTileHeight = 96;
 
     static DefaultFrameBuffer g_framebuffer{};
     static DefaultCanvas g_canvas(g_framebuffer);
@@ -709,9 +715,25 @@ int main(int argc, char** argv) {
         g_ctx.update_list_placeholder();
     }
 
-    auto gui = std::make_unique<Gui>(g_canvas, g_factory, g_ctx.handles.root);
+    std::optional<RuntimeCanvas> runtime_canvas{};
+    std::vector<std::byte> tile_storage{};
+    CanvasBase* active_canvas = &g_canvas;
+    std::size_t tile_stride = static_cast<std::size_t>(screen_width)
+        * PixelTraits<screen_pixel_format>::bytes_per_pixel;
+
+    if (kUsePartialBuffer) {
+        tile_storage.resize(tile_stride * static_cast<std::size_t>(kTileHeight));
+        runtime_canvas.emplace(tile_storage.data(),
+                               screen_width,
+                               kTileHeight,
+                               screen_pixel_format,
+                               tile_stride);
+        active_canvas = &*runtime_canvas;
+    }
+
+    auto gui = std::make_unique<Gui>(*active_canvas, g_factory, g_ctx.handles.root);
     gui->set_dirty_tracking(true);
-    gui->set_layer_cache(true);
+    gui->set_layer_cache(!kUsePartialBuffer);
 
     const auto start_time = std::chrono::steady_clock::now();
 
@@ -794,10 +816,29 @@ int main(int argc, char** argv) {
             gui->invalidate_cache();
         }
 
-        g_canvas.clear(kUiBackground);
-        gui->render();
-
-        SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
+        if (kUsePartialBuffer) {
+            for (int ty = 0; ty < screen_height; ty += kTileHeight) {
+                const int tile_h = (ty + kTileHeight <= screen_height)
+                    ? kTileHeight
+                    : (screen_height - ty);
+                Rect tile_clip{0, ty, screen_width, tile_h};
+                active_canvas->set_origin(0, -ty);
+                active_canvas->set_clip(tile_clip);
+                active_canvas->clear(kUiBackground);
+                gui->render();
+                SDL_Rect sdl_rect{0, ty, screen_width, tile_h};
+                SDL_UpdateTexture(texture,
+                                  &sdl_rect,
+                                  tile_storage.data(),
+                                  static_cast<int>(tile_stride));
+            }
+            active_canvas->clear_origin();
+            active_canvas->clear_clip();
+        } else {
+            active_canvas->clear(kUiBackground);
+            gui->render();
+            SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
+        }
         SDL_RenderClear(renderer);
         SDL_FRect dst{
             0.0f,

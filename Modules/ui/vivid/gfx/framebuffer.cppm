@@ -1,6 +1,7 @@
 module;
-#include <cstddef>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 export module charm.gfx.framebuffer;
 
@@ -90,3 +91,12 @@ export
 using DefaultFrameBuffer = FrameBuffer<screen_pixel_format,
                                        static_cast<std::size_t>(screen_width),
                                        static_cast<std::size_t>(screen_height)>;
+
+export
+struct FrameBufferView {
+    PixelFormat format{PixelFormat::RGB888};
+    std::byte* data{nullptr};
+    std::size_t width{0};
+    std::size_t height{0};
+    std::size_t stride_bytes{0};
+};

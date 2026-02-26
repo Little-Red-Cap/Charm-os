@@ -16,9 +16,13 @@ enum class StyleStateFlag : std::uint8_t {
 };
 
 export
+constexpr std::uint8_t kStyleVariantAny = 0xFF;
+
+export
 struct StyleSelector {
     WidgetKind kind{WidgetKind::None};
     std::uint8_t require_mask{0};
+    std::uint8_t variant{kStyleVariantAny};
 };
 
 export
@@ -165,6 +169,9 @@ public:
             if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
                 continue;
             }
+            if (rule.selector.variant != kStyleVariantAny && rule.selector.variant != state.variant) {
+                continue;
+            }
             if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
                 continue;
             }
@@ -188,8 +195,9 @@ private:
 
     static std::uint16_t rule_priority(const StyleSelector& sel) noexcept {
         const std::uint16_t kind_score = (sel.kind == WidgetKind::None) ? 0u : 1u;
+        const std::uint16_t variant_score = (sel.variant == kStyleVariantAny) ? 0u : 1u;
         const std::uint16_t state_score = static_cast<std::uint16_t>(mask_weight(sel.require_mask));
-        return static_cast<std::uint16_t>((kind_score << 8) | (state_score << 4));
+        return static_cast<std::uint16_t>((kind_score << 8) | (variant_score << 7) | (state_score << 4));
     }
 
     void insert_rule(const StyleRuleEntry& entry) noexcept {

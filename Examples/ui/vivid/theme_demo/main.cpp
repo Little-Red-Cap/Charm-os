@@ -28,6 +28,8 @@ namespace {
         ThemeTokens tokens;
     };
 
+    constexpr std::uint8_t kVariantSecondary = 1;
+
     constexpr std::uint8_t mask_hover() noexcept {
         return static_cast<std::uint8_t>(StyleStateFlag::Hovered);
     }
@@ -147,6 +149,7 @@ int main() {
     y += row_h + gap;
     if (auto* btn = factory.get_button(btn_secondary)) {
         btn->set_rect({col_x, y, col_w, row_h});
+        btn->set_style_variant(kVariantSecondary);
     }
     y += row_h + gap;
     if (auto* s = factory.get_switch(sw)) {
@@ -235,6 +238,19 @@ int main() {
         btn_roles.bg_pressed = StyleRole::AccentPressed;
         btn_roles.border_color = StyleRole::Accent;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
+
+        StyleRolePatch btn_secondary_roles{};
+        btn_secondary_roles.has_bg_color = true;
+        btn_secondary_roles.has_bg_hover = true;
+        btn_secondary_roles.has_bg_pressed = true;
+        btn_secondary_roles.has_border_color = true;
+        btn_secondary_roles.has_font_color = true;
+        btn_secondary_roles.bg_color = StyleRole::Surface;
+        btn_secondary_roles.bg_hover = StyleRole::SurfaceHover;
+        btn_secondary_roles.bg_pressed = StyleRole::SurfacePressed;
+        btn_secondary_roles.border_color = StyleRole::Outline;
+        btn_secondary_roles.font_color = StyleRole::OnSurface;
+        sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0, kVariantSecondary}, btn_secondary_roles);
 
         StyleRolePatch list_hover{};
         list_hover.has_bg_color = true;

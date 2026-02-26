@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 #include <type_traits>
 export module charm.core.style;
 
@@ -156,7 +157,17 @@ struct StyleState {
     bool hovered{false};
     bool pressed{false};
     bool focused{false};
+    std::uint8_t variant{0};
 };
+
+export
+inline StyleState make_style_state(bool enabled,
+                                   bool hovered,
+                                   bool pressed,
+                                   bool focused,
+                                   std::uint8_t variant = 0) noexcept {
+    return StyleState{enabled, hovered, pressed, focused, variant};
+}
 
 export
 inline const Font& resolve_font(const Style& st) noexcept {

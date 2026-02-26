@@ -45,7 +45,7 @@ public:
         const auto r = get_rect();
 
         rgba bg{}, border{}, font{};
-        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::Radio, state, st);
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
@@ -94,3 +94,5 @@ private:
     std::uint16_t group_id_{0};
     bool checked_{false};
 };
+
+

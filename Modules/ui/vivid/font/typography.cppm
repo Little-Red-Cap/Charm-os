@@ -3,7 +3,6 @@ module;
 export module charm.font.typography;
 
 export import charm.font;
-import charm.font.font_12;
 import charm.font.font_jbm_12;
 import charm.font.font_jbm_16;
 

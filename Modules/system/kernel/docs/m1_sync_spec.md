@@ -33,6 +33,9 @@
 - `notify_*` return `false` if no waiters
 - `cancel(...)` returns `false` if token not found
 
+### Timeout Binding
+- timeout token 与 waiter 绑定存储（WaitSet entry），无需额外环形表。
+
 ### Token & Waiter Assumptions
 - `SyncUnified` 依赖 `WaitToken` 的唯一性（至少在同一 Sync 实例内唯一）。
 - `erase(token)` 只移除第一个匹配项；若允许重复 token 会导致残留。

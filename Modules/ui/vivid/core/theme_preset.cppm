@@ -116,11 +116,20 @@ export
 inline void apply_baseline_theme_preset(const Style& base) noexcept {
     auto& theme = Theme::instance();
     auto apply_base = [&](Style& s) {
+        s.bg_color = base.bg_color;
+        s.bg_hover = base.bg_hover;
+        s.bg_pressed = base.bg_pressed;
+        s.bg_disabled = base.bg_disabled;
         s.padding = base.padding;
         s.corner_radius = base.corner_radius;
         s.border_width = base.border_width;
         s.border_color = base.border_color;
+        s.border_hover = base.border_hover;
+        s.border_pressed = base.border_pressed;
+        s.border_disabled = base.border_disabled;
         s.border_focus = base.border_focus;
+        s.font_color = base.font_color;
+        s.font_color_disabled = base.font_color_disabled;
         s.scrollbar_margin = base.scrollbar_margin;
         s.scrollbar_thumb_min = base.scrollbar_thumb_min;
         s.accent_color = base.accent_color;
@@ -211,6 +220,14 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
 }
 
 export
+inline void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
+    auto& theme = Theme::instance();
+    theme.set_tokens(tokens);
+    Style base = make_style_from_tokens(tokens);
+    apply_baseline_theme_preset(base);
+}
+
+export
 inline void apply_ios_light_preset() noexcept {
     auto& theme = Theme::instance();
 
@@ -223,6 +240,17 @@ inline void apply_ios_light_preset() noexcept {
     constexpr rgba kBorder{199, 199, 204, 255};
     constexpr rgba kText{28, 28, 30, 255};
     constexpr rgba kTrack{209, 209, 214, 255};
+
+    ThemeTokens tokens{};
+    tokens.surface = kSurface;
+    tokens.surface_variant = kSurfaceElevated;
+    tokens.on_surface = kText;
+    tokens.on_surface_muted = kBorder;
+    tokens.outline = kBorder;
+    tokens.accent = kSystemBlue;
+    tokens.on_accent = kSurfaceElevated;
+    tokens.focus_ring = kSystemBlue;
+    apply_theme_tokens(tokens);
 
     ThemePreset preset{};
     preset.has_label = true;
@@ -306,6 +334,17 @@ inline void apply_material3_light_preset() noexcept {
     constexpr rgba kOutline{121, 116, 126, 255};
     constexpr rgba kOnSurface{28, 27, 31, 255};
     constexpr rgba kTonal{234, 221, 255, 255};
+
+    ThemeTokens tokens{};
+    tokens.surface = kSurface;
+    tokens.surface_variant = kSurfaceVariant;
+    tokens.on_surface = kOnSurface;
+    tokens.on_surface_muted = kOutline;
+    tokens.outline = kOutline;
+    tokens.accent = kPrimary;
+    tokens.on_accent = kOnPrimary;
+    tokens.focus_ring = kPrimary;
+    apply_theme_tokens(tokens);
 
     ThemePreset preset{};
     preset.has_label = true;
@@ -397,6 +436,17 @@ inline void apply_lvgl_default_preset() noexcept {
     constexpr rgba kLvText{40, 40, 40, 255};
     constexpr rgba kLvAccent{0, 136, 255, 255};
 
+    ThemeTokens tokens{};
+    tokens.surface = kLvBg;
+    tokens.surface_variant = kLvBg;
+    tokens.on_surface = kLvText;
+    tokens.on_surface_muted = kLvBorder;
+    tokens.outline = kLvBorder;
+    tokens.accent = kLvAccent;
+    tokens.on_accent = kLvText;
+    tokens.focus_ring = kLvBorderFocus;
+    apply_theme_tokens(tokens);
+
     ThemePreset preset{};
     preset.has_label = true;
     preset.label = theme.get<Label>();
@@ -475,6 +525,17 @@ inline void apply_arm2d_demo_preset() noexcept {
     constexpr rgba kAccent{48, 198, 255, 255};
     constexpr rgba kAccentSoft{90, 220, 255, 255};
     constexpr rgba kText{210, 220, 235, 255};
+
+    ThemeTokens tokens{};
+    tokens.surface = kPanel;
+    tokens.surface_variant = kPanelHover;
+    tokens.on_surface = kText;
+    tokens.on_surface_muted = kPanelBorder;
+    tokens.outline = kPanelBorder;
+    tokens.accent = kAccent;
+    tokens.on_accent = kText;
+    tokens.focus_ring = kAccent;
+    apply_theme_tokens(tokens);
 
     ThemePreset preset{};
     preset.has_label = true;

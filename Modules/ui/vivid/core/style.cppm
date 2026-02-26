@@ -42,6 +42,20 @@ struct Style {
 };
 
 export
+struct ThemeTokens {
+    rgba surface{240, 240, 240, 255};
+    rgba surface_variant{255, 255, 255, 255};
+    rgba on_surface{0, 0, 0, 255};
+    rgba on_surface_muted{120, 120, 120, 255};
+    rgba outline{180, 180, 180, 255};
+    rgba accent{80, 120, 200, 255};
+    rgba on_accent{255, 255, 255, 255};
+    rgba danger{200, 60, 60, 255};
+    rgba on_danger{255, 255, 255, 255};
+    rgba focus_ring{80, 120, 200, 255};
+};
+
+export
 struct StylePatch {
     bool has_bg_color{false};
     bool has_border_color{false};
@@ -149,6 +163,22 @@ inline const Font& resolve_font(const Style& st) noexcept {
     return st.font ? *st.font : get_font(FontId::Normal);
 }
 
+inline int luma(const rgba& c) noexcept {
+    return (static_cast<int>(c.r) * 30 + static_cast<int>(c.g) * 59 + static_cast<int>(c.b) * 11) / 100;
+}
+
+inline rgba adjust_color(rgba c, int delta) noexcept {
+    auto clamp = [](int v) noexcept { return (v < 0) ? 0 : (v > 255 ? 255 : v); };
+    c.r = static_cast<std::uint8_t>(clamp(static_cast<int>(c.r) + delta));
+    c.g = static_cast<std::uint8_t>(clamp(static_cast<int>(c.g) + delta));
+    c.b = static_cast<std::uint8_t>(clamp(static_cast<int>(c.b) + delta));
+    return c;
+}
+
+inline rgba adjust_by_luma(const rgba& c, int delta) noexcept {
+    return (luma(c) < 128) ? adjust_color(c, delta) : adjust_color(c, -delta);
+}
+
 export
 inline void resolve_colors(const Style& st, const StyleState& state,
                            rgba& bg, rgba& border, rgba& font) noexcept {
@@ -170,25 +200,47 @@ inline void resolve_colors(const Style& st, const StyleState& state,
     }
 }
 
-inline rgba adjust_color(rgba c, int delta) noexcept {
-    auto clamp = [](int v) noexcept { return (v < 0) ? 0 : (v > 255 ? 255 : v); };
-    c.r = static_cast<std::uint8_t>(clamp(static_cast<int>(c.r) + delta));
-    c.g = static_cast<std::uint8_t>(clamp(static_cast<int>(c.g) + delta));
-    c.b = static_cast<std::uint8_t>(clamp(static_cast<int>(c.b) + delta));
-    return c;
-}
-
 export inline rgba resolve_accent(const Style& st, const StyleState& state) noexcept {
     if (!state.enabled) {
-        return st.accent_disabled.a ? st.accent_disabled : adjust_color(st.accent_color, -40);
+        return st.accent_disabled.a ? st.accent_disabled : adjust_by_luma(st.accent_color, 40);
     }
     if (state.pressed) {
-        return st.accent_pressed.a ? st.accent_pressed : adjust_color(st.accent_color, -24);
+        return st.accent_pressed.a ? st.accent_pressed : adjust_by_luma(st.accent_color, 24);
     }
     if (state.hovered) {
-        return st.accent_hover.a ? st.accent_hover : adjust_color(st.accent_color, 12);
+        return st.accent_hover.a ? st.accent_hover : adjust_by_luma(st.accent_color, 12);
     }
     return st.accent_color;
+}
+
+export
+inline void apply_tokens_to_style(Style& s, const ThemeTokens& t) noexcept {
+    s.bg_color = t.surface;
+    s.bg_hover = adjust_by_luma(t.surface, 8);
+    s.bg_pressed = adjust_by_luma(t.surface, 20);
+    s.bg_disabled = adjust_by_luma(t.surface, 6);
+
+    s.border_color = t.outline;
+    s.border_hover = adjust_by_luma(t.outline, 20);
+    s.border_pressed = adjust_by_luma(t.outline, 40);
+    s.border_disabled = adjust_by_luma(t.outline, 16);
+    s.border_focus = t.focus_ring;
+
+    s.font_color = t.on_surface;
+    s.font_color_disabled = t.on_surface_muted;
+
+    s.accent_color = t.accent;
+    s.accent_hover = {0, 0, 0, 0};
+    s.accent_pressed = {0, 0, 0, 0};
+    s.accent_disabled = {0, 0, 0, 0};
+    s.on_accent = t.on_accent;
+}
+
+export
+inline Style make_style_from_tokens(const ThemeTokens& t) noexcept {
+    Style s{};
+    apply_tokens_to_style(s, t);
+    return s;
 }
 
 export
@@ -229,6 +281,14 @@ public:
         patch.apply_to(style_slot<Widget>::value);
     }
 
+    void set_tokens(const ThemeTokens& t) noexcept {
+        tokens() = t;
+    }
+
+    [[nodiscard]] const ThemeTokens& get_tokens() const noexcept {
+        return tokens();
+    }
+
     void set_default_font(const Font& f) noexcept {
         default_font_ptr() = &f;
     }
@@ -236,11 +296,17 @@ public:
 private:
     Theme() {
         default_font_ptr() = &get_font(FontId::Normal);
+        tokens() = ThemeTokens{};
     }
 
     static const Font*& default_font_ptr() {
         static const Font* f = nullptr;
         return f;
+    }
+
+    static ThemeTokens& tokens() {
+        static ThemeTokens t{};
+        return t;
     }
 
     static const Font* default_font() {

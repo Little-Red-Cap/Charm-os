@@ -3,7 +3,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 export module at.parser;
@@ -11,6 +10,16 @@ export module at.parser;
 import util.core;
 
 export namespace at {
+    struct ByteView {
+        const util::u8* data{nullptr};
+        util::usize size{0};
+    };
+
+    struct MutByteView {
+        util::u8* data{nullptr};
+        util::usize size{0};
+    };
+
     enum class EventKind : util::u8 {
         line,
         ok,
@@ -39,9 +48,9 @@ export namespace at {
             overflow_ = false;
         }
 
-        void feed(std::span<const util::u8> data) noexcept {
-            for (util::usize i = 0; i < data.size(); ++i) {
-                const char ch = static_cast<char>(data[i]);
+        void feed(ByteView data) noexcept {
+            for (util::usize i = 0; i < data.size; ++i) {
+                const char ch = static_cast<char>(data.data[i]);
                 if (ch == '\r') {
                     saw_cr_ = true;
                     continue;

@@ -1,5 +1,6 @@
 module;
 #include <cstring>
+#include <expected>
 #include <string_view>
 #include <utility>
 export module charm.widgets.perf_overlay;

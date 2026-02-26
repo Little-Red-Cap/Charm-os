@@ -25,21 +25,21 @@ export template<PixelFormat F> struct PixelTraits;
 //     static constexpr int bytes_per_pixel = 4;
 // };
 
-export template<>
+template<>
 struct PixelTraits<PixelFormat::RGB565> {
     static constexpr int bits_per_pixel = 16;
     static constexpr int bytes_per_pixel = 2;
     using PixelType = uint16_t;
 };
 
-export template<>
+template<>
 struct PixelTraits<PixelFormat::RGB888> {
     static constexpr int bits_per_pixel = 24;
     static constexpr int bytes_per_pixel = 3;
     using PixelType = std::array<uint8_t,3>;
 };
 
-export template<>
+template<>
 struct PixelTraits<PixelFormat::ARGB8888> {
     static constexpr int bits_per_pixel = 32;
     static constexpr int bytes_per_pixel = 4;

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <expected>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -26,7 +27,7 @@ import out.core;
 import out.format;
 import out.sink;
 
-namespace {
+namespace kernel::detail {
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -564,8 +565,8 @@ export namespace kernel {
         [[nodiscard]] std::size_t format_snapshot_json(char* out, std::size_t max) const noexcept {
             const auto snap = snapshot();
             std::size_t offset = 0;
-            offset = append_text(out, max, offset, "{");
-            offset = append_fmt<
+            offset = detail::append_text(out, max, offset, "{");
+            offset = detail::append_fmt<
                 "\"posted\":{},\"dropped\":{},\"dispatched\":{},\"filtered\":{},\"filtered_run\":{},\"budget\":{},"
                 "\"maxQ\":{},\"maxT\":{},\"queue\":{},\"timers\":{},\"active\":{},"
                 "\"dedup\":{},\"debounce\":{},\"coalesce\":{},\"idle\":{}">(
@@ -585,38 +586,38 @@ export namespace kernel {
                 static_cast<unsigned long long>(snap.stats.debounce_filtered),
                 static_cast<unsigned long long>(snap.stats.coalesce_hit),
                 static_cast<unsigned long long>(snap.stats.idle_rounds));
-            offset = append_text(out, max, offset, "}");
+            offset = detail::append_text(out, max, offset, "}");
             return offset;
         }
 
         [[nodiscard]] std::size_t format_event_stats_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = append_text(out, max, offset, "[");
+            offset = detail::append_text(out, max, offset, "[");
             for (std::size_t i = 0; i < event_id_count; ++i) {
                 if (i > 0) {
-                    offset = append_text(out, max, offset, ",");
+                    offset = detail::append_text(out, max, offset, ",");
                 }
-                offset = append_text(out, max, offset, "{");
-                offset = append_fmt<"\"id\":{},\"posted\":{},\"dispatched\":{}">(
+                offset = detail::append_text(out, max, offset, "{");
+                offset = detail::append_fmt<"\"id\":{},\"posted\":{},\"dispatched\":{}">(
                     out, max, offset,
                     static_cast<unsigned long long>(i),
                     static_cast<unsigned long long>(stats_.event_posted[i]),
                     static_cast<unsigned long long>(stats_.event_dispatched[i]));
-                offset = append_text(out, max, offset, "}");
+                offset = detail::append_text(out, max, offset, "}");
             }
-            offset = append_text(out, max, offset, "]");
+            offset = detail::append_text(out, max, offset, "]");
             return offset;
         }
 
         [[nodiscard]] std::size_t format_event_source_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = append_text(out, max, offset, "{");
-            offset = append_fmt<"\"post\":{},\"timer\":{},\"replay\":{}">(
+            offset = detail::append_text(out, max, offset, "{");
+            offset = detail::append_fmt<"\"post\":{},\"timer\":{},\"replay\":{}">(
                 out, max, offset,
                 static_cast<unsigned long long>(stats_.source_post),
                 static_cast<unsigned long long>(stats_.source_timer),
                 static_cast<unsigned long long>(stats_.source_replay));
-            offset = append_text(out, max, offset, "}");
+            offset = detail::append_text(out, max, offset, "}");
             return offset;
         }
 
@@ -648,24 +649,24 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_tasks_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = append_text(out, max, offset, "[");
+            offset = detail::append_text(out, max, offset, "[");
             auto tasks = task_snapshot();
             for (std::size_t i = 0; i < tasks.size(); ++i) {
                 const auto& t = tasks[i];
                 if (i > 0) {
-                    offset = append_text(out, max, offset, ",");
+                    offset = detail::append_text(out, max, offset, ",");
                 }
-                offset = append_text(out, max, offset, "{");
-                offset = append_fmt<"\"id\":{},\"state\":{},\"enabled\":{},\"prio\":{},\"active\":{}">(
+                offset = detail::append_text(out, max, offset, "{");
+                offset = detail::append_fmt<"\"id\":{},\"state\":{},\"enabled\":{},\"prio\":{},\"active\":{}">(
                     out, max, offset,
                     static_cast<unsigned long long>(t.id.value),
                     static_cast<unsigned>(t.state),
                     t.enabled ? 1u : 0u,
                     static_cast<unsigned>(t.priority),
                     t.active ? 1u : 0u);
-                offset = append_text(out, max, offset, "}");
+                offset = detail::append_text(out, max, offset, "}");
             }
-            offset = append_text(out, max, offset, "]");
+            offset = detail::append_text(out, max, offset, "]");
             return offset;
         }
 
@@ -674,7 +675,7 @@ export namespace kernel {
             const auto prev = last_snapshot_;
             last_snapshot_ = current;
             std::size_t offset = 0;
-            offset = append_fmt<
+            offset = detail::append_fmt<
                 "posted={} dropped={} dispatched={} filtered={} filtered_run={} budget={}">(
                 out, max, offset,
                 static_cast<long long>(current.stats.posted - prev.stats.posted),
@@ -688,19 +689,19 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_trace_json(char* out, std::size_t max) const noexcept {
             if constexpr (!Config::enable_trace) {
-                return append_text(out, max, 0, "[]");
+                return detail::append_text(out, max, 0, "[]");
             } else {
                 std::size_t offset = 0;
-                offset = append_text(out, max, offset, "[");
+                offset = detail::append_text(out, max, offset, "[");
                 const auto& data = trace_.data();
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
                     if (i > 0) {
-                        offset = append_text(out, max, offset, ",");
+                        offset = detail::append_text(out, max, offset, ",");
                     }
-                    offset = append_text(out, max, offset, "{");
-                    offset = append_fmt<
+                    offset = detail::append_text(out, max, offset, "{");
+                    offset = detail::append_fmt<
                         "\"t\":{},\"task\":{},\"id\":{},\"payload\":{},\"count\":{},\"kind\":{}">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
@@ -709,16 +710,16 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind));
-                    offset = append_text(out, max, offset, "}");
+                    offset = detail::append_text(out, max, offset, "}");
                 }
-                offset = append_text(out, max, offset, "]");
+                offset = detail::append_text(out, max, offset, "]");
                 return offset;
             }
         }
 
         [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind\n");
+            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind\n");
             if constexpr (!Config::enable_trace) {
                 return offset;
             } else {
@@ -726,7 +727,7 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    offset = append_fmt<"{},{},{},{},{},{}\n">(
+                    offset = detail::append_fmt<"{},{},{},{},{},{}\n">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
@@ -766,7 +767,7 @@ export namespace kernel {
         [[nodiscard]] std::size_t format_snapshot(char* out, std::size_t max) const noexcept {
             const auto snap = snapshot();
             std::size_t offset = 0;
-            offset = append_fmt<
+            offset = detail::append_fmt<
                 "posted={} dropped={} dispatched={} filtered={} filtered_run={} budget={} maxQ={} maxT={} queue={} "
                 "timers={} active={} dedup={} debounce={} coalesce={} idle={}">(
                 out, max, offset,

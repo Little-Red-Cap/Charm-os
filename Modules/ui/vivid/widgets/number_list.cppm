@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <string_view>
 export module charm.widgets.number_list;
 

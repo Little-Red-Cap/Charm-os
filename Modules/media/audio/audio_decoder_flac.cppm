@@ -82,7 +82,8 @@ export namespace audio {
 
         Result<std::size_t> read_s32(std::int32_t* out, std::size_t frames) {
             if (!flac_) return unexpected(Err{Errc::bad_state, 0});
-            const auto read = drflac_read_pcm_frames_s32(flac_, frames, out);
+            const auto read = drflac_read_pcm_frames_s32(
+                flac_, frames, reinterpret_cast<drflac_int32*>(out));
             return static_cast<std::size_t>(read);
         }
 

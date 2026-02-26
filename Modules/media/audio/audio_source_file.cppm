@@ -89,6 +89,8 @@ export namespace audio {
         static bool seek_impl(std::FILE* file, std::int64_t offset, int whence) noexcept {
 #if defined(_WIN32)
             return _fseeki64(file, static_cast<__int64>(offset), whence) == 0;
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            return std::fseek(file, static_cast<long>(offset), whence) == 0;
 #else
             return std::fseeko(file, static_cast<off_t>(offset), whence) == 0;
 #endif
@@ -97,6 +99,8 @@ export namespace audio {
         static std::int64_t tell_impl(std::FILE* file) noexcept {
 #if defined(_WIN32)
             return static_cast<std::int64_t>(_ftelli64(file));
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            return static_cast<std::int64_t>(std::ftell(file));
 #else
             return static_cast<std::int64_t>(std::ftello(file));
 #endif

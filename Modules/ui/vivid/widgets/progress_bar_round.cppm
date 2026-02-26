@@ -1,6 +1,7 @@
 module;
 #include <cstddef>
 #include <cstring>
+#include <expected>
 #include <string_view>
 export module charm.widgets.progress_bar_round;
 

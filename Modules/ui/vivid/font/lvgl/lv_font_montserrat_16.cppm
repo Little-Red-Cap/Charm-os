@@ -5,7 +5,7 @@ export module charm.font.lv_font_montserrat_16;
 
 import charm.font;
 
-static constexpr uint8_t glyph_bitmaps[] = {
+inline constexpr uint8_t glyph_bitmaps[] = {
     // code 32 (' ')
     // code 33 ('!')
     0x00,
@@ -5518,7 +5518,7 @@ static constexpr uint8_t glyph_bitmaps[] = {
     0x00,
 };
 
-static constexpr Glyph glyph_table[] = {
+inline constexpr Glyph glyph_table[] = {
     //   (code 32)
     { glyph_bitmaps + 0, 10, 0, 10, 0, 0, 4 },
     // ! (code 33)
@@ -5711,7 +5711,7 @@ static constexpr Glyph glyph_table[] = {
     { glyph_bitmaps + 5380, 10, 7, 10, 0, 7, 4 },
 };
 
-static constexpr GlyphRange glyph_ranges[] = {
+inline constexpr GlyphRange glyph_ranges[] = {
     { 32, 95, 0 },
 };
 

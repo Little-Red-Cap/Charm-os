@@ -79,6 +79,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::TextTrackingList, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -103,7 +104,7 @@ public:
                 Rect indicator = row;
                 indicator.w = indicator_width_;
                 if (indicator.w > row.w) indicator.w = row.w;
-                rgba ic = indicator_color_.a ? indicator_color_ : st.bg_pressed;
+                rgba ic = indicator_color_.a ? indicator_color_ : accent;
                 draw_round_rect(cvs, indicator.x, indicator.y, indicator.w, indicator.h,
                                 st.corner_radius, ic, true);
             }

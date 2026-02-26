@@ -75,6 +75,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::TableView, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -97,7 +98,7 @@ public:
                     cell.x < r.x + r.w && cell.y < r.y + r.h) {
                     const bool selected = (row == selected_row_ && col == selected_col_);
                     if (selected) {
-                        draw_rect(cvs, cell.x, cell.y, cell.w, cell.h, st.bg_pressed, true);
+                        draw_rect(cvs, cell.x, cell.y, cell.w, cell.h, accent, true);
                     }
                     if (draw_fn_) {
                         draw_fn_(data_ctx_, cvs, CellInfo{cell, row, col, selected});

@@ -7,12 +7,14 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.virtual_list;
 import alg_list_layout;
+import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
 import charm.core.style_sheet;
+import charm.widgets.scroll_dirty;
 
 using namespace ui::render;
 
@@ -197,6 +199,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::ListView, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         flush_scroll_dirty();
 
@@ -231,7 +234,7 @@ public:
             Rect row{content_x, y, content_w, row_h};
             const bool is_selected = (i == selected_);
             if (is_selected) {
-                draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+                draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             int slot = -1;
             if (visible > 0 && visible <= kMaxCache) {
@@ -407,57 +410,32 @@ private:
         return Rect{left, top, w, h};
     }
 
+    static alg::scroll::Rect to_alg_rect(const Rect& r) noexcept {
+        return alg::scroll::Rect{r.x, r.y, r.w, r.h};
+    }
+
+    static Rect from_alg_rect(const alg::scroll::Rect& r) noexcept {
+        return Rect{r.x, r.y, r.w, r.h};
+    }
+
     void accumulate_scroll_dirty(const Rect& r) noexcept {
-        if (r.w <= 0 || r.h <= 0) return;
-        if (!scroll_dirty_valid_) {
-            scroll_dirty_accum_ = r;
-            scroll_dirty_valid_ = true;
-            return;
-        }
-        const int left = (r.x < scroll_dirty_accum_.x) ? r.x : scroll_dirty_accum_.x;
-        const int top = (r.y < scroll_dirty_accum_.y) ? r.y : scroll_dirty_accum_.y;
-        const int right = ((r.x + r.w) > (scroll_dirty_accum_.x + scroll_dirty_accum_.w))
-            ? (r.x + r.w)
-            : (scroll_dirty_accum_.x + scroll_dirty_accum_.w);
-        const int bottom = ((r.y + r.h) > (scroll_dirty_accum_.y + scroll_dirty_accum_.h))
-            ? (r.y + r.h)
-            : (scroll_dirty_accum_.y + scroll_dirty_accum_.h);
-        scroll_dirty_accum_.x = left;
-        scroll_dirty_accum_.y = top;
-        scroll_dirty_accum_.w = right - left;
-        scroll_dirty_accum_.h = bottom - top;
+        scroll_dirty_.add(r);
     }
 
     void flush_scroll_dirty() noexcept {
-        if (!scroll_dirty_valid_) return;
-        mark_dirty_hint(scroll_dirty_accum_);
-        scroll_dirty_valid_ = false;
-        scroll_dirty_accum_ = {};
+        Rect merged{};
+        if (!scroll_dirty_.take(merged)) return;
+        mark_dirty_hint(merged);
     }
 
     void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
         const int dy = new_scroll - old_scroll;
         if (dy == 0) return;
-        const auto r = get_rect();
-        if (dy > r.h || dy < -r.h) {
-            accumulate_scroll_dirty(r);
-            return;
-        }
-        if (dy > r.h / 2 || dy < -r.h / 2) {
-            accumulate_scroll_dirty(r);
-            return;
-        }
-        Rect band{};
-        if (dy > 0) {
-            band = Rect{r.x, r.y + r.h - dy, r.w, dy};
-        } else {
-            band = Rect{r.x, r.y, r.w, -dy};
-        }
-        const auto clipped = intersect_rect(band, r);
-        if (clipped.w > 0 && clipped.h > 0) {
-            accumulate_scroll_dirty(clipped);
-        } else {
-            accumulate_scroll_dirty(r);
+        const auto clip = get_rect();
+        const auto band = alg::scroll::dirty_band_simple(to_alg_rect(clip), dy);
+        const auto out = from_alg_rect(band);
+        if (out.w > 0 && out.h > 0) {
+            accumulate_scroll_dirty(out);
         }
     }
 
@@ -684,8 +662,7 @@ private:
     int window_visible_{0};
     int window_offset_y_{0};
     bool window_valid_{false};
-    Rect scroll_dirty_accum_{};
-    bool scroll_dirty_valid_{false};
+    ScrollDirtyAccumulator scroll_dirty_{};
 
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};

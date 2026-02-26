@@ -139,6 +139,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::TextList, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -159,7 +160,7 @@ public:
         for (int i = window.start; i < end; ++i) {
             Rect row{content_x, y, content_w, row_height_};
             if (i == selected_) {
-                draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+                draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             const char* label = (items_ && items_[i]) ? items_[i] : "";
             char buf[96]{};

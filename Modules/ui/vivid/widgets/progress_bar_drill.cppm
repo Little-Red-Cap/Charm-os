@@ -58,6 +58,7 @@ public:
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::ProgressBarDrill, state, st);
         resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -67,7 +68,7 @@ public:
         if (inner.w <= 0 || inner.h <= 0) return;
 
         const rgba track = track_color_.a ? track_color_ : border;
-        const rgba fill = fill_color_.a ? fill_color_ : st.bg_pressed;
+        const rgba fill = fill_color_.a ? fill_color_ : accent;
         const rgba hole = hole_color_.a ? hole_color_ : bg;
 
         draw_round_rect(cvs, inner.x, inner.y, inner.w, inner.h, st.corner_radius, track, true);

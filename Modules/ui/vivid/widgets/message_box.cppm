@@ -4,6 +4,7 @@ export module charm.widgets.message_box;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.label;
@@ -24,16 +25,20 @@ public:
     void set_message(const char* t) { text_.set_text(t); }
 
     void draw(CanvasBase& cvs) override {
-        const auto& st = Theme::instance().get<MessageBox>();
+        Style st = Theme::instance().get<MessageBox>();
         const auto r = get_rect();
-        draw_rect(cvs, r.x, r.y, r.w, r.h, st.bg_color, true);
-        draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_color, false);
+        rgba bg{}, border{}, font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::MessageBox, state, st);
+        resolve_colors(st, state, bg, border, font);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
         const int pad = st.padding;
         title_.set_font(resolve_font(st));
-        title_.set_color(st.font_color);
+        title_.set_color(font);
         title_.set_pos(r.x + pad, r.y + pad);
         text_.set_font(resolve_font(st));
-        text_.set_color(st.font_color);
+        text_.set_color(font);
         text_.set_pos(r.x + pad, r.y + pad + title_.line_height() + 4);
         title_.draw(cvs);
         text_.draw(cvs);

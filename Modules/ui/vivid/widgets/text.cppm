@@ -11,6 +11,43 @@ import charm.font;
 import charm.font.typography;
 import alg_text_layout;
 
+#ifndef CHARM_TEXT_PROFILE
+#define CHARM_TEXT_PROFILE 1
+#endif
+
+#if CHARM_TEXT_PROFILE
+namespace {
+    std::uint64_t g_text_draw_calls = 0;
+    std::uint64_t g_text_glyphs = 0;
+    std::uint64_t g_text_pixels = 0;
+}
+#endif
+
+export
+struct TextProfileSample {
+    std::uint64_t draw_calls{0};
+    std::uint64_t glyphs{0};
+    std::uint64_t pixels{0};
+};
+
+export
+inline void text_profile_reset() noexcept {
+#if CHARM_TEXT_PROFILE
+    g_text_draw_calls = 0;
+    g_text_glyphs = 0;
+    g_text_pixels = 0;
+#endif
+}
+
+export
+inline TextProfileSample text_profile_sample() noexcept {
+#if CHARM_TEXT_PROFILE
+    return TextProfileSample{g_text_draw_calls, g_text_glyphs, g_text_pixels};
+#else
+    return TextProfileSample{};
+#endif
+}
+
 inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
     if (alpha == 0) return;
     if (alpha == 255) {
@@ -113,6 +150,9 @@ void draw_text_baseline_range(CanvasBase& cvs,
                               const rgba& color,
                               const Font& font) noexcept {
     if (!text || len <= 0) return;
+#if CHARM_TEXT_PROFILE
+    ++g_text_draw_calls;
+#endif
     const int cw = cvs.width();
     const int ch = cvs.height();
     int cursor_x = x;
@@ -132,6 +172,10 @@ void draw_text_baseline_range(CanvasBase& cvs,
             prev_gid = 0;
             continue;
         }
+#if CHARM_TEXT_PROFILE
+        ++g_text_glyphs;
+        g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
+#endif
         const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
         if (prev_gid) {
             cursor_x += get_glyph_kern(font, prev_gid, gid);
@@ -194,6 +238,9 @@ void draw_text_baseline(CanvasBase& cvs,
                         const rgba& color,
                         const Font& font) noexcept {
     if (!text) return;
+#if CHARM_TEXT_PROFILE
+    ++g_text_draw_calls;
+#endif
     const int cw = cvs.width();
     const int ch = cvs.height();
     int cursor_x = x;
@@ -213,6 +260,10 @@ void draw_text_baseline(CanvasBase& cvs,
             prev_gid = 0;
             continue;
         }
+#if CHARM_TEXT_PROFILE
+        ++g_text_glyphs;
+        g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
+#endif
         const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
         if (prev_gid) {
             cursor_x += get_glyph_kern(font, prev_gid, gid);

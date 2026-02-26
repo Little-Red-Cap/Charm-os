@@ -64,13 +64,11 @@ public:
         resolve_colors(st, state,
                        bg, border, font);
 
-        const bool draw_focus = has_state(State::Focused);
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
                                   slice_left_, slice_top_, slice_right_, slice_bottom_);
-            const rgba edge = has_state(State::Focused) ? st.border_focus : border;
             for (int i = 0; i < st.border_width; ++i) {
-                draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, edge, false);
+                draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, border, false);
             }
         } else {
             draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
@@ -83,9 +81,7 @@ public:
                                 false);
             }
         }
-        if (draw_focus && !has_skin_) {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
 
         const auto lr = label_.get_rect();
         const int lx = r.x + (r.w - lr.w) / 2;

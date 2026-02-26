@@ -8,6 +8,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.label;
 
 using namespace ui::render;
@@ -45,15 +46,15 @@ public:
     void set_on_open(Callback cb) noexcept { on_open_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Dropdown>();
+        Style st = Theme::instance().get<Dropdown>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Dropdown, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);

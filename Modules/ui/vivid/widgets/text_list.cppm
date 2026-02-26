@@ -8,6 +8,7 @@ import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.virtual_list;
 import alg_list_scroll;
 import charm.gfx.color;
@@ -65,15 +66,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st = Theme::instance().get<TextList>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::TextList, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -107,9 +108,7 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {

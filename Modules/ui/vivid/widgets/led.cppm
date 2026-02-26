@@ -6,6 +6,7 @@ import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -25,13 +26,13 @@ public:
     void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         if (r.w <= 0 || r.h <= 0) return;
-        const Style& st = Theme::instance().get<Led>();
+        Style st = Theme::instance().get<Led>();
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Led, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         const rgba fill = on_ ? (on_color_.a ? on_color_ : border)
                               : (off_color_.a ? off_color_ : bg);

@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.widgets.label;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -29,17 +30,18 @@ public:
     void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
         const int box_size = r.h;
-        const Style& st = Theme::instance().get<Checkbox>();
-        rgba fill{};
+        Style st = Theme::instance().get<Checkbox>();
+        rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       fill, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Checkbox, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, box_size, box_size, border, false);
         if (checked_) {
-            draw_rect(cvs, r.x + 2, r.y + 2, box_size - 4, box_size - 4, border, true);
+            draw_rect(cvs, r.x + 2, r.y + 2, box_size - 4, box_size - 4, accent, true);
         }
         const auto lr = label_.get_rect();
         const int lx = r.x + box_size + 4;
@@ -47,6 +49,8 @@ public:
         label_.set_color(font);
         label_.set_baseline_pos(lx, baseline_y);
         label_.draw(cvs);
+
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {

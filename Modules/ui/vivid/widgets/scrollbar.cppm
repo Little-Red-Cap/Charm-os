@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 
 using namespace ui::render;
 
@@ -49,15 +50,16 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ScrollBar>();
+        Style st = Theme::instance().get<ScrollBar>();
         const auto r = get_rect();
 
         rgba track{};
         rgba border{};
-        rgba thumb{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       track, border, thumb);
+        rgba font{};
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ScrollBar, state, st);
+        resolve_colors(st, state, track, border, font);
+        const rgba thumb = resolve_accent(st, state);
 
         const Rect track_rect = calc_track_rect(st);
         draw_rect(cvs, track_rect.x, track_rect.y, track_rect.w, track_rect.h, track, true);
@@ -66,9 +68,7 @@ public:
         const Rect thumb_rect = calc_thumb_rect(st);
         draw_rect(cvs, thumb_rect.x, thumb_rect.y, thumb_rect.w, thumb_rect.h, thumb, true);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {

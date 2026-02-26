@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -44,15 +45,15 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<SegmentedControl>();
+        Style st = Theme::instance().get<SegmentedControl>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::SegmentedControl, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
@@ -83,9 +84,7 @@ public:
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
 
-        if (has_state(State::Focused)) {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
     }
 
     bool on_event(const Event& e) override {

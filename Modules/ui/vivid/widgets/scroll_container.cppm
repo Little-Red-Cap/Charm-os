@@ -14,6 +14,7 @@ import charm.gfx.image;
 import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
+import charm.core.style_sheet;
 import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
@@ -88,13 +89,13 @@ public:
 
     void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
-        const Style& st = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
+        Style st = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), dragging_, has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), dragging_, has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ScrollContainer, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         flush_scroll_dirty();
 
@@ -107,9 +108,7 @@ public:
             draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
         }
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
 
         if (max_scroll_ > 0) {
             const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;

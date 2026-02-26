@@ -4,6 +4,7 @@ export module charm.widgets.gauge;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
@@ -26,12 +27,12 @@ public:
     int value() const noexcept { return value_; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Gauge>();
+        Style st = Theme::instance().get<Gauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::Gauge, state, st);
+        resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 

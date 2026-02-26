@@ -5,6 +5,7 @@ export module charm.widgets.progress_bar_round;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
@@ -35,12 +36,12 @@ public:
     void set_value_format(const char* fmt) noexcept { value_format_ = (fmt && *fmt) ? fmt : "%d"; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ProgressBarRound>();
+        Style st = Theme::instance().get<ProgressBarRound>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::ProgressBarRound, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);

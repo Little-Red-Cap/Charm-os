@@ -7,8 +7,10 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 import alg_scroll_bounds;
+import alg_list_scroll;
 
 using namespace ui::render;
 
@@ -64,15 +66,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TableView>();
+        Style st = Theme::instance().get<TableView>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        apply_style_sheet(WidgetKind::TableView, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -109,9 +111,7 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {
@@ -172,9 +172,9 @@ private:
         const int cols = col_count();
         int total_w = 0;
         for (int i = 0; i < cols; ++i) total_w += column_width(i);
-        const int total_h = rows * row_height_;
         max_scroll_x_ = alg::scroll_bounds::compute_max(total_w, r.w);
-        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+        const auto bounds = alg::list_scroll::compute_bounds(rows, row_height_, 0, r.h);
+        max_scroll_y_ = bounds.max_scroll;
         scroll_x_ = alg::scroll_bounds::clamp(scroll_x_, max_scroll_x_);
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }

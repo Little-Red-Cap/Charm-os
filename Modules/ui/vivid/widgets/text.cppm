@@ -155,6 +155,7 @@ void draw_text_baseline_range(CanvasBase& cvs,
     const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
+    const Font* prev_font = nullptr;
     const char* p = text;
     const char* end = text + len;
     while (p < end) {
@@ -162,21 +163,23 @@ void draw_text_baseline_range(CanvasBase& cvs,
         if (!next_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const auto* g = find_glyph(font, cp);
+        const auto resolved = resolve_glyph(font, cp);
+        const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
 #if CHARM_TEXT_PROFILE
         ++g_text_glyphs;
         g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
 #endif
-        const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-        if (prev_gid) {
-            cursor_x += get_glyph_kern(font, prev_gid, gid);
+        if (prev_gid && prev_font == resolved.font) {
+            cursor_x += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
         }
 
         const int render_x = cursor_x + g->x_offset;
@@ -217,7 +220,8 @@ void draw_text_baseline_range(CanvasBase& cvs,
         }
 
         cursor_x += g->x_advance;
-        prev_gid = gid;
+        prev_gid = resolved.gid;
+        prev_font = resolved.font;
     }
 }
 
@@ -243,6 +247,7 @@ void draw_text_baseline(CanvasBase& cvs,
     const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
+    const Font* prev_font = nullptr;
     const char* p = text;
     const char* end = text + std::strlen(text);
     while (p < end) {
@@ -250,21 +255,23 @@ void draw_text_baseline(CanvasBase& cvs,
         if (!next_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const auto* g = find_glyph(font, cp);
+        const auto resolved = resolve_glyph(font, cp);
+        const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
 #if CHARM_TEXT_PROFILE
         ++g_text_glyphs;
         g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
 #endif
-        const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-        if (prev_gid) {
-            cursor_x += get_glyph_kern(font, prev_gid, gid);
+        if (prev_gid && prev_font == resolved.font) {
+            cursor_x += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
         }
 
         const int render_x = cursor_x + g->x_offset;
@@ -305,7 +312,8 @@ void draw_text_baseline(CanvasBase& cvs,
         }
 
         cursor_x += g->x_advance;
-        prev_gid = gid;
+        prev_gid = resolved.gid;
+        prev_font = resolved.font;
     }
 }
 
@@ -366,7 +374,7 @@ void draw_text_box(CanvasBase& cvs,
                                                     lines.data(), static_cast<int>(lines.size()));
 
     int max_lines = rect.h / line_height;
-    if (max_lines <= 0) return;
+    if (max_lines <= 0) max_lines = 1;
     if (line_count > max_lines) line_count = max_lines;
 
     const auto align_v_mode = (align_v == TextAlignV::Center)

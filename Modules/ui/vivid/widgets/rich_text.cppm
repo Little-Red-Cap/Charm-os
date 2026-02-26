@@ -58,6 +58,7 @@ public:
         state.mono = false;
 
         std::uint16_t prev_gid = 0;
+        const Font* prev_font = nullptr;
         const char* p = text_.c_str();
         const char* end = p + text_.size();
         while (p < end) {
@@ -83,10 +84,14 @@ public:
                             case alg::text_parse::TagKind::MonoOn:
                                 state.mono = true;
                                 state.font = &mono;
+                                prev_gid = 0;
+                                prev_font = nullptr;
                                 break;
                             case alg::text_parse::TagKind::MonoOff:
                                 state.mono = false;
                                 state.font = &normal;
+                                prev_gid = 0;
+                                prev_font = nullptr;
                                 break;
                             case alg::text_parse::TagKind::Color:
                                 if (parsed.reset_color) {
@@ -99,6 +104,7 @@ public:
                                 x = r.x + st.padding;
                                 y += line_height;
                                 prev_gid = 0;
+                                prev_font = nullptr;
                                 break;
                             default:
                                 break;
@@ -116,16 +122,18 @@ public:
                 x = r.x + st.padding;
                 y += line_height;
                 prev_gid = 0;
+                prev_font = nullptr;
                 continue;
             }
             if (y + line_height > r.y + r.h) break;
 
             const Font& font = *state.font;
-            const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid);
+            const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid, prev_font);
             if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.padding)) {
                 x = r.x + st.padding;
                 y += line_height;
                 prev_gid = 0;
+                prev_font = nullptr;
                 if (y + line_height > r.y + r.h) break;
             }
 

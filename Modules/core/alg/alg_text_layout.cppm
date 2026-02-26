@@ -94,6 +94,7 @@ export namespace alg::text_layout {
         int width = 0;
         if (!text || len <= 0) return 0;
         std::uint16_t prev_gid = 0;
+        const Font* prev_font = nullptr;
         const char* p = text;
         const char* end = text + len;
         while (p < end) {
@@ -101,19 +102,21 @@ export namespace alg::text_layout {
             if (!next_codepoint(p, end, cp)) break;
             if (cp == '\n') {
                 prev_gid = 0;
+                prev_font = nullptr;
                 continue;
             }
-            const auto* g = find_glyph(font, cp);
-            if (g) {
-                const std::uint16_t gid = static_cast<std::uint16_t>(g - font.table.data());
-                width += g->x_advance;
-                if (prev_gid) {
-                    width += get_glyph_kern(font, prev_gid, gid);
+            const auto resolved = resolve_glyph(font, cp);
+            if (resolved.glyph) {
+                width += resolved.glyph->x_advance;
+                if (prev_gid && prev_font == resolved.font) {
+                    width += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
                 }
-                prev_gid = gid;
+                prev_gid = resolved.gid;
+                prev_font = resolved.font;
             } else {
                 width += 8;
                 prev_gid = 0;
+                prev_font = nullptr;
             }
         }
         return width;
@@ -138,6 +141,7 @@ export namespace alg::text_layout {
             int len_at_space = 0;
             bool overflowed = false;
             std::uint16_t prev_gid = 0;
+            const Font* prev_font = nullptr;
 
             const char* q = p;
             while (q < end) {
@@ -145,16 +149,19 @@ export namespace alg::text_layout {
                 const char* before = q;
                 if (!next_codepoint(q, end, cp)) break;
                 if (cp == '\n') break;
-                const auto* g = find_glyph(font, cp);
-                const int adv = g ? g->x_advance : 8;
-                const std::uint16_t gid = g ? static_cast<std::uint16_t>(g - font.table.data()) : 0;
-                const int kern = (prev_gid && gid) ? get_glyph_kern(font, prev_gid, gid) : 0;
+                const auto resolved = resolve_glyph(font, cp);
+                const int adv = resolved.glyph ? resolved.glyph->x_advance : 8;
+                const std::uint16_t gid = resolved.glyph ? resolved.gid : 0;
+                const int kern = (prev_gid && gid && prev_font == resolved.font)
+                    ? get_glyph_kern(*resolved.font, prev_gid, gid)
+                    : 0;
                 if (wrap != Wrap::None && max_width > 0 && line_width + kern + adv > max_width) {
                     overflowed = true;
                     if (wrap == Wrap::Char || line_len == 0) {
                         line_width += kern + adv;
                         line_len += static_cast<int>(q - before);
                         prev_gid = gid;
+                        prev_font = resolved.font;
                     } else {
                         q = before;
                     }
@@ -168,6 +175,7 @@ export namespace alg::text_layout {
                     len_at_space = line_len;
                 }
                 prev_gid = gid;
+                prev_font = resolved.font;
             }
             p = q;
 
@@ -194,18 +202,22 @@ export namespace alg::text_layout {
         return line_count;
     }
 
-    inline int glyph_advance(const Font& font, std::uint32_t cp, std::uint16_t& prev_gid) noexcept {
-        const auto* g = find_glyph(font, cp);
-        if (!g) {
+    inline int glyph_advance(const Font& font,
+                             std::uint32_t cp,
+                             std::uint16_t& prev_gid,
+                             const Font*& prev_font) noexcept {
+        const auto resolved = resolve_glyph(font, cp);
+        if (!resolved.glyph) {
             prev_gid = 0;
+            prev_font = nullptr;
             return 8;
         }
-        const std::uint16_t gid = static_cast<std::uint16_t>(g - font.table.data());
-        int adv = g->x_advance;
-        if (prev_gid) {
-            adv += get_glyph_kern(font, prev_gid, gid);
+        int adv = resolved.glyph->x_advance;
+        if (prev_gid && prev_font == resolved.font) {
+            adv += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
         }
-        prev_gid = gid;
+        prev_gid = resolved.gid;
+        prev_font = resolved.font;
         return adv;
     }
 

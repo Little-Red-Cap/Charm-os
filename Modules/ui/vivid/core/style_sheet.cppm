@@ -31,10 +31,16 @@ export
 enum class StyleRole : std::uint8_t {
     Surface,
     SurfaceVariant,
+    SurfaceHover,
+    SurfacePressed,
     OnSurface,
     OnSurfaceMuted,
     Outline,
+    OutlineHover,
+    OutlinePressed,
     Accent,
+    AccentHover,
+    AccentPressed,
     OnAccent,
     Danger,
     OnDanger,
@@ -44,14 +50,22 @@ enum class StyleRole : std::uint8_t {
 export
 struct StyleRolePatch {
     bool has_bg_color{false};
+    bool has_bg_hover{false};
+    bool has_bg_pressed{false};
     bool has_border_color{false};
+    bool has_border_hover{false};
+    bool has_border_pressed{false};
     bool has_font_color{false};
     bool has_accent_color{false};
     bool has_on_accent{false};
     bool has_border_focus{false};
 
     StyleRole bg_color{StyleRole::Surface};
+    StyleRole bg_hover{StyleRole::SurfaceHover};
+    StyleRole bg_pressed{StyleRole::SurfacePressed};
     StyleRole border_color{StyleRole::Outline};
+    StyleRole border_hover{StyleRole::OutlineHover};
+    StyleRole border_pressed{StyleRole::OutlinePressed};
     StyleRole font_color{StyleRole::OnSurface};
     StyleRole accent_color{StyleRole::Accent};
     StyleRole on_accent{StyleRole::OnAccent};
@@ -74,10 +88,16 @@ inline rgba role_color(StyleRole role, const ThemeTokens& t) noexcept {
     switch (role) {
     case StyleRole::Surface: return t.surface;
     case StyleRole::SurfaceVariant: return t.surface_variant;
+    case StyleRole::SurfaceHover: return adjust_by_luma(t.surface, 8);
+    case StyleRole::SurfacePressed: return adjust_by_luma(t.surface, 20);
     case StyleRole::OnSurface: return t.on_surface;
     case StyleRole::OnSurfaceMuted: return t.on_surface_muted;
     case StyleRole::Outline: return t.outline;
+    case StyleRole::OutlineHover: return adjust_by_luma(t.outline, 20);
+    case StyleRole::OutlinePressed: return adjust_by_luma(t.outline, 40);
     case StyleRole::Accent: return t.accent;
+    case StyleRole::AccentHover: return adjust_by_luma(t.accent, 12);
+    case StyleRole::AccentPressed: return adjust_by_luma(t.accent, 24);
     case StyleRole::OnAccent: return t.on_accent;
     case StyleRole::Danger: return t.danger;
     case StyleRole::OnDanger: return t.on_danger;
@@ -88,7 +108,11 @@ inline rgba role_color(StyleRole role, const ThemeTokens& t) noexcept {
 
 inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const ThemeTokens& tokens) noexcept {
     if (patch.has_bg_color) style.bg_color = role_color(patch.bg_color, tokens);
+    if (patch.has_bg_hover) style.bg_hover = role_color(patch.bg_hover, tokens);
+    if (patch.has_bg_pressed) style.bg_pressed = role_color(patch.bg_pressed, tokens);
     if (patch.has_border_color) style.border_color = role_color(patch.border_color, tokens);
+    if (patch.has_border_hover) style.border_hover = role_color(patch.border_hover, tokens);
+    if (patch.has_border_pressed) style.border_pressed = role_color(patch.border_pressed, tokens);
     if (patch.has_font_color) style.font_color = role_color(patch.font_color, tokens);
     if (patch.has_accent_color) style.accent_color = role_color(patch.accent_color, tokens);
     if (patch.has_on_accent) style.on_accent = role_color(patch.on_accent, tokens);

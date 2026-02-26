@@ -175,7 +175,7 @@ inline rgba adjust_color(rgba c, int delta) noexcept {
     return c;
 }
 
-inline rgba adjust_by_luma(const rgba& c, int delta) noexcept {
+export inline rgba adjust_by_luma(const rgba& c, int delta) noexcept {
     return (luma(c) < 128) ? adjust_color(c, delta) : adjust_color(c, -delta);
 }
 

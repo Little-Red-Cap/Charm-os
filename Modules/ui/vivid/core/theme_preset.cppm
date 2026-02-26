@@ -2,6 +2,7 @@ module;
 export module charm.core.theme_preset;
 
 export import charm.core.style;
+export import charm.core.style_sheet;
 export import charm.widgets.button;
 export import charm.widgets.label;
 export import charm.widgets.list_view;
@@ -333,7 +334,6 @@ inline void apply_material3_light_preset() noexcept {
     constexpr rgba kSurfaceVariant{231, 224, 236, 255};
     constexpr rgba kOutline{121, 116, 126, 255};
     constexpr rgba kOnSurface{28, 27, 31, 255};
-    constexpr rgba kTonal{234, 221, 255, 255};
 
     ThemeTokens tokens{};
     tokens.surface = kSurface;
@@ -413,13 +413,15 @@ inline void apply_material3_light_preset() noexcept {
     preset.scroll_container.scrollbar_margin = 2;
     preset.scroll_container.scrollbar_thumb_min = 12;
 
-    // Tonal button feel via hover/pressed on surface variant.
-    theme.patch<Button>(StylePatch{
-        .has_bg_hover = true,
-        .has_bg_pressed = true,
-        .bg_hover = kTonal,
-        .bg_pressed = kPrimaryPressed,
-    });
+    // Tonal button feel via hover/pressed roles.
+    StyleSheet::instance().add_role_rule(
+        StyleSelector{WidgetKind::Button, 0},
+        StyleRolePatch{
+            .has_bg_hover = true,
+            .has_bg_pressed = true,
+            .bg_hover = StyleRole::SurfaceVariant,
+            .bg_pressed = StyleRole::AccentPressed,
+        });
 
     apply_theme_preset(preset);
 }

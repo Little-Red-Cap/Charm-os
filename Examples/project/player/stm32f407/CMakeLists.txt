@@ -1,0 +1,93 @@
+cmake_minimum_required(VERSION 4.0)
+
+#
+# This file is generated only once,
+# and is not re-generated if converter is called multiple times.
+#
+# User is free to modify the file as much as necessary
+#
+
+# Setup compiler settings
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
+
+set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
+
+# Define the build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
+# Set the project name
+set(CMAKE_PROJECT_NAME f407vg)
+
+# Include toolchain file
+include("cmake/gcc-arm-none-eabi.cmake")
+
+# Enable compile command to ease indexing with e.g. clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
+# Core project settings
+project(${CMAKE_PROJECT_NAME})
+
+# Enable CMake support for ASM and C languages
+enable_language(C ASM CXX)
+
+message("Build type: " ${CMAKE_BUILD_TYPE})
+
+# Create an executable object type
+add_executable(${CMAKE_PROJECT_NAME})
+
+# Add STM32CubeMX generated sources
+add_subdirectory(cmake/stm32cubemx)
+
+# Link directories setup
+target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined library search paths
+)
+
+# Add sources to executable
+file(GLOB_RECURSE MODULE_INTERFACE_UNITS
+        "../app/*.cppm"
+        "./*.cppm"
+)
+
+target_sources(${CMAKE_PROJECT_NAME}
+    PRIVATE
+    # Add user sources here
+        Core/Src/main.cpp
+        Core/Src/out.port.stm32.cpp
+
+    PUBLIC
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/../"
+    FILES
+        ${MODULE_INTERFACE_UNITS}
+)
+
+# Add include paths
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined include paths
+)
+
+# Add project symbols (macros)
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    # Add user defined symbols
+)
+
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
+set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
+add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
+
+# Add linked libraries
+target_link_libraries(${CMAKE_PROJECT_NAME}
+    stm32cubemx
+    Charm-os
+
+    # Add user defined libraries
+)

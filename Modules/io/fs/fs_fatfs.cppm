@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <span>
@@ -25,6 +26,12 @@ import fs_mal;
 
 #if CHARM_USE_FATFS
 export namespace fs {
+    #if defined(FSIZE_t)
+    using FatFsSize = FSIZE_t;
+    #else
+    using FatFsSize = DWORD;
+    #endif
+
     void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
     void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept;
 
@@ -268,7 +275,7 @@ export namespace fs {
             FIL fil{};
             auto fr = f_open(&fil, buf->data(), FA_WRITE);
             if (fr != FR_OK) return status_from_fr(fr);
-            fr = f_lseek(&fil, static_cast<FSIZE_t>(size));
+            fr = f_lseek(&fil, static_cast<FatFsSize>(size));
             if (fr == FR_OK) fr = f_truncate(&fil);
             (void)f_close(&fil);
             return status_from_fr(fr);
@@ -367,7 +374,7 @@ export namespace fs {
             if (off < 0) return Status{Err::inval};
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
             if (!slot || !slot->used) return Status{Err::inval};
-            auto fr = f_lseek(&slot->file, static_cast<FSIZE_t>(off));
+            auto fr = f_lseek(&slot->file, static_cast<FatFsSize>(off));
             if (fr != FR_OK) return status_from_fr(fr);
             n.offset = static_cast<util::i64>(f_tell(&slot->file));
             return Status{Err::ok};
@@ -713,6 +720,14 @@ extern "C" {
 
     DWORD get_fattime() {
         return 0;
+    }
+
+    void* ff_memalloc(UINT size) {
+        return std::malloc(size);
+    }
+
+    void ff_memfree(void* ptr) {
+        std::free(ptr);
     }
 }
 

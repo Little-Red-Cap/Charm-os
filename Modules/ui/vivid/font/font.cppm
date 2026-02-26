@@ -90,6 +90,6 @@ export constexpr bool validate_font(const Font& f) {
 
 }
 
-// export const extern Font font_12;
+// export const extern Font font_jbm_12;
 // export void register_font(const Font&);
 // export const std::vector<const Font*>& registered_fonts();

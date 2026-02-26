@@ -30,7 +30,7 @@ public:
         Style st = Theme::instance().get<Gauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::Gauge, state, st);
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
@@ -51,3 +51,5 @@ public:
 private:
     int value_{50};
 };
+
+

@@ -32,10 +32,9 @@ export import charm.gfx.assets.registry;
 export import charm.gfx.assets.render;
 
 export import charm.font;
-export import charm.font.font_12;
 export import charm.font.typography;
-export import charm.font.lv_font_montserrat_12;
-export import charm.font.lv_font_montserrat_16;
+export import charm.font.font_jbm_12;
+export import charm.font.font_jbm_16;
 
 export import charm.widgets.arc;
 export import charm.widgets.bar;

@@ -55,7 +55,7 @@ public:
         Style st = Theme::instance().get<ProgressBarDrill>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        const StyleState state{is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::ProgressBarDrill, state, st);
         resolve_colors(st, state, bg, border, font);
 
@@ -134,3 +134,5 @@ private:
     rgba track_color_{0, 0, 0, 0};
     rgba hole_color_{0, 0, 0, 0};
 };
+
+

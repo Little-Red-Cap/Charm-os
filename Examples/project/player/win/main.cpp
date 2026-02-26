@@ -577,6 +577,7 @@ int main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
+    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
     g_ctx.player = &g_player;
     g_ctx.factory = &g_factory;

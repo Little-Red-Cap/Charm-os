@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <cstdint>
 export module charm.core.object;
 
 export import charm.core.geometry;
@@ -106,6 +107,9 @@ public:
 
     void set_focusable(bool on) noexcept { focusable_ = on; }
     bool is_focusable() const noexcept { return focusable_; }
+
+    void set_style_variant(std::uint8_t v) noexcept { style_variant_ = v; }
+    std::uint8_t style_variant() const noexcept { return style_variant_; }
 
     void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
         flex_enabled_ = true;
@@ -437,6 +441,7 @@ protected:
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
+    std::uint8_t style_variant_{0};
     bool flex_enabled_{false};
     int flex_flow_{0};
     int flex_main_align_{0};

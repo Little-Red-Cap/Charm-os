@@ -1,20 +1,32 @@
 module;
+#include <type_traits>
 export module charm.core.theme_preset;
 
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.widgets.button;
+export import charm.widgets.arc;
+export import charm.widgets.bar;
 export import charm.widgets.checkbox;
+export import charm.widgets.code_block;
 export import charm.widgets.label;
 export import charm.widgets.list;
 export import charm.widgets.list_view;
 export import charm.widgets.icon_list;
 export import charm.widgets.text_list;
 export import charm.widgets.text_tracking_list;
+export import charm.widgets.dial;
+export import charm.widgets.dropdown_popup;
+export import charm.widgets.image;
+export import charm.widgets.image_box;
+export import charm.widgets.led;
+export import charm.widgets.message_box;
+export import charm.widgets.modal_dialog;
 export import charm.widgets.progress;
 export import charm.widgets.progress_bar_simple;
 export import charm.widgets.progress_bar_round;
 export import charm.widgets.progress_bar_drill;
+export import charm.widgets.progress_bar_flowing;
 export import charm.widgets.progress_flowing;
 export import charm.widgets.progress_wheel;
 export import charm.widgets.spinner;
@@ -38,13 +50,21 @@ export import charm.widgets.menu;
 export import charm.widgets.menu_item;
 export import charm.widgets.tabview;
 export import charm.widgets.roller;
+export import charm.widgets.rich_text;
 export import charm.widgets.stepper;
+export import charm.widgets.timeline;
 export import charm.widgets.perf_overlay;
+export import charm.widgets.popup_layer;
+export import charm.widgets.primitives_canvas;
 export import charm.widgets.foldable_panel;
 export import charm.widgets.cloudy_glass;
 export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
 export import charm.widgets.spectrum_view;
+export import charm.widgets.spinning_wheel;
+export import charm.widgets.spin_zoom_widget;
+export import charm.widgets.meter_pointer;
+export import charm.widgets.battery_gauge;
 export import charm.widgets.battery_gasgauge;
 export import charm.widgets.histogram;
 export import charm.widgets.histogram_view;
@@ -416,11 +436,96 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
 }
 
 export
+inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
+    auto& theme = Theme::instance();
+    theme.set_tokens(tokens);
+
+    auto apply_widget = [&](auto* tag) {
+        using Widget = std::remove_pointer_t<decltype(tag)>;
+        Style s = theme.get<Widget>();
+        apply_tokens_to_style(s, tokens);
+        theme.set<Widget>(s);
+    };
+
+    apply_widget(static_cast<Label*>(nullptr));
+    apply_widget(static_cast<Button*>(nullptr));
+    apply_widget(static_cast<Checkbox*>(nullptr));
+    apply_widget(static_cast<ListView*>(nullptr));
+    apply_widget(static_cast<ListItem*>(nullptr));
+    apply_widget(static_cast<List*>(nullptr));
+    apply_widget(static_cast<IconList*>(nullptr));
+    apply_widget(static_cast<TextList*>(nullptr));
+    apply_widget(static_cast<TextTrackingList*>(nullptr));
+    apply_widget(static_cast<Progress*>(nullptr));
+    apply_widget(static_cast<ProgressBarSimple*>(nullptr));
+    apply_widget(static_cast<ProgressBarRound*>(nullptr));
+    apply_widget(static_cast<ProgressBarDrill*>(nullptr));
+    apply_widget(static_cast<ProgressBarFlowing*>(nullptr));
+    apply_widget(static_cast<ProgressFlowing*>(nullptr));
+    apply_widget(static_cast<ProgressWheel*>(nullptr));
+    apply_widget(static_cast<Spinner*>(nullptr));
+    apply_widget(static_cast<ScrollContainer*>(nullptr));
+    apply_widget(static_cast<ScrollBar*>(nullptr));
+    apply_widget(static_cast<SegmentedControl*>(nullptr));
+    apply_widget(static_cast<Slider*>(nullptr));
+    apply_widget(static_cast<Switch*>(nullptr));
+    apply_widget(static_cast<Radio*>(nullptr));
+    apply_widget(static_cast<RadioGroup*>(nullptr));
+    apply_widget(static_cast<TextInput*>(nullptr));
+    apply_widget(static_cast<TextArea*>(nullptr));
+    apply_widget(static_cast<TextBox*>(nullptr));
+    apply_widget(static_cast<NumberInput*>(nullptr));
+    apply_widget(static_cast<NumberList*>(nullptr));
+    apply_widget(static_cast<ToggleGroup*>(nullptr));
+    apply_widget(static_cast<TableView*>(nullptr));
+    apply_widget(static_cast<TreeView*>(nullptr));
+    apply_widget(static_cast<Dropdown*>(nullptr));
+    apply_widget(static_cast<DropdownPopup*>(nullptr));
+    apply_widget(static_cast<Menu*>(nullptr));
+    apply_widget(static_cast<MenuItem*>(nullptr));
+    apply_widget(static_cast<TabView*>(nullptr));
+    apply_widget(static_cast<Roller*>(nullptr));
+    apply_widget(static_cast<Stepper*>(nullptr));
+    apply_widget(static_cast<Timeline*>(nullptr));
+    apply_widget(static_cast<PerfOverlay*>(nullptr));
+    apply_widget(static_cast<PopupLayer*>(nullptr));
+    apply_widget(static_cast<ModalDialog*>(nullptr));
+    apply_widget(static_cast<MessageBox*>(nullptr));
+    apply_widget(static_cast<PrimitivesCanvas*>(nullptr));
+    apply_widget(static_cast<FoldablePanel*>(nullptr));
+    apply_widget(static_cast<CloudyGlass*>(nullptr));
+    apply_widget(static_cast<DynamicNebula*>(nullptr));
+    apply_widget(static_cast<CrtScreen*>(nullptr));
+    apply_widget(static_cast<SpectrumView*>(nullptr));
+    apply_widget(static_cast<SpinningWheel*>(nullptr));
+    apply_widget(static_cast<SpinZoomWidget*>(nullptr));
+    apply_widget(static_cast<MeterPointer*>(nullptr));
+    apply_widget(static_cast<Arc*>(nullptr));
+    apply_widget(static_cast<Bar*>(nullptr));
+    apply_widget(static_cast<Dial*>(nullptr));
+    apply_widget(static_cast<Image*>(nullptr));
+    apply_widget(static_cast<ImageBox*>(nullptr));
+    apply_widget(static_cast<Led*>(nullptr));
+    apply_widget(static_cast<BusyWheel*>(nullptr));
+    apply_widget(static_cast<ConsoleBox*>(nullptr));
+    apply_widget(static_cast<BatteryGauge*>(nullptr));
+    apply_widget(static_cast<BatteryGasGauge*>(nullptr));
+    apply_widget(static_cast<Histogram*>(nullptr));
+    apply_widget(static_cast<HistogramView*>(nullptr));
+    apply_widget(static_cast<Chart*>(nullptr));
+    apply_widget(static_cast<Waveform*>(nullptr));
+    apply_widget(static_cast<WaveformView*>(nullptr));
+    apply_widget(static_cast<Gauge*>(nullptr));
+    apply_widget(static_cast<RingIndication*>(nullptr));
+    apply_widget(static_cast<RichText*>(nullptr));
+    apply_widget(static_cast<CodeBlock*>(nullptr));
+}
+
+export
 inline void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
     auto& theme = Theme::instance();
     theme.set_tokens(tokens);
-    Style base = make_style_from_tokens(tokens);
-    apply_baseline_theme_preset(base);
+    apply_tokens_to_all_widgets(tokens);
 }
 
 export

@@ -109,12 +109,12 @@ export namespace gui {
         int max_w = 0;
         std::uint32_t cp = 0;
         while (next_codepoint(text, cp)) {
-            if (cp == '\\n') {
+            if (cp == '\n') {
                 if (line_w > max_w) max_w = line_w;
                 line_w = 0;
                 continue;
             }
-            if (cp == '\\r') continue;
+            if (cp == '\r') continue;
 
             const Glyph* g = find_glyph(font, cp);
             if (g) line_w += g->x_advance;
@@ -139,12 +139,12 @@ export namespace gui {
         int pen_y = baseline_y;
         std::uint32_t cp = 0;
         while (next_codepoint(text, cp)) {
-            if (cp == '\\n') {
+            if (cp == '\n') {
                 pen_x = x;
                 pen_y += font.line_height;
                 continue;
             }
-            if (cp == '\\r') continue;
+            if (cp == '\r') continue;
 
             const Glyph* g = find_glyph(font, cp);
             if (!g || !g->bitmap) {

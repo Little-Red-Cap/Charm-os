@@ -4,7 +4,19 @@ module;
 
 export module alg_text_parse;
 
-import charm.gfx.color;
+#if CHARM_ENABLE_UI_VIVID
+export import charm.gfx.color;
+#else
+export struct rgba {
+    std::uint8_t r{};
+    std::uint8_t g{};
+    std::uint8_t b{};
+    std::uint8_t a{255};
+
+    constexpr rgba(std::uint8_t rr = 0, std::uint8_t gg = 0, std::uint8_t bb = 0, std::uint8_t aa = 255)
+        : r(rr), g(gg), b(bb), a(aa) {}
+};
+#endif
 
 export namespace alg::text_parse {
     enum class TagKind {

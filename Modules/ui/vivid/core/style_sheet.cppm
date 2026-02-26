@@ -82,6 +82,8 @@ struct StyleRuleEntry {
     StyleRuleKind kind{StyleRuleKind::Patch};
     StylePatch patch{};
     StyleRolePatch role_patch{};
+    std::uint16_t priority{0};
+    std::uint16_t order{0};
 };
 
 inline rgba role_color(StyleRole role, const ThemeTokens& t) noexcept {
@@ -127,11 +129,20 @@ public:
         return inst;
     }
 
-    void clear() noexcept { count_ = 0; }
+    void clear() noexcept {
+        count_ = 0;
+        order_ = 0;
+    }
 
     bool add_rule(const StyleSelector& sel, const StylePatch& patch) noexcept {
         if (count_ >= rules_.size()) return false;
-        rules_[count_++] = StyleRuleEntry{sel, StyleRuleKind::Patch, patch, {}};
+        StyleRuleEntry entry{};
+        entry.selector = sel;
+        entry.kind = StyleRuleKind::Patch;
+        entry.patch = patch;
+        entry.priority = rule_priority(sel);
+        entry.order = order_++;
+        insert_rule(entry);
         return true;
     }
 
@@ -141,7 +152,9 @@ public:
         entry.selector = sel;
         entry.kind = StyleRuleKind::RolePatch;
         entry.role_patch = patch;
-        rules_[count_++] = entry;
+        entry.priority = rule_priority(sel);
+        entry.order = order_++;
+        insert_rule(entry);
         return true;
     }
 
@@ -164,6 +177,39 @@ public:
     }
 
 private:
+    static int mask_weight(std::uint8_t mask) noexcept {
+        int count = 0;
+        while (mask) {
+            count += (mask & 1u) ? 1 : 0;
+            mask >>= 1u;
+        }
+        return count;
+    }
+
+    static std::uint16_t rule_priority(const StyleSelector& sel) noexcept {
+        const std::uint16_t kind_score = (sel.kind == WidgetKind::None) ? 0u : 1u;
+        const std::uint16_t state_score = static_cast<std::uint16_t>(mask_weight(sel.require_mask));
+        return static_cast<std::uint16_t>((kind_score << 8) | (state_score << 4));
+    }
+
+    void insert_rule(const StyleRuleEntry& entry) noexcept {
+        std::size_t pos = count_;
+        for (std::size_t i = 0; i < count_; ++i) {
+            const auto& cur = rules_[i];
+            if (entry.priority < cur.priority) {
+                pos = i;
+                break;
+            }
+        }
+        if (pos < count_) {
+            for (std::size_t i = count_; i > pos; --i) {
+                rules_[i] = rules_[i - 1];
+            }
+        }
+        rules_[pos] = entry;
+        ++count_;
+    }
+
     static std::uint8_t state_mask(const StyleState& state) noexcept {
         std::uint8_t mask = 0;
         if (state.hovered) mask |= static_cast<std::uint8_t>(StyleStateFlag::Hovered);
@@ -175,6 +221,7 @@ private:
 
     std::array<StyleRuleEntry, 32> rules_{};
     std::size_t count_{0};
+    std::uint16_t order_{0};
 };
 
 export

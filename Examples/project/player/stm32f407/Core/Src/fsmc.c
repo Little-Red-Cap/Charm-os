@@ -75,7 +75,7 @@ void MX_FSMC_Init(void)
   ExtTiming.BusTurnAroundDuration = 0;
   ExtTiming.CLKDivision = 0;
   ExtTiming.DataLatency = 0;
-  ExtTiming.AccessMode = FSMC_ACCESS_MODE_A;
+  ExtTiming.AccessMode = FSMC_ACCESS_MODE_D;
 
   if (HAL_SRAM_Init(&hsram1, &Timing, &ExtTiming) != HAL_OK)
   {

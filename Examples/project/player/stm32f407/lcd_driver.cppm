@@ -71,6 +71,7 @@ export void LCD_WR_REG(u16 data);
 export void LCD_WR_DATA(u16 data);
 export void LCD_WriteRAM_Prepare();
 export void LCD_direction(u8 direction);
+export void LCD_BlitRect565(u16 x, u16 y, u16 w, u16 h, const u16* pixels);
 
 //默认为竖屏
 _lcd_dev lcddev;
@@ -114,6 +115,16 @@ void LCD_ReadReg(u16 LCD_Reg, u16* Rval, int n)
 }
 
 void LCD_WriteRAM_Prepare() { LCD_WR_REG(lcddev.wramcmd); }
+
+void LCD_BlitRect565(u16 x, u16 y, u16 w, u16 h, const u16* pixels)
+{
+    if (!pixels || w == 0 || h == 0) return;
+    LCD_SetWindows(x, y, x + w - 1, y + h - 1);
+    const u32 count = static_cast<u32>(w) * static_cast<u32>(h);
+    for (u32 i = 0; i < count; ++i) {
+        LCD->LCD_RAM = pixels[i];
+    }
+}
 
 void LCD_Clear(u16 Color)
 {

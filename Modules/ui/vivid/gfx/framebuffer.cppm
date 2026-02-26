@@ -7,6 +7,7 @@ export module charm.gfx.framebuffer;
 
 export import charm.gfx.color;
 export import charm.gfx.pixel_format;
+import charm.gfx.pixel_ops;
 export import charm.core.config;
 
 export

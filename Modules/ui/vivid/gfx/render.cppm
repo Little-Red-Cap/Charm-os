@@ -9,6 +9,7 @@ export import charm.gfx.pixel_format;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
+import charm.gfx.pixel_ops;
 import alg_arc;
 import alg_circle;
 import alg_round_rect;

@@ -8,6 +8,7 @@ export module charm.gfx.canvas;
 export import charm.gfx.framebuffer;
 export import charm.core.config;
 export import charm.core.geometry;
+import charm.gfx.pixel_ops;
 import service_dirty_rects;
 import util.core;
 

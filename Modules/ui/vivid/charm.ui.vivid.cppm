@@ -27,9 +27,6 @@ export import charm.gfx.framebuffer;
 export import charm.gfx.image;
 export import charm.gfx.pixel_format;
 export import charm.gfx.render;
-export import charm.gfx.assets.benchmark;
-export import charm.gfx.assets.registry;
-export import charm.gfx.assets.render;
 
 export import charm.font;
 export import charm.font.typography;

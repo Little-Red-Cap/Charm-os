@@ -5,7 +5,7 @@ export module charm.font.font_jbm_16;
 
 import charm.font;
 
-static constexpr uint8_t glyph_bitmaps[] = {
+export inline constexpr uint8_t glyph_bitmaps[] = {
     // code 32 (' ')
     // code 33 ('!')
     0b00000000,
@@ -5518,7 +5518,7 @@ static constexpr uint8_t glyph_bitmaps[] = {
     0b00000000,
 };
 
-static constexpr Glyph glyph_table[] = {
+export inline constexpr Glyph glyph_table[] = {
     //   (code 32)
     { glyph_bitmaps + 0, 10, 0, 10, 0, 0, 4 },
     // ! (code 33)
@@ -5711,11 +5711,11 @@ static constexpr Glyph glyph_table[] = {
     { glyph_bitmaps + 5380, 10, 7, 10, 0, 7, 4 },
 };
 
-static constexpr GlyphRange glyph_ranges[] = {
+export inline constexpr GlyphRange glyph_ranges[] = {
     { 32, 95, 0 },
 };
 
-export constexpr Font font_jbm_16 = {
+export inline constexpr Font font_jbm_16 = {
     .table = glyph_table,
     .ranges = glyph_ranges,
     .fallback_glyph = &glyph_table[31],

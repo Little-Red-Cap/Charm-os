@@ -42,8 +42,21 @@ set(CHARM_FETCHCONTENT_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/abbrev/fatfs.git" CACHE STRING "" FORCE)
 set(CHARM_FATFS_GIT_TAG "master" CACHE STRING "" FORCE)
 
-charm_example_sources(${target_name} "${CHARM_ROOT}"
+file(GLOB_RECURSE PLAYER_CPPM
     "${CHARM_ROOT}/Examples/project/player/*.cppm"
+)
+list(FILTER PLAYER_CPPM EXCLUDE REGEX "/stm32f407/")
+file(GLOB VIVID_ASSET_CPPM
+    "${CHARM_ROOT}/Examples/ui/vivid/assets/*.cppm"
+)
+target_sources(${target_name}
+    PRIVATE
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
+        "${CHARM_ROOT}"
+    FILES
+        ${PLAYER_CPPM}
+        ${VIVID_ASSET_CPPM}
 )
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 

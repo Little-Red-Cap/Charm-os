@@ -58,6 +58,7 @@ target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
     # Add user sources here
         Core/Src/main.cpp
+        Core/Src/out.port.stm32.cpp
 
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES

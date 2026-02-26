@@ -26,6 +26,21 @@ function(charm_example_sources target_name base_dir)
     )
 endfunction()
 
+function(charm_example_sources_filtered target_name base_dir exclude_regex)
+    file(GLOB_RECURSE MODULE_INTERFACE_UNITS ${ARGN})
+    if (exclude_regex)
+        list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "${exclude_regex}")
+    endif()
+    target_sources(${target_name}
+        PRIVATE
+        FILE_SET modules TYPE CXX_MODULES
+        BASE_DIRS
+            "${base_dir}"
+        FILES
+            ${MODULE_INTERFACE_UNITS}
+    )
+endfunction()
+
 function(charm_example_link_charm target_name charm_root)
     add_subdirectory("${charm_root}" "${CMAKE_BINARY_DIR}/Charm")
     target_link_libraries(${target_name} PRIVATE Charm-os)

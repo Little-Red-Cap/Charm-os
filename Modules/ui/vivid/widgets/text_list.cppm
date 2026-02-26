@@ -1,7 +1,8 @@
 module;
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
+#include <cstring>
+#include <string_view>
 export module charm.widgets.text_list;
 
 import charm.core.object;
@@ -14,8 +15,70 @@ import alg_list_scroll;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
+import out.core;
+import out.format;
+import out.sink;
 
 using namespace ui::render;
+
+namespace {
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
+        (void)out::write(sink, sv);
+    }
+
+    inline std::string_view format_label(char* buf, std::size_t size,
+                                         const char* fmt, const char* label) noexcept {
+        if (!buf || size == 0) return {};
+        if (!fmt || !*fmt) fmt = "%s";
+        trunc_sink sink{buf, size - 1u, 0u};
+        bool used = false;
+        for (const char* p = fmt; *p; ) {
+            if (*p != '%') {
+                append_sv(sink, std::string_view{p, 1});
+                ++p;
+                continue;
+            }
+            ++p;
+            if (*p == '%') {
+                append_sv(sink, std::string_view{"%", 1});
+                ++p;
+                continue;
+            }
+            while (*p == 'l') ++p;
+            const char spec = *p ? *p++ : 0;
+            if (used) {
+                append_sv(sink, std::string_view{"?", 1});
+                continue;
+            }
+            if (spec == 's') {
+                append_sv(sink, label ? std::string_view{label} : std::string_view{});
+            } else {
+                append_sv(sink, std::string_view{"?", 1});
+            }
+            used = true;
+        }
+        buf[sink.pos] = '\0';
+        return {buf, sink.pos};
+    }
+}
 
 // Simple text list (ARM-2D text_list inspired)
 export
@@ -99,7 +162,7 @@ public:
             }
             const char* label = (items_ && items_[i]) ? items_[i] : "";
             char buf[96]{};
-            std::snprintf(buf, sizeof(buf), format_, label);
+            (void)format_label(buf, sizeof(buf), format_, label);
             draw_text_box(cvs, row, buf, font, resolve_font(st),
                           TextAlignH::Left, TextAlignV::Center,
                           TextWrap::None, TextEllipsis::End);

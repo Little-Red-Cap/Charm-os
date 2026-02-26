@@ -20,19 +20,19 @@
 
 ## 2) 容器与动态内存
 
-- 默认使用 ETL 容器替代 STL 容器。
+- 默认优先使用标准库类型；如需固定容量容器，使用 `Modules/core/service` 的固定容量容器。
 
-替换规则：
+替换规则（建议）：
 
-- `std::vector` -> `etl::vector`
-- `std::string` -> `etl::string`（如需动态字符串）
-- `std::deque` -> `etl::deque`
+- `std::vector` -> 固定容量容器（如 `service::fixed_vector`，视具体实现）
+- `std::string` -> 固定容量字符串或 `std::string_view`（避免动态分配）
+- `std::deque` -> 固定容量队列/环形队列
 
 原因：
 - MCU 约束下可控容量与行为，避免隐式动态分配。
 
 位置：
-- `Modules/thirdparty/etl/*` (通过 CMake 引入)
+- `Modules/core/service/*`
 
 例外：
 - PC 端验证工具或仅用于 Debug 的代码可保留 STL，但需在注释中说明。
@@ -40,7 +40,7 @@
 ## 3) Span 与 byte
 
 - 默认使用 `std::span` 与 `std::byte`。
-- 如需在 MCU 上替换为 ETL，请使用 `Modules/core/util` 提供的别名或包装。
+- 如需统一别名/适配，请使用 `Modules/core/util` 提供的包装。
 
 位置：
 - `Modules/core/util/*`

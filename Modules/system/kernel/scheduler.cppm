@@ -2,10 +2,11 @@
 
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <optional>
+#include <string_view>
 #include <type_traits>
 #include <utility>
-#include <cstdio>
 
 export module kernel.scheduler;
 
@@ -21,6 +22,49 @@ import kernel.task_state;
 import kernel.timer;
 import kernel.trace;
 import util.core;
+import out.core;
+import out.format;
+import out.sink;
+
+namespace {
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    inline std::size_t append_text(char* out, std::size_t max, std::size_t offset,
+                                   std::string_view sv) noexcept {
+        if (!out || max == 0 || offset >= max) return offset;
+        trunc_sink sink{out + offset, max - offset - 1u, 0u};
+        (void)out::write(sink, sv);
+        const std::size_t n = sink.pos;
+        out[offset + n] = '\0';
+        return offset + n;
+    }
+
+    template <out::fixed_string Fmt, class... Args>
+    inline std::size_t append_fmt(char* out, std::size_t max, std::size_t offset, Args&&... args) noexcept {
+        if (!out || max == 0 || offset >= max) return offset;
+        trunc_sink sink{out + offset, max - offset - 1u, 0u};
+        (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
+        const std::size_t n = sink.pos;
+        out[offset + n] = '\0';
+        return offset + n;
+    }
+}
 
 export namespace kernel {
     template <typename Config, typename Registry>
@@ -519,12 +563,13 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_snapshot_json(char* out, std::size_t max) const noexcept {
             const auto snap = snapshot();
-            return static_cast<std::size_t>(std::snprintf(
-                out,
-                max,
-                "{\"posted\":%llu,\"dropped\":%llu,\"dispatched\":%llu,\"filtered\":%llu,\"filtered_run\":%llu,\"budget\":%llu,"
-                "\"maxQ\":%llu,\"maxT\":%llu,\"queue\":%llu,\"timers\":%llu,\"active\":%llu,"
-                "\"dedup\":%llu,\"debounce\":%llu,\"coalesce\":%llu,\"idle\":%llu}",
+            std::size_t offset = 0;
+            offset = append_text(out, max, offset, "{");
+            offset = append_fmt<
+                "\"posted\":{},\"dropped\":{},\"dispatched\":{},\"filtered\":{},\"filtered_run\":{},\"budget\":{},"
+                "\"maxQ\":{},\"maxT\":{},\"queue\":{},\"timers\":{},\"active\":{},"
+                "\"dedup\":{},\"debounce\":{},\"coalesce\":{},\"idle\":{}">(
+                out, max, offset,
                 static_cast<unsigned long long>(snap.stats.posted),
                 static_cast<unsigned long long>(snap.stats.dropped),
                 static_cast<unsigned long long>(snap.stats.dispatched),
@@ -539,32 +584,39 @@ export namespace kernel {
                 static_cast<unsigned long long>(snap.stats.dedup_filtered),
                 static_cast<unsigned long long>(snap.stats.debounce_filtered),
                 static_cast<unsigned long long>(snap.stats.coalesce_hit),
-                static_cast<unsigned long long>(snap.stats.idle_rounds)));
+                static_cast<unsigned long long>(snap.stats.idle_rounds));
+            offset = append_text(out, max, offset, "}");
+            return offset;
         }
 
         [[nodiscard]] std::size_t format_event_stats_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "["));
+            offset = append_text(out, max, offset, "[");
             for (std::size_t i = 0; i < event_id_count; ++i) {
-                offset += static_cast<std::size_t>(std::snprintf(
-                    out + offset,
-                    max - offset,
-                    "%s{\"id\":%llu,\"posted\":%llu,\"dispatched\":%llu}",
-                    i == 0 ? "" : ",",
+                if (i > 0) {
+                    offset = append_text(out, max, offset, ",");
+                }
+                offset = append_text(out, max, offset, "{");
+                offset = append_fmt<"\"id\":{},\"posted\":{},\"dispatched\":{}">(
+                    out, max, offset,
                     static_cast<unsigned long long>(i),
                     static_cast<unsigned long long>(stats_.event_posted[i]),
-                    static_cast<unsigned long long>(stats_.event_dispatched[i])));
+                    static_cast<unsigned long long>(stats_.event_dispatched[i]));
+                offset = append_text(out, max, offset, "}");
             }
-            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "]"));
+            offset = append_text(out, max, offset, "]");
             return offset;
         }
 
         [[nodiscard]] std::size_t format_event_source_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "{\"post\":%llu,\"timer\":%llu,\"replay\":%llu}",
+            offset = append_text(out, max, offset, "{");
+            offset = append_fmt<"\"post\":{},\"timer\":{},\"replay\":{}">(
+                out, max, offset,
                 static_cast<unsigned long long>(stats_.source_post),
                 static_cast<unsigned long long>(stats_.source_timer),
-                static_cast<unsigned long long>(stats_.source_replay)));
+                static_cast<unsigned long long>(stats_.source_replay));
+            offset = append_text(out, max, offset, "}");
             return offset;
         }
 
@@ -596,22 +648,24 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_tasks_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "["));
+            offset = append_text(out, max, offset, "[");
             auto tasks = task_snapshot();
             for (std::size_t i = 0; i < tasks.size(); ++i) {
                 const auto& t = tasks[i];
-                offset += static_cast<std::size_t>(std::snprintf(
-                    out + offset,
-                    max - offset,
-                    "%s{\"id\":%llu,\"state\":%u,\"enabled\":%u,\"prio\":%u,\"active\":%u}",
-                    i == 0 ? "" : ",",
+                if (i > 0) {
+                    offset = append_text(out, max, offset, ",");
+                }
+                offset = append_text(out, max, offset, "{");
+                offset = append_fmt<"\"id\":{},\"state\":{},\"enabled\":{},\"prio\":{},\"active\":{}">(
+                    out, max, offset,
                     static_cast<unsigned long long>(t.id.value),
                     static_cast<unsigned>(t.state),
                     t.enabled ? 1u : 0u,
                     static_cast<unsigned>(t.priority),
-                    t.active ? 1u : 0u));
+                    t.active ? 1u : 0u);
+                offset = append_text(out, max, offset, "}");
             }
-            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "]"));
+            offset = append_text(out, max, offset, "]");
             return offset;
         }
 
@@ -619,51 +673,52 @@ export namespace kernel {
             const auto current = snapshot();
             const auto prev = last_snapshot_;
             last_snapshot_ = current;
-            return static_cast<std::size_t>(std::snprintf(
-                out,
-                max,
-                "posted=%lld dropped=%lld dispatched=%lld filtered=%lld filtered_run=%lld budget=%lld",
+            std::size_t offset = 0;
+            offset = append_fmt<
+                "posted={} dropped={} dispatched={} filtered={} filtered_run={} budget={}">(
+                out, max, offset,
                 static_cast<long long>(current.stats.posted - prev.stats.posted),
                 static_cast<long long>(current.stats.dropped - prev.stats.dropped),
                 static_cast<long long>(current.stats.dispatched - prev.stats.dispatched),
                 static_cast<long long>(current.stats.filtered - prev.stats.filtered),
                 static_cast<long long>(current.stats.filtered_run - prev.stats.filtered_run),
-                static_cast<long long>(current.stats.budget_limited - prev.stats.budget_limited)));
+                static_cast<long long>(current.stats.budget_limited - prev.stats.budget_limited));
+            return offset;
         }
 
         [[nodiscard]] std::size_t format_trace_json(char* out, std::size_t max) const noexcept {
             if constexpr (!Config::enable_trace) {
-                return static_cast<std::size_t>(std::snprintf(out, max, "[]"));
+                return append_text(out, max, 0, "[]");
             } else {
                 std::size_t offset = 0;
-                offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "["));
+                offset = append_text(out, max, offset, "[");
                 const auto& data = trace_.data();
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                        offset += static_cast<std::size_t>(std::snprintf(
-                        out + offset,
-                        max - offset,
-                        "%s{\"t\":%llu,\"task\":%llu,\"id\":%u,\"payload\":%llu,\"count\":%u,\"kind\":%u}",
-                        i == 0 ? "" : ",",
+                    if (i > 0) {
+                        offset = append_text(out, max, offset, ",");
+                    }
+                    offset = append_text(out, max, offset, "{");
+                    offset = append_fmt<
+                        "\"t\":{},\"task\":{},\"id\":{},\"payload\":{},\"count\":{},\"kind\":{}">(
+                        out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
                         static_cast<unsigned>(rec.id),
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
-                        static_cast<unsigned>(rec.kind)));
+                        static_cast<unsigned>(rec.kind));
+                    offset = append_text(out, max, offset, "}");
                 }
-                offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "]"));
+                offset = append_text(out, max, offset, "]");
                 return offset;
             }
         }
 
         [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset += static_cast<std::size_t>(std::snprintf(
-                out + offset,
-                max - offset,
-                "trace_v1,t,task,id,payload,count,kind\n"));
+            offset = append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind\n");
             if constexpr (!Config::enable_trace) {
                 return offset;
             } else {
@@ -671,16 +726,14 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    offset += static_cast<std::size_t>(std::snprintf(
-                        out + offset,
-                        max - offset,
-                        "%llu,%llu,%u,%llu,%u,%u\n",
+                    offset = append_fmt<"{},{},{},{},{},{}\n">(
+                        out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
                         static_cast<unsigned>(rec.id),
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
-                        static_cast<unsigned>(rec.kind)));
+                        static_cast<unsigned>(rec.kind));
                     if (offset >= max) {
                         break;
                     }
@@ -712,10 +765,11 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_snapshot(char* out, std::size_t max) const noexcept {
             const auto snap = snapshot();
-            return static_cast<std::size_t>(std::snprintf(
-                out,
-                max,
-                "posted=%llu dropped=%llu dispatched=%llu filtered=%llu filtered_run=%llu budget=%llu maxQ=%llu maxT=%llu queue=%llu timers=%llu active=%llu dedup=%llu debounce=%llu coalesce=%llu idle=%llu",
+            std::size_t offset = 0;
+            offset = append_fmt<
+                "posted={} dropped={} dispatched={} filtered={} filtered_run={} budget={} maxQ={} maxT={} queue={} "
+                "timers={} active={} dedup={} debounce={} coalesce={} idle={}">(
+                out, max, offset,
                 static_cast<unsigned long long>(snap.stats.posted),
                 static_cast<unsigned long long>(snap.stats.dropped),
                 static_cast<unsigned long long>(snap.stats.dispatched),
@@ -730,7 +784,8 @@ export namespace kernel {
                 static_cast<unsigned long long>(snap.stats.dedup_filtered),
                 static_cast<unsigned long long>(snap.stats.debounce_filtered),
                 static_cast<unsigned long long>(snap.stats.coalesce_hit),
-                static_cast<unsigned long long>(snap.stats.idle_rounds)));
+                static_cast<unsigned long long>(snap.stats.idle_rounds));
+            return offset;
         }
 
         struct TaskSnapshot {

@@ -12,6 +12,9 @@ import util.core;
 import shell_core;
 import shell_cmd;
 import shell_stdio;
+import out.core;
+import out.format;
+import out.sink;
 
 export namespace shell_service {
     enum class JobState : util::u8 {
@@ -57,14 +60,16 @@ export namespace shell_service {
         void list(shell::Console& con) const noexcept {
             for (const auto& job : jobs_) {
                 if (!job.used) continue;
-                char buf[96]{};
                 const char* state = job.state == JobState::running ? "running" : "stopped";
-                std::snprintf(buf, sizeof(buf), "[%u] %s %.*s\n",
-                              static_cast<unsigned>(job.id),
-                              state,
-                              static_cast<int>(job.name.size()),
-                              job.name.data());
-                (void)shell::write(con, buf);
+                out::buffer_sink<32> id_buf{};
+                (void)out::vprint<"{}">(id_buf, static_cast<unsigned>(job.id));
+                (void)shell::write(con, "[");
+                (void)shell::write(con, id_buf.view());
+                (void)shell::write(con, "] ");
+                (void)shell::write(con, state);
+                (void)shell::write(con, " ");
+                (void)shell::write(con, job.name);
+                (void)shell::write(con, "\n");
             }
         }
 

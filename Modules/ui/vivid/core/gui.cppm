@@ -479,12 +479,12 @@ private:
         }
     }
     static Rect clamp_to_screen(const Rect& r) noexcept {
-        const Rect nr = rect_normalized(r);
-        const int left = (nr.x < 0) ? 0 : nr.x;
-        const int top = (nr.y < 0) ? 0 : nr.y;
-        const int right = (nr.x + nr.w > screen_width) ? screen_width : (nr.x + nr.w);
-        const int bottom = (nr.y + nr.h > screen_height) ? screen_height : (nr.y + nr.h);
-        return Rect{left, top, right - left, bottom - top};
+        const Rect screen{0, 0, screen_width, screen_height};
+        Rect out{};
+        if (!rect_intersect(r, screen, out)) {
+            return Rect{};
+        }
+        return out;
     }
 
     void mark_cache_dirty_chain(WidgetHandle h) noexcept {

@@ -413,15 +413,8 @@ private:
         return resolve_style(WidgetKind::ListView, current_style_state(), base, scratch);
     }
 
-    static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
-        const int left = (a.x > b.x) ? a.x : b.x;
-        const int top = (a.y > b.y) ? a.y : b.y;
-        const int right = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
-        const int bottom = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
-        const int w = right - left;
-        const int h = bottom - top;
-        if (w <= 0 || h <= 0) return {};
-        return Rect{left, top, w, h};
+    static bool intersect_rect(const Rect& a, const Rect& b, Rect& out) noexcept {
+        return rect_intersect(a, b, out);
     }
 
     static alg::scroll::Rect to_alg_rect(const Rect& r) noexcept {
@@ -448,7 +441,7 @@ private:
         const auto clip = get_rect();
         const auto band = alg::scroll::dirty_band_simple(to_alg_rect(clip), dy);
         const auto out = from_alg_rect(band);
-        if (out.w > 0 && out.h > 0) {
+        if (rect_valid(out)) {
             accumulate_scroll_dirty(out);
         }
     }
@@ -456,17 +449,17 @@ private:
     void mark_dirty_row(int index) noexcept {
         if (index < 0) return;
         const auto row = row_rect_for_index(index);
-        if (row.w <= 0 || row.h <= 0) return;
-        const auto clipped = intersect_rect(row, get_rect());
-        if (clipped.w <= 0 || clipped.h <= 0) return;
+        if (!rect_valid(row)) return;
+        Rect clipped{};
+        if (!intersect_rect(row, get_rect(), clipped)) return;
         mark_dirty_hint(clipped);
     }
 
     void mark_dirty_rows_range(int start, int end) noexcept {
         const auto range = row_range_rect(start, end);
-        if (range.w <= 0 || range.h <= 0) return;
-        const auto clipped = intersect_rect(range, get_rect());
-        if (clipped.w <= 0 || clipped.h <= 0) return;
+        if (!rect_valid(range)) return;
+        Rect clipped{};
+        if (!intersect_rect(range, get_rect(), clipped)) return;
         mark_dirty_hint(clipped);
     }
 

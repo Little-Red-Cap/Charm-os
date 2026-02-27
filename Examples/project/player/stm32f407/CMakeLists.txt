@@ -76,7 +76,17 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    CHARM_VIVID_SCREEN_WIDTH=480
+    CHARM_VIVID_SCREEN_HEIGHT=800
+    CHARM_VIVID_SCREEN_PIXEL_FORMAT_RGB565
+    CHARM_VIVID_ENABLE_LAYER_CACHE=0
+    CHARM_VIVID_LAYER_CACHE_WIDTH=1
+    CHARM_VIVID_LAYER_CACHE_HEIGHT=1
+    CHARM_VIVID_LAYER_CACHE_SLOTS=1
 )
+
+# Ensure Charm-os is built with the same feature flags.
+add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)

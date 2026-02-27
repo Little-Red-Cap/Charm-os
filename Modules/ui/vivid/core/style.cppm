@@ -306,7 +306,7 @@ public:
 
 private:
     Theme() {
-        default_font_ptr() = &get_font(FontId::Normal);
+        default_font_ptr() = nullptr;
         tokens() = ThemeTokens{};
     }
 
@@ -321,6 +321,9 @@ private:
     }
 
     static const Font* default_font() {
-        return default_font_ptr();
+        if (auto* f = default_font_ptr()) {
+            return f;
+        }
+        return &get_font(FontId::Normal);
     }
 };

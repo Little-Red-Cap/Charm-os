@@ -269,6 +269,9 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
         s.accent_pressed = base.accent_pressed;
         s.accent_disabled = base.accent_disabled;
         s.on_accent = base.on_accent;
+        if (base.font) {
+            s.font = base.font;
+        }
     };
 
     ThemePreset preset{};

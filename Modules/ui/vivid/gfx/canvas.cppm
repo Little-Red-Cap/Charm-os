@@ -93,8 +93,15 @@ public:
     }
 
     bool in_clip(int x, int y) const noexcept override {
-        if (!clip_enabled_) return true;
-        return x >= clip_.x && y >= clip_.y && x < clip_.x + clip_.w && y < clip_.y + clip_.h;
+        if (!clip_enabled_) {
+            const int lx = x + origin_x_;
+            const int ly = y + origin_y_;
+            return lx >= 0 && ly >= 0 && lx < static_cast<int>(W) && ly < static_cast<int>(H);
+        }
+        if (x < clip_.x || y < clip_.y || x >= clip_.x + clip_.w || y >= clip_.y + clip_.h) return false;
+        const int lx = x + origin_x_;
+        const int ly = y + origin_y_;
+        return lx >= 0 && ly >= 0 && lx < static_cast<int>(W) && ly < static_cast<int>(H);
     }
 
     void set_pixel(int x, int y, const rgba& c) noexcept override {
@@ -228,9 +235,12 @@ public:
 
     void clear(const rgba& c = {0,0,0,0}) noexcept override {
         if (!data_) return;
+        // Clear should ignore origin/clip so partial-buffer tiles reset correctly.
+        const std::size_t bpp = bytes_per_pixel();
         for (int y = 0; y < height_; ++y) {
+            auto* row = data_ + static_cast<std::size_t>(y) * stride_bytes_;
             for (int x = 0; x < width_; ++x) {
-                set_pixel(x, y, c);
+                write_pixel(row + static_cast<std::size_t>(x) * bpp, c);
             }
         }
     }
@@ -259,8 +269,15 @@ public:
     }
 
     bool in_clip(int x, int y) const noexcept override {
-        if (!clip_enabled_) return true;
-        return x >= clip_.x && y >= clip_.y && x < clip_.x + clip_.w && y < clip_.y + clip_.h;
+        if (!clip_enabled_) {
+            const int lx = x + origin_x_;
+            const int ly = y + origin_y_;
+            return lx >= 0 && ly >= 0 && lx < width_ && ly < height_;
+        }
+        if (x < clip_.x || y < clip_.y || x >= clip_.x + clip_.w || y >= clip_.y + clip_.h) return false;
+        const int lx = x + origin_x_;
+        const int ly = y + origin_y_;
+        return lx >= 0 && ly >= 0 && lx < width_ && ly < height_;
     }
 
     void set_pixel(int x, int y, const rgba& c) noexcept override {

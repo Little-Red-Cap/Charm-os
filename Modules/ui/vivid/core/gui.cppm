@@ -333,6 +333,17 @@ private:
             default:
                 break;
             }
+            if (clip_state.enabled) {
+                const int left = (clip_rect.x > clip_state.rect.x) ? clip_rect.x : clip_state.rect.x;
+                const int top = (clip_rect.y > clip_state.rect.y) ? clip_rect.y : clip_state.rect.y;
+                const int right = (clip_rect.x + clip_rect.w < clip_state.rect.x + clip_state.rect.w)
+                    ? (clip_rect.x + clip_rect.w)
+                    : (clip_state.rect.x + clip_state.rect.w);
+                const int bottom = (clip_rect.y + clip_rect.h < clip_state.rect.y + clip_state.rect.h)
+                    ? (clip_rect.y + clip_rect.h)
+                    : (clip_state.rect.y + clip_state.rect.h);
+                clip_rect = Rect{left, top, right - left, bottom - top};
+            }
             target.set_clip(clip_rect);
             if (node_index != static_cast<std::size_t>(-1)) {
                 render_tree_.node_mut(node_index).clip = clip_rect;

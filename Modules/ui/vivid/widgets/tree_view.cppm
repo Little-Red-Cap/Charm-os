@@ -184,7 +184,7 @@ public:
                     slot = -1;
                 }
             }
-            draw_node_glyphs(cvs, row, info, border);
+            draw_node_glyphs(cvs, row, st.metrics.padding, info, border);
             if (draw_fn_) {
                 draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info, slot});
             } else if (info.label) {
@@ -213,8 +213,14 @@ public:
             if (!r.contains(e.x, e.y)) return false;
             const int index = index_from_y(e.y);
             if (index >= 0 && index < item_count()) {
+                const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                          has_state(State::Pressed), has_state(State::Focused),
+                                                          style_variant());
+                const Style& base = Theme::instance().get<TreeView>();
+                Style st_scratch;
+                const Style& st = resolve_style(WidgetKind::TreeView, state, base, st_scratch);
                 const NodeInfo info = node_fn_ ? node_fn_(data_ctx_, index) : NodeInfo{};
-                const int toggle_x = r.x + info.depth * indent_w_;
+                const int toggle_x = r.x + st.metrics.padding + info.depth * indent_w_;
                 if (info.has_children && e.x >= toggle_x && e.x < toggle_x + indent_w_) {
                     if (toggle_fn_) toggle_fn_(data_ctx_, index);
                 }
@@ -271,9 +277,10 @@ private:
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
     }
 
-    void draw_node_glyphs(CanvasBase& cvs, const Rect& row, const NodeInfo& info, const rgba& color) const noexcept {
+    void draw_node_glyphs(CanvasBase& cvs, const Rect& row, int pad,
+                          const NodeInfo& info, const rgba& color) const noexcept {
         if (!info.has_children) return;
-        const int cx = row.x + info.depth * indent_w_ + indent_w_ / 2;
+        const int cx = row.x + pad + info.depth * indent_w_ + indent_w_ / 2;
         const int cy = row.y + row.h / 2;
         const int s = 4;
         draw_line(cvs, cx - s, cy, cx + s, cy, color);

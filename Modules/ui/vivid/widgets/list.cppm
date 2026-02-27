@@ -92,14 +92,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
-        const Style& st = Theme::instance().get<List>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<List>();
+        Style st_scratch{};
+        const Style& st = resolve_style(WidgetKind::List, state, base, st_scratch);
         const auto r = get_rect();
-        rgba bg = st.bg_color;
-        rgba border = st.border_color;
-        if (!is_enabled()) {
-            bg = st.bg_disabled;
-            border = st.border_disabled;
-        }
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
     }

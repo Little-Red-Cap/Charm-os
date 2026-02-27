@@ -74,6 +74,9 @@ export namespace kernel {
             if (!waiters_.erase(token, task, timeout)) {
                 return false;
             }
+            if (timeout.value != 0) {
+                (void)scheduler_->cancel_event(timeout);
+            }
             return scheduler_->post(task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
         }
 

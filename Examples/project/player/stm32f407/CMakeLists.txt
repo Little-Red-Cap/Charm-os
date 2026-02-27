@@ -53,6 +53,12 @@ file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "../app/*.cppm"
         "./*.cppm"
 )
+list(APPEND MODULE_INTERFACE_UNITS
+#    "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/fs_demo.cppm"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/lcd_driver.cppm"
+)
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
@@ -86,6 +92,9 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_AUDIO_SINK_I2S=1
     CHARM_AUDIO_USE_VFS=1
     CHARM_AUDIO_ENABLE_STRESS=0
+    CHARM_AUDIO_MAX_PERIOD_FRAMES=256
+    CHARM_AUDIO_MAX_CHUNK_MULT=4
+    CHARM_AUDIO_MAX_FIFO_MS=70
 )
 
 # Ensure Charm-os is built with the same feature flags.
@@ -93,12 +102,17 @@ add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
 add_compile_definitions(CHARM_AUDIO_SINK_I2S=1)
 add_compile_definitions(CHARM_AUDIO_USE_VFS=1)
 add_compile_definitions(CHARM_AUDIO_ENABLE_STRESS=0)
+add_compile_definitions(CHARM_AUDIO_MAX_PERIOD_FRAMES=256)
+add_compile_definitions(CHARM_AUDIO_MAX_CHUNK_MULT=4)
+add_compile_definitions(CHARM_AUDIO_MAX_FIFO_MS=70)
 add_compile_definitions(STM32F407xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_SINK_I2S ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 

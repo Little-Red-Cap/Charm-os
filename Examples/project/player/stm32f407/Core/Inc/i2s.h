@@ -33,6 +33,7 @@ extern "C" {
 /* USER CODE END Includes */
 
 extern I2S_HandleTypeDef hi2s2;
+extern DMA_HandleTypeDef hdma_i2s2_tx;
 
 /* USER CODE BEGIN Private defines */
 

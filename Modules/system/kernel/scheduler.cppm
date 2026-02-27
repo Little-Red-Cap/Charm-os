@@ -277,7 +277,7 @@ export namespace kernel {
         }
 
         [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
-            return post_token_with_tag(task, evt, ++seq_);
+            return post_token_with_tag(task, evt, next_tag());
         }
 
         [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
@@ -444,6 +444,7 @@ export namespace kernel {
             if (budget == 0) {
                 return false;
             }
+            const auto now = Caps::TimeSource::now();
             for (std::size_t i = 0; i < task_counts_.size(); ++i) {
                 task_counts_[i] = 0;
             }
@@ -461,12 +462,38 @@ export namespace kernel {
             for (std::size_t iter = 0; iter < Config::priority_levels; ++iter) {
                 const std::size_t i = (level + Config::priority_levels - iter) % Config::priority_levels;
                 std::optional<EventNode> node{};
-                if constexpr (use_list_queue<Config>) {
-                    node = queues_.pop(i);
-                } else {
-                    node = queues_[i].pop();
+                {
+                    auto guard = Caps::IrqGuard::enter();
+                    if constexpr (use_list_queue<Config>) {
+                        node = queues_.pop(i);
+                    } else {
+                        node = queues_[i].pop();
+                    }
                 }
                 if (node.has_value()) {
+                    if constexpr (Config::enable_event_debounce) {
+                        if (node->event.id != EventId::terminate) {
+                            const auto idx = static_cast<std::size_t>(node->event.id);
+                            const auto last = event_time_[node->task.value][idx];
+                            if (now >= last && (now - last) <= static_cast<typename Caps::TimeSource::Tick>(Config::debounce_window)) {
+                                ++stats_.filtered;
+                                ++stats_.filtered_run;
+                                continue;
+                            }
+                        }
+                    }
+                    if constexpr (Config::enable_rate_limit) {
+                        if (node->event.id != EventId::terminate) {
+                            const auto idx = static_cast<std::size_t>(node->event.id);
+                            const auto last = event_rate_time_[node->task.value][idx];
+                            const auto gap = event_rate_gap_[node->task.value][idx];
+                            if (gap > 0 && now >= last && (now - last) < static_cast<typename Caps::TimeSource::Tick>(gap)) {
+                                ++stats_.filtered;
+                                ++stats_.filtered_run;
+                                continue;
+                            }
+                        }
+                    }
                     if (!task_enabled_[node->task.value] && node->event.id != EventId::terminate) {
                         ++stats_.filtered;
                         ++stats_.filtered_run;
@@ -497,6 +524,16 @@ export namespace kernel {
                     ++task_counts_[node->task.value];
                     ++task_event_counts_[node->task.value][eid];
                     ++stats_.event_dispatched[static_cast<std::size_t>(node->event.id)];
+                    if constexpr (Config::enable_event_debounce) {
+                        if (node->event.id != EventId::terminate) {
+                            event_time_[node->task.value][eid] = now;
+                        }
+                    }
+                    if constexpr (Config::enable_rate_limit) {
+                        if (node->event.id != EventId::terminate) {
+                            event_rate_time_[node->task.value][eid] = now;
+                        }
+                    }
                     if constexpr (Config::enable_trace) {
                         const TraceRecord<Tick> rec{
                             Caps::TimeSource::now(),
@@ -933,7 +970,14 @@ export namespace kernel {
                     return false;
                 }
                 ++stats_.source_timer;
-                (void)post_token_with_tag(entry->task, entry->event, entry->tag);
+                if (!post_token_with_tag(entry->task, entry->event, entry->tag).value) {
+                    ++stats_.dropped;
+                    if constexpr (Config::enable_alert) {
+                        if (alert_hook_) {
+                            alert_hook_(AlertType::timer, AlertLevel::error, timers_.size());
+                        }
+                    }
+                }
                 return true;
             }
         }
@@ -955,7 +999,7 @@ export namespace kernel {
                         (void)cancel_event(task, old_tag);
                     }
                 }
-                const auto tag = ++seq_;
+                const auto tag = next_tag();
                 const auto order = tag;
                 const TimerEntry<typename Caps::TimeSource::Tick> entry{due, task, evt, order, tag};
                 if (!timers_.schedule(entry)) {
@@ -989,6 +1033,10 @@ export namespace kernel {
         }
 
     private:
+        [[nodiscard]] util::u64 next_tag() noexcept {
+            auto guard = Caps::IrqGuard::enter();
+            return ++seq_;
+        }
         Registry* registry_{nullptr};
         Caps* caps_{nullptr};
         SchedulerQueueStorage<Config, Registry> queues_{};

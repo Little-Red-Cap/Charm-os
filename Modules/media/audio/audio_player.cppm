@@ -40,6 +40,9 @@ import service.queue;
 #if defined(CHARM_ENABLE_SDL3)
 import audio.sink.sdl3;
 #endif
+#if defined(CHARM_AUDIO_SINK_I2S)
+import audio.sink.i2s;
+#endif
 
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
@@ -48,7 +51,7 @@ import audio.source.file;
 #endif
 
 export namespace audio {
-#if !defined(CHARM_ENABLE_SDL3)
+#if !defined(CHARM_ENABLE_SDL3) && !defined(CHARM_AUDIO_SINK_I2S)
     using SinkConfig = media::SinkConfig;
     using FillCallback = media::FillCallback;
 
@@ -76,7 +79,9 @@ export namespace audio {
     };
 #endif
 
-#if defined(CHARM_ENABLE_SDL3)
+#if defined(CHARM_AUDIO_SINK_I2S)
+    using SinkType = I2sAudioSink;
+#elif defined(CHARM_ENABLE_SDL3)
     using SinkType = Sdl3AudioSink;
 #else
     using SinkType = NullAudioSink;

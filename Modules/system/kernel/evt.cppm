@@ -58,6 +58,9 @@ export namespace kernel {
         if (auto value = util::get_if<util::u64>(&evt.payload)) {
             return *value;
         }
+        if (auto value = util::get_if<util::u32>(&evt.payload)) {
+            return static_cast<util::u64>(*value);
+        }
         return fallback;
     }
 

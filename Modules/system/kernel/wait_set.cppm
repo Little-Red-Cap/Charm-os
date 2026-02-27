@@ -26,6 +26,12 @@ export namespace kernel {
             if (count_ >= Capacity) {
                 return false;
             }
+            for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
+                if (entries_[idx].token.value == token.value) {
+                    return false;
+                }
+            }
             entries_[tail_] = {task, token, timeout};
             tail_ = (tail_ + 1) % Capacity;
             ++count_;

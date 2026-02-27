@@ -18,7 +18,7 @@ import media.stream.source;
 export namespace audio {
     class FsDataSource {
     public:
-        FsDataSource() = default;
+        FsDataSource() noexcept { }
         explicit FsDataSource(const char* path) { (void)open(path); }
 
         bool open(const char* path) {

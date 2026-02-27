@@ -4,6 +4,7 @@ set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
 option(CHARM_ENABLE_SDL3 "Enable SDL3-backed modules" OFF)
+option(CHARM_AUDIO_SINK_I2S "Enable I2S audio sink" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
@@ -59,6 +60,11 @@ if (NOT CHARM_ENABLE_SDL3)
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
     )
 endif()
+if (NOT CHARM_AUDIO_SINK_I2S)
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_i2s.cppm"
+    )
+endif()
 if (NOT CHARM_ENABLE_MEDIA)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/media/")
 endif()
@@ -69,6 +75,9 @@ if (NOT CHARM_ENABLE_UI_VIVID)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/")
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/core/alg/alg_text_layout.cppm")
+endif()
+if (NOT CHARM_ENABLE_UI_INK AND NOT CHARM_ENABLE_UI_VIVID)
+    list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/common/")
 endif()
 if (NOT CHARM_ENABLE_MEDIA OR NOT CHARM_ENABLE_UI_INK OR NOT CHARM_ENABLE_UI_VIVID)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS

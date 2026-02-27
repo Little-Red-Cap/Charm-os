@@ -25,8 +25,8 @@ export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const Styl
     r.w -= inset * 2;
     r.h -= inset * 2;
     if (r.w <= 0 || r.h <= 0) return;
-    const int rad = (radius < 0) ? st.corner_radius : radius;
-    const rgba c = st.border_focus;
+    const int rad = (radius < 0) ? st.metrics.corner_radius : radius;
+    const rgba c = st.colors.border_focus;
     auto plot = [&](int x, int y) { cvs.set_pixel(x, y, c); };
     auto hline = [&](int x0, int x1, int y) { cvs.draw_hline(x0, x1, y, c); };
     auto vline = [&](int y0, int y1, int x) { cvs.draw_vline(y0, y1, x, c); };

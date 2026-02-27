@@ -43,9 +43,9 @@ public:
         resolve_colors(st, state, track, border, font);
         const rgba accent = resolve_accent(st, state);
 
-        rgba knob = st.on_accent;
+        rgba knob = st.colors.on_accent;
         if (!is_enabled()) {
-            knob = st.font_color_disabled;
+            knob = st.colors.font_color_disabled;
         }
         if (on_) {
             track = accent;
@@ -59,7 +59,7 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, track, true);
         draw_round_rect(cvs, r.x, r.y, r.w, track_h, radius, border, false);
 
-        int inset = st.padding / 2;
+        int inset = st.metrics.padding / 2;
         if (inset < 1) inset = 1;
         int knob_size = track_h - inset * 2;
         const int max_knob = r.w - inset * 2;

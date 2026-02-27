@@ -150,7 +150,7 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y + pad, 1);
@@ -223,7 +223,7 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<TextList>();
-        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.padding, r.h);
+        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.metrics.padding, r.h);
         content_height_ = bounds.content_h;
         max_scroll_ = bounds.max_scroll;
         scroll_y_ = alg::list_scroll::clamp_scroll(scroll_y_, max_scroll_);
@@ -240,7 +240,7 @@ private:
     int index_from_y(int y) const noexcept {
         const Style& st = Theme::instance().get<TextList>();
         const auto r = get_rect();
-        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.padding, row_height_, item_count_);
+        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.metrics.padding, row_height_, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
@@ -249,7 +249,7 @@ private:
         scroll_y_ = alg::list_scroll::ensure_visible(index,
                                                      row_height_,
                                                      r.h,
-                                                     st.padding,
+                                                     st.metrics.padding,
                                                      scroll_y_,
                                                      max_scroll_);
     }

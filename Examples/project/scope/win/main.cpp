@@ -749,7 +749,7 @@ int main(int argc, char** argv) {
     ThemePreset preset{};
     preset.has_label = true;
     preset.label = theme.get<Label>();
-    preset.label.font_color = {220, 224, 240, 255};
+    preset.label.colors.font_color = {220, 224, 240, 255};
     apply_theme_preset(preset);
 
     StylePatch waveform_patch{};

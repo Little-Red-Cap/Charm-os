@@ -34,8 +34,8 @@ public:
         resolve_colors(st, state, bg, border, font);
 
         rgba glass = bg;
-        int min_a = st.glass_opacity_min;
-        int max_a = st.glass_opacity_max;
+        int min_a = st.metrics.glass_opacity_min;
+        int max_a = st.metrics.glass_opacity_max;
         if (min_a < 0) min_a = 0;
         if (max_a > 255) max_a = 255;
         if (max_a < min_a) max_a = min_a;
@@ -43,7 +43,7 @@ public:
         if (op < min_a) op = min_a;
         if (op > max_a) op = max_a;
         glass.a = static_cast<std::uint8_t>(op);
-        const int radius = st.corner_radius;
+        const int radius = st.metrics.corner_radius;
         if (radius > 0) {
             draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, glass, true);
             draw_round_rect(cvs, r.x, r.y, r.w, r.h, radius, border, false);
@@ -54,9 +54,9 @@ public:
 
         const int band_h = (r.h > 8) ? (r.h / 4) : (r.h / 2);
         if (band_h > 0) {
-            const int pos = (highlight_pos_ >= 0) ? highlight_pos_ : st.glass_highlight_pos;
-            const int hi_a = (highlight_ >= 0) ? highlight_ : st.glass_highlight_alpha;
-            const int sh_a = (shadow_ >= 0) ? shadow_ : st.glass_shadow_alpha;
+            const int pos = (highlight_pos_ >= 0) ? highlight_pos_ : st.metrics.glass_highlight_pos;
+            const int hi_a = (highlight_ >= 0) ? highlight_ : st.metrics.glass_highlight_alpha;
+            const int sh_a = (shadow_ >= 0) ? shadow_ : st.metrics.glass_shadow_alpha;
             const int max_offset = (r.h - band_h);
             const int hi_y = r.y + (max_offset * pos) / 100;
             rgba hi = {255, 255, 255, static_cast<std::uint8_t>(hi_a)};

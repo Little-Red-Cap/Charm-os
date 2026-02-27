@@ -177,7 +177,7 @@ public:
 
         update_scroll_animation();
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int center_y = r.y + r.h / 2;
         const int visible = (item_h_ > 0) ? (r.h / item_h_ + 4) : 0;
         int first = selected_ - visible / 2 - 2;
@@ -192,7 +192,7 @@ public:
         rgba select_bg = accent;
         select_bg.a = static_cast<std::uint8_t>(std::min(255, accent.a + 40));
         draw_round_rect(cvs, select_rect.x, select_rect.y, select_rect.w, select_rect.h,
-                        st.corner_radius, select_bg, true);
+                        st.metrics.corner_radius, select_bg, true);
 
         for (int i = first; i <= last; ++i) {
             const float item_center = center_y + (static_cast<float>(i * item_h_) - scroll_offset_);

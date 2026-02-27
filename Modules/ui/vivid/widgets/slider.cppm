@@ -52,10 +52,10 @@ public:
 
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
-        const rgba knob = st.on_accent.a ? st.on_accent : font;
+        const rgba knob = st.colors.on_accent.a ? st.colors.on_accent : font;
         const rgba track = border;
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int track_h = (r.h / 6 > 2) ? (r.h / 6) : 2;
         const int track_y = r.y + r.h / 2 - track_h / 2;
         const int track_x = r.x + pad;
@@ -115,7 +115,7 @@ private:
     void set_value_from_x(int px) noexcept {
         const Style& st = Theme::instance().get<Slider>();
         const auto r = get_rect();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int track_x = r.x + pad;
         const int track_w = r.w - pad * 2;
         if (track_w <= 0) return;

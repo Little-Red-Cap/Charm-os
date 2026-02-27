@@ -63,7 +63,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         Rect inner{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
         if (!image_) return;

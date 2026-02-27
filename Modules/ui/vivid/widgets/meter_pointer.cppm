@@ -62,7 +62,7 @@ public:
         if (radius < 1) radius = 1;
 
         const rgba track = track_color_.a ? track_color_ : border;
-        const rgba pointer = pointer_color_.a ? pointer_color_ : st.border_focus;
+        const rgba pointer = pointer_color_.a ? pointer_color_ : st.colors.border_focus;
         const rgba knob = knob_color_.a ? knob_color_ : font;
         if (show_track_) {
             draw_arc(cvs, cx, cy, radius, 4, start_deg_, end_deg_, track);

@@ -41,9 +41,9 @@ int main() {
     btn_roles.has_bg_hover = true;
     btn_roles.has_bg_pressed = true;
     btn_roles.has_border_color = true;
-    btn_roles.bg_hover = StyleRole::SurfaceVariant;
-    btn_roles.bg_pressed = StyleRole::AccentPressed;
-    btn_roles.border_color = StyleRole::Accent;
+    btn_roles.colors.bg_hover = StyleRole::SurfaceVariant;
+    btn_roles.colors.bg_pressed = StyleRole::AccentPressed;
+    btn_roles.colors.border_color = StyleRole::Accent;
     StyleSheet::instance().add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
 
     UiFactory factory{};

@@ -188,7 +188,7 @@ public:
             if (draw_fn_) {
                 draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info, slot});
             } else if (info.label) {
-                Rect label_box{row.x + st.padding + info.depth * indent_w_, row.y, row.w, row.h};
+                Rect label_box{row.x + st.metrics.padding + info.depth * indent_w_, row.y, row.w, row.h};
                 draw_text_box(cvs, label_box, info.label, font, resolve_font(st),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             }

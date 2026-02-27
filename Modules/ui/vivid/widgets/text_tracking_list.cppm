@@ -91,7 +91,7 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y + pad, 1);
@@ -107,7 +107,7 @@ public:
                 if (indicator.w > row.w) indicator.w = row.w;
                 rgba ic = indicator_color_.a ? indicator_color_ : accent;
                 draw_round_rect(cvs, indicator.x, indicator.y, indicator.w, indicator.h,
-                                st.corner_radius, ic, true);
+                                st.metrics.corner_radius, ic, true);
             }
             const char* label = (items_ && items_[i]) ? items_[i] : "";
             draw_text_box(cvs, row, label, font, resolve_font(st),
@@ -166,7 +166,7 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         const Style& st = Theme::instance().get<TextTrackingList>();
-        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.padding, r.h);
+        const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.metrics.padding, r.h);
         content_height_ = bounds.content_h;
         max_scroll_ = bounds.max_scroll;
         scroll_y_ = alg::list_scroll::clamp_scroll(scroll_y_, max_scroll_);
@@ -183,7 +183,7 @@ private:
     int index_from_y(int y) const noexcept {
         const Style& st = Theme::instance().get<TextTrackingList>();
         const auto r = get_rect();
-        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.padding, row_height_, item_count_);
+        return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.metrics.padding, row_height_, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
@@ -192,7 +192,7 @@ private:
         scroll_y_ = alg::list_scroll::ensure_visible(index,
                                                      row_height_,
                                                      r.h,
-                                                     st.padding,
+                                                     st.metrics.padding,
                                                      scroll_y_,
                                                      max_scroll_);
     }
@@ -200,7 +200,7 @@ private:
     void update_indicator_target() noexcept {
         const Style& st = Theme::instance().get<TextTrackingList>();
         if (!indicator_auto_size_ || !items_ || item_count_ <= 0) {
-            indicator_target_ = get_rect().w - st.padding * 2;
+            indicator_target_ = get_rect().w - st.metrics.padding * 2;
             if (indicator_target_ < 0) indicator_target_ = 0;
         } else {
             const char* label = items_[selected_] ? items_[selected_] : "";

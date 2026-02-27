@@ -58,7 +58,7 @@ public:
 
         if (count_ <= 0) return;
         const Font& ft = resolve_font(st);
-        const int padding = st.padding;
+        const int padding = st.metrics.padding;
         const int radius = (row_h_ / 2) - 2;
         const int line_x = r.x + padding + radius;
         const int top_y = r.y + padding + row_h_ / 2;

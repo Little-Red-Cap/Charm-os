@@ -54,7 +54,7 @@ public:
 
         // circle
         const int radius = 9;
-        const int cx = r.x + radius + st.padding;
+        const int cx = r.x + radius + st.metrics.padding;
         const int cy = r.y + r.h / 2;
         draw_circle(cvs, cx, cy, radius, border, false);
         if (checked_) {
@@ -64,7 +64,7 @@ public:
         label_.set_color(font);
         label_.set_font(resolve_font(st));
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
-        label_.set_baseline_pos(cx + radius + st.padding, baseline_y);
+        label_.set_baseline_pos(cx + radius + st.metrics.padding, baseline_y);
         label_.draw(cvs);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
@@ -88,7 +88,7 @@ private:
         const auto lr = label_.get_rect();
         const int box = 18;
         const int h = (lr.h > box) ? lr.h : box;
-        set_size(box + st.padding * 2 + lr.w, h);
+        set_size(box + st.metrics.padding * 2 + lr.w, h);
     }
 
     Label label_;

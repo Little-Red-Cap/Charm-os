@@ -46,7 +46,7 @@ private:
 
         const auto& item = self->items_[info.index];
         const auto& st = Theme::instance().get<ListView>();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int icon_size = self->icon_size_;
         const int icon_x = info.rect.x + pad + self->icon_pad_;
         const int icon_y = info.rect.y + (info.rect.h - icon_size) / 2;
@@ -55,9 +55,9 @@ private:
         if (item.icon) {
             draw_image_scaled(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, *item.icon);
         } else {
-            const rgba fill = item.accent.a ? item.accent : st.border_color;
+            const rgba fill = item.accent.a ? item.accent : st.colors.border_color;
             draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, fill, true);
-            draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, st.border_color, false);
+            draw_round_rect(cvs, icon_rect.x, icon_rect.y, icon_rect.w, icon_rect.h, 4, st.colors.border_color, false);
         }
 
         Rect text_rect = info.rect;
@@ -66,7 +66,7 @@ private:
         text_rect.w = info.rect.x + info.rect.w - text_x - pad;
         if (text_rect.w <= 0) return;
         draw_text_box(cvs, text_rect, item.label ? item.label : "",
-                      st.font_color, resolve_font(st),
+                      st.colors.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::End);
     }

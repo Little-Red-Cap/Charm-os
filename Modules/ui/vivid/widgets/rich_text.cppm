@@ -48,8 +48,8 @@ public:
         const Font& mono = get_font(FontId::Mono);
         const int line_height = (normal.line_height > mono.line_height) ? normal.line_height : mono.line_height;
 
-        int x = r.x + st.padding;
-        int y = r.y + st.padding;
+        int x = r.x + st.metrics.padding;
+        int y = r.y + st.metrics.padding;
         if (line_height <= 0) return;
 
         RunState state{};
@@ -102,7 +102,7 @@ public:
                                 }
                                 break;
                             case alg::text_parse::TagKind::LineBreak:
-                                x = r.x + st.padding;
+                                x = r.x + st.metrics.padding;
                                 y += line_height;
                                 prev_gid = 0;
                                 prev_font = nullptr;
@@ -120,7 +120,7 @@ public:
             std::uint32_t cp = 0;
             if (!alg::text_layout::next_codepoint(p, end, cp)) break;
             if (cp == '\n') {
-                x = r.x + st.padding;
+                x = r.x + st.metrics.padding;
                 y += line_height;
                 prev_gid = 0;
                 prev_font = nullptr;
@@ -130,8 +130,8 @@ public:
 
             const Font& font = *state.font;
             const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid, prev_font);
-            if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.padding)) {
-                x = r.x + st.padding;
+            if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.metrics.padding)) {
+                x = r.x + st.metrics.padding;
                 y += line_height;
                 prev_gid = 0;
                 prev_font = nullptr;

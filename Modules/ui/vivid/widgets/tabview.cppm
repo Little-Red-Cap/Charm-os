@@ -65,14 +65,14 @@ public:
         draw_rect(cvs, r.x, r.y + tab_h, r.w, r.h - tab_h, border, false);
 
         // tab buttons
-        int x = r.x + st.padding;
+        int x = r.x + st.metrics.padding;
         for (int i = 0; i < tab_count_; ++i) {
             const bool on = (i == active_);
             const auto txt = titles_[i].c_str();
             Label lbl{txt};
-            lbl.set_color(on ? font : st.font_color_disabled);
+            lbl.set_color(on ? font : st.colors.font_color_disabled);
             lbl.set_font(resolve_font(st));
-            const int btn_w = lbl.get_rect().w + st.padding * 2;
+            const int btn_w = lbl.get_rect().w + st.metrics.padding * 2;
             const int btn_h = tab_h - 4;
             const int btn_x = x;
             const int btn_y = r.y + 2;
@@ -81,9 +81,9 @@ public:
             draw_rect(cvs, btn_x, btn_y, btn_w, btn_h, tbg, true);
             draw_rect(cvs, btn_x, btn_y, btn_w, btn_h, tborder, false);
             const int baseline_y = btn_y + (btn_h - lbl.line_height()) / 2 + lbl.baseline();
-            lbl.set_baseline_pos(btn_x + st.padding, baseline_y);
+            lbl.set_baseline_pos(btn_x + st.metrics.padding, baseline_y);
             lbl.draw(cvs);
-            x += btn_w + st.padding;
+            x += btn_w + st.metrics.padding;
         }
     }
 
@@ -94,11 +94,11 @@ public:
             const Style& st = Theme::instance().get<TabView>();
             const int tab_h = 26;
             if (e.y < r.y || e.y > r.y + tab_h) return false;
-            int x = r.x + st.padding;
+            int x = r.x + st.metrics.padding;
             for (int i = 0; i < tab_count_; ++i) {
                 Label lbl{titles_[i].c_str()};
                 lbl.set_font(resolve_font(st));
-                const int btn_w = lbl.get_rect().w + st.padding * 2;
+                const int btn_w = lbl.get_rect().w + st.metrics.padding * 2;
                 const int btn_h = tab_h - 4;
                 const int btn_x = x;
                 const int btn_y = r.y + 2;
@@ -106,7 +106,7 @@ public:
                     set_active(i);
                     return true;
                 }
-                x += btn_w + st.padding;
+                x += btn_w + st.metrics.padding;
             }
         }
         return false;

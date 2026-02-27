@@ -7,39 +7,48 @@ export import charm.gfx.color;
 export import charm.font.typography;
 
 export
+struct StyleColors {
+    rgba bg_color{240, 240, 240, 255};
+    rgba border_color{180, 180, 180, 255};
+    rgba font_color{0, 0, 0, 255};
+
+    rgba bg_hover{230, 230, 230, 255};
+    rgba bg_pressed{210, 210, 210, 255};
+    rgba bg_disabled{220, 220, 220, 255};
+    rgba border_hover{120, 120, 120, 255};
+    rgba border_pressed{80, 80, 80, 255};
+    rgba border_disabled{160, 160, 160, 255};
+    rgba border_focus{80, 120, 200, 255};
+    rgba font_color_disabled{120, 120, 120, 255};
+
+    rgba accent_color{80, 120, 200, 255};
+    rgba accent_hover{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba accent_pressed{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba accent_disabled{0, 0, 0, 0}; // 0 alpha = derive from accent_color
+    rgba on_accent{255, 255, 255, 255};
+};
+
+export
+struct StyleMetrics {
+    int border_width{1};
+    int corner_radius{4};
+    int padding{4};
+    int header_padding{4};
+    int content_padding{8};
+    int scrollbar_margin{2};
+    int scrollbar_thumb_min{12};
+    int glass_highlight_pos{10};
+    int glass_highlight_alpha{70};
+    int glass_shadow_alpha{40};
+    int glass_opacity_min{40};
+    int glass_opacity_max{200};
+};
+
+export
 struct Style {
-    rgba      bg_color      = {240,240,240,255};
-    rgba      border_color  = {180,180,180,255};
-    int       border_width  = 1;
-    int       corner_radius = 4;
-    int       padding       = 4;
-    int       header_padding = 4;
-    int       content_padding = 8;
-    int       scrollbar_margin = 2;
-    int       scrollbar_thumb_min = 12;
-    int       glass_highlight_pos = 10;
-    int       glass_highlight_alpha = 70;
-    int       glass_shadow_alpha = 40;
-    int       glass_opacity_min = 40;
-    int       glass_opacity_max = 200;
-
-    const Font* font         = nullptr;
-    rgba        font_color   = {  0,  0,  0,255};
-
-    rgba      bg_hover      = {230,230,230,255};
-    rgba      bg_pressed    = {210,210,210,255};
-    rgba      bg_disabled   = {220,220,220,255};
-    rgba      border_hover  = {120,120,120,255};
-    rgba      border_pressed= { 80, 80, 80,255};
-    rgba      border_disabled= {160,160,160,255};
-    rgba      border_focus  = { 80,120,200,255};
-    rgba      font_color_disabled = {120,120,120,255};
-
-    rgba      accent_color  = { 80,120,200,255};
-    rgba      accent_hover  = {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      accent_pressed= {  0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      accent_disabled= { 0,  0,  0,  0}; // 0 alpha = derive from accent_color
-    rgba      on_accent     = {255,255,255,255};
+    StyleColors colors{};
+    StyleMetrics metrics{};
+    const Font* font{nullptr};
 };
 
 export
@@ -120,35 +129,35 @@ struct StylePatch {
     rgba on_accent{};
 
     void apply_to(Style& s) const noexcept {
-        if (has_bg_color) s.bg_color = bg_color;
-        if (has_border_color) s.border_color = border_color;
-        if (has_border_width) s.border_width = border_width;
-        if (has_corner_radius) s.corner_radius = corner_radius;
-        if (has_padding) s.padding = padding;
-        if (has_header_padding) s.header_padding = header_padding;
-        if (has_content_padding) s.content_padding = content_padding;
-        if (has_scrollbar_margin) s.scrollbar_margin = scrollbar_margin;
-        if (has_scrollbar_thumb_min) s.scrollbar_thumb_min = scrollbar_thumb_min;
-        if (has_glass_highlight_pos) s.glass_highlight_pos = glass_highlight_pos;
-        if (has_glass_highlight_alpha) s.glass_highlight_alpha = glass_highlight_alpha;
-        if (has_glass_shadow_alpha) s.glass_shadow_alpha = glass_shadow_alpha;
-        if (has_glass_opacity_min) s.glass_opacity_min = glass_opacity_min;
-        if (has_glass_opacity_max) s.glass_opacity_max = glass_opacity_max;
+        if (has_bg_color) s.colors.bg_color = bg_color;
+        if (has_border_color) s.colors.border_color = border_color;
+        if (has_border_width) s.metrics.border_width = border_width;
+        if (has_corner_radius) s.metrics.corner_radius = corner_radius;
+        if (has_padding) s.metrics.padding = padding;
+        if (has_header_padding) s.metrics.header_padding = header_padding;
+        if (has_content_padding) s.metrics.content_padding = content_padding;
+        if (has_scrollbar_margin) s.metrics.scrollbar_margin = scrollbar_margin;
+        if (has_scrollbar_thumb_min) s.metrics.scrollbar_thumb_min = scrollbar_thumb_min;
+        if (has_glass_highlight_pos) s.metrics.glass_highlight_pos = glass_highlight_pos;
+        if (has_glass_highlight_alpha) s.metrics.glass_highlight_alpha = glass_highlight_alpha;
+        if (has_glass_shadow_alpha) s.metrics.glass_shadow_alpha = glass_shadow_alpha;
+        if (has_glass_opacity_min) s.metrics.glass_opacity_min = glass_opacity_min;
+        if (has_glass_opacity_max) s.metrics.glass_opacity_max = glass_opacity_max;
         if (has_font) s.font = font;
-        if (has_font_color) s.font_color = font_color;
-        if (has_bg_hover) s.bg_hover = bg_hover;
-        if (has_bg_pressed) s.bg_pressed = bg_pressed;
-        if (has_bg_disabled) s.bg_disabled = bg_disabled;
-        if (has_border_hover) s.border_hover = border_hover;
-        if (has_border_pressed) s.border_pressed = border_pressed;
-        if (has_border_disabled) s.border_disabled = border_disabled;
-        if (has_border_focus) s.border_focus = border_focus;
-        if (has_font_color_disabled) s.font_color_disabled = font_color_disabled;
-        if (has_accent_color) s.accent_color = accent_color;
-        if (has_accent_hover) s.accent_hover = accent_hover;
-        if (has_accent_pressed) s.accent_pressed = accent_pressed;
-        if (has_accent_disabled) s.accent_disabled = accent_disabled;
-        if (has_on_accent) s.on_accent = on_accent;
+        if (has_font_color) s.colors.font_color = font_color;
+        if (has_bg_hover) s.colors.bg_hover = bg_hover;
+        if (has_bg_pressed) s.colors.bg_pressed = bg_pressed;
+        if (has_bg_disabled) s.colors.bg_disabled = bg_disabled;
+        if (has_border_hover) s.colors.border_hover = border_hover;
+        if (has_border_pressed) s.colors.border_pressed = border_pressed;
+        if (has_border_disabled) s.colors.border_disabled = border_disabled;
+        if (has_border_focus) s.colors.border_focus = border_focus;
+        if (has_font_color_disabled) s.colors.font_color_disabled = font_color_disabled;
+        if (has_accent_color) s.colors.accent_color = accent_color;
+        if (has_accent_hover) s.colors.accent_hover = accent_hover;
+        if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
+        if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
+        if (has_on_accent) s.colors.on_accent = on_accent;
     }
 };
 
@@ -194,58 +203,58 @@ export inline rgba adjust_by_luma(const rgba& c, int delta) noexcept {
 export
 inline void resolve_colors(const Style& st, const StyleState& state,
                            rgba& bg, rgba& border, rgba& font) noexcept {
-    bg = st.bg_color;
-    border = st.border_color;
-    font = st.font_color;
+    bg = st.colors.bg_color;
+    border = st.colors.border_color;
+    font = st.colors.font_color;
     if (!state.enabled) {
-        bg = st.bg_disabled;
-        border = st.border_disabled;
-        font = st.font_color_disabled;
+        bg = st.colors.bg_disabled;
+        border = st.colors.border_disabled;
+        font = st.colors.font_color_disabled;
         return;
     }
     if (state.pressed) {
-        bg = st.bg_pressed;
-        border = st.border_pressed;
+        bg = st.colors.bg_pressed;
+        border = st.colors.border_pressed;
     } else if (state.hovered) {
-        bg = st.bg_hover;
-        border = st.border_hover;
+        bg = st.colors.bg_hover;
+        border = st.colors.border_hover;
     }
 }
 
 export inline rgba resolve_accent(const Style& st, const StyleState& state) noexcept {
     if (!state.enabled) {
-        return st.accent_disabled.a ? st.accent_disabled : adjust_by_luma(st.accent_color, 40);
+        return st.colors.accent_disabled.a ? st.colors.accent_disabled : adjust_by_luma(st.colors.accent_color, 40);
     }
     if (state.pressed) {
-        return st.accent_pressed.a ? st.accent_pressed : adjust_by_luma(st.accent_color, 24);
+        return st.colors.accent_pressed.a ? st.colors.accent_pressed : adjust_by_luma(st.colors.accent_color, 24);
     }
     if (state.hovered) {
-        return st.accent_hover.a ? st.accent_hover : adjust_by_luma(st.accent_color, 12);
+        return st.colors.accent_hover.a ? st.colors.accent_hover : adjust_by_luma(st.colors.accent_color, 12);
     }
-    return st.accent_color;
+    return st.colors.accent_color;
 }
 
 export
 inline void apply_tokens_to_style(Style& s, const ThemeTokens& t) noexcept {
-    s.bg_color = t.surface;
-    s.bg_hover = adjust_by_luma(t.surface, 8);
-    s.bg_pressed = adjust_by_luma(t.surface, 20);
-    s.bg_disabled = adjust_by_luma(t.surface, 6);
+    s.colors.bg_color = t.surface;
+    s.colors.bg_hover = adjust_by_luma(t.surface, 8);
+    s.colors.bg_pressed = adjust_by_luma(t.surface, 20);
+    s.colors.bg_disabled = adjust_by_luma(t.surface, 6);
 
-    s.border_color = t.outline;
-    s.border_hover = adjust_by_luma(t.outline, 20);
-    s.border_pressed = adjust_by_luma(t.outline, 40);
-    s.border_disabled = adjust_by_luma(t.outline, 16);
-    s.border_focus = t.focus_ring;
+    s.colors.border_color = t.outline;
+    s.colors.border_hover = adjust_by_luma(t.outline, 20);
+    s.colors.border_pressed = adjust_by_luma(t.outline, 40);
+    s.colors.border_disabled = adjust_by_luma(t.outline, 16);
+    s.colors.border_focus = t.focus_ring;
 
-    s.font_color = t.on_surface;
-    s.font_color_disabled = t.on_surface_muted;
+    s.colors.font_color = t.on_surface;
+    s.colors.font_color_disabled = t.on_surface_muted;
 
-    s.accent_color = t.accent;
-    s.accent_hover = {0, 0, 0, 0};
-    s.accent_pressed = {0, 0, 0, 0};
-    s.accent_disabled = {0, 0, 0, 0};
-    s.on_accent = t.on_accent;
+    s.colors.accent_color = t.accent;
+    s.colors.accent_hover = {0, 0, 0, 0};
+    s.colors.accent_pressed = {0, 0, 0, 0};
+    s.colors.accent_disabled = {0, 0, 0, 0};
+    s.colors.on_accent = t.colors.on_accent;
 }
 
 export

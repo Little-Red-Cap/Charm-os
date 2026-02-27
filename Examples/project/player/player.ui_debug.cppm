@@ -90,11 +90,11 @@ export namespace player::ui_debug {
                 depth = entry.depth;
             }
         }
-        text.x += st.padding + depth * 12;
-        text.w -= st.padding * 2;
+        text.x += st.metrics.padding + depth * 12;
+        text.w -= st.metrics.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
         draw_text_box(cvs, text, label,
-                      st.font_color, resolve_font(st),
+                      st.colors.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 
@@ -204,9 +204,9 @@ export namespace player::ui_debug {
 
         const auto& st = Theme::instance().get<TableView>();
         Rect text_box = info.rect;
-        text_box.x += st.padding;
-        text_box.w -= st.padding * 2;
-        draw_text_box(cvs, text_box, text, st.font_color, resolve_font(st),
+        text_box.x += st.metrics.padding;
+        text_box.w -= st.metrics.padding * 2;
+        draw_text_box(cvs, text_box, text, st.colors.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
 

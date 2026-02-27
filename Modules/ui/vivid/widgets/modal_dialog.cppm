@@ -48,9 +48,9 @@ public:
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, bg, true);
+                        st.metrics.corner_radius, bg, true);
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, border, false);
+                        st.metrics.corner_radius, border, false);
         draw_text_box(cvs, layout.title, title_ ? title_ : "",
                       font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
@@ -128,7 +128,7 @@ private:
     Layout compute_layout(const Style& st) const noexcept {
         Layout out{};
         out.panel = get_rect();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int title_h = resolve_font(st).line_height + pad;
         const int button_h = button_h_;
         const int button_w = button_w_;
@@ -169,8 +169,8 @@ private:
         const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
         draw_text_box(cvs, r, label ? label : "",
                       font, resolve_font(st),
                       TextAlignH::Center, TextAlignV::Center,

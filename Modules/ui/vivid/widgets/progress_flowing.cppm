@@ -79,7 +79,7 @@ public:
             const int step = flow_span_ * 2;
             int offset = flow_offset_ % step;
             int start_x = inner_x - offset;
-            rgba flow = st.border_focus;
+            rgba flow = st.colors.border_focus;
             flow.a = 180;
             for (int x = start_x; x < inner_x + filled_w; x += step) {
                 const int seg_x = x;

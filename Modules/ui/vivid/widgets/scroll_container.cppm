@@ -113,15 +113,15 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
 
         if (max_scroll_ > 0) {
-            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
+            const int margin = (st.metrics.scrollbar_margin >= 0) ? st.metrics.scrollbar_margin : 0;
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - margin;
             const int track_y = r.y + margin;
             const int track_h = r.h - margin * 2;
             const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
-                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.metrics.scrollbar_thumb_min);
             if (thumb.visible && thumb.thumb_h > 0) {
-                rgba thumb_col = st.border_focus;
+                rgba thumb_col = st.colors.border_focus;
                 thumb_col.a = 180;
                 draw_rect(cvs, track_x, track_y, track_w, track_h, rgba{0,0,0,0}, false);
                 draw_rect(cvs, thumb.thumb_x, thumb.thumb_y, thumb.thumb_w, thumb.thumb_h, thumb_col, true);
@@ -222,8 +222,8 @@ public:
     }
 
     void set_style(rgba bg, rgba border) noexcept {
-        style_.bg_color = bg;
-        style_.border_color = border;
+        style_.colors.bg_color = bg;
+        style_.colors.border_color = border;
         has_local_style_ = true;
         if (has_skin_) {
             update_clip_insets_for_skin();
@@ -385,7 +385,7 @@ private:
 
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;
-        const int b = style_.border_width;
+        const int b = style_.metrics.border_width;
         clip_inset_left_ = (slice_left_ > b) ? slice_left_ : b;
         clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
         clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;

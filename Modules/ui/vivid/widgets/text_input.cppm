@@ -51,8 +51,8 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect inner{r.x + st.padding, r.y + st.padding,
-                         r.w - st.padding * 2, r.h - st.padding * 2};
+        const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                         r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
         auto clip_state = cvs.save_clip();
         cvs.set_clip(inner);
         draw_text_box(cvs, inner, buf_, font, resolve_font(st),
@@ -67,7 +67,7 @@ public:
             const int min_x = static_cast<int>(inner.x + 1);
             const int max_x = static_cast<int>(inner.x + inner.w - 2);
             caret_x = std::min(max_x, std::max(min_x, caret_x));
-            draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.border_focus);
+            draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.colors.border_focus);
             draw_focus_ring(cvs, r, st, true);
         }
         cvs.restore_clip(clip_state);

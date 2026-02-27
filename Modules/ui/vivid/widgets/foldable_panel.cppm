@@ -53,12 +53,12 @@ public:
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
         draw_rect(cvs, r.x, r.y, r.w, header_h, accent, true);
 
-        const Rect title_box{r.x + st.header_padding, r.y,
-                             r.w - st.header_padding * 2 - 16, header_h};
+        const Rect title_box{r.x + st.metrics.header_padding, r.y,
+                             r.w - st.metrics.header_padding * 2 - 16, header_h};
         draw_text_box(cvs, title_box, title_, font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 
-        const Rect marker_box{r.x + r.w - st.header_padding - 12, r.y, 12, header_h};
+        const Rect marker_box{r.x + r.w - st.metrics.header_padding - 12, r.y, 12, header_h};
         const char* marker = expanded_ ? "v" : ">";
         draw_text_box(cvs, marker_box, marker, font, resolve_font(st),
                       TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
@@ -68,7 +68,7 @@ public:
 
         if (max_scroll_ > 0) {
             const auto content = content_rect();
-            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
+            const int margin = (st.metrics.scrollbar_margin >= 0) ? st.metrics.scrollbar_margin : 0;
             const int track_w = 4;
             const int track_x = content.x + content.w - track_w - margin;
             const int track_y = content.y + margin;
@@ -76,9 +76,9 @@ public:
             if (track_h > 0) {
                 const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
                     track_x, track_y, track_w, track_h,
-                    content.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+                    content.h, max_scroll_, scroll_y_, st.metrics.scrollbar_thumb_min);
                 if (thumb.visible && thumb.thumb_h > 0) {
-                    rgba thumb_col = st.border_focus;
+                    rgba thumb_col = st.colors.border_focus;
                     thumb_col.a = 170;
                     draw_rect(cvs, track_x, track_y, track_w, track_h,
                               rgba{0,0,0,0}, false);
@@ -124,8 +124,8 @@ public:
             return {r.x, r.y + header_h, r.w, 0};
         }
         const auto& st = Theme::instance().get<FoldablePanel>();
-        Rect inner{r.x + st.content_padding, r.y + header_h + st.content_padding - scroll_y_,
-                   r.w - st.content_padding * 2, r.h - header_h - st.content_padding * 2};
+        Rect inner{r.x + st.metrics.content_padding, r.y + header_h + st.metrics.content_padding - scroll_y_,
+                   r.w - st.metrics.content_padding * 2, r.h - header_h - st.metrics.content_padding * 2};
         if (inner.w < 0) inner.w = 0;
         if (inner.h < 0) inner.h = 0;
         return inner;
@@ -188,8 +188,8 @@ private:
         const auto r = get_rect();
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
         const auto& st = Theme::instance().get<FoldablePanel>();
-        Rect inner{r.x + st.content_padding, r.y + header_h + st.content_padding,
-                   r.w - st.content_padding * 2, r.h - header_h - st.content_padding * 2};
+        Rect inner{r.x + st.metrics.content_padding, r.y + header_h + st.metrics.content_padding,
+                   r.w - st.metrics.content_padding * 2, r.h - header_h - st.metrics.content_padding * 2};
         if (inner.w < 0) inner.w = 0;
         if (inner.h < 0) inner.h = 0;
         return inner;

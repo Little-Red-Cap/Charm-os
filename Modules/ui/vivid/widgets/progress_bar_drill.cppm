@@ -64,7 +64,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         Rect inner{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
 
@@ -72,7 +72,7 @@ public:
         const rgba fill = fill_color_.a ? fill_color_ : accent;
         const rgba hole = hole_color_.a ? hole_color_ : bg;
 
-        draw_round_rect(cvs, inner.x, inner.y, inner.w, inner.h, st.corner_radius, track, true);
+        draw_round_rect(cvs, inner.x, inner.y, inner.w, inner.h, st.metrics.corner_radius, track, true);
 
         int fill_x = inner.x;
         int fill_w = inner.w;
@@ -99,7 +99,7 @@ public:
             if (fill_w == 0) return;
         }
 
-        draw_round_rect(cvs, fill_x, inner.y, fill_w, inner.h, st.corner_radius, fill, true);
+        draw_round_rect(cvs, fill_x, inner.y, fill_w, inner.h, st.metrics.corner_radius, fill, true);
 
         const int hole_step = hole_spacing_ + hole_radius_ * 2;
         if (hole_step <= 0 || hole_radius_ <= 0) return;

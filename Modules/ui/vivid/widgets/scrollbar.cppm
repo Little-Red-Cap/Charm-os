@@ -121,7 +121,7 @@ private:
 
     Rect calc_track_rect(const Style& st) const noexcept {
         const auto r = get_rect();
-        int margin = st.scrollbar_margin;
+        int margin = st.metrics.scrollbar_margin;
         if (margin < 0) margin = 0;
         Rect out{r.x + margin, r.y + margin, r.w - margin * 2, r.h - margin * 2};
         if (out.w < 1) out.w = 1;
@@ -141,7 +141,7 @@ private:
         if (range <= 0) return track_len;
         const int total = range + page_size_;
         int len = (track_len * page_size_) / total;
-        int min_len = st.scrollbar_thumb_min;
+        int min_len = st.metrics.scrollbar_thumb_min;
         if (min_len < 2) min_len = 2;
         if (len < min_len) len = min_len;
         if (len > track_len) len = track_len;

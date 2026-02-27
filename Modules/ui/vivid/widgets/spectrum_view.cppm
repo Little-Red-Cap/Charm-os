@@ -123,7 +123,7 @@ private:
         const int inner_h = bottom - top;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const rgba glow = st.border_focus.a ? st.border_focus : accent;
+        const rgba glow = st.colors.border_focus.a ? st.colors.border_focus : accent;
         const rgba core = accent;
         const rgba peak = font.a ? font : core;
         const rgba bright = lift_color(core, 0.35f);
@@ -171,7 +171,7 @@ private:
         const float step = 360.0f / static_cast<float>(count_);
         const float start = -90.0f;
         const rgba core = accent;
-        const rgba peak = st.border_focus.a ? st.border_focus : font;
+        const rgba peak = st.colors.border_focus.a ? st.colors.border_focus : font;
         const rgba bright = lift_color(core, 0.35f);
         const rgba dim = scale_color(core, 0.65f);
 
@@ -208,7 +208,7 @@ private:
         if (inner_w <= 0 || inner_h <= 0) return;
 
         const rgba line = accent;
-        const rgba peak = st.border_focus.a ? st.border_focus : font;
+        const rgba peak = st.colors.border_focus.a ? st.colors.border_focus : font;
         const rgba bright = lift_color(line, 0.35f);
         const rgba dim = scale_color(line, 0.65f);
         if (count_ < 2) {

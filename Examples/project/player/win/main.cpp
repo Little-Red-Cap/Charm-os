@@ -250,8 +250,8 @@ namespace {
         }
 
         Rect text = row;
-        text.x += st.padding;
-        text.w -= st.padding * 2;
+        text.x += st.metrics.padding;
+        text.w -= st.metrics.padding * 2;
         if (text.w <= 0 || text.h <= 0) return;
         const char* label = nullptr;
         if (info.slot >= 0 && info.slot < static_cast<int>(app->list_cache.size())) {
@@ -264,7 +264,7 @@ namespace {
             if (info.index < 0 || info.index >= static_cast<int>(app->track_labels.size())) return;
             label = app->track_labels[info.index].c_str();
         }
-        const rgba color = selected ? kUiTitle : st.font_color;
+        const rgba color = selected ? kUiTitle : st.colors.font_color;
 
         const int badge_w = 30;
         const int badge_h = row.h - 10;
@@ -300,7 +300,7 @@ namespace {
         if (ext && text_w > 80) {
             const int chip_w = 48;
             const int chip_h = badge_h - 2;
-            const int chip_x = row.x + row.w - st.padding - chip_w;
+            const int chip_x = row.x + row.w - st.metrics.padding - chip_w;
             const int chip_y = row.y + (row.h - chip_h) / 2;
             draw_round_rect(cvs, chip_x, chip_y, chip_w, chip_h, 8,
                             selected ? rgba{60, 90, 140, 255} : rgba{34, 40, 56, 255}, true);

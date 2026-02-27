@@ -72,8 +72,8 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const Rect inner{r.x + st.padding, r.y + st.padding,
-                         r.w - st.padding * 2, r.h - st.padding * 2};
+        const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                         r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
         if (inner.w <= 0 || inner.h <= 0) return;
 
         const Font& font_ref = resolve_font(st);

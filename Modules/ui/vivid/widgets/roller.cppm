@@ -52,8 +52,8 @@ public:
 
         resolve_colors(st, state, bg, border, font);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
         const int line_h = resolve_font(st).line_height;
         const int center_y = r.y + r.h / 2;
@@ -71,7 +71,7 @@ public:
             col.a = static_cast<std::uint8_t>(alpha);
             lbl.set_color(col);
             const int baseline_y = center_y + i * line_h + lbl.baseline() - line_h / 2;
-            lbl.set_baseline_pos(r.x + st.padding, baseline_y);
+            lbl.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
             lbl.draw(cvs);
         }
 

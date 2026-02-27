@@ -45,11 +45,11 @@ public:
         label_.set_color(font);
         label_.set_font(resolve_font(st));
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
-        label_.set_baseline_pos(r.x + st.padding + indent_, baseline_y);
+        label_.set_baseline_pos(r.x + st.metrics.padding + indent_, baseline_y);
         label_.draw(cvs);
 
         if (has_children_) {
-            const int cx = r.x + r.w - st.padding - 6;
+            const int cx = r.x + r.w - st.metrics.padding - 6;
             const int cy = r.y + r.h / 2;
             if (expanded_) {
                 draw_line(cvs, cx - 3, cy - 2, cx + 3, cy - 2, font);
@@ -83,7 +83,7 @@ private:
         const Style& st = Theme::instance().get<MenuItem>();
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
     Label label_;

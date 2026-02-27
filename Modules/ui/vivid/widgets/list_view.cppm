@@ -212,7 +212,7 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
@@ -260,15 +260,15 @@ public:
         cvs.restore_clip(clip_state);
 
         if (show_scrollbar_ && max_scroll_ > 0) {
-            const int margin = (st.scrollbar_margin >= 0) ? st.scrollbar_margin : 0;
+            const int margin = (st.metrics.scrollbar_margin >= 0) ? st.metrics.scrollbar_margin : 0;
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - margin;
             const int track_y = r.y + margin;
             const int track_h = r.h - margin * 2;
             const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
-                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.scrollbar_thumb_min);
+                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.metrics.scrollbar_thumb_min);
             if (thumb.visible && thumb.thumb_h > 0) {
-                rgba thumb_col = st.border_focus;
+                rgba thumb_col = st.colors.border_focus;
                 thumb_col.a = 180;
                 draw_rect(cvs, track_x, track_y, track_w, track_h, rgba{0,0,0,0}, false);
                 draw_rect(cvs, thumb.thumb_x, thumb.thumb_y, thumb.thumb_w, thumb.thumb_h, thumb_col, true);
@@ -282,7 +282,7 @@ public:
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
         update_scroll_bounds();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         const int count = item_count_for_render();
         const bool variable_height = (row_height_fn_ != nullptr);
         int start = 0;
@@ -467,7 +467,7 @@ private:
     Rect row_rect_for_index(int index) const noexcept {
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         int row_top = 0;
         int row_h = row_height_for_index(index);
         if (row_height_fn_) {
@@ -491,7 +491,7 @@ private:
         const int count = item_count_for_render();
         if (end > count) end = count;
         if (start >= end) return {};
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         int row_top = 0;
         int range_h = 0;
         if (row_height_fn_) {
@@ -521,10 +521,10 @@ private:
             for (int i = 0; i < count; ++i) {
                 sum += row_height_for_index(i);
             }
-            content_height_ = sum + st.padding * 2;
+            content_height_ = sum + st.metrics.padding * 2;
         } else {
             const int row_h = row_height_for_render();
-            content_height_ = count * row_h + st.padding * 2;
+            content_height_ = count * row_h + st.metrics.padding * 2;
         }
         max_scroll_ = alg::scroll_bounds::compute_max(content_height_, r.h);
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_);
@@ -539,7 +539,7 @@ private:
         if (index < 0) return;
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         int row_top = 0;
         int row_bottom = 0;
         if (row_height_fn_) {
@@ -562,7 +562,7 @@ private:
     int index_from_y(int y) const noexcept {
         const Style& st = Theme::instance().get<ListView>();
         const auto r = get_rect();
-        const int local = y - r.y + scroll_y_ - st.padding;
+        const int local = y - r.y + scroll_y_ - st.metrics.padding;
         if (local < 0) return -1;
         if (!row_height_fn_) {
             const int row_h = row_height_for_render();

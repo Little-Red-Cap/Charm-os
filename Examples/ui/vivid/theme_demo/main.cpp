@@ -189,7 +189,7 @@ int main() {
             .on_surface_muted = {120, 120, 128, 255},
             .outline = {180, 182, 190, 255},
             .accent = {64, 120, 220, 255},
-            .on_accent = {255, 255, 255, 255},
+            .colors.on_accent = {255, 255, 255, 255},
             .danger = {200, 60, 60, 255},
             .on_danger = {255, 255, 255, 255},
             .focus_ring = {64, 120, 220, 255},
@@ -201,7 +201,7 @@ int main() {
             .on_surface_muted = {140, 146, 156, 255},
             .outline = {64, 70, 80, 255},
             .accent = {90, 180, 255, 255},
-            .on_accent = {16, 20, 28, 255},
+            .colors.on_accent = {16, 20, 28, 255},
             .danger = {240, 96, 96, 255},
             .on_danger = {16, 20, 28, 255},
             .focus_ring = {90, 180, 255, 255},
@@ -213,7 +213,7 @@ int main() {
             .on_surface_muted = {200, 200, 200, 255},
             .outline = {255, 255, 255, 255},
             .accent = {255, 196, 0, 255},
-            .on_accent = {32, 32, 32, 255},
+            .colors.on_accent = {32, 32, 32, 255},
             .danger = {255, 72, 72, 255},
             .on_danger = {0, 0, 0, 255},
             .focus_ring = {255, 196, 0, 255},
@@ -233,10 +233,10 @@ int main() {
         btn_roles.has_bg_hover = true;
         btn_roles.has_bg_pressed = true;
         btn_roles.has_border_color = true;
-        btn_roles.bg_color = StyleRole::SurfaceVariant;
-        btn_roles.bg_hover = StyleRole::SurfaceHover;
-        btn_roles.bg_pressed = StyleRole::AccentPressed;
-        btn_roles.border_color = StyleRole::Accent;
+        btn_roles.colors.bg_color = StyleRole::SurfaceVariant;
+        btn_roles.colors.bg_hover = StyleRole::SurfaceHover;
+        btn_roles.colors.bg_pressed = StyleRole::AccentPressed;
+        btn_roles.colors.border_color = StyleRole::Accent;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
 
         StyleRolePatch btn_secondary_roles{};
@@ -245,23 +245,23 @@ int main() {
         btn_secondary_roles.has_bg_pressed = true;
         btn_secondary_roles.has_border_color = true;
         btn_secondary_roles.has_font_color = true;
-        btn_secondary_roles.bg_color = StyleRole::Surface;
-        btn_secondary_roles.bg_hover = StyleRole::SurfaceHover;
-        btn_secondary_roles.bg_pressed = StyleRole::SurfacePressed;
-        btn_secondary_roles.border_color = StyleRole::Outline;
-        btn_secondary_roles.font_color = StyleRole::OnSurface;
+        btn_secondary_roles.colors.bg_color = StyleRole::Surface;
+        btn_secondary_roles.colors.bg_hover = StyleRole::SurfaceHover;
+        btn_secondary_roles.colors.bg_pressed = StyleRole::SurfacePressed;
+        btn_secondary_roles.colors.border_color = StyleRole::Outline;
+        btn_secondary_roles.colors.font_color = StyleRole::OnSurface;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0, kVariantSecondary}, btn_secondary_roles);
 
         StyleRolePatch list_hover{};
         list_hover.has_bg_color = true;
-        list_hover.bg_color = StyleRole::SurfaceVariant;
+        list_hover.colors.bg_color = StyleRole::SurfaceVariant;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_hover()}, list_hover);
 
         StyleRolePatch list_pressed{};
         list_pressed.has_bg_color = true;
         list_pressed.has_font_color = true;
-        list_pressed.bg_color = StyleRole::AccentPressed;
-        list_pressed.font_color = StyleRole::OnAccent;
+        list_pressed.colors.bg_color = StyleRole::AccentPressed;
+        list_pressed.colors.font_color = StyleRole::OnAccent;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_pressed()}, list_pressed);
 
         if (auto* lbl = factory.get_label(title)) {

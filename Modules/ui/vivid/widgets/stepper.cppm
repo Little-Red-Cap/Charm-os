@@ -55,11 +55,11 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         if (count_ <= 0) return;
-        const int left = r.x + st.padding;
-        const int right = r.x + r.w - st.padding;
+        const int left = r.x + st.metrics.padding;
+        const int right = r.x + r.w - st.metrics.padding;
         const int center_y = r.y + r.h / 2;
         const int span = right - left;
-        const int radius = (r.h / 2) - st.padding;
+        const int radius = (r.h / 2) - st.metrics.padding;
         const int draw_r = (radius > 2) ? radius : 2;
         if (count_ > 1) {
             draw_line(cvs, left, center_y, right, center_y, border);

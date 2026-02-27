@@ -88,15 +88,15 @@ public:
 
         resolve_colors(st, state, bg, border, font);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        for (int i = 0; i < st.border_width; ++i) {
-            draw_round_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        for (int i = 0; i < st.metrics.border_width; ++i) {
+            draw_round_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, st.metrics.corner_radius, border, false);
         }
 
         const Font& ft = resolve_font(st);
         const int line_h = (ft.line_height > 0) ? ft.line_height : 12;
-        const int start_x = r.x + st.padding;
-        int y = r.y + st.padding;
+        const int start_x = r.x + st.metrics.padding;
+        int y = r.y + st.metrics.padding;
 
         char buf[96]{};
         if (!has_sample_) {

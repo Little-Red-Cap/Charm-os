@@ -58,7 +58,7 @@ public:
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
-        const rgba on_accent = st.on_accent.a ? st.on_accent : font;
+        const rgba on_accent = st.colors.on_accent.a ? st.colors.on_accent : font;
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
 

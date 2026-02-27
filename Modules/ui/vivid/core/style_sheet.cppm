@@ -113,7 +113,7 @@ inline RolePalette build_palette(const ThemeTokens& t) noexcept {
     p.values[role_index(StyleRole::Accent)] = t.accent;
     p.values[role_index(StyleRole::AccentHover)] = adjust_by_luma(t.accent, 12);
     p.values[role_index(StyleRole::AccentPressed)] = adjust_by_luma(t.accent, 24);
-    p.values[role_index(StyleRole::OnAccent)] = t.on_accent;
+    p.values[role_index(StyleRole::OnAccent)] = t.colors.on_accent;
     p.values[role_index(StyleRole::Danger)] = t.danger;
     p.values[role_index(StyleRole::OnDanger)] = t.on_danger;
     p.values[role_index(StyleRole::FocusRing)] = t.focus_ring;
@@ -126,16 +126,16 @@ inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
 }
 
 inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const RolePalette& palette) noexcept {
-    if (patch.has_bg_color) style.bg_color = role_color(palette, patch.bg_color);
-    if (patch.has_bg_hover) style.bg_hover = role_color(palette, patch.bg_hover);
-    if (patch.has_bg_pressed) style.bg_pressed = role_color(palette, patch.bg_pressed);
-    if (patch.has_border_color) style.border_color = role_color(palette, patch.border_color);
-    if (patch.has_border_hover) style.border_hover = role_color(palette, patch.border_hover);
-    if (patch.has_border_pressed) style.border_pressed = role_color(palette, patch.border_pressed);
-    if (patch.has_font_color) style.font_color = role_color(palette, patch.font_color);
-    if (patch.has_accent_color) style.accent_color = role_color(palette, patch.accent_color);
-    if (patch.has_on_accent) style.on_accent = role_color(palette, patch.on_accent);
-    if (patch.has_border_focus) style.border_focus = role_color(palette, patch.border_focus);
+    if (patch.has_bg_color) style.colors.bg_color = role_color(palette, patch.bg_color);
+    if (patch.has_bg_hover) style.colors.bg_hover = role_color(palette, patch.bg_hover);
+    if (patch.has_bg_pressed) style.colors.bg_pressed = role_color(palette, patch.bg_pressed);
+    if (patch.has_border_color) style.colors.border_color = role_color(palette, patch.border_color);
+    if (patch.has_border_hover) style.colors.border_hover = role_color(palette, patch.border_hover);
+    if (patch.has_border_pressed) style.colors.border_pressed = role_color(palette, patch.border_pressed);
+    if (patch.has_font_color) style.colors.font_color = role_color(palette, patch.font_color);
+    if (patch.has_accent_color) style.colors.accent_color = role_color(palette, patch.accent_color);
+    if (patch.has_on_accent) style.colors.on_accent = role_color(palette, patch.on_accent);
+    if (patch.has_border_focus) style.colors.border_focus = role_color(palette, patch.border_focus);
 }
 
 export

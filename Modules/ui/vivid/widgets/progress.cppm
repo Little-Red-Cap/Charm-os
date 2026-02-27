@@ -51,8 +51,8 @@ public:
         resolve_colors(st, state, bg, border, font);
         const rgba fill = resolve_accent(st, state);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
         const int inner_w = r.w - 2;
         if (inner_w <= 0) return;
@@ -62,7 +62,7 @@ public:
         const std::int64_t num = static_cast<std::int64_t>(inner_w) * (clamped - min_);
         const int fill_w = static_cast<int>(num / range);
         if (fill_w > 0) {
-            draw_round_rect(cvs, r.x + 1, r.y + 1, fill_w, r.h - 2, st.corner_radius, fill, true);
+            draw_round_rect(cvs, r.x + 1, r.y + 1, fill_w, r.h - 2, st.metrics.corner_radius, fill, true);
         }
     }
 

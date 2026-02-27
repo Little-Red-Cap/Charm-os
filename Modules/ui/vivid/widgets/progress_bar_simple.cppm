@@ -52,14 +52,14 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         Rect bar{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
         if (bar.w <= 0 || bar.h <= 0) return;
 
         const rgba track = track_color_.a ? track_color_ : border;
         const rgba fill = fill_color_.a ? fill_color_ : accent;
 
-        draw_round_rect(cvs, bar.x, bar.y, bar.w, bar.h, st.corner_radius, track, true);
+        draw_round_rect(cvs, bar.x, bar.y, bar.w, bar.h, st.metrics.corner_radius, track, true);
 
         const float denom = static_cast<float>(max_ - min_);
         const float ratio = (denom > 0.0f) ? (static_cast<float>(value_ - min_) / denom) : 0.0f;
@@ -67,7 +67,7 @@ public:
         if (fill_w < 0) fill_w = 0;
         if (fill_w > bar.w) fill_w = bar.w;
         if (fill_w > 0) {
-            draw_round_rect(cvs, bar.x, bar.y, fill_w, bar.h, st.corner_radius, fill, true);
+            draw_round_rect(cvs, bar.x, bar.y, fill_w, bar.h, st.metrics.corner_radius, fill, true);
         }
     }
 

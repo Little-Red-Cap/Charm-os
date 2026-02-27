@@ -58,8 +58,8 @@ public:
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
 
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
         if (count_ <= 0) return;
 
@@ -71,7 +71,7 @@ public:
             }
 
             if (i == selected_) {
-                const int radius = (i == 0 || i == count_ - 1) ? st.corner_radius : 0;
+                const int radius = (i == 0 || i == count_ - 1) ? st.metrics.corner_radius : 0;
                 if (radius > 0) {
                     draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, accent, true);
                 } else {
@@ -87,7 +87,7 @@ public:
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
 
-        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.metrics.corner_radius);
     }
 
     bool on_event(const Event& e) {

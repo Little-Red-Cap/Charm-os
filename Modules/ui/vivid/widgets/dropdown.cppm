@@ -66,11 +66,11 @@ public:
         lbl.set_color(font);
         lbl.set_font(resolve_font(st));
         const int baseline_y = r.y + (r.h - lbl.line_height()) / 2 + lbl.baseline();
-        lbl.set_baseline_pos(r.x + st.padding, baseline_y);
+        lbl.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
         lbl.draw(cvs);
 
         // simple arrow
-        const int ax = r.x + r.w - st.padding - 6;
+        const int ax = r.x + r.w - st.metrics.padding - 6;
         const int ay = r.y + r.h / 2 - 3;
         draw_line(cvs, ax, ay, ax + 6, ay + 6, border);
         draw_line(cvs, ax + 6, ay + 6, ax + 12, ay, border);

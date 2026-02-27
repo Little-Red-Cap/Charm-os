@@ -48,7 +48,7 @@ public:
 
         const int baseline_y = r.y + (r.h - label_.line_height()) / 2 + label_.baseline();
         label_.set_color(font);
-        label_.set_baseline_pos(r.x + st.padding, baseline_y);
+        label_.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
         label_.draw(cvs);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
@@ -76,7 +76,7 @@ private:
     void update_size() {
         const Style& st = Theme::instance().get<ListItem>();
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
     Label label_;

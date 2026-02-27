@@ -54,7 +54,7 @@ public:
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        const int pad = st.padding;
+        const int pad = st.metrics.padding;
         title_.set_font(resolve_font(st));
         title_.set_color(font);
         title_.set_pos(r.x + pad, r.y + pad);

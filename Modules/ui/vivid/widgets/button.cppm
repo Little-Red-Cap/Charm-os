@@ -68,21 +68,21 @@ public:
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
                                   slice_left_, slice_top_, slice_right_, slice_bottom_);
-            for (int i = 0; i < st.border_width; ++i) {
+            for (int i = 0; i < st.metrics.border_width; ++i) {
                 draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, border, false);
             }
         } else {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
-            for (int i = 0; i < st.border_width; ++i) {
+            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+            for (int i = 0; i < st.metrics.border_width; ++i) {
                 draw_round_rect(cvs,
                                 r.x + i, r.y + i,
                                 r.w - 2 * i, r.h - 2 * i,
-                                st.corner_radius,
+                                st.metrics.corner_radius,
                                 border,
                                 false);
             }
         }
-        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.corner_radius);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.metrics.corner_radius);
 
         const auto lr = label_.get_rect();
         const int lx = r.x + (r.w - lr.w) / 2;
@@ -121,7 +121,7 @@ private:
     void update_size() {
         const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto lr = label_.get_rect();
-        set_size(lr.w + st.padding * 2, lr.h + st.padding * 2);
+        set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
     Label label_;

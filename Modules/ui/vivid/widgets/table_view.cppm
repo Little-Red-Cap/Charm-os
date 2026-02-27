@@ -15,7 +15,7 @@ import alg_list_scroll;
 using namespace ui::render;
 
 export
-class TableView : public ObjectBase {
+class TableView : public WidgetBase<TableView> {
 public:
     struct CellInfo {
         Rect rect{};
@@ -65,7 +65,7 @@ public:
         if (select_fn_) select_fn_(select_ctx_, row, col);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TableView>();
         const auto r = get_rect();
 
@@ -115,7 +115,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseWheel) {
@@ -204,5 +204,7 @@ private:
     int selected_row_{-1};
     int selected_col_{-1};
 };
+
+
 
 

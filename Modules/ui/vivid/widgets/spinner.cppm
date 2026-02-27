@@ -13,7 +13,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Spinner : public ObjectBase {
+class Spinner : public WidgetBase<Spinner> {
 public:
     Spinner() {
         set_size(32, 32);
@@ -23,7 +23,7 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
     void set_speed(float delta) noexcept { speed_ = delta; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Spinner>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -57,3 +57,5 @@ private:
     float phase_{0.0f};
     float speed_{0.3f};
 };
+
+

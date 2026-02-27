@@ -13,7 +13,7 @@ import charm.widgets.label;
 using namespace ui::render;
 
 export
-class MenuItem : public ObjectBase {
+class MenuItem : public WidgetBase<MenuItem> {
 public:
     explicit MenuItem(const char* text = "") : label_(text) {
         set_focusable(true);
@@ -27,7 +27,7 @@ public:
     void set_expanded(bool on) noexcept { expanded_ = on; }
     void set_selected(bool on) noexcept { selected_ = on; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<MenuItem>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -64,7 +64,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -92,5 +92,7 @@ private:
     bool expanded_{false};
     bool selected_{false};
 };
+
+
 
 

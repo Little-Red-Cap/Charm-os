@@ -10,7 +10,7 @@ export import charm.gfx.image;
 using namespace ui::render;
 
 export
-class Container : public ObjectBase {
+class Container : public WidgetBase<Container> {
 public:
     void set_background(const rgba& c) noexcept { bg_ = c; has_bg_ = true; }
     void set_background_image(const ImageView& img, int left, int top, int right, int bottom) noexcept {
@@ -22,7 +22,7 @@ public:
         has_bg_image_ = true;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         if (has_bg_image_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, bg_image_,
@@ -42,3 +42,5 @@ private:
     int slice_right_{0};
     int slice_bottom_{0};
 };
+
+

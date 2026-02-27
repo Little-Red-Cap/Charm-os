@@ -12,7 +12,7 @@ import charm.widgets.label;
 using namespace ui::render;
 
 export
-class MessageBox : public ObjectBase {
+class MessageBox : public WidgetBase<MessageBox> {
 public:
     MessageBox(const char* title = "Title", const char* text = "Message") {
         set_focusable(false);
@@ -24,7 +24,7 @@ public:
     void set_title(const char* t) { title_.set_text(t); }
     void set_message(const char* t) { text_.set_text(t); }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<MessageBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -48,3 +48,5 @@ private:
     Label title_{};
     Label text_{};
 };
+
+

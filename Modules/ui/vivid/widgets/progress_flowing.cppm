@@ -12,7 +12,7 @@ using namespace ui::render;
 
 // Flowing progress bar (0..100 or indeterminate)
 export
-class ProgressFlowing : public ObjectBase {
+class ProgressFlowing : public WidgetBase<ProgressFlowing> {
 public:
     ProgressFlowing() {
         set_size(180, 16);
@@ -44,7 +44,7 @@ public:
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ProgressFlowing>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -109,5 +109,7 @@ private:
     int flow_span_{10};
     int flow_offset_{0};
 };
+
+
 
 

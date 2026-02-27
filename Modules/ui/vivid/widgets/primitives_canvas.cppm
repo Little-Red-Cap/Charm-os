@@ -14,7 +14,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class PrimitivesCanvas : public ObjectBase {
+class PrimitivesCanvas : public WidgetBase<PrimitivesCanvas> {
 public:
     PrimitivesCanvas() {
         set_focusable(false);
@@ -24,7 +24,7 @@ public:
     void set_mode(int m) noexcept { mode_ = m; }
     void set_time(float t) noexcept { time_ = t; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<PrimitivesCanvas>();
         const auto r = get_rect();
 
@@ -131,5 +131,7 @@ private:
         }
     }
 };
+
+
 
 

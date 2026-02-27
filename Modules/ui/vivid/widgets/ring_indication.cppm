@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Simple ring indication (0..100)
 export
-class RingIndication : public ObjectBase {
+class RingIndication : public WidgetBase<RingIndication> {
 public:
     RingIndication() {
         set_size(120, 120);
@@ -39,7 +39,7 @@ public:
     void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<RingIndication>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -99,5 +99,7 @@ private:
     int major_len_{10};
     bool show_shadow_{true};
 };
+
+
 
 

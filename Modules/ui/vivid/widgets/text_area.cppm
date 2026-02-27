@@ -17,7 +17,7 @@ import alg_text_scroll;
 using namespace ui::render;
 
 export
-class TextArea : public ObjectBase {
+class TextArea : public WidgetBase<TextArea> {
 public:
     explicit TextArea(const char* text = "") {
         set_focusable(true);
@@ -36,7 +36,7 @@ public:
     void set_readonly(bool on) noexcept { readonly_ = on; }
     bool is_readonly() const noexcept { return readonly_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TextArea>();
         const auto r = get_rect();
 
@@ -75,7 +75,7 @@ public:
         cvs.restore_clip(clip_state);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -241,5 +241,7 @@ private:
         scroll_y_px_ = alg::scroll_bounds::clamp(scroll_y_px_, max_scroll);
     }
 };
+
+
 
 

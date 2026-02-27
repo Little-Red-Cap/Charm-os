@@ -23,7 +23,7 @@ import alg_scroll_thumb;
 using namespace ui::render;
 
 export
-class ScrollContainer : public ObjectBase {
+class ScrollContainer : public WidgetBase<ScrollContainer> {
 public:
     static constexpr int kLayoutId = 1;
 
@@ -88,7 +88,7 @@ public:
         apply_scroll(resolve);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         Style st = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
         rgba bg{};
@@ -136,7 +136,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -239,14 +239,14 @@ public:
         update_clip_insets_for_skin();
     }
 
-    bool should_draw_child(const ObjectBase& ch) const noexcept override {
+    bool should_draw_child(const ObjectBase& ch) const noexcept {
         const auto r = children_clip_rect();
         const auto c = ch.get_rect();
         return !(c.x + c.w <= r.x || c.x >= r.x + r.w ||
                  c.y + c.h <= r.y || c.y >= r.y + r.h);
     }
 
-    Rect children_clip_rect() const noexcept override {
+    Rect children_clip_rect() const noexcept {
         const auto r = get_rect();
         int left = clip_inset_left_;
         int top = clip_inset_top_;
@@ -397,5 +397,7 @@ private:
         return v;
     }
 };
+
+
 
 

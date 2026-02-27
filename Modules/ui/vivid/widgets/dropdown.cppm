@@ -15,7 +15,7 @@ using namespace ui::render;
 
 // Simple dropdown control (data + selection only).
 export
-class Dropdown : public ObjectBase {
+class Dropdown : public WidgetBase<Dropdown> {
 public:
     Dropdown() {
         set_focusable(true);
@@ -45,7 +45,7 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
     void set_on_open(Callback cb) noexcept { on_open_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Dropdown>();
         const auto r = get_rect();
 
@@ -74,7 +74,7 @@ public:
         draw_line(cvs, ax + 6, ay + 6, ax + 12, ay, border);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -112,5 +112,7 @@ private:
     Callback on_change_{};
     Callback on_open_{};
 };
+
+
 
 

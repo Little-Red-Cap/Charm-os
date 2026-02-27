@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Pointer meter (ARM-2D meter_pointer inspired)
 export
-class MeterPointer : public ObjectBase {
+class MeterPointer : public WidgetBase<MeterPointer> {
 public:
     MeterPointer() {
         set_size(140, 140);
@@ -44,7 +44,7 @@ public:
     void set_pointer_color(const rgba& c) noexcept { pointer_color_ = c; }
     void set_knob_color(const rgba& c) noexcept { knob_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<MeterPointer>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -87,5 +87,7 @@ private:
     rgba pointer_color_{0, 0, 0, 0};
     rgba knob_color_{0, 0, 0, 0};
 };
+
+
 
 

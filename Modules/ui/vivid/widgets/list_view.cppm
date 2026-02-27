@@ -20,7 +20,7 @@ import charm.widgets.scroll_dirty;
 using namespace ui::render;
 
 export
-class ListView : public ObjectBase {
+class ListView : public WidgetBase<ListView> {
 public:
     static constexpr int kLayoutId = 2;
 
@@ -190,7 +190,7 @@ public:
     int max_scroll() const noexcept { return max_scroll_; }
     int content_height() const noexcept { return content_height_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ListView>();
         const auto r = get_rect();
 
@@ -344,7 +344,7 @@ public:
         window_valid_ = true;
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -668,5 +668,7 @@ private:
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};
 };
+
+
 
 

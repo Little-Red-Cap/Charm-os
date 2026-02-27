@@ -16,7 +16,7 @@ import alg_list_scroll;
 using namespace ui::render;
 
 export
-class TreeView : public ObjectBase {
+class TreeView : public WidgetBase<TreeView> {
 public:
     struct NodeInfo {
         int depth{0};
@@ -99,7 +99,7 @@ public:
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TreeView>();
         const auto r = get_rect();
 
@@ -201,7 +201,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseWheel) {
@@ -323,5 +323,7 @@ private:
         return (h > 6) ? h : 6;
     }
 };
+
+
 
 

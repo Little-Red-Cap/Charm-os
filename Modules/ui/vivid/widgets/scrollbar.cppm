@@ -12,7 +12,7 @@ import charm.core.style_sheet;
 using namespace ui::render;
 
 export
-class ScrollBar : public ObjectBase {
+class ScrollBar : public WidgetBase<ScrollBar> {
 public:
     enum class Orientation {
         Horizontal,
@@ -49,7 +49,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ScrollBar>();
         const auto r = get_rect();
 
@@ -71,7 +71,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -169,5 +169,7 @@ private:
     int drag_start_value_{0};
     Callback on_change_{};
 };
+
+
 
 

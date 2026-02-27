@@ -18,7 +18,7 @@ using namespace ui::render;
 
 // Text tracking list (ARM-2D text_tracking_list inspired)
 export
-class TextTrackingList : public ObjectBase {
+class TextTrackingList : public WidgetBase<TextTrackingList> {
 public:
     using SelectFn = void(*)(void* ctx, int index) noexcept;
 
@@ -69,7 +69,7 @@ public:
         select_ctx_ = ctx;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TextTrackingList>();
         const auto r = get_rect();
 
@@ -119,7 +119,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -240,5 +240,7 @@ private:
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
 };
+
+
 
 

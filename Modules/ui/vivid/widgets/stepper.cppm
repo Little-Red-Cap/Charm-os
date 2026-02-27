@@ -14,7 +14,7 @@ import charm.font.typography;
 using namespace ui::render;
 
 export
-class Stepper : public ObjectBase {
+class Stepper : public WidgetBase<Stepper> {
 public:
     static constexpr std::size_t kMaxSteps = 8;
 
@@ -42,7 +42,7 @@ public:
         labels_[index].assign(text ? text : "");
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Stepper>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -90,5 +90,7 @@ private:
     int current_{0};
     StaticString<16> labels_[kMaxSteps]{};
 };
+
+
 
 

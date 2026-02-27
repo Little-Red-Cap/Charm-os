@@ -12,7 +12,7 @@ using namespace ui::render;
 
 // Simple glass panel: translucent fill + highlight + shadow bands.
 export
-class CloudyGlass : public ObjectBase {
+class CloudyGlass : public WidgetBase<CloudyGlass> {
 public:
     CloudyGlass() {
         set_size(200, 80);
@@ -23,7 +23,7 @@ public:
     void set_shadow(std::uint8_t a) noexcept { shadow_ = a; }
     void set_highlight_pos(int percent) noexcept { highlight_pos_ = percent; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<CloudyGlass>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -70,5 +70,7 @@ private:
     int shadow_{-1};
     int highlight_pos_{-1};
 };
+
+
 
 

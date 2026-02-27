@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Simple line chart (fixed buffer, no dynamic allocation)
 export
-class Chart : public ObjectBase {
+class Chart : public WidgetBase<Chart> {
 public:
     static constexpr std::size_t kMax = 32;
     using GetPointFn = int (*)(void* ctx, int index) noexcept;
@@ -128,7 +128,7 @@ public:
         }
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Chart>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -214,5 +214,7 @@ private:
         dirty.h = bottom_d - top_d;
     }
 };
+
+
 
 

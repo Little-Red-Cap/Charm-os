@@ -15,7 +15,7 @@ import charm.widgets.label;
 using namespace ui::render;
 
 export
-class Roller : public ObjectBase {
+class Roller : public WidgetBase<Roller> {
 public:
     Roller() {
         set_size(140, 80);
@@ -40,7 +40,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Roller>();
         const auto r = get_rect();
         rgba bg{};
@@ -77,7 +77,7 @@ public:
         draw_rect(cvs, r.x + 2, center_y - line_h / 2, r.w - 4, line_h, border, false);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::KeyDown) {
             if (e.key_code == Event::Key::Up) {
@@ -119,6 +119,8 @@ private:
     int selected_{0};
     Callback on_change_{};
 };
+
+
 
 
 

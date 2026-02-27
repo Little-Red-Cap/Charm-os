@@ -14,7 +14,7 @@ import charm.widgets.label;
 using namespace ui::render;
 
 export
-class Radio : public ObjectBase {
+class Radio : public WidgetBase<Radio> {
 public:
     explicit Radio(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<Radio>();
@@ -40,7 +40,7 @@ public:
         if (on_change_) on_change_();
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Radio>();
         const auto r = get_rect();
 
@@ -68,7 +68,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -94,5 +94,7 @@ private:
     std::uint16_t group_id_{0};
     bool checked_{false};
 };
+
+
 
 

@@ -15,7 +15,7 @@ import charm.font.typography;
 using namespace ui::render;
 
 export
-class TabView : public ObjectBase {
+class TabView : public WidgetBase<TabView> {
 public:
     TabView() {
         set_size(260, 180);
@@ -45,7 +45,7 @@ public:
 
     int active() const noexcept { return active_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TabView>();
         const auto r = get_rect();
         rgba bg{};
@@ -87,7 +87,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             const auto r = get_rect();
@@ -126,5 +126,7 @@ private:
     // resolves WidgetHandle to ObjectBase*
     std::function<ObjectBase*(WidgetHandle)> resolver_ = [](WidgetHandle) -> ObjectBase* { return nullptr; };
 };
+
+
 
 

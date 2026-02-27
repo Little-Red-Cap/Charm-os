@@ -12,7 +12,7 @@ import charm.core.style_sheet;
 using namespace ui::render;
 
 export
-class Checkbox final : public ObjectBase {
+class Checkbox final : public WidgetBase<Checkbox> {
 public:
     explicit Checkbox(const char* txt = "") : label_(txt) {
         constexpr int box_size = 16;
@@ -27,7 +27,7 @@ public:
     [[nodiscard]] bool is_checked() const noexcept { return checked_; }
     void set_on_change(Callback cb) noexcept { callback_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         const int box_size = r.h;
         Style st = Theme::instance().get<Checkbox>();
@@ -53,7 +53,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (e.type == Event::Type::Click) {
             const auto r = get_rect();
             const bool hit_box = (e.x >= r.x && e.x < r.x + r.h && e.y >= r.y && e.y < r.y + r.h);
@@ -71,5 +71,7 @@ private:
     Label label_;
     Callback callback_{};
 };
+
+
 
 

@@ -89,7 +89,7 @@ namespace {
 
 // Round progress bar (ARM-2D progress_bar_round inspired)
 export
-class ProgressBarRound : public ObjectBase {
+class ProgressBarRound : public WidgetBase<ProgressBarRound> {
 public:
     ProgressBarRound() {
         set_size(120, 120);
@@ -109,7 +109,7 @@ public:
     void set_show_value(bool on) noexcept { show_value_ = on; }
     void set_value_format(const char* fmt) noexcept { value_format_ = (fmt && *fmt) ? fmt : "%d"; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ProgressBarRound>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -165,5 +165,7 @@ private:
     rgba fill_color_{0, 0, 0, 0};
     rgba track_color_{0, 0, 0, 0};
 };
+
+
 
 

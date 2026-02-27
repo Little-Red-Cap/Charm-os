@@ -14,7 +14,7 @@ import charm.font.typography;
 using namespace ui::render;
 
 export
-class Timeline : public ObjectBase {
+class Timeline : public WidgetBase<Timeline> {
 public:
     static constexpr std::size_t kMaxItems = 16;
 
@@ -44,7 +44,7 @@ public:
 
     void set_row_height(int h) noexcept { row_h_ = (h > 0) ? h : row_h_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Timeline>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -86,5 +86,7 @@ private:
     int row_h_{24};
     StaticString<32> items_[kMaxItems]{};
 };
+
+
 
 

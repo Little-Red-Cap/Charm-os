@@ -11,7 +11,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Bar : public ObjectBase {
+class Bar : public WidgetBase<Bar> {
 public:
     Bar() {
         set_size(160, 12);
@@ -35,7 +35,7 @@ public:
     void set_mode(bool reverse) noexcept { reverse_ = reverse; }
     void set_secondary(int v) noexcept { secondary_ = v; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Bar>();
         const auto r = get_rect();
 
@@ -77,6 +77,8 @@ private:
     int secondary_{-1};
     bool reverse_{false};
 };
+
+
 
 
 

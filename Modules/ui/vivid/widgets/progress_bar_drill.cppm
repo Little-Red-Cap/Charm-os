@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Drill progress bar (ARM-2D progress_bar_drill inspired)
 export
-class ProgressBarDrill : public ObjectBase {
+class ProgressBarDrill : public WidgetBase<ProgressBarDrill> {
 public:
     ProgressBarDrill() {
         set_size(200, 18);
@@ -51,7 +51,7 @@ public:
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
     void set_hole_color(const rgba& c) noexcept { hole_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ProgressBarDrill>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -135,5 +135,7 @@ private:
     rgba track_color_{0, 0, 0, 0};
     rgba hole_color_{0, 0, 0, 0};
 };
+
+
 
 

@@ -11,7 +11,7 @@ import charm.gfx.render;
 using namespace ui::render;
 
 export
-class Menu : public ObjectBase {
+class Menu : public WidgetBase<Menu> {
 public:
     Menu() {
         set_focusable(false);
@@ -19,7 +19,7 @@ public:
         set_flex_layout(1, 0, 0, 0, 0);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Menu>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -30,5 +30,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
     }
 };
+
+
 
 

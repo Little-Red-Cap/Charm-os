@@ -8,7 +8,7 @@ import charm.widgets.radio;
 
 // Simple mutual-exclusion group. Use resolver to avoid factory dependency.
 export
-class RadioGroup : public ObjectBase {
+class RadioGroup : public WidgetBase<RadioGroup> {
 public:
     static constexpr std::size_t kMax = 16;
 
@@ -39,9 +39,11 @@ public:
         set_checked([&](WidgetHandle wh) { return f.get_radio(wh); }, h);
     }
 
-    void draw(CanvasBase&) override {}
+    void draw(CanvasBase&) {}
 
 private:
     WidgetHandle radios_[kMax]{};
     std::size_t count_{0};
 };
+
+

@@ -12,13 +12,22 @@ export import charm.core.input_interaction;
 export
 class ObjectBase {
 public:
-    virtual ~ObjectBase() = default;
+    struct VTable {
+        void (*draw)(ObjectBase&, CanvasBase&) noexcept;
+        bool (*on_event)(ObjectBase&, const Event&) noexcept;
+        Rect (*layout_rect)(const ObjectBase&) noexcept;
+        Rect (*children_clip_rect)(const ObjectBase&) noexcept;
+        bool (*should_draw_child)(const ObjectBase&, const ObjectBase&) noexcept;
+    };
+
+    ObjectBase() noexcept { vtable_ = &default_vtable(); }
+    ~ObjectBase() = default;
 
     Rect get_rect() const noexcept { return rect_; }
     void set_pos(int x, int y) noexcept { rect_.x = x; rect_.y = y; }
     void set_size(int w, int h) noexcept { rect_.w = w; rect_.h = h; }
     void set_rect(Rect r) noexcept { rect_ = r; }
-    virtual Rect layout_rect() const noexcept { return rect_; }
+    Rect layout_rect() const noexcept { return vtable_->layout_rect(*this); }
 
     enum class ClipPolicy : unsigned {
         None,
@@ -34,7 +43,7 @@ public:
 
     void set_clip_policy(ClipPolicy policy) noexcept { clip_policy_ = policy; }
     ClipPolicy clip_policy() const noexcept { return clip_policy_; }
-    virtual Rect children_clip_rect() const noexcept { return rect_; }
+    Rect children_clip_rect() const noexcept { return vtable_->children_clip_rect(*this); }
     void set_cache_policy(CachePolicy policy) noexcept { cache_policy_ = policy; }
     CachePolicy cache_policy() const noexcept { return cache_policy_; }
     void mark_cache_dirty() noexcept { cache_dirty_ = true; }
@@ -235,21 +244,25 @@ public:
     int percent_height() const noexcept { return percent_h_; }
     bool has_percent_size() const noexcept { return percent_w_ >= 0 || percent_h_ >= 0; }
 
-    bool add_interaction(InteractionStrategy* strategy,
+    template<InteractionHandler Strategy>
+    bool add_interaction(Strategy* strategy,
                          InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
         return interactions_.add(strategy, mask);
     }
 
-    bool remove_interaction(InteractionStrategy* strategy) noexcept {
+    template<InteractionHandler Strategy>
+    bool remove_interaction(Strategy* strategy) noexcept {
         return interactions_.remove(strategy);
     }
 
-    bool enable_interaction(InteractionStrategy* strategy,
+    template<InteractionHandler Strategy>
+    bool enable_interaction(Strategy* strategy,
                             InteractionList<>::EventMask mask = InteractionList<>::kAll) noexcept {
         return interactions_.add(strategy, mask);
     }
 
-    bool disable_interaction(InteractionStrategy* strategy) noexcept {
+    template<InteractionHandler Strategy>
+    bool disable_interaction(Strategy* strategy) noexcept {
         return interactions_.remove(strategy);
     }
 
@@ -413,11 +426,13 @@ public:
         return child_count_;
     }
 
-    virtual void draw(CanvasBase& cvs) = 0;
+    void draw(CanvasBase& cvs) { vtable_->draw(*this, cvs); }
 
-    virtual bool on_event(const Event&) { return false; }
+    bool on_event(const Event& e) { return vtable_->on_event(*this, e); }
 
-    virtual bool should_draw_child(const ObjectBase&) const noexcept { return true; }
+    bool should_draw_child(const ObjectBase& ch) const noexcept {
+        return vtable_->should_draw_child(*this, ch);
+    }
     void set_children_bounds(const Rect& bounds, bool valid) noexcept {
         children_bounds_ = bounds;
         children_bounds_valid_ = valid;
@@ -484,6 +499,7 @@ protected:
     std::size_t child_count_{0};
     Rect dirty_hint_{};
     bool dirty_hint_valid_{false};
+    const VTable* vtable_{nullptr};
 
     void mark_dirty_hint(const Rect& r) noexcept {
         if (r.w <= 0 || r.h <= 0) return;
@@ -502,9 +518,111 @@ protected:
         dirty_hint_.w = right - left;
         dirty_hint_.h = bottom - top;
     }
+
+    template<typename Derived>
+    void init_vtable() noexcept {
+        vtable_ = &vtable_for<Derived>();
+    }
+
+private:
+    static Rect default_layout_rect(const ObjectBase& self) noexcept { return self.rect_; }
+    static Rect default_children_clip_rect(const ObjectBase& self) noexcept { return self.rect_; }
+    static bool default_on_event(ObjectBase&, const Event&) noexcept { return false; }
+    static bool default_should_draw_child(const ObjectBase&, const ObjectBase&) noexcept { return true; }
+    static void default_draw(ObjectBase&, CanvasBase&) noexcept {}
+
+    static const VTable& default_vtable() noexcept {
+        static const VTable table{
+            &default_draw,
+            &default_on_event,
+            &default_layout_rect,
+            &default_children_clip_rect,
+            &default_should_draw_child
+        };
+        return table;
+    }
+
+    template<typename Derived>
+    static constexpr bool overrides_layout_rect() noexcept {
+        return &Derived::layout_rect != &ObjectBase::layout_rect;
+    }
+
+    template<typename Derived>
+    static constexpr bool overrides_children_clip_rect() noexcept {
+        return &Derived::children_clip_rect != &ObjectBase::children_clip_rect;
+    }
+
+    template<typename Derived>
+    static constexpr bool overrides_should_draw_child() noexcept {
+        return &Derived::should_draw_child != &ObjectBase::should_draw_child;
+    }
+
+    template<typename Derived>
+    static constexpr bool overrides_on_event() noexcept {
+        return &Derived::on_event != &ObjectBase::on_event;
+    }
+
+    template<typename Derived>
+    static Rect layout_rect_thunk(const ObjectBase& self) noexcept {
+        if constexpr (overrides_layout_rect<Derived>()) {
+            return static_cast<const Derived&>(self).layout_rect();
+        }
+        return default_layout_rect(self);
+    }
+
+    template<typename Derived>
+    static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
+        if constexpr (overrides_children_clip_rect<Derived>()) {
+            return static_cast<const Derived&>(self).children_clip_rect();
+        }
+        return default_children_clip_rect(self);
+    }
+
+    template<typename Derived>
+    static bool should_draw_child_thunk(const ObjectBase& self, const ObjectBase& child) noexcept {
+        if constexpr (overrides_should_draw_child<Derived>()) {
+            return static_cast<const Derived&>(self).should_draw_child(child);
+        }
+        return default_should_draw_child(self, child);
+    }
+
+    template<typename Derived>
+    static bool on_event_thunk(ObjectBase& self, const Event& e) noexcept {
+        if constexpr (overrides_on_event<Derived>()) {
+            return static_cast<Derived&>(self).on_event(e);
+        }
+        return default_on_event(self, e);
+    }
+
+    template<typename Derived>
+    static void draw_thunk(ObjectBase& self, CanvasBase& cvs) noexcept {
+        static_cast<Derived&>(self).draw(cvs);
+    }
+
+    template<typename Derived>
+    static const VTable& vtable_for() noexcept {
+        static const VTable table{
+            &draw_thunk<Derived>,
+            &on_event_thunk<Derived>,
+            &layout_rect_thunk<Derived>,
+            &children_clip_rect_thunk<Derived>,
+            &should_draw_child_thunk<Derived>
+        };
+        return table;
+    }
+};
+
+export
+template<typename Derived>
+class WidgetBase : public ObjectBase {
+public:
+    WidgetBase() {
+        init_vtable<Derived>();
+    }
 };
 
 export
 constexpr ObjectBase::State operator|(ObjectBase::State a, ObjectBase::State b) noexcept {
     return static_cast<ObjectBase::State>(static_cast<unsigned>(a) | static_cast<unsigned>(b));
 }
+

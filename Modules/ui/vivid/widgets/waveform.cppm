@@ -13,7 +13,7 @@ import charm.gfx.render;
 using namespace ui::render;
 
 export
-class Waveform : public ObjectBase {
+class Waveform : public WidgetBase<Waveform> {
 public:
     Waveform() {
         set_focusable(false);
@@ -70,7 +70,7 @@ public:
     void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; mark_dirty_trigger(); }
     void set_center_color(const rgba& c) noexcept { center_color_ = c; mark_dirty_hint(get_rect()); }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Waveform>();
         const auto r = get_rect();
 
@@ -246,5 +246,7 @@ private:
     rgba trigger_color_{220, 120, 120, 255};
     rgba center_color_{80, 100, 130, 255};
 };
+
+
 
 

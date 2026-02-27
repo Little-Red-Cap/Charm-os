@@ -12,7 +12,7 @@ using namespace ui::render;
 
 // Simple progress bar (ARM-2D progress_bar_simple inspired)
 export
-class ProgressBarSimple : public ObjectBase {
+class ProgressBarSimple : public WidgetBase<ProgressBarSimple> {
 public:
     ProgressBarSimple() {
         set_size(200, 18);
@@ -38,7 +38,7 @@ public:
     void set_fill_color(const rgba& c) noexcept { fill_color_ = c; }
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ProgressBarSimple>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -76,5 +76,7 @@ private:
     rgba fill_color_{0, 0, 0, 0};
     rgba track_color_{0, 0, 0, 0};
 };
+
+
 
 

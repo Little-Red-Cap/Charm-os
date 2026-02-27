@@ -11,7 +11,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Progress : public ObjectBase {
+class Progress : public WidgetBase<Progress> {
 public:
     Progress() {
         set_size(120, 16);
@@ -36,7 +36,7 @@ public:
     int min() const noexcept { return min_; }
     int max() const noexcept { return max_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Progress>();
         const auto r = get_rect();
 
@@ -65,5 +65,7 @@ private:
     int max_{100};
     int value_{0};
 };
+
+
 
 

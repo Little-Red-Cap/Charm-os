@@ -21,31 +21,94 @@ public:
         Rect rect{};
     };
 
-    virtual ~CanvasBase() = default;
-    virtual int width() const noexcept = 0;
-    virtual int height() const noexcept = 0;
-    virtual std::size_t stride_bytes() const noexcept = 0;
-    virtual std::size_t bytes_per_pixel() const noexcept = 0;
-    virtual std::byte* data() noexcept = 0;
-    virtual const std::byte* data() const noexcept = 0;
-    virtual const std::byte* row_ptr(int y) const noexcept = 0;
-    virtual void clear(const rgba& c = {0,0,0,0}) noexcept = 0;
-    virtual void set_origin(int ox, int oy) noexcept = 0;
-    virtual void clear_origin() noexcept = 0;
-    virtual void set_clip(const Rect& r) noexcept = 0;
-    virtual void clear_clip() noexcept = 0;
-    virtual ClipState save_clip() const noexcept = 0;
-    virtual void restore_clip(const ClipState& state) noexcept = 0;
-    virtual bool in_clip(int x, int y) const noexcept = 0;
-    virtual void set_pixel(int x, int y, const rgba& c) noexcept = 0;
-    virtual void draw_hline(int x0, int x1, int y, const rgba& c) noexcept = 0;
-    virtual void draw_vline(int x, int y0, int y1, const rgba& c) noexcept = 0;
-    virtual rgba get_pixel(int x, int y) const noexcept = 0;
-    virtual void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept = 0;
-    virtual void begin_frame() noexcept = 0;
-    virtual void end_frame() noexcept = 0;
+    struct Ops {
+        int (*width)(const void*) noexcept;
+        int (*height)(const void*) noexcept;
+        std::size_t (*stride_bytes)(const void*) noexcept;
+        std::size_t (*bytes_per_pixel)(const void*) noexcept;
+        std::byte* (*data)(void*) noexcept;
+        const std::byte* (*data_const)(const void*) noexcept;
+        const std::byte* (*row_ptr)(const void*, int) noexcept;
+        void (*clear)(void*, const rgba&) noexcept;
+        void (*set_origin)(void*, int, int) noexcept;
+        void (*clear_origin)(void*) noexcept;
+        void (*set_clip)(void*, const Rect&) noexcept;
+        void (*clear_clip)(void*) noexcept;
+        ClipState (*save_clip)(const void*) noexcept;
+        void (*restore_clip)(void*, const ClipState&) noexcept;
+        bool (*in_clip)(const void*, int, int) noexcept;
+        void (*set_pixel)(void*, int, int, const rgba&) noexcept;
+        void (*draw_hline)(void*, int, int, int, const rgba&) noexcept;
+        void (*draw_vline)(void*, int, int, int, const rgba&) noexcept;
+        rgba (*get_pixel)(const void*, int, int) noexcept;
+        void (*blit_span)(void*, int, int, const std::byte*, std::size_t) noexcept;
+        void (*begin_frame)(void*) noexcept;
+        void (*end_frame)(void*) noexcept;
+        void (*mark_dirty)(void*, const Rect&) noexcept;
+    };
+
+    CanvasBase() = default;
+    CanvasBase(const Ops* ops, void* self) noexcept : ops_(ops), self_(self) {}
+
+    int width() const noexcept { return ops_->width(self_); }
+    int height() const noexcept { return ops_->height(self_); }
+    std::size_t stride_bytes() const noexcept { return ops_->stride_bytes(self_); }
+    std::size_t bytes_per_pixel() const noexcept { return ops_->bytes_per_pixel(self_); }
+    std::byte* data() noexcept { return ops_->data(self_); }
+    const std::byte* data() const noexcept { return ops_->data_const(self_); }
+    const std::byte* row_ptr(int y) const noexcept { return ops_->row_ptr(self_, y); }
+    void clear(const rgba& c = {0,0,0,0}) noexcept { ops_->clear(self_, c); }
+    void set_origin(int ox, int oy) noexcept { ops_->set_origin(self_, ox, oy); }
+    void clear_origin() noexcept { ops_->clear_origin(self_); }
+    void set_clip(const Rect& r) noexcept { ops_->set_clip(self_, r); }
+    void clear_clip() noexcept { ops_->clear_clip(self_); }
+    ClipState save_clip() const noexcept { return ops_->save_clip(self_); }
+    void restore_clip(const ClipState& state) noexcept { ops_->restore_clip(self_, state); }
+    bool in_clip(int x, int y) const noexcept { return ops_->in_clip(self_, x, y); }
+    void set_pixel(int x, int y, const rgba& c) noexcept { ops_->set_pixel(self_, x, y, c); }
+    void draw_hline(int x0, int x1, int y, const rgba& c) noexcept { ops_->draw_hline(self_, x0, x1, y, c); }
+    void draw_vline(int x, int y0, int y1, const rgba& c) noexcept { ops_->draw_vline(self_, x, y0, y1, c); }
+    rgba get_pixel(int x, int y) const noexcept { return ops_->get_pixel(self_, x, y); }
+    void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
+        ops_->blit_span(self_, x, y, src, bytes);
+    }
+    void begin_frame() noexcept { ops_->begin_frame(self_); }
+    void end_frame() noexcept { ops_->end_frame(self_); }
     void mark_dirty(int x, int y, int w, int h) noexcept { mark_dirty(Rect{x, y, w, h}); }
-    virtual void mark_dirty(const Rect& r) noexcept = 0;
+    void mark_dirty(const Rect& r) noexcept { ops_->mark_dirty(self_, r); }
+
+private:
+    static const Ops& null_ops() noexcept {
+        static const Ops ops{
+            +[](const void*) noexcept { return 0; },
+            +[](const void*) noexcept { return 0; },
+            +[](const void*) noexcept { return std::size_t{0}; },
+            +[](const void*) noexcept { return std::size_t{0}; },
+            +[](void*) noexcept { return static_cast<std::byte*>(nullptr); },
+            +[](const void*) noexcept { return static_cast<const std::byte*>(nullptr); },
+            +[](const void*, int) noexcept { return static_cast<const std::byte*>(nullptr); },
+            +[](void*, const rgba&) noexcept {},
+            +[](void*, int, int) noexcept {},
+            +[](void*) noexcept {},
+            +[](void*, const Rect&) noexcept {},
+            +[](void*) noexcept {},
+            +[](const void*) noexcept { return ClipState{}; },
+            +[](void*, const ClipState&) noexcept {},
+            +[](const void*, int, int) noexcept { return false; },
+            +[](void*, int, int, const rgba&) noexcept {},
+            +[](void*, int, int, int, const rgba&) noexcept {},
+            +[](void*, int, int, int, const rgba&) noexcept {},
+            +[](const void*, int, int) noexcept { return rgba{}; },
+            +[](void*, int, int, const std::byte*, std::size_t) noexcept {},
+            +[](void*) noexcept {},
+            +[](void*) noexcept {},
+            +[](void*, const Rect&) noexcept {}
+        };
+        return ops;
+    }
+
+    const Ops* ops_{&null_ops()};
+    void* self_{nullptr};
 };
 
 export
@@ -56,45 +119,45 @@ public:
     static constexpr util::usize kDirtyCapacity = 16;
     using DirtyList = service::DirtyRectList<Rect, kDirtyCapacity>;
 
-    constexpr Canvas(FB& fb) noexcept : fb_(fb) {}
+    Canvas(FB& fb) noexcept : CanvasBase(&ops(), this), fb_(fb) {}
 
-    int width() const noexcept override { return static_cast<int>(W); }
-    int height() const noexcept override { return static_cast<int>(H); }
-    std::size_t stride_bytes() const noexcept override { return FB::stride_bytes; }
-    std::size_t bytes_per_pixel() const noexcept override { return FB::bytes_per_pixel; }
-    std::byte* data() noexcept override { return fb_.data(); }
-    const std::byte* data() const noexcept override { return fb_.data(); }
-    const std::byte* row_ptr(int y) const noexcept override {
+    int width() const noexcept { return static_cast<int>(W); }
+    int height() const noexcept { return static_cast<int>(H); }
+    std::size_t stride_bytes() const noexcept { return FB::stride_bytes; }
+    std::size_t bytes_per_pixel() const noexcept { return FB::bytes_per_pixel; }
+    std::byte* data() noexcept { return fb_.data(); }
+    const std::byte* data() const noexcept { return fb_.data(); }
+    const std::byte* row_ptr(int y) const noexcept {
         if (y < 0 || y >= static_cast<int>(H)) return nullptr;
         return fb_.data() + static_cast<std::size_t>(y) * FB::stride_bytes;
     }
 
-    void clear(const rgba& c = {0,0,0,0}) noexcept override { fb_.clear(c); }
+    void clear(const rgba& c = {0,0,0,0}) noexcept { fb_.clear(c); }
 
-    void set_origin(int ox, int oy) noexcept override {
+    void set_origin(int ox, int oy) noexcept {
         origin_x_ = ox;
         origin_y_ = oy;
     }
 
-    void clear_origin() noexcept override {
+    void clear_origin() noexcept {
         origin_x_ = 0;
         origin_y_ = 0;
     }
 
-    void set_clip(const Rect& r) noexcept override {
+    void set_clip(const Rect& r) noexcept {
         clip_enabled_ = true;
         clip_ = r;
     }
 
-    void clear_clip() noexcept override { clip_enabled_ = false; }
+    void clear_clip() noexcept { clip_enabled_ = false; }
 
-    ClipState save_clip() const noexcept override { return ClipState{clip_enabled_, clip_}; }
-    void restore_clip(const ClipState& state) noexcept override {
+    ClipState save_clip() const noexcept { return ClipState{clip_enabled_, clip_}; }
+    void restore_clip(const ClipState& state) noexcept {
         clip_enabled_ = state.enabled;
         clip_ = state.rect;
     }
 
-    bool in_clip(int x, int y) const noexcept override {
+    bool in_clip(int x, int y) const noexcept {
         if (!clip_enabled_) {
             const int lx = x + origin_x_;
             const int ly = y + origin_y_;
@@ -106,7 +169,7 @@ public:
         return lx >= 0 && ly >= 0 && lx < static_cast<int>(W) && ly < static_cast<int>(H);
     }
 
-    void set_pixel(int x, int y, const rgba& c) noexcept override {
+    void set_pixel(int x, int y, const rgba& c) noexcept {
         if (!in_clip(x, y)) return;
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
@@ -115,7 +178,7 @@ public:
         fb_.set_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly), c);
     }
 
-    void draw_hline(int x0, int x1, int y, const rgba& c) noexcept override {
+    void draw_hline(int x0, int x1, int y, const rgba& c) noexcept {
         int gx0 = x0;
         int gx1 = x1;
         const int gy = y;
@@ -134,7 +197,7 @@ public:
         }
     }
 
-    void draw_vline(int x, int y0, int y1, const rgba& c) noexcept override {
+    void draw_vline(int x, int y0, int y1, const rgba& c) noexcept {
         const int gx = x;
         int gy0 = y0;
         int gy1 = y1;
@@ -153,7 +216,7 @@ public:
         }
     }
 
-    rgba get_pixel(int x, int y) const noexcept override {
+    rgba get_pixel(int x, int y) const noexcept {
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
         if (lx < 0 || ly < 0) return {};
@@ -161,7 +224,7 @@ public:
         return fb_.get_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly));
     }
 
-    void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept override {
+    void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
         if (!src || bytes == 0) return;
         if (!in_clip(x, y)) return;
         const int lx = x + origin_x_;
@@ -173,10 +236,10 @@ public:
         std::memcpy(fb_.data() + offset, src, bytes);
     }
 
-    void begin_frame() noexcept override { dirty_.clear(); }
-    void end_frame() noexcept override {}
+    void begin_frame() noexcept { dirty_.clear(); }
+    void end_frame() noexcept {}
 
-    void mark_dirty(const Rect& r) noexcept override {
+    void mark_dirty(const Rect& r) noexcept {
         if (r.w <= 0 || r.h <= 0) return;
         if (dirty_.full()) return;
         if (!dirty_.add(r)) {
@@ -188,6 +251,35 @@ public:
     [[nodiscard]] bool dirty_full() const noexcept { return dirty_.full(); }
 
 private:
+    static const Ops& ops() noexcept {
+        static const Ops ops{
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->width(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->height(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->stride_bytes(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->bytes_per_pixel(); },
+            +[](void* self) noexcept { return static_cast<Canvas*>(self)->data(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->data(); },
+            +[](const void* self, int y) noexcept { return static_cast<const Canvas*>(self)->row_ptr(y); },
+            +[](void* self, const rgba& c) noexcept { static_cast<Canvas*>(self)->clear(c); },
+            +[](void* self, int ox, int oy) noexcept { static_cast<Canvas*>(self)->set_origin(ox, oy); },
+            +[](void* self) noexcept { static_cast<Canvas*>(self)->clear_origin(); },
+            +[](void* self, const Rect& r) noexcept { static_cast<Canvas*>(self)->set_clip(r); },
+            +[](void* self) noexcept { static_cast<Canvas*>(self)->clear_clip(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->save_clip(); },
+            +[](void* self, const ClipState& state) noexcept { static_cast<Canvas*>(self)->restore_clip(state); },
+            +[](const void* self, int x, int y) noexcept { return static_cast<const Canvas*>(self)->in_clip(x, y); },
+            +[](void* self, int x, int y, const rgba& c) noexcept { static_cast<Canvas*>(self)->set_pixel(x, y, c); },
+            +[](void* self, int x0, int x1, int y, const rgba& c) noexcept { static_cast<Canvas*>(self)->draw_hline(x0, x1, y, c); },
+            +[](void* self, int x, int y0, int y1, const rgba& c) noexcept { static_cast<Canvas*>(self)->draw_vline(x, y0, y1, c); },
+            +[](const void* self, int x, int y) noexcept { return static_cast<const Canvas*>(self)->get_pixel(x, y); },
+            +[](void* self, int x, int y, const std::byte* src, std::size_t bytes) noexcept { static_cast<Canvas*>(self)->blit_span(x, y, src, bytes); },
+            +[](void* self) noexcept { static_cast<Canvas*>(self)->begin_frame(); },
+            +[](void* self) noexcept { static_cast<Canvas*>(self)->end_frame(); },
+            +[](void* self, const Rect& r) noexcept { static_cast<Canvas*>(self)->mark_dirty(r); }
+        };
+        return ops;
+    }
+
     constexpr Rect full_rect() const noexcept {
         return Rect{0, 0, static_cast<int>(W), static_cast<int>(H)};
     }
@@ -215,7 +307,8 @@ public:
                   int height,
                   PixelFormat format,
                   std::size_t stride_bytes = 0) noexcept
-        : data_(data),
+        : CanvasBase(&ops(), this),
+          data_(data),
           width_(width),
           height_(height),
           format_(format) {
@@ -224,18 +317,18 @@ public:
         clip_ = Rect{0, 0, width_, height_};
     }
 
-    int width() const noexcept override { return width_; }
-    int height() const noexcept override { return height_; }
-    std::size_t stride_bytes() const noexcept override { return stride_bytes_; }
-    std::size_t bytes_per_pixel() const noexcept override { return bytes_per_pixel(format_); }
-    std::byte* data() noexcept override { return data_; }
-    const std::byte* data() const noexcept override { return data_; }
-    const std::byte* row_ptr(int y) const noexcept override {
+    int width() const noexcept { return width_; }
+    int height() const noexcept { return height_; }
+    std::size_t stride_bytes() const noexcept { return stride_bytes_; }
+    std::size_t bytes_per_pixel() const noexcept { return bytes_per_pixel(format_); }
+    std::byte* data() noexcept { return data_; }
+    const std::byte* data() const noexcept { return data_; }
+    const std::byte* row_ptr(int y) const noexcept {
         if (!data_ || y < 0 || y >= height_) return nullptr;
         return data_ + static_cast<std::size_t>(y) * stride_bytes_;
     }
 
-    void clear(const rgba& c = {0,0,0,0}) noexcept override {
+    void clear(const rgba& c = {0,0,0,0}) noexcept {
         if (!data_) return;
         // Clear should ignore origin/clip so partial-buffer tiles reset correctly.
         const std::size_t bpp = bytes_per_pixel();
@@ -247,30 +340,30 @@ public:
         }
     }
 
-    void set_origin(int ox, int oy) noexcept override {
+    void set_origin(int ox, int oy) noexcept {
         origin_x_ = ox;
         origin_y_ = oy;
     }
 
-    void clear_origin() noexcept override {
+    void clear_origin() noexcept {
         origin_x_ = 0;
         origin_y_ = 0;
     }
 
-    void set_clip(const Rect& r) noexcept override {
+    void set_clip(const Rect& r) noexcept {
         clip_enabled_ = true;
         clip_ = r;
     }
 
-    void clear_clip() noexcept override { clip_enabled_ = false; }
+    void clear_clip() noexcept { clip_enabled_ = false; }
 
-    ClipState save_clip() const noexcept override { return ClipState{clip_enabled_, clip_}; }
-    void restore_clip(const ClipState& state) noexcept override {
+    ClipState save_clip() const noexcept { return ClipState{clip_enabled_, clip_}; }
+    void restore_clip(const ClipState& state) noexcept {
         clip_enabled_ = state.enabled;
         clip_ = state.rect;
     }
 
-    bool in_clip(int x, int y) const noexcept override {
+    bool in_clip(int x, int y) const noexcept {
         if (!clip_enabled_) {
             const int lx = x + origin_x_;
             const int ly = y + origin_y_;
@@ -282,7 +375,7 @@ public:
         return lx >= 0 && ly >= 0 && lx < width_ && ly < height_;
     }
 
-    void set_pixel(int x, int y, const rgba& c) noexcept override {
+    void set_pixel(int x, int y, const rgba& c) noexcept {
         if (!data_) return;
         if (!in_clip(x, y)) return;
         const int lx = x + origin_x_;
@@ -293,7 +386,7 @@ public:
         write_pixel(dst, c);
     }
 
-    void draw_hline(int x0, int x1, int y, const rgba& c) noexcept override {
+    void draw_hline(int x0, int x1, int y, const rgba& c) noexcept {
         int gx0 = x0;
         int gx1 = x1;
         const int gy = y;
@@ -312,7 +405,7 @@ public:
         }
     }
 
-    void draw_vline(int x, int y0, int y1, const rgba& c) noexcept override {
+    void draw_vline(int x, int y0, int y1, const rgba& c) noexcept {
         const int gx = x;
         int gy0 = y0;
         int gy1 = y1;
@@ -331,7 +424,7 @@ public:
         }
     }
 
-    rgba get_pixel(int x, int y) const noexcept override {
+    rgba get_pixel(int x, int y) const noexcept {
         if (!data_) return {};
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
@@ -341,7 +434,7 @@ public:
         return read_pixel(src);
     }
 
-    void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept override {
+    void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
         if (!data_ || !src || bytes == 0) return;
         if (!in_clip(x, y)) return;
         const int lx = x + origin_x_;
@@ -352,10 +445,10 @@ public:
         std::memcpy(data_ + offset, src, bytes);
     }
 
-    void begin_frame() noexcept override { dirty_.clear(); }
-    void end_frame() noexcept override {}
+    void begin_frame() noexcept { dirty_.clear(); }
+    void end_frame() noexcept {}
 
-    void mark_dirty(const Rect& r) noexcept override {
+    void mark_dirty(const Rect& r) noexcept {
         if (r.w <= 0 || r.h <= 0) return;
         if (dirty_.full()) return;
         if (!dirty_.add(r)) {
@@ -367,6 +460,35 @@ public:
     [[nodiscard]] bool dirty_full() const noexcept { return dirty_.full(); }
 
 private:
+    static const Ops& ops() noexcept {
+        static const Ops ops{
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->width(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->height(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->stride_bytes(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->bytes_per_pixel(); },
+            +[](void* self) noexcept { return static_cast<RuntimeCanvas*>(self)->data(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->data(); },
+            +[](const void* self, int y) noexcept { return static_cast<const RuntimeCanvas*>(self)->row_ptr(y); },
+            +[](void* self, const rgba& c) noexcept { static_cast<RuntimeCanvas*>(self)->clear(c); },
+            +[](void* self, int ox, int oy) noexcept { static_cast<RuntimeCanvas*>(self)->set_origin(ox, oy); },
+            +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->clear_origin(); },
+            +[](void* self, const Rect& r) noexcept { static_cast<RuntimeCanvas*>(self)->set_clip(r); },
+            +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->clear_clip(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->save_clip(); },
+            +[](void* self, const ClipState& state) noexcept { static_cast<RuntimeCanvas*>(self)->restore_clip(state); },
+            +[](const void* self, int x, int y) noexcept { return static_cast<const RuntimeCanvas*>(self)->in_clip(x, y); },
+            +[](void* self, int x, int y, const rgba& c) noexcept { static_cast<RuntimeCanvas*>(self)->set_pixel(x, y, c); },
+            +[](void* self, int x0, int x1, int y, const rgba& c) noexcept { static_cast<RuntimeCanvas*>(self)->draw_hline(x0, x1, y, c); },
+            +[](void* self, int x, int y0, int y1, const rgba& c) noexcept { static_cast<RuntimeCanvas*>(self)->draw_vline(x, y0, y1, c); },
+            +[](const void* self, int x, int y) noexcept { return static_cast<const RuntimeCanvas*>(self)->get_pixel(x, y); },
+            +[](void* self, int x, int y, const std::byte* src, std::size_t bytes) noexcept { static_cast<RuntimeCanvas*>(self)->blit_span(x, y, src, bytes); },
+            +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->begin_frame(); },
+            +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->end_frame(); },
+            +[](void* self, const Rect& r) noexcept { static_cast<RuntimeCanvas*>(self)->mark_dirty(r); }
+        };
+        return ops;
+    }
+
     constexpr Rect full_rect() const noexcept { return Rect{0, 0, width_, height_}; }
 
     static std::size_t bytes_per_pixel(PixelFormat fmt) noexcept {

@@ -14,7 +14,7 @@ import charm.widgets.text;
 using namespace ui::render;
 
 export
-class TextInput : public ObjectBase {
+class TextInput : public WidgetBase<TextInput> {
 public:
     TextInput() {
         set_focusable(true);
@@ -35,7 +35,7 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
     void set_on_submit(Callback cb) noexcept { on_submit_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TextInput>();
         const auto r = get_rect();
 
@@ -71,7 +71,7 @@ public:
         cvs.restore_clip(clip_state);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -153,5 +153,7 @@ protected:
         buf_[len_] = '\0';
     }
 };
+
+
 
 

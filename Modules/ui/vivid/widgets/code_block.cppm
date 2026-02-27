@@ -14,7 +14,7 @@ import charm.font.typography;
 using namespace ui::render;
 
 export
-class CodeBlock : public ObjectBase {
+class CodeBlock : public WidgetBase<CodeBlock> {
 public:
     CodeBlock() {
         set_focusable(false);
@@ -24,7 +24,7 @@ public:
     void set_text(const char* text) { text_.assign(text ? text : ""); }
     void set_wrap(TextWrap wrap) noexcept { wrap_ = wrap; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<CodeBlock>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -43,5 +43,7 @@ private:
     StaticString<256> text_{};
     TextWrap wrap_{TextWrap::None};
 };
+
+
 
 

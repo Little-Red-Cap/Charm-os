@@ -12,7 +12,7 @@ using namespace ui::render;
 
 // Simple histogram view (fixed buffer)
 export
-class HistogramView : public ObjectBase {
+class HistogramView : public WidgetBase<HistogramView> {
 public:
     static constexpr std::size_t kMax = 32;
 
@@ -40,7 +40,7 @@ public:
 
     void clear_range() noexcept { has_range_ = false; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<HistogramView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -88,5 +88,7 @@ private:
     int max_v_{0};
     bool has_range_{false};
 };
+
+
 
 

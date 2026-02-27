@@ -12,7 +12,7 @@ import charm.core.style_sheet;
 using namespace ui::render;
 
 export
-class Switch : public ObjectBase {
+class Switch : public WidgetBase<Switch> {
 public:
     Switch() {
         set_focusable(true);
@@ -29,7 +29,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Switch>();
         const auto r = get_rect();
 
@@ -83,7 +83,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, radius);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -103,5 +103,7 @@ private:
     bool on_{false};
     Callback on_change_{};
 };
+
+
 
 

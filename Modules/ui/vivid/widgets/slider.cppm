@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstdint>
 export module charm.widgets.slider;
 
 import charm.core.object;
@@ -65,8 +66,13 @@ public:
         }
         draw_rect(cvs, track_x, track_y, track_w, track_h, track, true);
 
-        const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
-        const int fill_w = static_cast<int>(track_w * ratio);
+        const int range = max_ - min_;
+        int fill_w = 0;
+        if (range > 0) {
+            const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+            const std::int64_t num = static_cast<std::int64_t>(track_w) * (clamped - min_);
+            fill_w = static_cast<int>(num / range);
+        }
         draw_rect(cvs, track_x, track_y, fill_w, track_h, accent, true);
 
         const int knob_r = (r.h / 2 > 6) ? (r.h / 2) : 6;
@@ -116,8 +122,13 @@ private:
         int local = px - track_x;
         if (local < 0) local = 0;
         if (local > track_w) local = track_w;
-        const float ratio = static_cast<float>(local) / static_cast<float>(track_w);
-        const int v = alg::arc::value_from_ratio(ratio, min_, max_);
+        const int range = max_ - min_;
+        if (range <= 0) {
+            set_value(min_);
+            return;
+        }
+        const std::int64_t num = static_cast<std::int64_t>(local) * range;
+        const int v = min_ + static_cast<int>(num / track_w);
         set_value(v);
     }
 

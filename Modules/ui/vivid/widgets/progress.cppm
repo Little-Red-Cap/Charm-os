@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 export module charm.widgets.progress;
 
 import charm.core.object;
@@ -55,8 +56,11 @@ public:
 
         const int inner_w = r.w - 2;
         if (inner_w <= 0) return;
-        const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
-        const int fill_w = static_cast<int>(inner_w * ratio);
+        const int range = max_ - min_;
+        if (range <= 0) return;
+        const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+        const std::int64_t num = static_cast<std::int64_t>(inner_w) * (clamped - min_);
+        const int fill_w = static_cast<int>(num / range);
         if (fill_w > 0) {
             draw_round_rect(cvs, r.x + 1, r.y + 1, fill_w, r.h - 2, st.corner_radius, fill, true);
         }

@@ -525,10 +525,13 @@ inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
 }
 
 export
-inline void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
-    auto& theme = Theme::instance();
-    theme.set_tokens(tokens);
+inline void apply_theme(const ThemeTokens& tokens) noexcept {
     apply_tokens_to_all_widgets(tokens);
+}
+
+export
+inline void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
+    apply_theme(tokens);
 }
 
 export

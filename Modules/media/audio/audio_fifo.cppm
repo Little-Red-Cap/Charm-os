@@ -16,7 +16,7 @@ export namespace audio {
 
     class PcmFifo {
     public:
-        PcmFifo() = default;
+        PcmFifo() noexcept { }
 
         explicit PcmFifo(std::size_t capacity_bytes)
             : owned_(capacity_bytes) {

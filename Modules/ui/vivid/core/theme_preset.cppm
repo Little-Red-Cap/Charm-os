@@ -441,7 +441,7 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
 export
 inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
     auto& theme = Theme::instance();
-    theme.set_tokens_raw(tokens);
+    theme.set_tokens_unsafe(tokens);
 
     auto apply_widget = [&](auto* tag) {
         using Widget = std::remove_pointer_t<decltype(tag)>;

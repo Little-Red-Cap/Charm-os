@@ -162,6 +162,7 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
+        // Intentional: image widget bypasses theme/style rendering; container handles background/border.
         if (!image_) return;
         if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
             zoom_ = clamp_zoom(zoom_ + zoom_velocity_);

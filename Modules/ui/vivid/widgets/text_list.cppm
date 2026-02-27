@@ -132,7 +132,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<TextList>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::TextList, state, base, st_scratch);
         const auto r = get_rect();
 
@@ -232,7 +232,7 @@ private:
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.metrics.padding, r.h);
         content_height_ = bounds.content_h;
@@ -249,14 +249,14 @@ private:
     }
 
     int index_from_y(int y) const noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.metrics.padding, row_height_, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         scroll_y_ = alg::list_scroll::ensure_visible(index,

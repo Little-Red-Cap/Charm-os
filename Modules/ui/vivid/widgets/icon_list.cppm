@@ -46,7 +46,7 @@ private:
         if (info.index < 0 || info.index >= self->item_count_) return;
 
         const auto& item = self->items_[info.index];
-        Style st_scratch{};
+        Style st_scratch;
         const auto& st = self->resolve_list_style(st_scratch);
         const int pad = st.metrics.padding;
         const int icon_size = self->icon_size_;

@@ -251,6 +251,11 @@ private:
         return count;
     }
 
+    // Priority model (deterministic):
+    // 1) kind specificity (None < concrete kind)
+    // 2) variant specificity (Any < concrete variant)
+    // 3) state specificity (more bits => more specific)
+    // Tie-break by insertion order.
     static std::uint16_t rule_priority(const StyleSelector& sel) noexcept {
         const std::uint16_t kind_score = (sel.kind == WidgetKind::None) ? 0u : 1u;
         const std::uint16_t variant_score = (sel.variant == kStyleVariantAny) ? 0u : 1u;
@@ -259,6 +264,7 @@ private:
     }
 
     void insert_rule(const StyleRuleEntry& entry) noexcept {
+        // Keep rules ordered by priority; stable within same priority by insertion order.
         std::size_t pos = count_;
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& cur = rules_[i];

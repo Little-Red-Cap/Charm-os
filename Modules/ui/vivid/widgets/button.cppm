@@ -60,7 +60,7 @@ public:
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = has_local_style_ ? style_ : Theme::instance().get<Button>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         resolve_colors(st, state,
                        bg, border, font);
@@ -129,7 +129,7 @@ private:
     }
 
     void update_size() {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();

@@ -105,6 +105,7 @@ flowchart LR
 - P1 样式继承与局部覆盖（已在部分控件落地示例）
 - P1 主题加载（配置/资源入口已提供：ThemePreset）
 - P1 约束式样式表 PoC（StyleSheet）
+- P1 StyleSheet 规则优先级模型（kind > variant > state mask，插入顺序稳定）
 - P2 运行时 DSL/CSS
 
 ## 10. 动画与过渡

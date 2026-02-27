@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 
 import charm.core.gui;
 import charm.core.factory;
@@ -62,6 +63,66 @@ namespace {
         out_x = static_cast<int>((wx - vp.x) / vp.scale);
         out_y = static_cast<int>((wy - vp.y) / vp.scale);
         return true;
+    }
+
+    bool style_sheet_selftest() {
+        auto& sheet = StyleSheet::instance();
+        sheet.clear();
+
+        const Style& base = Theme::instance().get<Button>();
+        Style out{};
+
+        auto mk = [](std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
+            return rgba{r, g, b, 255};
+        };
+        auto add_bg_rule = [&](StyleSelector sel, rgba c) {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = c;
+            sheet.add_rule(sel, patch);
+        };
+        auto eq = [](const rgba& a, const rgba& b) noexcept {
+            return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+        };
+        auto check = [&](WidgetKind kind, const StyleState& state, rgba expected, const char* label) {
+            if (!sheet.apply(kind, state, out, base)) {
+                std::fprintf(stderr, "StyleSheet selftest no match: %s\n", label);
+                return false;
+            }
+            if (!eq(out.colors.bg_color, expected)) {
+                std::fprintf(stderr, "StyleSheet selftest mismatch: %s\n", label);
+                return false;
+            }
+            return true;
+        };
+
+        const std::uint8_t hover = mask_hover();
+        const std::uint8_t pressed = mask_pressed();
+        add_bg_rule(StyleSelector{WidgetKind::None, hover}, mk(1, 2, 3));
+        add_bg_rule(StyleSelector{WidgetKind::Button, hover}, mk(4, 5, 6));
+        add_bg_rule(StyleSelector{WidgetKind::Button, static_cast<std::uint8_t>(hover | pressed)}, mk(7, 8, 9));
+        add_bg_rule(StyleSelector{WidgetKind::Button, hover, kVariantSecondary}, mk(10, 11, 12));
+
+        bool ok = true;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, true, false, 0),
+                   mk(7, 8, 9),
+                   "button hover+pressed") && ok;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, false, false, 0),
+                   mk(4, 5, 6),
+                   "button hover") && ok;
+        ok = check(WidgetKind::Button,
+                   make_style_state(true, true, false, false, kVariantSecondary),
+                   mk(10, 11, 12),
+                   "button variant hover") && ok;
+        ok = check(WidgetKind::Checkbox,
+                   make_style_state(true, true, false, false, 0),
+                   mk(1, 2, 3),
+                   "generic hover") && ok;
+
+        sheet.clear();
+        return ok;
     }
 }
 
@@ -189,7 +250,7 @@ int main() {
             .on_surface_muted = {120, 120, 128, 255},
             .outline = {180, 182, 190, 255},
             .accent = {64, 120, 220, 255},
-            .colors.on_accent = {255, 255, 255, 255},
+            .on_accent = {255, 255, 255, 255},
             .danger = {200, 60, 60, 255},
             .on_danger = {255, 255, 255, 255},
             .focus_ring = {64, 120, 220, 255},
@@ -201,7 +262,7 @@ int main() {
             .on_surface_muted = {140, 146, 156, 255},
             .outline = {64, 70, 80, 255},
             .accent = {90, 180, 255, 255},
-            .colors.on_accent = {16, 20, 28, 255},
+            .on_accent = {16, 20, 28, 255},
             .danger = {240, 96, 96, 255},
             .on_danger = {16, 20, 28, 255},
             .focus_ring = {90, 180, 255, 255},
@@ -213,12 +274,16 @@ int main() {
             .on_surface_muted = {200, 200, 200, 255},
             .outline = {255, 255, 255, 255},
             .accent = {255, 196, 0, 255},
-            .colors.on_accent = {32, 32, 32, 255},
+            .on_accent = {32, 32, 32, 255},
             .danger = {255, 72, 72, 255},
             .on_danger = {0, 0, 0, 255},
             .focus_ring = {255, 196, 0, 255},
         }},
     };
+
+    if (!style_sheet_selftest()) {
+        std::fprintf(stderr, "StyleSheet selftest failed; rule priority may be incorrect.\n");
+    }
 
     auto apply_demo_theme = [&](int index) {
         const int count = static_cast<int>(sizeof(themes) / sizeof(themes[0]));
@@ -233,10 +298,10 @@ int main() {
         btn_roles.has_bg_hover = true;
         btn_roles.has_bg_pressed = true;
         btn_roles.has_border_color = true;
-        btn_roles.colors.bg_color = StyleRole::SurfaceVariant;
-        btn_roles.colors.bg_hover = StyleRole::SurfaceHover;
-        btn_roles.colors.bg_pressed = StyleRole::AccentPressed;
-        btn_roles.colors.border_color = StyleRole::Accent;
+        btn_roles.bg_color = StyleRole::SurfaceVariant;
+        btn_roles.bg_hover = StyleRole::SurfaceHover;
+        btn_roles.bg_pressed = StyleRole::AccentPressed;
+        btn_roles.border_color = StyleRole::Accent;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
 
         StyleRolePatch btn_secondary_roles{};
@@ -245,23 +310,23 @@ int main() {
         btn_secondary_roles.has_bg_pressed = true;
         btn_secondary_roles.has_border_color = true;
         btn_secondary_roles.has_font_color = true;
-        btn_secondary_roles.colors.bg_color = StyleRole::Surface;
-        btn_secondary_roles.colors.bg_hover = StyleRole::SurfaceHover;
-        btn_secondary_roles.colors.bg_pressed = StyleRole::SurfacePressed;
-        btn_secondary_roles.colors.border_color = StyleRole::Outline;
-        btn_secondary_roles.colors.font_color = StyleRole::OnSurface;
+        btn_secondary_roles.bg_color = StyleRole::Surface;
+        btn_secondary_roles.bg_hover = StyleRole::SurfaceHover;
+        btn_secondary_roles.bg_pressed = StyleRole::SurfacePressed;
+        btn_secondary_roles.border_color = StyleRole::Outline;
+        btn_secondary_roles.font_color = StyleRole::OnSurface;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0, kVariantSecondary}, btn_secondary_roles);
 
         StyleRolePatch list_hover{};
         list_hover.has_bg_color = true;
-        list_hover.colors.bg_color = StyleRole::SurfaceVariant;
+        list_hover.bg_color = StyleRole::SurfaceVariant;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_hover()}, list_hover);
 
         StyleRolePatch list_pressed{};
         list_pressed.has_bg_color = true;
         list_pressed.has_font_color = true;
-        list_pressed.colors.bg_color = StyleRole::AccentPressed;
-        list_pressed.colors.font_color = StyleRole::OnAccent;
+        list_pressed.bg_color = StyleRole::AccentPressed;
+        list_pressed.font_color = StyleRole::OnAccent;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_pressed()}, list_pressed);
 
         if (auto* lbl = factory.get_label(title)) {

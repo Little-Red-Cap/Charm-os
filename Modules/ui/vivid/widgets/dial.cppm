@@ -35,7 +35,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<Dial>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Dial, state, base, st_scratch);
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);

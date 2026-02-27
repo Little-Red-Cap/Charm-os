@@ -33,7 +33,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<ListItem>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ListItem, state, base, st_scratch);
         const auto r = get_rect();
 
@@ -84,7 +84,7 @@ private:
     }
 
     void update_size() {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
@@ -106,7 +106,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<List>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::List, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{};

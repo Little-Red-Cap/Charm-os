@@ -1,21 +1,29 @@
 module;
-#include <cmath>
 #include <utility>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#ifndef CHARM_ENABLE_FLOAT_ARC
+#define CHARM_ENABLE_FLOAT_ARC 1
+#endif
 export module charm.gfx.render;
 export import charm.gfx.pixel_format;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
 import charm.gfx.pixel_ops;
+#if CHARM_ENABLE_FLOAT_ARC
 import alg_arc;
+#endif
 import alg_circle;
 import alg_round_rect;
 import charm.core.style;
 
 namespace ui::render {
+
+inline constexpr int abs_int(int v) noexcept {
+    return (v < 0) ? -v : v;
+}
 
 export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const Style& st, bool focused, int inset = 0, int radius = -1) noexcept {
     if (!focused) return;
@@ -38,7 +46,7 @@ export inline void draw_line(CanvasBase& cvs,
                              int x0, int y0,
                              int x1, int y1,
                              const rgba& color) noexcept {
-    const bool steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
+    const bool steep = (abs_int(y1 - y0) > abs_int(x1 - x0));
     if (steep) {
         std::swap(x0, y0);
         std::swap(x1, y1);
@@ -48,7 +56,7 @@ export inline void draw_line(CanvasBase& cvs,
         std::swap(y0, y1);
     }
     const int dx = x1 - x0;
-    const int dy = std::abs(y1 - y0);
+    const int dy = abs_int(y1 - y0);
     int err = dx / 2;
     const int ystep = (y0 < y1) ? 1 : -1;
     int y = y0;
@@ -104,6 +112,7 @@ export inline void draw_arc(CanvasBase& cvs,
                             float start_deg,
                             float end_deg,
                             const rgba& color) noexcept {
+#if CHARM_ENABLE_FLOAT_ARC
     if (radius <= 0 || thickness <= 0) return;
     if (end_deg < start_deg) {
         std::swap(start_deg, end_deg);
@@ -120,6 +129,16 @@ export inline void draw_arc(CanvasBase& cvs,
         const auto p1 = alg::arc::point_on_circle_rad(cx, cy, r_outer, rad);
         draw_line(cvs, p0.x, p0.y, p1.x, p1.y, color);
     });
+#else
+    (void)cvs;
+    (void)cx;
+    (void)cy;
+    (void)radius;
+    (void)thickness;
+    (void)start_deg;
+    (void)end_deg;
+    (void)color;
+#endif
 }
 
 // Bresenham line.
@@ -129,7 +148,7 @@ void draw_line(Canvas<PF, W, H>& cvs,
                int x1, int y1,
                const rgba& color) noexcept
 {
-    const bool steep = (std::abs(y1 - y0) > std::abs(x1 - x0));
+    const bool steep = (abs_int(y1 - y0) > abs_int(x1 - x0));
     if (steep) {
         std::swap(x0, y0);
         std::swap(x1, y1);
@@ -139,7 +158,7 @@ void draw_line(Canvas<PF, W, H>& cvs,
         std::swap(y0, y1);
     }
     const int dx = x1 - x0;
-    const int dy = std::abs(y1 - y0);
+    const int dy = abs_int(y1 - y0);
     int err = dx / 2;
     const int y_step = (y0 < y1) ? 1 : -1;
     int y = y0;
@@ -201,6 +220,7 @@ void draw_arc(Canvas<PF, W, H>& cvs,
               float end_deg,
               const rgba& color) noexcept
 {
+#if CHARM_ENABLE_FLOAT_ARC
     if (radius <= 0 || thickness <= 0) return;
     if (end_deg < start_deg) {
         std::swap(start_deg, end_deg);
@@ -217,6 +237,16 @@ void draw_arc(Canvas<PF, W, H>& cvs,
         const auto p1 = alg::arc::point_on_circle_rad(cx, cy, r_outer, rad);
         draw_line(cvs, p0.x, p0.y, p1.x, p1.y, color);
     });
+#else
+    (void)cvs;
+    (void)cx;
+    (void)cy;
+    (void)radius;
+    (void)thickness;
+    (void)start_deg;
+    (void)end_deg;
+    (void)color;
+#endif
 }
 
 export template<PixelFormat PF, std::size_t W, std::size_t H>

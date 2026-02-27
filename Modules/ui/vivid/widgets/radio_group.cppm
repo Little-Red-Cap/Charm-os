@@ -7,6 +7,7 @@ import charm.gfx.render;
 import charm.widgets.radio;
 
 // Simple mutual-exclusion group. Use resolver to avoid factory dependency.
+// Logic-only: no style/visual rendering.
 export
 class RadioGroup : public WidgetBase<RadioGroup> {
 public:

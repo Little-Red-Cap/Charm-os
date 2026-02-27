@@ -42,7 +42,7 @@ public:
         if (!is_visible()) return;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<ModalDialog>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         rgba bg{}, border{}, font{};
@@ -69,7 +69,7 @@ public:
         if (!is_visible()) return false;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<ModalDialog>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         const bool inside_panel = layout.panel.contains(e.x, e.y);
@@ -168,7 +168,7 @@ private:
                      const char* label, bool hot, bool pressed) noexcept {
         const StyleState state = make_style_state(is_enabled(), hot, pressed, false, style_variant());
         const Style& base = Theme::instance().get<Button>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         rgba bg{}, border{}, font{};
         resolve_colors(st, state, bg, border, font);

@@ -315,7 +315,8 @@ public:
         patch.apply_to(style_slot<Widget>::value);
     }
 
-    void set_tokens_raw(const ThemeTokens& t) noexcept {
+    // Raw setter; prefer apply_theme_tokens (tokens + style slots).
+    void set_tokens_unsafe(const ThemeTokens& t) noexcept {
         ThemeTokens next = t;
         next.version = tokens().version + 1;
         tokens() = next;

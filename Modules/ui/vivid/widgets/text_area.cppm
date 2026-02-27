@@ -39,7 +39,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<TextArea>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::TextArea, state, base, st_scratch);
         const auto r = get_rect();
 
@@ -237,7 +237,7 @@ private:
     }
 
     void ensure_caret_visible() {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto fnt = resolve_font(st);
         const int line_h = fnt.line_height;

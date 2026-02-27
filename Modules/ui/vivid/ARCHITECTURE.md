@@ -183,6 +183,7 @@ flowchart TB
 - 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
 - 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
+- StyleSheet 规则优先级为确定性模型：kind specificity > variant specificity > state mask 位数（更多位更具体），同级按插入顺序稳定排序。
 
 ## 7. 诊断与可观测性
 

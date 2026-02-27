@@ -95,7 +95,7 @@ public:
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ScrollContainer, state, base, st_scratch);
         resolve_colors(st, state, bg, border, font);
 

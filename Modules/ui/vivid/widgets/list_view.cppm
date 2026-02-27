@@ -193,7 +193,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<ListView>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ListView, state, base, st_scratch);
         const auto r = get_rect();
 
@@ -279,7 +279,7 @@ public:
     }
 
     void update_visible_window() noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         update_scroll_bounds();
@@ -476,7 +476,7 @@ private:
     }
 
     Rect row_rect_for_index(int index) const noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int pad = st.metrics.padding;
@@ -496,7 +496,7 @@ private:
     }
 
     Rect row_range_rect(int start, int end) const noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         if (start < 0) start = 0;
@@ -527,7 +527,7 @@ private:
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const int count = item_count_for_render();
         if (row_height_fn_) {
@@ -551,7 +551,7 @@ private:
 
     void ensure_visible(int index) noexcept {
         if (index < 0) return;
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int pad = st.metrics.padding;
@@ -575,7 +575,7 @@ private:
     }
 
     int index_from_y(int y) const noexcept {
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_ - st.metrics.padding;

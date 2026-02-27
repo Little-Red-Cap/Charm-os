@@ -40,7 +40,7 @@ public:
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<FoldablePanel>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::FoldablePanel, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -123,7 +123,7 @@ public:
         if (!expanded_) {
             return {r.x, r.y + header_h, r.w, 0};
         }
-        Style st_scratch{};
+        Style st_scratch;
         const auto& st = resolve_style_for_state(st_scratch);
         Rect inner{r.x + st.metrics.content_padding, r.y + header_h + st.metrics.content_padding - scroll_y_,
                    r.w - st.metrics.content_padding * 2, r.h - header_h - st.metrics.content_padding * 2};
@@ -188,7 +188,7 @@ private:
     Rect content_rect() const noexcept {
         const auto r = get_rect();
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
-        Style st_scratch{};
+        Style st_scratch;
         const auto& st = resolve_style_for_state(st_scratch);
         Rect inner{r.x + st.metrics.content_padding, r.y + header_h + st.metrics.content_padding,
                    r.w - st.metrics.content_padding * 2, r.h - header_h - st.metrics.content_padding * 2};

@@ -127,7 +127,7 @@ public:
         if (!image_) return;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<SpinZoomWidget>();
-        Style st_scratch{};
+        Style st_scratch;
         const Style& st = resolve_style(WidgetKind::SpinZoomWidget, state, base, st_scratch);
         const auto r = get_rect();
         rgba bg{}, border{}, font{};

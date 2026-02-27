@@ -10,8 +10,8 @@ export
 class Layout {
 public:
     virtual ~Layout() = default;
-    // 根据容器的尺寸和子节点的固有/优先尺寸�?
-    // 计算并设置每个子节点�?x,y,width,height
+    // Use container size and child preferred size to compute layout.
+    // Set each child x/y/width/height after layout.
     virtual void apply(UiFactory& factory, ObjectBase& container) = 0;
 };
 
@@ -19,7 +19,7 @@ export
 class AbsoluteLayout : public Layout {
 public:
     void apply(UiFactory&, ObjectBase&) override {
-        // 不做任何改动，所有子对象保持自身 x,y
+        // No change; keep each child x,y as-is.
     }
 };
 

@@ -22,7 +22,7 @@ export namespace input {
         Type type{Type::Key};
         Key  key{Key::Up};
         bool pressed{false};      // true = down, false = up
-        std::uint32_t ms{0};      // 时间戳（由后端填）
+        std::uint32_t ms{0};      // Timestamp (filled by backend).
     };
 
 } // namespace input

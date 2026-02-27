@@ -13,7 +13,7 @@ export namespace out {
 
     enum class level : std::uint8_t { off, error, warn, info, debug, trace };
 
-    // 编译期日志级别：✅ 唯一允许的宏用途：选择编译期常量（不参与逻辑）完全零开销的日志过滤
+    // Build-time log level: compile-time constant, no runtime cost.
     inline constexpr level build_level =
     #if defined(LOG_LEVEL_TRACE)
       level::trace;
@@ -29,20 +29,20 @@ export namespace out {
                           level::off;
 #endif
 
-    // 域/标签：用于编译期过滤不同模块的日志，先做轻量版（只做编译期筛选的“类型标签”）
+    // Domain tag: compile-time filter per module (type tag only).
     struct default_domain {};
 
     // template <class T>
     // struct domain_t { using type = T; };
 
-    // 域过滤器：编译期启用/禁用特定域
+    // Domain filter: compile-time enable/disable.
     template <class Domain>
     inline constexpr bool domain_enabled = true;
 
-    // 用法示例：
+    // Usage example:
     // template <> inline constexpr bool domain_enabled<my_module> = false;
 
-    // 可选域名：为空时不输出
+    // Optional domain name: empty means no prefix.
     template <class Domain>
     inline constexpr std::string_view domain_name{};
 

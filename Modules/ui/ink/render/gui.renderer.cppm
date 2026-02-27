@@ -27,7 +27,7 @@ export namespace gui
 
         void set_invert(bool on) noexcept { invert_ = on; }
 
-        // 对外提供 setPixel，给 widgets 等复用层使用
+        // Provide setPixel for widgets and reuse layers.
         void setPixel(int x, int y, bool on = true) noexcept
         {
             if (clip_enabled_) {
@@ -57,7 +57,7 @@ export namespace gui
             }
         }
 
-        // 5x7 字体：字宽 6（含1列间距），字高 8（含1行间距）
+        // 5x7 font: width 6 (1 column gap), height 8 (1 row gap).
         void drawText(int x, int y, const char* s, bool on = true) noexcept
         {
             int cx = x;

@@ -273,7 +273,7 @@ export namespace gui::ui {
         HighlightFn highlight_fn
     ) noexcept
     {
-        // Grid/Free 请走专用 helper，不要扩展 list pipeline。
+        // Grid/Free: use the dedicated helper; do not extend the list pipeline.
 #ifndef NDEBUG
         assert(ctx.sem != nullptr);
         assert(spec.item_count >= 0);

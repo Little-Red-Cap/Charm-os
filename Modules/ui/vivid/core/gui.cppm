@@ -89,7 +89,7 @@ public:
         dump_trace();
     }
 
-    // 渲染一�?
+    // Render one frame.
     void render() {
         static util::u32 frame_no = 0;
         canvas.begin_frame();
@@ -114,7 +114,7 @@ public:
         canvas.end_frame();
     }
 
-    // 派发一个输入事件（全局坐标�?
+    // Dispatch an input event (global coordinates).
     void dispatch_event(const Event& e) {
         #if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {

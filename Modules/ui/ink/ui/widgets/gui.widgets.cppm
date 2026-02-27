@@ -843,13 +843,13 @@ export namespace gui
             r.drawText(*th.font_default, rc.x + th.pad_xs, base, label ? label : "", true);
         }
 
-        // 进度条区�?
+        // Progress bar area.
         const int barX = rc.x + 54;
         const int barY = rc.y + (rc.h - 9) / 2;
         const int barW = rc.w - 58;
         const int barH = 9;
 
-        // 边框与文本一致：使用 !focused，使反色/非反色都清晰
+        // Keep border/text consistent: use !focused so both inverted and normal are clear.
         r.drawRect(Rect{(int16_t)barX, (int16_t)barY, (int16_t)barW, (int16_t)barH}, true);
 
 

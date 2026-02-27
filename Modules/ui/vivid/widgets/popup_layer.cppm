@@ -9,7 +9,7 @@ import charm.gfx.render;
 
 using namespace ui::render;
 
-// 简易弹层容器：只负责画背景和裁剪，真正内容由子控件承担
+// Simple popup layer: draws background and clip; children draw content.
 export
 class PopupLayer : public ObjectBase {
 public:

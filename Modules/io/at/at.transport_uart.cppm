@@ -3,16 +3,16 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 
 export module at.transport_uart;
 
 import util.core;
+import at.parser;
 import at.session;
 
 export namespace at {
-    using RxFn = util::usize (*)(void* ctx, std::span<util::u8> buf) noexcept;
-    using TxFn = bool (*)(void* ctx, std::span<const util::u8> buf) noexcept;
+    using RxFn = util::usize (*)(void* ctx, MutByteView buf) noexcept;
+    using TxFn = bool (*)(void* ctx, ByteView buf) noexcept;
 
     template <util::usize MaxQueue, util::usize LineCap, util::usize RxBufSize>
     class UartBridge {
@@ -30,14 +30,14 @@ export namespace at {
 
         void poll() noexcept {
             if (!rx_) return;
-            auto n = rx_(io_ctx_, std::span<util::u8>(rx_buf_.data(), rx_buf_.size()));
+            auto n = rx_(io_ctx_, MutByteView{rx_buf_.data(), rx_buf_.size()});
             if (n > 0) {
-                session_->feed(std::span<const util::u8>(rx_buf_.data(), n));
+                session_->feed(ByteView{rx_buf_.data(), n});
             }
         }
 
     private:
-        static bool send_trampoline(void* ctx, std::span<const util::u8> data) noexcept {
+        static bool send_trampoline(void* ctx, ByteView data) noexcept {
             auto* self = static_cast<UartBridge*>(ctx);
             if (!self || !self->tx_) return false;
             return self->tx_(self->io_ctx_, data);

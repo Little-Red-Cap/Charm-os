@@ -21,25 +21,23 @@ export namespace kernel {
         explicit SyncUnified(Scheduler& scheduler) : scheduler_(&scheduler) { }
 
         [[nodiscard]] bool wait(TaskId task, WaitToken token) noexcept {
-            return waiters_.add(task, token);
+            return waiters_.add(task, token, EventToken{0});
         }
 
         [[nodiscard]] bool wait_timeout(TaskId task, WaitToken token, EventToken timeout_token) noexcept {
-            if (!waiters_.add(task, token)) {
-                return false;
-            }
-            timeout_tokens_[token_slot_++] = {token, timeout_token};
-            token_slot_ %= MaxWaiters;
-            return true;
+            return waiters_.add(task, token, timeout_token);
         }
 
         [[nodiscard]] bool notify_one(WaitResult result = WaitResult::ok) noexcept {
             TaskId task{};
             WaitToken token{};
-            if (!waiters_.pop(task, token)) {
+            EventToken timeout{};
+            if (!waiters_.pop(task, token, timeout)) {
                 return false;
             }
-            cancel_timeout(token);
+            if (timeout.value != 0) {
+                (void)scheduler_->cancel_event(timeout);
+            }
             return scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
         }
 
@@ -47,8 +45,11 @@ export namespace kernel {
             bool any = false;
             TaskId task{};
             WaitToken token{};
-            while (waiters_.pop(task, token)) {
-                cancel_timeout(token);
+            EventToken timeout{};
+            while (waiters_.pop(task, token, timeout)) {
+                if (timeout.value != 0) {
+                    (void)scheduler_->cancel_event(timeout);
+                }
                 (void)scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
                 any = true;
             }
@@ -57,40 +58,27 @@ export namespace kernel {
 
         [[nodiscard]] bool cancel(WaitToken token) noexcept {
             TaskId task{};
-            if (!waiters_.erase(token, task)) {
+            EventToken timeout{};
+            if (!waiters_.erase(token, task, timeout)) {
                 return false;
             }
-            cancel_timeout(token);
+            if (timeout.value != 0) {
+                (void)scheduler_->cancel_event(timeout);
+            }
             return scheduler_->post(task, make_event(EventId::sync, util::u32(WaitResult::canceled)));
         }
 
         [[nodiscard]] bool on_timeout(WaitToken token) noexcept {
             TaskId task{};
-            if (!waiters_.erase(token, task)) {
+            EventToken timeout{};
+            if (!waiters_.erase(token, task, timeout)) {
                 return false;
             }
             return scheduler_->post(task, make_event(EventId::sync, util::u32(WaitResult::timeout)));
         }
 
     private:
-        struct TimeoutEntry {
-            WaitToken token{};
-            EventToken timeout{};
-        };
-
-        void cancel_timeout(WaitToken token) noexcept {
-            for (auto& entry : timeout_tokens_) {
-                if (entry.token.value == token.value && entry.timeout.value != 0) {
-                    (void)scheduler_->cancel_event(entry.timeout);
-                    entry.timeout = EventToken{0};
-                    return;
-                }
-            }
-        }
-
         Scheduler* scheduler_{nullptr};
         WaitSet<MaxWaiters> waiters_{};
-        std::array<TimeoutEntry, MaxWaiters> timeout_tokens_{};
-        util::usize token_slot_{0};
     };
 }

@@ -8,6 +8,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 import charm.core.string;
 import alg_scroll_bounds;
@@ -36,15 +37,15 @@ public:
     bool is_readonly() const noexcept { return readonly_; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TextArea>();
+        Style st = Theme::instance().get<TextArea>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::TextArea, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -65,9 +66,11 @@ public:
             int caret_x = inner.x + caret_w;
             int caret_y1 = inner.y + cursor_row() * line_h - scroll_y_px_;
             int caret_y2 = caret_y1 + line_h;
-            caret_x = std::min(inner.x + inner.w - 2, std::max(inner.x + 1, caret_x));
+            const int min_x = static_cast<int>(inner.x + 1);
+            const int max_x = static_cast<int>(inner.x + inner.w - 2);
+            caret_x = std::min(max_x, std::max(min_x, caret_x));
             draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.border_focus);
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
+            draw_focus_ring(cvs, r, st, true);
         }
         cvs.restore_clip(clip_state);
     }
@@ -238,3 +241,5 @@ private:
         scroll_y_px_ = alg::scroll_bounds::clamp(scroll_y_px_, max_scroll);
     }
 };
+
+

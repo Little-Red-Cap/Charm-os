@@ -1,5 +1,8 @@
 module;
-#include <cstdio>
+#include <cstring>
+#include <expected>
+#include <string_view>
+#include <utility>
 export module charm.widgets.perf_overlay;
 
 import charm.core.object;
@@ -9,8 +12,41 @@ import charm.gfx.render;
 import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;
+import charm.core.style_sheet;
+import out.core;
+import out.format;
+import out.sink;
 
 using namespace ui::render;
+
+namespace {
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    template <out::fixed_string Fmt, class... Args>
+    inline std::string_view format_to(char* buf, std::size_t size, Args&&... args) noexcept {
+        if (!buf || size == 0) return {};
+        trunc_sink sink{buf, size - 1u, 0u};
+        (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
+        buf[sink.pos] = '\0';
+        return {buf, sink.pos};
+    }
+}
 
 export
 class PerfOverlay : public ObjectBase {
@@ -40,15 +76,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<PerfOverlay>();
+        Style st = Theme::instance().get<PerfOverlay>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::PerfOverlay, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         for (int i = 0; i < st.border_width; ++i) {
@@ -62,21 +98,21 @@ public:
 
         char buf[96]{};
         if (!has_sample_) {
-            std::snprintf(buf, sizeof(buf), "perf: n/a");
+            (void)format_to<"perf: n/a">(buf, sizeof(buf));
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             return;
         }
 
-        std::snprintf(buf, sizeof(buf), "fps: %d  draw: %d ms", sample_.fps, sample_.draw_ms);
+        (void)format_to<"fps: {}  draw: {} ms">(buf, sizeof(buf), sample_.fps, sample_.draw_ms);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
-        std::snprintf(buf, sizeof(buf), "dirty: %d  area: %d", sample_.dirty_count, sample_.dirty_area);
+        (void)format_to<"dirty: {}  area: {}">(buf, sizeof(buf), sample_.dirty_count, sample_.dirty_area);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
-        std::snprintf(buf, sizeof(buf), "nodes: %d  depth: %d  cycle: %d",
-                      sample_.nodes, sample_.depth_hits, sample_.cycle_hits);
+        (void)format_to<"nodes: {}  depth: {}  cycle: {}">(buf, sizeof(buf),
+                                                         sample_.nodes, sample_.depth_hits, sample_.cycle_hits);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
     }
 
@@ -84,3 +120,5 @@ private:
     Sample sample_{};
     bool has_sample_{false};
 };
+
+

@@ -1,16 +1,91 @@
 module;
 #include <cstddef>
-#include <cstdio>
+#include <cstring>
+#include <expected>
+#include <string_view>
 export module charm.widgets.progress_bar_round;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
+import out.core;
+import out.format;
+import out.sink;
 import alg_arc;
 
 using namespace ui::render;
+
+namespace {
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
+        (void)out::write(sink, sv);
+    }
+
+    inline void append_int(trunc_sink& sink, int value) noexcept {
+        (void)out::vprint<"{}">(sink, value);
+    }
+
+    inline void append_uint(trunc_sink& sink, unsigned value) noexcept {
+        (void)out::vprint<"{}">(sink, value);
+    }
+
+    inline std::string_view format_value(char* buf, std::size_t size,
+                                         const char* fmt, int value) noexcept {
+        if (!buf || size == 0) return {};
+        if (!fmt || !*fmt) fmt = "%d";
+        trunc_sink sink{buf, size - 1u, 0u};
+        bool used = false;
+        for (const char* p = fmt; *p; ) {
+            if (*p != '%') {
+                append_sv(sink, std::string_view{p, 1});
+                ++p;
+                continue;
+            }
+            ++p;
+            if (*p == '%') {
+                append_sv(sink, std::string_view{"%", 1});
+                ++p;
+                continue;
+            }
+            while (*p == 'l') ++p;
+            const char spec = *p ? *p++ : 0;
+            if (used) {
+                append_sv(sink, std::string_view{"?", 1});
+                continue;
+            }
+            if (spec == 'd' || spec == 'i') {
+                append_int(sink, value);
+            } else if (spec == 'u') {
+                append_uint(sink, static_cast<unsigned>(value));
+            } else {
+                append_sv(sink, std::string_view{"?", 1});
+            }
+            used = true;
+        }
+        buf[sink.pos] = '\0';
+        return {buf, sink.pos};
+    }
+}
 
 // Round progress bar (ARM-2D progress_bar_round inspired)
 export
@@ -35,12 +110,12 @@ public:
     void set_value_format(const char* fmt) noexcept { value_format_ = (fmt && *fmt) ? fmt : "%d"; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ProgressBarRound>();
+        Style st = Theme::instance().get<ProgressBarRound>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::ProgressBarRound, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -73,7 +148,7 @@ public:
 
         if (show_value_) {
             char buf[16]{};
-            std::snprintf(buf, sizeof(buf), value_format_, value_);
+            (void)format_value(buf, sizeof(buf), value_format_, value_);
             draw_text_box(cvs, r, buf, font, resolve_font(st),
                           TextAlignH::Center, TextAlignV::Center,
                           TextWrap::None, TextEllipsis::None);
@@ -90,3 +165,5 @@ private:
     rgba fill_color_{0, 0, 0, 0};
     rgba track_color_{0, 0, 0, 0};
 };
+
+

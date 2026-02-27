@@ -256,7 +256,7 @@ constexpr bool validate_font(const Font& f) {
     return true;
 }
 
-static_assert(validate_font(font_12));
+static_assert(validate_font(font_noto_ascii_12));
 ```
 
 ---

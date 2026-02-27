@@ -7,12 +7,14 @@ export module charm.widgets.rich_text;
 import charm.core.object;
 import charm.core.string;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.canvas;
 import charm.gfx.color;
 import charm.widgets.text;
 import charm.font;
 import charm.font.typography;
 import alg_text_layout;
+import alg_text_parse;
 
 namespace {
     struct RunState {
@@ -21,32 +23,6 @@ namespace {
         bool bold{false};
         bool mono{false};
     };
-
-    bool parse_hex(const char* p, std::uint8_t& out) noexcept {
-        auto hex = [](char c) -> int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-            if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-            return -1;
-        };
-        const int hi = hex(p[0]);
-        const int lo = hex(p[1]);
-        if (hi < 0 || lo < 0) return false;
-        out = static_cast<std::uint8_t>((hi << 4) | lo);
-        return true;
-    }
-
-    bool parse_color(const char* tag, rgba& color) noexcept {
-        const char* p = tag;
-        if (p[0] == '#') ++p;
-        if (!p[0] || !p[1] || !p[2] || !p[3] || !p[4] || !p[5]) return false;
-        std::uint8_t r{}, g{}, b{};
-        if (!parse_hex(p, r)) return false;
-        if (!parse_hex(p + 2, g)) return false;
-        if (!parse_hex(p + 4, b)) return false;
-        color = {r, g, b, 255};
-        return true;
-    }
 
 }
 
@@ -61,8 +37,12 @@ public:
     void set_text(const char* text) { text_.assign(text ? text : ""); }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<RichText>();
+        Style st = Theme::instance().get<RichText>();
         const auto r = get_rect();
+        rgba bg{}, border{}, font_color{};
+        const StyleState st_state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::RichText, st_state, st);
+        resolve_colors(st, st_state, bg, border, font_color);
         const Font& normal = resolve_font(st);
         const Font& mono = get_font(FontId::Mono);
         const int line_height = (normal.line_height > mono.line_height) ? normal.line_height : mono.line_height;
@@ -73,11 +53,12 @@ public:
 
         RunState state{};
         state.font = &normal;
-        state.color = st.font_color;
+        state.color = font_color;
         state.bold = false;
         state.mono = false;
 
         std::uint16_t prev_gid = 0;
+        const Font* prev_font = nullptr;
         const char* p = text_.c_str();
         const char* end = p + text_.size();
         while (p < end) {
@@ -91,25 +72,43 @@ public:
                         char tag[32]{};
                         for (std::size_t i = 0; i < len; ++i) tag[i] = tag_start[i];
                         tag[len] = '\0';
-                        if (tag[0] == '/') {
-                            if (std::strcmp(tag + 1, "b") == 0) state.bold = false;
-                            else if (std::strcmp(tag + 1, "color") == 0) state.color = st.font_color;
-                            else if (std::strcmp(tag + 1, "mono") == 0 || std::strcmp(tag + 1, "code") == 0) {
+                        alg::text_parse::Tag parsed{};
+                        if (alg::text_parse::parse_tag(tag, parsed)) {
+                            switch (parsed.kind) {
+                            case alg::text_parse::TagKind::BoldOn:
+                                state.bold = true;
+                                break;
+                            case alg::text_parse::TagKind::BoldOff:
+                                state.bold = false;
+                                break;
+                            case alg::text_parse::TagKind::MonoOn:
+                                state.mono = true;
+                                state.font = &mono;
+                                prev_gid = 0;
+                                prev_font = nullptr;
+                                break;
+                            case alg::text_parse::TagKind::MonoOff:
                                 state.mono = false;
                                 state.font = &normal;
+                                prev_gid = 0;
+                                prev_font = nullptr;
+                                break;
+                            case alg::text_parse::TagKind::Color:
+                                if (parsed.reset_color) {
+                                    state.color = font_color;
+                                } else {
+                                    state.color = parsed.color;
+                                }
+                                break;
+                            case alg::text_parse::TagKind::LineBreak:
+                                x = r.x + st.padding;
+                                y += line_height;
+                                prev_gid = 0;
+                                prev_font = nullptr;
+                                break;
+                            default:
+                                break;
                             }
-                        } else if (std::strcmp(tag, "b") == 0) {
-                            state.bold = true;
-                        } else if (std::strncmp(tag, "color=", 6) == 0) {
-                            rgba c{};
-                            if (parse_color(tag + 6, c)) state.color = c;
-                        } else if (std::strcmp(tag, "mono") == 0 || std::strcmp(tag, "code") == 0) {
-                            state.mono = true;
-                            state.font = &mono;
-                        } else if (std::strcmp(tag, "br") == 0) {
-                            x = r.x + st.padding;
-                            y += line_height;
-                            prev_gid = 0;
                         }
                     }
                     p = tag_end + 1;
@@ -123,16 +122,18 @@ public:
                 x = r.x + st.padding;
                 y += line_height;
                 prev_gid = 0;
+                prev_font = nullptr;
                 continue;
             }
             if (y + line_height > r.y + r.h) break;
 
             const Font& font = *state.font;
-            const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid);
+            const int adv = alg::text_layout::glyph_advance(font, cp, prev_gid, prev_font);
             if (alg::text_layout::should_wrap(x, adv, r.x + r.w - st.padding)) {
                 x = r.x + st.padding;
                 y += line_height;
                 prev_gid = 0;
+                prev_font = nullptr;
                 if (y + line_height > r.y + r.h) break;
             }
 

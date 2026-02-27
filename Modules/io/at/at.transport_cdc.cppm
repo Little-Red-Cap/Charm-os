@@ -10,6 +10,7 @@ export module at.transport_cdc;
 
 import util.core;
 import service_ring_buffer;
+import at.parser;
 import at.session;
 import usb.common;
 import usb.class_cdc;
@@ -33,11 +34,11 @@ export namespace at {
         }
 
     private:
-        static bool send_trampoline(void* ctx, std::span<const util::u8> data) noexcept {
+        static bool send_trampoline(void* ctx, ByteView data) noexcept {
             auto* self = static_cast<CdcBridge*>(ctx);
             if (!self) return false;
-            for (util::usize i = 0; i < data.size(); ++i) {
-                if (!self->tx_.push(data[i])) return false;
+            for (util::usize i = 0; i < data.size; ++i) {
+                if (!self->tx_.push(data.data[i])) return false;
             }
             return true;
         }
@@ -45,8 +46,9 @@ export namespace at {
         static bool on_out_trampoline(void* ctx, std::span<const usb::u8> data) noexcept {
             auto* self = static_cast<CdcBridge*>(ctx);
             if (!self) return false;
-            self->session_->feed(std::span<const util::u8>(
-                reinterpret_cast<const util::u8*>(data.data()), data.size()));
+            self->session_->feed(ByteView{
+                reinterpret_cast<const util::u8*>(data.data()),
+                static_cast<util::usize>(data.size())});
             return true;
         }
 

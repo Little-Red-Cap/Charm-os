@@ -5,6 +5,7 @@ export module charm.widgets.spinning_wheel;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import alg_arc;
@@ -25,13 +26,18 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<SpinningWheel>();
+        Style st = Theme::instance().get<SpinningWheel>();
         const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::SpinningWheel, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         const int radius = (radius_ > 0) ? radius_ : (r.w < r.h ? r.w : r.h) / 2 - thickness_;
-        const rgba col = color_.a ? color_ : st.font_color;
+        const rgba col = color_.a ? color_ : accent;
 
         phase_ += speed_;
         if (phase_ > 360.0f) phase_ -= 360.0f;

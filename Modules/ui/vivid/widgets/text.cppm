@@ -11,8 +11,44 @@ import charm.font;
 import charm.font.typography;
 import alg_text_layout;
 
+#ifndef CHARM_TEXT_PROFILE
+#define CHARM_TEXT_PROFILE 1
+#endif
+
+#if CHARM_TEXT_PROFILE
+inline std::uint64_t g_text_draw_calls = 0;
+inline std::uint64_t g_text_glyphs = 0;
+inline std::uint64_t g_text_pixels = 0;
+#endif
+
+export
+struct TextProfileSample {
+    std::uint64_t draw_calls{0};
+    std::uint64_t glyphs{0};
+    std::uint64_t pixels{0};
+};
+
+export
+inline void text_profile_reset() noexcept {
+#if CHARM_TEXT_PROFILE
+    g_text_draw_calls = 0;
+    g_text_glyphs = 0;
+    g_text_pixels = 0;
+#endif
+}
+
+export
+inline TextProfileSample text_profile_sample() noexcept {
+#if CHARM_TEXT_PROFILE
+    return TextProfileSample{g_text_draw_calls, g_text_glyphs, g_text_pixels};
+#else
+    return TextProfileSample{};
+#endif
+}
+
 inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
     if (alpha == 0) return;
+    if (!cvs.in_clip(x, y)) return;
     if (alpha == 255) {
         cvs.set_pixel(x, y, color);
         return;
@@ -37,13 +73,34 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
         return true;
     }
     if ((c >> 5) == 0x6) {
-        if (p + 1 >= end) return false;
+        if (p + 1 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        if ((c1 & 0xC0) != 0x80) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
         p += 2;
         return true;
     }
     if ((c >> 4) == 0xE) {
-        if (p + 2 >= end) return false;
+        if (p + 2 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x0F) << 12)
             | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
             | (static_cast<std::uint8_t>(p[2]) & 0x3F);
@@ -51,7 +108,19 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
         return true;
     }
     if ((c >> 3) == 0x1E) {
-        if (p + 3 >= end) return false;
+        if (p + 3 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x07) << 18)
             | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
             | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
@@ -113,10 +182,12 @@ void draw_text_baseline_range(CanvasBase& cvs,
                               const rgba& color,
                               const Font& font) noexcept {
     if (!text || len <= 0) return;
-    const int cw = cvs.width();
-    const int ch = cvs.height();
+#if CHARM_TEXT_PROFILE
+    ++g_text_draw_calls;
+#endif
     int cursor_x = x;
     uint16_t prev_gid = 0;
+    const Font* prev_font = nullptr;
     const char* p = text;
     const char* end = text + len;
     while (p < end) {
@@ -124,17 +195,23 @@ void draw_text_baseline_range(CanvasBase& cvs,
         if (!next_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const auto* g = find_glyph(font, cp);
+        const auto resolved = resolve_glyph_fallback(font, cp);
+        const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-        if (prev_gid) {
-            cursor_x += get_glyph_kern(font, prev_gid, gid);
+#if CHARM_TEXT_PROFILE
+        ++g_text_glyphs;
+        g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
+#endif
+        if (prev_gid && prev_font == resolved.font) {
+            cursor_x += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
         }
 
         const int render_x = cursor_x + g->x_offset;
@@ -144,10 +221,9 @@ void draw_text_baseline_range(CanvasBase& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= cw) continue;
+                if (!cvs.in_clip(px, py)) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;
@@ -175,7 +251,8 @@ void draw_text_baseline_range(CanvasBase& cvs,
         }
 
         cursor_x += g->x_advance;
-        prev_gid = gid;
+        prev_gid = resolved.gid;
+        prev_font = resolved.font;
     }
 }
 
@@ -194,10 +271,12 @@ void draw_text_baseline(CanvasBase& cvs,
                         const rgba& color,
                         const Font& font) noexcept {
     if (!text) return;
-    const int cw = cvs.width();
-    const int ch = cvs.height();
+#if CHARM_TEXT_PROFILE
+    ++g_text_draw_calls;
+#endif
     int cursor_x = x;
     uint16_t prev_gid = 0;
+    const Font* prev_font = nullptr;
     const char* p = text;
     const char* end = text + std::strlen(text);
     while (p < end) {
@@ -205,17 +284,23 @@ void draw_text_baseline(CanvasBase& cvs,
         if (!next_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const auto* g = find_glyph(font, cp);
+        const auto resolved = resolve_glyph_fallback(font, cp);
+        const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
             prev_gid = 0;
+            prev_font = nullptr;
             continue;
         }
-        const uint16_t gid = static_cast<uint16_t>(g - font.table.data());
-        if (prev_gid) {
-            cursor_x += get_glyph_kern(font, prev_gid, gid);
+#if CHARM_TEXT_PROFILE
+        ++g_text_glyphs;
+        g_text_pixels += static_cast<std::uint64_t>(g->width) * static_cast<std::uint64_t>(g->height);
+#endif
+        if (prev_gid && prev_font == resolved.font) {
+            cursor_x += get_glyph_kern(*resolved.font, prev_gid, resolved.gid);
         }
 
         const int render_x = cursor_x + g->x_offset;
@@ -225,10 +310,9 @@ void draw_text_baseline(CanvasBase& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= cw) continue;
+                if (!cvs.in_clip(px, py)) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;
@@ -256,7 +340,8 @@ void draw_text_baseline(CanvasBase& cvs,
         }
 
         cursor_x += g->x_advance;
-        prev_gid = gid;
+        prev_gid = resolved.gid;
+        prev_font = resolved.font;
     }
 }
 
@@ -317,7 +402,7 @@ void draw_text_box(CanvasBase& cvs,
                                                     lines.data(), static_cast<int>(lines.size()));
 
     int max_lines = rect.h / line_height;
-    if (max_lines <= 0) return;
+    if (max_lines <= 0) max_lines = 1;
     if (line_count > max_lines) line_count = max_lines;
 
     const auto align_v_mode = (align_v == TextAlignV::Center)

@@ -5,6 +5,7 @@ export module charm.widgets.battery_gasgauge;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import alg_arc;
@@ -49,12 +50,14 @@ public:
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<BatteryGasGauge>();
+        Style st = Theme::instance().get<BatteryGasGauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::BatteryGasGauge, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
+        const rgba on_accent = st.on_accent.a ? st.on_accent : font;
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
 
@@ -84,11 +87,11 @@ public:
         const int fill_h = static_cast<int>(inner_h * ratio);
         if (fill_h <= 0) return;
 
-        const rgba fill = (status_ == Status::Charging) ? st.border_focus : st.bg_pressed;
+        const rgba fill = accent;
         if (mode_ == StyleMode::NixieTube) {
             draw_rect(cvs, inner_x, inner_y + (inner_h - fill_h), inner_w, fill_h, fill, true);
             if (status_ == Status::Charging) {
-                draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, st.font_color);
+                draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, on_accent);
             }
             return;
         }
@@ -110,7 +113,7 @@ public:
         }
 
         if (status_ == Status::Charging) {
-            draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, st.font_color);
+            draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, on_accent);
         }
     }
 
@@ -133,3 +136,5 @@ private:
         draw_line(cvs, cx - 2, mid, cx + 4, bot, col);
     }
 };
+
+

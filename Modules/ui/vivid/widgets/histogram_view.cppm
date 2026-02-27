@@ -4,6 +4,7 @@ export module charm.widgets.histogram_view;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -40,12 +41,13 @@ public:
     void clear_range() noexcept { has_range_ = false; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<HistogramView>();
+        Style st = Theme::instance().get<HistogramView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::HistogramView, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
         if (count_ <= 0) return;
@@ -75,7 +77,7 @@ public:
             if (w < 1) w = 1;
             const int h = inner_h * (values_[i] - min_v) / range;
             if (h <= 0) continue;
-            draw_rect(cvs, x0, bottom - h, w, h, st.bg_pressed, true);
+            draw_rect(cvs, x0, bottom - h, w, h, accent, true);
         }
     }
 
@@ -86,3 +88,5 @@ private:
     int max_v_{0};
     bool has_range_{false};
 };
+
+

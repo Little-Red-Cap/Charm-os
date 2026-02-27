@@ -5,6 +5,7 @@ export module charm.widgets.timeline;
 import charm.core.object;
 import charm.core.string;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
@@ -44,12 +45,13 @@ public:
     void set_row_height(int h) noexcept { row_h_ = (h > 0) ? h : row_h_; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Timeline>();
+        Style st = Theme::instance().get<Timeline>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::Timeline, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
@@ -66,9 +68,9 @@ public:
             const int cy = r.y + padding + i * row_h_ + row_h_ / 2;
             const bool done = i < current_;
             const bool current = i == current_;
-            const rgba fill = current ? st.bg_pressed : (done ? st.bg_hover : st.bg_color);
+            const rgba fill = current ? accent : (done ? border : bg);
             draw_circle(cvs, line_x, cy, radius, fill, true);
-            draw_circle(cvs, line_x, cy, radius, current ? st.border_focus : border, false);
+            draw_circle(cvs, line_x, cy, radius, current ? accent : border, false);
 
             if (items_[i].size() > 0) {
                 const char* text = items_[i].c_str();
@@ -84,3 +86,5 @@ private:
     int row_h_{24};
     StaticString<32> items_[kMaxItems]{};
 };
+
+

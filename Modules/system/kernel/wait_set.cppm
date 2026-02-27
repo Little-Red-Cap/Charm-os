@@ -6,6 +6,7 @@
 export module kernel.wait_set;
 
 import kernel.eda;
+import kernel.event_token;
 import kernel.wait_token;
 import util.core;
 
@@ -18,52 +19,52 @@ export namespace kernel {
         struct Entry {
             TaskId task{};
             WaitToken token{};
+            EventToken timeout{};
         };
 
-        [[nodiscard]] bool add(TaskId task, WaitToken token) noexcept {
+        [[nodiscard]] bool add(TaskId task, WaitToken token, EventToken timeout = EventToken{}) noexcept {
             if (count_ >= Capacity) {
                 return false;
             }
-            entries_[tail_] = {task, token};
+            entries_[tail_] = {task, token, timeout};
             tail_ = (tail_ + 1) % Capacity;
             ++count_;
             return true;
         }
 
-        [[nodiscard]] bool pop(TaskId& task, WaitToken& token) noexcept {
+        [[nodiscard]] bool pop(TaskId& task, WaitToken& token, EventToken& timeout) noexcept {
             if (count_ == 0) {
                 return false;
             }
             const auto entry = entries_[head_];
             task = entry.task;
             token = entry.token;
+            timeout = entry.timeout;
             head_ = (head_ + 1) % Capacity;
             --count_;
             return true;
         }
 
-        [[nodiscard]] bool erase(WaitToken token, TaskId& task) noexcept {
+        [[nodiscard]] bool erase(WaitToken token, TaskId& task, EventToken& timeout) noexcept {
             if (count_ == 0) {
                 return false;
             }
-            std::array<Entry, Capacity> new_entries{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
             bool found = false;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& entry = entries_[idx];
                 if (!found && entry.token.value == token.value) {
                     task = entry.task;
+                    timeout = entry.timeout;
                     found = true;
                 } else {
-                    new_entries[new_count++] = entry;
+                    entries_[(head_ + write) % Capacity] = entry;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
-            entries_ = new_entries;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            count_ = new_count;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return found;
         }
 

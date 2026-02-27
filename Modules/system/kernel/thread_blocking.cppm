@@ -35,10 +35,14 @@ export namespace kernel {
     template <typename Context>
     using ThreadHandler = void (*)(ThreadState<Context>&, Event);
 
-    template <typename Context, ThreadHandler<Context> Handler, Priority Prio>
+    template <typename Context, ThreadHandler<Context> Handler, Priority Prio,
+        EventMask UnblockMask = (event_mask(EventId::sync)
+            | event_mask(EventId::init)
+            | event_mask(EventId::terminate))>
     struct ThreadBlockingTask {
         static constexpr Priority priority{Prio};
         static constexpr EventMask mask{0xFFFF'FFFFu};
+        static constexpr EventMask unblock_mask{UnblockMask};
         Context context{};
         ThreadBlockingControl control{};
         ThreadState<Context> state{};
@@ -54,8 +58,8 @@ export namespace kernel {
         void on_event(Event evt) {
             state.ctx = &context;
             state.control = &control;
-            // sync/init/terminate pass through even when blocked
-            if (control.blocked && evt.id != EventId::sync && evt.id != EventId::init && evt.id != EventId::terminate) {
+            // Allow a configurable subset of events while blocked.
+            if (control.blocked && (event_mask(evt.id) & unblock_mask) == 0) {
                 return;
             }
             Handler(state, evt);

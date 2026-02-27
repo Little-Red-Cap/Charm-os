@@ -4,6 +4,7 @@ export module charm.widgets.cloudy_glass;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -23,12 +24,12 @@ public:
     void set_highlight_pos(int percent) noexcept { highlight_pos_ = percent; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<CloudyGlass>();
+        Style st = Theme::instance().get<CloudyGlass>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::CloudyGlass, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         rgba glass = bg;
         int min_a = st.glass_opacity_min;
@@ -69,3 +70,5 @@ private:
     int shadow_{-1};
     int highlight_pos_{-1};
 };
+
+

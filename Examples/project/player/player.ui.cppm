@@ -11,6 +11,9 @@ import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.gfx.color;
 import charm.gfx.image;
+import charm.font;
+import charm.font.font_noto_ascii_16;
+import charm.font.font_noto_sc_16;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
@@ -358,9 +361,15 @@ export namespace player::ui {
                                false);
     }
 
+    inline const Font& player_default_font() noexcept {
+        return get_font(FontId::Normal);
+    }
+
     inline void apply_player_theme() {
         auto& theme = Theme::instance();
+        theme.set_default_font(player_default_font());
         Style baseline = theme.get<Button>();
+        baseline.font = &player_default_font();
         baseline.border_color = kUiButtonBorder;
         baseline.border_focus = kUiOk;
         baseline.padding = 8;

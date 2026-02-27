@@ -7,6 +7,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import alg_arc;
 
 using namespace ui::render;
@@ -39,15 +40,17 @@ public:
 
     void draw(CanvasBase& cvs) override {
         const auto r = get_rect();
-        const Style& st = Theme::instance().get<Slider>();
+        Style st = Theme::instance().get<Slider>();
 
-        rgba fill{};
-        rgba track{};
-        rgba knob{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       fill, track, knob);
-        const rgba focus = st.border_focus;
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::Slider, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
+        const rgba knob = st.on_accent.a ? st.on_accent : font;
+        const rgba track = border;
 
         const int pad = st.padding;
         const int track_h = (r.h / 6 > 2) ? (r.h / 6) : 2;
@@ -55,16 +58,14 @@ public:
         const int track_x = r.x + pad;
         const int track_w = r.w - pad * 2;
         if (track_w <= 0) {
-            if (has_state(State::Focused)) {
-                draw_rect(cvs, r.x, r.y, r.w, r.h, focus, false);
-            }
+            draw_focus_ring(cvs, r, st, has_state(State::Focused));
             return;
         }
         draw_rect(cvs, track_x, track_y, track_w, track_h, track, true);
 
         const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
         const int fill_w = static_cast<int>(track_w * ratio);
-        draw_rect(cvs, track_x, track_y, fill_w, track_h, fill, true);
+        draw_rect(cvs, track_x, track_y, fill_w, track_h, accent, true);
 
         const int knob_r = (r.h / 2 > 6) ? (r.h / 2) : 6;
         const int knob_x = track_x + fill_w;
@@ -72,9 +73,7 @@ public:
         draw_circle(cvs, knob_x, knob_y, knob_r, knob, true);
         draw_circle(cvs, knob_x, knob_y, knob_r, track, false);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {
@@ -129,3 +128,5 @@ private:
     bool dragging_{false};
     Callback on_change_{};
 };
+
+

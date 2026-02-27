@@ -2,7 +2,7 @@ module;
 #include <cstdint>
 #include <optional>
 
-export module charm.core.input_adapter;
+export module ui.input_adapter;
 
 import charm.core.event;
 import input.raw;

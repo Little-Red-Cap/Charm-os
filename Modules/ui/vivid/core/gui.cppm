@@ -21,6 +21,10 @@ import service_trace;
 import util.core;
 import out.api;
 
+#ifndef CHARM_VIVID_ENABLE_LAYER_CACHE
+#define CHARM_VIVID_ENABLE_LAYER_CACHE 1
+#endif
+
 
 export
 class Gui {
@@ -29,7 +33,6 @@ public:
         : canvas(cvs),
           factory_(factory),
           root_(root),
-          cache_canvas_(cache_fb_),
           router_(factory, root) {}
 
     WidgetHandle focused() const noexcept { return router_.focused(); }
@@ -39,13 +42,23 @@ public:
     bool dragging() const noexcept { return router_.dragging(); }
     void set_dirty_tracking(bool on) noexcept { dirty_tracking_ = on; }
     bool dirty_tracking() const noexcept { return dirty_tracking_; }
-    void set_layer_cache(bool on) noexcept { layer_cache_ = on; cache_valid_ = false; }
+    void set_layer_cache(bool on) noexcept {
+#if CHARM_VIVID_ENABLE_LAYER_CACHE
+        layer_cache_ = on; cache_valid_ = false;
+#else
+        (void)on; layer_cache_ = false;
+#endif
+    }
     bool layer_cache() const noexcept { return layer_cache_; }
     void set_subtree_cache(bool on) noexcept { subtree_cache_ = on; }
     bool subtree_cache() const noexcept { return subtree_cache_; }
     void set_cache_debug(bool on) noexcept { cache_debug_ = on; }
     bool cache_debug() const noexcept { return cache_debug_; }
-    void invalidate_cache() noexcept { cache_valid_ = false; }
+    void invalidate_cache() noexcept {
+#if CHARM_VIVID_ENABLE_LAYER_CACHE
+        cache_valid_ = false;
+#endif
+    }
     int last_frame_nodes() const noexcept { return debug_nodes_; }
     int last_depth_hits() const noexcept { return debug_depth_hits_; }
     int last_cycle_hits() const noexcept { return debug_cycle_hits_; }
@@ -82,6 +95,7 @@ public:
         canvas.begin_frame();
         sanitize_tree_and_trace(frame_no);
 
+#if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {
             if (!cache_valid_) {
                 cache_canvas_.begin_frame();
@@ -93,15 +107,20 @@ public:
         } else {
             render_tree(canvas);
         }
+#else
+        render_tree(canvas);
+#endif
         frame_no++;
         canvas.end_frame();
     }
 
     // 派发一个输入事件（全局坐标�?
     void dispatch_event(const Event& e) {
+        #if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {
             cache_valid_ = false;
         }
+#endif
         router_.dispatch_event(e);
         if (subtree_cache_) {
             auto target = router_.last_event_target();
@@ -114,9 +133,11 @@ public:
     }
 
     void dispatch_touch_down(int id, int x, int y) {
+        #if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {
             cache_valid_ = false;
         }
+#endif
         router_.on_touch_down(id, x, y);
         if (subtree_cache_) {
             auto target = router_.last_event_target();
@@ -129,9 +150,11 @@ public:
     }
 
     void dispatch_touch_move(int id, int x, int y) {
+        #if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {
             cache_valid_ = false;
         }
+#endif
         router_.on_touch_move(id, x, y);
         if (subtree_cache_) {
             auto target = router_.last_event_target();
@@ -144,9 +167,11 @@ public:
     }
 
     void dispatch_touch_up(int id, int x, int y) {
+        #if CHARM_VIVID_ENABLE_LAYER_CACHE
         if (layer_cache_) {
             cache_valid_ = false;
         }
+#endif
         router_.on_touch_up(id, x, y);
         if (subtree_cache_) {
             auto target = router_.last_event_target();
@@ -217,11 +242,13 @@ private:
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
     }
 
+#if CHARM_VIVID_ENABLE_LAYER_CACHE
     void blit_cache() {
         auto* dst = canvas.data();
         const auto* src = cache_fb_.data();
         std::memcpy(dst, src, DefaultFrameBuffer::buffer_bytes);
     }
+#endif
 
     bool draw_recursive(CanvasBase& target,
                         WidgetHandle h,
@@ -333,6 +360,17 @@ private:
             default:
                 break;
             }
+            if (clip_state.enabled) {
+                const int left = (clip_rect.x > clip_state.rect.x) ? clip_rect.x : clip_state.rect.x;
+                const int top = (clip_rect.y > clip_state.rect.y) ? clip_rect.y : clip_state.rect.y;
+                const int right = (clip_rect.x + clip_rect.w < clip_state.rect.x + clip_state.rect.w)
+                    ? (clip_rect.x + clip_rect.w)
+                    : (clip_state.rect.x + clip_state.rect.w);
+                const int bottom = (clip_rect.y + clip_rect.h < clip_state.rect.y + clip_state.rect.h)
+                    ? (clip_rect.y + clip_rect.h)
+                    : (clip_state.rect.y + clip_state.rect.h);
+                clip_rect = Rect{left, top, right - left, bottom - top};
+            }
             target.set_clip(clip_rect);
             if (node_index != static_cast<std::size_t>(-1)) {
                 render_tree_.node_mut(node_index).clip = clip_rect;
@@ -376,11 +414,15 @@ private:
     int debug_cycle_hits_{0};
     bool dirty_tracking_{false};
     bool layer_cache_{false};
+    #if CHARM_VIVID_ENABLE_LAYER_CACHE
     bool cache_valid_{false};
+#endif
     bool subtree_cache_{false};
     bool cache_debug_{false};
+    #if CHARM_VIVID_ENABLE_LAYER_CACHE
     DefaultFrameBuffer cache_fb_{};
-    DefaultCanvas cache_canvas_;
+    DefaultCanvas cache_canvas_{cache_fb_};
+#endif
     struct LayerSlot {
         LayerSlot() : canvas(fb) {}
         LayerFrameBuffer fb{};

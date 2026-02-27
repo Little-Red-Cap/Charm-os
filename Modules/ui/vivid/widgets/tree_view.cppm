@@ -7,9 +7,11 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.virtual_list;
 import charm.widgets.text;
 import alg_scroll_bounds;
+import alg_list_scroll;
 
 using namespace ui::render;
 
@@ -98,15 +100,16 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TreeView>();
+        Style st = Theme::instance().get<TreeView>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::TreeView, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -164,7 +167,7 @@ public:
             Rect row{r.x, y, r.w, row_h};
             const bool selected = (i == selected_);
             if (selected) {
-                draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+                draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             int slot = -1;
             if (visible > 0 && visible <= kMaxCache) {
@@ -195,9 +198,7 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {
@@ -234,11 +235,12 @@ private:
 
     int index_from_y(int y) const noexcept {
         const auto r = get_rect();
-        const int local = y - r.y + scroll_y_;
-        if (local < 0 || row_height_ <= 0) return -1;
+        if (row_height_ <= 0) return -1;
         if (!row_height_fn_) {
-            return local / row_height_;
+            return alg::list_scroll::index_from_y(y, r.y, scroll_y_, 0, row_height_, item_count());
         }
+        const int local = y - r.y + scroll_y_;
+        if (local < 0) return -1;
         int acc = 0;
         const int count = item_count();
         for (int i = 0; i < count; ++i) {
@@ -250,16 +252,17 @@ private:
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        int total_h = 0;
-        if (row_height_fn_) {
+        if (!row_height_fn_) {
+            const auto bounds = alg::list_scroll::compute_bounds(item_count(), row_height_, 0, r.h);
+            max_scroll_y_ = bounds.max_scroll;
+        } else {
+            int total_h = 0;
             const int count = item_count();
             for (int i = 0; i < count; ++i) {
                 total_h += row_height_for_index(i);
             }
-        } else {
-            total_h = item_count() * row_height_;
+            max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
         }
-        max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 
@@ -320,3 +323,5 @@ private:
         return (h > 6) ? h : 6;
     }
 };
+
+

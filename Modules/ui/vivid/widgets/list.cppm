@@ -6,6 +6,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.label;
 
 using namespace ui::render;
@@ -30,15 +31,15 @@ public:
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ListItem>();
+        Style st = Theme::instance().get<ListItem>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::ListItem, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -48,9 +49,7 @@ public:
         label_.set_baseline_pos(r.x + st.padding, baseline_y);
         label_.draw(cvs);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {
@@ -103,3 +102,5 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
     }
 };
+
+

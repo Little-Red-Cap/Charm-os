@@ -1,20 +1,85 @@
 module;
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
+#include <cstring>
+#include <expected>
+#include <string_view>
 export module charm.widgets.text_list;
 
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.virtual_list;
 import alg_list_scroll;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.text;
+import out.core;
+import out.format;
+import out.sink;
 
 using namespace ui::render;
+
+namespace {
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
+        (void)out::write(sink, sv);
+    }
+
+    inline std::string_view format_label(char* buf, std::size_t size,
+                                         const char* fmt, const char* label) noexcept {
+        if (!buf || size == 0) return {};
+        if (!fmt || !*fmt) fmt = "%s";
+        trunc_sink sink{buf, size - 1u, 0u};
+        bool used = false;
+        for (const char* p = fmt; *p; ) {
+            if (*p != '%') {
+                append_sv(sink, std::string_view{p, 1});
+                ++p;
+                continue;
+            }
+            ++p;
+            if (*p == '%') {
+                append_sv(sink, std::string_view{"%", 1});
+                ++p;
+                continue;
+            }
+            while (*p == 'l') ++p;
+            const char spec = *p ? *p++ : 0;
+            if (used) {
+                append_sv(sink, std::string_view{"?", 1});
+                continue;
+            }
+            if (spec == 's') {
+                append_sv(sink, label ? std::string_view{label} : std::string_view{});
+            } else {
+                append_sv(sink, std::string_view{"?", 1});
+            }
+            used = true;
+        }
+        buf[sink.pos] = '\0';
+        return {buf, sink.pos};
+    }
+}
 
 // Simple text list (ARM-2D text_list inspired)
 export
@@ -65,15 +130,16 @@ public:
     }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st = Theme::instance().get<TextList>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::TextList, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -94,11 +160,11 @@ public:
         for (int i = window.start; i < end; ++i) {
             Rect row{content_x, y, content_w, row_height_};
             if (i == selected_) {
-                draw_rect(cvs, row.x, row.y, row.w, row.h, st.bg_pressed, true);
+                draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             const char* label = (items_ && items_[i]) ? items_[i] : "";
             char buf[96]{};
-            std::snprintf(buf, sizeof(buf), format_, label);
+            (void)format_label(buf, sizeof(buf), format_, label);
             draw_text_box(cvs, row, buf, font, resolve_font(st),
                           TextAlignH::Left, TextAlignV::Center,
                           TextWrap::None, TextEllipsis::End);
@@ -107,9 +173,7 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
     bool on_event(const Event& e) override {
@@ -204,3 +268,5 @@ private:
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
 };
+
+

@@ -3,10 +3,12 @@ module;
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.spectrum_view;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -53,12 +55,13 @@ public:
     void set_peak_decay(float v) noexcept { peak_decay_ = (v > 0.0f) ? v : 0.0f; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<SpectrumView>();
+        Style st = Theme::instance().get<SpectrumView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::SpectrumView, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
@@ -66,13 +69,13 @@ public:
         ++frame_;
         switch (mode_) {
         case Mode::Ring:
-            draw_ring(cvs, r, st);
+            draw_ring(cvs, r, st, accent, font);
             break;
         case Mode::Wave:
-            draw_wave(cvs, r, st);
+            draw_wave(cvs, r, st, accent, font);
             break;
         default:
-            draw_bars(cvs, r, st);
+            draw_bars(cvs, r, st, accent, font);
             break;
         }
     }
@@ -109,7 +112,7 @@ private:
         };
     }
 
-    void draw_bars(CanvasBase& cvs, const Rect& r, const Style& st) {
+    void draw_bars(CanvasBase& cvs, const Rect& r, const Style& st, const rgba& accent, const rgba& font) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
         const int top = r.y + 4;
@@ -118,9 +121,9 @@ private:
         const int inner_h = bottom - top;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const rgba glow = st.border_focus.a ? st.border_focus : st.bg_pressed;
-        const rgba core = st.bg_pressed.a ? st.bg_pressed : st.font_color;
-        const rgba peak = st.font_color.a ? st.font_color : core;
+        const rgba glow = st.border_focus.a ? st.border_focus : accent;
+        const rgba core = accent;
+        const rgba peak = font.a ? font : core;
         const rgba bright = lift_color(core, 0.35f);
         const rgba dim = scale_color(core, 0.65f);
         const rgba halo = lift_color(glow, 0.20f);
@@ -158,15 +161,15 @@ private:
         }
     }
 
-    void draw_ring(CanvasBase& cvs, const Rect& r, const Style& st) {
+    void draw_ring(CanvasBase& cvs, const Rect& r, const Style& st, const rgba& accent, const rgba& font) {
         const int cx = r.x + r.w / 2;
         const int cy = r.y + r.h / 2;
         int radius = (r.w < r.h ? r.w : r.h) / 2 - 6;
         if (radius < 6) radius = 6;
         const float step = 360.0f / static_cast<float>(count_);
         const float start = -90.0f;
-        const rgba core = st.bg_pressed.a ? st.bg_pressed : st.font_color;
-        const rgba peak = st.border_focus.a ? st.border_focus : st.font_color;
+        const rgba core = accent;
+        const rgba peak = st.border_focus.a ? st.border_focus : font;
         const rgba bright = lift_color(core, 0.35f);
         const rgba dim = scale_color(core, 0.65f);
 
@@ -193,7 +196,7 @@ private:
         }
     }
 
-    void draw_wave(CanvasBase& cvs, const Rect& r, const Style& st) {
+    void draw_wave(CanvasBase& cvs, const Rect& r, const Style& st, const rgba& accent, const rgba& font) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
         const int top = r.y + 4;
@@ -202,8 +205,8 @@ private:
         const int inner_h = bottom - top;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const rgba line = st.bg_pressed.a ? st.bg_pressed : st.font_color;
-        const rgba peak = st.border_focus.a ? st.border_focus : st.font_color;
+        const rgba line = accent;
+        const rgba peak = st.border_focus.a ? st.border_focus : font;
         const rgba bright = lift_color(line, 0.35f);
         const rgba dim = scale_color(line, 0.65f);
         if (count_ < 2) {
@@ -236,3 +239,5 @@ private:
         }
     }
 };
+
+

@@ -11,7 +11,7 @@ export import charm.core.gui;
 export import charm.core.handle;
 export import charm.core.input_router;
 export import charm.core.input_interaction;
-export import charm.core.input_adapter;
+export import ui.input_adapter;
 export import charm.core.virtual_list;
 export import charm.core.anim;
 export import charm.core.layout;
@@ -23,21 +23,20 @@ export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 export import charm.core.render_tree;
 
+export import ui.render_backend;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.framebuffer;
 export import charm.gfx.image;
 export import charm.gfx.pixel_format;
 export import charm.gfx.render;
-export import charm.gfx.assets.benchmark;
-export import charm.gfx.assets.registry;
-export import charm.gfx.assets.render;
 
 export import charm.font;
-export import charm.font.font_12;
 export import charm.font.typography;
-export import charm.font.lv_font_montserrat_12;
-export import charm.font.lv_font_montserrat_16;
+export import charm.font.font_noto_ascii_12;
+export import charm.font.font_noto_ascii_16;
+export import charm.font.font_noto_sc_12;
+export import charm.font.font_noto_sc_16;
 
 export import charm.widgets.arc;
 export import charm.widgets.bar;

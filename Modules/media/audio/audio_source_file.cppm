@@ -1,5 +1,6 @@
-﻿module;
+module;
 
+#include <span>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -8,10 +9,8 @@ export module audio.source.file;
 
 import audio.result;
 import media.stream.source;
-import util.span;
-
 export namespace audio {
-    class FileDataSource : public media::IStreamSource {
+    class FileDataSource {
     public:
         FileDataSource() = default;
         explicit FileDataSource(const char* path) { (void)open(path); }
@@ -32,7 +31,7 @@ export namespace audio {
 
         ~FileDataSource() { close(); }
 
-        Result<std::size_t> read(util::span<std::byte> out) noexcept override {
+        Result<std::size_t> read(std::span<std::byte> out) noexcept {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto n = std::fread(out.data(), 1, out.size(), file_);
             if (n == 0 && std::ferror(file_)) {
@@ -49,7 +48,7 @@ export namespace audio {
             return tell();
         }
 
-        Result<std::int64_t> seek(std::int64_t offset, media::SeekWhence whence) noexcept override {
+        Result<std::int64_t> seek(std::int64_t offset, media::SeekWhence whence) noexcept {
             int mapped = SEEK_SET;
             switch (whence) {
             case media::SeekWhence::set:
@@ -65,14 +64,14 @@ export namespace audio {
             return seek(offset, mapped);
         }
 
-        Result<std::int64_t> tell() noexcept override {
+        Result<std::int64_t> tell() noexcept {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto pos = tell_impl(file_);
             if (pos < 0) return unexpected(Err{Errc::io_error, 0});
             return static_cast<std::int64_t>(pos);
         }
 
-        Result<std::int64_t> size() noexcept override {
+        Result<std::int64_t> size() noexcept {
             if (!file_) return unexpected(Err{Errc::bad_state, 0});
             const auto cur = tell();
             if (!cur) return unexpected(cur.error());
@@ -89,6 +88,8 @@ export namespace audio {
         static bool seek_impl(std::FILE* file, std::int64_t offset, int whence) noexcept {
 #if defined(_WIN32)
             return _fseeki64(file, static_cast<__int64>(offset), whence) == 0;
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            return std::fseek(file, static_cast<long>(offset), whence) == 0;
 #else
             return std::fseeko(file, static_cast<off_t>(offset), whence) == 0;
 #endif
@@ -97,6 +98,8 @@ export namespace audio {
         static std::int64_t tell_impl(std::FILE* file) noexcept {
 #if defined(_WIN32)
             return static_cast<std::int64_t>(_ftelli64(file));
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            return static_cast<std::int64_t>(std::ftell(file));
 #else
             return static_cast<std::int64_t>(std::ftello(file));
 #endif

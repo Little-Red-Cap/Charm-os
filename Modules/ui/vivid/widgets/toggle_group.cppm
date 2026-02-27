@@ -7,6 +7,7 @@ import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -51,15 +52,16 @@ public:
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ToggleGroup>();
+        Style st = Theme::instance().get<ToggleGroup>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::ToggleGroup, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -73,8 +75,8 @@ public:
                 seg.w = r.x + r.w - seg.x;
             }
 
-            rgba seg_bg = checked_[i] ? st.bg_pressed : bg;
-            rgba seg_border = checked_[i] ? st.border_pressed : border;
+            rgba seg_bg = checked_[i] ? accent : bg;
+            rgba seg_border = checked_[i] ? accent : border;
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_bg, true);
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_border, false);
             if (i > 0) {
@@ -86,7 +88,7 @@ public:
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 
             if (has_state(State::Focused) && i == focus_idx_) {
-                draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, st.border_focus, false);
+                draw_focus_ring(cvs, seg, st, true);
             }
         }
     }
@@ -96,7 +98,7 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y) || count_ <= 0) return false;
-            const int idx = (e.x - r.x) * count_ / std::max(1, r.w);
+            const int idx = (e.x - r.x) * count_ / std::max(1, static_cast<int>(r.w));
             focus_idx_ = idx;
             if (single_select_) {
                 set_checked(idx, true);
@@ -136,3 +138,5 @@ private:
     bool single_select_{false};
     Callback on_change_{};
 };
+
+

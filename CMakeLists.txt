@@ -7,9 +7,7 @@ option(CHARM_ENABLE_SDL3 "Enable SDL3-backed modules" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
-option(CHARM_USE_ETL "Use ETL for core util aliases" ON)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
-option(CHARM_USE_ETL_EXPECTED "Use ETL expected instead of std::expected" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
 option(CHARM_ENABLE_DEPENDENCY_WHITELIST "Enforce dependency whitelist at configure time" ON)
@@ -31,13 +29,6 @@ if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_f
     charm_link_dr_libs(${target_name})
 endif()
 
-if (CHARM_USE_ETL)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ETL.cmake")
-    charm_link_etl(${target_name})
-    if (CHARM_USE_ETL_EXPECTED)
-        target_compile_definitions(${target_name} PRIVATE CHARM_USE_ETL_EXPECTED=1)
-    endif()
-endif()
 
 if (CHARM_ENABLE_FATFS)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")
@@ -56,12 +47,16 @@ if (CHARM_ENABLE_DEPENDENCY_WHITELIST)
     charm_enforce_dependency_whitelist()
 endif()
 
+target_compile_definitions(${target_name} PRIVATE
+    CHARM_ENABLE_MEDIA=$<BOOL:${CHARM_ENABLE_MEDIA}>
+    CHARM_ENABLE_UI_INK=$<BOOL:${CHARM_ENABLE_UI_INK}>
+    CHARM_ENABLE_UI_VIVID=$<BOOL:${CHARM_ENABLE_UI_VIVID}>
+)
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_player.cppm"
     )
 endif()
 if (NOT CHARM_ENABLE_MEDIA)
@@ -72,6 +67,8 @@ if (NOT CHARM_ENABLE_UI_INK)
 endif()
 if (NOT CHARM_ENABLE_UI_VIVID)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/")
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/core/alg/alg_text_layout.cppm")
 endif()
 if (NOT CHARM_ENABLE_MEDIA OR NOT CHARM_ENABLE_UI_INK OR NOT CHARM_ENABLE_UI_VIVID)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS

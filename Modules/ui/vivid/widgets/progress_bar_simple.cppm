@@ -4,6 +4,7 @@ export module charm.widgets.progress_bar_simple;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -38,12 +39,13 @@ public:
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<ProgressBarSimple>();
+        Style st = Theme::instance().get<ProgressBarSimple>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::ProgressBarSimple, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -53,7 +55,7 @@ public:
         if (bar.w <= 0 || bar.h <= 0) return;
 
         const rgba track = track_color_.a ? track_color_ : border;
-        const rgba fill = fill_color_.a ? fill_color_ : font;
+        const rgba fill = fill_color_.a ? fill_color_ : accent;
 
         draw_round_rect(cvs, bar.x, bar.y, bar.w, bar.h, st.corner_radius, track, true);
 
@@ -74,3 +76,5 @@ private:
     rgba fill_color_{0, 0, 0, 0};
     rgba track_color_{0, 0, 0, 0};
 };
+
+

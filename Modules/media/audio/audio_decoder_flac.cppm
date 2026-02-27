@@ -1,5 +1,6 @@
-﻿module;
+module;
 
+#include <span>
 #define DR_FLAC_IMPLEMENTATION
 #include <dr_flac.h>
 
@@ -10,7 +11,6 @@
 export module audio.decoder.flac;
 
 import audio.result;
-import util.span;
 import media.stream.source;
 import media.stream.filter;
 import media.stream.types;
@@ -26,7 +26,7 @@ export namespace audio {
         struct SourceOps {
             static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
                 auto* src = static_cast<Source*>(user);
-                auto res = src->read(util::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
+                auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
                 if (!res) return 0;
                 return *res;
             }
@@ -82,7 +82,8 @@ export namespace audio {
 
         Result<std::size_t> read_s32(std::int32_t* out, std::size_t frames) {
             if (!flac_) return unexpected(Err{Errc::bad_state, 0});
-            const auto read = drflac_read_pcm_frames_s32(flac_, frames, out);
+            const auto read = drflac_read_pcm_frames_s32(
+                flac_, frames, reinterpret_cast<drflac_int32*>(out));
             return static_cast<std::size_t>(read);
         }
 
@@ -116,10 +117,10 @@ export namespace audio {
         void* src_{nullptr};
     };
 
-    class FlacFilter : public media::IStreamFilter {
+    class FlacFilter {
     public:
-        Result<void> open(media::IStreamSource& src) noexcept {
-            view_.src = &src;
+        Result<void> open(media::StreamSourceRef src) noexcept {
+            view_.src = src;
             auto info = decoder_.open(view_);
             if (!info) return unexpected(info.error());
             info_ = *info;
@@ -130,16 +131,16 @@ export namespace audio {
         void close() noexcept {
             decoder_.close();
             opened_ = false;
-            view_.src = nullptr;
+            view_.src = {};
         }
 
-        Result<void> reset() noexcept override {
+        Result<void> reset() noexcept {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             return decoder_.seek_pcm_frame(0);
         }
 
-        Result<media::FilterResult> process(util::span<const std::byte>,
-                                            util::span<std::byte> out) noexcept override {
+        Result<media::FilterResult> process(std::span<const std::byte>,
+                                            std::span<std::byte> out) noexcept {
             if (!opened_) return unexpected(Err{Errc::bad_state, 0});
             const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int32_t);
             if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
@@ -152,7 +153,7 @@ export namespace audio {
             return media::FilterResult{0, produced, *read == 0};
         }
 
-        media::StreamFormat format() const noexcept override {
+        media::StreamFormat format() const noexcept {
             media::StreamFormat fmt{};
             fmt.kind = media::StreamKind::audio;
             fmt.rate = info_.sample_rate;
@@ -172,20 +173,20 @@ export namespace audio {
 
     private:
         struct SourceView {
-            media::IStreamSource* src{nullptr};
+            media::StreamSourceRef src{};
 
-            Result<std::size_t> read(util::span<std::byte> out) noexcept {
-                return src->read(out);
+            Result<std::size_t> read(std::span<std::byte> out) noexcept {
+                return src.read(out);
             }
 
             Result<std::int64_t> seek(std::int64_t offset, int whence) noexcept {
                 media::SeekWhence mapped = media::SeekWhence::set;
                 if (whence == SEEK_CUR) mapped = media::SeekWhence::cur;
                 if (whence == SEEK_END) mapped = media::SeekWhence::end;
-                return src->seek(offset, mapped);
+                return src.seek(offset, mapped);
             }
 
-            Result<std::int64_t> tell() noexcept { return src->tell(); }
+            Result<std::int64_t> tell() noexcept { return src.tell(); }
         };
 
         FlacDecoder decoder_{};

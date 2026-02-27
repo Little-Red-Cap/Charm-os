@@ -8,6 +8,7 @@ import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.event;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -35,15 +36,15 @@ public:
     void set_on_submit(Callback cb) noexcept { on_submit_ = cb; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<TextInput>();
+        Style st = Theme::instance().get<TextInput>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::TextInput, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -61,9 +62,11 @@ public:
             int caret_x = inner.x + caret_w;
             const int caret_y1 = inner.y + (inner.h - fnt.line_height) / 2;
             const int caret_y2 = caret_y1 + fnt.line_height;
-            caret_x = std::min(inner.x + inner.w - 2, std::max(inner.x + 1, caret_x));
+            const int min_x = static_cast<int>(inner.x + 1);
+            const int max_x = static_cast<int>(inner.x + inner.w - 2);
+            caret_x = std::min(max_x, std::max(min_x, caret_x));
             draw_line(cvs, caret_x, caret_y1, caret_x, caret_y2, st.border_focus);
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
+            draw_focus_ring(cvs, r, st, true);
         }
         cvs.restore_clip(clip_state);
     }
@@ -150,3 +153,5 @@ protected:
         buf_[len_] = '\0';
     }
 };
+
+

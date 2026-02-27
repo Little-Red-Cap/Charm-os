@@ -6,8 +6,10 @@ import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
+import charm.widgets.button;
 import charm.widgets.text;
 
 using namespace ui::render;
@@ -38,27 +40,31 @@ public:
 
     void draw(CanvasBase& cvs) override {
         if (!is_visible()) return;
-        const Style& st = Theme::instance().get<ModalDialog>();
+        Style st = Theme::instance().get<ModalDialog>();
         const auto layout = compute_layout(st);
+        rgba bg{}, border{}, font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::ModalDialog, state, st);
+        resolve_colors(st, state, bg, border, font);
 
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, st.bg_color, true);
+                        st.corner_radius, bg, true);
         draw_round_rect(cvs, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h,
-                        st.corner_radius, st.border_color, false);
+                        st.corner_radius, border, false);
 
         draw_text_box(cvs, layout.title, title_ ? title_ : "",
-                      st.font_color, resolve_font(st),
+                      font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::End);
 
         draw_text_box(cvs, layout.body, message_ ? message_ : "",
-                      st.font_color, resolve_font(st),
+                      font, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Top,
                       TextWrap::Word, TextEllipsis::End);
 
-        draw_button(cvs, layout.ok, st, ok_label_, hot_button_ == ButtonId::Ok, pressed_button_ == ButtonId::Ok);
+        draw_button(cvs, layout.ok, ok_label_, hot_button_ == ButtonId::Ok, pressed_button_ == ButtonId::Ok);
         if (layout.has_cancel) {
-            draw_button(cvs, layout.cancel, st, cancel_label_, hot_button_ == ButtonId::Cancel, pressed_button_ == ButtonId::Cancel);
+            draw_button(cvs, layout.cancel, cancel_label_, hot_button_ == ButtonId::Cancel, pressed_button_ == ButtonId::Cancel);
         }
     }
 
@@ -158,21 +164,17 @@ private:
         return ButtonId::None;
     }
 
-    static void draw_button(CanvasBase& cvs, const Rect& r, const Style& st,
-                            const char* label, bool hot, bool pressed) noexcept {
-        rgba fill = st.bg_color;
-        rgba border = st.border_color;
-        if (pressed) {
-            fill = st.bg_pressed;
-            border = st.border_pressed;
-        } else if (hot) {
-            fill = st.bg_hover;
-            border = st.border_hover;
-        }
-        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, fill, true);
+    void draw_button(CanvasBase& cvs, const Rect& r,
+                     const char* label, bool hot, bool pressed) noexcept {
+        Style st = Theme::instance().get<Button>();
+        const StyleState state = make_style_state(is_enabled(), hot, pressed, false, style_variant());
+        apply_style_sheet(WidgetKind::Button, state, st);
+        rgba bg{}, border{}, font{};
+        resolve_colors(st, state, bg, border, font);
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
         draw_text_box(cvs, r, label ? label : "",
-                      st.font_color, resolve_font(st),
+                      font, resolve_font(st),
                       TextAlignH::Center, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::None);
     }

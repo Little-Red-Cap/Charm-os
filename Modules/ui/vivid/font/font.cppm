@@ -24,6 +24,7 @@ export struct Font {
     std::span<const Glyph>      table;
     std::span<const GlyphRange> ranges;
     const Glyph*                fallback_glyph = nullptr;
+    const Font*                 fallback_font = nullptr;
     int                         line_height{};
     int                         baseline{};
     std::span<const uint32_t>   sparse_codes{};
@@ -35,14 +36,23 @@ export struct Font {
     uint16_t                    kern_right_class_cnt{0};
 };
 
-// Find glyph by codepoint.
-export constexpr const Glyph* find_glyph(const Font& font, const uint32_t code) noexcept
-{
+export struct ResolvedGlyph {
+    const Font* font{};
+    const Glyph* glyph{};
+    std::uint16_t gid{};
+};
+
+constexpr bool find_glyph_in_font(const Font& font,
+                                  const uint32_t code,
+                                  const Glyph*& out_glyph,
+                                  std::uint16_t& out_gid) noexcept {
     for (const auto& [range_start, range_length, glyph_id_start] : font.ranges) {
         if (code >= range_start && code < range_start + range_length) {
             const std::size_t idx = glyph_id_start + (code - range_start);
             if (idx < font.table.size()) {
-                return &font.table[idx];
+                out_glyph = &font.table[idx];
+                out_gid = static_cast<std::uint16_t>(idx);
+                return true;
             }
         }
     }
@@ -51,13 +61,48 @@ export constexpr const Glyph* find_glyph(const Font& font, const uint32_t code) 
             if (font.sparse_codes[i] == code) {
                 const uint16_t gid = font.sparse_glyph_ids[i];
                 if (gid < font.table.size()) {
-                    return &font.table[gid];
+                    out_glyph = &font.table[gid];
+                    out_gid = gid;
+                    return true;
                 }
                 break;
             }
         }
     }
+    return false;
+}
+
+// Find glyph by codepoint.
+export constexpr const Glyph* find_glyph(const Font& font, const uint32_t code) noexcept
+{
+    const Glyph* glyph = nullptr;
+    std::uint16_t gid = 0;
+    if (find_glyph_in_font(font, code, glyph, gid)) {
+        return glyph;
+    }
     return font.fallback_glyph;
+}
+
+export constexpr ResolvedGlyph resolve_glyph(const Font& font, const uint32_t code) noexcept {
+    const Glyph* glyph = nullptr;
+    std::uint16_t gid = 0;
+    if (find_glyph_in_font(font, code, glyph, gid)) {
+        return ResolvedGlyph{&font, glyph, gid};
+    }
+    if (font.fallback_font) {
+        const auto resolved = resolve_glyph(*font.fallback_font, code);
+        if (resolved.glyph) {
+            return resolved;
+        }
+    }
+    if (font.fallback_glyph) {
+        const auto* base = font.table.data();
+        const std::uint16_t fallback_gid = base
+            ? static_cast<std::uint16_t>(font.fallback_glyph - base)
+            : 0;
+        return ResolvedGlyph{&font, font.fallback_glyph, fallback_gid};
+    }
+    return ResolvedGlyph{};
 }
 
 export constexpr int get_glyph_kern(const Font& font, uint16_t left_gid, uint16_t right_gid) noexcept {
@@ -96,6 +141,6 @@ export constexpr bool validate_font(const Font& f) {
 
 }
 
-// export const extern Font font_12;
+// export const extern Font font_jbm_12;
 // export void register_font(const Font&);
 // export const std::vector<const Font*>& registered_fonts();

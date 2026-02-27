@@ -8,11 +8,9 @@
 - `terminate` is always delivered (even if finished), used for cleanup.
 
 ## 2. ThreadBlockingTask
-- `block()` suppresses non-sync events.
-- `resume()` allows events.
-- `sync` event always passes through (used for unblocking).
-- `init` always passes through.
-- `terminate` always passes through.
+- `block()` suppresses events outside `UnblockMask`.
+- `resume()` allows all events.
+- `UnblockMask` 默认放行 `sync/init/terminate`，可按任务自定义。
 
 ## 3. Recommended Usage
 - Use ThreadTask for cooperative step-driven logic.

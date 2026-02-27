@@ -5,6 +5,7 @@ import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.core.style;
+import charm.core.style_sheet;
 import alg_arc;
 
 using namespace ui::render;
@@ -36,18 +37,16 @@ public:
     int max() const noexcept { return max_; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<Progress>();
+        Style st = Theme::instance().get<Progress>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
-        rgba fill{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, fill);
-        if (!is_enabled()) {
-            fill = st.border_disabled;
-        }
+        rgba font{};
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::Progress, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba fill = resolve_accent(st, state);
 
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.corner_radius, border, false);
@@ -66,3 +65,5 @@ private:
     int max_{100};
     int value_{0};
 };
+
+

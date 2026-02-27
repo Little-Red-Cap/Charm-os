@@ -2,15 +2,18 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 export module charm.widgets.spin_zoom_widget;
 
 import charm.core.object;
 import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.gfx.render;
+import charm.gfx.pixel_ops;
 
 using namespace ui::render;
 
@@ -122,12 +125,12 @@ public:
 
     void draw(CanvasBase& cvs) override {
         if (!image_) return;
-        const Style& st = Theme::instance().get<SpinZoomWidget>();
+        Style st = Theme::instance().get<SpinZoomWidget>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::SpinZoomWidget, state, st);
+        resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
@@ -147,9 +150,7 @@ public:
         }
 
         draw_image_rotated(cvs, r, image_, zoom_, rotation_deg_);
-        if (has_state(State::Focused)) {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, st.border_focus, false);
-        }
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
 private:
@@ -298,3 +299,5 @@ private:
         if (self) self->reset_transform();
     }
 };
+
+

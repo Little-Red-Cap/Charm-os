@@ -69,6 +69,8 @@ export namespace fs {
             if (!file) return false;
 #if defined(_WIN32)
             return _fseeki64(file, static_cast<__int64>(offset), SEEK_SET) == 0;
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            return std::fseek(file, static_cast<long>(offset), SEEK_SET) == 0;
 #else
             return std::fseeko(file, static_cast<off_t>(offset), SEEK_SET) == 0;
 #endif
@@ -78,6 +80,8 @@ export namespace fs {
             if (!file) return 0;
 #if defined(_WIN32)
             const auto pos = _ftelli64(file);
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            const auto pos = std::ftell(file);
 #else
             const auto pos = std::ftello(file);
 #endif
@@ -88,12 +92,16 @@ export namespace fs {
             if (!file_ || block_size_ == 0) return false;
 #if defined(_WIN32)
             if (_fseeki64(file_, 0, SEEK_END) != 0) return false;
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            if (std::fseek(file_, 0, SEEK_END) != 0) return false;
 #else
             if (std::fseeko(file_, 0, SEEK_END) != 0) return false;
 #endif
             const util::u64 usize = tell64(file_);
 #if defined(_WIN32)
             if (_fseeki64(file_, 0, SEEK_SET) != 0) return false;
+#elif defined(__NEWLIB__) || defined(__ARM_EABI__)
+            if (std::fseek(file_, 0, SEEK_SET) != 0) return false;
 #else
             if (std::fseeko(file_, 0, SEEK_SET) != 0) return false;
 #endif

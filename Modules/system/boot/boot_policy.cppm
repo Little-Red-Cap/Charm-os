@@ -1,11 +1,11 @@
 module;
 
+#include <span>
 #include <array>
 
 export module boot_policy;
 
 import util.core;
-import util.alias;
 import boot_core;
 import boot_storage;
 import boot_flow;
@@ -15,6 +15,9 @@ export namespace boot {
         util::u32 min_version{0};
         util::u32 sign_key{0};
         bool require_signature{false};
+        using SignatureVerify = bool (*)(const ImageHeader&, util::u32 crc, const void* ctx) noexcept;
+        SignatureVerify verify{nullptr};
+        const void* verify_ctx{nullptr};
     };
 
     // NOTE: This is a weak checksum-based signature and is NOT secure.
@@ -23,8 +26,12 @@ export namespace boot {
         return crc32_update(crc, data, len);
     }
 
-    inline bool verify_signature(const ImageHeader& h, util::u32 key, util::u32 crc) noexcept {
-        const util::u32 sig = calc_signature(key, reinterpret_cast<const util::u8*>(&crc), sizeof(crc));
+    inline bool verify_signature(const ImageHeader& h, const Policy& policy, util::u32 crc) noexcept {
+        if (policy.verify) {
+            return policy.verify(h, crc, policy.verify_ctx);
+        }
+        const util::u32 sig = calc_signature(policy.sign_key,
+            reinterpret_cast<const util::u8*>(&crc), sizeof(crc));
         return h.signature == sig;
     }
 
@@ -52,14 +59,15 @@ export namespace boot {
         util::u32 offset = p.offset + static_cast<util::u32>(sizeof(ImageHeader));
         while (remaining > 0) {
             const auto chunk = remaining > buf.size() ? static_cast<util::u32>(buf.size()) : remaining;
-            if (!storage_read(s, offset, util::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
+            if (!storage_read(s, offset, std::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
             crc = crc32_update(crc, buf.data(), chunk);
             offset += chunk;
             remaining -= chunk;
         }
         if (crc != h.payload_crc32) return BootStatus::invalid;
+        // require_signature has priority; otherwise honor the signed_image flag.
         if (policy.require_signature || (h.flags & static_cast<util::u16>(ImageFlags::signed_image)) != 0) {
-            if (!verify_signature(h, policy.sign_key, crc)) return BootStatus::invalid;
+            if (!verify_signature(h, policy, crc)) return BootStatus::invalid;
         }
         return BootStatus::ok;
     }

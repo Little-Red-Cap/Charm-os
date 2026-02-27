@@ -2,6 +2,14 @@
 #define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
+#ifndef CHARM_PLAYER_PFB
+#define CHARM_PLAYER_PFB 0
+#endif
+
+#ifndef CHARM_PLAYER_TEXT_PROBE
+#define CHARM_PLAYER_TEXT_PROBE 0
+#endif
+
 import audio.player;
 import audio.result;
 import player.controller;
@@ -14,13 +22,15 @@ import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
-import charm.core.input_adapter;
+import ui.input_adapter;
 import charm.core.layout;
 import charm.core.style;
 import charm.gfx.canvas;
 import charm.gfx.assets.render;
 import charm.gfx.framebuffer;
 import charm.gfx.color;
+import charm.font.font_noto_ascii_16;
+import charm.font.font_noto_sc_16;
 import charm.widgets.button;
 import charm.widgets.label;
 import charm.widgets.list_view;
@@ -102,6 +112,8 @@ namespace {
 #if CHARM_PLAYER_DEBUG_UI
     using namespace player::ui_debug;
 #endif
+    const bool kUsePartialBuffer = (CHARM_PLAYER_PFB != 0);
+    constexpr int kTileHeight = 96;
 
     static DefaultFrameBuffer g_framebuffer{};
     static DefaultCanvas g_canvas(g_framebuffer);
@@ -577,6 +589,7 @@ int main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
+    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
     g_ctx.player = &g_player;
     g_ctx.factory = &g_factory;
@@ -708,9 +721,25 @@ int main(int argc, char** argv) {
         g_ctx.update_list_placeholder();
     }
 
-    auto gui = std::make_unique<Gui>(g_canvas, g_factory, g_ctx.handles.root);
+    std::optional<RuntimeCanvas> runtime_canvas{};
+    std::vector<std::byte> tile_storage{};
+    CanvasBase* active_canvas = &g_canvas;
+    std::size_t tile_stride = static_cast<std::size_t>(screen_width)
+        * PixelTraits<screen_pixel_format>::bytes_per_pixel;
+
+    if (kUsePartialBuffer) {
+        tile_storage.resize(tile_stride * static_cast<std::size_t>(kTileHeight));
+        runtime_canvas.emplace(tile_storage.data(),
+                               screen_width,
+                               kTileHeight,
+                               screen_pixel_format,
+                               tile_stride);
+        active_canvas = &*runtime_canvas;
+    }
+
+    auto gui = std::make_unique<Gui>(*active_canvas, g_factory, g_ctx.handles.root);
     gui->set_dirty_tracking(true);
-    gui->set_layer_cache(true);
+    gui->set_layer_cache(false);
 
     const auto start_time = std::chrono::steady_clock::now();
 
@@ -793,10 +822,65 @@ int main(int argc, char** argv) {
             gui->invalidate_cache();
         }
 
-        g_canvas.clear(kUiBackground);
-        gui->render();
-
-        SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
+        if (kUsePartialBuffer) {
+            for (int ty = 0; ty < screen_height; ty += kTileHeight) {
+                const int tile_h = (ty + kTileHeight <= screen_height)
+                    ? kTileHeight
+                    : (screen_height - ty);
+                Rect tile_clip{0, ty, screen_width, tile_h};
+                active_canvas->set_origin(0, -ty);
+                active_canvas->set_clip(tile_clip);
+                active_canvas->clear(kUiBackground);
+                gui->render();
+                SDL_Rect sdl_rect{0, ty, screen_width, tile_h};
+                SDL_UpdateTexture(texture,
+                                  &sdl_rect,
+                                  tile_storage.data(),
+                                  static_cast<int>(tile_stride));
+            }
+            active_canvas->clear_origin();
+            active_canvas->clear_clip();
+        } else {
+            active_canvas->clear(kUiBackground);
+            gui->render();
+#if CHARM_PLAYER_TEXT_PROBE
+            const rgba probe_color{220, 228, 242, 255};
+            const rgba probe_title{236, 238, 246, 255};
+            const Style& label_style = Theme::instance().get<Label>();
+            const Font& label_font = resolve_font(label_style);
+            const Font& default_font = get_font(FontId::Normal);
+            const bool match_ascii = (label_font.table.data() == font_noto_ascii_16.table.data());
+            const bool match_sc = (label_font.table.data() == font_noto_sc_16.table.data());
+            const bool match_default = (label_font.table.data() == default_font.table.data());
+            Rect probe_title_rect{20, 12, screen_width - 40, 24};
+            Rect probe_ascii_rect{20, 36, screen_width - 40, 24};
+            Rect probe_default_rect{20, 60, screen_width - 40, 24};
+            Rect probe_default_font_rect{20, 84, screen_width - 40, 24};
+            Rect probe_cjk_rect{20, 108, screen_width - 40, 24};
+            Rect probe_match_rect{20, 132, screen_width - 40, 24};
+            char match_buf[64]{};
+            std::snprintf(match_buf, sizeof(match_buf),
+                          "Label match: ascii=%s sc=%s def=%s lh=%d base=%d",
+                          match_ascii ? "yes" : "no",
+                          match_sc ? "yes" : "no",
+                          match_default ? "yes" : "no",
+                          label_font.line_height,
+                          label_font.baseline);
+            draw_text_box(*active_canvas, probe_title_rect, "Text Probe", probe_title, font_noto_ascii_16,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+            draw_text_box(*active_canvas, probe_ascii_rect, "ASCII(explicit): The quick brown fox jumps over the lazy dog. 0123456789",
+                          probe_color, font_noto_ascii_16, TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            draw_text_box(*active_canvas, probe_default_rect, "ASCII(default font): The quick brown fox jumps over the lazy dog. 0123456789",
+                          probe_color, label_font, TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            draw_text_box(*active_canvas, probe_default_font_rect, "ASCII(get_font): The quick brown fox jumps over the lazy dog. 0123456789",
+                          probe_color, default_font, TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            draw_text_box(*active_canvas, probe_cjk_rect, "CJK: 你好，文本回退测试。", probe_color, font_noto_sc_16,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            draw_text_box(*active_canvas, probe_match_rect, match_buf, probe_color, font_noto_ascii_16,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+#endif
+            SDL_UpdateTexture(texture, nullptr, g_framebuffer.data(), screen_width * 3);
+        }
         SDL_RenderClear(renderer);
         SDL_FRect dst{
             0.0f,

@@ -4,6 +4,7 @@ export module charm.widgets.waveform_view;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 
@@ -35,12 +36,12 @@ public:
     void clear_range() noexcept { has_range_ = false; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<WaveformView>();
+        Style st = Theme::instance().get<WaveformView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::WaveformView, state, st);
+        resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
         if (count_ < 2) return;
@@ -84,3 +85,5 @@ private:
     int max_v_{0};
     bool has_range_{false};
 };
+
+

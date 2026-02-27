@@ -1,11 +1,11 @@
 module;
 
+#include <span>
 #include <cstddef>
 
 export module boot_uart;
 
 import util.core;
-import util.alias;
 import boot_core;
 import boot_storage;
 import boot_flash;
@@ -73,7 +73,7 @@ export namespace boot {
         const util::u8* payload = rx.buf + sizeof(UartFrame);
         const auto calc = crc16(payload, f.size);
         if (calc != f.crc) return false;
-        if (!flash_write(s, f.offset, util::span<const util::u8>(payload, f.size), cfg)) return false;
+        if (!flash_write(s, f.offset, std::span<const util::u8>(payload, f.size), cfg)) return false;
         if (policy.enforce_seq) {
             state.last_seq = f.seq;
         }

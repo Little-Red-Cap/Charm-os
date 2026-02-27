@@ -1,5 +1,6 @@
-﻿module;
+module;
 
+#include <span>
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -16,8 +17,6 @@ import audio.format;
 import audio.result;
 import media.stream.sink;
 import media.stream.types;
-import util.span;
-
 export namespace audio {
 #ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
 #define CHARM_AUDIO_MAX_PERIOD_FRAMES 480
@@ -42,9 +41,9 @@ export namespace audio {
         std::uint32_t last_request_frames{0};
     };
 
-    class Sdl3AudioSink : public media::IStreamSink {
+    class Sdl3AudioSink {
     public:
-        Result<void> open(const SinkConfig& cfg) noexcept override {
+        Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
             const std::uint32_t period = cfg.period_frames != 0
                 ? cfg.period_frames
@@ -83,31 +82,31 @@ export namespace audio {
             return {};
         }
 
-        Result<void> start() noexcept override {
+        Result<void> start() noexcept {
             if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_ResumeAudioStreamDevice(stream_);
             return {};
         }
 
-        Result<void> stop() noexcept override {
+        Result<void> stop() noexcept {
             if (!stream_) return unexpected(Err{Errc::io_error, 3});
             SDL_PauseAudioStreamDevice(stream_);
             return {};
         }
 
-        void close() noexcept override {
+        void close() noexcept {
             if (stream_) {
                 SDL_DestroyAudioStream(stream_);
                 stream_ = nullptr;
             }
         }
 
-        void set_fill_callback(FillCallback cb, void* user) noexcept override {
+        void set_fill_callback(FillCallback cb, void* user) noexcept {
             fill_cb_ = cb;
             fill_user_ = user;
         }
 
-        media::StreamFormat format() const noexcept override { return to_stream_format(fmt_); }
+        media::StreamFormat format() const noexcept { return to_stream_format(fmt_); }
         std::uint32_t actual_period_frames() const noexcept { return period_frames_; }
         double output_latency_seconds() const noexcept { return latency_sec_; }
 
@@ -188,7 +187,7 @@ export namespace audio {
                 if (chunk == 0) break;
                 std::size_t written = 0;
                 if (self->fill_cb_) {
-                    written = self->fill_cb_(util::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
+                    written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
                 }
 
                 if (written < chunk) {

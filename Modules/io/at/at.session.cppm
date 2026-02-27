@@ -3,7 +3,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 export module at.session;
@@ -12,7 +11,7 @@ import util.core;
 import at.parser;
 
 export namespace at {
-    using SendFn = bool (*)(void* ctx, std::span<const util::u8> data) noexcept;
+    using SendFn = bool (*)(void* ctx, ByteView data) noexcept;
     using LineFn = void (*)(void* ctx, std::string_view line) noexcept;
     using DoneFn = void (*)(void* ctx, bool ok) noexcept;
     using UrcFn  = void (*)(void* ctx, std::string_view line) noexcept;
@@ -60,7 +59,7 @@ export namespace at {
             return true;
         }
 
-        void feed(std::span<const util::u8> data) noexcept {
+        void feed(ByteView data) noexcept {
             parser_.feed(data);
         }
 
@@ -105,15 +104,17 @@ export namespace at {
             if (!send_) return;
             auto& cur = queue_[head_];
             if (cur.append_crlf) {
-                auto sent = send_(send_ctx_, std::span<const util::u8>{
-                    reinterpret_cast<const util::u8*>(cur.text.data()), cur.text.size()});
+                auto sent = send_(send_ctx_, ByteView{
+                    reinterpret_cast<const util::u8*>(cur.text.data()),
+                    static_cast<util::usize>(cur.text.size())});
                 if (sent) {
                     static constexpr util::u8 crlf[2] = {'\r', '\n'};
-                    (void)send_(send_ctx_, std::span<const util::u8>{crlf, 2});
+                    (void)send_(send_ctx_, ByteView{crlf, 2});
                 }
             } else {
-                (void)send_(send_ctx_, std::span<const util::u8>{
-                    reinterpret_cast<const util::u8*>(cur.text.data()), cur.text.size()});
+                (void)send_(send_ctx_, ByteView{
+                    reinterpret_cast<const util::u8*>(cur.text.data()),
+                    static_cast<util::usize>(cur.text.size())});
             }
             last_send_ms_ = now_ms;
             ++attempts_;

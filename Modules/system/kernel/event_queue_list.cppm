@@ -4,6 +4,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <cstdlib>
 
 export module kernel.event_queue_list;
 
@@ -241,10 +242,23 @@ export namespace kernel {
         }
 
     private:
+        static void debug_check(bool ok) noexcept {
+#if !defined(NDEBUG)
+            if (!ok) {
+                std::abort();
+            }
+#else
+            (void)ok;
+#endif
+        }
+
         std::array<EventNode, Capacity> nodes_{};
         std::array<int, Capacity> next_{};
         std::array<int, Capacity> free_{};
         util::usize free_count_{Capacity};
+#if !defined(NDEBUG)
+        std::array<bool, Capacity> in_use_{};
+#endif
 
         std::array<int, TaskCount> evt_head_{};
         std::array<int, TaskCount> evt_tail_{};
@@ -275,10 +289,22 @@ export namespace kernel {
             if (free_count_ == 0) {
                 return -1;
             }
-            return free_[--free_count_];
+            const auto node = free_[--free_count_];
+            debug_check(node >= 0 && node < static_cast<int>(Capacity));
+#if !defined(NDEBUG)
+            debug_check(!in_use_[static_cast<util::usize>(node)]);
+            in_use_[static_cast<util::usize>(node)] = true;
+#endif
+            return node;
         }
 
         void release_node(int node) noexcept {
+            debug_check(node >= 0 && node < static_cast<int>(Capacity));
+            debug_check(free_count_ < Capacity);
+#if !defined(NDEBUG)
+            debug_check(in_use_[static_cast<util::usize>(node)]);
+            in_use_[static_cast<util::usize>(node)] = false;
+#endif
             free_[free_count_++] = node;
         }
 

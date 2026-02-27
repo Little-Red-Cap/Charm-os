@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <span>
@@ -25,6 +26,12 @@ import fs_mal;
 
 #if CHARM_USE_FATFS
 export namespace fs {
+    #if defined(FSIZE_t)
+    using FatFsSize = FSIZE_t;
+    #else
+    using FatFsSize = DWORD;
+    #endif
+
     void fatfs_register_block_device(BlockDevice* dev, util::u8 pdrv = 0) noexcept;
     void fatfs_set_cache(util::u8 pdrv, util::u8* buf, util::usize size) noexcept;
 
@@ -68,6 +75,13 @@ export namespace fs {
         return Status{err_from_fr(fr)};
     }
 
+#if defined(_LFN_UNICODE) && (_LFN_UNICODE == 1)
+    constexpr TCHAR kEmptyTcharPath[] = {0};
+    constexpr const TCHAR* empty_tchar_path() noexcept { return kEmptyTcharPath; }
+#else
+    constexpr const TCHAR* empty_tchar_path() noexcept { return ""; }
+#endif
+
     class FatFsMount {
     public:
         static constexpr util::usize max_files =
@@ -101,7 +115,7 @@ export namespace fs {
             mal_ = nullptr;
             clear_slots();
             fatfs_register_block_device(dev_, pdrv);
-            auto fr = f_mount(&fs_, "", 1);
+            auto fr = f_mount(&fs_, empty_tchar_path(), 1);
             if (fr == FR_NO_FILESYSTEM && format_if_needed) {
 #if defined(FF_USE_MKFS) && FF_USE_MKFS
                 std::array<util::u8, 4096> work{};
@@ -113,7 +127,7 @@ export namespace fs {
                 fr = f_mkfs("", FM_FAT32, 0, work.data(), static_cast<UINT>(work.size()));
 #endif
                 if (fr != FR_OK) return status_from_fr(fr);
-                fr = f_mount(&fs_, "", 1);
+                fr = f_mount(&fs_, empty_tchar_path(), 1);
 #else
                 return Status{Err::notsup};
 #endif
@@ -146,7 +160,7 @@ export namespace fs {
 
         Status unmount(bool force = false) noexcept {
             (void)force;
-            (void)f_mount(nullptr, "", 1);
+            (void)f_mount(nullptr, empty_tchar_path(), 1);
             dev_ = nullptr;
             mal_ = nullptr;
             mal_block_ = {};
@@ -268,7 +282,7 @@ export namespace fs {
             FIL fil{};
             auto fr = f_open(&fil, buf->data(), FA_WRITE);
             if (fr != FR_OK) return status_from_fr(fr);
-            fr = f_lseek(&fil, static_cast<FSIZE_t>(size));
+            fr = f_lseek(&fil, static_cast<FatFsSize>(size));
             if (fr == FR_OK) fr = f_truncate(&fil);
             (void)f_close(&fil);
             return status_from_fr(fr);
@@ -293,9 +307,11 @@ export namespace fs {
             auto fr = f_opendir(&dir, buf->data());
             if (fr != FR_OK) return status_from_fr(fr);
             FILINFO info{};
-#if defined(FF_USE_LFN) && FF_USE_LFN
+#if defined(_USE_LFN) && _USE_LFN
             std::array<TCHAR, max_path> lfn{};
-            #endif
+            info.lfname = lfn.data();
+            info.lfsize = static_cast<UINT>(lfn.size());
+#endif
             while (true) {
                 fr = f_readdir(&dir, &info);
                 if (fr != FR_OK) {
@@ -303,30 +319,33 @@ export namespace fs {
                     return status_from_fr(fr);
                 }
                 if (info.fname[0] == '\0') break;
-                const char* name = info.fname;
-#if defined(FF_USE_LFN) && FF_USE_LFN
-#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-#if (FF_LFN_UNICODE == 1)
-                if (info.fname[0] != 0) {
-                    constexpr util::usize lfn_utf8_cap =
-#if defined(FF_MAX_LFN)
-                        static_cast<util::usize>(FF_MAX_LFN) * 4 + 1;
+                const char* name = "";
+#if defined(_LFN_UNICODE) && (_LFN_UNICODE == 1)
+                constexpr util::usize lfn_utf8_cap =
+#if defined(_MAX_LFN)
+                    static_cast<util::usize>(_MAX_LFN) * 4 + 1;
 #else
-                        256 * 4 + 1;
+                    256 * 4 + 1;
 #endif
-                    std::array<char, lfn_utf8_cap> fname_utf8{};
-                    const auto written = utf16_to_utf8(info.fname, fname_utf8.data(), fname_utf8.size());
-                    if (written > 0) {
-                        fname_utf8[std::min(written, fname_utf8.size() - 1)] = '\0';
-                        name = fname_utf8.data();
-                    }
+                std::array<char, lfn_utf8_cap> fname_utf8{};
+                const TCHAR* src = info.fname;
+    #if defined(_USE_LFN) && _USE_LFN
+                if (info.lfname && info.lfname[0] != 0) {
+                    src = info.lfname;
+                }
+    #endif
+                const auto written = utf16_to_utf8(src, fname_utf8.data(), fname_utf8.size());
+                if (written > 0) {
+                    fname_utf8[std::min(written, fname_utf8.size() - 1)] = '\0';
+                    name = fname_utf8.data();
                 }
 #else
-                if (info.fname[0] != 0) {
-                    name = info.fname;
+                name = info.fname;
+    #if defined(_USE_LFN) && _USE_LFN
+                if (info.lfname && info.lfname[0] != 0) {
+                    name = info.lfname;
                 }
-#endif
-#endif
+    #endif
 #endif
                 MountOps::ListEntry entry{};
                 entry.name = std::string_view{name};
@@ -367,7 +386,7 @@ export namespace fs {
             if (off < 0) return Status{Err::inval};
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
             if (!slot || !slot->used) return Status{Err::inval};
-            auto fr = f_lseek(&slot->file, static_cast<FSIZE_t>(off));
+            auto fr = f_lseek(&slot->file, static_cast<FatFsSize>(off));
             if (fr != FR_OK) return status_from_fr(fr);
             n.offset = static_cast<util::i64>(f_tell(&slot->file));
             return Status{Err::ok};
@@ -419,7 +438,7 @@ export namespace fs {
         static constexpr util::usize max_path = 256;
 #endif
 
-#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
+#if defined(_LFN_UNICODE) && _LFN_UNICODE
         static bool append_utf8(util::u32 cp, char* out, util::usize cap, util::usize& pos) noexcept {
             if (cap == 0) return false;
             if (cp <= 0x7F) {
@@ -540,8 +559,8 @@ export namespace fs {
             while (!p.empty() && p.front() == '/') p.remove_prefix(1);
             auto buf = next_path_buf();
             if (buf.empty()) return std::nullopt;
-#if defined(FF_LFN_UNICODE) && FF_LFN_UNICODE
-#if (FF_LFN_UNICODE == 1)
+#if defined(_LFN_UNICODE) && _LFN_UNICODE
+#if (_LFN_UNICODE == 1)
             if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
 #else
             if (p.size() + 1 > buf.size()) return std::nullopt;
@@ -713,6 +732,14 @@ extern "C" {
 
     DWORD get_fattime() {
         return 0;
+    }
+
+    void* ff_memalloc(UINT size) {
+        return std::malloc(size);
+    }
+
+    void ff_memfree(void* ptr) {
+        std::free(ptr);
     }
 }
 

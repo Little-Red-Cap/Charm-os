@@ -45,27 +45,25 @@ export namespace kernel {
             if (count_ == 0) {
                 return false;
             }
-            std::array<EventNode, Capacity> new_nodes{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
             bool removed = false;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& node = nodes_[idx];
                 if (node.task.value == task.value && node.event.id == id) {
                     removed = true;
                 } else {
-                    new_nodes[new_count++] = node;
+                    nodes_[(head_ + write) % Capacity] = node;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
             if (!removed) {
                 return false;
             }
-            new_nodes[new_count++] = EventNode{task, evt, tag};
-            nodes_ = new_nodes;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            count_ = new_count;
+            nodes_[(head_ + write) % Capacity] = EventNode{task, evt, tag};
+            ++write;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return true;
         }
 
@@ -83,21 +81,18 @@ export namespace kernel {
             if (count_ == 0) {
                 return false;
             }
-            std::array<EventNode, Capacity> new_nodes{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& node = nodes_[idx];
                 if (node.tag != tag) {
-                    new_nodes[new_count++] = node;
+                    nodes_[(head_ + write) % Capacity] = node;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
-            nodes_ = new_nodes;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            const bool removed = new_count != count_;
-            count_ = new_count;
+            const bool removed = write != count_;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return removed;
         }
 
@@ -105,21 +100,18 @@ export namespace kernel {
             if (count_ == 0) {
                 return false;
             }
-            std::array<EventNode, Capacity> new_nodes{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& node = nodes_[idx];
                 if (node.task.value != task.value) {
-                    new_nodes[new_count++] = node;
+                    nodes_[(head_ + write) % Capacity] = node;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
-            nodes_ = new_nodes;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            const bool removed = new_count != count_;
-            count_ = new_count;
+            const bool removed = write != count_;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return removed;
         }
 
@@ -127,21 +119,18 @@ export namespace kernel {
             if (count_ == 0) {
                 return false;
             }
-            std::array<EventNode, Capacity> new_nodes{};
-            util::usize new_count = 0;
-            util::usize idx = head_;
+            util::usize write = 0;
             for (util::usize i = 0; i < count_; ++i) {
+                const auto idx = (head_ + i) % Capacity;
                 const auto& node = nodes_[idx];
                 if (node.task.value != task.value || node.tag != tag) {
-                    new_nodes[new_count++] = node;
+                    nodes_[(head_ + write) % Capacity] = node;
+                    ++write;
                 }
-                idx = (idx + 1) % Capacity;
             }
-            nodes_ = new_nodes;
-            head_ = 0;
-            tail_ = new_count % Capacity;
-            const bool removed = new_count != count_;
-            count_ = new_count;
+            const bool removed = write != count_;
+            count_ = write;
+            tail_ = (head_ + count_) % Capacity;
             return removed;
         }
 

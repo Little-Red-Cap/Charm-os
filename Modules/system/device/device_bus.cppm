@@ -6,10 +6,9 @@ export module device.bus;
 
 import util.core;
 import device.desc;
+import device.registry;
 
 export namespace device {
-    struct RegistryBase;
-
     struct BusOps {
         bool (*enumerate)(void* ctx, RegistryBase& reg) noexcept { nullptr };
         void (*attach)(void* ctx, const DeviceDesc& desc) noexcept { nullptr };

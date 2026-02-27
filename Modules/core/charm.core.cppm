@@ -1,11 +1,9 @@
 export module charm.core;
 
-export import util.alias;
 export import util.contract;
 export import util.core;
 export import util.expected;
 export import util.optional;
-export import util.span;
 export import util.type_list;
 export import util.type_state;
 export import util.units;
@@ -60,7 +58,10 @@ export import alg_scroll_bounds;
 export import alg_scroll_thumb;
 export import alg_scrollbar_metrics;
 export import alg_text_scroll;
+#if CHARM_ENABLE_UI_VIVID
 export import alg_text_layout;
+export import alg_text_parse;
+#endif
 export import alg_layout_box;
 export import alg_round_rect;
 export import alg_scroll;

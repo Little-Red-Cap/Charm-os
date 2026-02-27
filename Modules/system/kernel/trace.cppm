@@ -50,6 +50,22 @@ export namespace kernel {
             return head_;
         }
 
+        [[nodiscard]] bool try_merge_last(const TraceRecord<Tick>& rec) noexcept {
+            if (count_ == 0) {
+                return false;
+            }
+            const auto last_idx = (head_ + Capacity - 1) % Capacity;
+            auto& last = records_[last_idx];
+            if (last.task.value == rec.task.value
+                && last.id == rec.id
+                && last.payload == rec.payload
+                && last.kind == rec.kind) {
+                last.count += rec.count;
+                return true;
+            }
+            return false;
+        }
+
     private:
         std::array<TraceRecord<Tick>, Capacity> records_{};
         std::size_t head_{0};

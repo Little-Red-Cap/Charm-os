@@ -31,7 +31,7 @@
 
 ```bash
 # 配置
-cmake -S . -B cmake-build-debug -DCHARM_ENABLE_FATFS=ON -DCHARM_USE_ETL=OFF
+cmake -S . -B cmake-build-debug -DCHARM_ENABLE_FATFS=ON
 
 # 构建
 cmake --build cmake-build-debug -j 12

@@ -3,6 +3,7 @@ export module charm.widgets.foldable_panel;
 
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.core.event;
 import charm.gfx.color;
 import charm.gfx.render;
@@ -37,18 +38,19 @@ public:
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
 
     void draw(CanvasBase& cvs) override {
-        const Style& st = Theme::instance().get<FoldablePanel>();
+        Style st = Theme::instance().get<FoldablePanel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
-        resolve_colors(st,
-                       {is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused)},
-                       bg, border, font);
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        apply_style_sheet(WidgetKind::FoldablePanel, state, st);
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
-        draw_rect(cvs, r.x, r.y, r.w, header_h, st.bg_hover, true);
+        draw_rect(cvs, r.x, r.y, r.w, header_h, accent, true);
 
         const Rect title_box{r.x + st.header_padding, r.y,
                              r.w - st.header_padding * 2 - 16, header_h};
@@ -192,3 +194,5 @@ private:
         return inner;
     }
 };
+
+

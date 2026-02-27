@@ -16,32 +16,40 @@ export enum class FontId : uint8_t {
 };
 
 namespace {
-    const Font& noto_12_fallback() {
-        static const Font font = [] {
-            Font f = font_noto_ascii_12;
-            f.fallback_font = &font_noto_sc_12;
-            return f;
-        }();
-        return font;
-    }
-
-    const Font& noto_16_fallback() {
-        static const Font font = [] {
-            Font f = font_noto_ascii_16;
-            f.fallback_font = &font_noto_sc_16;
-            return f;
-        }();
-        return font;
+    inline const Font* fallback_for(const Font& font) noexcept {
+        if (font.fallback_font) {
+            return font.fallback_font;
+        }
+        const auto* table = font.table.data();
+        if (table == font_noto_ascii_12.table.data()) {
+            return &font_noto_sc_12;
+        }
+        if (table == font_noto_ascii_16.table.data()) {
+            return &font_noto_sc_16;
+        }
+        return nullptr;
     }
 }
 
 export
 const Font& get_font(const FontId id) noexcept {
     switch (id) {
-    case FontId::Small: return noto_12_fallback();
-    case FontId::Normal: return noto_16_fallback();
-    case FontId::Large: return noto_16_fallback();
-    case FontId::Mono: return noto_12_fallback();
+    case FontId::Small: return font_noto_ascii_12;
+    case FontId::Normal: return font_noto_ascii_16;
+    case FontId::Large: return font_noto_ascii_16;
+    case FontId::Mono: return font_noto_ascii_12;
     }
-    return noto_16_fallback();
+    return font_noto_ascii_16;
+}
+
+export
+inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_t code) noexcept {
+    const auto resolved = resolve_glyph(font, code);
+    if (resolved.glyph) {
+        return resolved;
+    }
+    if (const auto* fallback = fallback_for(font)) {
+        return resolve_glyph(*fallback, code);
+    }
+    return resolved;
 }

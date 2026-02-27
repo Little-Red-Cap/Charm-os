@@ -49,13 +49,34 @@ export namespace alg::text_layout {
             return true;
         }
         if ((c >> 5) == 0x6) {
-            if (p + 1 >= end) return false;
+            if (p + 1 >= end) {
+                out = '?';
+                ++p;
+                return true;
+            }
+            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+            if ((c1 & 0xC0) != 0x80) {
+                out = '?';
+                ++p;
+                return true;
+            }
             out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
             p += 2;
             return true;
         }
         if ((c >> 4) == 0xE) {
-            if (p + 2 >= end) return false;
+            if (p + 2 >= end) {
+                out = '?';
+                ++p;
+                return true;
+            }
+            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+            const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+            if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
+                out = '?';
+                ++p;
+                return true;
+            }
             out = ((c & 0x0F) << 12)
                 | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
                 | (static_cast<std::uint8_t>(p[2]) & 0x3F);
@@ -63,7 +84,19 @@ export namespace alg::text_layout {
             return true;
         }
         if ((c >> 3) == 0x1E) {
-            if (p + 3 >= end) return false;
+            if (p + 3 >= end) {
+                out = '?';
+                ++p;
+                return true;
+            }
+            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+            const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+            const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
+            if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
+                out = '?';
+                ++p;
+                return true;
+            }
             out = ((c & 0x07) << 18)
                 | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
                 | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
@@ -105,7 +138,7 @@ export namespace alg::text_layout {
                 prev_font = nullptr;
                 continue;
             }
-            const auto resolved = resolve_glyph(font, cp);
+            const auto resolved = resolve_glyph_fallback(font, cp);
             if (resolved.glyph) {
                 width += resolved.glyph->x_advance;
                 if (prev_gid && prev_font == resolved.font) {
@@ -149,7 +182,7 @@ export namespace alg::text_layout {
                 const char* before = q;
                 if (!next_codepoint(q, end, cp)) break;
                 if (cp == '\n') break;
-                const auto resolved = resolve_glyph(font, cp);
+                const auto resolved = resolve_glyph_fallback(font, cp);
                 const int adv = resolved.glyph ? resolved.glyph->x_advance : 8;
                 const std::uint16_t gid = resolved.glyph ? resolved.gid : 0;
                 const int kern = (prev_gid && gid && prev_font == resolved.font)
@@ -206,7 +239,7 @@ export namespace alg::text_layout {
                              std::uint32_t cp,
                              std::uint16_t& prev_gid,
                              const Font*& prev_font) noexcept {
-        const auto resolved = resolve_glyph(font, cp);
+        const auto resolved = resolve_glyph_fallback(font, cp);
         if (!resolved.glyph) {
             prev_gid = 0;
             prev_font = nullptr;

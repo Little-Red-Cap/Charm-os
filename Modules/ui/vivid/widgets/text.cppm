@@ -48,6 +48,7 @@ inline TextProfileSample text_profile_sample() noexcept {
 
 inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::uint8_t alpha) noexcept {
     if (alpha == 0) return;
+    if (!cvs.in_clip(x, y)) return;
     if (alpha == 255) {
         cvs.set_pixel(x, y, color);
         return;
@@ -72,13 +73,34 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
         return true;
     }
     if ((c >> 5) == 0x6) {
-        if (p + 1 >= end) return false;
+        if (p + 1 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        if ((c1 & 0xC0) != 0x80) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
         p += 2;
         return true;
     }
     if ((c >> 4) == 0xE) {
-        if (p + 2 >= end) return false;
+        if (p + 2 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x0F) << 12)
             | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
             | (static_cast<std::uint8_t>(p[2]) & 0x3F);
@@ -86,7 +108,19 @@ inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) 
         return true;
     }
     if ((c >> 3) == 0x1E) {
-        if (p + 3 >= end) return false;
+        if (p + 3 >= end) {
+            out = '?';
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
+            out = '?';
+            ++p;
+            return true;
+        }
         out = ((c & 0x07) << 18)
             | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
             | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
@@ -151,8 +185,6 @@ void draw_text_baseline_range(CanvasBase& cvs,
 #if CHARM_TEXT_PROFILE
     ++g_text_draw_calls;
 #endif
-    const int cw = cvs.width();
-    const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
     const Font* prev_font = nullptr;
@@ -166,7 +198,7 @@ void draw_text_baseline_range(CanvasBase& cvs,
             prev_font = nullptr;
             continue;
         }
-        const auto resolved = resolve_glyph(font, cp);
+        const auto resolved = resolve_glyph_fallback(font, cp);
         const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
@@ -189,10 +221,9 @@ void draw_text_baseline_range(CanvasBase& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= cw) continue;
+                if (!cvs.in_clip(px, py)) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;
@@ -243,8 +274,6 @@ void draw_text_baseline(CanvasBase& cvs,
 #if CHARM_TEXT_PROFILE
     ++g_text_draw_calls;
 #endif
-    const int cw = cvs.width();
-    const int ch = cvs.height();
     int cursor_x = x;
     uint16_t prev_gid = 0;
     const Font* prev_font = nullptr;
@@ -258,7 +287,7 @@ void draw_text_baseline(CanvasBase& cvs,
             prev_font = nullptr;
             continue;
         }
-        const auto resolved = resolve_glyph(font, cp);
+        const auto resolved = resolve_glyph_fallback(font, cp);
         const auto* g = resolved.glyph;
         if (!g) {
             cursor_x += 8;
@@ -281,10 +310,9 @@ void draw_text_baseline(CanvasBase& cvs,
         const int bytes_per_row = (g->width * bpp + 7) / 8;
         for (int row = 0; row < g->height; ++row) {
             const int py = render_y + row;
-            if (py < 0 || py >= ch) continue;
             for (int col = 0; col < g->width; ++col) {
                 const int px = render_x + col;
-                if (px < 0 || px >= cw) continue;
+                if (!cvs.in_clip(px, py)) continue;
                 std::uint8_t cov = 0;
                 if (bpp == 1) {
                     const int byte_index = row * bytes_per_row + col / 8;

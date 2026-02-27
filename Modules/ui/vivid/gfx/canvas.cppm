@@ -145,7 +145,9 @@ public:
     }
 
     void set_clip(const Rect& r) noexcept {
-        const Rect nr = rect_normalized(r);
+        Rect nr = rect_normalized(r);
+        nr.x += origin_x_;
+        nr.y += origin_y_;
         if (!rect_valid(nr)) {
             clear_clip();
             return;
@@ -163,14 +165,11 @@ public:
     }
 
     bool in_clip(int x, int y) const noexcept {
-        if (!clip_enabled_) {
-            const int lx = x + origin_x_;
-            const int ly = y + origin_y_;
-            return lx >= 0 && ly >= 0 && lx < static_cast<int>(W) && ly < static_cast<int>(H);
-        }
-        if (x < clip_.x || y < clip_.y || x >= clip_.x + clip_.w || y >= clip_.y + clip_.h) return false;
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
+        if (clip_enabled_) {
+            if (lx < clip_.x || ly < clip_.y || lx >= clip_.x + clip_.w || ly >= clip_.y + clip_.h) return false;
+        }
         return lx >= 0 && ly >= 0 && lx < static_cast<int>(W) && ly < static_cast<int>(H);
     }
 
@@ -356,7 +355,9 @@ public:
     }
 
     void set_clip(const Rect& r) noexcept {
-        const Rect nr = rect_normalized(r);
+        Rect nr = rect_normalized(r);
+        nr.x += origin_x_;
+        nr.y += origin_y_;
         if (!rect_valid(nr)) {
             clear_clip();
             return;
@@ -374,14 +375,11 @@ public:
     }
 
     bool in_clip(int x, int y) const noexcept {
-        if (!clip_enabled_) {
-            const int lx = x + origin_x_;
-            const int ly = y + origin_y_;
-            return lx >= 0 && ly >= 0 && lx < width_ && ly < height_;
-        }
-        if (x < clip_.x || y < clip_.y || x >= clip_.x + clip_.w || y >= clip_.y + clip_.h) return false;
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
+        if (clip_enabled_) {
+            if (lx < clip_.x || ly < clip_.y || lx >= clip_.x + clip_.w || ly >= clip_.y + clip_.h) return false;
+        }
         return lx >= 0 && ly >= 0 && lx < width_ && ly < height_;
     }
 

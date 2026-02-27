@@ -1,11 +1,11 @@
 module;
 
+#include <span>
 #include <array>
 
 export module boot_policy;
 
 import util.core;
-import util.alias;
 import boot_core;
 import boot_storage;
 import boot_flow;
@@ -59,7 +59,7 @@ export namespace boot {
         util::u32 offset = p.offset + static_cast<util::u32>(sizeof(ImageHeader));
         while (remaining > 0) {
             const auto chunk = remaining > buf.size() ? static_cast<util::u32>(buf.size()) : remaining;
-            if (!storage_read(s, offset, util::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
+            if (!storage_read(s, offset, std::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
             crc = crc32_update(crc, buf.data(), chunk);
             offset += chunk;
             remaining -= chunk;

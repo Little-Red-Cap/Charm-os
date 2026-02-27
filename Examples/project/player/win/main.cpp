@@ -22,7 +22,7 @@ import charm.core.container;
 import charm.core.event;
 import charm.core.factory;
 import charm.core.gui;
-import charm.core.input_adapter;
+import ui.input_adapter;
 import charm.core.layout;
 import charm.core.style;
 import charm.gfx.canvas;

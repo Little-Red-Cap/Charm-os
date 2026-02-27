@@ -1,11 +1,11 @@
 module;
 
+#include <span>
 #include <array>
 
 export module boot_flow;
 
 import util.core;
-import util.alias;
 import boot_core;
 import boot_storage;
 
@@ -17,7 +17,7 @@ export namespace boot {
     };
 
     inline bool read_header(const Storage& s, const Partition& p, ImageHeader& out) noexcept {
-        auto buf = util::span<util::u8>(reinterpret_cast<util::u8*>(&out), sizeof(ImageHeader));
+        auto buf = std::span<util::u8>(reinterpret_cast<util::u8*>(&out), sizeof(ImageHeader));
         return storage_read(s, p.offset, buf);
     }
 
@@ -36,7 +36,7 @@ export namespace boot {
         util::u32 offset = p.offset + static_cast<util::u32>(sizeof(ImageHeader));
         while (remaining > 0) {
             const auto chunk = remaining > buf.size() ? static_cast<util::u32>(buf.size()) : remaining;
-            if (!storage_read(s, offset, util::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
+            if (!storage_read(s, offset, std::span<util::u8>(buf.data(), chunk))) return BootStatus::io_error;
             crc = crc32_update(crc, buf.data(), chunk);
             offset += chunk;
             remaining -= chunk;
@@ -65,7 +65,7 @@ export namespace boot {
     inline bool read_boot_info(const Storage& s, const Partition& p, BootInfo& info) noexcept {
         BootInfo a{};
         BootInfo b{};
-        if (!storage_read(s, p.offset, util::span<util::u8>(reinterpret_cast<util::u8*>(&a), sizeof(BootInfo)))) {
+        if (!storage_read(s, p.offset, std::span<util::u8>(reinterpret_cast<util::u8*>(&a), sizeof(BootInfo)))) {
             return false;
         }
         if (p.size < sizeof(BootInfo) * 2) {
@@ -74,7 +74,7 @@ export namespace boot {
             return true;
         }
         (void)storage_read(s, p.offset + static_cast<util::u32>(sizeof(BootInfo)),
-                           util::span<util::u8>(reinterpret_cast<util::u8*>(&b), sizeof(BootInfo)));
+                           std::span<util::u8>(reinterpret_cast<util::u8*>(&b), sizeof(BootInfo)));
         const bool a_ok = boot_info_valid(a);
         const bool b_ok = boot_info_valid(b);
         if (a_ok && b_ok) {
@@ -102,7 +102,7 @@ export namespace boot {
         const util::u32 slot_size = static_cast<util::u32>(sizeof(BootInfo));
         if (p.size < slot_size) return false;
         if (p.size < slot_size * 2) {
-            auto buf = util::span<const util::u8>(reinterpret_cast<const util::u8*>(&out), sizeof(BootInfo));
+            auto buf = std::span<const util::u8>(reinterpret_cast<const util::u8*>(&out), sizeof(BootInfo));
             return storage_write(s, p.offset, buf);
         }
 
@@ -111,7 +111,7 @@ export namespace boot {
         const util::u32 offset = (cur_ok && cur.counter <= out.counter)
             ? p.offset + slot_size
             : p.offset;
-        auto buf = util::span<const util::u8>(reinterpret_cast<const util::u8*>(&out), sizeof(BootInfo));
+        auto buf = std::span<const util::u8>(reinterpret_cast<const util::u8*>(&out), sizeof(BootInfo));
         return storage_write(s, offset, buf);
     }
 

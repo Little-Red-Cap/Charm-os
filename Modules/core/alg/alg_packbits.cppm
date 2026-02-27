@@ -1,15 +1,15 @@
 module;
 
+#include <span>
 #include <cstddef>
 
 export module alg_packbits;
 
 import util.core;
-import util.alias;
 import alg_compress;
 
 export namespace alg {
-    inline CompResult packbits_compress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult packbits_compress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize w = 0;
         util::usize i = 0;
         while (i < in.size()) {
@@ -44,7 +44,7 @@ export namespace alg {
         return {true, w, CompErr::ok};
     }
 
-    inline CompResult packbits_decompress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult packbits_decompress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize w = 0;
         util::usize i = 0;
         while (i < in.size()) {

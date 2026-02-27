@@ -1,15 +1,15 @@
 module;
 
+#include <span>
 #include <cstddef>
 
 export module alg_rle;
 
 import util.core;
-import util.alias;
 import alg_compress;
 
 export namespace alg {
-    inline CompResult rle_compress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult rle_compress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize w = 0;
         util::usize i = 0;
         while (i < in.size()) {
@@ -28,7 +28,7 @@ export namespace alg {
         return {true, w, CompErr::ok};
     }
 
-    inline CompResult rle_decompress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult rle_decompress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize w = 0;
         util::usize i = 0;
         while (i + 1 < in.size()) {

@@ -1,4 +1,4 @@
-﻿module;
+module;
 
 #include <algorithm>
 #include <array>
@@ -31,13 +31,15 @@ import audio.fifo;
 import audio.format;
 import audio.resampler.linear;
 import audio.result;
-import audio.sink.sdl3;
 import alg_fft;
 import media.stream.filter;
+import media.stream.sink;
 import media.stream.source;
 import media.stream.types;
 import service.queue;
-import util.span;
+#if defined(CHARM_ENABLE_SDL3)
+import audio.sink.sdl3;
+#endif
 
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
@@ -46,6 +48,39 @@ import audio.source.file;
 #endif
 
 export namespace audio {
+#if !defined(CHARM_ENABLE_SDL3)
+    using SinkConfig = media::SinkConfig;
+    using FillCallback = media::FillCallback;
+
+    struct CallbackStats {
+        std::uint64_t count{0};
+        std::uint64_t dt_min_ns{0};
+        std::uint64_t dt_max_ns{0};
+        double dt_avg_ms{0.0};
+        std::uint32_t last_request_frames{0};
+    };
+
+    class NullAudioSink {
+    public:
+        Result<void> open(const SinkConfig&) noexcept { return {}; }
+        Result<void> start() noexcept { return {}; }
+        Result<void> stop() noexcept { return {}; }
+        void close() noexcept {}
+        void set_fill_callback(FillCallback, void*) noexcept {}
+        media::StreamFormat format() const noexcept { return {}; }
+        std::uint32_t actual_period_frames() const noexcept { return 0; }
+        std::uint64_t underrun_count() const noexcept { return 0; }
+        bool consume_underrun_flag() noexcept { return false; }
+        void clear_underrun_flag() noexcept {}
+        CallbackStats callback_stats() const noexcept { return {}; }
+    };
+#endif
+
+#if defined(CHARM_ENABLE_SDL3)
+    using SinkType = Sdl3AudioSink;
+#else
+    using SinkType = NullAudioSink;
+#endif
 #ifndef CHARM_AUDIO_MAX_RATE
 #define CHARM_AUDIO_MAX_RATE 48000
 #endif
@@ -465,7 +500,7 @@ export namespace audio {
             }
         };
 
-        static std::size_t fill_from_fifo(util::span<std::byte> dst, void* user) noexcept {
+        static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
             auto* self = static_cast<AudioPlayer*>(user);
             if (!self || self->fifo_capacity_ == 0) return 0;
             const std::size_t frame = self->output_fmt_.frame_size();
@@ -478,7 +513,7 @@ export namespace audio {
                 auto v = self->fifo_.readable_view();
                 if (v.a.empty() && v.b.empty()) break;
 
-                auto copy_one = [&](util::span<std::byte> src) {
+                auto copy_one = [&](std::span<std::byte> src) {
                     std::size_t n = std::min(src.size(), need - filled);
                     n -= n % frame;
                     if (n == 0) return;
@@ -602,8 +637,7 @@ export namespace audio {
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
             }
-            src_iface_ = &src_;
-            filter_ = nullptr;
+            src_iface_ = media::make_stream_source_ref(src_);
             wav_filter_.close();
             flac_filter_.close();
             mp3_filter_.close();
@@ -614,8 +648,8 @@ export namespace audio {
 
             if (!is_flac_ && !is_wav_ && !is_mp3_) {
                 std::array<std::byte, 12> header{};
-                auto pos = src_iface_->tell();
-                auto read = src_iface_->read(util::span<std::byte>(header.data(), header.size()));
+                auto pos = src_iface_.tell();
+                auto read = src_iface_.read(std::span<std::byte>(header.data(), header.size()));
                 if (read && *read >= 4) {
                     const auto b0 = static_cast<unsigned char>(header[0]);
                     const auto b1 = static_cast<unsigned char>(header[1]);
@@ -639,9 +673,9 @@ export namespace audio {
                     }
                 }
                 if (pos) {
-                    (void)src_iface_->seek(*pos, media::SeekWhence::set);
+                    (void)src_iface_.seek(*pos, media::SeekWhence::set);
                 } else {
-                    (void)src_iface_->seek(0, media::SeekWhence::set);
+                    (void)src_iface_.seek(0, media::SeekWhence::set);
                 }
             }
 
@@ -651,7 +685,7 @@ export namespace audio {
             }
 
             if (is_flac_) {
-                const auto info = flac_filter_.open(*src_iface_);
+                const auto info = flac_filter_.open(src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
@@ -662,9 +696,8 @@ export namespace audio {
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
                 total_frames_ = flac_filter_.total_frames();
-                filter_ = &flac_filter_;
             } else if (is_mp3_) {
-                const auto info = mp3_filter_.open(*src_iface_);
+                const auto info = mp3_filter_.open(src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::decode_open);
                     return;
@@ -675,9 +708,8 @@ export namespace audio {
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
                 total_frames_ = mp3_filter_.total_frames();
-                filter_ = &mp3_filter_;
             } else {
-                const auto info = wav_filter_.open(*src_iface_);
+                const auto info = wav_filter_.open(src_iface_);
                 if (!info) {
                     set_error(Errc::decode_error, PlayerErrorStage::wav_parse);
                     return;
@@ -695,7 +727,6 @@ export namespace audio {
                 remaining_bytes_ = data_size_;
                 has_more_data_ = remaining_bytes_ > 0;
                 total_frames_ = data_size_ / input_fmt_.frame_size();
-                filter_ = &wav_filter_;
             }
 
             output_fmt_ = input_fmt_;
@@ -751,7 +782,7 @@ export namespace audio {
             fade_in_remaining_frames_ = fade_in_total_frames();
 
             if (is_wav_) {
-                auto seek = src_iface_->seek(static_cast<std::int64_t>(data_offset_), media::SeekWhence::set);
+                auto seek = src_iface_.seek(static_cast<std::int64_t>(data_offset_), media::SeekWhence::set);
                 if (!seek) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
@@ -776,7 +807,7 @@ export namespace audio {
                 const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
                 remaining_bytes_ = static_cast<std::size_t>(data_size_ - clamped);
                 has_more_data_ = remaining_bytes_ > 0;
-                auto res = src_iface_->seek(static_cast<std::int64_t>(data_offset_ + clamped), media::SeekWhence::set);
+                auto res = src_iface_.seek(static_cast<std::int64_t>(data_offset_ + clamped), media::SeekWhence::set);
                 if (!res) {
                     set_error(Errc::io_error, PlayerErrorStage::seek);
                     return;
@@ -908,8 +939,7 @@ export namespace audio {
             mp3_filter_.close();
             wav_filter_.close();
             src_.close();
-            src_iface_ = nullptr;
-            filter_ = nullptr;
+            src_iface_ = {};
             if (fifo_capacity_) fifo_.clear();
             running_ = false;
             has_more_data_ = false;
@@ -1063,8 +1093,8 @@ export namespace audio {
             const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int32_t);
             const std::size_t out_frames = std::min(frames, s32_in_.size() / input_fmt_.channels);
             const std::size_t out_bytes = out_frames * frame_bytes;
-            auto res = flac_filter_.process(util::span<const std::byte>{},
-                util::span<std::byte>(reinterpret_cast<std::byte*>(s32_in_.data()), out_bytes));
+            auto res = flac_filter_.process(std::span<const std::byte>{},
+                std::span<std::byte>(reinterpret_cast<std::byte*>(s32_in_.data()), out_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
@@ -1079,8 +1109,8 @@ export namespace audio {
             if (frames == 0) return 0;
             const std::size_t bytes_per_frame = input_fmt_.frame_size();
             const std::size_t max_bytes = std::min(frames * bytes_per_frame, raw_.size());
-            const auto res = wav_filter_.process(util::span<const std::byte>{},
-                util::span<std::byte>(raw_.data(), max_bytes));
+            const auto res = wav_filter_.process(std::span<const std::byte>{},
+                std::span<std::byte>(raw_.data(), max_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
@@ -1111,8 +1141,8 @@ export namespace audio {
             const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int16_t);
             const std::size_t out_frames = std::min(frames, s16_in_.size() / input_fmt_.channels);
             const std::size_t out_bytes = out_frames * frame_bytes;
-            auto res = mp3_filter_.process(util::span<const std::byte>{},
-                util::span<std::byte>(reinterpret_cast<std::byte*>(s16_in_.data()), out_bytes));
+            auto res = mp3_filter_.process(std::span<const std::byte>{},
+                std::span<std::byte>(reinterpret_cast<std::byte*>(s16_in_.data()), out_bytes));
             if (!res) {
                 state_ = PlayerState::error;
                 running_ = false;
@@ -1340,12 +1370,11 @@ export namespace audio {
 #else
         FileDataSource src_{};
 #endif
-        media::IStreamSource* src_iface_{nullptr};
-        media::IStreamFilter* filter_{nullptr};
+        media::StreamSourceRef src_iface_{};
         FlacFilter flac_filter_{};
         Mp3Filter mp3_filter_{};
         WavFilter wav_filter_{};
-        Sdl3AudioSink sink_{};
+        SinkType sink_{};
         PcmFifo fifo_{};
 
         AudioFormat input_fmt_{};

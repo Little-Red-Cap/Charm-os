@@ -1,3 +1,7 @@
+module;
+
+#include <concepts>
+
 export module media.pipeline;
 
 import util.core;
@@ -7,15 +11,13 @@ import media.stream.filter;
 import media.stream.sink;
 
 export namespace media {
-    struct IPipeline {
-        virtual ~IPipeline() = default;
-
-        virtual void set_source(IStreamSource* source) noexcept = 0;
-        virtual void set_sink(IStreamSink* sink) noexcept = 0;
-        virtual Result<void> add_filter(IStreamFilter* filter) noexcept = 0;
-
-        virtual Result<void> start() noexcept = 0;
-        virtual Result<void> stop() noexcept = 0;
-        virtual Result<void> tick() noexcept = 0;
+    template <typename T>
+    concept StreamPipeline = requires(T& t, StreamSourceRef src, StreamSinkRef sink, StreamFilterRef filter) {
+        { t.set_source(src) } noexcept -> std::same_as<void>;
+        { t.set_sink(sink) } noexcept -> std::same_as<void>;
+        { t.add_filter(filter) } noexcept -> std::same_as<Result<void>>;
+        { t.start() } noexcept -> std::same_as<Result<void>>;
+        { t.stop() } noexcept -> std::same_as<Result<void>>;
+        { t.tick() } noexcept -> std::same_as<Result<void>>;
     };
 }

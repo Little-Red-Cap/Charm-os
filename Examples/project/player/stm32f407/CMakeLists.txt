@@ -83,16 +83,29 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_VIVID_LAYER_CACHE_WIDTH=1
     CHARM_VIVID_LAYER_CACHE_HEIGHT=1
     CHARM_VIVID_LAYER_CACHE_SLOTS=1
+    CHARM_AUDIO_SINK_I2S=1
+    CHARM_AUDIO_USE_VFS=1
+    CHARM_AUDIO_ENABLE_STRESS=0
 )
 
 # Ensure Charm-os is built with the same feature flags.
 add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
+add_compile_definitions(CHARM_AUDIO_SINK_I2S=1)
+add_compile_definitions(CHARM_AUDIO_USE_VFS=1)
+add_compile_definitions(CHARM_AUDIO_ENABLE_STRESS=0)
+add_compile_definitions(STM32F407xx)
+add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
+
+# Provide CubeMX headers to Charm-os so I2S sink can include i2s.h/main.h.
+target_include_directories(Charm-os PRIVATE
+    $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

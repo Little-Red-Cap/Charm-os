@@ -1,5 +1,6 @@
-﻿module;
+module;
 
+#include <span>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -7,8 +8,6 @@
 export module service.slab;
 
 import util.core;
-import util.alias;
-
 export namespace service {
     template <util::usize BlockSize, util::usize BlockCount>
     class Slab {
@@ -33,8 +32,8 @@ export namespace service {
             free_[free_count_++] = index;
         }
 
-        [[nodiscard]] util::span<std::byte> block(util::usize index) noexcept {
-            return util::span<std::byte>(storage_[index].data(), BlockSize);
+        [[nodiscard]] std::span<std::byte> block(util::usize index) noexcept {
+            return std::span<std::byte>(storage_[index].data(), BlockSize);
         }
 
     private:

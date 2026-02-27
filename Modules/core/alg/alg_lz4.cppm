@@ -1,15 +1,15 @@
 module;
 
+#include <span>
 #include <cstddef>
 
 export module alg_lz4;
 
 import util.core;
-import util.alias;
 import alg_compress;
 
 export namespace alg {
-    inline CompResult lz4_compress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult lz4_compress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize w = 0;
         util::usize i = 0;
         const util::usize n = in.size();
@@ -59,7 +59,7 @@ export namespace alg {
         return {true, w, CompErr::ok};
     }
 
-    inline CompResult lz4_decompress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult lz4_decompress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         util::usize r = 0;
         util::usize w = 0;
         while (r < in.size()) {

@@ -8,6 +8,7 @@ export module charm.gfx.canvas;
 export import charm.gfx.framebuffer;
 export import charm.core.config;
 export import charm.core.geometry;
+export import ui.render_backend;
 import charm.gfx.pixel_ops;
 import service_dirty_rects;
 import util.core;
@@ -43,6 +44,7 @@ public:
     virtual void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept = 0;
     virtual void begin_frame() noexcept = 0;
     virtual void end_frame() noexcept = 0;
+    void mark_dirty(int x, int y, int w, int h) noexcept { mark_dirty(Rect{x, y, w, h}); }
     virtual void mark_dirty(const Rect& r) noexcept = 0;
 };
 

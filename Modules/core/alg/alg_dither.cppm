@@ -9,8 +9,6 @@ module;
 export module alg_dither;
 
 import util.core;
-import util.alias;
-
 export namespace alg {
     enum class DitherMode : util::u8 {
         bayer4,

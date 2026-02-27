@@ -1,16 +1,15 @@
 module;
 
+#include <span>
 #include <array>
 #include <cstddef>
 
 export module alg_stats;
 
 import util.core;
-import util.alias;
-
 export namespace alg {
     template <typename T>
-    double mean(util::span<const T> data) noexcept {
+    double mean(std::span<const T> data) noexcept {
         if (data.empty()) return 0.0;
         double sum = 0.0;
         for (const auto& v : data) {

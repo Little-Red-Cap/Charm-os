@@ -1,16 +1,16 @@
 module;
 
+#include <span>
 #include <cstddef>
 
 export module alg_heatshrink;
 
 import util.core;
-import util.alias;
 import alg_compress;
 
 export namespace alg {
     struct BitWriter {
-        util::span<util::u8> out{};
+        std::span<util::u8> out{};
         util::usize bitpos{0};
         util::usize written{0};
 
@@ -34,7 +34,7 @@ export namespace alg {
     };
 
     struct BitReader {
-        util::span<const util::u8> in{};
+        std::span<const util::u8> in{};
         util::usize bitpos{0};
 
         bool get_bit(bool& bit) noexcept {
@@ -58,7 +58,7 @@ export namespace alg {
     };
 
     template <util::u32 WindowBits, util::u32 LookaheadBits>
-    inline CompResult heatshrink_compress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult heatshrink_compress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         constexpr util::u32 window_size = 1u << WindowBits;
         constexpr util::u32 max_len = (1u << LookaheadBits) + 1u;
         BitWriter bw{out};
@@ -95,7 +95,7 @@ export namespace alg {
     }
 
     template <util::u32 WindowBits, util::u32 LookaheadBits>
-    inline CompResult heatshrink_decompress(util::span<const util::u8> in, util::span<util::u8> out) noexcept {
+    inline CompResult heatshrink_decompress(std::span<const util::u8> in, std::span<util::u8> out) noexcept {
         constexpr util::u32 window_size = 1u << WindowBits;
         constexpr util::u32 max_len = (1u << LookaheadBits) + 1u;
         (void)window_size;

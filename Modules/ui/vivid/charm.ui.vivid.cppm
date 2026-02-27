@@ -9,7 +9,7 @@ export import charm.core.gui;
 export import charm.core.handle;
 export import charm.core.input_router;
 export import charm.core.input_interaction;
-export import charm.core.input_adapter;
+export import ui.input_adapter;
 export import charm.core.virtual_list;
 export import charm.core.anim;
 export import charm.core.layout;
@@ -21,6 +21,7 @@ export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 export import charm.core.render_tree;
 
+export import ui.render_backend;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.framebuffer;

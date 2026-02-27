@@ -1,8 +1,13 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.spin_zoom_widget;
 
 import charm.core.object;
@@ -77,6 +82,10 @@ public:
     }
 
     bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)e;
+        return false;
+#else
         if (dispatch_interactions(e)) return true;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -121,9 +130,25 @@ public:
             return true;
         }
         return false;
+#endif
     }
 
     void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<SpinZoomWidget>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::SpinZoomWidget, state, base, st_scratch);
+        const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+        resolve_colors(st, state, bg, border, font);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
         if (!image_) return;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<SpinZoomWidget>();
@@ -153,6 +178,7 @@ public:
 
         draw_image_rotated(cvs, r, image_, zoom_, rotation_deg_);
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
+#endif
     }
 
 private:

@@ -379,12 +379,30 @@ namespace {
         }
     }
 
+    bool is_dot_dir(std::string_view name) noexcept {
+        if (name.size() == 1 && name[0] == '.') return true;
+        if (name.size() == 2 && name[0] == '.' && name[1] == '.') return true;
+        return false;
+    }
+
+    bool is_system_volume_info(std::string_view name) noexcept {
+        constexpr std::string_view target = "System Volume Information";
+        if (name.size() != target.size()) return false;
+        for (std::size_t i = 0; i < target.size(); ++i) {
+            const char a = ascii_lower(name[i]);
+            const char b = ascii_lower(target[i]);
+            if (a != b) return false;
+        }
+        return true;
+    }
+
     fs::Status list_recursive(const char* path, int depth) noexcept;
 
     fs::Status list_recursive_cb(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* info = static_cast<ListCtx*>(ctx);
         if (!info || !info->base) return fs::Status{fs::Err::inval};
         const auto len = name_len(entry.name);
+        const std::string_view name{entry.name.data(), len};
 
         uart_write_indent(info->depth);
         uart_write_span(entry.name.data(), len);
@@ -394,6 +412,9 @@ namespace {
         uart_write_uint(entry.size);
 
         if (entry.type != fs::NodeType::dir || info->depth >= kMaxListDepth) {
+            return fs::Status{fs::Err::ok};
+        }
+        if (is_dot_dir(name) || is_system_volume_info(name)) {
             return fs::Status{fs::Err::ok};
         }
 
@@ -417,6 +438,9 @@ namespace {
 
     fs::Status list_recursive(const char* path, int depth) noexcept {
         if (!path) return fs::Status{fs::Err::inval};
+        uart_write("fs demo: list ");
+        uart_write(path);
+        uart_write("\r\n");
         ListCtx ctx{path, depth};
         return fs::vfs_list(path, &ctx, &list_recursive_cb);
     }
@@ -460,15 +484,10 @@ export void fs_demo_run() noexcept {
         uart_write("fs demo: /PICTURE empty\r\n");
     }
 
-    BmpFileCtx bmp{};
-    st = fs::vfs_list("/PICTURE", &bmp, &list_first_bmp);
-    if (!st) {
-        uart_write("fs demo: list /PICTURE (bmp) failed\r\n");
-        uart_write_int(static_cast<util::i32>(st.err));
-    }
+    uart_write("fs demo: bmp demo disabled\r\n");
 
     fs::File f{};
-    const char* target = bmp.found ? bmp.path : (first.found ? first.path : "/readme.txt");
+    const char* target = first.found ? first.path : "/readme.txt";
     uart_write("fs demo: open ");
     uart_write(target);
     uart_write("\r\n");
@@ -476,21 +495,6 @@ export void fs_demo_run() noexcept {
     if (st) {
         std::array<util::u8, 64> buf{};
         st = fs::vfs_read(f, std::span<util::u8>{buf});
-        if (bmp.found) {
-            dump_bmp_header(buf.data(), buf.size());
-            if (st) {
-                const util::u32 pixel_off = read_u32_le(buf.data() + 10);
-                const util::u32 dib_size = read_u32_le(buf.data() + 14);
-                const util::i32 width = read_i32_le(buf.data() + 18);
-                const util::i32 height = read_i32_le(buf.data() + 22);
-                const util::u16 bpp = read_u16_le(buf.data() + 28);
-                if (dib_size >= 40 && bpp == 24 && width > 0 && height != 0) {
-                    (void)render_bmp_24(f, static_cast<util::u32>(width), height, pixel_off);
-                } else {
-                    uart_write("bmp: unsupported format\r\n");
-                }
-            }
-        }
         (void)fs::vfs_close(f);
         if (st) {
             uart_write("fs demo: read ok\r\n");

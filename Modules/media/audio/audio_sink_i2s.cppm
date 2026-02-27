@@ -183,16 +183,24 @@ extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s == &hi2s2) {
         audio::I2sAudioSink::on_half();
     }
+    extern void charm_audio_i2s_debug_toggle();
+    charm_audio_i2s_debug_toggle();
 }
 
 extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s == &hi2s2) {
         audio::I2sAudioSink::on_full();
     }
+    extern void charm_audio_i2s_debug_toggle();
+    charm_audio_i2s_debug_toggle();
 }
 
 extern "C" void HAL_I2S_ErrorCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s == &hi2s2) {
         audio::I2sAudioSink::on_error();
     }
+}
+
+extern "C" void charm_audio_i2s_debug_toggle() __attribute__((weak));
+extern "C" void charm_audio_i2s_debug_toggle() {
 }

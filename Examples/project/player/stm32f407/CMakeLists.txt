@@ -53,11 +53,9 @@ file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "../app/*.cppm"
         "./*.cppm"
 )
-list(APPEND MODULE_INTERFACE_UNITS
-#    "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/fs_demo.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/lcd_driver.cppm"
+list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
 )
 
 target_sources(${CMAKE_PROJECT_NAME}

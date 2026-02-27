@@ -53,14 +53,15 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
-        Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto r = get_rect();
 
         rgba bg{};
         rgba border{};
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        apply_style_sheet(WidgetKind::Button, state, st);
+        const Style& base = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        Style st_scratch{};
+        const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         resolve_colors(st, state,
                        bg, border, font);
 

@@ -44,6 +44,7 @@ struct Style {
 
 export
 struct ThemeTokens {
+    std::uint32_t version{0};
     rgba surface{240, 240, 240, 255};
     rgba surface_variant{255, 255, 255, 255};
     rgba on_surface{0, 0, 0, 255};
@@ -293,7 +294,9 @@ public:
     }
 
     void set_tokens(const ThemeTokens& t) noexcept {
-        tokens() = t;
+        ThemeTokens next = t;
+        next.version = tokens().version + 1;
+        tokens() = next;
     }
 
     [[nodiscard]] const ThemeTokens& get_tokens() const noexcept {

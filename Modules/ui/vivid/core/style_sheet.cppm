@@ -2,6 +2,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 export module charm.core.style_sheet;
 
 export import charm.core.style;
@@ -90,39 +91,51 @@ struct StyleRuleEntry {
     std::uint16_t order{0};
 };
 
-inline rgba role_color(StyleRole role, const ThemeTokens& t) noexcept {
-    switch (role) {
-    case StyleRole::Surface: return t.surface;
-    case StyleRole::SurfaceVariant: return t.surface_variant;
-    case StyleRole::SurfaceHover: return adjust_by_luma(t.surface, 8);
-    case StyleRole::SurfacePressed: return adjust_by_luma(t.surface, 20);
-    case StyleRole::OnSurface: return t.on_surface;
-    case StyleRole::OnSurfaceMuted: return t.on_surface_muted;
-    case StyleRole::Outline: return t.outline;
-    case StyleRole::OutlineHover: return adjust_by_luma(t.outline, 20);
-    case StyleRole::OutlinePressed: return adjust_by_luma(t.outline, 40);
-    case StyleRole::Accent: return t.accent;
-    case StyleRole::AccentHover: return adjust_by_luma(t.accent, 12);
-    case StyleRole::AccentPressed: return adjust_by_luma(t.accent, 24);
-    case StyleRole::OnAccent: return t.on_accent;
-    case StyleRole::Danger: return t.danger;
-    case StyleRole::OnDanger: return t.on_danger;
-    case StyleRole::FocusRing: return t.focus_ring;
-    default: return t.surface;
-    }
+inline constexpr std::size_t role_index(StyleRole role) noexcept {
+    return static_cast<std::size_t>(role);
 }
 
-inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const ThemeTokens& tokens) noexcept {
-    if (patch.has_bg_color) style.bg_color = role_color(patch.bg_color, tokens);
-    if (patch.has_bg_hover) style.bg_hover = role_color(patch.bg_hover, tokens);
-    if (patch.has_bg_pressed) style.bg_pressed = role_color(patch.bg_pressed, tokens);
-    if (patch.has_border_color) style.border_color = role_color(patch.border_color, tokens);
-    if (patch.has_border_hover) style.border_hover = role_color(patch.border_hover, tokens);
-    if (patch.has_border_pressed) style.border_pressed = role_color(patch.border_pressed, tokens);
-    if (patch.has_font_color) style.font_color = role_color(patch.font_color, tokens);
-    if (patch.has_accent_color) style.accent_color = role_color(patch.accent_color, tokens);
-    if (patch.has_on_accent) style.on_accent = role_color(patch.on_accent, tokens);
-    if (patch.has_border_focus) style.border_focus = role_color(patch.border_focus, tokens);
+struct RolePalette {
+    std::array<rgba, 16> values{};
+};
+
+inline RolePalette build_palette(const ThemeTokens& t) noexcept {
+    RolePalette p{};
+    p.values[role_index(StyleRole::Surface)] = t.surface;
+    p.values[role_index(StyleRole::SurfaceVariant)] = t.surface_variant;
+    p.values[role_index(StyleRole::SurfaceHover)] = adjust_by_luma(t.surface, 8);
+    p.values[role_index(StyleRole::SurfacePressed)] = adjust_by_luma(t.surface, 20);
+    p.values[role_index(StyleRole::OnSurface)] = t.on_surface;
+    p.values[role_index(StyleRole::OnSurfaceMuted)] = t.on_surface_muted;
+    p.values[role_index(StyleRole::Outline)] = t.outline;
+    p.values[role_index(StyleRole::OutlineHover)] = adjust_by_luma(t.outline, 20);
+    p.values[role_index(StyleRole::OutlinePressed)] = adjust_by_luma(t.outline, 40);
+    p.values[role_index(StyleRole::Accent)] = t.accent;
+    p.values[role_index(StyleRole::AccentHover)] = adjust_by_luma(t.accent, 12);
+    p.values[role_index(StyleRole::AccentPressed)] = adjust_by_luma(t.accent, 24);
+    p.values[role_index(StyleRole::OnAccent)] = t.on_accent;
+    p.values[role_index(StyleRole::Danger)] = t.danger;
+    p.values[role_index(StyleRole::OnDanger)] = t.on_danger;
+    p.values[role_index(StyleRole::FocusRing)] = t.focus_ring;
+    return p;
+}
+
+inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
+    const auto idx = role_index(role);
+    return (idx < palette.values.size()) ? palette.values[idx] : rgba{};
+}
+
+inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const RolePalette& palette) noexcept {
+    if (patch.has_bg_color) style.bg_color = role_color(palette, patch.bg_color);
+    if (patch.has_bg_hover) style.bg_hover = role_color(palette, patch.bg_hover);
+    if (patch.has_bg_pressed) style.bg_pressed = role_color(palette, patch.bg_pressed);
+    if (patch.has_border_color) style.border_color = role_color(palette, patch.border_color);
+    if (patch.has_border_hover) style.border_hover = role_color(palette, patch.border_hover);
+    if (patch.has_border_pressed) style.border_pressed = role_color(palette, patch.border_pressed);
+    if (patch.has_font_color) style.font_color = role_color(palette, patch.font_color);
+    if (patch.has_accent_color) style.accent_color = role_color(palette, patch.accent_color);
+    if (patch.has_on_accent) style.on_accent = role_color(palette, patch.on_accent);
+    if (patch.has_border_focus) style.border_focus = role_color(palette, patch.border_focus);
 }
 
 export
@@ -162,8 +175,10 @@ public:
         return true;
     }
 
-    void apply(WidgetKind kind, const StyleState& state, Style& style) const noexcept {
+    bool apply(WidgetKind kind, const StyleState& state, Style& style) const noexcept {
         const std::uint8_t mask = state_mask(state);
+        bool matched = false;
+        ensure_palette();
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& rule = rules_[i];
             if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
@@ -175,12 +190,45 @@ public:
             if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
                 continue;
             }
+            matched = true;
             if (rule.kind == StyleRuleKind::Patch) {
                 rule.patch.apply_to(style);
             } else {
-                apply_role_patch(style, rule.role_patch, Theme::instance().get_tokens());
+                apply_role_patch(style, rule.role_patch, palette_);
             }
         }
+        return matched;
+    }
+
+    bool apply(WidgetKind kind,
+               const StyleState& state,
+               Style& out,
+               const Style& base) const noexcept {
+        const std::uint8_t mask = state_mask(state);
+        bool matched = false;
+        ensure_palette();
+        for (std::size_t i = 0; i < count_; ++i) {
+            const auto& rule = rules_[i];
+            if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
+                continue;
+            }
+            if (rule.selector.variant != kStyleVariantAny && rule.selector.variant != state.variant) {
+                continue;
+            }
+            if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
+                continue;
+            }
+            if (!matched) {
+                out = base;
+                matched = true;
+            }
+            if (rule.kind == StyleRuleKind::Patch) {
+                rule.patch.apply_to(out);
+            } else {
+                apply_role_patch(out, rule.role_patch, palette_);
+            }
+        }
+        return matched;
     }
 
 private:
@@ -227,12 +275,34 @@ private:
         return mask;
     }
 
+    void ensure_palette() const noexcept {
+        const auto& tokens = Theme::instance().get_tokens();
+        if (tokens.version == palette_version_) {
+            return;
+        }
+        palette_ = build_palette(tokens);
+        palette_version_ = tokens.version;
+    }
+
     std::array<StyleRuleEntry, 32> rules_{};
     std::size_t count_{0};
     std::uint16_t order_{0};
+    mutable RolePalette palette_{};
+    mutable std::uint32_t palette_version_{std::numeric_limits<std::uint32_t>::max()};
 };
 
 export
-inline void apply_style_sheet(WidgetKind kind, const StyleState& state, Style& style) noexcept {
-    StyleSheet::instance().apply(kind, state, style);
+inline bool apply_style_sheet(WidgetKind kind, const StyleState& state, Style& style) noexcept {
+    return StyleSheet::instance().apply(kind, state, style);
+}
+
+export
+inline const Style& resolve_style(WidgetKind kind,
+                                  const StyleState& state,
+                                  const Style& base,
+                                  Style& scratch) noexcept {
+    if (StyleSheet::instance().apply(kind, state, scratch, base)) {
+        return scratch;
+    }
+    return base;
 }

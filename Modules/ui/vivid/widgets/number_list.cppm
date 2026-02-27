@@ -1,10 +1,15 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <string_view>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.number_list;
 
 import charm.core.object;
@@ -138,10 +143,15 @@ public:
         if (index >= item_count_) index = item_count_ - 1;
         if (selected_ == index && target_scroll_ == index * item_h_) return;
         selected_ = index;
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
         target_scroll_ = static_cast<float>(selected_ * item_h_);
         if (!smooth_scroll_) {
             scroll_offset_ = target_scroll_;
         }
+#else
+        target_scroll_ = 0.0f;
+        scroll_offset_ = 0.0f;
+#endif
         notify_change();
     }
 
@@ -160,6 +170,40 @@ public:
     void set_wheel_step(int step) noexcept { wheel_step_ = (step > 0) ? step : 1; }
 
     void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<NumberList>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::NumberList, state, base, st_scratch);
+        const auto r = get_rect();
+
+        rgba bg{};
+        rgba border{};
+        rgba font{};
+        resolve_colors(st, state, bg, border, font);
+        const rgba accent = resolve_accent(st, state);
+
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+
+        const int pad = st.metrics.padding;
+        Rect row{r.x + pad, r.y + r.h / 2 - item_h_ / 2, r.w - pad * 2, item_h_};
+        rgba select_bg = accent;
+        select_bg.a = static_cast<std::uint8_t>(std::min(255, accent.a + 40));
+        draw_round_rect(cvs, row.x, row.y, row.w, row.h,
+                        st.metrics.corner_radius, select_bg, true);
+
+        char buf[32]{};
+        const int value = start_ + selected_ * delta_;
+        (void)format_value(buf, sizeof(buf), format_, value);
+        draw_text_box(cvs, row, buf, font, resolve_font(st),
+                      TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<NumberList>();
         Style st_scratch;
@@ -221,9 +265,29 @@ public:
         cvs.restore_clip(clip_state);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
+#endif
     }
 
     bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const auto r = get_rect();
+        if (e.type == Event::Type::MouseWheel) {
+            if (!r.contains(e.x, e.y)) return false;
+            set_selected(selected_ - e.wheel_y * wheel_step_);
+            return true;
+        }
+        if (e.type == Event::Type::Click) {
+            if (!r.contains(e.x, e.y)) return false;
+            const int center = r.y + r.h / 2;
+            if (e.y < center) {
+                set_selected(selected_ - 1);
+            } else if (e.y > center) {
+                set_selected(selected_ + 1);
+            }
+            return true;
+        }
+        return false;
+#else
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -269,9 +333,11 @@ public:
             }
         }
         return false;
+#endif
     }
 
 private:
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
     void clamp_scroll() noexcept {
         const float max_scroll = (item_count_ > 0) ? static_cast<float>((item_count_ - 1) * item_h_) : 0.0f;
         scroll_offset_ = alg::scroll_bounds::clampf(scroll_offset_, max_scroll);
@@ -316,6 +382,33 @@ private:
         if (idx >= item_count_) idx = item_count_ - 1;
         return idx;
     }
+#else
+    void clamp_scroll() noexcept {}
+
+    void update_selected_from_scroll() noexcept {}
+
+    void update_scroll_animation() noexcept {}
+
+    void snap_to_selected() noexcept {
+        target_scroll_ = 0.0f;
+        scroll_offset_ = 0.0f;
+    }
+
+    int index_from_y(int y) const noexcept {
+        if (item_count_ == 0 || item_h_ <= 0) return 0;
+        const auto r = get_rect();
+        int idx = selected_;
+        const int center_y = r.y + r.h / 2;
+        if (y < center_y) {
+            idx -= 1;
+        } else if (y > center_y) {
+            idx += 1;
+        }
+        if (idx < 0) idx = 0;
+        if (idx >= item_count_) idx = item_count_ - 1;
+        return idx;
+    }
+#endif
 
     void notify_change() noexcept {
         if (!change_fn_) return;

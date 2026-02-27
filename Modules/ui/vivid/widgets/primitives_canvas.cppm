@@ -1,7 +1,12 @@
 module;
 #include <cstddef>
-#include <cmath>
 #include <algorithm>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.primitives_canvas;
 
 import charm.core.object;
@@ -68,7 +73,9 @@ private:
         }
         const int dx = x1 - x0;
         const int dy = y1 - y0;
-        const bool offset_y = std::abs(dx) >= std::abs(dy);
+        const int adx = (dx < 0) ? -dx : dx;
+        const int ady = (dy < 0) ? -dy : dy;
+        const bool offset_y = adx >= ady;
         const int half = thickness / 2;
         for (int i = -half; i <= half; ++i) {
             if (offset_y) {
@@ -115,17 +122,25 @@ private:
         }
         case 4: { // arc / gauge style
             const int r1 = std::min(w, h) / 3;
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
             draw_arc(cvs, cx, cy, r1, 4, 135, 405, border);
             const float sweep = 135.0f + std::fmod(time_ * 90.0f, 270.0f);
             draw_arc(cvs, cx, cy, r1, 4, 135, sweep, main);
+#else
+            draw_circle(cvs, cx, cy, r1, border, false);
+#endif
             break;
         }
         case 5: { // animated diagonal
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
             const float t = time_;
             const auto wobble = alg::arc::point_on_ellipse_rad(0, 0, w / 4, h / 4, t);
             const int dx = wobble.x;
             const int dy = wobble.y;
             draw_thick_line(cvs, x + 12 + dx, y + 12, x + w - 12, y + h - 12 + dy, 4, main);
+#else
+            draw_thick_line(cvs, x + 12, y + 12, x + w - 12, y + h - 12, 4, main);
+#endif
             break;
         }
         default:

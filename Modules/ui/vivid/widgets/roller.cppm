@@ -1,5 +1,4 @@
 module;
-#include <cmath>
 #include <cstdint>
 export module charm.widgets.roller;
 
@@ -65,7 +64,8 @@ public:
             lbl.set_font(resolve_font(st));
             lbl.set_color(font);
             const int alpha_step = 60;
-            int alpha = 255 - std::abs(i) * alpha_step;
+            const int dist = (i < 0) ? -i : i;
+            int alpha = 255 - dist * alpha_step;
             if (alpha < 60) alpha = 60;
             rgba col = font;
             col.a = static_cast<std::uint8_t>(alpha);

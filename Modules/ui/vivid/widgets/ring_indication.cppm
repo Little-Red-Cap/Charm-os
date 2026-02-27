@@ -1,5 +1,10 @@
 module;
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
 #include <cmath>
+#endif
 export module charm.widgets.ring_indication;
 
 import charm.core.object;
@@ -40,6 +45,21 @@ public:
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
     void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
+                                                  has_state(State::Pressed), has_state(State::Focused),
+                                                  style_variant());
+        const Style& base = Theme::instance().get<RingIndication>();
+        Style st_scratch;
+        const Style& st = resolve_style(WidgetKind::RingIndication, state, base, st_scratch);
+        const auto r = get_rect();
+        rgba bg{}, border{}, font{};
+        resolve_colors(st, state, bg, border, font);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+        draw_focus_ring(cvs, r, st, has_state(State::Focused));
+        return;
+#else
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<RingIndication>();
         Style st_scratch;
@@ -86,6 +106,7 @@ public:
                 draw_line(cvs, x0, y0, x1, y1, border);
             }
         }
+#endif
     }
 
 private:

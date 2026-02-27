@@ -1,8 +1,13 @@
 module;
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.dynamic_nebula;
 
 import charm.core.object;
@@ -49,6 +54,10 @@ public:
     void set_particle_size(int px) noexcept { particle_size_ = (px > 0) ? px : 1; }
 
     void draw(CanvasBase& cvs) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)cvs;
+        return;
+#else
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<DynamicNebula>();
         Style st_scratch;
@@ -105,6 +114,7 @@ public:
             draw.a = static_cast<std::uint8_t>((draw.a * alpha) / 255);
             draw_circle(cvs, px, py, particle_size_, draw, true);
         }
+#endif
     }
 
 private:

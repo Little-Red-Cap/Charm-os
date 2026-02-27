@@ -1,7 +1,12 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.battery_gasgauge;
 
 import charm.core.object;
@@ -101,6 +106,14 @@ public:
             }
             return;
         }
+
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        draw_rect(cvs, inner_x, inner_y + (inner_h - fill_h), inner_w, fill_h, fill, true);
+        if (status_ == Status::Charging) {
+            draw_bolt(cvs, inner_x, inner_y, inner_w, inner_h, on_accent);
+        }
+        return;
+#endif
 
         if (anim_enabled_) {
             wave_phase_ += wave_speed_;

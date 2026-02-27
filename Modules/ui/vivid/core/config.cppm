@@ -41,3 +41,9 @@ export constexpr int layer_cache_height = CHARM_VIVID_LAYER_CACHE_HEIGHT;
 // Note: the cache buffer is still full-screen until the canvas is generalized.
 export constexpr int layer_cache_height = screen_height / 2;
 #endif
+
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+
+export constexpr bool enable_float_widgets = (CHARM_VIVID_ENABLE_FLOAT_WIDGETS != 0);

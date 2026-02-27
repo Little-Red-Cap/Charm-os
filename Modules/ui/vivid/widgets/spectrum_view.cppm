@@ -1,9 +1,14 @@
 module;
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.spectrum_view;
 
 import charm.core.object;
@@ -67,6 +72,10 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)accent;
+        return;
+#endif
         if (count_ <= 0) return;
         ++frame_;
         switch (mode_) {
@@ -114,6 +123,7 @@ private:
         };
     }
 
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
     void draw_bars(CanvasBase& cvs, const Rect& r, const Style& st, const rgba& accent, const rgba& font) {
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
@@ -240,6 +250,7 @@ private:
             }
         }
     }
+#endif
 };
 
 

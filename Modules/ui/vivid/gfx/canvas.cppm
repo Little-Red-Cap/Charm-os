@@ -145,8 +145,13 @@ public:
     }
 
     void set_clip(const Rect& r) noexcept {
+        const Rect nr = rect_normalized(r);
+        if (!rect_valid(nr)) {
+            clear_clip();
+            return;
+        }
         clip_enabled_ = true;
-        clip_ = r;
+        clip_ = nr;
     }
 
     void clear_clip() noexcept { clip_enabled_ = false; }
@@ -351,8 +356,13 @@ public:
     }
 
     void set_clip(const Rect& r) noexcept {
+        const Rect nr = rect_normalized(r);
+        if (!rect_valid(nr)) {
+            clear_clip();
+            return;
+        }
         clip_enabled_ = true;
-        clip_ = r;
+        clip_ = nr;
     }
 
     void clear_clip() noexcept { clip_enabled_ = false; }

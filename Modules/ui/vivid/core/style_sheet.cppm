@@ -264,11 +264,12 @@ private:
     }
 
     void insert_rule(const StyleRuleEntry& entry) noexcept {
-        // Keep rules ordered by priority; stable within same priority by insertion order.
+        // Keep rules ordered by priority; tie-break by insertion order (older first).
         std::size_t pos = count_;
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& cur = rules_[i];
-            if (entry.priority < cur.priority) {
+            if (entry.priority < cur.priority ||
+                (entry.priority == cur.priority && entry.order < cur.order)) {
                 pos = i;
                 break;
             }

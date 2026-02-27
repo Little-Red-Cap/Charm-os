@@ -25,8 +25,11 @@ public:
 
     Rect get_rect() const noexcept { return rect_; }
     void set_pos(int x, int y) noexcept { rect_.x = x; rect_.y = y; }
-    void set_size(int w, int h) noexcept { rect_.w = w; rect_.h = h; }
-    void set_rect(Rect r) noexcept { rect_ = r; }
+    void set_size(int w, int h) noexcept {
+        rect_.w = (w < 0) ? 0 : w;
+        rect_.h = (h < 0) ? 0 : h;
+    }
+    void set_rect(Rect r) noexcept { rect_ = rect_normalized(r); }
     Rect layout_rect() const noexcept { return vtable_->layout_rect(*this); }
 
     enum class ClipPolicy : unsigned {
@@ -434,7 +437,7 @@ public:
         return vtable_->should_draw_child(*this, ch);
     }
     void set_children_bounds(const Rect& bounds, bool valid) noexcept {
-        children_bounds_ = bounds;
+        children_bounds_ = rect_normalized(bounds);
         children_bounds_valid_ = valid;
     }
     bool has_children_bounds() const noexcept { return children_bounds_valid_; }
@@ -502,17 +505,18 @@ protected:
     const VTable* vtable_{nullptr};
 
     void mark_dirty_hint(const Rect& r) noexcept {
-        if (r.w <= 0 || r.h <= 0) return;
+        const Rect nr = rect_normalized(r);
+        if (!rect_valid(nr)) return;
         cache_dirty_ = true;
         if (!dirty_hint_valid_) {
-            dirty_hint_ = r;
+            dirty_hint_ = nr;
             dirty_hint_valid_ = true;
             return;
         }
-        const int left = (r.x < dirty_hint_.x) ? r.x : dirty_hint_.x;
-        const int top = (r.y < dirty_hint_.y) ? r.y : dirty_hint_.y;
-        const int right = ((r.x + r.w) > (dirty_hint_.x + dirty_hint_.w)) ? (r.x + r.w) : (dirty_hint_.x + dirty_hint_.w);
-        const int bottom = ((r.y + r.h) > (dirty_hint_.y + dirty_hint_.h)) ? (r.y + r.h) : (dirty_hint_.y + dirty_hint_.h);
+        const int left = (nr.x < dirty_hint_.x) ? nr.x : dirty_hint_.x;
+        const int top = (nr.y < dirty_hint_.y) ? nr.y : dirty_hint_.y;
+        const int right = ((nr.x + nr.w) > (dirty_hint_.x + dirty_hint_.w)) ? (nr.x + nr.w) : (dirty_hint_.x + dirty_hint_.w);
+        const int bottom = ((nr.y + nr.h) > (dirty_hint_.y + dirty_hint_.h)) ? (nr.y + nr.h) : (dirty_hint_.y + dirty_hint_.h);
         dirty_hint_.x = left;
         dirty_hint_.y = top;
         dirty_hint_.w = right - left;

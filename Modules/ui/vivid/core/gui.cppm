@@ -360,16 +360,16 @@ private:
             default:
                 break;
             }
+            bool clip_ok = rect_valid(clip_rect);
             if (clip_state.enabled) {
-                const int left = (clip_rect.x > clip_state.rect.x) ? clip_rect.x : clip_state.rect.x;
-                const int top = (clip_rect.y > clip_state.rect.y) ? clip_rect.y : clip_state.rect.y;
-                const int right = (clip_rect.x + clip_rect.w < clip_state.rect.x + clip_state.rect.w)
-                    ? (clip_rect.x + clip_rect.w)
-                    : (clip_state.rect.x + clip_state.rect.w);
-                const int bottom = (clip_rect.y + clip_rect.h < clip_state.rect.y + clip_state.rect.h)
-                    ? (clip_rect.y + clip_rect.h)
-                    : (clip_state.rect.y + clip_state.rect.h);
-                clip_rect = Rect{left, top, right - left, bottom - top};
+                clip_ok = clip_ok && rect_intersect(clip_rect, clip_state.rect, clip_rect);
+            }
+            if (!clip_ok) {
+                if (node_index != static_cast<std::size_t>(-1)) {
+                    render_tree_.node_mut(node_index).clip = Rect{};
+                }
+                target.restore_clip(clip_state);
+                return subtree_dirty;
             }
             target.set_clip(clip_rect);
             if (node_index != static_cast<std::size_t>(-1)) {
@@ -479,10 +479,11 @@ private:
         }
     }
     static Rect clamp_to_screen(const Rect& r) noexcept {
-        const int left = (r.x < 0) ? 0 : r.x;
-        const int top = (r.y < 0) ? 0 : r.y;
-        const int right = (r.x + r.w > screen_width) ? screen_width : (r.x + r.w);
-        const int bottom = (r.y + r.h > screen_height) ? screen_height : (r.y + r.h);
+        const Rect nr = rect_normalized(r);
+        const int left = (nr.x < 0) ? 0 : nr.x;
+        const int top = (nr.y < 0) ? 0 : nr.y;
+        const int right = (nr.x + nr.w > screen_width) ? screen_width : (nr.x + nr.w);
+        const int bottom = (nr.y + nr.h > screen_height) ? screen_height : (nr.y + nr.h);
         return Rect{left, top, right - left, bottom - top};
     }
 

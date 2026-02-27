@@ -1,8 +1,13 @@
 module;
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
+#endif
+#if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+#include <cmath>
+#endif
 export module charm.widgets.image;
 
 import charm.core.object;
@@ -143,6 +148,10 @@ public:
     }
 
     bool on_event(const Event& e) {
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        (void)e;
+        return false;
+#else
         if (dispatch_interactions(e)) return true;
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
@@ -159,11 +168,38 @@ public:
             pinch_active_ = false;
         }
         return true;
+#endif
     }
 
     void draw(CanvasBase& cvs) {
         // Intentional: image widget bypasses theme/style rendering; container handles background/border.
         if (!image_) return;
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        const auto r = get_rect();
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return;
+        }
+        const ImageView src_view = make_subview(image_, src);
+        if (!src_view) return;
+        auto clip_state = cvs.save_clip();
+        if (edge_mode_ == EdgeMode::KeepInside) {
+            cvs.set_clip(r);
+        }
+        if (scale_mode_ == ScaleMode::Stretch) {
+            draw_image_scaled(cvs, r.x, r.y, r.w, r.h, src_view);
+        } else {
+            draw_image(cvs, r.x, r.y, src_view);
+        }
+        cvs.restore_clip(clip_state);
+        return;
+#else
         if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
             zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
             zoom_velocity_ *= inertia_decay_;
@@ -233,6 +269,7 @@ public:
             draw_image_transformed(cvs, dst_x, dst_y, dst_w, dst_h, src_view, rotation_, sampling_, crop_mode_);
         }
         cvs.restore_clip(clip_state);
+#endif
     }
 
 private:

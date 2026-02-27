@@ -7,10 +7,10 @@ export enum class PixelFormat {
     RGB565,    // 5-bit R, 6-bit G, 5-bit B
     RGB888,    // 8-bit each
     ARGB8888,  // 8-bit with alpha
-    // …可扩展
+    // ... extensible
 };
 
-// Traits：每种格式的位深和字节数
+// Traits: bit depth and bytes per pixel for each format.
 export template<PixelFormat F> struct PixelTraits;
 
 // export template<> struct PixelTraits<PixelFormat::RGB565> {

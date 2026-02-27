@@ -113,7 +113,7 @@ inline RolePalette build_palette(const ThemeTokens& t) noexcept {
     p.values[role_index(StyleRole::Accent)] = t.accent;
     p.values[role_index(StyleRole::AccentHover)] = adjust_by_luma(t.accent, 12);
     p.values[role_index(StyleRole::AccentPressed)] = adjust_by_luma(t.accent, 24);
-    p.values[role_index(StyleRole::OnAccent)] = t.colors.on_accent;
+    p.values[role_index(StyleRole::OnAccent)] = t.on_accent;
     p.values[role_index(StyleRole::Danger)] = t.danger;
     p.values[role_index(StyleRole::OnDanger)] = t.on_danger;
     p.values[role_index(StyleRole::FocusRing)] = t.focus_ring;

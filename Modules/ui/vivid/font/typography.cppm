@@ -15,20 +15,18 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
-namespace {
-    inline const Font* fallback_for(const Font& font) noexcept {
-        if (font.fallback_font) {
-            return font.fallback_font;
-        }
-        const auto* table = font.table.data();
-        if (table == font_noto_ascii_12.table.data()) {
-            return &font_noto_sc_12;
-        }
-        if (table == font_noto_ascii_16.table.data()) {
-            return &font_noto_sc_16;
-        }
-        return nullptr;
+inline const Font* fallback_for(const Font& font) noexcept {
+    if (font.fallback_font) {
+        return font.fallback_font;
     }
+    const auto* table = font.table.data();
+    if (table == font_noto_ascii_12.table.data()) {
+        return &font_noto_sc_12;
+    }
+    if (table == font_noto_ascii_16.table.data()) {
+        return &font_noto_sc_16;
+    }
+    return nullptr;
 }
 
 export

@@ -204,7 +204,7 @@ export namespace out {
 
     std::size_t k = 0;
     auto r = detail::scan_format<F>([&](const token& tk) {
-      // 鐞嗚涓婃案杩滀笉搴旇瓒婄晫锛涜秺鐣岃鏄?token_count 涓?scan_format 閫昏緫涓嶄竴鑷?
+      // Should never overflow; if it does, token_count and scan_format disagree.
       if (k >= NTok) { out.valid = false; return; }
       out.toks[k++] = tk;
     });
@@ -413,7 +413,7 @@ export namespace out {
     return false;
   }
 
-  // --------- 鏁板瓧鏍煎紡鍖栵細鏃犲爢銆佹棤寮傚父 ----------
+  // --------- Numeric formatting: no heap, no exceptions ----------
   // Note: ANSI tokens are handled via overloads in out.ansi.
   // Non-ANSI sinks get silent no-op behavior by default.
   inline constexpr std::size_t pad_chunk_size = 32;
@@ -432,7 +432,7 @@ export namespace out {
     char* first = buf;
     char* last  = buf + sizeof(buf);
 
-    // 鐢?to_chars 鍗佽繘鍒?鍗佸叚杩涘埗锛圕++鏍囧噯搴撳疄鐜伴€氬父姣?printf 灏忓緱澶氾級
+    // Use std::to_chars for base-10/16 conversion (usually smaller than printf).
     auto ec = std::errc{};
 
     if (base == 10) {
@@ -513,7 +513,7 @@ export namespace out {
     if (r0.ec != std::errc{}) return std::unexpected(errc::buffer_overflow);
     last = r0.ptr;
 
-    // 澶у啓 E锛氭妸杈撳嚭閲岀殑 'e' 鎹㈡垚 'E'
+    // Uppercase E: replace 'e' with 'E' in output.
     if (spec.type == 'E') {
       for (char* p = first; p < last; ++p) if (*p == 'e') *p = 'E';
     }
@@ -546,7 +546,7 @@ export namespace out {
 
 namespace detail {
 
-  // 0..9 瓒冲澶у鏁?MCU 璋冭瘯鐢ㄩ€?
+  // Digits 0..9 are usually enough for MCU debug output.
   inline constexpr std::uint32_t pow10_u32[10] = {
     1u, 10u, 100u, 1000u, 10000u,
     100000u, 1000000u, 10000000u, 100000000u, 1000000000u
@@ -567,10 +567,10 @@ namespace detail {
     return ok(total);
   }
 
-  // MCU 鏈€灏忕増锛氬彧鏀寔 fixed锛坽:f} / {:.Nf} / 榛樿 {} 鎸?fixed锛?
+  // MCU minimal mode: fixed only ({:f}/{:.Nf}); default {} uses fixed.
   template <class S>
   inline result<std::size_t> write_float_fixed_mcu(S& sink, float v, fmt_spec spec) noexcept {
-    // 鍙帴鍙?0 / f / F
+    // Accept only 0 / f / F.
     if (spec.type != 0 && spec.type != 'f' && spec.type != 'F')
       return std::unexpected(errc::invalid_format);
 
@@ -620,18 +620,18 @@ namespace detail {
       const bool is_nan = (mant != 0);
       const bool is_inf = (mant == 0);
 
-      const bool upper = spec.upper; // 'F' 浼氳 upper=true锛堜綘鐜版湁閫昏緫锛?
+      const bool upper = spec.upper; // 'F' sets upper=true.
       const char* s = nullptr;
       if (is_nan) s = upper ? "NAN" : "nan";
       else if (is_inf) s = upper ? "INF" : "inf";
       else s = upper ? "NAN" : "nan";
 
-      // nan 閫氬父涓嶅甫绗﹀彿锛沬nf 鍙互甯︾鍙凤紙杩欓噷缁?inf 甯︾鍙凤級
+      // nan usually has no sign; inf may have a sign (keep sign for inf).
       const bool sign = (!is_nan) && neg;
       return emit_with_width(std::string_view{s, 3}, sign);
     }
 
-    // abs锛氭竻绗﹀彿浣嶏紝閬垮厤寮曞叆 fabsf
+    // abs: clear sign bit without pulling in fabsf.
     const float av = std::bit_cast<float>(bits & 0x7FFFFFFFu);
 
     std::uint32_t ip = static_cast<std::uint32_t>(av);
@@ -640,7 +640,7 @@ namespace detail {
     std::uint32_t pow10 = 1u;
 
     if (prec == 0) {
-      // 鍥涜垗浜斿叆鍒版暣鏁?
+      // Round to integer.
       const float rounded = av + 0.5f;
       ip = static_cast<std::uint32_t>(rounded);
     } else {
@@ -649,14 +649,14 @@ namespace detail {
       const float scaled = frac * static_cast<float>(pow10) + 0.5f;
       frac_scaled = static_cast<std::uint32_t>(scaled);
 
-      // 澶勭悊 0.999999.. rounding carry
+      // Handle 0.999999.. rounding carry.
       if (frac_scaled >= pow10) {
         frac_scaled = 0;
         ++ip;
       }
     }
 
-    // 缁勮 core锛堜笉鍚?sign锛夛紝渚夸簬 width 璁＄畻
+    // Build core digits (without sign) for width calculation.
     char buf[32];
     char* p = buf;
     char* end = buf + sizeof(buf);
@@ -669,7 +669,7 @@ namespace detail {
       if (p >= end) return std::unexpected(errc::buffer_overflow);
       *p++ = '.';
 
-      // 鍐欏叆 prec 浣嶅皬鏁帮紙甯﹀墠瀵?0锛?
+      // Write prec fractional digits (with leading zero).
       if (static_cast<std::size_t>(end - p) < prec)
         return std::unexpected(errc::buffer_overflow);
 
@@ -690,8 +690,8 @@ namespace detail {
 
 #endif // OUT_ENABLE_FLOAT
 
-  // 缁熶竴鍏ュ彛锛氭寜绫诲瀷鍐欎竴涓弬鏁?
-  // TODO: 缂栬瘧鏈熷瓧绗︿覆鎷兼帴
+  // Unified entry: one writer per type.
+  // TODO: compile-time string concat.
   template <class S, class T>
   inline result<std::size_t> write_one(S& sink, const T& value, fmt_spec spec) noexcept {
     if constexpr (std::is_same_v<T, char>) {
@@ -724,7 +724,7 @@ namespace detail {
     } else if constexpr (std::is_floating_point_v<T>) {
 #ifdef OUT_ENABLE_FLOAT
       // return write_float(sink, value, spec);
-      // 绂佹 double锛屽己鍒剁敤 float
+      // Ban double; use float.
       if constexpr (std::is_same_v<T, double>) {
         static_assert(dependent_false_v<T>,
           "double formatting is disabled on MCU. "
@@ -757,7 +757,7 @@ namespace detail {
           if (!r) return std::unexpected(r.error());
           if (spec.width > 0) --spec.width;
 
-          // 鐢熸垚缁濆鍊硷紙瑕嗙洊 INT_MIN / 鏈€灏忓€硷級
+          // Make abs value (handle INT_MIN).
           U uv = static_cast<U>(rv);
           uv = U(0) - uv;
 
@@ -812,7 +812,7 @@ namespace detail {
       "float formatting spec requested (use {:f}/{:e}/{:g}) but OUT_ENABLE_FLOAT is not defined");
 #endif
 
-    // 鍙傛暟鎵撳寘鎴?tuple 鏂逛究鎸夌储寮曞彇
+    // Pack args into tuple for index-based access.
     auto tup = std::forward_as_tuple(std::forward<Args>(args)...);
 
     if constexpr (detail::is_buffered_writer_v<S>) {

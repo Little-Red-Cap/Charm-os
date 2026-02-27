@@ -336,7 +336,7 @@ export namespace fs {
     #endif
                 const auto written = utf16_to_utf8(src, fname_utf8.data(), fname_utf8.size());
                 if (written > 0) {
-                    fname_utf8[std::min(written, fname_utf8.size() - 1)] = '\0';
+                    fname_utf8[(std::min)(written, fname_utf8.size() - 1)] = '\0';
                     name = fname_utf8.data();
                 }
 #else

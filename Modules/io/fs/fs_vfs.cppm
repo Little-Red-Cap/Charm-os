@@ -106,7 +106,7 @@ export namespace fs {
 
     inline std::size_t mount_count() noexcept { return g_mount_count; }
 
-    // 兼容旧接口：仅设置单一根挂载
+    // Backward-compat: set a single root mount.
     inline void set_mount(Mount* m) noexcept {
         clear_mounts();
         (void)add_mount("/", m);

@@ -254,7 +254,7 @@ inline void apply_tokens_to_style(Style& s, const ThemeTokens& t) noexcept {
     s.colors.accent_hover = {0, 0, 0, 0};
     s.colors.accent_pressed = {0, 0, 0, 0};
     s.colors.accent_disabled = {0, 0, 0, 0};
-    s.colors.on_accent = t.colors.on_accent;
+    s.colors.on_accent = t.on_accent;
 }
 
 export

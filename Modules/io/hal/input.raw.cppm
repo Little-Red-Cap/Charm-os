@@ -11,34 +11,34 @@ export module input.raw;
 
 export namespace input
 {
-    // Raw 层只描述“事实”，不做语义。
-    // 任何硬件：GPIO/矩阵/ADC/串口注入/SDL，都应该能表达为这些。
+    // Raw layer describes facts only, no semantics.
+    // Any hardware (GPIO/matrix/ADC/UART/SDL) should map to these.
 
     enum class Button : std::uint8_t {
         Up,
         Down,
         Enter,
         Back,
-        // 预留：Shift/Fn/RotaryPress 等可再加
+        // Reserved: Shift/Fn/RotaryPress can be added later.
     };
 
     struct PointerRaw {
         bool         down{false};
         std::int16_t x{0};
         std::int16_t y{0};
-        std::uint8_t id{0}; // 多指可用
+        std::uint8_t id{0}; // Pointer id (multi-touch).
     };
 
     struct AxisRaw {
-        // 归一化范围建议：[-32767, 32767]
+        // Recommended normalized range: [-32767, 32767].
         std::int16_t x{0};
         std::int16_t y{0};
     };
 
-    // 一个 RawSource 的契约（用模板/概念做零成本）：
+    // RawSource contract (concept-only, zero-cost):
     // - is_down(Button) -> bool
-    // - read_pointer() -> PointerRaw （没有触摸就返回 down=false）
-    // - read_axis() -> AxisRaw       （没有摇杆就返回 0）
+    // - read_pointer() -> PointerRaw (down=false if no touch).
+    // - read_axis() -> AxisRaw       (0 if no stick).
 
     // RawSource concept: optional encoder support via pop_encoder_ab().
     template <class T>

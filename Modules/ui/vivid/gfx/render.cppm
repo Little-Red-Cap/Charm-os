@@ -122,7 +122,7 @@ export inline void draw_arc(CanvasBase& cvs,
     });
 }
 
-// Bresenham 鐩寸嚎
+// Bresenham line.
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_line(Canvas<PF, W, H>& cvs,
                int x0, int y0,

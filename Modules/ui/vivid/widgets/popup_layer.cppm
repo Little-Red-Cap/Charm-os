@@ -11,7 +11,7 @@ using namespace ui::render;
 
 // Simple popup layer: draws background and clip; children draw content.
 export
-class PopupLayer : public ObjectBase {
+class PopupLayer : public WidgetBase<PopupLayer> {
 public:
     PopupLayer() {
         set_visible(false);
@@ -19,7 +19,7 @@ public:
 
     void set_background(rgba bg) noexcept { bg_ = bg; has_bg_ = true; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         if (!is_visible()) return;
         const auto r = get_rect();
         Style st = Theme::instance().get<PopupLayer>();
@@ -38,4 +38,6 @@ private:
     bool has_bg_{false};
     rgba bg_{0,0,0,0};
 };
+
+
 

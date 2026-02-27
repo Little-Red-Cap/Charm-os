@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Simple image box (ARM-2D image_box inspired)
 export
-class ImageBox : public ObjectBase {
+class ImageBox : public WidgetBase<ImageBox> {
 public:
     enum class ScaleMode {
         None,
@@ -50,7 +50,7 @@ public:
         align_v_ = v;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ImageBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -109,5 +109,7 @@ private:
     AlignH align_h_{AlignH::Center};
     AlignV align_v_{AlignV::Center};
 };
+
+
 
 

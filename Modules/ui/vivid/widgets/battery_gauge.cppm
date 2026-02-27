@@ -12,7 +12,7 @@ using namespace ui::render;
 
 // Simple battery gauge (0..100)
 export
-class BatteryGauge : public ObjectBase {
+class BatteryGauge : public WidgetBase<BatteryGauge> {
 public:
     BatteryGauge() {
         set_size(120, 48);
@@ -24,7 +24,7 @@ public:
 
     int value() const noexcept { return value_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<BatteryGauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -66,5 +66,7 @@ public:
 private:
     int value_{50};
 };
+
+
 
 

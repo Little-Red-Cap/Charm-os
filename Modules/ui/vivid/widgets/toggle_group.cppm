@@ -13,7 +13,7 @@ import charm.widgets.text;
 using namespace ui::render;
 
 export
-class ToggleGroup : public ObjectBase {
+class ToggleGroup : public WidgetBase<ToggleGroup> {
 public:
     ToggleGroup() {
         set_focusable(true);
@@ -51,7 +51,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ToggleGroup>();
         const auto r = get_rect();
 
@@ -93,7 +93,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
@@ -138,5 +138,7 @@ private:
     bool single_select_{false};
     Callback on_change_{};
 };
+
+
 
 

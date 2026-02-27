@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Simple read-only text box
 export
-class TextBox : public ObjectBase {
+class TextBox : public WidgetBase<TextBox> {
 public:
     explicit TextBox(const char* text = "") {
         set_size(200, 80);
@@ -30,7 +30,7 @@ public:
     void set_align(TextAlignH h, TextAlignV v) noexcept { align_h_ = h; align_v_ = v; }
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<TextBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -66,5 +66,7 @@ private:
         buf_[len_] = '\0';
     }
 };
+
+
 
 

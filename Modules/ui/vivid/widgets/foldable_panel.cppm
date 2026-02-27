@@ -15,7 +15,7 @@ using namespace ui::render;
 
 // Simple foldable panel with header/body
 export
-class FoldablePanel : public ObjectBase {
+class FoldablePanel : public WidgetBase<FoldablePanel> {
 public:
     explicit FoldablePanel(const char* title = "Panel") {
         set_focusable(true);
@@ -37,7 +37,7 @@ public:
 
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<FoldablePanel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -93,7 +93,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (e.type != Event::Type::Click) return false;
         const auto r = get_rect();
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
@@ -116,7 +116,7 @@ public:
         return false;
     }
 
-    Rect layout_rect() const noexcept override {
+    Rect layout_rect() const noexcept {
         const auto r = get_rect();
         const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
         if (!expanded_) {
@@ -130,7 +130,7 @@ public:
         return inner;
     }
 
-    bool should_draw_child(const ObjectBase&) const noexcept override {
+    bool should_draw_child(const ObjectBase&) const noexcept {
         return expanded_;
     }
 
@@ -194,5 +194,7 @@ private:
         return inner;
     }
 };
+
+
 
 

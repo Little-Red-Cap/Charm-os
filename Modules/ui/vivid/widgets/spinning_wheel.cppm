@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Spinning wheel indicator (ARM-2D spinning_wheel inspired)
 export
-class SpinningWheel : public ObjectBase {
+class SpinningWheel : public WidgetBase<SpinningWheel> {
 public:
     SpinningWheel() {
         set_size(80, 80);
@@ -25,7 +25,7 @@ public:
     void set_speed(float deg_per_frame) noexcept { speed_ = deg_per_frame; }
     void set_color(const rgba& c) noexcept { color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<SpinningWheel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -60,3 +60,5 @@ private:
     float phase_{0.0f};
     rgba color_{0, 0, 0, 0};
 };
+
+

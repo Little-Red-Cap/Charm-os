@@ -11,7 +11,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Arc : public ObjectBase {
+class Arc : public WidgetBase<Arc> {
 public:
     void set_start_angle(float deg) noexcept { start_deg_ = deg; }
     void set_end_angle(float deg) noexcept { end_deg_ = deg; }
@@ -22,7 +22,7 @@ public:
         value_ = alg::arc::clamp01(v);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Arc>();
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         apply_style_sheet(WidgetKind::Arc, state, st);
@@ -46,3 +46,5 @@ private:
     int thickness_{6};
     rgba color_{0, 0, 0, 0};
 };
+
+

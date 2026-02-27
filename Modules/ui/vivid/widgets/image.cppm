@@ -16,7 +16,7 @@ import charm.gfx.pixel_ops;
 using namespace ui::render;
 
 export
-class Image : public ObjectBase {
+class Image : public WidgetBase<Image> {
 public:
     enum class AlignH {
         Left,
@@ -142,7 +142,7 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (dispatch_interactions(e)) return true;
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
@@ -161,7 +161,7 @@ public:
         return true;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         if (!image_) return;
         if (!pinch_active_ && inertia_enabled_ && std::fabs(zoom_velocity_) > 0.0001f) {
             zoom_ = clamp_zoom(zoom_ + zoom_velocity_);
@@ -454,3 +454,5 @@ private:
         if (self) self->reset_zoom();
     }
 };
+
+

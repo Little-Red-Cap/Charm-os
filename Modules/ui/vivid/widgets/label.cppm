@@ -11,7 +11,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 
 export
-class Label : public ObjectBase {
+class Label : public WidgetBase<Label> {
 public:
     enum class VerticalAlign {
         Top,
@@ -83,7 +83,7 @@ public:
     void set_wrap(TextWrap w) noexcept { wrap_ = w; }
     void set_ellipsis(TextEllipsis e) noexcept { ellipsis_ = e; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Label>();
         rgba bg{}, border{}, font_color{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -128,3 +128,5 @@ private:
     TextWrap wrap_{TextWrap::None};
     TextEllipsis ellipsis_{TextEllipsis::None};
 };
+
+

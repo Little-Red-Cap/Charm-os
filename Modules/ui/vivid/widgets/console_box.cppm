@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Simple console box (ARM-2D console_box inspired)
 export
-class ConsoleBox : public ObjectBase {
+class ConsoleBox : public WidgetBase<ConsoleBox> {
 public:
     ConsoleBox() {
         set_size(260, 140);
@@ -59,7 +59,7 @@ public:
         max_lines_ = (max_lines == 0) ? 1 : max_lines;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ConsoleBox>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -129,5 +129,7 @@ private:
         return (start_ + i) % max_lines_;
     }
 };
+
+
 
 

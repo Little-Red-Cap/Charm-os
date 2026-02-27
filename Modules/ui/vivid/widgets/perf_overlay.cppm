@@ -49,7 +49,7 @@ namespace {
 }
 
 export
-class PerfOverlay : public ObjectBase {
+class PerfOverlay : public WidgetBase<PerfOverlay> {
 public:
     struct Sample {
         int fps{0};
@@ -75,7 +75,7 @@ public:
         has_sample_ = false;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<PerfOverlay>();
         const auto r = get_rect();
 
@@ -120,5 +120,7 @@ private:
     Sample sample_{};
     bool has_sample_{false};
 };
+
+
 
 

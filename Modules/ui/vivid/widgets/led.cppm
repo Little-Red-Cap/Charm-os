@@ -11,7 +11,7 @@ import charm.core.style_sheet;
 using namespace ui::render;
 
 export
-class Led final : public ObjectBase {
+class Led final : public WidgetBase<Led> {
 public:
     Led() {
         set_size(14, 14);
@@ -23,7 +23,7 @@ public:
     void set_on_color(const rgba& c) noexcept { on_color_ = c; }
     void set_off_color(const rgba& c) noexcept { off_color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         if (r.w <= 0 || r.h <= 0) return;
         Style st = Theme::instance().get<Led>();
@@ -52,5 +52,7 @@ private:
     rgba on_color_{0, 0, 0, 0};
     rgba off_color_{0, 0, 0, 0};
 };
+
+
 
 

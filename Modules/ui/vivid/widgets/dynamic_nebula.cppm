@@ -15,7 +15,7 @@ using namespace ui::render;
 
 // Dynamic nebula (ARM-2D dynamic_nebula inspired)
 export
-class DynamicNebula : public ObjectBase {
+class DynamicNebula : public WidgetBase<DynamicNebula> {
 public:
     DynamicNebula() {
         set_size(160, 160);
@@ -48,7 +48,7 @@ public:
     void set_color(const rgba& c) noexcept { color_ = c; }
     void set_particle_size(int px) noexcept { particle_size_ = (px > 0) ? px : 1; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<DynamicNebula>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -146,3 +146,5 @@ private:
     rgba color_{0, 0, 0, 0};
     std::uint32_t rng_{0x12345678u};
 };
+
+

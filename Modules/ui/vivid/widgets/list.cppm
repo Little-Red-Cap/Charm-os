@@ -12,7 +12,7 @@ import charm.widgets.label;
 using namespace ui::render;
 
 export
-class ListItem : public ObjectBase {
+class ListItem : public WidgetBase<ListItem> {
 public:
     explicit ListItem(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<ListItem>();
@@ -30,7 +30,7 @@ public:
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ListItem>();
         const auto r = get_rect();
 
@@ -52,7 +52,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -82,14 +82,14 @@ private:
 };
 
 export
-class List : public ObjectBase {
+class List : public WidgetBase<List> {
 public:
     List() {
         set_size(200, 160);
         set_flex_layout(1, 0, 0, 6, 6);
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const Style& st = Theme::instance().get<List>();
         const auto r = get_rect();
         rgba bg = st.bg_color;
@@ -102,5 +102,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
     }
 };
+
+
 
 

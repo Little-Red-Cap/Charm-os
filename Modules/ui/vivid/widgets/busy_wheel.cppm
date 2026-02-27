@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Busy wheel (ARM-2D busy_wheel inspired)
 export
-class BusyWheel : public ObjectBase {
+class BusyWheel : public WidgetBase<BusyWheel> {
 public:
     BusyWheel() {
         set_size(64, 64);
@@ -27,7 +27,7 @@ public:
     void set_speed(float deg_per_frame) noexcept { speed_ = deg_per_frame; }
     void set_color(const rgba& c) noexcept { color_ = c; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<BusyWheel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -65,3 +65,5 @@ private:
     float phase_{0.0f};
     rgba color_{0, 0, 0, 0};
 };
+
+

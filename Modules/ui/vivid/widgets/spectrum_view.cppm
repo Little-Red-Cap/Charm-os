@@ -16,7 +16,7 @@ using namespace ui::render;
 
 // Spectrum view with multiple render modes.
 export
-class SpectrumView : public ObjectBase {
+class SpectrumView : public WidgetBase<SpectrumView> {
 public:
     static constexpr std::size_t kMax = 32;
 
@@ -54,7 +54,7 @@ public:
 
     void set_peak_decay(float v) noexcept { peak_decay_ = (v > 0.0f) ? v : 0.0f; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<SpectrumView>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -239,5 +239,7 @@ private:
         }
     }
 };
+
+
 
 

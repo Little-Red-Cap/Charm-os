@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Histogram widget (ARM-2D histogram inspired)
 export
-class Histogram : public ObjectBase {
+class Histogram : public WidgetBase<Histogram> {
 public:
     using GetBinValueFn = int (*)(void* ctx, int index);
 
@@ -139,7 +139,7 @@ public:
 
     void set_support_negative(bool on) noexcept { support_negative_ = on; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Histogram>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -282,5 +282,7 @@ private:
         dirty.h = bottom_d - top_d;
     }
 };
+
+
 
 

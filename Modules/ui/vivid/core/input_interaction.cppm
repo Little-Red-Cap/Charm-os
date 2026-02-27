@@ -2,15 +2,15 @@ module;
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <concepts>
 export module charm.core.input_interaction;
 
 export import charm.core.event;
 
 export
-class InteractionStrategy {
-public:
-    virtual ~InteractionStrategy() = default;
-    virtual bool on_event(const Event& e) = 0;
+template<typename T>
+concept InteractionHandler = requires(T& t, const Event& e) {
+    { t.on_event(e) } -> std::convertible_to<bool>;
 };
 
 export
@@ -27,26 +27,37 @@ public:
             : EventMask{0};
     }
 
-    bool add(InteractionStrategy* strategy, EventMask mask = kAll) noexcept {
+    struct Slot {
+        void* self{nullptr};
+        bool (*on_event)(void*, const Event&){nullptr};
+        EventMask mask{0};
+    };
+
+    template<InteractionHandler Strategy>
+    bool add(Strategy* strategy, EventMask mask = kAll) noexcept {
         if (!strategy) return false;
         for (std::size_t i = 0; i < count_; ++i) {
-            if (items_[i] == strategy) return true;
+            if (items_[i].self == strategy) return true;
         }
         if (count_ >= kMax) return false;
-        items_[count_++] = strategy;
-        masks_[count_ - 1] = mask;
+        items_[count_++] = Slot{
+            strategy,
+            +[](void* self, const Event& e) {
+                return static_cast<Strategy*>(self)->on_event(e);
+            },
+            mask
+        };
         return true;
     }
 
-    bool remove(InteractionStrategy* strategy) noexcept {
+    template<InteractionHandler Strategy>
+    bool remove(Strategy* strategy) noexcept {
         for (std::size_t i = 0; i < count_; ++i) {
-            if (items_[i] == strategy) {
+            if (items_[i].self == strategy) {
                 for (std::size_t j = i + 1; j < count_; ++j) {
                     items_[j - 1] = items_[j];
-                    masks_[j - 1] = masks_[j];
                 }
-                items_[count_ - 1] = nullptr;
-                masks_[count_ - 1] = 0;
+                items_[count_ - 1] = Slot{};
                 --count_;
                 return true;
             }
@@ -57,10 +68,10 @@ public:
     bool on_event(const Event& e) {
         const auto event_mask = mask(e.type);
         for (std::size_t i = 0; i < count_; ++i) {
-            auto* strategy = items_[i];
-            if (!strategy) continue;
-            if ((masks_[i] & event_mask) == 0) continue;
-            if (strategy->on_event(e)) {
+            const auto& slot = items_[i];
+            if (!slot.self || !slot.on_event) continue;
+            if ((slot.mask & event_mask) == 0) continue;
+            if (slot.on_event(slot.self, e)) {
                 return true;
             }
         }
@@ -68,13 +79,12 @@ public:
     }
 
 private:
-    InteractionStrategy* items_[kMax]{};
-    EventMask masks_[kMax]{};
+    Slot items_[kMax]{};
     std::size_t count_{0};
 };
 
 export
-class DoubleTapRestoreStrategy : public InteractionStrategy {
+class DoubleTapRestoreStrategy {
 public:
     using Callback = void(*)(void*);
 
@@ -92,7 +102,7 @@ public:
         double_tap_dist_sq_ = radius_px * radius_px;
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type != Event::Type::Click) return false;
         if (!is_double_tap(e.x, e.y)) return false;
@@ -131,7 +141,7 @@ private:
 };
 
 export
-class PinchScrollStrategy : public InteractionStrategy {
+class PinchScrollStrategy {
 public:
     using BeginFn = void(*)(void*);
     using UpdateFn = void(*)(void*, int);
@@ -146,7 +156,7 @@ public:
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {
@@ -168,7 +178,7 @@ private:
 };
 
 export
-class DragStrategy : public InteractionStrategy {
+class DragStrategy {
 public:
     using BeginFn = void(*)(void*, int, int);
     using UpdateFn = void(*)(void*, int, int, int, int);
@@ -183,7 +193,7 @@ public:
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type == Event::Type::DragStart) {
             if (begin_) begin_(ctx_, e.x, e.y);
@@ -209,7 +219,7 @@ private:
 };
 
 export
-class LongPressStrategy : public InteractionStrategy {
+class LongPressStrategy {
 public:
     using Callback = void(*)(void*);
 
@@ -227,7 +237,7 @@ public:
         move_threshold_sq_ = move_px * move_px;
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type == Event::Type::MouseDown) {
             pressed_ = true;

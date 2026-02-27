@@ -13,7 +13,7 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Slider : public ObjectBase {
+class Slider : public WidgetBase<Slider> {
 public:
     Slider() {
         set_size(200, 24);
@@ -38,7 +38,7 @@ public:
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         Style st = Theme::instance().get<Slider>();
 
@@ -76,7 +76,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (e.type == Event::Type::MouseDown) {
             if (get_rect().contains(e.x, e.y)) {
                 dragging_ = true;
@@ -126,5 +126,7 @@ private:
     bool dragging_{false};
     Callback on_change_{};
 };
+
+
 
 

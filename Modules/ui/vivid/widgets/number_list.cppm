@@ -93,7 +93,7 @@ namespace {
 
 // Number wheel list (ARM-2D number_list inspired)
 export
-class NumberList : public ObjectBase {
+class NumberList : public WidgetBase<NumberList> {
 public:
     using ChangeFn = void(*)(void* ctx, int index, int value) noexcept;
 
@@ -159,7 +159,7 @@ public:
     void set_smooth_scroll(bool on) noexcept { smooth_scroll_ = on; }
     void set_wheel_step(int step) noexcept { wheel_step_ = (step > 0) ? step : 1; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<NumberList>();
         const auto r = get_rect();
 
@@ -222,7 +222,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
@@ -339,5 +339,7 @@ private:
     ChangeFn change_fn_{nullptr};
     void* change_ctx_{nullptr};
 };
+
+
 
 

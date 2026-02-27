@@ -14,7 +14,7 @@ import charm.gfx.image;
 using namespace ui::render;
 
 export
-class Button : public ObjectBase {
+class Button : public WidgetBase<Button> {
 public:
     explicit Button(const char* txt = "") : label_(txt) {
         const Style& st = Theme::instance().get<Button>();
@@ -52,7 +52,7 @@ public:
         has_skin_ = true;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = has_local_style_ ? style_ : Theme::instance().get<Button>();
         const auto r = get_rect();
 
@@ -105,7 +105,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
@@ -138,5 +138,7 @@ private:
     int icon_w_{0};
     int icon_h_{0};
 };
+
+
 
 

@@ -19,7 +19,7 @@ using namespace ui::render;
 
 // Spin/zoom image widget (ARM-2D spin_zoom_widget inspired)
 export
-class SpinZoomWidget : public ObjectBase {
+class SpinZoomWidget : public WidgetBase<SpinZoomWidget> {
 public:
     SpinZoomWidget() {
         set_size(180, 180);
@@ -76,7 +76,7 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (dispatch_interactions(e)) return true;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
@@ -123,7 +123,7 @@ public:
         return false;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         if (!image_) return;
         Style st = Theme::instance().get<SpinZoomWidget>();
         const auto r = get_rect();
@@ -299,5 +299,7 @@ private:
         if (self) self->reset_transform();
     }
 };
+
+
 
 

@@ -623,6 +623,7 @@ int main(int argc, char** argv) {
     ui_cb.list_pool_create = &on_list_pool_create;
     ui_cb.list_pool_bind = &on_list_pool_bind;
     ui_cb.list_pool_recycle = &on_list_pool_recycle;
+    ui_cb.list_scroll = &on_list_scrolled;
     ui_cb.list_ctx = &g_ctx;
     ui_cb.list_scroll_change = Callback{&on_list_scrollbar_change, &g_ctx};
     ui_cb.spectrum_toggle = Callback{&on_spectrum_toggle, &g_ctx};

@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Simple arc gauge (0..100)
 export
-class Gauge : public ObjectBase {
+class Gauge : public WidgetBase<Gauge> {
 public:
     Gauge() {
         set_size(140, 140);
@@ -26,7 +26,7 @@ public:
 
     int value() const noexcept { return value_; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Gauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -51,5 +51,7 @@ public:
 private:
     int value_{50};
 };
+
+
 
 

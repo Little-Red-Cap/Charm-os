@@ -11,14 +11,14 @@ import alg_arc;
 using namespace ui::render;
 
 export
-class Dial : public ObjectBase {
+class Dial : public WidgetBase<Dial> {
 public:
     void set_colors(rgba ring, rgba tick) noexcept {
         ring_ = ring;
         tick_ = tick;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<Dial>();
         rgba bg{}, border{}, font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -48,3 +48,5 @@ private:
     rgba ring_{80, 90, 100, 255};
     rgba tick_{120, 130, 140, 255};
 };
+
+

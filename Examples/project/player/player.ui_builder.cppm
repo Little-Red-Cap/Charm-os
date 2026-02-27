@@ -55,6 +55,7 @@ export namespace player {
         ListView::PoolCreateFn list_pool_create{nullptr};
         ListView::PoolBindFn list_pool_bind{nullptr};
         ListView::PoolRecycleFn list_pool_recycle{nullptr};
+        ListView::ScrollFn list_scroll{nullptr};
         void* list_ctx{nullptr};
         Callback list_scroll_change{};
         Callback spectrum_toggle{};
@@ -301,6 +302,8 @@ export namespace player {
             list->set_on_draw(cb.list_draw, cb.list_ctx);
             list->set_on_select(cb.list_select, cb.list_ctx);
             list->set_item_pool(cb.list_pool_create, cb.list_pool_bind, cb.list_pool_recycle, cb.list_ctx);
+            list->set_on_scroll(cb.list_scroll, cb.list_ctx);
+            list->set_show_scrollbar(false);
             list->set_prefetch_rows(2);
             list->set_row_height(34);
             list->set_wheel_step(34);

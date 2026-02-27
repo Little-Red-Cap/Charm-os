@@ -27,7 +27,7 @@ namespace {
 }
 
 export
-class RichText : public ObjectBase {
+class RichText : public WidgetBase<RichText> {
 public:
     RichText() {
         set_focusable(false);
@@ -36,7 +36,7 @@ public:
 
     void set_text(const char* text) { text_.assign(text ? text : ""); }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<RichText>();
         const auto r = get_rect();
         rgba bg{}, border{}, font_color{};
@@ -168,3 +168,5 @@ public:
 private:
     StaticString<256> text_{};
 };
+
+

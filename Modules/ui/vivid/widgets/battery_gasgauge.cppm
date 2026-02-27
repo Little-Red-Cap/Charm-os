@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // Battery gas gauge (ARM-2D battery_gasgauge inspired)
 export
-class BatteryGasGauge : public ObjectBase {
+class BatteryGasGauge : public WidgetBase<BatteryGasGauge> {
 public:
     enum class Status {
         Discharging = -1,
@@ -49,7 +49,7 @@ public:
     void set_wave_speed(float s) noexcept { wave_speed_ = s; }
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<BatteryGasGauge>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -136,5 +136,7 @@ private:
         draw_line(cvs, cx - 2, mid, cx + 4, bot, col);
     }
 };
+
+
 
 

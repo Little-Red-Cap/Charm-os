@@ -13,7 +13,7 @@ using namespace ui::render;
 
 // Circular progress indicator (0..100)
 export
-class ProgressWheel : public ObjectBase {
+class ProgressWheel : public WidgetBase<ProgressWheel> {
 public:
     ProgressWheel() {
         set_size(120, 120);
@@ -32,7 +32,7 @@ public:
     void set_start_angle(int deg) noexcept { start_deg_ = deg; }
     void set_show_track(bool on) noexcept { show_track_ = on; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<ProgressWheel>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -63,5 +63,7 @@ private:
     int start_deg_{-90};
     bool show_track_{true};
 };
+
+
 
 

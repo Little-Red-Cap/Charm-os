@@ -14,7 +14,7 @@ using namespace ui::render;
 
 // CRT screen effect (ARM-2D crt_screen inspired)
 export
-class CrtScreen : public ObjectBase {
+class CrtScreen : public WidgetBase<CrtScreen> {
 public:
     CrtScreen() {
         set_size(220, 160);
@@ -41,7 +41,7 @@ public:
         scan_opacity1_ = a1;
     }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         Style st = Theme::instance().get<CrtScreen>();
         const auto r = get_rect();
         rgba bg{}, border{}, font{};
@@ -112,5 +112,7 @@ private:
     int scan_pos1_{0};
     std::uint32_t rng_{0x87654321u};
 };
+
+
 
 

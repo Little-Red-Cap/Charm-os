@@ -16,7 +16,7 @@ using namespace ui::render;
 
 // Simple modal dialog (PopupLayer is recommended as background overlay)
 export
-class ModalDialog : public ObjectBase {
+class ModalDialog : public WidgetBase<ModalDialog> {
 public:
     ModalDialog() {
         set_size(320, 200);
@@ -38,7 +38,7 @@ public:
     void set_on_ok(Callback cb) noexcept { on_ok_ = cb; }
     void set_on_cancel(Callback cb) noexcept { on_cancel_ = cb; }
 
-    void draw(CanvasBase& cvs) override {
+    void draw(CanvasBase& cvs) {
         if (!is_visible()) return;
         Style st = Theme::instance().get<ModalDialog>();
         const auto layout = compute_layout(st);
@@ -68,7 +68,7 @@ public:
         }
     }
 
-    bool on_event(const Event& e) override {
+    bool on_event(const Event& e) {
         if (!is_visible()) return false;
         const Style& st = Theme::instance().get<ModalDialog>();
         const auto layout = compute_layout(st);
@@ -192,3 +192,5 @@ private:
     Callback on_ok_{};
     Callback on_cancel_{};
 };
+
+

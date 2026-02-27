@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 export module charm.widgets.battery_gauge;
 
 import charm.core.object;
@@ -58,7 +59,13 @@ public:
         const int inner_h = body_h - 4;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const int fill_w = static_cast<int>(inner_w * alg::arc::ratio_from_range(value_, 0, 100));
+        int fill_w = 0;
+        const int range = 100;
+        const int clamped = alg::arc::clamp_to_range(value_, 0, 100);
+        const std::int64_t num = static_cast<std::int64_t>(inner_w) * clamped;
+        fill_w = static_cast<int>(num / range);
+        if (fill_w < 0) fill_w = 0;
+        if (fill_w > inner_w) fill_w = inner_w;
         if (fill_w > 0) {
             draw_rect(cvs, inner_x, inner_y, fill_w, inner_h, accent, true);
         }

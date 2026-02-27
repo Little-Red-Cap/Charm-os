@@ -75,10 +75,13 @@ public:
 
     bool on_event(const Event& e) {
         if (!is_enabled()) return false;
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ScrollBar>();
+        Style st_scratch{};
+        const Style& st = resolve_style(WidgetKind::ScrollBar, state, base, st_scratch);
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
-            const Style& st = Theme::instance().get<ScrollBar>();
             drag_start_pos_ = (orient_ == Orientation::Horizontal) ? e.x : e.y;
             drag_start_value_ = value_;
             const Rect thumb = calc_thumb_rect(st);
@@ -97,7 +100,6 @@ public:
             if (!dragging_) return false;
             const int cur = (orient_ == Orientation::Horizontal) ? e.x : e.y;
             const int delta = cur - drag_start_pos_;
-            const Style& st = Theme::instance().get<ScrollBar>();
             const int span = track_span(st);
             if (span > 0) {
                 const int range = max_ - min_;

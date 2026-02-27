@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.progress_bar_drill;
 
 import charm.core.object;
@@ -92,8 +93,14 @@ public:
             fill_x = start;
             fill_w = end - start;
         } else {
-            const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
-            fill_w = static_cast<int>(inner.w * ratio);
+            const int range = max_ - min_;
+            if (range > 0) {
+                const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+                const std::int64_t num = static_cast<std::int64_t>(inner.w) * (clamped - min_);
+                fill_w = static_cast<int>(num / range);
+            } else {
+                fill_w = 0;
+            }
             if (fill_w < 0) fill_w = 0;
             if (fill_w > inner.w) fill_w = inner.w;
             if (fill_w == 0) return;

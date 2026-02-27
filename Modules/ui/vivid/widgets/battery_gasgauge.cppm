@@ -1,6 +1,7 @@
 module;
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.battery_gasgauge;
 
 import charm.core.object;
@@ -84,8 +85,12 @@ public:
         const int inner_h = body_h - 4;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        const float ratio = alg::arc::ratio_from_range(value_, 0, 100);
-        const int fill_h = static_cast<int>(inner_h * ratio);
+        int fill_h = 0;
+        const int clamped = alg::arc::clamp_to_range(value_, 0, 100);
+        const std::int64_t num = static_cast<std::int64_t>(inner_h) * clamped;
+        fill_h = static_cast<int>(num / 100);
+        if (fill_h < 0) fill_h = 0;
+        if (fill_h > inner_h) fill_h = inner_h;
         if (fill_h <= 0) return;
 
         const rgba fill = accent;

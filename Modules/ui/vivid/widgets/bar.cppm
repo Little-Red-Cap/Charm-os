@@ -1,4 +1,5 @@
 module;
+#include <cstdint>
 export module charm.widgets.bar;
 
 import charm.core.object;
@@ -52,10 +53,22 @@ public:
 
         const int inner_w = r.w - 2;
         if (inner_w <= 0) return;
-        const float ratio = alg::arc::ratio_from_range(value_, min_, max_);
-        const int filled = static_cast<int>(inner_w * ratio);
-        const int secondary_filled = (secondary_ >= min_ && secondary_ <= max_) ?
-            static_cast<int>(inner_w * alg::arc::ratio_from_range(secondary_, min_, max_)) : 0;
+        const int range = max_ - min_;
+        int filled = 0;
+        int secondary_filled = 0;
+        if (range > 0) {
+            const int clamped = alg::arc::clamp_to_range(value_, min_, max_);
+            const std::int64_t num = static_cast<std::int64_t>(inner_w) * (clamped - min_);
+            filled = static_cast<int>(num / range);
+            if (secondary_ >= min_ && secondary_ <= max_) {
+                const std::int64_t sec_num = static_cast<std::int64_t>(inner_w) * (secondary_ - min_);
+                secondary_filled = static_cast<int>(sec_num / range);
+            }
+        }
+        if (filled < 0) filled = 0;
+        if (filled > inner_w) filled = inner_w;
+        if (secondary_filled < 0) secondary_filled = 0;
+        if (secondary_filled > inner_w) secondary_filled = inner_w;
 
         if (secondary_filled > 0) {
             const int w = reverse_ ? secondary_filled : secondary_filled;

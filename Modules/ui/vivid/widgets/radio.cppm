@@ -82,8 +82,19 @@ public:
     }
 
 private:
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
+    }
+
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<Radio>();
+        return resolve_style(WidgetKind::Radio, current_style_state(), base, scratch);
+    }
+
     void update_size() {
-        const Style& st = Theme::instance().get<Radio>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
         const int box = 18;

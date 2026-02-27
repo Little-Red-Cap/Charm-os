@@ -66,6 +66,8 @@ struct ThemeTokens {
     rgba focus_ring{80, 120, 200, 255};
 };
 
+export rgba adjust_by_luma(const rgba& c, int delta) noexcept;
+
 export
 struct StylePatch {
     bool has_bg_color{false};
@@ -153,10 +155,21 @@ struct StylePatch {
         if (has_border_disabled) s.colors.border_disabled = border_disabled;
         if (has_border_focus) s.colors.border_focus = border_focus;
         if (has_font_color_disabled) s.colors.font_color_disabled = font_color_disabled;
-        if (has_accent_color) s.colors.accent_color = accent_color;
-        if (has_accent_hover) s.colors.accent_hover = accent_hover;
-        if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
-        if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
+    if (has_accent_color) {
+        s.colors.accent_color = accent_color;
+        if (!has_accent_hover) {
+            s.colors.accent_hover = adjust_by_luma(accent_color, 12);
+        }
+        if (!has_accent_pressed) {
+            s.colors.accent_pressed = adjust_by_luma(accent_color, 24);
+        }
+        if (!has_accent_disabled) {
+            s.colors.accent_disabled = adjust_by_luma(accent_color, 40);
+        }
+    }
+    if (has_accent_hover) s.colors.accent_hover = accent_hover;
+    if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
+    if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
         if (has_on_accent) s.colors.on_accent = on_accent;
     }
 };
@@ -223,13 +236,13 @@ inline void resolve_colors(const Style& st, const StyleState& state,
 
 export inline rgba resolve_accent(const Style& st, const StyleState& state) noexcept {
     if (!state.enabled) {
-        return st.colors.accent_disabled.a ? st.colors.accent_disabled : adjust_by_luma(st.colors.accent_color, 40);
+        return st.colors.accent_disabled.a ? st.colors.accent_disabled : st.colors.accent_color;
     }
     if (state.pressed) {
-        return st.colors.accent_pressed.a ? st.colors.accent_pressed : adjust_by_luma(st.colors.accent_color, 24);
+        return st.colors.accent_pressed.a ? st.colors.accent_pressed : st.colors.accent_color;
     }
     if (state.hovered) {
-        return st.colors.accent_hover.a ? st.colors.accent_hover : adjust_by_luma(st.colors.accent_color, 12);
+        return st.colors.accent_hover.a ? st.colors.accent_hover : st.colors.accent_color;
     }
     return st.colors.accent_color;
 }
@@ -251,9 +264,9 @@ inline void apply_tokens_to_style(Style& s, const ThemeTokens& t) noexcept {
     s.colors.font_color_disabled = t.on_surface_muted;
 
     s.colors.accent_color = t.accent;
-    s.colors.accent_hover = {0, 0, 0, 0};
-    s.colors.accent_pressed = {0, 0, 0, 0};
-    s.colors.accent_disabled = {0, 0, 0, 0};
+    s.colors.accent_hover = adjust_by_luma(t.accent, 12);
+    s.colors.accent_pressed = adjust_by_luma(t.accent, 24);
+    s.colors.accent_disabled = adjust_by_luma(t.accent, 40);
     s.colors.on_accent = t.on_accent;
 }
 
@@ -302,7 +315,7 @@ public:
         patch.apply_to(style_slot<Widget>::value);
     }
 
-    void set_tokens(const ThemeTokens& t) noexcept {
+    void set_tokens_raw(const ThemeTokens& t) noexcept {
         ThemeTokens next = t;
         next.version = tokens().version + 1;
         tokens() = next;

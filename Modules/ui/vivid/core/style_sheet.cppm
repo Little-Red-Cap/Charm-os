@@ -46,6 +46,7 @@ enum class StyleRole : std::uint8_t {
     Accent,
     AccentHover,
     AccentPressed,
+    AccentDisabled,
     OnAccent,
     Danger,
     OnDanger,
@@ -95,8 +96,10 @@ inline constexpr std::size_t role_index(StyleRole role) noexcept {
     return static_cast<std::size_t>(role);
 }
 
+inline constexpr std::size_t kRoleCount = role_index(StyleRole::FocusRing) + 1;
+
 struct RolePalette {
-    std::array<rgba, 16> values{};
+    std::array<rgba, kRoleCount> values{};
 };
 
 inline RolePalette build_palette(const ThemeTokens& t) noexcept {
@@ -113,6 +116,7 @@ inline RolePalette build_palette(const ThemeTokens& t) noexcept {
     p.values[role_index(StyleRole::Accent)] = t.accent;
     p.values[role_index(StyleRole::AccentHover)] = adjust_by_luma(t.accent, 12);
     p.values[role_index(StyleRole::AccentPressed)] = adjust_by_luma(t.accent, 24);
+    p.values[role_index(StyleRole::AccentDisabled)] = adjust_by_luma(t.accent, 40);
     p.values[role_index(StyleRole::OnAccent)] = t.on_accent;
     p.values[role_index(StyleRole::Danger)] = t.danger;
     p.values[role_index(StyleRole::OnDanger)] = t.on_danger;
@@ -133,7 +137,13 @@ inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const Ro
     if (patch.has_border_hover) style.colors.border_hover = role_color(palette, patch.border_hover);
     if (patch.has_border_pressed) style.colors.border_pressed = role_color(palette, patch.border_pressed);
     if (patch.has_font_color) style.colors.font_color = role_color(palette, patch.font_color);
-    if (patch.has_accent_color) style.colors.accent_color = role_color(palette, patch.accent_color);
+    if (patch.has_accent_color) {
+        const rgba accent = role_color(palette, patch.accent_color);
+        style.colors.accent_color = accent;
+        style.colors.accent_hover = role_color(palette, StyleRole::AccentHover);
+        style.colors.accent_pressed = role_color(palette, StyleRole::AccentPressed);
+        style.colors.accent_disabled = role_color(palette, StyleRole::AccentDisabled);
+    }
     if (patch.has_on_accent) style.colors.on_accent = role_color(palette, patch.on_accent);
     if (patch.has_border_focus) style.colors.border_focus = role_color(palette, patch.border_focus);
 }

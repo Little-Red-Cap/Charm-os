@@ -220,9 +220,20 @@ public:
     }
 
 private:
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
+    }
+
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<TextList>();
+        return resolve_style(WidgetKind::TextList, current_style_state(), base, scratch);
+    }
+
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        const Style& st = Theme::instance().get<TextList>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto bounds = alg::list_scroll::compute_bounds(item_count_, row_height_, st.metrics.padding, r.h);
         content_height_ = bounds.content_h;
         max_scroll_ = bounds.max_scroll;
@@ -238,13 +249,15 @@ private:
     }
 
     int index_from_y(int y) const noexcept {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         return alg::list_scroll::index_from_y(y, r.y, scroll_y_, st.metrics.padding, row_height_, item_count_);
     }
 
     void ensure_visible(int index) noexcept {
-        const Style& st = Theme::instance().get<TextList>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         scroll_y_ = alg::list_scroll::ensure_visible(index,
                                                      row_height_,

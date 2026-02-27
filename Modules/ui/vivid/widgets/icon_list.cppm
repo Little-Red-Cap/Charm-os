@@ -2,6 +2,7 @@ module;
 export module charm.widgets.icon_list;
 
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
 import charm.widgets.list_view;
@@ -45,7 +46,8 @@ private:
         if (info.index < 0 || info.index >= self->item_count_) return;
 
         const auto& item = self->items_[info.index];
-        const auto& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const auto& st = self->resolve_list_style(st_scratch);
         const int pad = st.metrics.padding;
         const int icon_size = self->icon_size_;
         const int icon_x = info.rect.x + pad + self->icon_pad_;
@@ -69,6 +71,13 @@ private:
                       st.colors.font_color, resolve_font(st),
                       TextAlignH::Left, TextAlignV::Center,
                       TextWrap::None, TextEllipsis::End);
+    }
+
+    const Style& resolve_list_style(Style& scratch) const noexcept {
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                                  has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ListView>();
+        return resolve_style(WidgetKind::ListView, state, base, scratch);
     }
 
     const IconListItem* items_{nullptr};

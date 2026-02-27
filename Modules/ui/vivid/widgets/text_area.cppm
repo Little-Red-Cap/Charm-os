@@ -144,6 +144,16 @@ private:
     int scroll_y_px_{0};
     int desired_col_{0};
 
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
+    }
+
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<TextArea>();
+        return resolve_style(WidgetKind::TextArea, current_style_state(), base, scratch);
+    }
+
     void assign(const char* s) {
         len_ = 0;
         if (!s) { buf_[0] = '\0'; return; }
@@ -227,7 +237,8 @@ private:
     }
 
     void ensure_caret_visible() {
-        const Style& st = Theme::instance().get<TextArea>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto fnt = resolve_font(st);
         const int line_h = fnt.line_height;
         const auto r = get_rect();

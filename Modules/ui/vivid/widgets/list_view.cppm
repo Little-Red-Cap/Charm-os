@@ -279,7 +279,8 @@ public:
     }
 
     void update_visible_window() noexcept {
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         update_scroll_bounds();
         const int pad = st.metrics.padding;
@@ -402,6 +403,16 @@ public:
     }
 
 private:
+    StyleState current_style_state() const noexcept {
+        return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
+                                has_state(State::Focused), style_variant());
+    }
+
+    const Style& resolve_style_for_state(Style& scratch) const noexcept {
+        const Style& base = Theme::instance().get<ListView>();
+        return resolve_style(WidgetKind::ListView, current_style_state(), base, scratch);
+    }
+
     static Rect intersect_rect(const Rect& a, const Rect& b) noexcept {
         const int left = (a.x > b.x) ? a.x : b.x;
         const int top = (a.y > b.y) ? a.y : b.y;
@@ -465,7 +476,8 @@ private:
     }
 
     Rect row_rect_for_index(int index) const noexcept {
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int pad = st.metrics.padding;
         int row_top = 0;
@@ -484,7 +496,8 @@ private:
     }
 
     Rect row_range_rect(int start, int end) const noexcept {
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         if (start < 0) start = 0;
         if (end < start) end = start;
@@ -514,7 +527,8 @@ private:
 
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const int count = item_count_for_render();
         if (row_height_fn_) {
             int sum = 0;
@@ -537,7 +551,8 @@ private:
 
     void ensure_visible(int index) noexcept {
         if (index < 0) return;
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int pad = st.metrics.padding;
         int row_top = 0;
@@ -560,7 +575,8 @@ private:
     }
 
     int index_from_y(int y) const noexcept {
-        const Style& st = Theme::instance().get<ListView>();
+        Style st_scratch{};
+        const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
         const int local = y - r.y + scroll_y_ - st.metrics.padding;
         if (local < 0) return -1;

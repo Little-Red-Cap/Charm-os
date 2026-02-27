@@ -67,7 +67,10 @@ public:
 
     bool on_event(const Event& e) {
         if (!is_visible()) return false;
-        const Style& st = Theme::instance().get<ModalDialog>();
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const Style& base = Theme::instance().get<ModalDialog>();
+        Style st_scratch{};
+        const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         const bool inside_panel = layout.panel.contains(e.x, e.y);
 

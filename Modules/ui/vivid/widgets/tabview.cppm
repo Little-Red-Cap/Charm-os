@@ -91,7 +91,10 @@ public:
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             const auto r = get_rect();
-            const Style& st = Theme::instance().get<TabView>();
+            const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+            const Style& base = Theme::instance().get<TabView>();
+            Style st_scratch{};
+            const Style& st = resolve_style(WidgetKind::TabView, state, base, st_scratch);
             const int tab_h = 26;
             if (e.y < r.y || e.y > r.y + tab_h) return false;
             int x = r.x + st.metrics.padding;

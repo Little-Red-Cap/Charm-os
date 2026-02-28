@@ -84,3 +84,5 @@
 
 - IO/Runtime/Foundation 层的 API 只导出统一入口，不暴露内部细节。
 
+## 10) 注意
+- 本项目使用C++ Module需使用 CMake 4.0及以上版本

@@ -26,6 +26,28 @@ namespace {
     constexpr std::uint32_t kTimeoutMs = 1000;
     constexpr std::size_t kI2sBufSamples = 512;
 
+    std::uint32_t map_i2s_freq(std::uint32_t rate) noexcept {
+        switch (rate) {
+            case 8000: return I2S_AUDIOFREQ_8K;
+            case 11025: return I2S_AUDIOFREQ_11K;
+            case 16000: return I2S_AUDIOFREQ_16K;
+            case 22050: return I2S_AUDIOFREQ_22K;
+            case 32000: return I2S_AUDIOFREQ_32K;
+            case 44100: return I2S_AUDIOFREQ_44K;
+            case 48000: return I2S_AUDIOFREQ_48K;
+            case 96000: return I2S_AUDIOFREQ_96K;
+            default: return 0;
+        }
+    }
+
+    bool reinit_i2s(std::uint32_t rate) noexcept {
+        const auto freq = map_i2s_freq(rate);
+        if (freq == 0) return false;
+        hi2s2.Init.AudioFreq = freq;
+        HAL_I2S_DeInit(&hi2s2);
+        return HAL_I2S_Init(&hi2s2) == HAL_OK;
+    }
+
     char ascii_lower(char c) noexcept {
         if (c >= 'A' && c <= 'Z') return static_cast<char>(c + ('a' - 'A'));
         return c;
@@ -148,6 +170,12 @@ export void audio_mp3_demo_run() noexcept {
         return;
     }
     out::println<"mp3 demo: rate={} ch={}">(fmt.rate, fmt.channels);
+    if (!reinit_i2s(fmt.rate)) {
+        out::println<"mp3 demo: unsupported sample rate {}">(fmt.rate);
+        filter.close();
+        (void)fs::vfs_close(f);
+        return;
+    }
 
     std::array<std::int16_t, kI2sBufSamples * 2> pcm{};
     std::array<std::int16_t, kI2sBufSamples * 2> stereo{};

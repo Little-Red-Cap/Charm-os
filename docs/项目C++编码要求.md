@@ -4,6 +4,8 @@
 
 ## 1) 输出与日志
 
+使用`out::format` / `out::printf`替换 `std::printf` / `std::snprintf`
+
 | 项目 | 规则 | 说明 |
 | --- | --- | --- |
 | 格式化 | ✅ `out::format` / `out::printf` | 禁止 `printf/snprintf` |
@@ -80,6 +82,7 @@
 
 ## 9) 模块导出约定
 
-- 所有模块必须在 `charm.*` 聚合模块中显式导出。
 - IO/Runtime/Foundation 层的 API 只导出统一入口，不暴露内部细节。
 
+## 10) 注意
+- 本项目使用C++ Module需使用 CMake 4.0及以上版本

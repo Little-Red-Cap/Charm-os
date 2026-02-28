@@ -206,6 +206,10 @@ void SysTick_Handler(void)
 void DMA1_Stream4_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream4_IRQn 0 */
+  static uint32_t s_dma_blink = 0;
+  if ((++s_dma_blink % 64u) == 0u) {
+    HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);
+  }
 
   /* USER CODE END DMA1_Stream4_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi2_tx);

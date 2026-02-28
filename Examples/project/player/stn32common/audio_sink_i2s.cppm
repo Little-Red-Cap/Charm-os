@@ -67,7 +67,7 @@ export namespace audio {
             fill_block(view.first(period_bytes_));
             fill_block(view.subspan(period_bytes_, period_bytes_));
 
-            if (HAL_I2S_Transmit_DMA(&hi2s2,
+            if (HAL_I2S_Transmit_DMA(&hi2s1,
                     reinterpret_cast<uint16_t*>(buffer_.data()),
                     static_cast<uint16_t>(buffer_bytes_ / 2)) != HAL_OK) {
                 active_ = nullptr;
@@ -77,7 +77,7 @@ export namespace audio {
         }
 
         Result<void> stop() noexcept {
-            HAL_I2S_DMAStop(&hi2s2);
+            HAL_I2S_DMAStop(&hi2s1);
             active_ = nullptr;
             return {};
         }
@@ -180,27 +180,39 @@ export namespace audio {
 }
 
 extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s2) {
+    if (hi2s == &hi2s1) {
         audio::I2sAudioSink::on_half();
     }
     extern void charm_audio_i2s_debug_toggle();
     charm_audio_i2s_debug_toggle();
+    extern void charm_audio_i2s_half_notify();
+    charm_audio_i2s_half_notify();
 }
 
 extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s2) {
+    if (hi2s == &hi2s1) {
         audio::I2sAudioSink::on_full();
     }
     extern void charm_audio_i2s_debug_toggle();
     charm_audio_i2s_debug_toggle();
+    extern void charm_audio_i2s_full_notify();
+    charm_audio_i2s_full_notify();
 }
 
 extern "C" void HAL_I2S_ErrorCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s2) {
+    if (hi2s == &hi2s1) {
         audio::I2sAudioSink::on_error();
     }
 }
 
 extern "C" void charm_audio_i2s_debug_toggle() __attribute__((weak));
 extern "C" void charm_audio_i2s_debug_toggle() {
+}
+
+extern "C" void charm_audio_i2s_half_notify() __attribute__((weak));
+extern "C" void charm_audio_i2s_half_notify() {
+}
+
+extern "C" void charm_audio_i2s_full_notify() __attribute__((weak));
+extern "C" void charm_audio_i2s_full_notify() {
 }

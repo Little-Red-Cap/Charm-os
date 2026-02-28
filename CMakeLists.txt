@@ -8,6 +8,8 @@ option(CHARM_AUDIO_SINK_I2S "Enable I2S audio sink" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
+set(CHARM_VIVID_PROFILE "basic" CACHE STRING "Vivid profile: basic or full")
+set_property(CACHE CHARM_VIVID_PROFILE PROPERTY STRINGS basic full)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
@@ -84,6 +86,43 @@ if (NOT CHARM_ENABLE_UI_VIVID)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/")
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/core/alg/alg_text_layout.cppm")
+else()
+    if (CHARM_VIVID_PROFILE STREQUAL "basic")
+        set(CHARM_VIVID_BASIC_WIDGETS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/button.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/checkbox.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/image.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/image_box.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/label.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/list.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/list_view.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/progress.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/radio.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/scroll_container.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/scroll_dirty.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/scrollbar.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/slider.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/switch.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/text.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/text_area.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/text_input.cppm"
+        )
+        list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
+        list(APPEND MODULE_INTERFACE_UNITS ${CHARM_VIVID_BASIC_WIDGETS})
+        list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/charm.ui.vivid.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/anim.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_ascii_16.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_sc_16.cppm")
+    elseif (CHARM_VIVID_PROFILE STREQUAL "full")
+        list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.cppm")
+    elseif (NOT CHARM_VIVID_PROFILE STREQUAL "full")
+        message(FATAL_ERROR "Unknown CHARM_VIVID_PROFILE: ${CHARM_VIVID_PROFILE}")
+    endif()
 endif()
 if (NOT CHARM_ENABLE_UI_INK AND NOT CHARM_ENABLE_UI_VIVID)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/common/")

@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <cstdint>
 #include <cstddef>
 #include <optional>
@@ -12,15 +12,8 @@ import charm.core.object;
 import charm.core.container;
 import service.handle_pool;
 import charm.widgets.scroll_container;
-import charm.widgets.dial;
-import charm.widgets.arc;
 import charm.widgets.image;
 import charm.widgets.image_box;
-import charm.widgets.busy_wheel;
-import charm.widgets.console_box;
-import charm.widgets.battery_gasgauge;
-import charm.widgets.histogram;
-import charm.widgets.progress_bar_flowing;
 import charm.widgets.label;
 import charm.widgets.button;
 import charm.widgets.checkbox;
@@ -29,57 +22,10 @@ import charm.widgets.switcher;
 import charm.widgets.progress;
 import charm.widgets.list;
 import charm.widgets.list_view;
-import charm.widgets.icon_list;
-import charm.widgets.text_tracking_list;
-import charm.widgets.text_list;
-import charm.widgets.modal_dialog;
 import charm.widgets.scrollbar;
-import charm.widgets.segmented_control;
 import charm.widgets.text_area;
 import charm.widgets.text_input;
-import charm.widgets.number_input;
-import charm.widgets.number_list;
-import charm.widgets.toggle_group;
-import charm.widgets.table_view;
-import charm.widgets.tree_view;
-import charm.widgets.dropdown;
-import charm.widgets.tabview;
-import charm.widgets.roller;
-import charm.widgets.spinner;
-import charm.widgets.bar;
-import charm.widgets.progress_bar_round;
-import charm.widgets.progress_bar_simple;
-import charm.widgets.progress_bar_drill;
-import charm.widgets.popup_layer;
-import charm.widgets.popup_layer;
-import charm.widgets.menu;
-import charm.widgets.menu_item;
 import charm.widgets.radio;
-import charm.widgets.radio_group;
-import charm.widgets.chart;
-import charm.widgets.waveform;
-import charm.widgets.gauge;
-import charm.widgets.meter_pointer;
-import charm.widgets.primitives_canvas;
-import charm.widgets.perf_overlay;
-import charm.widgets.stepper;
-import charm.widgets.timeline;
-import charm.widgets.rich_text;
-import charm.widgets.code_block;
-import charm.widgets.progress_wheel;
-import charm.widgets.waveform_view;
-import charm.widgets.battery_gauge;
-import charm.widgets.histogram_view;
-import charm.widgets.ring_indication;
-import charm.widgets.text_box;
-import charm.widgets.foldable_panel;
-import charm.widgets.progress_flowing;
-import charm.widgets.cloudy_glass;
-import charm.widgets.spin_zoom_widget;
-import charm.widgets.spinning_wheel;
-import charm.widgets.dynamic_nebula;
-import charm.widgets.crt_screen;
-import charm.widgets.spectrum_view;
 
 template <typename T, std::size_t N>
 using HandlePool = service::HandlePool<T, N>;
@@ -89,217 +35,62 @@ class UiFactory {
 public:
     WidgetHandle create_container() noexcept { return make_handle(containers_.create(), WidgetKind::Container); }
     WidgetHandle create_scroll_container() noexcept { return make_handle(scrolls_.create(), WidgetKind::ScrollContainer); }
-    WidgetHandle create_dial() noexcept { return make_handle(dials_.create(), WidgetKind::Dial); }
-    WidgetHandle create_arc() noexcept { return make_handle(arcs_.create(), WidgetKind::Arc); }
     WidgetHandle create_image() noexcept { return make_handle(images_.create(), WidgetKind::Image); }
     WidgetHandle create_image_box() noexcept { return make_handle(image_boxes_.create(), WidgetKind::ImageBox); }
-    WidgetHandle create_busy_wheel() noexcept { return make_handle(busy_wheels_.create(), WidgetKind::BusyWheel); }
-    WidgetHandle create_console_box() noexcept { return make_handle(console_boxes_.create(), WidgetKind::ConsoleBox); }
-    WidgetHandle create_battery_gasgauge() noexcept { return make_handle(battery_gasgauge_.create(), WidgetKind::BatteryGasGauge); }
-    WidgetHandle create_histogram() noexcept { return make_handle(histogram_.create(), WidgetKind::Histogram); }
     WidgetHandle create_label(const char* text) noexcept { return make_handle(labels_.create(text), WidgetKind::Label); }
     WidgetHandle create_button(const char* text) noexcept { return make_handle(buttons_.create(text), WidgetKind::Button); }
     WidgetHandle create_checkbox(const char* text) noexcept { return make_handle(checkboxes_.create(text), WidgetKind::Checkbox); }
     WidgetHandle create_slider() noexcept { return make_handle(sliders_.create(), WidgetKind::Slider); }
     WidgetHandle create_switch() noexcept { return make_handle(switches_.create(), WidgetKind::Switch); }
     WidgetHandle create_progress() noexcept { return make_handle(progresses_.create(), WidgetKind::Progress); }
-    WidgetHandle create_progress_bar_round() noexcept { return make_handle(progress_round_.create(), WidgetKind::ProgressBarRound); }
-    WidgetHandle create_progress_bar_simple() noexcept { return make_handle(progress_simple_.create(), WidgetKind::ProgressBarSimple); }
-    WidgetHandle create_progress_bar_drill() noexcept { return make_handle(progress_drill_.create(), WidgetKind::ProgressBarDrill); }
     WidgetHandle create_list() noexcept { return make_handle(lists_.create(), WidgetKind::List); }
     WidgetHandle create_list_item(const char* text) noexcept { return make_handle(list_items_.create(text), WidgetKind::ListItem); }
     WidgetHandle create_list_view() noexcept { return make_handle(list_views_.create(), WidgetKind::ListView); }
-    WidgetHandle create_icon_list() noexcept { return make_handle(icon_lists_.create(), WidgetKind::IconList); }
-    WidgetHandle create_text_tracking_list() noexcept { return make_handle(text_tracking_.create(), WidgetKind::TextTrackingList); }
-    WidgetHandle create_text_list() noexcept { return make_handle(text_lists_.create(), WidgetKind::TextList); }
-    WidgetHandle create_modal_dialog() noexcept { return make_handle(modals_.create(), WidgetKind::ModalDialog); }
     WidgetHandle create_scroll_bar() noexcept { return make_handle(scroll_bars_.create(), WidgetKind::ScrollBar); }
-    WidgetHandle create_segmented_control() noexcept { return make_handle(segments_.create(), WidgetKind::SegmentedControl); }
     WidgetHandle create_text_area(const char* text) noexcept { return make_handle(text_areas_.create(text), WidgetKind::TextArea); }
     WidgetHandle create_text_input() noexcept { return make_handle(text_inputs_.create(), WidgetKind::TextInput); }
-    WidgetHandle create_number_input() noexcept { return make_handle(number_inputs_.create(), WidgetKind::NumberInput); }
-    WidgetHandle create_number_list() noexcept { return make_handle(number_lists_.create(), WidgetKind::NumberList); }
-    WidgetHandle create_toggle_group() noexcept { return make_handle(toggles_.create(), WidgetKind::ToggleGroup); }
-    WidgetHandle create_table_view() noexcept { return make_handle(tables_.create(), WidgetKind::TableView); }
-    WidgetHandle create_tree_view() noexcept { return make_handle(trees_.create(), WidgetKind::TreeView); }
-    WidgetHandle create_dropdown() noexcept { return make_handle(dropdowns_.create(), WidgetKind::Dropdown); }
-    WidgetHandle create_tabview() noexcept { return make_handle(tabviews_.create(), WidgetKind::TabView); }
-    WidgetHandle create_roller() noexcept { return make_handle(rollers_.create(), WidgetKind::Roller); }
-    WidgetHandle create_spinner() noexcept { return make_handle(spinners_.create(), WidgetKind::Spinner); }
-    WidgetHandle create_bar() noexcept { return make_handle(bars_.create(), WidgetKind::Bar); }
-    WidgetHandle create_popup_layer() noexcept { return make_handle(popups_.create(), WidgetKind::PopupLayer); }
-    WidgetHandle create_menu() noexcept { return make_handle(menus_.create(), WidgetKind::Menu); }
-    WidgetHandle create_menu_item(const char* text) noexcept { return make_handle(menu_items_.create(text), WidgetKind::MenuItem); }
     WidgetHandle create_radio(const char* text) noexcept { return make_handle(radios_.create(text), WidgetKind::Radio); }
-    WidgetHandle create_radio_group() noexcept { return make_handle(radio_groups_.create(), WidgetKind::RadioGroup); }
-    WidgetHandle create_chart() noexcept { return make_handle(charts_.create(), WidgetKind::Chart); }
-    WidgetHandle create_waveform() noexcept { return make_handle(waveforms_.create(), WidgetKind::Waveform); }
-    WidgetHandle create_gauge() noexcept { return make_handle(gauges_.create(), WidgetKind::Gauge); }
-    WidgetHandle create_meter_pointer() noexcept { return make_handle(meters_.create(), WidgetKind::MeterPointer); }
-    WidgetHandle create_primitives_canvas() noexcept { return make_handle(prim_canvas_.create(), WidgetKind::PrimitivesCanvas); }
-    WidgetHandle create_perf_overlay() noexcept { return make_handle(perf_overlays_.create(), WidgetKind::PerfOverlay); }
-    WidgetHandle create_stepper() noexcept { return make_handle(steppers_.create(), WidgetKind::Stepper); }
-    WidgetHandle create_timeline() noexcept { return make_handle(timelines_.create(), WidgetKind::Timeline); }
-    WidgetHandle create_rich_text() noexcept { return make_handle(rich_texts_.create(), WidgetKind::RichText); }
-    WidgetHandle create_code_block() noexcept { return make_handle(code_blocks_.create(), WidgetKind::CodeBlock); }
-    WidgetHandle create_progress_wheel() noexcept { return make_handle(progress_wheels_.create(), WidgetKind::ProgressWheel); }
-    WidgetHandle create_waveform_view() noexcept { return make_handle(waveform_views_.create(), WidgetKind::WaveformView); }
-    WidgetHandle create_battery_gauge() noexcept { return make_handle(batteries_.create(), WidgetKind::BatteryGauge); }
-    WidgetHandle create_histogram_view() noexcept { return make_handle(histograms_.create(), WidgetKind::HistogramView); }
-    WidgetHandle create_ring_indication() noexcept { return make_handle(rings_.create(), WidgetKind::RingIndication); }
-    WidgetHandle create_text_box(const char* text) noexcept { return make_handle(text_boxes_.create(text), WidgetKind::TextBox); }
-    WidgetHandle create_foldable_panel(const char* title) noexcept { return make_handle(fold_panels_.create(title), WidgetKind::FoldablePanel); }
-    WidgetHandle create_progress_flowing() noexcept { return make_handle(progress_flow_.create(), WidgetKind::ProgressFlowing); }
-    WidgetHandle create_cloudy_glass() noexcept { return make_handle(glass_.create(), WidgetKind::CloudyGlass); }
-    WidgetHandle create_spin_zoom_widget() noexcept { return make_handle(spin_zoom_.create(), WidgetKind::SpinZoomWidget); }
-    WidgetHandle create_spinning_wheel() noexcept { return make_handle(spinning_wheel_.create(), WidgetKind::SpinningWheel); }
-    WidgetHandle create_spectrum_view() noexcept { return make_handle(spectrum_views_.create(), WidgetKind::SpectrumView); }
-    WidgetHandle create_dynamic_nebula() noexcept { return make_handle(nebula_.create(), WidgetKind::DynamicNebula); }
-    WidgetHandle create_crt_screen() noexcept { return make_handle(crt_.create(), WidgetKind::CrtScreen); }
     void set_overlay(WidgetHandle h) noexcept { overlay_ = h; }
     void clear_overlay(WidgetHandle h) noexcept { if (overlay_ == h) overlay_ = {}; }
     WidgetHandle overlay() const noexcept { return overlay_; }
 
     Container* get_container(const WidgetHandle& h) noexcept { return get_from(containers_, h, WidgetKind::Container); }
     ScrollContainer* get_scroll_container(const WidgetHandle& h) noexcept { return get_from(scrolls_, h, WidgetKind::ScrollContainer); }
-    Dial* get_dial(const WidgetHandle& h) noexcept { return get_from(dials_, h, WidgetKind::Dial); }
-    Arc* get_arc(const WidgetHandle& h) noexcept { return get_from(arcs_, h, WidgetKind::Arc); }
     Image* get_image(const WidgetHandle& h) noexcept { return get_from(images_, h, WidgetKind::Image); }
     ImageBox* get_image_box(const WidgetHandle& h) noexcept { return get_from(image_boxes_, h, WidgetKind::ImageBox); }
-    BusyWheel* get_busy_wheel(const WidgetHandle& h) noexcept { return get_from(busy_wheels_, h, WidgetKind::BusyWheel); }
-    ConsoleBox* get_console_box(const WidgetHandle& h) noexcept { return get_from(console_boxes_, h, WidgetKind::ConsoleBox); }
-    BatteryGasGauge* get_battery_gasgauge(const WidgetHandle& h) noexcept { return get_from(battery_gasgauge_, h, WidgetKind::BatteryGasGauge); }
-    Histogram* get_histogram(const WidgetHandle& h) noexcept { return get_from(histogram_, h, WidgetKind::Histogram); }
     Label* get_label(const WidgetHandle& h) noexcept { return get_from(labels_, h, WidgetKind::Label); }
     Button* get_button(const WidgetHandle& h) noexcept { return get_from(buttons_, h, WidgetKind::Button); }
     Checkbox* get_checkbox(const WidgetHandle& h) noexcept { return get_from(checkboxes_, h, WidgetKind::Checkbox); }
     Slider* get_slider(const WidgetHandle& h) noexcept { return get_from(sliders_, h, WidgetKind::Slider); }
     Switch* get_switch(const WidgetHandle& h) noexcept { return get_from(switches_, h, WidgetKind::Switch); }
     Progress* get_progress(const WidgetHandle& h) noexcept { return get_from(progresses_, h, WidgetKind::Progress); }
-    ProgressBarRound* get_progress_bar_round(const WidgetHandle& h) noexcept { return get_from(progress_round_, h, WidgetKind::ProgressBarRound); }
-    ProgressBarSimple* get_progress_bar_simple(const WidgetHandle& h) noexcept { return get_from(progress_simple_, h, WidgetKind::ProgressBarSimple); }
-    ProgressBarDrill* get_progress_bar_drill(const WidgetHandle& h) noexcept { return get_from(progress_drill_, h, WidgetKind::ProgressBarDrill); }
     List* get_list(const WidgetHandle& h) noexcept { return get_from(lists_, h, WidgetKind::List); }
     ListItem* get_list_item(const WidgetHandle& h) noexcept { return get_from(list_items_, h, WidgetKind::ListItem); }
     ListView* get_list_view(const WidgetHandle& h) noexcept { return get_from(list_views_, h, WidgetKind::ListView); }
-    IconList* get_icon_list(const WidgetHandle& h) noexcept { return get_from(icon_lists_, h, WidgetKind::IconList); }
-    TextTrackingList* get_text_tracking_list(const WidgetHandle& h) noexcept { return get_from(text_tracking_, h, WidgetKind::TextTrackingList); }
-    TextList* get_text_list(const WidgetHandle& h) noexcept { return get_from(text_lists_, h, WidgetKind::TextList); }
-    ModalDialog* get_modal_dialog(const WidgetHandle& h) noexcept { return get_from(modals_, h, WidgetKind::ModalDialog); }
     ScrollBar* get_scroll_bar(const WidgetHandle& h) noexcept { return get_from(scroll_bars_, h, WidgetKind::ScrollBar); }
-    SegmentedControl* get_segmented_control(const WidgetHandle& h) noexcept { return get_from(segments_, h, WidgetKind::SegmentedControl); }
     TextArea* get_text_area(const WidgetHandle& h) noexcept { return get_from(text_areas_, h, WidgetKind::TextArea); }
     TextInput* get_text_input(const WidgetHandle& h) noexcept { return get_from(text_inputs_, h, WidgetKind::TextInput); }
-    NumberInput* get_number_input(const WidgetHandle& h) noexcept { return get_from(number_inputs_, h, WidgetKind::NumberInput); }
-    NumberList* get_number_list(const WidgetHandle& h) noexcept { return get_from(number_lists_, h, WidgetKind::NumberList); }
-    ToggleGroup* get_toggle_group(const WidgetHandle& h) noexcept { return get_from(toggles_, h, WidgetKind::ToggleGroup); }
-    TableView* get_table_view(const WidgetHandle& h) noexcept { return get_from(tables_, h, WidgetKind::TableView); }
-    TreeView* get_tree_view(const WidgetHandle& h) noexcept { return get_from(trees_, h, WidgetKind::TreeView); }
-    Dropdown* get_dropdown(const WidgetHandle& h) noexcept { return get_from(dropdowns_, h, WidgetKind::Dropdown); }
-    TabView* get_tabview(const WidgetHandle& h) noexcept { return get_from(tabviews_, h, WidgetKind::TabView); }
-    Roller* get_roller(const WidgetHandle& h) noexcept { return get_from(rollers_, h, WidgetKind::Roller); }
-    Spinner* get_spinner(const WidgetHandle& h) noexcept { return get_from(spinners_, h, WidgetKind::Spinner); }
-    Bar* get_bar(const WidgetHandle& h) noexcept { return get_from(bars_, h, WidgetKind::Bar); }
-    Menu* get_menu(const WidgetHandle& h) noexcept { return get_from(menus_, h, WidgetKind::Menu); }
-    MenuItem* get_menu_item(const WidgetHandle& h) noexcept { return get_from(menu_items_, h, WidgetKind::MenuItem); }
     Radio* get_radio(const WidgetHandle& h) noexcept { return get_from(radios_, h, WidgetKind::Radio); }
-    RadioGroup* get_radio_group(const WidgetHandle& h) noexcept { return get_from(radio_groups_, h, WidgetKind::RadioGroup); }
-    Chart* get_chart(const WidgetHandle& h) noexcept { return get_from(charts_, h, WidgetKind::Chart); }
-    Waveform* get_waveform(const WidgetHandle& h) noexcept { return get_from(waveforms_, h, WidgetKind::Waveform); }
-    Gauge* get_gauge(const WidgetHandle& h) noexcept { return get_from(gauges_, h, WidgetKind::Gauge); }
-    MeterPointer* get_meter_pointer(const WidgetHandle& h) noexcept { return get_from(meters_, h, WidgetKind::MeterPointer); }
-    PrimitivesCanvas* get_primitives_canvas(const WidgetHandle& h) noexcept { return get_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); }
-    PerfOverlay* get_perf_overlay(const WidgetHandle& h) noexcept { return get_from(perf_overlays_, h, WidgetKind::PerfOverlay); }
-    Stepper* get_stepper(const WidgetHandle& h) noexcept { return get_from(steppers_, h, WidgetKind::Stepper); }
-    Timeline* get_timeline(const WidgetHandle& h) noexcept { return get_from(timelines_, h, WidgetKind::Timeline); }
-    RichText* get_rich_text(const WidgetHandle& h) noexcept { return get_from(rich_texts_, h, WidgetKind::RichText); }
-    CodeBlock* get_code_block(const WidgetHandle& h) noexcept { return get_from(code_blocks_, h, WidgetKind::CodeBlock); }
-    ProgressWheel* get_progress_wheel(const WidgetHandle& h) noexcept { return get_from(progress_wheels_, h, WidgetKind::ProgressWheel); }
-    WaveformView* get_waveform_view(const WidgetHandle& h) noexcept { return get_from(waveform_views_, h, WidgetKind::WaveformView); }
-    BatteryGauge* get_battery_gauge(const WidgetHandle& h) noexcept { return get_from(batteries_, h, WidgetKind::BatteryGauge); }
-    HistogramView* get_histogram_view(const WidgetHandle& h) noexcept { return get_from(histograms_, h, WidgetKind::HistogramView); }
-    RingIndication* get_ring_indication(const WidgetHandle& h) noexcept { return get_from(rings_, h, WidgetKind::RingIndication); }
-    TextBox* get_text_box(const WidgetHandle& h) noexcept { return get_from(text_boxes_, h, WidgetKind::TextBox); }
-    FoldablePanel* get_foldable_panel(const WidgetHandle& h) noexcept { return get_from(fold_panels_, h, WidgetKind::FoldablePanel); }
-    ProgressFlowing* get_progress_flowing(const WidgetHandle& h) noexcept { return get_from(progress_flow_, h, WidgetKind::ProgressFlowing); }
-    CloudyGlass* get_cloudy_glass(const WidgetHandle& h) noexcept { return get_from(glass_, h, WidgetKind::CloudyGlass); }
-    SpinZoomWidget* get_spin_zoom_widget(const WidgetHandle& h) noexcept { return get_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); }
-    SpinningWheel* get_spinning_wheel(const WidgetHandle& h) noexcept { return get_from(spinning_wheel_, h, WidgetKind::SpinningWheel); }
-    SpectrumView* get_spectrum_view(const WidgetHandle& h) noexcept { return get_from(spectrum_views_, h, WidgetKind::SpectrumView); }
-    DynamicNebula* get_dynamic_nebula(const WidgetHandle& h) noexcept { return get_from(nebula_, h, WidgetKind::DynamicNebula); }
-    CrtScreen* get_crt_screen(const WidgetHandle& h) noexcept { return get_from(crt_, h, WidgetKind::CrtScreen); }
 
     ObjectBase* get(const WidgetHandle& h) noexcept {
         switch (h.kind) {
             case WidgetKind::Container: return get_container(h);
             case WidgetKind::ScrollContainer: return get_scroll_container(h);
-            case WidgetKind::Dial: return get_dial(h);
-            case WidgetKind::Arc: return get_arc(h);
             case WidgetKind::Image: return get_image(h);
             case WidgetKind::ImageBox: return get_image_box(h);
-            case WidgetKind::BusyWheel: return get_busy_wheel(h);
-            case WidgetKind::ConsoleBox: return get_console_box(h);
-            case WidgetKind::BatteryGasGauge: return get_battery_gasgauge(h);
-            case WidgetKind::Histogram: return get_histogram(h);
             case WidgetKind::Label: return get_label(h);
             case WidgetKind::Button: return get_button(h);
             case WidgetKind::Checkbox: return get_checkbox(h);
             case WidgetKind::Slider: return get_slider(h);
             case WidgetKind::Switch: return get_switch(h);
             case WidgetKind::Progress: return get_progress(h);
-            case WidgetKind::ProgressBarRound: return get_progress_bar_round(h);
-            case WidgetKind::ProgressBarSimple: return get_progress_bar_simple(h);
-            case WidgetKind::ProgressBarDrill: return get_progress_bar_drill(h);
             case WidgetKind::List: return get_list(h);
             case WidgetKind::ListItem: return get_list_item(h);
             case WidgetKind::ListView: return get_list_view(h);
-            case WidgetKind::IconList: return get_icon_list(h);
-            case WidgetKind::TextTrackingList: return get_text_tracking_list(h);
-            case WidgetKind::TextList: return get_text_list(h);
-            case WidgetKind::ModalDialog: return get_modal_dialog(h);
             case WidgetKind::ScrollBar: return get_scroll_bar(h);
-            case WidgetKind::SegmentedControl: return get_segmented_control(h);
             case WidgetKind::TextArea: return get_text_area(h);
             case WidgetKind::TextInput: return get_text_input(h);
-            case WidgetKind::NumberInput: return get_number_input(h);
-            case WidgetKind::NumberList: return get_number_list(h);
-            case WidgetKind::ToggleGroup: return get_toggle_group(h);
-            case WidgetKind::TableView: return get_table_view(h);
-            case WidgetKind::TreeView: return get_tree_view(h);
-            case WidgetKind::Dropdown: return get_dropdown(h);
-            case WidgetKind::TabView: return get_tabview(h);
-            case WidgetKind::Roller: return get_roller(h);
-            case WidgetKind::Spinner: return get_spinner(h);
-            case WidgetKind::Bar: return get_bar(h);
-            case WidgetKind::PopupLayer: return get_from(popups_, h, WidgetKind::PopupLayer);
-            case WidgetKind::Menu: return get_menu(h);
-            case WidgetKind::MenuItem: return get_menu_item(h);
             case WidgetKind::Radio: return get_radio(h);
-            case WidgetKind::RadioGroup: return get_radio_group(h);
-            case WidgetKind::Chart: return get_chart(h);
-            case WidgetKind::Waveform: return get_waveform(h);
-            case WidgetKind::Gauge: return get_gauge(h);
-            case WidgetKind::MeterPointer: return get_meter_pointer(h);
-            case WidgetKind::PrimitivesCanvas: return get_primitives_canvas(h);
-            case WidgetKind::PerfOverlay: return get_perf_overlay(h);
-            case WidgetKind::Stepper: return get_stepper(h);
-            case WidgetKind::Timeline: return get_timeline(h);
-            case WidgetKind::RichText: return get_rich_text(h);
-            case WidgetKind::CodeBlock: return get_code_block(h);
-            case WidgetKind::ProgressWheel: return get_progress_wheel(h);
-            case WidgetKind::WaveformView: return get_waveform_view(h);
-            case WidgetKind::BatteryGauge: return get_battery_gauge(h);
-            case WidgetKind::HistogramView: return get_histogram_view(h);
-            case WidgetKind::RingIndication: return get_ring_indication(h);
-            case WidgetKind::TextBox: return get_text_box(h);
-            case WidgetKind::FoldablePanel: return get_foldable_panel(h);
-            case WidgetKind::ProgressFlowing: return get_progress_flowing(h);
-            case WidgetKind::CloudyGlass: return get_cloudy_glass(h);
-            case WidgetKind::SpinZoomWidget: return get_spin_zoom_widget(h);
-            case WidgetKind::SpinningWheel: return get_spinning_wheel(h);
-            case WidgetKind::SpectrumView: return get_spectrum_view(h);
-            case WidgetKind::DynamicNebula: return get_dynamic_nebula(h);
-            case WidgetKind::CrtScreen: return get_crt_screen(h);
             default: return nullptr;
         }
     }
@@ -453,74 +244,22 @@ public:
         switch (h.kind) {
         case WidgetKind::Container: destroy_from(containers_, h, WidgetKind::Container); break;
         case WidgetKind::ScrollContainer: destroy_from(scrolls_, h, WidgetKind::ScrollContainer); break;
-        case WidgetKind::Dial: destroy_from(dials_, h, WidgetKind::Dial); break;
-        case WidgetKind::Arc: destroy_from(arcs_, h, WidgetKind::Arc); break;
         case WidgetKind::Image: destroy_from(images_, h, WidgetKind::Image); break;
         case WidgetKind::ImageBox: destroy_from(image_boxes_, h, WidgetKind::ImageBox); break;
-        case WidgetKind::BusyWheel: destroy_from(busy_wheels_, h, WidgetKind::BusyWheel); break;
-        case WidgetKind::ConsoleBox: destroy_from(console_boxes_, h, WidgetKind::ConsoleBox); break;
-        case WidgetKind::BatteryGasGauge: destroy_from(battery_gasgauge_, h, WidgetKind::BatteryGasGauge); break;
-        case WidgetKind::Histogram: destroy_from(histogram_, h, WidgetKind::Histogram); break;
         case WidgetKind::Label: destroy_from(labels_, h, WidgetKind::Label); break;
         case WidgetKind::Button: destroy_from(buttons_, h, WidgetKind::Button); break;
         case WidgetKind::Checkbox: destroy_from(checkboxes_, h, WidgetKind::Checkbox); break;
         case WidgetKind::Slider: destroy_from(sliders_, h, WidgetKind::Slider); break;
         case WidgetKind::Switch: destroy_from(switches_, h, WidgetKind::Switch); break;
         case WidgetKind::Progress: destroy_from(progresses_, h, WidgetKind::Progress); break;
-        case WidgetKind::ProgressBarRound: destroy_from(progress_round_, h, WidgetKind::ProgressBarRound); break;
-        case WidgetKind::ProgressBarSimple: destroy_from(progress_simple_, h, WidgetKind::ProgressBarSimple); break;
-        case WidgetKind::ProgressBarDrill: destroy_from(progress_drill_, h, WidgetKind::ProgressBarDrill); break;
         case WidgetKind::List: destroy_from(lists_, h, WidgetKind::List); break;
         case WidgetKind::ListItem: destroy_from(list_items_, h, WidgetKind::ListItem); break;
         case WidgetKind::ListView: destroy_from(list_views_, h, WidgetKind::ListView); break;
-        case WidgetKind::IconList: destroy_from(icon_lists_, h, WidgetKind::IconList); break;
-        case WidgetKind::TextTrackingList: destroy_from(text_tracking_, h, WidgetKind::TextTrackingList); break;
-        case WidgetKind::TextList: destroy_from(text_lists_, h, WidgetKind::TextList); break;
-        case WidgetKind::ModalDialog: destroy_from(modals_, h, WidgetKind::ModalDialog); break;
         case WidgetKind::ScrollBar: destroy_from(scroll_bars_, h, WidgetKind::ScrollBar); break;
-        case WidgetKind::SegmentedControl: destroy_from(segments_, h, WidgetKind::SegmentedControl); break;
         case WidgetKind::TextArea: destroy_from(text_areas_, h, WidgetKind::TextArea); break;
         case WidgetKind::TextInput: destroy_from(text_inputs_, h, WidgetKind::TextInput); break;
-        case WidgetKind::NumberInput: destroy_from(number_inputs_, h, WidgetKind::NumberInput); break;
-        case WidgetKind::NumberList: destroy_from(number_lists_, h, WidgetKind::NumberList); break;
-        case WidgetKind::ToggleGroup: destroy_from(toggles_, h, WidgetKind::ToggleGroup); break;
-        case WidgetKind::TableView: destroy_from(tables_, h, WidgetKind::TableView); break;
-        case WidgetKind::TreeView: destroy_from(trees_, h, WidgetKind::TreeView); break;
-        case WidgetKind::Dropdown: destroy_from(dropdowns_, h, WidgetKind::Dropdown); break;
-        case WidgetKind::TabView: destroy_from(tabviews_, h, WidgetKind::TabView); break;
-        case WidgetKind::Roller: destroy_from(rollers_, h, WidgetKind::Roller); break;
-        case WidgetKind::Spinner: destroy_from(spinners_, h, WidgetKind::Spinner); break;
-        case WidgetKind::Bar: destroy_from(bars_, h, WidgetKind::Bar); break;
-        case WidgetKind::PopupLayer: destroy_from(popups_, h, WidgetKind::PopupLayer); break;
-        case WidgetKind::Menu: destroy_from(menus_, h, WidgetKind::Menu); break;
-        case WidgetKind::MenuItem: destroy_from(menu_items_, h, WidgetKind::MenuItem); break;
         case WidgetKind::Radio: destroy_from(radios_, h, WidgetKind::Radio); break;
-        case WidgetKind::RadioGroup: destroy_from(radio_groups_, h, WidgetKind::RadioGroup); break;
-        case WidgetKind::Chart: destroy_from(charts_, h, WidgetKind::Chart); break;
-        case WidgetKind::Waveform: destroy_from(waveforms_, h, WidgetKind::Waveform); break;
-        case WidgetKind::Gauge: destroy_from(gauges_, h, WidgetKind::Gauge); break;
-        case WidgetKind::MeterPointer: destroy_from(meters_, h, WidgetKind::MeterPointer); break;
-        case WidgetKind::PrimitivesCanvas: destroy_from(prim_canvas_, h, WidgetKind::PrimitivesCanvas); break;
-        case WidgetKind::PerfOverlay: destroy_from(perf_overlays_, h, WidgetKind::PerfOverlay); break;
-        case WidgetKind::Stepper: destroy_from(steppers_, h, WidgetKind::Stepper); break;
-        case WidgetKind::Timeline: destroy_from(timelines_, h, WidgetKind::Timeline); break;
-        case WidgetKind::RichText: destroy_from(rich_texts_, h, WidgetKind::RichText); break;
-        case WidgetKind::CodeBlock: destroy_from(code_blocks_, h, WidgetKind::CodeBlock); break;
-        case WidgetKind::ProgressWheel: destroy_from(progress_wheels_, h, WidgetKind::ProgressWheel); break;
-        case WidgetKind::WaveformView: destroy_from(waveform_views_, h, WidgetKind::WaveformView); break;
-        case WidgetKind::BatteryGauge: destroy_from(batteries_, h, WidgetKind::BatteryGauge); break;
-        case WidgetKind::HistogramView: destroy_from(histograms_, h, WidgetKind::HistogramView); break;
-        case WidgetKind::RingIndication: destroy_from(rings_, h, WidgetKind::RingIndication); break;
-        case WidgetKind::TextBox: destroy_from(text_boxes_, h, WidgetKind::TextBox); break;
-        case WidgetKind::FoldablePanel: destroy_from(fold_panels_, h, WidgetKind::FoldablePanel); break;
-        case WidgetKind::ProgressFlowing: destroy_from(progress_flow_, h, WidgetKind::ProgressFlowing); break;
-        case WidgetKind::CloudyGlass: destroy_from(glass_, h, WidgetKind::CloudyGlass); break;
-        case WidgetKind::SpinZoomWidget: destroy_from(spin_zoom_, h, WidgetKind::SpinZoomWidget); break;
-        case WidgetKind::SpinningWheel: destroy_from(spinning_wheel_, h, WidgetKind::SpinningWheel); break;
-        case WidgetKind::SpectrumView: destroy_from(spectrum_views_, h, WidgetKind::SpectrumView); break;
-        case WidgetKind::DynamicNebula: destroy_from(nebula_, h, WidgetKind::DynamicNebula); break;
-        case WidgetKind::CrtScreen: destroy_from(crt_, h, WidgetKind::CrtScreen); break;
-            default: break;
+        default: break;
         }
         if (overlay_ == h) overlay_ = {};
     }
@@ -755,73 +494,21 @@ private:
 
     HandlePool<Container, 16> containers_{};
     HandlePool<ScrollContainer, 16> scrolls_{};
-    HandlePool<Dial, 16> dials_{};
-    HandlePool<Arc, 16> arcs_{};
     HandlePool<Image, 32> images_{};
     HandlePool<ImageBox, 16> image_boxes_{};
-    HandlePool<BusyWheel, 16> busy_wheels_{};
-    HandlePool<ConsoleBox, 8> console_boxes_{};
-    HandlePool<BatteryGasGauge, 16> battery_gasgauge_{};
-    HandlePool<Histogram, 16> histogram_{};
     HandlePool<Label, 128> labels_{};
     HandlePool<Button, 64> buttons_{};
     HandlePool<Checkbox, 64> checkboxes_{};
     HandlePool<Slider, 64> sliders_{};
     HandlePool<Switch, 64> switches_{};
     HandlePool<Progress, 64> progresses_{};
-    HandlePool<ProgressBarRound, 16> progress_round_{};
-    HandlePool<ProgressBarSimple, 32> progress_simple_{};
-    HandlePool<ProgressBarDrill, 16> progress_drill_{};
     HandlePool<List, 32> lists_{};
     HandlePool<ListItem, 128> list_items_{};
     HandlePool<ListView, 16> list_views_{};
-    HandlePool<IconList, 16> icon_lists_{};
-    HandlePool<TextTrackingList, 16> text_tracking_{};
-    HandlePool<TextList, 16> text_lists_{};
-    HandlePool<ModalDialog, 8> modals_{};
     HandlePool<ScrollBar, 32> scroll_bars_{};
-    HandlePool<SegmentedControl, 32> segments_{};
     HandlePool<TextArea, 32> text_areas_{};
     HandlePool<TextInput, 64> text_inputs_{};
-    HandlePool<NumberInput, 32> number_inputs_{};
-    HandlePool<NumberList, 16> number_lists_{};
-    HandlePool<ToggleGroup, 32> toggles_{};
-    HandlePool<TableView, 8> tables_{};
-    HandlePool<TreeView, 8> trees_{};
-    HandlePool<Dropdown, 64> dropdowns_{};
-    HandlePool<TabView, 16> tabviews_{};
-    HandlePool<Roller, 32> rollers_{};
-    HandlePool<Spinner, 32> spinners_{};
-    HandlePool<Bar, 64> bars_{};
-    HandlePool<PopupLayer, 8> popups_{};
-    HandlePool<Menu, 16> menus_{};
-    HandlePool<MenuItem, 64> menu_items_{};
     HandlePool<Radio, 64> radios_{};
-    HandlePool<RadioGroup, 16> radio_groups_{};
-    HandlePool<Chart, 16> charts_{};
-    HandlePool<Waveform, 8> waveforms_{};
-    HandlePool<Gauge, 16> gauges_{};
-    HandlePool<MeterPointer, 16> meters_{};
-    HandlePool<PrimitivesCanvas, 8> prim_canvas_{};
-    HandlePool<PerfOverlay, 8> perf_overlays_{};
-    HandlePool<Stepper, 16> steppers_{};
-    HandlePool<Timeline, 16> timelines_{};
-    HandlePool<RichText, 16> rich_texts_{};
-    HandlePool<CodeBlock, 16> code_blocks_{};
-    HandlePool<ProgressWheel, 16> progress_wheels_{};
-    HandlePool<WaveformView, 16> waveform_views_{};
-    HandlePool<BatteryGauge, 16> batteries_{};
-    HandlePool<HistogramView, 16> histograms_{};
-    HandlePool<RingIndication, 16> rings_{};
-    HandlePool<TextBox, 32> text_boxes_{};
-    HandlePool<FoldablePanel, 16> fold_panels_{};
-    HandlePool<ProgressFlowing, 16> progress_flow_{};
-    HandlePool<CloudyGlass, 16> glass_{};
-    HandlePool<SpinZoomWidget, 8> spin_zoom_{};
-    HandlePool<SpinningWheel, 16> spinning_wheel_{};
-    HandlePool<DynamicNebula, 8> nebula_{};
-    HandlePool<CrtScreen, 8> crt_{};
-    HandlePool<SpectrumView, 16> spectrum_views_{};
     WidgetHandle overlay_{};
     TreeSanitizeReport last_report_{};
 };

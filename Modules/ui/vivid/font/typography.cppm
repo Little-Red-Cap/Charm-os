@@ -4,9 +4,7 @@ export module charm.font.typography;
 
 export import charm.font;
 import charm.font.font_noto_sc_12;
-import charm.font.font_noto_sc_16;
 import charm.font.font_noto_ascii_12;
-import charm.font.font_noto_ascii_16;
 
 export enum class FontId : uint8_t {
     Small,
@@ -23,9 +21,6 @@ inline const Font* fallback_for(const Font& font) noexcept {
     if (table == font_noto_ascii_12.table.data()) {
         return &font_noto_sc_12;
     }
-    if (table == font_noto_ascii_16.table.data()) {
-        return &font_noto_sc_16;
-    }
     return nullptr;
 }
 
@@ -33,11 +28,11 @@ export
 const Font& get_font(const FontId id) noexcept {
     switch (id) {
     case FontId::Small: return font_noto_ascii_12;
-    case FontId::Normal: return font_noto_ascii_16;
-    case FontId::Large: return font_noto_ascii_16;
+    case FontId::Normal: return font_noto_ascii_12;
+    case FontId::Large: return font_noto_ascii_12;
     case FontId::Mono: return font_noto_ascii_12;
     }
-    return font_noto_ascii_16;
+    return font_noto_ascii_12;
 }
 
 export

@@ -44,6 +44,12 @@ public:
     void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
 
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = show_shadow_ ? 2 : 1;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
     void draw(CanvasBase& cvs) {
 #if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),

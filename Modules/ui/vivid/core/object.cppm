@@ -16,6 +16,7 @@ public:
         void (*draw)(ObjectBase&, CanvasBase&) noexcept;
         bool (*on_event)(ObjectBase&, const Event&) noexcept;
         Rect (*layout_rect)(const ObjectBase&) noexcept;
+        Rect (*paint_bounds)(const ObjectBase&) noexcept;
         Rect (*children_clip_rect)(const ObjectBase&) noexcept;
         bool (*should_draw_child)(const ObjectBase&, const ObjectBase&) noexcept;
     };
@@ -31,6 +32,7 @@ public:
     }
     void set_rect(Rect r) noexcept { rect_ = rect_normalized(r); }
     Rect layout_rect() const noexcept { return vtable_->layout_rect(*this); }
+    Rect paint_bounds() const noexcept { return vtable_->paint_bounds(*this); }
 
     enum class ClipPolicy : unsigned {
         None,
@@ -530,6 +532,7 @@ protected:
 
 private:
     static Rect default_layout_rect(const ObjectBase& self) noexcept { return self.rect_; }
+    static Rect default_paint_bounds(const ObjectBase& self) noexcept { return self.rect_; }
     static Rect default_children_clip_rect(const ObjectBase& self) noexcept { return self.rect_; }
     static bool default_on_event(ObjectBase&, const Event&) noexcept { return false; }
     static bool default_should_draw_child(const ObjectBase&, const ObjectBase&) noexcept { return true; }
@@ -540,21 +543,27 @@ private:
             &default_draw,
             &default_on_event,
             &default_layout_rect,
+            &default_paint_bounds,
             &default_children_clip_rect,
             &default_should_draw_child
         };
         return table;
     }
 
-    template<typename Derived>
-    static constexpr bool overrides_layout_rect() noexcept {
-        return &Derived::layout_rect != &ObjectBase::layout_rect;
-    }
+template<typename Derived>
+static constexpr bool overrides_layout_rect() noexcept {
+    return &Derived::layout_rect != &ObjectBase::layout_rect;
+}
 
-    template<typename Derived>
-    static constexpr bool overrides_children_clip_rect() noexcept {
-        return &Derived::children_clip_rect != &ObjectBase::children_clip_rect;
-    }
+template<typename Derived>
+static constexpr bool overrides_paint_bounds() noexcept {
+    return &Derived::paint_bounds != &ObjectBase::paint_bounds;
+}
+
+template<typename Derived>
+static constexpr bool overrides_children_clip_rect() noexcept {
+    return &Derived::children_clip_rect != &ObjectBase::children_clip_rect;
+}
 
     template<typename Derived>
     static constexpr bool overrides_should_draw_child() noexcept {
@@ -566,21 +575,29 @@ private:
         return &Derived::on_event != &ObjectBase::on_event;
     }
 
-    template<typename Derived>
-    static Rect layout_rect_thunk(const ObjectBase& self) noexcept {
-        if constexpr (overrides_layout_rect<Derived>()) {
-            return static_cast<const Derived&>(self).layout_rect();
-        }
-        return default_layout_rect(self);
+template<typename Derived>
+static Rect layout_rect_thunk(const ObjectBase& self) noexcept {
+    if constexpr (overrides_layout_rect<Derived>()) {
+        return static_cast<const Derived&>(self).layout_rect();
     }
+    return default_layout_rect(self);
+}
 
-    template<typename Derived>
-    static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
-        if constexpr (overrides_children_clip_rect<Derived>()) {
-            return static_cast<const Derived&>(self).children_clip_rect();
-        }
-        return default_children_clip_rect(self);
+template<typename Derived>
+static Rect paint_bounds_thunk(const ObjectBase& self) noexcept {
+    if constexpr (overrides_paint_bounds<Derived>()) {
+        return static_cast<const Derived&>(self).paint_bounds();
     }
+    return default_paint_bounds(self);
+}
+
+template<typename Derived>
+static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
+    if constexpr (overrides_children_clip_rect<Derived>()) {
+        return static_cast<const Derived&>(self).children_clip_rect();
+    }
+    return default_children_clip_rect(self);
+}
 
     template<typename Derived>
     static bool should_draw_child_thunk(const ObjectBase& self, const ObjectBase& child) noexcept {
@@ -609,6 +626,7 @@ private:
             &draw_thunk<Derived>,
             &on_event_thunk<Derived>,
             &layout_rect_thunk<Derived>,
+            &paint_bounds_thunk<Derived>,
             &children_clip_rect_thunk<Derived>,
             &should_draw_child_thunk<Derived>
         };

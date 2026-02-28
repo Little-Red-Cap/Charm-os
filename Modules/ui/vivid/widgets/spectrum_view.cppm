@@ -59,6 +59,12 @@ public:
 
     void set_peak_decay(float v) noexcept { peak_decay_ = (v > 0.0f) ? v : 0.0f; }
 
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = 8;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<SpectrumView>();

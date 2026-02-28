@@ -41,6 +41,19 @@ public:
         scan_opacity1_ = a1;
     }
 
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        int pad = 0;
+        if (scan_enabled_) {
+            int h0 = scan_bar_h0_;
+            int h1 = scan_bar_h1_;
+            if (h0 < 0) h0 = 0;
+            if (h1 < 0) h1 = 0;
+            pad = (h0 > h1) ? h0 : h1;
+        }
+        return Rect{r.x, r.y - pad, r.w, r.h + pad * 2};
+    }
+
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<CrtScreen>();

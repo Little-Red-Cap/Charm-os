@@ -33,8 +33,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
-# Enable CMake support for ASM and C languages
-enable_language(C ASM)
+# Enable CMake support for ASM, C and CXX languages
+enable_language(C ASM CXX)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
@@ -48,7 +48,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
-file(GLOB_RECURSE MODULE_INTERFACE_UNITS
+file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS
         "../app/*.cppm"
         "./*.cppm"
 )
@@ -62,11 +62,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         Core/Src/main.cpp
         Core/Src/out.port.stm32.cpp
 
-        PUBLIC
-        FILE_SET modules TYPE CXX_MODULES
-        BASE_DIRS
+    PUBLIC
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
-        FILES
+    FILES
         ${MODULE_INTERFACE_UNITS}
 )
 
@@ -78,6 +78,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    CHARM_VIVID_ENABLE_LAYER_CACHE=0
+    STM32F103xx
+    USE_HAL_DRIVER
 )
 
 # Ensure Charm-os is built with the same feature flags.
@@ -88,15 +91,21 @@ add_compile_definitions(USE_HAL_DRIVER)
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 
+# Provide CubeMX headers to Charm-os so platform adapters can include generated HAL headers.
+target_include_directories(Charm-os PRIVATE
+    $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
-        Charm-os
+    Charm-os
 
     # Add user defined libraries
 )

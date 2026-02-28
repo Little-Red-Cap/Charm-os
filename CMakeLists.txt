@@ -64,6 +64,15 @@ if (NOT CHARM_AUDIO_SINK_I2S)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_i2s.cppm"
     )
+else()
+    set(CHARM_PLAYER_I2S_SINK_MODULE
+        "${CMAKE_CURRENT_SOURCE_DIR}/Examples/project/player/stn32common/audio_sink_i2s.cppm")
+    if (EXISTS "${CHARM_PLAYER_I2S_SINK_MODULE}")
+        list(APPEND MODULE_INTERFACE_UNITS "${CHARM_PLAYER_I2S_SINK_MODULE}")
+    else()
+        message(FATAL_ERROR
+            "CHARM_AUDIO_SINK_I2S=ON but module is missing: ${CHARM_PLAYER_I2S_SINK_MODULE}")
+    endif()
 endif()
 if (NOT CHARM_ENABLE_MEDIA)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/media/")
@@ -86,7 +95,9 @@ endif()
 target_sources(${target_name}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES
-        BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Modules"
+        BASE_DIRS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Examples/project/player/stn32common"
         FILES ${MODULE_INTERFACE_UNITS})
 
 message(STATUS "${target_name} Examples: Ink/Windows -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ink/windows")

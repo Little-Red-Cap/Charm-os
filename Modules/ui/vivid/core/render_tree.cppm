@@ -9,7 +9,9 @@ export
 struct RenderNode {
     WidgetHandle handle{};
     Rect rect{};
+    Rect draw_clip{};
     Rect clip{};
+    bool clip_enabled{false};
     std::size_t parent{static_cast<std::size_t>(-1)};
     std::size_t first_child{0};
     std::size_t child_count{0};

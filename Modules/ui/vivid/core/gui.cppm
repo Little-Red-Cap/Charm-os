@@ -89,6 +89,19 @@ public:
         dump_trace();
     }
 
+    struct TileRenderConfig {
+        int tile_width{64};
+        int tile_height{64};
+        rgba clear_color{0, 0, 0, 0};
+        bool clear_tile{true};
+    };
+
+    struct TileRenderStats {
+        int tiles_total{0};
+        int tiles_drawn{0};
+        int nodes_drawn{0};
+    };
+
     // Render one frame.
     void render() {
         static util::u32 frame_no = 0;
@@ -112,6 +125,112 @@ public:
 #endif
         frame_no++;
         canvas.end_frame();
+    }
+
+    template<ui::RenderBackend Backend>
+    TileRenderStats render_tiles(Backend& backend,
+                                 const FrameBufferView& tile_buffer,
+                                 const TileRenderConfig& config) {
+        TileRenderStats stats{};
+        if (!tile_buffer.data) return stats;
+        if (config.tile_width <= 0 || config.tile_height <= 0) return stats;
+
+        static util::u32 frame_no = 0;
+        sanitize_tree_and_trace(frame_no);
+        register_layout_engines();
+        debug_nodes_ = 0;
+        debug_depth_hits_ = 0;
+        debug_cycle_hits_ = 0;
+        debug_clip_hits_ = 0;
+        debug_cache_hits_ = 0;
+        debug_invisible_ = 0;
+        debug_missing_ = 0;
+        render_tree_.clear();
+
+        RuntimeCanvas logic_canvas(nullptr, screen_width, screen_height, tile_buffer.format);
+        (void)run_traversal(logic_canvas, root_, false, true, false);
+
+        const int screen_w = backend.width();
+        const int screen_h = backend.height();
+        const int buffer_w = static_cast<int>(tile_buffer.width);
+        const int buffer_h = static_cast<int>(tile_buffer.height);
+        if (buffer_w <= 0 || buffer_h <= 0) return stats;
+        const int tile_w = (config.tile_width < buffer_w) ? config.tile_width : buffer_w;
+        const int tile_h = (config.tile_height < buffer_h) ? config.tile_height : buffer_h;
+        const std::size_t stride = (tile_buffer.stride_bytes != 0)
+            ? tile_buffer.stride_bytes
+            : static_cast<std::size_t>(buffer_w) * bytes_per_pixel(tile_buffer.format);
+        RuntimeCanvas tile_canvas(tile_buffer.data,
+                                  buffer_w,
+                                  buffer_h,
+                                  tile_buffer.format,
+                                  stride);
+
+        backend.begin_frame();
+        for (int y = 0; y < screen_h; y += tile_h) {
+            for (int x = 0; x < screen_w; x += tile_w) {
+                const int w = ((x + tile_w) <= screen_w) ? tile_w : (screen_w - x);
+                const int h = ((y + tile_h) <= screen_h) ? tile_h : (screen_h - y);
+                if (w <= 0 || h <= 0) continue;
+                Rect tile_rect{x, y, w, h};
+                stats.tiles_total++;
+
+                if (config.clear_tile) {
+                    tile_canvas.clear(config.clear_color);
+                }
+                tile_canvas.set_origin(-tile_rect.x, -tile_rect.y);
+
+                bool tile_hit = false;
+                const std::size_t node_count = render_tree_.size();
+                for (std::size_t i = 0; i < node_count; ++i) {
+                    const auto& node = render_tree_.node(i);
+                    Rect node_rect = node.draw_clip;
+                    if (!rect_valid(node_rect)) continue;
+                    Rect draw_clip{};
+                    if (!rect_intersect(node_rect, tile_rect, draw_clip)) continue;
+                    tile_hit = true;
+                    tile_canvas.set_clip(draw_clip);
+                    auto* obj = factory_.get(node.handle);
+                    if (!obj) continue;
+                    obj->draw(tile_canvas);
+                    stats.nodes_drawn++;
+                }
+
+                if (!tile_hit) {
+                    tile_canvas.clear_origin();
+                    continue;
+                }
+
+                const std::size_t row_bytes = static_cast<std::size_t>(w)
+                    * bytes_per_pixel(tile_buffer.format);
+                for (int row = 0; row < h; ++row) {
+                    const std::byte* src = tile_buffer.data
+                        + static_cast<std::size_t>(row) * stride;
+                    backend.blit_span(x, y + row, src, row_bytes);
+                }
+                backend.mark_dirty(x, y, w, h);
+                stats.tiles_drawn++;
+                tile_canvas.clear_origin();
+            }
+        }
+        backend.end_frame();
+        frame_no++;
+
+        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
+        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
+        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+        trace_counter(GuiTraceId::FrameClipHits, (util::u64)debug_clip_hits_, 0);
+        trace_counter(GuiTraceId::FrameCacheHits, (util::u64)debug_cache_hits_, 0);
+        trace_counter(GuiTraceId::FrameInvisible, (util::u64)debug_invisible_, 0);
+        trace_counter(GuiTraceId::FrameMissing, (util::u64)debug_missing_, 0);
+
+        return stats;
+    }
+
+    template<ui::RenderBackend Backend>
+    TileRenderStats render_tiles(Backend& backend,
+                                 const FrameBufferView& tile_buffer) {
+        return render_tiles(backend, tile_buffer, TileRenderConfig{});
     }
 
     // Dispatch an input event (global coordinates).
@@ -259,6 +378,7 @@ private:
         CanvasBase& target;
         bool allow_cache{true};
         bool build_tree{true};
+        bool draw_enabled{true};
 
         bool enter(NodeState& state, WidgetHandle h, std::size_t parent_index) {
             auto* obj = gui.factory_.get(h);
@@ -290,6 +410,7 @@ private:
             }
 
             if (allow_cache
+                && draw_enabled
                 && gui.subtree_cache_
                 && layer_cache_slots > 0
                 && obj->cache_policy() == ObjectBase::CachePolicy::Subtree) {
@@ -298,22 +419,26 @@ private:
                 }
             }
 
-            RenderBackend::draw(*obj, target);
-            Rect hint{};
-            if (obj->take_dirty_hint(hint)) {
-                state.subtree_dirty = true;
-                if (gui.dirty_tracking_) {
-                    target.mark_dirty(hint);
+            if (draw_enabled) {
+                RenderBackend::draw(*obj, target);
+                Rect hint{};
+                if (obj->take_dirty_hint(hint)) {
+                    state.subtree_dirty = true;
+                    if (gui.dirty_tracking_) {
+                        target.mark_dirty(hint);
+                    }
+                } else if (gui.dirty_tracking_) {
+                    target.mark_dirty(state.visible_rect);
                 }
-            } else if (gui.dirty_tracking_) {
-                target.mark_dirty(state.visible_rect);
             }
 
             if (build_tree) {
                 state.node_index = gui.render_tree_.push(RenderNode{
                     .handle = h,
                     .rect = state.paint_rect,
+                    .draw_clip = state.visible_rect,
                     .clip = state.paint_rect,
+                    .clip_enabled = false,
                     .parent = parent_index,
                     .first_child = 0,
                     .child_count = 0,
@@ -378,7 +503,7 @@ private:
             slot->canvas.set_clip(state.cache_rect);
             slot->canvas.clear();
             slot->canvas.begin_frame();
-            gui.run_traversal(slot->canvas, state.handle, false, false);
+            gui.run_traversal(slot->canvas, state.handle, false, false, true);
             slot->canvas.end_frame();
             slot->canvas.restore_clip(clip_state);
             slot->canvas.clear_origin();
@@ -413,14 +538,18 @@ private:
             }
             if (!clip_ok) {
                 if (state.node_index != static_cast<std::size_t>(-1)) {
-                    gui.render_tree_.node_mut(state.node_index).clip = Rect{};
+                    auto& node = gui.render_tree_.node_mut(state.node_index);
+                    node.clip = Rect{};
+                    node.clip_enabled = true;
                 }
                 return false;
             }
             target.set_clip(clip_rect);
             state.clip_applied = true;
             if (state.node_index != static_cast<std::size_t>(-1)) {
-                gui.render_tree_.node_mut(state.node_index).clip = clip_rect;
+                auto& node = gui.render_tree_.node_mut(state.node_index);
+                node.clip = clip_rect;
+                node.clip_enabled = true;
             }
             return true;
         }
@@ -525,7 +654,7 @@ private:
         debug_invisible_ = 0;
         debug_missing_ = 0;
         render_tree_.clear();
-        (void)run_traversal(target, root_, true, true);
+        (void)run_traversal(target, root_, true, true, true);
         trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
         trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
@@ -538,8 +667,9 @@ private:
     bool run_traversal(CanvasBase& target,
                        WidgetHandle root,
                        bool allow_cache,
-                       bool build_tree) {
-        RenderContext ctx{*this, target, allow_cache, build_tree};
+                       bool build_tree,
+                       bool draw_enabled) {
+        RenderContext ctx{*this, target, allow_cache, build_tree, draw_enabled};
         Traversal traversal{ctx};
         return traversal.run(root, static_cast<std::size_t>(-1));
     }
@@ -626,6 +756,14 @@ private:
                 + static_cast<std::size_t>(left - cached.x) * src_bpp;
             const std::size_t bytes = static_cast<std::size_t>(right - left) * dst_bpp;
             target.blit_span(left, y, src + src_off, bytes);
+        }
+    }
+    static std::size_t bytes_per_pixel(PixelFormat fmt) noexcept {
+        switch (fmt) {
+        case PixelFormat::RGB565: return PixelTraits<PixelFormat::RGB565>::bytes_per_pixel;
+        case PixelFormat::RGB888: return PixelTraits<PixelFormat::RGB888>::bytes_per_pixel;
+        case PixelFormat::ARGB8888: return PixelTraits<PixelFormat::ARGB8888>::bytes_per_pixel;
+        default: return PixelTraits<PixelFormat::ARGB8888>::bytes_per_pixel;
         }
     }
     static Rect clamp_to_screen(const Rect& r) noexcept {

@@ -188,6 +188,10 @@ private:
         FrameNodes = 1,
         FrameDepthHits = 2,
         FrameCycleHits = 3,
+        FrameClipHits = 4,
+        FrameCacheHits = 5,
+        FrameInvisible = 6,
+        FrameMissing = 7,
         SanitizeRemoved = 10,
         SanitizeMissing = 11,
         SanitizeSelf = 12,
@@ -258,8 +262,14 @@ private:
 
         bool enter(NodeState& state, WidgetHandle h, std::size_t parent_index) {
             auto* obj = gui.factory_.get(h);
-            if (!obj) return false;
-            if (!obj->is_visible()) return false;
+            if (!obj) {
+                ++gui.debug_missing_;
+                return false;
+            }
+            if (!obj->is_visible()) {
+                ++gui.debug_invisible_;
+                return false;
+            }
             state.handle = h;
             state.obj = obj;
             ++gui.debug_nodes_;
@@ -270,10 +280,12 @@ private:
             state.clip_state = target.save_clip();
             if (state.clip_state.enabled) {
                 if (!rect_intersect(state.cache_rect, state.clip_state.rect, state.visible_rect)) {
+                    ++gui.debug_clip_hits_;
                     return false;
                 }
             }
             if (!rect_valid(state.visible_rect)) {
+                ++gui.debug_clip_hits_;
                 return false;
             }
 
@@ -350,6 +362,7 @@ private:
                     && slot->rect.w == state.cache_rect.w && slot->rect.h == state.cache_rect.h) {
                     blit_layer(*slot, target, state.visible_rect);
                     gui.draw_cache_debug(target, state.visible_rect, true);
+                    ++gui.debug_cache_hits_;
                     return true;
                 }
                 slot->valid = false;
@@ -415,45 +428,90 @@ private:
 
     struct Traversal {
         RenderContext& ctx;
-        std::array<WidgetHandle, kMaxDepth> stack{};
 
         bool run(WidgetHandle root, std::size_t parent_index) {
-            return visit(root, 0, parent_index);
-        }
+            struct Frame {
+                WidgetHandle handle{};
+                std::size_t parent_index{static_cast<std::size_t>(-1)};
+                std::size_t next_child{0};
+                int depth{0};
+                bool entered{false};
+                bool subtree_dirty{false};
+                NodeState state{};
+            };
 
-    private:
-        bool visit(WidgetHandle h, int depth, std::size_t parent_index) {
-            if (depth > kMaxDepth) {
-                ++ctx.gui.debug_depth_hits_;
-                return false;
-            }
-            for (int i = 0; i < depth; ++i) {
-                if (stack[static_cast<std::size_t>(i)] == h) {
-                    ++ctx.gui.debug_cycle_hits_;
-                    return false;
+            std::array<Frame, static_cast<std::size_t>(kMaxDepth + 1)> stack{};
+            std::size_t sp = 0;
+            stack[0].handle = root;
+            stack[0].parent_index = parent_index;
+            stack[0].depth = 0;
+            sp = 1;
+
+            bool root_dirty = false;
+            while (sp > 0) {
+                auto& frame = stack[sp - 1];
+                if (!frame.entered) {
+                    if (frame.depth > kMaxDepth) {
+                        ++ctx.gui.debug_depth_hits_;
+                        --sp;
+                        continue;
+                    }
+                    if (!ctx.enter(frame.state, frame.handle, frame.parent_index)) {
+                        --sp;
+                        continue;
+                    }
+                    frame.entered = true;
+                    frame.subtree_dirty = frame.state.subtree_dirty;
+                    frame.next_child = 0;
                 }
-            }
-            stack[static_cast<std::size_t>(depth)] = h;
-            NodeState state{};
-            if (!ctx.enter(state, h, parent_index)) {
-                return false;
-            }
-            bool subtree_dirty = state.subtree_dirty;
-            if (!state.skip_children && state.obj) {
-                const std::size_t count = state.obj->child_count();
-                for (std::size_t i = 0; i < count; ++i) {
-                    auto ch = state.obj->child_at(i);
-                    auto* ch_obj = ctx.gui.factory_.get(ch);
-                    if (!ch_obj) continue;
-                    if (!state.obj->should_draw_child(*ch_obj)) continue;
-                    if (visit(ch, depth + 1, state.node_index)) {
-                        subtree_dirty = true;
+
+                if (frame.state.skip_children || !frame.state.obj
+                    || frame.next_child >= frame.state.obj->child_count()) {
+                    frame.state.subtree_dirty = frame.subtree_dirty;
+                    ctx.exit(frame.state);
+                    const bool dirty = frame.subtree_dirty;
+                    --sp;
+                    if (sp == 0) {
+                        root_dirty = dirty;
+                    } else if (dirty) {
+                        stack[sp - 1].subtree_dirty = true;
+                    }
+                    continue;
+                }
+
+                const auto ch = frame.state.obj->child_at(frame.next_child++);
+                auto* ch_obj = ctx.gui.factory_.get(ch);
+                if (!ch_obj) {
+                    continue;
+                }
+                if (!frame.state.obj->should_draw_child(*ch_obj)) {
+                    continue;
+                }
+                if (frame.depth + 1 > kMaxDepth) {
+                    ++ctx.gui.debug_depth_hits_;
+                    continue;
+                }
+                bool cycle = false;
+                for (std::size_t i = 0; i < sp; ++i) {
+                    if (stack[i].handle == ch) {
+                        cycle = true;
+                        break;
                     }
                 }
+                if (cycle) {
+                    ++ctx.gui.debug_cycle_hits_;
+                    continue;
+                }
+                stack[sp].handle = ch;
+                stack[sp].parent_index = frame.state.node_index;
+                stack[sp].depth = frame.depth + 1;
+                stack[sp].entered = false;
+                stack[sp].subtree_dirty = false;
+                stack[sp].next_child = 0;
+                stack[sp].state = NodeState{};
+                ++sp;
             }
-            state.subtree_dirty = subtree_dirty;
-            ctx.exit(state);
-            return subtree_dirty;
+            return root_dirty;
         }
     };
 
@@ -462,11 +520,19 @@ private:
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
         debug_cycle_hits_ = 0;
+        debug_clip_hits_ = 0;
+        debug_cache_hits_ = 0;
+        debug_invisible_ = 0;
+        debug_missing_ = 0;
         render_tree_.clear();
         (void)run_traversal(target, root_, true, true);
         trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
         trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+        trace_counter(GuiTraceId::FrameClipHits, (util::u64)debug_clip_hits_, 0);
+        trace_counter(GuiTraceId::FrameCacheHits, (util::u64)debug_cache_hits_, 0);
+        trace_counter(GuiTraceId::FrameInvisible, (util::u64)debug_invisible_, 0);
+        trace_counter(GuiTraceId::FrameMissing, (util::u64)debug_missing_, 0);
     }
 
     bool run_traversal(CanvasBase& target,
@@ -492,6 +558,10 @@ private:
     int debug_nodes_{0};
     int debug_depth_hits_{0};
     int debug_cycle_hits_{0};
+    int debug_clip_hits_{0};
+    int debug_cache_hits_{0};
+    int debug_invisible_{0};
+    int debug_missing_{0};
     bool dirty_tracking_{false};
     bool layer_cache_{false};
     #if CHARM_VIVID_ENABLE_LAYER_CACHE

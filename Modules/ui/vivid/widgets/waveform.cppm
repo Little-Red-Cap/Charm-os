@@ -70,6 +70,12 @@ public:
     void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; mark_dirty_trigger(); }
     void set_center_color(const rgba& c) noexcept { center_color_ = c; mark_dirty_hint(get_rect()); }
 
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        const int pad = glow_ ? 3 : 1;
+        return Rect{r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2};
+    }
+
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<Waveform>();

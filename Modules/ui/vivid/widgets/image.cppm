@@ -147,6 +147,72 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
+    Rect paint_bounds() const noexcept {
+        const auto r = get_rect();
+        if (!image_) return Rect{};
+        if (edge_mode_ == EdgeMode::KeepInside) return r;
+#if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return Rect{};
+        }
+        const int dst_w = (scale_mode_ == ScaleMode::Stretch) ? r.w : src.w;
+        const int dst_h = (scale_mode_ == ScaleMode::Stretch) ? r.h : src.h;
+        if (dst_w <= 0 || dst_h <= 0) return Rect{};
+        return Rect{r.x, r.y, dst_w, dst_h};
+#else
+        Rect src{0, 0, image_.w, image_.h};
+        if (has_crop_) {
+            src.x = (crop_.x < 0) ? 0 : crop_.x;
+            src.y = (crop_.y < 0) ? 0 : crop_.y;
+            src.w = crop_.w;
+            src.h = crop_.h;
+            if (src.x + src.w > image_.w) src.w = image_.w - src.x;
+            if (src.y + src.h > image_.h) src.h = image_.h - src.y;
+            if (src.w <= 0 || src.h <= 0) return Rect{};
+        }
+        const ImageView src_view = make_subview(image_, src);
+        if (!src_view) return Rect{};
+        const bool swap = (rotation_ == Rotation::Rotate90 || rotation_ == Rotation::Rotate270);
+        const int src_w = swap ? src_view.h : src_view.w;
+        const int src_h = swap ? src_view.w : src_view.h;
+        int dst_w = src_w;
+        int dst_h = src_h;
+        if (scale_mode_ == ScaleMode::Stretch) {
+            dst_w = r.w;
+            dst_h = r.h;
+        } else if (scale_mode_ == ScaleMode::Fit) {
+            if (src_w <= 0 || src_h <= 0) return Rect{};
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
+            const float s = (sx < sy) ? sx : sy;
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
+        } else if (scale_mode_ == ScaleMode::Fill) {
+            if (src_w <= 0 || src_h <= 0) return Rect{};
+            const float sx = static_cast<float>(r.w) / static_cast<float>(src_w);
+            const float sy = static_cast<float>(r.h) / static_cast<float>(src_h);
+            const float s = (sx > sy) ? sx : sy;
+            dst_w = static_cast<int>(src_w * s);
+            dst_h = static_cast<int>(src_h * s);
+        }
+        if (zoom_ != 1.0f) {
+            dst_w = static_cast<int>(static_cast<float>(dst_w) * zoom_);
+            dst_h = static_cast<int>(static_cast<float>(dst_h) * zoom_);
+        }
+        if (dst_w <= 0 || dst_h <= 0) return Rect{};
+        const int dst_x = r.x + static_cast<int>((r.w - dst_w) * anchor_x_);
+        const int dst_y = r.y + static_cast<int>((r.h - dst_h) * anchor_y_);
+        return Rect{dst_x, dst_y, dst_w, dst_h};
+#endif
+    }
+
     bool on_event(const Event& e) {
 #if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
         (void)e;

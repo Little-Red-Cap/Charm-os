@@ -274,7 +274,18 @@ private:
         ++debug_nodes_;
         apply_layout(factory_, *obj);
         Rect obj_rect = obj->get_rect();
-        Rect cache_rect = clamp_to_screen(obj_rect);
+        Rect paint_rect = obj->paint_bounds();
+        Rect cache_rect = clamp_to_screen(paint_rect);
+        Rect visible_rect = cache_rect;
+        const auto cache_clip = target.save_clip();
+        if (cache_clip.enabled) {
+            if (!rect_intersect(cache_rect, cache_clip.rect, visible_rect)) {
+                return false;
+            }
+        }
+        if (!rect_valid(visible_rect)) {
+            return false;
+        }
 
         const bool cacheable = (allow_cache && subtree_cache_
             && layer_cache_slots > 0
@@ -288,8 +299,8 @@ private:
             if (slot && slot->valid && !obj->cache_dirty()) {
                 if (slot->rect.x == cache_rect.x && slot->rect.y == cache_rect.y
                     && slot->rect.w == cache_rect.w && slot->rect.h == cache_rect.h) {
-                    blit_layer(*slot, target, cache_rect);
-                    draw_cache_debug(target, cache_rect, true);
+                    blit_layer(*slot, target, visible_rect);
+                    draw_cache_debug(target, visible_rect, true);
                     return false;
                 }
                 slot->valid = false;
@@ -311,8 +322,8 @@ private:
                 slot->canvas.restore_clip(clip_state);
                 slot->canvas.clear_origin();
                 slot->valid = true;
-                blit_layer(*slot, target, cache_rect);
-                draw_cache_debug(target, cache_rect, false);
+                blit_layer(*slot, target, visible_rect);
+                draw_cache_debug(target, visible_rect, false);
                 return false;
             }
             }
@@ -327,15 +338,15 @@ private:
                 target.mark_dirty(hint);
             }
         } else if (dirty_tracking_) {
-            target.mark_dirty(obj_rect);
+            target.mark_dirty(visible_rect);
         }
 
         std::size_t node_index = static_cast<std::size_t>(-1);
         if (build_tree) {
             node_index = render_tree_.push(RenderNode{
                 .handle = h,
-                .rect = obj_rect,
-                .clip = obj_rect,
+                .rect = paint_rect,
+                .clip = paint_rect,
                 .parent = parent_index,
                 .first_child = 0,
                 .child_count = 0,

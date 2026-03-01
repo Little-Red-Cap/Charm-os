@@ -25,6 +25,7 @@ public:
         FocusOut,
         KeyDown,
         KeyUp,
+        Cancel,
     } type;
 
     int x = 0;

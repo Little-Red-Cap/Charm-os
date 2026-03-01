@@ -525,6 +525,10 @@ public:
         return input_events_.events[idx];
     }
 
+    bool input_events_overflowed() const noexcept {
+        return input_events_.overflowed;
+    }
+
     void set_drag_threshold(int px) noexcept {
         input_drag_threshold_sq_ = px * px;
     }
@@ -591,6 +595,9 @@ public:
             input_last_y_ = e.y;
             input_handle_cancel(e.x, e.y, e.button);
             break;
+        }
+        if (input_events_.overflowed) {
+            input_handle_overflow();
         }
     }
 
@@ -1327,9 +1334,11 @@ private:
     struct InputEventQueue {
         std::array<SoaInputEvent, kMaxInputEvents> events{};
         std::size_t count{0};
+        bool overflowed{false};
 
         void clear() noexcept {
             count = 0;
+            overflowed = false;
         }
     };
 
@@ -1399,7 +1408,11 @@ private:
 
     void input_emit_event(WidgetHandle target, const Event& e) noexcept {
         if (!target) return;
-        if (input_events_.count >= input_events_.events.size()) return;
+        if (input_events_.overflowed) return;
+        if (input_events_.count >= input_events_.events.size()) {
+            input_events_.overflowed = true;
+            return;
+        }
         input_events_.events[input_events_.count++] = SoaInputEvent{target, e};
     }
 
@@ -1516,43 +1529,97 @@ private:
         input_button_ = 0;
     }
 
+    void input_handle_overflow() {
+#ifndef NDEBUG
+        assert(false && "SoaKernel input event overflow");
+#endif
+        if (input_pressed_) {
+            set_pressed(input_pressed_, false);
+        }
+        if (input_hovered_) {
+            set_hovered(input_hovered_, false);
+        }
+        if (input_focused_) {
+            set_focused(input_focused_, false);
+        }
+        input_pressed_ = {};
+        input_captured_ = {};
+        input_hovered_ = {};
+        input_focused_ = {};
+        input_scroll_target_ = {};
+        input_dragging_ = false;
+        input_button_ = 0;
+    }
+
+    bool input_is_descendant_or_invalid(WidgetHandle node, WidgetHandle ancestor) const noexcept {
+        if (!node) return false;
+        const std::uint16_t idx = index_of(node);
+        if (idx == kInvalidIndex) return true;
+        const std::uint16_t anc = index_of(ancestor);
+        if (anc == kInvalidIndex) return false;
+        if (idx == anc) return true;
+        std::uint16_t p = common_.parent[idx];
+        while (p != kInvalidIndex) {
+            if (p == anc) return true;
+            p = common_.parent[p];
+        }
+        return false;
+    }
+
     void input_on_destroy(WidgetHandle h) {
         if (!h) return;
         const int x = input_last_x_;
         const int y = input_last_y_;
+        const bool pressed_hit = input_is_descendant_or_invalid(input_pressed_, h);
+        const bool captured_hit = input_is_descendant_or_invalid(input_captured_, h);
+        const bool hovered_hit = input_is_descendant_or_invalid(input_hovered_, h);
+        const bool focused_hit = input_is_descendant_or_invalid(input_focused_, h);
+        const bool scroll_hit = input_is_descendant_or_invalid(input_scroll_target_, h);
 
-        if (input_dragging_ && (input_pressed_ == h || input_captured_ == h)) {
-            input_emit_event(h, Event::drag(Event::Type::DragEnd, x, y, 0, 0, input_button_));
+        WidgetHandle drag_target{};
+        if (captured_hit && valid(input_captured_)) {
+            drag_target = input_captured_;
+        } else if (pressed_hit && valid(input_pressed_)) {
+            drag_target = input_pressed_;
+        }
+
+        if (input_dragging_ && drag_target) {
+            input_emit_event(drag_target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, input_button_));
             input_dragging_ = false;
         }
 
-        if (input_pressed_ == h) {
-            input_emit_event(h, Event::mouse(Event::Type::Cancel, x, y, input_button_));
-            set_pressed(h, false);
-            input_pressed_ = {};
+        if (captured_hit && valid(input_captured_)) {
+            input_emit_event(input_captured_, Event::mouse(Event::Type::Cancel, x, y, input_button_));
+        }
+        if (pressed_hit && valid(input_pressed_) && input_pressed_ != input_captured_) {
+            input_emit_event(input_pressed_, Event::mouse(Event::Type::Cancel, x, y, input_button_));
         }
 
-        if (input_captured_ == h) {
+        if (pressed_hit) {
+            set_pressed(input_pressed_, false);
+            input_pressed_ = {};
+        }
+        if (captured_hit) {
             input_captured_ = {};
             input_button_ = 0;
         }
-
-        if (input_scroll_target_ == h) {
+        if (scroll_hit) {
             input_scroll_target_ = {};
         }
-
-        if (input_hovered_ == h) {
-            input_emit_event(h, Event::mouse(Event::Type::HoverLeave, x, y, input_button_));
-            set_hovered(h, false);
+        if (hovered_hit) {
+            if (valid(input_hovered_)) {
+                input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, input_button_));
+            }
+            set_hovered(input_hovered_, false);
             input_hovered_ = {};
         }
-
-        if (input_focused_ == h) {
-            input_emit_event(h, Event::key(Event::Type::FocusOut, Event::Key::Unknown));
-            set_focused(h, false);
+        if (focused_hit) {
+            if (valid(input_focused_)) {
+                input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown));
+            }
+            set_focused(input_focused_, false);
             input_focused_ = {};
         }
-
         if (input_root_ == h) {
             input_root_ = {};
         }

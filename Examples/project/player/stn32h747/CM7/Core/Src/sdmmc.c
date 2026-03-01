@@ -41,13 +41,9 @@ void MX_SDMMC2_SD_Init(void)
   hsd2.Instance = SDMMC2;
   hsd2.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
   hsd2.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
-  hsd2.Init.BusWide = SDMMC_BUS_WIDE_4B;
-  hsd2.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
+  hsd2.Init.BusWide = SDMMC_BUS_WIDE_1B;
+  hsd2.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_ENABLE;
   hsd2.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN SDMMC2_Init 2 */
 
   /* USER CODE END SDMMC2_Init 2 */
@@ -91,14 +87,14 @@ void HAL_SD_MspInit(SD_HandleTypeDef* sdHandle)
     */
     GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_15|GPIO_PIN_14;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF9_SDIO2;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = GPIO_PIN_11;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF10_SDIO2;
     HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
@@ -112,7 +108,7 @@ void HAL_SD_MspInit(SD_HandleTypeDef* sdHandle)
 
     GPIO_InitStruct.Pin = GPIO_PIN_0;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF9_SDIO2;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);

@@ -34,7 +34,6 @@
 
 /** Configure pins
      PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
-     PB3 (JTDO/TRACESWO)   ------> DEBUG_JTDO-SWO
      PA13 (JTMS/SWDIO)   ------> DEBUG_JTMS-SWDIO
 */
 void MX_GPIO_Init(void)

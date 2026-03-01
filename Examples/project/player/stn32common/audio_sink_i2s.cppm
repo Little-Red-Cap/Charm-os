@@ -41,6 +41,14 @@ export namespace audio {
 
     class I2sAudioSink {
     public:
+        static I2S_HandleTypeDef& i2s_handle() noexcept {
+#if defined(STM32F407xx)
+            return hi2s2;
+#else
+            return hi2s1;
+#endif
+        }
+
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
             const std::uint32_t period = cfg.period_frames != 0
@@ -67,7 +75,7 @@ export namespace audio {
             fill_block(view.first(period_bytes_));
             fill_block(view.subspan(period_bytes_, period_bytes_));
 
-            if (HAL_I2S_Transmit_DMA(&hi2s1,
+            if (HAL_I2S_Transmit_DMA(&i2s_handle(),
                     reinterpret_cast<uint16_t*>(buffer_.data()),
                     static_cast<uint16_t>(buffer_bytes_ / 2)) != HAL_OK) {
                 active_ = nullptr;
@@ -77,7 +85,7 @@ export namespace audio {
         }
 
         Result<void> stop() noexcept {
-            HAL_I2S_DMAStop(&hi2s1);
+            HAL_I2S_DMAStop(&i2s_handle());
             active_ = nullptr;
             return {};
         }
@@ -180,7 +188,7 @@ export namespace audio {
 }
 
 extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s1) {
+    if (hi2s == &audio::I2sAudioSink::i2s_handle()) {
         audio::I2sAudioSink::on_half();
     }
     extern void charm_audio_i2s_debug_toggle();
@@ -190,7 +198,7 @@ extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
 }
 
 extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s1) {
+    if (hi2s == &audio::I2sAudioSink::i2s_handle()) {
         audio::I2sAudioSink::on_full();
     }
     extern void charm_audio_i2s_debug_toggle();
@@ -200,7 +208,7 @@ extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
 }
 
 extern "C" void HAL_I2S_ErrorCallback(I2S_HandleTypeDef* hi2s) {
-    if (hi2s == &hi2s1) {
+    if (hi2s == &audio::I2sAudioSink::i2s_handle()) {
         audio::I2sAudioSink::on_error();
     }
 }

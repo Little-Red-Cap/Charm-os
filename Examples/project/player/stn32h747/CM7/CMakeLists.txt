@@ -51,9 +51,9 @@ enable_language(C ASM CXX)
 set(CMAKE_CXX_COMPILER_FORCED "true") 
 
 # Exclude CubeMX C main to avoid duplicate entry with main.cpp.
-set_source_files_properties(Core/Src/main.c PROPERTIES HEADER_FILE_ONLY TRUE)
+#set_source_files_properties(Core/Src/main.c PROPERTIES HEADER_FILE_ONLY TRUE)
 # Exclude CubeMX SDMMC init; provide a local port instead to avoid regen churn.
-set_source_files_properties(Core/Src/sdmmc.c PROPERTIES HEADER_FILE_ONLY TRUE)
+#set_source_files_properties(Core/Src/sdmmc.c PROPERTIES HEADER_FILE_ONLY TRUE)
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE 
@@ -76,11 +76,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    Core/Src/board_init.c
     Core/Src/main.cpp
     Core/Src/player_app.cpp
     Core/Src/out.port.stm32.cpp
-    Core/Src/sdmmc_port.c
 )
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS

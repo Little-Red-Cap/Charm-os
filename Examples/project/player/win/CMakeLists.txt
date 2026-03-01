@@ -36,16 +36,18 @@ set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_MEDIA ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_VIVID_PROFILE "full" CACHE STRING "" FORCE)
 set(CHARM_AUDIO_USE_VFS ON CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FETCHCONTENT_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/abbrev/fatfs.git" CACHE STRING "" FORCE)
 set(CHARM_FATFS_GIT_TAG "master" CACHE STRING "" FORCE)
 
+set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747/|/stn32common/")
 charm_example_sources_filtered(${target_name}
-    "${CHARM_ROOT}" "/stm32f407/"
-    "${CHARM_ROOT}" "/stm32h747/"
-    "${CHARM_ROOT}" "/stm32common/"
+    "${CHARM_ROOT}"
+    "${CHARM_PLAYER_EXCLUDE_REGEX}"
     "${CHARM_ROOT}/Examples/project/player/*.cppm"
 )
 charm_example_sources(${target_name} "${CHARM_ROOT}"
@@ -55,7 +57,7 @@ charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
-    "${CHARM_ROOT}/Modules/io/out/out.port.template.cpp"
+    "${CHARM_ROOT}/Examples/io/out/windows/out.port.windows.cpp"
 )
 
 set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")

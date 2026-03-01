@@ -89,6 +89,19 @@ public:
         dump_trace();
     }
 
+    struct TileRenderConfig {
+        int tile_width{64};
+        int tile_height{64};
+        rgba clear_color{0, 0, 0, 0};
+        bool clear_tile{true};
+    };
+
+    struct TileRenderStats {
+        int tiles_total{0};
+        int tiles_drawn{0};
+        int nodes_drawn{0};
+    };
+
     // Render one frame.
     void render() {
         static util::u32 frame_no = 0;
@@ -112,6 +125,112 @@ public:
 #endif
         frame_no++;
         canvas.end_frame();
+    }
+
+    template<ui::RenderBackend Backend>
+    TileRenderStats render_tiles(Backend& backend,
+                                 const FrameBufferView& tile_buffer,
+                                 const TileRenderConfig& config) {
+        TileRenderStats stats{};
+        if (!tile_buffer.data) return stats;
+        if (config.tile_width <= 0 || config.tile_height <= 0) return stats;
+
+        static util::u32 frame_no = 0;
+        sanitize_tree_and_trace(frame_no);
+        register_layout_engines();
+        debug_nodes_ = 0;
+        debug_depth_hits_ = 0;
+        debug_cycle_hits_ = 0;
+        debug_clip_hits_ = 0;
+        debug_cache_hits_ = 0;
+        debug_invisible_ = 0;
+        debug_missing_ = 0;
+        render_tree_.clear();
+
+        RuntimeCanvas logic_canvas(nullptr, screen_width, screen_height, tile_buffer.format);
+        (void)run_traversal(logic_canvas, root_, false, true, false);
+
+        const int screen_w = backend.width();
+        const int screen_h = backend.height();
+        const int buffer_w = static_cast<int>(tile_buffer.width);
+        const int buffer_h = static_cast<int>(tile_buffer.height);
+        if (buffer_w <= 0 || buffer_h <= 0) return stats;
+        const int tile_w = (config.tile_width < buffer_w) ? config.tile_width : buffer_w;
+        const int tile_h = (config.tile_height < buffer_h) ? config.tile_height : buffer_h;
+        const std::size_t stride = (tile_buffer.stride_bytes != 0)
+            ? tile_buffer.stride_bytes
+            : static_cast<std::size_t>(buffer_w) * bytes_per_pixel(tile_buffer.format);
+        RuntimeCanvas tile_canvas(tile_buffer.data,
+                                  buffer_w,
+                                  buffer_h,
+                                  tile_buffer.format,
+                                  stride);
+
+        backend.begin_frame();
+        for (int y = 0; y < screen_h; y += tile_h) {
+            for (int x = 0; x < screen_w; x += tile_w) {
+                const int w = ((x + tile_w) <= screen_w) ? tile_w : (screen_w - x);
+                const int h = ((y + tile_h) <= screen_h) ? tile_h : (screen_h - y);
+                if (w <= 0 || h <= 0) continue;
+                Rect tile_rect{x, y, w, h};
+                stats.tiles_total++;
+
+                if (config.clear_tile) {
+                    tile_canvas.clear(config.clear_color);
+                }
+                tile_canvas.set_origin(-tile_rect.x, -tile_rect.y);
+
+                bool tile_hit = false;
+                const std::size_t node_count = render_tree_.size();
+                for (std::size_t i = 0; i < node_count; ++i) {
+                    const auto& node = render_tree_.node(i);
+                    Rect node_rect = node.draw_clip;
+                    if (!rect_valid(node_rect)) continue;
+                    Rect draw_clip{};
+                    if (!rect_intersect(node_rect, tile_rect, draw_clip)) continue;
+                    tile_hit = true;
+                    tile_canvas.set_clip(draw_clip);
+                    auto* obj = factory_.get(node.handle);
+                    if (!obj) continue;
+                    obj->draw(tile_canvas);
+                    stats.nodes_drawn++;
+                }
+
+                if (!tile_hit) {
+                    tile_canvas.clear_origin();
+                    continue;
+                }
+
+                const std::size_t row_bytes = static_cast<std::size_t>(w)
+                    * bytes_per_pixel(tile_buffer.format);
+                for (int row = 0; row < h; ++row) {
+                    const std::byte* src = tile_buffer.data
+                        + static_cast<std::size_t>(row) * stride;
+                    backend.blit_span(x, y + row, src, row_bytes);
+                }
+                backend.mark_dirty(x, y, w, h);
+                stats.tiles_drawn++;
+                tile_canvas.clear_origin();
+            }
+        }
+        backend.end_frame();
+        frame_no++;
+
+        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
+        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
+        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+        trace_counter(GuiTraceId::FrameClipHits, (util::u64)debug_clip_hits_, 0);
+        trace_counter(GuiTraceId::FrameCacheHits, (util::u64)debug_cache_hits_, 0);
+        trace_counter(GuiTraceId::FrameInvisible, (util::u64)debug_invisible_, 0);
+        trace_counter(GuiTraceId::FrameMissing, (util::u64)debug_missing_, 0);
+
+        return stats;
+    }
+
+    template<ui::RenderBackend Backend>
+    TileRenderStats render_tiles(Backend& backend,
+                                 const FrameBufferView& tile_buffer) {
+        return render_tiles(backend, tile_buffer, TileRenderConfig{});
     }
 
     // Dispatch an input event (global coordinates).
@@ -188,6 +307,10 @@ private:
         FrameNodes = 1,
         FrameDepthHits = 2,
         FrameCycleHits = 3,
+        FrameClipHits = 4,
+        FrameCacheHits = 5,
+        FrameInvisible = 6,
+        FrameMissing = 7,
         SanitizeRemoved = 10,
         SanitizeMissing = 11,
         SanitizeSelf = 12,
@@ -200,6 +323,7 @@ private:
     using TraceBuffer = service::TraceBuffer<util::u32, kTraceCapacity>;
     using LayerFrameBuffer = FrameBuffer<screen_pixel_format, static_cast<std::size_t>(layer_cache_width), static_cast<std::size_t>(layer_cache_height)>;
     using LayerCanvas = Canvas<screen_pixel_format, static_cast<std::size_t>(layer_cache_width), static_cast<std::size_t>(layer_cache_height)>;
+    static constexpr int kMaxDepth = 128;
 
     void trace_counter(GuiTraceId id, util::u64 payload, util::u32 frame) noexcept {
         TraceRecord rec{};
@@ -229,17 +353,325 @@ private:
         }
     }
 
+    struct NodeState {
+        WidgetHandle handle{};
+        ObjectBase* obj{nullptr};
+        Rect paint_rect{};
+        Rect cache_rect{};
+        Rect visible_rect{};
+        CanvasBase::ClipState clip_state{};
+        bool clip_applied{false};
+        bool subtree_dirty{false};
+        bool skip_children{false};
+        std::size_t node_index{static_cast<std::size_t>(-1)};
+        std::size_t child_start{0};
+    };
+
+    struct RenderBackend {
+        static void draw(ObjectBase& obj, CanvasBase& target) noexcept {
+            obj.draw(target);
+        }
+    };
+
+    struct RenderContext {
+        Gui& gui;
+        CanvasBase& target;
+        bool allow_cache{true};
+        bool build_tree{true};
+        bool draw_enabled{true};
+
+        bool enter(NodeState& state, WidgetHandle h, std::size_t parent_index) {
+            auto* obj = gui.factory_.get(h);
+            if (!obj) {
+                ++gui.debug_missing_;
+                return false;
+            }
+            if (!obj->is_visible()) {
+                ++gui.debug_invisible_;
+                return false;
+            }
+            state.handle = h;
+            state.obj = obj;
+            ++gui.debug_nodes_;
+            apply_layout(gui.factory_, *obj);
+            state.paint_rect = obj->paint_bounds();
+            state.cache_rect = clamp_to_screen(state.paint_rect);
+            state.visible_rect = state.cache_rect;
+            state.clip_state = target.save_clip();
+            if (state.clip_state.enabled) {
+                if (!rect_intersect(state.cache_rect, state.clip_state.rect, state.visible_rect)) {
+                    ++gui.debug_clip_hits_;
+                    return false;
+                }
+            }
+            if (!rect_valid(state.visible_rect)) {
+                ++gui.debug_clip_hits_;
+                return false;
+            }
+
+            if (allow_cache
+                && draw_enabled
+                && gui.subtree_cache_
+                && layer_cache_slots > 0
+                && obj->cache_policy() == ObjectBase::CachePolicy::Subtree) {
+                if (try_cache(state)) {
+                    return false;
+                }
+            }
+
+            if (draw_enabled) {
+                RenderBackend::draw(*obj, target);
+                Rect hint{};
+                if (obj->take_dirty_hint(hint)) {
+                    state.subtree_dirty = true;
+                    if (gui.dirty_tracking_) {
+                        target.mark_dirty(hint);
+                    }
+                } else if (gui.dirty_tracking_) {
+                    target.mark_dirty(state.visible_rect);
+                }
+            }
+
+            if (build_tree) {
+                state.node_index = gui.render_tree_.push(RenderNode{
+                    .handle = h,
+                    .rect = state.paint_rect,
+                    .draw_clip = state.visible_rect,
+                    .clip = state.paint_rect,
+                    .clip_enabled = false,
+                    .parent = parent_index,
+                    .first_child = 0,
+                    .child_count = 0,
+                });
+            }
+
+            if (!apply_child_clip(state)) {
+                state.skip_children = true;
+            }
+            state.child_start = build_tree ? gui.render_tree_.size() : 0;
+            return true;
+        }
+
+        void exit(NodeState& state) {
+            if (build_tree && state.node_index != static_cast<std::size_t>(-1)) {
+                auto& node = gui.render_tree_.node_mut(state.node_index);
+                if (gui.render_tree_.size() > state.child_start) {
+                    node.first_child = state.child_start;
+                    node.child_count = gui.render_tree_.size() - state.child_start;
+                }
+            }
+
+            if (state.clip_applied) {
+                target.restore_clip(state.clip_state);
+            }
+
+            if (state.subtree_dirty && state.obj
+                && state.obj->cache_policy() == ObjectBase::CachePolicy::Subtree) {
+                state.obj->mark_cache_dirty();
+            }
+        }
+
+    private:
+        bool try_cache(NodeState& state) {
+            if (state.cache_rect.w <= 0 || state.cache_rect.h <= 0) {
+                return true;
+            }
+            if (state.cache_rect.w > layer_cache_width || state.cache_rect.h > layer_cache_height) {
+                state.obj->mark_cache_dirty();
+                return false;
+            }
+            auto* slot = gui.cache_.find_or_assign(state.handle);
+            if (!slot) return false;
+            if (slot->valid && !state.obj->cache_dirty()) {
+                if (slot->rect.x == state.cache_rect.x && slot->rect.y == state.cache_rect.y
+                    && slot->rect.w == state.cache_rect.w && slot->rect.h == state.cache_rect.h) {
+                    blit_layer(*slot, target, state.visible_rect);
+                    gui.draw_cache_debug(target, state.visible_rect, true);
+                    ++gui.debug_cache_hits_;
+                    return true;
+                }
+                slot->valid = false;
+            }
+            state.obj->clear_cache_dirty();
+            if (slot->rect.x != state.cache_rect.x || slot->rect.y != state.cache_rect.y
+                || slot->rect.w != state.cache_rect.w || slot->rect.h != state.cache_rect.h) {
+                slot->valid = false;
+            }
+            slot->rect = state.cache_rect;
+            slot->canvas.set_origin(-state.cache_rect.x, -state.cache_rect.y);
+            auto clip_state = slot->canvas.save_clip();
+            slot->canvas.set_clip(state.cache_rect);
+            slot->canvas.clear();
+            slot->canvas.begin_frame();
+            gui.run_traversal(slot->canvas, state.handle, false, false, true);
+            slot->canvas.end_frame();
+            slot->canvas.restore_clip(clip_state);
+            slot->canvas.clear_origin();
+            slot->valid = true;
+            blit_layer(*slot, target, state.visible_rect);
+            gui.draw_cache_debug(target, state.visible_rect, false);
+            return true;
+        }
+
+        bool apply_child_clip(NodeState& state) {
+            const auto clip_policy = state.obj->clip_policy();
+            if (clip_policy == ObjectBase::ClipPolicy::None) {
+                return true;
+            }
+            Rect clip_rect = state.obj->get_rect();
+            switch (clip_policy) {
+            case ObjectBase::ClipPolicy::Rect:
+                clip_rect = state.obj->get_rect();
+                break;
+            case ObjectBase::ClipPolicy::LayoutRect:
+                clip_rect = state.obj->layout_rect();
+                break;
+            case ObjectBase::ClipPolicy::Custom:
+                clip_rect = state.obj->children_clip_rect();
+                break;
+            default:
+                break;
+            }
+            bool clip_ok = rect_valid(clip_rect);
+            if (state.clip_state.enabled) {
+                clip_ok = clip_ok && rect_intersect(clip_rect, state.clip_state.rect, clip_rect);
+            }
+            if (!clip_ok) {
+                if (state.node_index != static_cast<std::size_t>(-1)) {
+                    auto& node = gui.render_tree_.node_mut(state.node_index);
+                    node.clip = Rect{};
+                    node.clip_enabled = true;
+                }
+                return false;
+            }
+            target.set_clip(clip_rect);
+            state.clip_applied = true;
+            if (state.node_index != static_cast<std::size_t>(-1)) {
+                auto& node = gui.render_tree_.node_mut(state.node_index);
+                node.clip = clip_rect;
+                node.clip_enabled = true;
+            }
+            return true;
+        }
+    };
+
+    struct Traversal {
+        RenderContext& ctx;
+
+        bool run(WidgetHandle root, std::size_t parent_index) {
+            struct Frame {
+                WidgetHandle handle{};
+                std::size_t parent_index{static_cast<std::size_t>(-1)};
+                std::size_t next_child{0};
+                int depth{0};
+                bool entered{false};
+                bool subtree_dirty{false};
+                NodeState state{};
+            };
+
+            std::array<Frame, static_cast<std::size_t>(kMaxDepth + 1)> stack{};
+            std::size_t sp = 0;
+            stack[0].handle = root;
+            stack[0].parent_index = parent_index;
+            stack[0].depth = 0;
+            sp = 1;
+
+            bool root_dirty = false;
+            while (sp > 0) {
+                auto& frame = stack[sp - 1];
+                if (!frame.entered) {
+                    if (frame.depth > kMaxDepth) {
+                        ++ctx.gui.debug_depth_hits_;
+                        --sp;
+                        continue;
+                    }
+                    if (!ctx.enter(frame.state, frame.handle, frame.parent_index)) {
+                        --sp;
+                        continue;
+                    }
+                    frame.entered = true;
+                    frame.subtree_dirty = frame.state.subtree_dirty;
+                    frame.next_child = 0;
+                }
+
+                if (frame.state.skip_children || !frame.state.obj
+                    || frame.next_child >= frame.state.obj->child_count()) {
+                    frame.state.subtree_dirty = frame.subtree_dirty;
+                    ctx.exit(frame.state);
+                    const bool dirty = frame.subtree_dirty;
+                    --sp;
+                    if (sp == 0) {
+                        root_dirty = dirty;
+                    } else if (dirty) {
+                        stack[sp - 1].subtree_dirty = true;
+                    }
+                    continue;
+                }
+
+                const auto ch = frame.state.obj->child_at(frame.next_child++);
+                auto* ch_obj = ctx.gui.factory_.get(ch);
+                if (!ch_obj) {
+                    continue;
+                }
+                if (!frame.state.obj->should_draw_child(*ch_obj)) {
+                    continue;
+                }
+                if (frame.depth + 1 > kMaxDepth) {
+                    ++ctx.gui.debug_depth_hits_;
+                    continue;
+                }
+                bool cycle = false;
+                for (std::size_t i = 0; i < sp; ++i) {
+                    if (stack[i].handle == ch) {
+                        cycle = true;
+                        break;
+                    }
+                }
+                if (cycle) {
+                    ++ctx.gui.debug_cycle_hits_;
+                    continue;
+                }
+                stack[sp].handle = ch;
+                stack[sp].parent_index = frame.state.node_index;
+                stack[sp].depth = frame.depth + 1;
+                stack[sp].entered = false;
+                stack[sp].subtree_dirty = false;
+                stack[sp].next_child = 0;
+                stack[sp].state = NodeState{};
+                ++sp;
+            }
+            return root_dirty;
+        }
+    };
+
     void render_tree(CanvasBase& target) {
         register_layout_engines();
         debug_nodes_ = 0;
         debug_depth_hits_ = 0;
         debug_cycle_hits_ = 0;
-        WidgetHandle stack[kMaxDepth]{};
+        debug_clip_hits_ = 0;
+        debug_cache_hits_ = 0;
+        debug_invisible_ = 0;
+        debug_missing_ = 0;
         render_tree_.clear();
-        (void)draw_recursive(target, root_, 0, stack, true, true, static_cast<std::size_t>(-1));
+        (void)run_traversal(target, root_, true, true, true);
         trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
         trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
         trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+        trace_counter(GuiTraceId::FrameClipHits, (util::u64)debug_clip_hits_, 0);
+        trace_counter(GuiTraceId::FrameCacheHits, (util::u64)debug_cache_hits_, 0);
+        trace_counter(GuiTraceId::FrameInvisible, (util::u64)debug_invisible_, 0);
+        trace_counter(GuiTraceId::FrameMissing, (util::u64)debug_missing_, 0);
+    }
+
+    bool run_traversal(CanvasBase& target,
+                       WidgetHandle root,
+                       bool allow_cache,
+                       bool build_tree,
+                       bool draw_enabled) {
+        RenderContext ctx{*this, target, allow_cache, build_tree, draw_enabled};
+        Traversal traversal{ctx};
+        return traversal.run(root, static_cast<std::size_t>(-1));
     }
 
 #if CHARM_VIVID_ENABLE_LAYER_CACHE
@@ -250,179 +682,16 @@ private:
     }
 #endif
 
-    bool draw_recursive(CanvasBase& target,
-                        WidgetHandle h,
-                        int depth,
-                        WidgetHandle* stack,
-                        bool allow_cache,
-                        bool build_tree,
-                        std::size_t parent_index) {
-        if (depth > kMaxDepth) {
-            ++debug_depth_hits_;
-            return false;
-        }
-        for (int i = 0; i < depth; ++i) {
-            if (stack[i] == h) {
-                ++debug_cycle_hits_;
-                return false;
-            }
-        }
-        stack[depth] = h;
-        auto* obj = factory_.get(h);
-        if (!obj) return false;
-        if (!obj->is_visible()) return false;
-        ++debug_nodes_;
-        apply_layout(factory_, *obj);
-        Rect obj_rect = obj->get_rect();
-        Rect paint_rect = obj->paint_bounds();
-        Rect cache_rect = clamp_to_screen(paint_rect);
-        Rect visible_rect = cache_rect;
-        const auto cache_clip = target.save_clip();
-        if (cache_clip.enabled) {
-            if (!rect_intersect(cache_rect, cache_clip.rect, visible_rect)) {
-                return false;
-            }
-        }
-        if (!rect_valid(visible_rect)) {
-            return false;
-        }
-
-        const bool cacheable = (allow_cache && subtree_cache_
-            && layer_cache_slots > 0
-            && obj->cache_policy() == ObjectBase::CachePolicy::Subtree);
-        if (cacheable) {
-            if (cache_rect.w <= 0 || cache_rect.h <= 0) return false;
-            if (cache_rect.w > layer_cache_width || cache_rect.h > layer_cache_height) {
-                obj->mark_cache_dirty();
-            } else {
-            auto* slot = cache_.find_or_assign(h);
-            if (slot && slot->valid && !obj->cache_dirty()) {
-                if (slot->rect.x == cache_rect.x && slot->rect.y == cache_rect.y
-                    && slot->rect.w == cache_rect.w && slot->rect.h == cache_rect.h) {
-                    blit_layer(*slot, target, visible_rect);
-                    draw_cache_debug(target, visible_rect, true);
-                    return false;
-                }
-                slot->valid = false;
-            }
-            if (slot) {
-                obj->clear_cache_dirty();
-                if (slot->rect.x != cache_rect.x || slot->rect.y != cache_rect.y
-                    || slot->rect.w != cache_rect.w || slot->rect.h != cache_rect.h) {
-                    slot->valid = false;
-                }
-                slot->rect = cache_rect;
-                slot->canvas.set_origin(-cache_rect.x, -cache_rect.y);
-                auto clip_state = slot->canvas.save_clip();
-                slot->canvas.set_clip(cache_rect);
-                slot->canvas.clear();
-                slot->canvas.begin_frame();
-                draw_recursive(slot->canvas, h, depth, stack, false, false, static_cast<std::size_t>(-1));
-                slot->canvas.end_frame();
-                slot->canvas.restore_clip(clip_state);
-                slot->canvas.clear_origin();
-                slot->valid = true;
-                blit_layer(*slot, target, visible_rect);
-                draw_cache_debug(target, visible_rect, false);
-                return false;
-            }
-            }
-        }
-
-        obj->draw(target);
-        bool subtree_dirty = false;
-        Rect hint{};
-        if (obj->take_dirty_hint(hint)) {
-            subtree_dirty = true;
-            if (dirty_tracking_) {
-                target.mark_dirty(hint);
-            }
-        } else if (dirty_tracking_) {
-            target.mark_dirty(visible_rect);
-        }
-
-        std::size_t node_index = static_cast<std::size_t>(-1);
-        if (build_tree) {
-            node_index = render_tree_.push(RenderNode{
-                .handle = h,
-                .rect = paint_rect,
-                .clip = paint_rect,
-                .parent = parent_index,
-                .first_child = 0,
-                .child_count = 0,
-            });
-        }
-
-        const auto clip_policy = obj->clip_policy();
-        const bool clip_children = (clip_policy != ObjectBase::ClipPolicy::None);
-        auto clip_state = target.save_clip();
-        if (clip_children) {
-            Rect clip_rect = obj->get_rect();
-            switch (clip_policy) {
-            case ObjectBase::ClipPolicy::Rect:
-                clip_rect = obj->get_rect();
-                break;
-            case ObjectBase::ClipPolicy::LayoutRect:
-                clip_rect = obj->layout_rect();
-                break;
-            case ObjectBase::ClipPolicy::Custom:
-                clip_rect = obj->children_clip_rect();
-                break;
-            default:
-                break;
-            }
-            bool clip_ok = rect_valid(clip_rect);
-            if (clip_state.enabled) {
-                clip_ok = clip_ok && rect_intersect(clip_rect, clip_state.rect, clip_rect);
-            }
-            if (!clip_ok) {
-                if (node_index != static_cast<std::size_t>(-1)) {
-                    render_tree_.node_mut(node_index).clip = Rect{};
-                }
-                target.restore_clip(clip_state);
-                return subtree_dirty;
-            }
-            target.set_clip(clip_rect);
-            if (node_index != static_cast<std::size_t>(-1)) {
-                render_tree_.node_mut(node_index).clip = clip_rect;
-            }
-        }
-
-        std::size_t child_start = build_tree ? render_tree_.size() : 0;
-        for (std::size_t i = 0; i < obj->child_count(); ++i) {
-            auto ch = obj->child_at(i);
-            auto* ch_obj = factory_.get(ch);
-            if (!ch_obj) continue;
-            if (!obj->should_draw_child(*ch_obj)) continue;
-            if (draw_recursive(target, ch, depth + 1, stack, true, build_tree, node_index)) {
-                subtree_dirty = true;
-            }
-        }
-        if (build_tree && node_index != static_cast<std::size_t>(-1)) {
-            auto& node = render_tree_.node_mut(node_index);
-            if (render_tree_.size() > child_start) {
-                node.first_child = child_start;
-                node.child_count = render_tree_.size() - child_start;
-            }
-        }
-
-        if (clip_children) {
-            target.restore_clip(clip_state);
-        }
-
-        if (subtree_dirty && obj->cache_policy() == ObjectBase::CachePolicy::Subtree) {
-            obj->mark_cache_dirty();
-        }
-        return subtree_dirty;
-    }
-
     CanvasBase& canvas;
     UiFactory& factory_;
     WidgetHandle root_;
-    static constexpr int kMaxDepth = 128;
     int debug_nodes_{0};
     int debug_depth_hits_{0};
     int debug_cycle_hits_{0};
+    int debug_clip_hits_{0};
+    int debug_cache_hits_{0};
+    int debug_invisible_{0};
+    int debug_missing_{0};
     bool dirty_tracking_{false};
     bool layer_cache_{false};
     #if CHARM_VIVID_ENABLE_LAYER_CACHE
@@ -487,6 +756,14 @@ private:
                 + static_cast<std::size_t>(left - cached.x) * src_bpp;
             const std::size_t bytes = static_cast<std::size_t>(right - left) * dst_bpp;
             target.blit_span(left, y, src + src_off, bytes);
+        }
+    }
+    static std::size_t bytes_per_pixel(PixelFormat fmt) noexcept {
+        switch (fmt) {
+        case PixelFormat::RGB565: return PixelTraits<PixelFormat::RGB565>::bytes_per_pixel;
+        case PixelFormat::RGB888: return PixelTraits<PixelFormat::RGB888>::bytes_per_pixel;
+        case PixelFormat::ARGB8888: return PixelTraits<PixelFormat::ARGB8888>::bytes_per_pixel;
+        default: return PixelTraits<PixelFormat::ARGB8888>::bytes_per_pixel;
         }
     }
     static Rect clamp_to_screen(const Rect& r) noexcept {

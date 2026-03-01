@@ -1,5 +1,6 @@
 module;
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -102,6 +103,36 @@ struct RolePalette {
     std::array<rgba, kRoleCount> values{};
 };
 
+inline constexpr std::size_t kWidgetKindCount =
+    static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+inline constexpr std::uint8_t kMaxStyleVariants = 4;
+inline constexpr std::uint8_t kStyleStateCount = 16;
+
+struct ResolvedColors {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    rgba accent{};
+    rgba on_accent{};
+    rgba border_focus{};
+};
+
+struct StyleTable {
+    std::array<ResolvedColors, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> colors{};
+    std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> matched{};
+    std::array<std::uint8_t, kWidgetKindCount> kind_compiled{};
+    std::uint32_t tokens_version{std::numeric_limits<std::uint32_t>::max()};
+    std::uint32_t stylesheet_version{std::numeric_limits<std::uint32_t>::max()};
+    bool valid{false};
+
+    void reset() noexcept {
+        colors.fill(ResolvedColors{});
+        matched.fill(0);
+        kind_compiled.fill(0);
+        valid = false;
+    }
+};
+
 export
 struct ResolvedTheme {
     std::uint32_t version{std::numeric_limits<std::uint32_t>::max()};
@@ -135,6 +166,55 @@ inline ResolvedTheme build_resolved_theme(const ThemeTokens& t) noexcept {
     r.version = t.version;
     r.role_palette = build_palette(t);
     return r;
+}
+
+inline std::uint8_t clamp_variant(std::uint8_t variant) noexcept {
+    return (variant < kMaxStyleVariants) ? variant : static_cast<std::uint8_t>(0);
+}
+
+inline std::uint8_t style_state_index(const StyleState& state) noexcept {
+    std::uint8_t mask = 0;
+    if (state.hovered) mask |= static_cast<std::uint8_t>(StyleStateFlag::Hovered);
+    if (state.pressed) mask |= static_cast<std::uint8_t>(StyleStateFlag::Pressed);
+    if (state.focused) mask |= static_cast<std::uint8_t>(StyleStateFlag::Focused);
+    if (!state.enabled) mask |= static_cast<std::uint8_t>(StyleStateFlag::Disabled);
+    return mask;
+}
+
+inline StyleState style_state_from_index(std::uint8_t mask, std::uint8_t variant) noexcept {
+    const bool hovered = (mask & static_cast<std::uint8_t>(StyleStateFlag::Hovered)) != 0;
+    const bool pressed = (mask & static_cast<std::uint8_t>(StyleStateFlag::Pressed)) != 0;
+    const bool focused = (mask & static_cast<std::uint8_t>(StyleStateFlag::Focused)) != 0;
+    const bool disabled = (mask & static_cast<std::uint8_t>(StyleStateFlag::Disabled)) != 0;
+    return make_style_state(!disabled, hovered, pressed, focused, variant);
+}
+
+inline ResolvedColors build_resolved_colors(const Style& st, const StyleState& state) noexcept {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    const rgba accent = resolve_accent(st, state);
+    return ResolvedColors{bg, border, font, accent, st.colors.on_accent, st.colors.border_focus};
+}
+
+inline void apply_resolved_colors(Style& style, const ResolvedColors& colors) noexcept {
+    style.colors.bg_color = colors.bg;
+    style.colors.bg_hover = colors.bg;
+    style.colors.bg_pressed = colors.bg;
+    style.colors.bg_disabled = colors.bg;
+    style.colors.border_color = colors.border;
+    style.colors.border_hover = colors.border;
+    style.colors.border_pressed = colors.border;
+    style.colors.border_disabled = colors.border;
+    style.colors.border_focus = colors.border_focus;
+    style.colors.font_color = colors.font;
+    style.colors.font_color_disabled = colors.font;
+    style.colors.accent_color = colors.accent;
+    style.colors.accent_hover = colors.accent;
+    style.colors.accent_pressed = colors.accent;
+    style.colors.accent_disabled = colors.accent;
+    style.colors.on_accent = colors.on_accent;
 }
 
 inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
@@ -172,6 +252,7 @@ public:
     void clear() noexcept {
         count_ = 0;
         order_ = 0;
+        mark_stylesheet_dirty();
     }
 
     bool add_rule(const StyleSelector& sel, const StylePatch& patch) noexcept {
@@ -183,6 +264,7 @@ public:
         entry.priority = rule_priority(sel);
         entry.order = order_++;
         insert_rule(entry);
+        mark_stylesheet_dirty();
         return true;
     }
 
@@ -195,63 +277,71 @@ public:
         entry.priority = rule_priority(sel);
         entry.order = order_++;
         insert_rule(entry);
+        mark_stylesheet_dirty();
         return true;
     }
 
     bool apply(WidgetKind kind, const StyleState& state, Style& style) const noexcept {
-        const std::uint8_t mask = state_mask(state);
-        bool matched = false;
-        ensure_resolved_theme();
-        for (std::size_t i = 0; i < count_; ++i) {
-            const auto& rule = rules_[i];
-            if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
-                continue;
-            }
-            if (rule.selector.variant != kStyleVariantAny && rule.selector.variant != state.variant) {
-                continue;
-            }
-            if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
-                continue;
-            }
-            matched = true;
-            if (rule.kind == StyleRuleKind::Patch) {
-                rule.patch.apply_to(style);
-            } else {
-                apply_role_patch(style, rule.role_patch, resolved_.role_palette);
-            }
-        }
-        return matched;
+        return apply_compiled(kind, state, style);
     }
 
     bool apply(WidgetKind kind,
                const StyleState& state,
                Style& out,
                const Style& base) const noexcept {
-        const std::uint8_t mask = state_mask(state);
-        bool matched = false;
-        ensure_resolved_theme();
-        for (std::size_t i = 0; i < count_; ++i) {
-            const auto& rule = rules_[i];
-            if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
-                continue;
-            }
-            if (rule.selector.variant != kStyleVariantAny && rule.selector.variant != state.variant) {
-                continue;
-            }
-            if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
-                continue;
-            }
-            if (!matched) {
-                out = base;
-                matched = true;
-            }
-            if (rule.kind == StyleRuleKind::Patch) {
-                rule.patch.apply_to(out);
-            } else {
-                apply_role_patch(out, rule.role_patch, resolved_.role_palette);
-            }
+        return apply_compiled(kind, state, out, base);
+    }
+
+    void set_base_style(WidgetKind kind, const Style& style) noexcept {
+        const auto idx = static_cast<std::size_t>(kind);
+        if (idx >= kWidgetKindCount) return;
+        base_styles_[idx] = style;
+        base_style_set_[idx] = 1;
+    }
+
+    void notify_base_style_changed() noexcept {
+        mark_stylesheet_dirty();
+    }
+
+    void rebuild_if_needed() noexcept {
+        const auto& tokens = Theme::instance().get_tokens();
+        if (tokens.version != resolved_.version) {
+            resolved_ = build_resolved_theme(tokens);
+#if defined(VIVID_SOA_TRACE_INPUT)
+            role_palette_compile_count_ += 1u;
+#endif
         }
-        return matched;
+        if (style_table_.valid &&
+            style_table_.tokens_version == tokens.version &&
+            style_table_.stylesheet_version == stylesheet_version_) {
+            return;
+        }
+        rebuild_style_table();
+        style_table_.tokens_version = tokens.version;
+        style_table_.stylesheet_version = stylesheet_version_;
+        style_table_.valid = true;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        style_table_compile_count_ += 1u;
+#endif
+    }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    void style_trace_reset() noexcept {
+        role_palette_compile_count_ = 0;
+        style_table_compile_count_ = 0;
+    }
+
+    std::uint32_t role_palette_compile_count() const noexcept {
+        return role_palette_compile_count_;
+    }
+
+    std::uint32_t style_table_compile_count() const noexcept {
+        return style_table_compile_count_;
+    }
+#endif
+
+    std::uint32_t stylesheet_version() const noexcept {
+        return stylesheet_version_;
     }
 
 private:
@@ -305,18 +395,160 @@ private:
         return mask;
     }
 
-    void ensure_resolved_theme() const noexcept {
-        const auto& tokens = Theme::instance().get_tokens();
-        if (tokens.version == resolved_.version) {
-            return;
+    void mark_stylesheet_dirty() noexcept {
+        stylesheet_version_ += 1u;
+        style_table_.valid = false;
+    }
+
+    void rebuild_style_table() noexcept {
+        style_table_.reset();
+        std::array<std::uint8_t, kWidgetKindCount> kind_used{};
+        bool has_global_rule = false;
+        for (std::size_t i = 0; i < count_; ++i) {
+            const auto& rule = rules_[i];
+            if (rule.selector.kind == WidgetKind::None) {
+                has_global_rule = true;
+                continue;
+            }
+            const auto kind_idx = static_cast<std::size_t>(rule.selector.kind);
+            if (kind_idx < kWidgetKindCount) {
+                kind_used[kind_idx] = 1;
+            }
         }
-        resolved_ = build_resolved_theme(tokens);
+        if (has_global_rule) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compile does not support global rules yet");
+#endif
+        }
+        for (std::size_t kind_idx = 0; kind_idx < kWidgetKindCount; ++kind_idx) {
+            if (!has_global_rule && kind_used[kind_idx] == 0) {
+                continue;
+            }
+            style_table_.kind_compiled[kind_idx] = static_cast<std::uint8_t>(1);
+            Style base = base_styles_[kind_idx];
+#ifndef NDEBUG
+            if (base_style_set_[kind_idx] == 0) {
+                assert(false && "StyleSheet base style missing");
+            }
+#endif
+            for (std::uint8_t variant = 0; variant < kMaxStyleVariants; ++variant) {
+                for (std::uint8_t state_idx = 0; state_idx < kStyleStateCount; ++state_idx) {
+                    const StyleState state = style_state_from_index(state_idx, variant);
+                    Style scratch{};
+                    bool matched = false;
+                    for (std::size_t r = 0; r < count_; ++r) {
+                        const auto& rule = rules_[r];
+                        if (rule.selector.kind != WidgetKind::None &&
+                            rule.selector.kind != static_cast<WidgetKind>(kind_idx)) {
+                            continue;
+                        }
+                        if (rule.selector.variant != kStyleVariantAny &&
+                            rule.selector.variant >= kMaxStyleVariants) {
+#ifndef NDEBUG
+                            assert(false && "StyleSheet variant out of range");
+#endif
+                            continue;
+                        }
+                        if (rule.selector.variant != kStyleVariantAny &&
+                            rule.selector.variant != variant) {
+                            continue;
+                        }
+                        const std::uint8_t mask = state_mask(state);
+                        if ((mask & rule.selector.require_mask) != rule.selector.require_mask) {
+                            continue;
+                        }
+                        if (!matched) {
+                            scratch = base;
+                            matched = true;
+                        }
+                        if (rule.kind == StyleRuleKind::Patch) {
+                            rule.patch.apply_to(scratch);
+                        } else {
+                            apply_role_patch(scratch, rule.role_patch, resolved_.role_palette);
+                        }
+                    }
+                    const ResolvedColors colors = build_resolved_colors(matched ? scratch : base, state);
+                    const std::size_t entry =
+                        ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+                    style_table_.colors[entry] = colors;
+                    style_table_.matched[entry] = matched
+                        ? static_cast<std::uint8_t>(1)
+                        : static_cast<std::uint8_t>(0);
+                }
+            }
+        }
+    }
+
+    bool apply_compiled(WidgetKind kind, const StyleState& state, Style& style) const noexcept {
+        if (!style_table_.valid) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table is not ready");
+#endif
+            return false;
+        }
+        const auto& tokens = Theme::instance().get_tokens();
+        if (style_table_.tokens_version != tokens.version ||
+            style_table_.stylesheet_version != stylesheet_version_) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table out of date");
+#endif
+            return false;
+        }
+        const auto kind_idx = static_cast<std::size_t>(kind);
+        if (kind_idx >= kWidgetKindCount) return false;
+        if (style_table_.kind_compiled[kind_idx] == 0) return false;
+        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t state_idx = style_state_index(state);
+        const std::size_t entry =
+            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+        if (style_table_.matched[entry] == 0) return false;
+        apply_resolved_colors(style, style_table_.colors[entry]);
+        return true;
+    }
+
+    bool apply_compiled(WidgetKind kind,
+                        const StyleState& state,
+                        Style& out,
+                        const Style& base) const noexcept {
+        if (!style_table_.valid) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table is not ready");
+#endif
+            return false;
+        }
+        const auto& tokens = Theme::instance().get_tokens();
+        if (style_table_.tokens_version != tokens.version ||
+            style_table_.stylesheet_version != stylesheet_version_) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table out of date");
+#endif
+            return false;
+        }
+        const auto kind_idx = static_cast<std::size_t>(kind);
+        if (kind_idx >= kWidgetKindCount) return false;
+        if (style_table_.kind_compiled[kind_idx] == 0) return false;
+        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t state_idx = style_state_index(state);
+        const std::size_t entry =
+            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+        if (style_table_.matched[entry] == 0) return false;
+        out = base;
+        apply_resolved_colors(out, style_table_.colors[entry]);
+        return true;
     }
 
     std::array<StyleRuleEntry, 32> rules_{};
     std::size_t count_{0};
     std::uint16_t order_{0};
     mutable ResolvedTheme resolved_{};
+    std::array<Style, kWidgetKindCount> base_styles_{};
+    std::array<std::uint8_t, kWidgetKindCount> base_style_set_{};
+    std::uint32_t stylesheet_version_{0};
+    mutable StyleTable style_table_{};
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t role_palette_compile_count_{0};
+    std::uint32_t style_table_compile_count_{0};
+#endif
 };
 
 export

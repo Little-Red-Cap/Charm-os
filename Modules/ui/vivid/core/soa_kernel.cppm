@@ -530,8 +530,8 @@ public:
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    void input_test_set_capture(WidgetHandle h) noexcept {
-        input_captured_ = h;
+    void input_test_request_capture(WidgetHandle h) noexcept {
+        input_set_capture(h, input_last_x_, input_last_y_, input_button_, true);
     }
 
     void input_test_force_overflow() noexcept {
@@ -1453,8 +1453,7 @@ private:
             set_pressed(input_pressed_, false);
         }
         input_pressed_ = hit;
-        input_captured_ = hit;
-        input_button_ = button;
+        input_set_capture(hit, x, y, button, true);
         input_dragging_ = false;
         input_scroll_target_ = input_find_scroll_ancestor(hit);
         input_drag_start_x_ = x;
@@ -1587,6 +1586,27 @@ private:
             p = common_.parent[p];
         }
         return false;
+    }
+
+    void input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) {
+        if (input_captured_ == h) return;
+        const WidgetHandle old = input_captured_;
+        if (emit_cancel && old) {
+            if (input_dragging_) {
+                input_emit_event(old, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+                input_dragging_ = false;
+            }
+            input_emit_event(old, Event::mouse(Event::Type::Cancel, x, y, button));
+            if (input_pressed_ == old) {
+                set_pressed(input_pressed_, false);
+                input_pressed_ = {};
+            }
+            if (input_scroll_target_ == old) {
+                input_scroll_target_ = {};
+            }
+        }
+        input_captured_ = h;
+        input_button_ = h ? button : 0;
     }
 
     void input_on_destroy(WidgetHandle h) {

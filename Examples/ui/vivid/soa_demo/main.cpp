@@ -176,12 +176,12 @@ namespace {
 
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 320, 60, 0));
         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 320, 60, 1));
-        kernel.input_test_set_capture(b);
+        kernel.input_test_request_capture(b);
 
         kernel.input_clear_events();
         kernel.destroy(b);
         const int cancel_b = count_event(kernel, Event::Type::Cancel, b);
-        expect_true(cancel_b >= 1, "regress: captured cancel missing", fails);
+        expect_true(cancel_b > 0, "regress: Cancel(B) missing", fails);
         expect_true(!kernel.input_captured(), "regress: captured not cleared", fails);
 
         kernel.input_clear_events();

@@ -1,7 +1,6 @@
 #include <SDL3/SDL.h>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 import charm.core.gui;
 import charm.core.factory;
@@ -43,8 +42,9 @@ namespace {
         return true;
     }
 
-    struct SDLTileBackend {
-        DefaultFrameBuffer& fb;
+    struct SDLDirtyBackend {
+        SDL_Texture* texture{nullptr};
+        std::size_t bytes_per_pixel{0};
 
         int width() const noexcept { return screen_width; }
         int height() const noexcept { return screen_height; }
@@ -52,13 +52,13 @@ namespace {
         void end_frame() noexcept {}
 
         void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
-            if (!src || bytes == 0) return;
+            if (!texture || !src || bytes == 0) return;
+            if (bytes_per_pixel == 0) return;
             if (x < 0 || y < 0 || x >= screen_width || y >= screen_height) return;
-            const std::size_t stride = DefaultFrameBuffer::stride_bytes;
-            const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
-            const std::size_t offset = static_cast<std::size_t>(y) * stride
-                + static_cast<std::size_t>(x) * bpp;
-            std::memcpy(fb.data() + offset, src, bytes);
+            const int w = static_cast<int>(bytes / bytes_per_pixel);
+            if (w <= 0) return;
+            SDL_Rect rect{x, y, w, 1};
+            SDL_UpdateTexture(texture, &rect, src, static_cast<int>(bytes));
         }
 
         void mark_dirty(int, int, int, int) noexcept {}
@@ -71,7 +71,7 @@ int main() {
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Vivid Tile Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow("Vivid FullFrame Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
         (void)out::error<"SDL_CreateWindow failed: {}">(SDL_GetError());
         SDL_Quit();
@@ -98,16 +98,14 @@ int main() {
 
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
-    SDLTileBackend backend{fb};
+    SDLDirtyBackend backend{texture, DefaultFrameBuffer::bytes_per_pixel};
 
-    using TileFrameBuffer = FrameBuffer<screen_pixel_format, 128, 128>;
-    TileFrameBuffer tile_fb{};
-    FrameBufferView tile_view{
+    FrameBufferView fb_view{
         screen_pixel_format,
-        tile_fb.data(),
-        TileFrameBuffer::width,
-        TileFrameBuffer::height,
-        TileFrameBuffer::stride_bytes
+        fb.data(),
+        static_cast<std::size_t>(screen_width),
+        static_cast<std::size_t>(screen_height),
+        DefaultFrameBuffer::stride_bytes
     };
 
     UiFactory factory{};
@@ -116,7 +114,7 @@ int main() {
         root_obj->set_rect({0, 0, screen_width, screen_height});
     }
 
-    auto title = factory.create_label("Tile/PFB Render Demo");
+    auto title = factory.create_label("FullFrame Dirty Demo");
     auto btn = factory.create_button("Press");
     auto sw = factory.create_switch();
     auto slider = factory.create_slider();
@@ -146,9 +144,9 @@ int main() {
 
     Gui gui(canvas, factory, root);
 
-    Gui::TileRenderConfig tile_cfg{};
-    tile_cfg.tile_width = 128;
-    tile_cfg.tile_height = 128;
+    Gui::FullFrameConfig full_cfg{};
+    full_cfg.use_dirty = true;
+    full_cfg.present = true;
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -156,11 +154,12 @@ int main() {
     int mouse_x = 0;
     int mouse_y = 0;
     int progress_value = 0;
+    bool first_frame = true;
 
     while (running) {
         SDL_Event evt{};
         SDL_GetWindowSize(window, &win_w, &win_h);
-        Viewport vp = compute_viewport(win_w, win_h, screen_width, screen_height);
+        const Viewport vp = compute_viewport(win_w, win_h, screen_width, screen_height);
 
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_EVENT_QUIT) {
@@ -200,9 +199,10 @@ int main() {
             obj->set_value(progress_value);
         }
 
-        (void)gui.render_tiles(backend, tile_view, tile_cfg);
+        full_cfg.clear_buffer = first_frame;
+        (void)gui.render_fullframe(backend, fb_view, full_cfg);
+        first_frame = false;
 
-        SDL_UpdateTexture(texture, nullptr, fb.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
         SDL_RenderClear(renderer);
         SDL_FRect dst{

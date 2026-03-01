@@ -96,10 +96,41 @@ public:
         bool clear_tile{true};
     };
 
+    struct FullFrameConfig {
+        bool use_dirty{true};
+        bool clear_buffer{false};
+        bool present{true};
+        rgba clear_color{0, 0, 0, 0};
+    };
+
+    enum class RenderMode : std::uint8_t {
+        FullFrame = 0,
+        Tile = 1
+    };
+
+    struct RenderTarget {
+        RenderMode mode{RenderMode::Tile};
+        FrameBufferView buffer{};
+        TileRenderConfig tile{};
+        FullFrameConfig full{};
+    };
+
     struct TileRenderStats {
         int tiles_total{0};
         int tiles_drawn{0};
         int nodes_drawn{0};
+    };
+
+    struct FullFrameStats {
+        int rects_total{0};
+        int rects_drawn{0};
+        int rows_drawn{0};
+    };
+
+    struct RenderStats {
+        RenderMode mode{RenderMode::Tile};
+        TileRenderStats tile{};
+        FullFrameStats full{};
     };
 
     // Render one frame.
@@ -231,6 +262,121 @@ public:
     TileRenderStats render_tiles(Backend& backend,
                                  const FrameBufferView& tile_buffer) {
         return render_tiles(backend, tile_buffer, TileRenderConfig{});
+    }
+
+    template<ui::RenderBackend Backend>
+    FullFrameStats render_fullframe(Backend& backend,
+                                    const FrameBufferView& buffer,
+                                    const FullFrameConfig& config) {
+        FullFrameStats stats{};
+        if (!buffer.data) return stats;
+        if (buffer.width == 0 || buffer.height == 0) return stats;
+
+        static util::u32 frame_no = 0;
+        sanitize_tree_and_trace(frame_no);
+        register_layout_engines();
+        debug_nodes_ = 0;
+        debug_depth_hits_ = 0;
+        debug_cycle_hits_ = 0;
+        debug_clip_hits_ = 0;
+        debug_cache_hits_ = 0;
+        debug_invisible_ = 0;
+        debug_missing_ = 0;
+        render_tree_.clear();
+
+        const std::size_t stride = (buffer.stride_bytes != 0)
+            ? buffer.stride_bytes
+            : static_cast<std::size_t>(buffer.width) * bytes_per_pixel(buffer.format);
+        RuntimeCanvas full_canvas(buffer.data,
+                                  static_cast<int>(buffer.width),
+                                  static_cast<int>(buffer.height),
+                                  buffer.format,
+                                  stride);
+
+        if (config.clear_buffer) {
+            full_canvas.clear(config.clear_color);
+        }
+
+        const bool prev_dirty = dirty_tracking_;
+        dirty_tracking_ = config.use_dirty;
+        full_canvas.begin_frame();
+        render_tree(full_canvas);
+        full_canvas.end_frame();
+        dirty_tracking_ = prev_dirty;
+
+        if (!config.present) {
+            frame_no++;
+            return stats;
+        }
+
+        const Rect full_rect{0, 0, static_cast<int>(buffer.width), static_cast<int>(buffer.height)};
+        backend.begin_frame();
+        if (!config.use_dirty || full_canvas.dirty_full()) {
+            stats.rects_total = 1;
+            stats.rects_drawn = 1;
+            for (int y = 0; y < full_rect.h; ++y) {
+                const std::byte* src = buffer.data + static_cast<std::size_t>(y) * stride;
+                const std::size_t row_bytes = static_cast<std::size_t>(full_rect.w)
+                    * bytes_per_pixel(buffer.format);
+                backend.blit_span(0, y, src, row_bytes);
+                stats.rows_drawn++;
+            }
+            backend.mark_dirty(full_rect.x, full_rect.y, full_rect.w, full_rect.h);
+        } else {
+            const auto& list = full_canvas.dirty_list();
+            const util::usize count = list.size();
+            stats.rects_total = static_cast<int>(count);
+            for (util::usize i = 0; i < count; ++i) {
+                Rect clipped{};
+                if (!rect_intersect(list[i], full_rect, clipped)) {
+                    continue;
+                }
+                if (!rect_valid(clipped)) {
+                    continue;
+                }
+                stats.rects_drawn++;
+                for (int y = clipped.y; y < clipped.y + clipped.h; ++y) {
+                    const std::byte* src = buffer.data + static_cast<std::size_t>(y) * stride
+                        + static_cast<std::size_t>(clipped.x) * bytes_per_pixel(buffer.format);
+                    const std::size_t row_bytes = static_cast<std::size_t>(clipped.w)
+                        * bytes_per_pixel(buffer.format);
+                    backend.blit_span(clipped.x, y, src, row_bytes);
+                    stats.rows_drawn++;
+                }
+                backend.mark_dirty(clipped.x, clipped.y, clipped.w, clipped.h);
+            }
+        }
+        backend.end_frame();
+        frame_no++;
+
+        trace_counter(GuiTraceId::FrameNodes, (util::u64)debug_nodes_, 0);
+        trace_counter(GuiTraceId::FrameDepthHits, (util::u64)debug_depth_hits_, 0);
+        trace_counter(GuiTraceId::FrameCycleHits, (util::u64)debug_cycle_hits_, 0);
+        trace_counter(GuiTraceId::FrameClipHits, (util::u64)debug_clip_hits_, 0);
+        trace_counter(GuiTraceId::FrameCacheHits, (util::u64)debug_cache_hits_, 0);
+        trace_counter(GuiTraceId::FrameInvisible, (util::u64)debug_invisible_, 0);
+        trace_counter(GuiTraceId::FrameMissing, (util::u64)debug_missing_, 0);
+
+        return stats;
+    }
+
+    template<ui::RenderBackend Backend>
+    FullFrameStats render_fullframe(Backend& backend,
+                                    const FrameBufferView& buffer) {
+        return render_fullframe(backend, buffer, FullFrameConfig{});
+    }
+
+    template<ui::RenderBackend Backend>
+    RenderStats render_with(Backend& backend,
+                            const RenderTarget& target) {
+        RenderStats stats{};
+        stats.mode = target.mode;
+        if (target.mode == RenderMode::FullFrame) {
+            stats.full = render_fullframe(backend, target.buffer, target.full);
+        } else {
+            stats.tile = render_tiles(backend, target.buffer, target.tile);
+        }
+        return stats;
     }
 
     // Dispatch an input event (global coordinates).

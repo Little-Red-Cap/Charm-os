@@ -1057,12 +1057,15 @@ public:
     }
 
     std::uint8_t layout_state_influence_mask(WidgetKind kind) const noexcept {
-        if (!layout_state_influence_) return 0;
         return layout_state_mask_for_kind(kind);
     }
 
     std::uint32_t layout_dirty_version() const noexcept {
         return layout_dirty_version_;
+    }
+
+    std::uint32_t paint_dirty_version() const noexcept {
+        return paint_dirty_version_;
     }
 
     std::uint32_t layout_applied_version() const noexcept {
@@ -1170,6 +1173,7 @@ public:
     soa_detail::ScrollStore<kMaxNodes> scroll_store_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};
+    std::uint32_t paint_dirty_version_{0};
     std::uint32_t layout_applied_version_{0};
     bool layout_state_influence_{true};
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -1413,18 +1417,23 @@ private:
     }
 
     void mark_paint_dirty() noexcept {
+        paint_dirty_version_ += 1u;
 #if defined(VIVID_SOA_TRACE_INPUT)
         paint_invalidated_count_ += 1u;
 #endif
     }
 
     void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {
-        const std::uint8_t mask = layout_state_influence_mask(common_.kind[idx]);
+        if (!layout_state_influence_) {
+            mark_paint_dirty();
+            return;
+        }
+        const std::uint8_t mask = layout_state_mask_for_kind(common_.kind[idx]);
         if ((mask & static_cast<std::uint8_t>(bit)) != 0) {
             mark_layout_dirty();
-        } else {
-            mark_paint_dirty();
+            return;
         }
+        mark_paint_dirty();
     }
 
     static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept {

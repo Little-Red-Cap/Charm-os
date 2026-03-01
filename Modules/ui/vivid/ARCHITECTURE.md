@@ -125,6 +125,7 @@ sequenceDiagram
 - `layout_state_influence_mask(kind)` 决定“哪些状态位可影响布局”。
 - 状态变化时：`delta & mask != 0` → `mark_layout_dirty()`，否则只 `mark_paint_dirty()`。
 - Layout 计算仅使用 mask 中允许的状态位（其余位在 layout 阶段强制忽略）。
+- `layout_state_influence` 为策略开关，关闭时强制按 mask=0 处理（只重绘）。
 
 #### 回归矩阵（trace-only）
 

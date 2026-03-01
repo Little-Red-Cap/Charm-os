@@ -271,12 +271,85 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "layout: hover pass but mask forbids", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "layout: hover missing paint invalidation", fails);
 
+        auto scroll_root = factory.create_container();
+        auto scroll = factory.create_scroll_container();
+        auto scroll_a = factory.create_button("Scroll A");
+        auto scroll_b = factory.create_button("Scroll B");
+        auto scroll_c = factory.create_button("Scroll C");
+        factory.link(root, scroll_root);
+        factory.link(scroll_root, scroll);
+        factory.link(scroll, scroll_a);
+        factory.link(scroll, scroll_b);
+        factory.link(scroll, scroll_c);
+        kernel.set_rect(scroll_root, {280, 260, 220, 120});
+        kernel.set_rect(scroll, {10, 10, 180, 80});
+        kernel.set_rect(scroll_a, {0, 0, 160, 30});
+        kernel.set_rect(scroll_b, {0, 35, 160, 30});
+        kernel.set_rect(scroll_c, {0, 70, 160, 30});
+        kernel.set_scroll_step(scroll, 12);
+        gui.render();
+
+        kernel.layout_trace_reset();
+        const int scroll_before = kernel.scroll_y(scroll);
+        gui.dispatch_event(Event::wheel(300, 280, 1));
+        gui.render();
+        const int scroll_after = kernel.scroll_y(scroll);
+        expect_true(scroll_after != scroll_before, "layout: scroll container did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: scroll container invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: scroll container pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: scroll container missing paint invalidation", fails);
+
+        auto list_root = factory.create_container();
+        auto list = factory.create_list();
+        auto list_item_a = factory.create_list_item("Item A");
+        auto list_item_b = factory.create_list_item("Item B");
+        auto list_item_c = factory.create_list_item("Item C");
+        auto list_item_d = factory.create_list_item("Item D");
+        auto list_item_e = factory.create_list_item("Item E");
+        auto list_item_f = factory.create_list_item("Item F");
+        factory.link(root, list_root);
+        factory.link(list_root, list);
+        factory.link(list, list_item_a);
+        factory.link(list, list_item_b);
+        factory.link(list, list_item_c);
+        factory.link(list, list_item_d);
+        factory.link(list, list_item_e);
+        factory.link(list, list_item_f);
+        kernel.set_rect(list_root, {40, 420, 220, 120});
+        kernel.set_rect(list, {10, 10, 180, 80});
+        kernel.set_list_row_height(list, 24);
+        kernel.set_scroll_step(list, 12);
+        gui.render();
+
+        kernel.layout_trace_reset();
+        const int list_before = kernel.scroll_y(list);
+        gui.dispatch_event(Event::wheel(60, 440, 1));
+        gui.render();
+        const int list_after = kernel.scroll_y(list);
+        expect_true(list_after != list_before, "layout: list did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: list invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: list pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: list missing paint invalidation", fails);
+
         kernel.layout_trace_reset();
         kernel.set_text(layout_box, "Layout Updated");
         gui.render();
         expect_true(kernel.layout_invalidated_count() > 0, "layout: text change did not invalidate", fails);
         expect_true(kernel.layout_pass_count() > 0, "layout: text change did not run pass", fails);
 
+        kernel.destroy(list_item_f);
+        kernel.destroy(list_item_e);
+        kernel.destroy(list_item_d);
+        kernel.destroy(list_item_c);
+        kernel.destroy(list_item_b);
+        kernel.destroy(list_item_a);
+        kernel.destroy(list);
+        kernel.destroy(list_root);
+        kernel.destroy(scroll_c);
+        kernel.destroy(scroll_b);
+        kernel.destroy(scroll_a);
+        kernel.destroy(scroll);
+        kernel.destroy(scroll_root);
         kernel.destroy(layout_box);
         kernel.destroy(layout_root);
 

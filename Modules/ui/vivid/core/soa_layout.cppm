@@ -57,7 +57,8 @@ private:
 
     static StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
-        const std::uint8_t mask = kernel.layout_state_influence_mask(kernel.kind(h));
+        const std::uint8_t raw_mask = kernel.layout_state_influence_mask(kernel.kind(h));
+        const std::uint8_t mask = kernel.layout_state_influence() ? raw_mask : 0;
         const bool enabled = (mask & static_cast<std::uint8_t>(SoaStateMask::Enabled)) != 0
             ? state.enabled()
             : true;

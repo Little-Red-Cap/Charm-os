@@ -6,6 +6,7 @@ import charm.core.soa_kernel;
 import charm.core.soa_gui;
 import charm.core.event;
 import charm.core.config;
+import charm.core.theme_preset;
 import charm.gfx.canvas;
 import out.api;
 
@@ -358,6 +359,32 @@ namespace {
         }
         return fails == 0;
     }
+
+    bool run_style_regression(SoaGui& gui) noexcept {
+        int fails = 0;
+        auto& sheet = StyleSheet::instance();
+        sheet.style_trace_reset();
+        const std::uint32_t role_before = sheet.role_palette_compile_count();
+        const std::uint32_t table_before = sheet.style_table_compile_count();
+
+        gui.render();
+        expect_true(sheet.role_palette_compile_count() == role_before,
+                    "style: role palette compiled without token change", fails);
+        expect_true(sheet.style_table_compile_count() == table_before,
+                    "style: style table compiled without token change", fails);
+
+        ThemeTokens tokens = Theme::instance().get_tokens();
+        apply_theme_tokens(tokens);
+        const std::uint32_t role_after = sheet.role_palette_compile_count();
+        const std::uint32_t table_after = sheet.style_table_compile_count();
+        expect_true(role_after == role_before + 1u, "style: role palette not rebuilt", fails);
+        expect_true(table_after == table_before + 1u, "style: style table not rebuilt", fails);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] style regression OK">();
+        }
+        return fails == 0;
+    }
 #endif
 }
 
@@ -369,6 +396,7 @@ int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
 #endif
+    apply_theme_tokens(ThemeTokens{});
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
         return 1;
@@ -480,6 +508,13 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         if (!run_input_regression(gui, kernel, factory, root)) {
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+        if (!run_style_regression(gui)) {
             SDL_DestroyTexture(texture);
             SDL_DestroyRenderer(renderer);
             SDL_DestroyWindow(window);

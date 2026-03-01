@@ -6,11 +6,7 @@ module;
 #include <span>
 #include <string_view>
 
-#if defined(STM32H7xx) || defined(STM32H747xx)
-#include "sdmmc.h"
-#else
 #include "sdio.h"
-#endif
 #include "usart.h"
 
 export module player.stm32.fs_demo;
@@ -97,25 +93,66 @@ namespace {
         uart_write(buf);
     }
 
+    void uart_write_hex_byte(util::u8 value) noexcept {
+        constexpr char kHex[] = "0123456789ABCDEF";
+        char buf[3]{};
+        buf[0] = kHex[(value >> 4) & 0x0F];
+        buf[1] = kHex[value & 0x0F];
+        buf[2] = '\0';
+        uart_write(buf);
+    }
+
+    void uart_write_hex_u32(util::u32 value) noexcept {
+        constexpr char kHex[] = "0123456789ABCDEF";
+        char buf[9]{};
+        for (int i = 0; i < 8; ++i) {
+            const int shift = (7 - i) * 4;
+            buf[i] = kHex[(value >> shift) & 0x0F];
+        }
+        buf[8] = '\0';
+        uart_write(buf);
+    }
+
+    void dump_block_head(util::u32 lba) noexcept {
+        std::array<util::u8, kBlockSize> buf{};
+        if (HAL_SD_ReadBlocks(&hsd, buf.data(), lba, 1, kTimeoutMs) != HAL_OK) {
+            uart_write("sdio: lba read failed\r\n");
+            return;
+        }
+        const util::u32 start = HAL_GetTick();
+        while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+            if ((HAL_GetTick() - start) > kTimeoutMs) {
+                uart_write("sdio: lba read timeout\r\n");
+                return;
+            }
+        }
+        uart_write("sdio: lba ");
+        uart_write_uint(lba);
+        uart_write("sdio: head ");
+        for (std::size_t i = 0; i < 16; ++i) {
+            uart_write_hex_byte(buf[i]);
+            uart_write(" ");
+        }
+        uart_write("\r\n");
+        uart_write("sdio: tail ");
+        uart_write_hex_byte(buf[510]);
+        uart_write(" ");
+        uart_write_hex_byte(buf[511]);
+        uart_write("\r\n");
+    }
+
     struct SdBlockDevice {
         bool init() noexcept {
             uart_write("sdio: init begin\r\n");
-#if defined(STM32H7xx) || defined(STM32H747xx)
-            MX_SDMMC2_SD_Init();
-            auto st = HAL_SD_Init(&hsd2);
-            if (st != HAL_OK) {
-                uart_write("sdio: HAL_SD_Init failed\r\n");
-                uart_write_uint(static_cast<util::u32>(st));
-                return false;
-            }
-#else
             hsd.Instance = SDIO;
             hsd.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
             hsd.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
             hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
             hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
             hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-            hsd.Init.ClockDiv = 118;
+            constexpr std::uint32_t kSdioInitDiv = 118;
+            constexpr std::uint32_t kSdioXferDiv = 4;
+            hsd.Init.ClockDiv = kSdioInitDiv;
 
             auto st = HAL_SD_Init(&hsd);
             if (st != HAL_OK) {
@@ -123,23 +160,37 @@ namespace {
                 uart_write_uint(static_cast<util::u32>(st));
                 return false;
             }
-            st = HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_1B);
+            st = HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_4B);
             if (st != HAL_OK) {
                 uart_write("sdio: bus width failed\r\n");
                 uart_write_uint(static_cast<util::u32>(st));
                 return false;
             }
-#endif
+            MODIFY_REG(hsd.Instance->CLKCR, SDIO_CLKCR_CLKDIV, kSdioXferDiv);
+            hsd.Init.ClockDiv = kSdioXferDiv;
             uart_write("sdio: init ok\r\n");
 
-#if defined(STM32H7xx) || defined(STM32H747xx)
-            if (HAL_SD_GetCardInfo(&hsd2, &info_) != HAL_OK) {
-#else
             if (HAL_SD_GetCardInfo(&hsd, &info_) != HAL_OK) {
-#endif
                 uart_write("sdio: card info failed\r\n");
                 return false;
             }
+            uart_write("sdio: block size ");
+            uart_write_uint(info_.LogBlockSize);
+            uart_write("sdio: block count ");
+            uart_write_uint(info_.LogBlockNbr);
+            uart_write("sdio: capacity bytes ");
+            uart_write_uint(static_cast<util::u64>(info_.LogBlockSize) * info_.LogBlockNbr);
+            uart_write("sdio: pclk2 ");
+            uart_write_uint(HAL_RCC_GetPCLK2Freq());
+            uart_write("sdio: clkdiv ");
+            uart_write_uint(hsd.Init.ClockDiv);
+            if (hsd.Init.ClockDiv != 0) {
+                const util::u32 sdclk = HAL_RCC_GetPCLK2Freq() / (2u * hsd.Init.ClockDiv);
+                uart_write("sdio: sdclk ");
+                uart_write_uint(sdclk);
+            }
+            dump_block_head(0);
+            dump_block_head(2048);
             block_size_ = info_.LogBlockSize;
             block_count_ = info_.LogBlockNbr;
             device_.ctx = this;
@@ -165,31 +216,32 @@ namespace {
                 return fs::Status{fs::Err::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
+            const bool use_dma = can_dma(data.data(), data.size()) && (count == 1);
             if (use_dma) {
-#if defined(STM32H7xx) || defined(STM32H747xx)
-                if (HAL_SD_ReadBlocks_DMA(&hsd2, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-#else
                 if (HAL_SD_ReadBlocks_DMA(&hsd, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-#endif
-                    return fs::Status{fs::Err::io};
+                    if (HAL_SD_ReadBlocks(&hsd, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
+                        uart_write("sdio: read failed\r\n");
+                        uart_write_uint(HAL_SD_GetError(&hsd));
+                        return fs::Status{fs::Err::io};
+                    }
+                }
+                const util::u32 start = HAL_GetTick();
+                while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+                    if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
                 }
             } else {
-#if defined(STM32H7xx) || defined(STM32H747xx)
-                if (HAL_SD_ReadBlocks(&hsd2, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-#else
-                if (HAL_SD_ReadBlocks(&hsd, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-#endif
-                    return fs::Status{fs::Err::io};
+                for (util::u32 i = 0; i < count; ++i) {
+                    auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
+                    if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
+                        uart_write("sdio: read failed\r\n");
+                        uart_write_uint(HAL_SD_GetError(&hsd));
+                        return fs::Status{fs::Err::io};
+                    }
+                    const util::u32 start = HAL_GetTick();
+                    while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+                        if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                    }
                 }
-            }
-            const util::u32 start = HAL_GetTick();
-#if defined(STM32H7xx) || defined(STM32H747xx)
-            while (HAL_SD_GetCardState(&hsd2) != HAL_SD_CARD_TRANSFER) {
-#else
-            while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-#endif
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
             }
             return fs::Status{fs::Err::ok};
         }
@@ -200,34 +252,23 @@ namespace {
                 return fs::Status{fs::Err::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
+            const bool use_dma = can_dma(data.data(), data.size()) && (count == 1);
             if (use_dma) {
-#if defined(STM32H7xx) || defined(STM32H747xx)
-                if (HAL_SD_WriteBlocks_DMA(&hsd2, const_cast<uint8_t*>(data.data()),
-                        static_cast<uint32_t>(lba), count) != HAL_OK) {
-#else
                 if (HAL_SD_WriteBlocks_DMA(&hsd, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count) != HAL_OK) {
-#endif
-                    return fs::Status{fs::Err::io};
+                    if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
+                            static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
+                        return fs::Status{fs::Err::io};
+                    }
                 }
             } else {
-#if defined(STM32H7xx) || defined(STM32H747xx)
-                if (HAL_SD_WriteBlocks(&hsd2, const_cast<uint8_t*>(data.data()),
-                        static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-#else
                 if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-#endif
                     return fs::Status{fs::Err::io};
                 }
             }
             const util::u32 start = HAL_GetTick();
-#if defined(STM32H7xx) || defined(STM32H747xx)
-            while (HAL_SD_GetCardState(&hsd2) != HAL_SD_CARD_TRANSFER) {
-#else
             while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-#endif
                 if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
             }
             return fs::Status{fs::Err::ok};

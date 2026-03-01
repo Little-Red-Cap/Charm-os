@@ -24,7 +24,7 @@ out::port::console_sink uart_sink;
 
 namespace {
     constexpr bool kRunFsDemo = false;
-    constexpr bool kBootLog = false;
+    constexpr bool kBootLog = true;
     std::array<std::uint16_t, 512> g_i2s_dma_buf{};
 
     void i2s_wave_dma_start() noexcept {

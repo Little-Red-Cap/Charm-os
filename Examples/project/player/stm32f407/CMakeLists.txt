@@ -57,6 +57,9 @@ list(REMOVE_ITEM MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/audio_player_demo.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/audio_demo.cppm"
 )
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "audio_player_demo\\.cppm$")
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "audio_demo\\.cppm$")
+list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "ui_tile_backend\\.cppm$")
 
 target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE

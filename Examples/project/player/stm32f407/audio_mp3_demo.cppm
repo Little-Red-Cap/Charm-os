@@ -31,6 +31,18 @@ namespace {
     constexpr bool kVerbose = false;
     constexpr bool kRuntimeLog = false;
     constexpr bool kStartupLog = true;
+    constexpr std::uint32_t kFilterOpenLogStep = 128;
+    constexpr std::uint32_t kFilterOpenSeekLogStep = 64;
+    constexpr bool kUseDrmp3Id3Skip = true;
+    constexpr std::size_t kMaxStreamRead = 4096;
+
+    static bool g_in_filter_open = false;
+    static std::uint32_t g_filter_open_reads = 0;
+    static std::uint32_t g_filter_open_seeks = 0;
+    static std::uint32_t g_filter_open_zero_reads = 0;
+    static std::uint32_t g_filter_open_tells = 0;
+    static std::uint32_t g_filter_open_sizes = 0;
+    static std::uint32_t g_filter_open_read_calls = 0;
 
     std::uint32_t map_i2s_freq(std::uint32_t rate) noexcept {
         switch (rate) {
@@ -76,6 +88,8 @@ namespace {
     }
 
     struct FindAudioCtx {
+        const char* prefix{nullptr};
+        std::size_t prefix_len{0};
         char path[128]{};
         bool found{false};
     };
@@ -86,10 +100,11 @@ namespace {
         if (out->found || entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
         if (!is_mp3_name(entry.name)) return fs::Status{fs::Err::ok};
         const auto len = name_len(entry.name);
-        const char prefix[] = "/MUSIC/";
         std::size_t pos = 0;
-        for (std::size_t i = 0; i < sizeof(prefix) - 1 && pos + 1 < sizeof(out->path); ++i) {
-            out->path[pos++] = prefix[i];
+        if (out->prefix && out->prefix_len > 0) {
+            for (std::size_t i = 0; i < out->prefix_len && pos + 1 < sizeof(out->path); ++i) {
+                out->path[pos++] = out->prefix[i];
+            }
         }
         for (std::size_t i = 0; i < len && pos + 1 < sizeof(out->path); ++i) {
             out->path[pos++] = entry.name.data()[i];
@@ -116,11 +131,34 @@ namespace {
                 to_read = static_cast<std::size_t>(
                     std::min<util::i64>(remaining, static_cast<util::i64>(out.size())));
             }
+            if (to_read > kMaxStreamRead) {
+                to_read = kMaxStreamRead;
+            }
             const auto before = file->node.offset;
+            if (g_in_filter_open) {
+                const auto count = ++g_filter_open_read_calls;
+                if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
+                    out::println<"mp3 demo: filter read call#{} off {} req {}">(
+                        count, before, to_read);
+                }
+            }
             auto st = fs::vfs_read(*file, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
-            if (!st) return util::unexpected(media::Error{media::Errc::io_error, 0});
+            if (!st) {
+                out::println<"mp3 demo: read failed err={}">(
+                    static_cast<int>(st.err));
+                return util::unexpected(media::Error{media::Errc::io_error, 0});
+            }
             const auto after = file->node.offset;
+            const auto total_read = static_cast<std::size_t>(
+                after > before ? (after - before) : 0);
+            if (g_in_filter_open) {
+                const auto count = ++g_filter_open_reads;
+                if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
+                    out::println<"mp3 demo: filter read#{} off {} -> {} req {}">(
+                        count, before, after, to_read);
+                }
+            }
             if constexpr (kVerbose) {
                 if (debug_read < 4) {
                     out::println<"mp3 demo: read before={} after={} req={}">(before, after, to_read);
@@ -131,8 +169,17 @@ namespace {
                     ++debug_read;
                 }
             }
-            if (after <= before) return static_cast<util::usize>(0);
-            return static_cast<util::usize>(after - before);
+            if (total_read == 0 || after <= before) {
+                if (g_in_filter_open) {
+                    const auto count = ++g_filter_open_zero_reads;
+                    if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
+                        out::println<"mp3 demo: filter read zero#{} off {} -> {} req {}">(
+                            count, before, after, to_read);
+                    }
+                }
+                return static_cast<util::usize>(0);
+            }
+            return static_cast<util::usize>(total_read);
         }
 
         media::Result<util::i64> seek(util::i64 offset, media::SeekWhence whence) noexcept {
@@ -152,6 +199,13 @@ namespace {
                     ++debug_seek;
                 }
             }
+            if (g_in_filter_open) {
+                const auto count = ++g_filter_open_seeks;
+                if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
+                    out::println<"mp3 demo: filter seek#{} whence={} off={} -> {}">(count,
+                        static_cast<int>(whence), offset, target);
+                }
+            }
             auto st = fs::vfs_seek(*file, target);
             if (!st) return util::unexpected(media::Error{media::Errc::io_error, 0});
             return target;
@@ -159,11 +213,25 @@ namespace {
 
         media::Result<util::i64> tell() noexcept {
             if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (g_in_filter_open) {
+                const auto count = ++g_filter_open_tells;
+                if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
+                    out::println<"mp3 demo: filter tell#{} -> {}">(
+                        count, static_cast<long long>(file->node.offset - base_offset));
+                }
+            }
             return file->node.offset - base_offset;
         }
 
         media::Result<util::i64> size() noexcept {
             if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (g_in_filter_open) {
+                const auto count = ++g_filter_open_sizes;
+                if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
+                    out::println<"mp3 demo: filter size#{} -> {}">(
+                        count, static_cast<long long>(file->node.size - base_offset));
+                }
+            }
             return file->node.size - base_offset;
         }
     };
@@ -285,7 +353,17 @@ extern "C" void charm_audio_i2s_full_notify() {
 export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s2);
     FindAudioCtx ctx{};
+    const char music_prefix[] = "/MUSIC/";
+    ctx.prefix = music_prefix;
+    ctx.prefix_len = sizeof(music_prefix) - 1;
     auto st = fs::vfs_list("/MUSIC", &ctx, &find_first_mp3);
+    if (!st || !ctx.found) {
+        ctx = {};
+        const char root_prefix[] = "/";
+        ctx.prefix = root_prefix;
+        ctx.prefix_len = sizeof(root_prefix) - 1;
+        st = fs::vfs_list("/", &ctx, &find_first_mp3);
+    }
     if (!st || !ctx.found) {
         out::println<"mp3 demo: no mp3 found">();
         return;
@@ -321,6 +399,7 @@ export void audio_mp3_demo_run() noexcept {
         (void)fs::vfs_seek(f, 0);
         (void)fs::vfs_read(f, id3);
         util::i64 base = 0;
+        util::i64 id3_skip = 0;
         if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3') {
             const std::uint32_t sz =
                 (static_cast<std::uint32_t>(id3[6] & 0x7f) << 21) |
@@ -328,6 +407,10 @@ export void audio_mp3_demo_run() noexcept {
                 (static_cast<std::uint32_t>(id3[8] & 0x7f) << 7) |
                 (static_cast<std::uint32_t>(id3[9] & 0x7f));
             base = static_cast<util::i64>(10 + sz);
+            id3_skip = base;
+        }
+        if (kUseDrmp3Id3Skip) {
+            base = 0;
         }
         session.source.base_offset = base;
         if constexpr (kStartupLog) {
@@ -355,12 +438,40 @@ export void audio_mp3_demo_run() noexcept {
                 peek[8], peek[9], peek[10], peek[11], peek[12], peek[13], peek[14], peek[15]);
         }
         (void)fs::vfs_seek(f, base);
+        if constexpr (kStartupLog) {
+            std::array<util::u8, 16> head2{};
+            (void)fs::vfs_read(f, head2);
+            out::println<"mp3 demo: base head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+                head2[0], head2[1], head2[2], head2[3], head2[4], head2[5], head2[6], head2[7],
+                head2[8], head2[9], head2[10], head2[11], head2[12], head2[13], head2[14], head2[15]);
+            (void)fs::vfs_seek(f, base);
+        }
+        if constexpr (kStartupLog) {
+            if (id3_skip > 0) {
+                std::array<util::u8, 16> head3{};
+                (void)fs::vfs_seek(f, id3_skip);
+                (void)fs::vfs_read(f, head3);
+                out::println<"mp3 demo: id3 skip {} head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+                    static_cast<long long>(id3_skip),
+                    head3[0], head3[1], head3[2], head3[3], head3[4], head3[5], head3[6], head3[7],
+                    head3[8], head3[9], head3[10], head3[11], head3[12], head3[13], head3[14], head3[15]);
+                (void)fs::vfs_seek(f, base);
+            }
+        }
     }
     if constexpr (kStartupLog) {
         out::println<"mp3 demo: filter open begin">();
     }
     auto ref = media::make_stream_source_ref(session.source);
+    g_in_filter_open = true;
+    g_filter_open_reads = 0;
+    g_filter_open_seeks = 0;
+    g_filter_open_zero_reads = 0;
+    g_filter_open_tells = 0;
+    g_filter_open_sizes = 0;
+    g_filter_open_read_calls = 0;
     auto rst = session.filter.open(ref);
+    g_in_filter_open = false;
     if constexpr (kStartupLog) {
         out::println<"mp3 demo: filter open end">();
     }
@@ -416,12 +527,15 @@ export void audio_mp3_demo_run() noexcept {
         }
     }
 
-    if (HAL_I2S_Transmit_DMA(&hi2s2,
-            g_i2s_buffer.data(),
-            static_cast<uint16_t>(g_i2s_buffer.size())) != HAL_OK) {
-        out::println<"mp3 demo: dma start failed">();
-        out::println<"mp3 demo: i2s state={} err={}">(static_cast<int>(hi2s2.State),
-            static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+    const auto dma_status = HAL_I2S_Transmit_DMA(&hi2s2,
+        g_i2s_buffer.data(),
+        static_cast<uint16_t>(g_i2s_buffer.size()));
+    if (dma_status != HAL_OK) {
+        out::println<"mp3 demo: dma start failed {}">(static_cast<int>(dma_status));
+        out::println<"mp3 demo: i2s state={} err={} hdmatx={}">(
+            static_cast<int>(hi2s2.State),
+            static_cast<int>(HAL_I2S_GetError(&hi2s2)),
+            reinterpret_cast<std::uintptr_t>(hi2s2.hdmatx));
         session.filter.close();
         (void)fs::vfs_close(f);
         return;
@@ -458,13 +572,14 @@ export void audio_mp3_demo_run() noexcept {
             if (++idle_ticks > 50) break;
         }
         if constexpr (kRuntimeLog) {
-            if ((++tick % 50000) == 0) {
+            if ((++tick % 5000) == 0) {
                 auto* dma = hi2s2.hdmatx;
                 const auto ndtr = (dma && dma->Instance) ? static_cast<int>(dma->Instance->NDTR) : -1;
                 const auto dstate = dma ? static_cast<int>(dma->State) : -1;
-                out::println<"mp3 demo: playing... ndtr={} dma_state={} i2s_state={} underrun={} half_ok={} full_ok={}">(
+                out::println<"mp3 demo: playing... ndtr={} dma_state={} i2s_state={} underrun={} half_ok={} full_ok={} hdmatx={}">(
                     ndtr, dstate, static_cast<int>(hi2s2.State), g_underruns,
-                    static_cast<int>(half_filled), static_cast<int>(full_filled));
+                    static_cast<int>(half_filled), static_cast<int>(full_filled),
+                    reinterpret_cast<std::uintptr_t>(dma));
             }
         }
     }

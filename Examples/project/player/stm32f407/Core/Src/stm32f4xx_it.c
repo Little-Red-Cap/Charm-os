@@ -51,6 +51,8 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+extern void charm_audio_i2s_half_notify(void);
+extern void charm_audio_i2s_full_notify(void);
 
 /* USER CODE END 0 */
 
@@ -247,5 +249,18 @@ void DMA2_Stream3_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+  if (hi2s == &hi2s2) {
+    charm_audio_i2s_half_notify();
+  }
+}
+
+void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+  if (hi2s == &hi2s2) {
+    charm_audio_i2s_full_notify();
+  }
+}
 
 /* USER CODE END 1 */

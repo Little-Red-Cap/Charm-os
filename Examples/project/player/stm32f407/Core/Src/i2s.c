@@ -135,6 +135,8 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* i2sHandle)
     HAL_NVIC_EnableIRQ(SPI2_IRQn);
   /* USER CODE BEGIN SPI2_MspInit 1 */
     __HAL_DMA_ENABLE_IT(&hdma_spi2_tx, DMA_IT_TC | DMA_IT_HT | DMA_IT_TE);
+    HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 
   /* USER CODE END SPI2_MspInit 1 */
   }

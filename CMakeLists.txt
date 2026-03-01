@@ -120,6 +120,7 @@ else()
         list(REMOVE_ITEM MODULE_INTERFACE_UNITS
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.cppm")
+        target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_PROFILE_FULL=1)
     elseif (NOT CHARM_VIVID_PROFILE STREQUAL "full")
         message(FATAL_ERROR "Unknown CHARM_VIVID_PROFILE: ${CHARM_VIVID_PROFILE}")
     endif()

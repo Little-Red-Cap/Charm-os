@@ -5,7 +5,7 @@ module;
 #include <type_traits>
 #include <utility>
 #include <new>
-export module charm.core.factory;
+export module charm.core.factory.full;
 
 import charm.core.handle;
 import charm.core.object;

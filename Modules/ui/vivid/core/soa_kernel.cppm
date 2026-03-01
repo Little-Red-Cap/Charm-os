@@ -529,6 +529,23 @@ public:
         return input_events_.overflowed;
     }
 
+#if defined(VIVID_SOA_TRACE_INPUT)
+    void input_test_set_capture(WidgetHandle h) noexcept {
+        input_captured_ = h;
+    }
+
+    void input_test_force_overflow() noexcept {
+        input_events_.clear();
+        if (!input_root_) return;
+        for (std::size_t i = 0; i < (kMaxInputEvents + 4); ++i) {
+            input_emit_event(input_root_, Event::mouse(Event::Type::MouseMove, input_last_x_, input_last_y_, 0));
+        }
+        if (input_events_.overflowed) {
+            input_handle_overflow();
+        }
+    }
+#endif
+
     void set_drag_threshold(int px) noexcept {
         input_drag_threshold_sq_ = px * px;
     }

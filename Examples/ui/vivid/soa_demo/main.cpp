@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 #include <cstdint>
+#include <string_view>
 
 import charm.core.soa_kernel;
 import charm.core.soa_gui;
@@ -59,6 +60,40 @@ namespace {
         return "Unknown";
     }
 
+    bool same_handle(WidgetHandle a, WidgetHandle b) noexcept {
+        return a.kind == b.kind && a.index == b.index && a.generation == b.generation;
+    }
+
+    int find_event_index(const SoaKernel& kernel, Event::Type type, WidgetHandle target = {}) noexcept {
+        const std::size_t count = kernel.input_event_count();
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& item = kernel.input_event(i);
+            if (item.event.type != type) continue;
+            if (target && !same_handle(item.target, target)) continue;
+            return static_cast<int>(i);
+        }
+        return -1;
+    }
+
+    int count_event(const SoaKernel& kernel, Event::Type type, WidgetHandle target = {}) noexcept {
+        int total = 0;
+        const std::size_t count = kernel.input_event_count();
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& item = kernel.input_event(i);
+            if (item.event.type != type) continue;
+            if (target && !same_handle(item.target, target)) continue;
+            ++total;
+        }
+        return total;
+    }
+
+    bool expect_true(bool cond, const char* label, int& fails) noexcept {
+        if (cond) return true;
+        (void)out::println<"[soa][fail] {}">(label);
+        ++fails;
+        return false;
+    }
+
     void trace_input_events(SoaKernel& kernel) noexcept {
         const std::size_t count = kernel.input_event_count();
         if (count == 0 && !kernel.input_events_overflowed()) return;
@@ -79,14 +114,129 @@ namespace {
             );
         }
     }
+
+    bool run_input_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
+        int fails = 0;
+        kernel.input_clear_events();
+
+        auto test_root = factory.create_container();
+        auto sc = factory.create_scroll_container();
+        factory.link(root, test_root);
+        factory.link(test_root, sc);
+        kernel.set_rect(test_root, {40, 40, 220, 180});
+        kernel.set_rect(sc, {10, 10, 160, 100});
+
+        const int x = 60;
+        const int y = 60;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, x + 20, y + 20, 0));
+
+        expect_true(kernel.input_dragging(), "regress: dragging not started", fails);
+
+        kernel.input_clear_events();
+        kernel.destroy(test_root);
+
+        const int idx_drag_end = find_event_index(kernel, Event::Type::DragEnd);
+        const int idx_cancel = find_event_index(kernel, Event::Type::Cancel);
+        const int idx_hover = find_event_index(kernel, Event::Type::HoverLeave);
+        const int idx_focus = find_event_index(kernel, Event::Type::FocusOut);
+        expect_true(idx_drag_end >= 0, "regress: destroy missing DragEnd", fails);
+        expect_true(idx_cancel >= 0, "regress: destroy missing Cancel", fails);
+        expect_true(idx_hover >= 0, "regress: destroy missing HoverLeave", fails);
+        expect_true(idx_focus >= 0, "regress: destroy missing FocusOut", fails);
+        if (idx_drag_end >= 0 && idx_cancel >= 0) {
+            expect_true(idx_drag_end < idx_cancel, "regress: DragEnd order", fails);
+        }
+        if (idx_cancel >= 0 && idx_hover >= 0) {
+            expect_true(idx_cancel < idx_hover, "regress: Cancel order", fails);
+        }
+        if (idx_hover >= 0 && idx_focus >= 0) {
+            expect_true(idx_hover < idx_focus, "regress: HoverLeave order", fails);
+        }
+
+        expect_true(!kernel.input_pressed(), "regress: pressed not cleared", fails);
+        expect_true(!kernel.input_captured(), "regress: captured not cleared", fails);
+        expect_true(!kernel.input_hovered(), "regress: hovered not cleared", fails);
+        expect_true(!kernel.input_focused(), "regress: focused not cleared", fails);
+        expect_true(!kernel.input_dragging(), "regress: dragging not cleared", fails);
+
+        kernel.destroy(sc);
+        kernel.destroy(test_root);
+
+        auto test_root2 = factory.create_container();
+        auto a = factory.create_button("A");
+        auto b = factory.create_checkbox("B");
+        factory.link(root, test_root2);
+        factory.link(test_root2, a);
+        factory.link(test_root2, b);
+        kernel.set_rect(test_root2, {300, 40, 220, 120});
+        kernel.set_rect(a, {10, 10, 120, 32});
+        kernel.set_rect(b, {10, 50, 120, 32});
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 320, 60, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 320, 60, 1));
+        kernel.input_test_set_capture(b);
+
+        kernel.input_clear_events();
+        kernel.destroy(b);
+        const int cancel_b = count_event(kernel, Event::Type::Cancel, b);
+        expect_true(cancel_b >= 1, "regress: captured cancel missing", fails);
+        expect_true(!kernel.input_captured(), "regress: captured not cleared", fails);
+
+        kernel.input_clear_events();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 320, 60, 1));
+
+        kernel.destroy(a);
+        kernel.destroy(test_root2);
+
+        auto test_root3 = factory.create_container();
+        auto c = factory.create_checkbox("C");
+        factory.link(root, test_root3);
+        factory.link(test_root3, c);
+        kernel.set_rect(test_root3, {560, 40, 200, 120});
+        kernel.set_rect(c, {10, 10, 120, 32});
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 580, 60, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 580, 60, 1));
+        kernel.input_test_force_overflow();
+        expect_true(kernel.input_events_overflowed(), "regress: overflow flag missing", fails);
+        expect_true(!kernel.input_pressed(), "regress: overflow pressed not cleared", fails);
+        expect_true(!kernel.input_captured(), "regress: overflow captured not cleared", fails);
+        expect_true(!kernel.input_hovered(), "regress: overflow hovered not cleared", fails);
+        expect_true(!kernel.input_focused(), "regress: overflow focused not cleared", fails);
+        expect_true(!kernel.input_dragging(), "regress: overflow dragging not cleared", fails);
+
+        kernel.destroy(c);
+        kernel.destroy(test_root3);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] input regression OK">();
+        }
+        return fails == 0;
+    }
 #endif
 }
 
-int main() {
+int main(int argc, char** argv) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+    bool run_regress = false;
+#else
+    (void)argc;
+    (void)argv;
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
         return 1;
     }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--soa-regress") {
+            run_regress = true;
+        }
+    }
+#endif
 
     SDL_Window* window = SDL_CreateWindow("Vivid SoA Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
@@ -179,6 +329,18 @@ int main() {
     }
 
     SoaGui gui(canvas, kernel, root);
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_regress) {
+        if (!run_input_regression(gui, kernel, factory, root)) {
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+    }
+#endif
 
     int win_w = screen_width;
     int win_h = screen_height;

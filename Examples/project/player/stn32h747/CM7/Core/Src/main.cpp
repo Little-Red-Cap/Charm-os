@@ -20,6 +20,14 @@ Audio
     I2S1_MCK-> PC4
 LED
     StateLED-> PI15
+
+F4 -> H7 PinMap
+    D0: PC8 → H7 PB14
+    D1: PC9 → H7 PB15
+    D2: PC10 → H7 PG11
+    D3: PC11 → H7 PB4
+    CK: PC12 → H7 PD6
+    CMD: PD2 → H7 PA0
  */
 
 extern "C" void SystemClock_Config(void);

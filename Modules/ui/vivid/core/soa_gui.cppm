@@ -1,11 +1,13 @@
 module;
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 
 export module charm.core.soa_gui;
 
 export import charm.core.soa_kernel;
+export import charm.core.soa_layout;
 export import charm.core.geometry;
 export import charm.core.style;
 export import charm.core.style_sheet;
@@ -15,18 +17,18 @@ export import charm.gfx.canvas;
 export import charm.gfx.render;
 export import charm.widgets.text;
 export import charm.widgets.button;
+export import charm.widgets.checkbox;
 export import charm.widgets.label;
+export import charm.widgets.list;
 export import charm.widgets.progress;
+export import charm.widgets.radio;
 export import charm.widgets.slider;
 export import charm.widgets.switcher;
+export import charm.widgets.scroll_container;
 
 namespace {
     constexpr std::size_t kWidgetKindCount =
         static_cast<std::size_t>(WidgetKind::Histogram) + 1;
-
-    constexpr int clamp_int(int v, int lo, int hi) noexcept {
-        return (v < lo) ? lo : (v > hi ? hi : v);
-    }
 
     struct StyleTable {
         std::array<Style, kWidgetKindCount> styles{};
@@ -41,11 +43,21 @@ namespace {
     }
 
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
-        const bool enabled = kernel.enabled(h);
-        const bool hovered = kernel.hovered(h);
-        const bool pressed = kernel.pressed(h);
-        const bool focused = kernel.focused(h);
-        return make_style_state(enabled, hovered, pressed, focused, kernel.variant(h));
+        const StateCompact state = kernel.state_compact(h);
+        return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
+    }
+
+    bool is_scrollable_kind(WidgetKind kind) noexcept {
+        return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
+    }
+
+    void unsupported_kind(WidgetKind kind) noexcept {
+#ifndef NDEBUG
+        (void)kind;
+        assert(false && "SoaGui unsupported WidgetKind");
+#else
+        (void)kind;
+#endif
     }
 }
 
@@ -59,27 +71,32 @@ public:
 
     void render();
     void dispatch_event(const Event& e);
-    WidgetHandle hit_test(int x, int y) const noexcept;
+    WidgetHandle hit_test(int x, int y) noexcept;
 
 private:
     CanvasBase& canvas_;
     SoaKernel& kernel_;
     WidgetHandle root_{};
-    WidgetHandle hovered_{};
-    WidgetHandle pressed_{};
+    SoaLayoutPass layout_;
     StyleTable style_table_{};
     std::uint32_t style_version_{0};
 
     void refresh_styles();
     const Style& resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept;
-    void handle_hover(int x, int y);
-    void update_slider_value(WidgetHandle h, int x);
     void draw_tree();
-    void draw_node(WidgetHandle h);
+    void draw_node(WidgetHandle h, const Rect& world_rect);
 
     static void draw_label(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text);
     static void draw_button(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text);
     static void draw_switch(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, bool checked);
+    static void draw_checkbox(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                              const char* text, bool checked);
+    static void draw_radio(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                           const char* text, bool checked);
+    static void draw_list(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state);
+    static void draw_list_item(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                               const char* text, bool selected);
+    static void draw_scroll_container(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state);
     static void draw_slider(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
                             int value, int min_value, int max_value);
     static void draw_progress(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
@@ -87,12 +104,14 @@ private:
 };
 
 SoaGui::SoaGui(CanvasBase& canvas, SoaKernel& kernel, WidgetHandle root) noexcept
-    : canvas_(canvas), kernel_(kernel), root_(root) {
+    : canvas_(canvas), kernel_(kernel), root_(root), layout_(kernel) {
+    kernel_.set_input_root(root_);
     refresh_styles();
 }
 
 void SoaGui::set_root(WidgetHandle root) noexcept {
     root_ = root;
+    kernel_.set_input_root(root);
 }
 
 WidgetHandle SoaGui::root() const noexcept {
@@ -101,6 +120,7 @@ WidgetHandle SoaGui::root() const noexcept {
 
 void SoaGui::render() {
     refresh_styles();
+    layout_.run_if_needed(root_);
     canvas_.begin_frame();
     draw_tree();
     canvas_.end_frame();
@@ -108,67 +128,14 @@ void SoaGui::render() {
 
 void SoaGui::dispatch_event(const Event& e) {
     if (!root_) return;
-    switch (e.type) {
-    case Event::Type::MouseMove:
-        handle_hover(e.x, e.y);
-        if (pressed_) {
-            auto kind = kernel_.kind(pressed_);
-            if (kind == WidgetKind::Slider) {
-                update_slider_value(pressed_, e.x);
-            }
-        }
-        break;
-    case Event::Type::MouseDown:
-        pressed_ = hit_test(e.x, e.y);
-        if (pressed_) {
-            kernel_.set_pressed(pressed_, true);
-            if (kernel_.kind(pressed_) == WidgetKind::Slider) {
-                update_slider_value(pressed_, e.x);
-            }
-        }
-        break;
-    case Event::Type::MouseUp:
-        if (pressed_) {
-            kernel_.set_pressed(pressed_, false);
-            auto hit = hit_test(e.x, e.y);
-            if (hit == pressed_) {
-                if (kernel_.kind(pressed_) == WidgetKind::Switch) {
-                    kernel_.set_checked(pressed_, !kernel_.checked(pressed_));
-                }
-            }
-            pressed_ = {};
-        }
-        break;
-    default:
-        break;
-    }
+    layout_.run_if_needed(root_);
+    kernel_.input_dispatch(e);
 }
 
-WidgetHandle SoaGui::hit_test(int x, int y) const noexcept {
+WidgetHandle SoaGui::hit_test(int x, int y) noexcept {
     if (!root_) return {};
-    struct Frame {
-        WidgetHandle h{};
-    };
-    std::array<Frame, 256> stack{};
-    std::size_t sp = 0;
-    stack[sp++] = Frame{root_};
-    WidgetHandle result{};
-    while (sp > 0) {
-        auto frame = stack[--sp];
-        if (!kernel_.valid(frame.h)) continue;
-        if (!kernel_.visible(frame.h)) continue;
-        Rect r = kernel_.rect(frame.h);
-        if (!r.contains(x, y)) continue;
-        if (kernel_.hit_testable(frame.h)) {
-            result = frame.h;
-        }
-        for (auto child = kernel_.last_child(frame.h); child; child = kernel_.prev_sibling(child)) {
-            if (sp < stack.size()) {
-                stack[sp++] = Frame{child};
-            }
-        }
-    }
-    return result;
+    layout_.run_if_needed(root_);
+    return kernel_.input_hit_test(x, y);
 }
 
 void SoaGui::refresh_styles() {
@@ -183,6 +150,11 @@ void SoaGui::refresh_styles() {
     style_table_.styles[static_cast<std::size_t>(WidgetKind::Switch)] = Theme::instance().get<Switch>();
     style_table_.styles[static_cast<std::size_t>(WidgetKind::Slider)] = Theme::instance().get<Slider>();
     style_table_.styles[static_cast<std::size_t>(WidgetKind::Progress)] = Theme::instance().get<Progress>();
+    style_table_.styles[static_cast<std::size_t>(WidgetKind::Checkbox)] = Theme::instance().get<Checkbox>();
+    style_table_.styles[static_cast<std::size_t>(WidgetKind::Radio)] = Theme::instance().get<Radio>();
+    style_table_.styles[static_cast<std::size_t>(WidgetKind::List)] = Theme::instance().get<List>();
+    style_table_.styles[static_cast<std::size_t>(WidgetKind::ListItem)] = Theme::instance().get<ListItem>();
+    style_table_.styles[static_cast<std::size_t>(WidgetKind::ScrollContainer)] = Theme::instance().get<ScrollContainer>();
 }
 
 const Style& SoaGui::resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {
@@ -193,35 +165,6 @@ const Style& SoaGui::resolve_style(WidgetKind kind, const StyleState& state, Sty
     return base;
 }
 
-void SoaGui::handle_hover(int x, int y) {
-    WidgetHandle hit = hit_test(x, y);
-    if (hit == hovered_) return;
-    if (hovered_) {
-        kernel_.set_hovered(hovered_, false);
-    }
-    hovered_ = hit;
-    if (hovered_) {
-        kernel_.set_hovered(hovered_, true);
-    }
-}
-
-void SoaGui::update_slider_value(WidgetHandle h, int x) {
-    Rect r = kernel_.rect(h);
-    Style scratch{};
-    const StyleState state = make_state(kernel_, h);
-    const Style& st = resolve_style(WidgetKind::Slider, state, scratch);
-    const int pad = st.metrics.padding;
-    const int inner_w = r.w - pad * 2;
-    if (inner_w <= 0) return;
-    const int min_v = kernel_.min_value(h);
-    const int max_v = kernel_.max_value(h);
-    const int range = (max_v > min_v) ? (max_v - min_v) : 1;
-    const int x0 = r.x + pad;
-    const int x1 = x0 + inner_w;
-    const int clamped = clamp_int(x, x0, x1);
-    const int value = min_v + (clamped - x0) * range / inner_w;
-    kernel_.set_value(h, value);
-}
 
 void SoaGui::draw_tree() {
     if (!root_) return;
@@ -231,10 +174,15 @@ void SoaGui::draw_tree() {
         bool entered{false};
         CanvasBase::ClipState clip_state{};
         bool clip_applied{false};
+        int offset_x{0};
+        int offset_y{0};
+        int child_offset_x{0};
+        int child_offset_y{0};
+        Rect world_rect{};
     };
     std::array<Frame, 256> stack{};
     std::size_t sp = 0;
-    stack[sp++] = Frame{root_, {}, false, canvas_.save_clip(), false};
+    stack[sp++] = Frame{root_, {}, false, canvas_.save_clip(), false, 0, 0, 0, 0, Rect{}};
 
     while (sp > 0) {
         auto& frame = stack[sp - 1];
@@ -244,21 +192,39 @@ void SoaGui::draw_tree() {
                 --sp;
                 continue;
             }
-            Rect r = kernel_.paint_bounds(frame.h);
-            if (!rect_valid(r)) {
-                r = kernel_.rect(frame.h);
+            const Rect local_rect = kernel_.rect(frame.h);
+            frame.world_rect = Rect{
+                local_rect.x + frame.offset_x,
+                local_rect.y + frame.offset_y,
+                local_rect.w,
+                local_rect.h
+            };
+            Rect paint = kernel_.paint_bounds(frame.h);
+            if (!rect_valid(paint)) {
+                paint = local_rect;
             }
+            paint = Rect{
+                paint.x + frame.offset_x,
+                paint.y + frame.offset_y,
+                paint.w,
+                paint.h
+            };
             if (frame.clip_state.enabled) {
                 Rect out{};
-                if (!rect_intersect(r, frame.clip_state.rect, out)) {
+                if (!rect_intersect(paint, frame.clip_state.rect, out)) {
                     --sp;
                     continue;
                 }
             }
-            draw_node(frame.h);
+            draw_node(frame.h, frame.world_rect);
             frame.child = kernel_.first_child(frame.h);
+            frame.child_offset_x = frame.offset_x + local_rect.x;
+            frame.child_offset_y = frame.offset_y + local_rect.y;
+            if (is_scrollable_kind(kernel_.kind(frame.h))) {
+                frame.child_offset_y -= kernel_.scroll_y(frame.h);
+            }
             if (kernel_.clip_children(frame.h)) {
-                Rect clip_rect = kernel_.rect(frame.h);
+                Rect clip_rect = frame.world_rect;
                 Rect out{};
                 bool ok = rect_valid(clip_rect);
                 if (ok && frame.clip_state.enabled) {
@@ -286,35 +252,241 @@ void SoaGui::draw_tree() {
         WidgetHandle child = frame.child;
         frame.child = kernel_.next_sibling(child);
         if (sp >= stack.size()) continue;
-        stack[sp++] = Frame{child, {}, false, canvas_.save_clip(), false};
+        stack[sp++] = Frame{
+            child,
+            {},
+            false,
+            canvas_.save_clip(),
+            false,
+            frame.child_offset_x,
+            frame.child_offset_y,
+            0,
+            0,
+            Rect{}
+        };
     }
 }
 
-void SoaGui::draw_node(WidgetHandle h) {
+void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
     const WidgetKind kind = kernel_.kind(h);
-    Style scratch{};
+    Style scratch;
     const StyleState state = make_state(kernel_, h);
     const Style& st = resolve_style(kind, state, scratch);
-    const Rect r = kernel_.rect(h);
     switch (kind) {
+    case WidgetKind::None:
+        unsupported_kind(kind);
+        break;
     case WidgetKind::Container:
         break;
+    case WidgetKind::ScrollContainer:
+        draw_scroll_container(canvas_, world_rect, st, state);
+        break;
+    case WidgetKind::Dial:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Arc:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Image:
+        unsupported_kind(kind);
+        break;
     case WidgetKind::Label:
-        draw_label(canvas_, r, st, state, kernel_.text(h));
+        draw_label(canvas_, world_rect, st, state, kernel_.text(h));
         break;
     case WidgetKind::Button:
-        draw_button(canvas_, r, st, state, kernel_.text(h));
+        draw_button(canvas_, world_rect, st, state, kernel_.text(h));
         break;
-    case WidgetKind::Switch:
-        draw_switch(canvas_, r, st, state, kernel_.checked(h));
+    case WidgetKind::Checkbox:
+        draw_checkbox(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        break;
+    case WidgetKind::Led:
+        unsupported_kind(kind);
         break;
     case WidgetKind::Slider:
-        draw_slider(canvas_, r, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        draw_slider(canvas_, world_rect, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        break;
+    case WidgetKind::Switch:
+        draw_switch(canvas_, world_rect, st, state, kernel_.checked(h));
         break;
     case WidgetKind::Progress:
-        draw_progress(canvas_, r, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        draw_progress(canvas_, world_rect, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
-    default:
+    case WidgetKind::List:
+        draw_list(canvas_, world_rect, st, state);
+        break;
+    case WidgetKind::ListItem:
+        draw_list_item(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        break;
+    case WidgetKind::ListView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::IconList:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TextTrackingList:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TextList:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ModalDialog:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ProgressBarSimple:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::DynamicNebula:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::CrtScreen:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ScrollBar:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::SegmentedControl:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TextArea:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TextInput:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::NumberInput:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ToggleGroup:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TableView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TreeView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Dropdown:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TabView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Roller:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Spinner:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Bar:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::PopupLayer:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::MessageBox:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Menu:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::MenuItem:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Radio:
+        draw_radio(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        break;
+    case WidgetKind::RadioGroup:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Chart:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Waveform:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Gauge:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::PrimitivesCanvas:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::PerfOverlay:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Stepper:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Timeline:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::RichText:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::CodeBlock:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ProgressWheel:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::WaveformView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::BatteryGauge:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::HistogramView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::RingIndication:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::TextBox:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::FoldablePanel:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ProgressFlowing:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::CloudyGlass:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::NumberList:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ProgressBarRound:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::SpinZoomWidget:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::SpinningWheel:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ImageBox:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::MeterPointer:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ProgressBarDrill:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::SpectrumView:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::BusyWheel:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::ConsoleBox:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::BatteryGasGauge:
+        unsupported_kind(kind);
+        break;
+    case WidgetKind::Histogram:
+        unsupported_kind(kind);
         break;
     }
 }
@@ -357,6 +529,107 @@ void SoaGui::draw_switch(CanvasBase& cvs, const Rect& r, const Style& st, const 
     const int knob = r.h - 4;
     const int knob_x = checked ? (r.x + r.w - knob - 2) : (r.x + 2);
     ui::render::draw_round_rect(cvs, knob_x, r.y + 2, knob, knob, knob / 2, st.colors.on_accent, true);
+}
+
+void SoaGui::draw_checkbox(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                           const char* text, bool checked) {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    const rgba accent = resolve_accent(st, state);
+    int box = r.h;
+    if (box > r.w) box = r.w;
+    const int box_x = r.x;
+    const int box_y = r.y + (r.h - box) / 2;
+    ui::render::draw_rect(cvs, box_x, box_y, box, box, border, false);
+    if (checked && box > 4) {
+        ui::render::draw_rect(cvs, box_x + 2, box_y + 2, box - 4, box - 4, accent, true);
+    }
+    Rect text_r{
+        r.x + box + st.metrics.padding,
+        r.y,
+        r.w - box - st.metrics.padding,
+        r.h
+    };
+    if (text_r.w < 0) text_r.w = 0;
+    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+                  TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+}
+
+void SoaGui::draw_radio(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                        const char* text, bool checked) {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    const rgba accent = resolve_accent(st, state);
+    const int pad = st.metrics.padding;
+    int radius = r.h / 2;
+    if (radius < 2) radius = 2;
+    const int cx = r.x + pad + radius;
+    const int cy = r.y + r.h / 2;
+    ui::render::draw_circle(cvs, cx, cy, radius, border, false);
+    if (checked && radius > 2) {
+        ui::render::draw_circle(cvs, cx, cy, radius - 2, accent, true);
+    }
+    Rect text_r{
+        cx + radius + pad,
+        r.y,
+        r.w - (radius * 2 + pad * 2),
+        r.h
+    };
+    if (text_r.w < 0) text_r.w = 0;
+    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+                  TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+}
+
+void SoaGui::draw_list(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state) {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    (void)font;
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+}
+
+void SoaGui::draw_list_item(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+                            const char* text, bool selected) {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    if (selected) {
+        const rgba accent = resolve_accent(st, state);
+        bg = accent;
+        font = st.colors.on_accent;
+    }
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+    Rect text_r{
+        r.x + st.metrics.padding,
+        r.y,
+        r.w - st.metrics.padding * 2,
+        r.h
+    };
+    if (text_r.w < 0) text_r.w = 0;
+    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+                  TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+}
+
+void SoaGui::draw_scroll_container(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state) {
+    rgba bg{};
+    rgba border{};
+    rgba font{};
+    resolve_colors(st, state, bg, border, font);
+    (void)font;
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+    ui::render::draw_focus_ring(cvs, r, st, state.focused);
 }
 
 void SoaGui::draw_slider(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,

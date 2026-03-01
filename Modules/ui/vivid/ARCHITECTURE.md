@@ -88,6 +88,51 @@ sequenceDiagram
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 - FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
 
+### 3.1 布局失效策略矩阵（代码契约）
+
+布局失效采用“三件套”约束：
+
+1. 文档矩阵（本文）
+2. 代码矩阵（`SoaKernel::layout_state_influence_mask`）
+3. 回归矩阵（`soa_demo --soa-regress-layout`）
+
+#### 状态位分类
+
+- **布局影响位**：允许触发布局（极少数状态）
+- **仅重绘位**：只允许触发绘制，不得触发布局
+
+默认契约（SoA 子集）：
+
+| 状态位 | 布局 | 绘制 | 说明 |
+| --- | --- | --- | --- |
+| Enabled | 否 | 是 | 禁止因启用状态重排 |
+| Hovered | 否 | 是 | 交互态只重绘 |
+| Pressed | 否 | 是 | 交互态只重绘 |
+| Focused | 否 | 是 | Focus ring 走绘制叠加 |
+
+> 目前 `layout_state_influence_mask` 对 SoA 子集返回 0，等价于“所有状态仅重绘，不触发布局”。
+
+#### 数据变更的布局触发点
+
+以下属于数据变更，必须触发布局失效：
+
+- 文本内容变化（`set_text`）
+- 约束/尺寸变化（`set_rect` / `set_layout_kind` / `set_list_row_height`）
+- 影响布局的范围/尺寸参数（如 `set_range`）
+
+#### 可执行契约（代码）
+
+- `layout_state_influence_mask(kind)` 决定“哪些状态位可影响布局”。
+- 状态变化时：`delta & mask != 0` → `mark_layout_dirty()`，否则只 `mark_paint_dirty()`。
+- Layout 计算仅使用 mask 中允许的状态位（其余位在 layout 阶段强制忽略）。
+
+#### 回归矩阵（trace-only）
+
+`soa_demo --soa-regress-layout` 验证：
+
+- hover/press/drag/scroll **不触发布局**，但 **必须触发绘制失效**。
+- 文本变更 **必须触发布局失效**。
+
 ```mermaid
 flowchart LR
   subgraph WidgetTree[控件树]

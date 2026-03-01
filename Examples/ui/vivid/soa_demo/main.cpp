@@ -236,18 +236,23 @@ namespace {
         gui.render();
         expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated with influence off", fails);
         expect_true(kernel.layout_pass_count() == 0, "layout: hover pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: hover missing paint invalidation", fails);
+        kernel.layout_trace_reset();
 
         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 60, 280, 1));
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 90, 300, 0));
         gui.render();
         expect_true(kernel.layout_invalidated_count() == 0, "layout: drag invalidated with influence off", fails);
         expect_true(kernel.layout_pass_count() == 0, "layout: drag pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: drag missing paint invalidation", fails);
+        kernel.layout_trace_reset();
 
         gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 90, 300, 1));
         gui.dispatch_event(Event::wheel(60, 280, 1));
         gui.render();
         expect_true(kernel.layout_invalidated_count() == 0, "layout: wheel invalidated with influence off", fails);
         expect_true(kernel.layout_pass_count() == 0, "layout: wheel pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: wheel missing paint invalidation", fails);
 
         kernel.set_layout_state_influence(true);
         gui.render();
@@ -255,14 +260,22 @@ namespace {
 
         kernel.set_focused(layout_box, true);
         gui.render();
-        expect_true(kernel.layout_invalidated_count() > 0, "layout: focus did not invalidate", fails);
-        expect_true(kernel.layout_pass_count() > 0, "layout: focus did not run pass", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: focus invalidated but mask forbids", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: focus pass but mask forbids", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: focus missing paint invalidation", fails);
 
         kernel.layout_trace_reset();
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
         gui.render();
-        expect_true(kernel.layout_invalidated_count() > 0, "layout: hover did not invalidate", fails);
-        expect_true(kernel.layout_pass_count() > 0, "layout: hover did not run pass", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated but mask forbids", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: hover pass but mask forbids", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: hover missing paint invalidation", fails);
+
+        kernel.layout_trace_reset();
+        kernel.set_text(layout_box, "Layout Updated");
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() > 0, "layout: text change did not invalidate", fails);
+        expect_true(kernel.layout_pass_count() > 0, "layout: text change did not run pass", fails);
 
         kernel.destroy(layout_box);
         kernel.destroy(layout_root);

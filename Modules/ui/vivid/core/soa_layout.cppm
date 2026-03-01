@@ -57,11 +57,19 @@ private:
 
     static StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
-        const bool enabled = state.enabled();
-        const bool influence = kernel.layout_state_influence();
-        const bool hovered = influence ? state.hovered() : false;
-        const bool pressed = influence ? state.pressed() : false;
-        const bool focused = influence ? state.focused() : false;
+        const std::uint8_t mask = kernel.layout_state_influence_mask(kernel.kind(h));
+        const bool enabled = (mask & static_cast<std::uint8_t>(SoaStateMask::Enabled)) != 0
+            ? state.enabled()
+            : true;
+        const bool hovered = (mask & static_cast<std::uint8_t>(SoaStateMask::Hovered)) != 0
+            ? state.hovered()
+            : false;
+        const bool pressed = (mask & static_cast<std::uint8_t>(SoaStateMask::Pressed)) != 0
+            ? state.pressed()
+            : false;
+        const bool focused = (mask & static_cast<std::uint8_t>(SoaStateMask::Focused)) != 0
+            ? state.focused()
+            : false;
         return make_style_state(enabled, hovered, pressed, focused, state.variant);
     }
 

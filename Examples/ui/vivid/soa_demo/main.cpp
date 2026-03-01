@@ -34,6 +34,52 @@ namespace {
         out_y = static_cast<int>((wy - vp.y) / vp.scale);
         return true;
     }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    const char* event_type_name(Event::Type type) noexcept {
+        switch (type) {
+            case Event::Type::HoverEnter: return "HoverEnter";
+            case Event::Type::HoverLeave: return "HoverLeave";
+            case Event::Type::MouseDown: return "MouseDown";
+            case Event::Type::MouseUp: return "MouseUp";
+            case Event::Type::MouseMove: return "MouseMove";
+            case Event::Type::MouseWheel: return "MouseWheel";
+            case Event::Type::Click: return "Click";
+            case Event::Type::DragStart: return "DragStart";
+            case Event::Type::DragMove: return "DragMove";
+            case Event::Type::DragEnd: return "DragEnd";
+            case Event::Type::GestureSwipe: return "GestureSwipe";
+            case Event::Type::GesturePinch: return "GesturePinch";
+            case Event::Type::FocusIn: return "FocusIn";
+            case Event::Type::FocusOut: return "FocusOut";
+            case Event::Type::KeyDown: return "KeyDown";
+            case Event::Type::KeyUp: return "KeyUp";
+            case Event::Type::Cancel: return "Cancel";
+        }
+        return "Unknown";
+    }
+
+    void trace_input_events(SoaKernel& kernel) noexcept {
+        const std::size_t count = kernel.input_event_count();
+        if (count == 0 && !kernel.input_events_overflowed()) return;
+        if (kernel.input_events_overflowed()) {
+            (void)out::println<"[soa] input overflow">();
+        }
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& item = kernel.input_event(i);
+            (void)out::println<"[soa] ev: kind={} idx={} gen={} type={} x={} y={} dx={} dy={}">(
+                widget_kind_name(item.target.kind),
+                static_cast<int>(item.target.index),
+                static_cast<int>(item.target.generation),
+                event_type_name(item.event.type),
+                item.event.x,
+                item.event.y,
+                item.event.dx,
+                item.event.dy
+            );
+        }
+    }
+#endif
 }
 
 int main() {
@@ -154,21 +200,33 @@ int main() {
             if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, mouse_x, mouse_y)) {
                     gui.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));
+#if defined(VIVID_SOA_TRACE_INPUT)
+                    trace_input_events(kernel);
+#endif
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     if (map_mouse(vp, evt.button.x, evt.button.y, mouse_x, mouse_y)) {
                         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, mouse_x, mouse_y, 1));
+#if defined(VIVID_SOA_TRACE_INPUT)
+                        trace_input_events(kernel);
+#endif
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_UP) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     if (map_mouse(vp, evt.button.x, evt.button.y, mouse_x, mouse_y)) {
                         gui.dispatch_event(Event::mouse(Event::Type::MouseUp, mouse_x, mouse_y, 1));
+#if defined(VIVID_SOA_TRACE_INPUT)
+                        trace_input_events(kernel);
+#endif
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_WHEEL) {
                 gui.dispatch_event(Event::wheel(mouse_x, mouse_y, static_cast<int>(evt.wheel.y)));
+#if defined(VIVID_SOA_TRACE_INPUT)
+                trace_input_events(kernel);
+#endif
             }
         }
 

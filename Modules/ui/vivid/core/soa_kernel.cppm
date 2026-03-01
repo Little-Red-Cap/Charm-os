@@ -1530,6 +1530,7 @@ private:
     }
 
     void input_handle_overflow() {
+        // Overflow is fail-safe: state is cleared, semantic events are not guaranteed.
 #ifndef NDEBUG
         assert(false && "SoaKernel input event overflow");
 #endif
@@ -1551,10 +1552,15 @@ private:
         input_button_ = 0;
     }
 
-    bool input_is_descendant_or_invalid(WidgetHandle node, WidgetHandle ancestor) const noexcept {
+    bool input_is_invalid(WidgetHandle node) const noexcept {
+        if (!node) return false;
+        return index_of(node) == kInvalidIndex;
+    }
+
+    bool input_is_descendant(WidgetHandle node, WidgetHandle ancestor) const noexcept {
         if (!node) return false;
         const std::uint16_t idx = index_of(node);
-        if (idx == kInvalidIndex) return true;
+        if (idx == kInvalidIndex) return false;
         const std::uint16_t anc = index_of(ancestor);
         if (anc == kInvalidIndex) return false;
         if (idx == anc) return true;
@@ -1570,11 +1576,11 @@ private:
         if (!h) return;
         const int x = input_last_x_;
         const int y = input_last_y_;
-        const bool pressed_hit = input_is_descendant_or_invalid(input_pressed_, h);
-        const bool captured_hit = input_is_descendant_or_invalid(input_captured_, h);
-        const bool hovered_hit = input_is_descendant_or_invalid(input_hovered_, h);
-        const bool focused_hit = input_is_descendant_or_invalid(input_focused_, h);
-        const bool scroll_hit = input_is_descendant_or_invalid(input_scroll_target_, h);
+        const bool pressed_hit = input_is_invalid(input_pressed_) || input_is_descendant(input_pressed_, h);
+        const bool captured_hit = input_is_invalid(input_captured_) || input_is_descendant(input_captured_, h);
+        const bool hovered_hit = input_is_invalid(input_hovered_) || input_is_descendant(input_hovered_, h);
+        const bool focused_hit = input_is_invalid(input_focused_) || input_is_descendant(input_focused_, h);
+        const bool scroll_hit = input_is_invalid(input_scroll_target_) || input_is_descendant(input_scroll_target_, h);
 
         WidgetHandle drag_target{};
         if (captured_hit && valid(input_captured_)) {

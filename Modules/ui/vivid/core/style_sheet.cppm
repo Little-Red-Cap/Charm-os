@@ -102,6 +102,12 @@ struct RolePalette {
     std::array<rgba, kRoleCount> values{};
 };
 
+export
+struct ResolvedTheme {
+    std::uint32_t version{std::numeric_limits<std::uint32_t>::max()};
+    RolePalette role_palette{};
+};
+
 inline RolePalette build_palette(const ThemeTokens& t) noexcept {
     RolePalette p{};
     p.values[role_index(StyleRole::Surface)] = t.surface;
@@ -122,6 +128,13 @@ inline RolePalette build_palette(const ThemeTokens& t) noexcept {
     p.values[role_index(StyleRole::OnDanger)] = t.on_danger;
     p.values[role_index(StyleRole::FocusRing)] = t.focus_ring;
     return p;
+}
+
+inline ResolvedTheme build_resolved_theme(const ThemeTokens& t) noexcept {
+    ResolvedTheme r{};
+    r.version = t.version;
+    r.role_palette = build_palette(t);
+    return r;
 }
 
 inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
@@ -188,7 +201,7 @@ public:
     bool apply(WidgetKind kind, const StyleState& state, Style& style) const noexcept {
         const std::uint8_t mask = state_mask(state);
         bool matched = false;
-        ensure_palette();
+        ensure_resolved_theme();
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& rule = rules_[i];
             if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
@@ -204,7 +217,7 @@ public:
             if (rule.kind == StyleRuleKind::Patch) {
                 rule.patch.apply_to(style);
             } else {
-                apply_role_patch(style, rule.role_patch, palette_);
+                apply_role_patch(style, rule.role_patch, resolved_.role_palette);
             }
         }
         return matched;
@@ -216,7 +229,7 @@ public:
                const Style& base) const noexcept {
         const std::uint8_t mask = state_mask(state);
         bool matched = false;
-        ensure_palette();
+        ensure_resolved_theme();
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& rule = rules_[i];
             if (rule.selector.kind != WidgetKind::None && rule.selector.kind != kind) {
@@ -235,7 +248,7 @@ public:
             if (rule.kind == StyleRuleKind::Patch) {
                 rule.patch.apply_to(out);
             } else {
-                apply_role_patch(out, rule.role_patch, palette_);
+                apply_role_patch(out, rule.role_patch, resolved_.role_palette);
             }
         }
         return matched;
@@ -292,20 +305,18 @@ private:
         return mask;
     }
 
-    void ensure_palette() const noexcept {
+    void ensure_resolved_theme() const noexcept {
         const auto& tokens = Theme::instance().get_tokens();
-        if (tokens.version == palette_version_) {
+        if (tokens.version == resolved_.version) {
             return;
         }
-        palette_ = build_palette(tokens);
-        palette_version_ = tokens.version;
+        resolved_ = build_resolved_theme(tokens);
     }
 
     std::array<StyleRuleEntry, 32> rules_{};
     std::size_t count_{0};
     std::uint16_t order_{0};
-    mutable RolePalette palette_{};
-    mutable std::uint32_t palette_version_{std::numeric_limits<std::uint32_t>::max()};
+    mutable ResolvedTheme resolved_{};
 };
 
 export

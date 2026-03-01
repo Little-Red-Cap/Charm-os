@@ -215,12 +215,70 @@ namespace {
         }
         return fails == 0;
     }
+
+    bool run_layout_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
+        int fails = 0;
+
+        auto layout_root = factory.create_container();
+        auto layout_box = factory.create_checkbox("Layout");
+        factory.link(root, layout_root);
+        factory.link(layout_root, layout_box);
+        kernel.set_rect(layout_root, {40, 260, 220, 120});
+        kernel.set_rect(layout_box, {10, 10, 180, 32});
+
+        gui.render();
+
+        kernel.set_layout_state_influence(false);
+        gui.render();
+        kernel.layout_trace_reset();
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: hover pass with influence off", fails);
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 60, 280, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 90, 300, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: drag invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: drag pass with influence off", fails);
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 90, 300, 1));
+        gui.dispatch_event(Event::wheel(60, 280, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: wheel invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: wheel pass with influence off", fails);
+
+        kernel.set_layout_state_influence(true);
+        gui.render();
+        kernel.layout_trace_reset();
+
+        kernel.set_focused(layout_box, true);
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() > 0, "layout: focus did not invalidate", fails);
+        expect_true(kernel.layout_pass_count() > 0, "layout: focus did not run pass", fails);
+
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() > 0, "layout: hover did not invalidate", fails);
+        expect_true(kernel.layout_pass_count() > 0, "layout: hover did not run pass", fails);
+
+        kernel.destroy(layout_box);
+        kernel.destroy(layout_root);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] layout regression OK">();
+        }
+        return fails == 0;
+    }
 #endif
 }
 
 int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     bool run_regress = false;
+    bool run_regress_layout = false;
 #else
     (void)argc;
     (void)argv;
@@ -234,6 +292,9 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (std::string_view(argv[i]) == "--soa-regress") {
             run_regress = true;
+            run_regress_layout = true;
+        } else if (std::string_view(argv[i]) == "--soa-regress-layout") {
+            run_regress_layout = true;
         }
     }
 #endif
@@ -333,6 +394,15 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         if (!run_input_regression(gui, kernel, factory, root)) {
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+    }
+    if (run_regress_layout) {
+        if (!run_layout_regression(gui, kernel, factory, root)) {
             SDL_DestroyTexture(texture);
             SDL_DestroyRenderer(renderer);
             SDL_DestroyWindow(window);

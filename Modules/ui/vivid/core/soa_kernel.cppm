@@ -1038,6 +1038,25 @@ public:
         layout_applied_version_ = v;
     }
 
+#if defined(VIVID_SOA_TRACE_INPUT)
+    void layout_trace_reset() noexcept {
+        layout_invalidated_count_ = 0;
+        layout_pass_count_ = 0;
+    }
+
+    std::uint32_t layout_invalidated_count() const noexcept {
+        return layout_invalidated_count_;
+    }
+
+    std::uint32_t layout_pass_count() const noexcept {
+        return layout_pass_count_;
+    }
+
+    void layout_trace_on_pass() noexcept {
+        layout_pass_count_ += 1u;
+    }
+#endif
+
     int compute_content_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
@@ -1107,6 +1126,10 @@ public:
     std::uint32_t layout_dirty_version_{0};
     std::uint32_t layout_applied_version_{0};
     bool layout_state_influence_{true};
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t layout_invalidated_count_{0};
+    std::uint32_t layout_pass_count_{0};
+#endif
 
     static void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
@@ -1337,6 +1360,9 @@ public:
 private:
     void mark_layout_dirty() noexcept {
         layout_dirty_version_ += 1u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        layout_invalidated_count_ += 1u;
+#endif
     }
 
     static constexpr std::size_t kWidgetKindCount =

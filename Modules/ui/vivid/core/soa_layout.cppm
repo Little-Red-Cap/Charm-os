@@ -28,6 +28,9 @@ public:
         refresh_styles();
         layout_tree(root);
         kernel_.set_layout_applied_version(dirty);
+#if defined(VIVID_SOA_TRACE_INPUT)
+        kernel_.layout_trace_on_pass();
+#endif
         tokens_version_ = tokens_version;
     }
 

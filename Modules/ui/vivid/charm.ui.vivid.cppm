@@ -19,6 +19,8 @@ export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
 export import charm.core.render_tree;
+export import charm.core.soa_kernel;
+export import charm.core.soa_gui;
 
 export import ui.render_backend;
 export import charm.gfx.canvas;

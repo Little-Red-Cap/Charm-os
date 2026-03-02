@@ -9,12 +9,9 @@ module;
 export module io.proto.modem_xymodem;
 
 import util.core;
+import io.channel;
 
 export namespace modem {
-    using ReadByteFn = bool (*)(void* ctx, util::u8& out, util::u32 timeout_ms) noexcept;
-    using WriteByteFn = void (*)(void* ctx, util::u8 byte) noexcept;
-    using WriteDataFn = void (*)(void* ctx, std::span<const util::u8> data) noexcept;
-
     enum class Status : util::u8 {
         ok,
         timeout,
@@ -31,13 +28,6 @@ export namespace modem {
         constexpr explicit operator bool() const noexcept { return status == Status::ok; }
     };
 
-    struct Callbacks {
-        void* ctx{nullptr};
-        ReadByteFn read{nullptr};
-        WriteByteFn write{nullptr};
-        WriteDataFn write_data{nullptr};
-    };
-
     struct Config {
         util::u32 timeout_ms{1000};
         util::u8 max_retries{10};
@@ -52,6 +42,12 @@ export namespace modem {
     constexpr util::u8 CAN = 0x18;
     constexpr util::u8 C = 0x43;
 
+    enum class ReadStatus : util::u8 {
+        ok,
+        timeout,
+        io_error,
+    };
+
     inline util::u16 crc16_ccitt(std::span<const util::u8> data) noexcept {
         util::u16 crc = 0;
         for (util::usize i = 0; i < data.size(); ++i) {
@@ -63,14 +59,57 @@ export namespace modem {
         return crc;
     }
 
+    inline ReadStatus read_byte(io::Channel& ch, util::u8& out, util::u32 timeout_ms) noexcept {
+        util::u32 spins = 0;
+        const auto start = io::now_ms();
+        while (true) {
+            auto r = ch.read(io::MutByteView{&out, 1});
+            if (r) {
+                if (*r == 1) return ReadStatus::ok;
+            } else {
+                const auto e = r.error();
+                if (e == io::errc::io_error || e == io::errc::closed || e == io::errc::invalid) {
+                    return ReadStatus::io_error;
+                }
+            }
+
+            if (timeout_ms == 0) return ReadStatus::timeout;
+            const auto now = io::now_ms();
+            if (start != 0 && now != 0) {
+                if (static_cast<util::u32>(now - start) >= timeout_ms) return ReadStatus::timeout;
+            } else {
+                if (++spins >= timeout_ms * 1000u) return ReadStatus::timeout;
+            }
+        }
+    }
+
+    inline bool write_byte(io::Channel& ch, util::u8 byte) noexcept {
+        auto r = ch.write(io::ByteView{&byte, 1});
+        return r && *r == 1;
+    }
+
+    inline bool write_data(io::Channel& ch, std::span<const util::u8> data) noexcept {
+        util::usize sent = 0;
+        util::u32 guard = 0;
+        while (sent < data.size()) {
+            auto r = ch.write(io::ByteView{data.data() + sent, data.size() - sent});
+            if (!r) return false;
+            if (*r == 0) {
+                if (++guard > 4) return false;
+                continue;
+            }
+            sent += *r;
+        }
+        return true;
+    }
+
     using HeaderFn = void (*)(void* ctx, std::string_view name, util::u32 size) noexcept;
 
     template <util::usize MaxBlock>
-    Result receive(const Callbacks& cb, const Config& cfg,
+    Result receive(io::Channel& ch, const Config& cfg,
                    void (*on_block)(void* ctx, std::span<const util::u8> data, util::usize len) noexcept,
                    void* out_ctx,
                    HeaderFn on_header = nullptr) noexcept {
-        if (!cb.read || !cb.write) return Result{Status::io_error, 0};
         const util::usize block_len = cfg.use_1k ? 1024 : 128;
         if (block_len > MaxBlock) return Result{Status::format_error, 0};
 
@@ -78,53 +117,55 @@ export namespace modem {
         util::u32 total = 0;
         util::u8 retries = 0;
 
-        cb.write(cb.ctx, C);
+        if (!write_byte(ch, C)) return Result{Status::io_error, 0};
 
         std::array<util::u8, MaxBlock> block{};
         while (true) {
-            util::u8 ch{};
-            if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) {
+            util::u8 byte{};
+            const auto r = read_byte(ch, byte, cfg.timeout_ms);
+            if (r == ReadStatus::timeout) {
                 if (++retries > cfg.max_retries) return Result{Status::timeout, total};
-                cb.write(cb.ctx, C);
+                (void)write_byte(ch, C);
                 continue;
             }
+            if (r == ReadStatus::io_error) return Result{Status::io_error, total};
 
-            if (ch == CAN) return Result{Status::cancel, total};
-            if (ch == EOT) {
-                cb.write(cb.ctx, ACK);
+            if (byte == CAN) return Result{Status::cancel, total};
+            if (byte == EOT) {
+                (void)write_byte(ch, ACK);
                 return Result{Status::ok, total};
             }
 
-            if (ch != SOH && ch != STX) {
-                cb.write(cb.ctx, NAK);
+            if (byte != SOH && byte != STX) {
+                (void)write_byte(ch, NAK);
                 continue;
             }
 
-            const util::usize expect_len = (ch == STX) ? 1024 : 128;
+            const util::usize expect_len = (byte == STX) ? 1024 : 128;
             if (expect_len > MaxBlock) return Result{Status::format_error, total};
 
             util::u8 seq = 0;
             util::u8 seq_inv = 0;
-            if (!cb.read(cb.ctx, seq, cfg.timeout_ms)) return Result{Status::timeout, total};
-            if (!cb.read(cb.ctx, seq_inv, cfg.timeout_ms)) return Result{Status::timeout, total};
+            if (read_byte(ch, seq, cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
+            if (read_byte(ch, seq_inv, cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
 
             for (util::usize i = 0; i < expect_len; ++i) {
-                if (!cb.read(cb.ctx, block[i], cfg.timeout_ms)) return Result{Status::timeout, total};
+                if (read_byte(ch, block[i], cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
             }
 
             util::u8 crc_hi = 0;
             util::u8 crc_lo = 0;
-            if (!cb.read(cb.ctx, crc_hi, cfg.timeout_ms)) return Result{Status::timeout, total};
-            if (!cb.read(cb.ctx, crc_lo, cfg.timeout_ms)) return Result{Status::timeout, total};
+            if (read_byte(ch, crc_hi, cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
+            if (read_byte(ch, crc_lo, cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
             const util::u16 got_crc = (static_cast<util::u16>(crc_hi) << 8) | crc_lo;
             const util::u16 calc_crc = crc16_ccitt(std::span<const util::u8>(block.data(), expect_len));
 
             if (seq != static_cast<util::u8>(~seq_inv)) {
-                cb.write(cb.ctx, NAK);
+                (void)write_byte(ch, NAK);
                 continue;
             }
             if (got_crc != calc_crc) {
-                cb.write(cb.ctx, NAK);
+                (void)write_byte(ch, NAK);
                 continue;
             }
 
@@ -135,7 +176,7 @@ export namespace modem {
                     ++name_len;
                 }
                 if (name_len == 0) {
-                    cb.write(cb.ctx, ACK);
+                    (void)write_byte(ch, ACK);
                     return Result{Status::ok, total};
                 }
                 const std::string_view fname{base, name_len};
@@ -148,13 +189,13 @@ export namespace modem {
                     ++pos;
                 }
                 on_header(out_ctx, fname, fsize);
-                cb.write(cb.ctx, ACK);
-                cb.write(cb.ctx, C);
+                (void)write_byte(ch, ACK);
+                (void)write_byte(ch, C);
                 retries = 0;
                 continue;
             }
             if (seq == static_cast<util::u8>(blk - 1)) {
-                cb.write(cb.ctx, ACK);
+                (void)write_byte(ch, ACK);
                 continue;
             }
             if (seq == blk) {
@@ -162,16 +203,15 @@ export namespace modem {
                 total += static_cast<util::u32>(expect_len);
                 ++blk;
             }
-            cb.write(cb.ctx, ACK);
+            (void)write_byte(ch, ACK);
             retries = 0;
         }
     }
 
     template <util::usize MaxBlock>
-    Result send(const Callbacks& cb, const Config& cfg,
+    Result send(io::Channel& ch, const Config& cfg,
                 bool (*next_block)(void* ctx, std::span<util::u8> out, util::usize& len) noexcept,
                 void* in_ctx) noexcept {
-        if (!cb.read || !cb.write || !cb.write_data) return Result{Status::io_error, 0};
         const util::usize block_len = cfg.use_1k ? 1024 : 128;
         if (block_len > MaxBlock) return Result{Status::format_error, 0};
 
@@ -179,23 +219,25 @@ export namespace modem {
         util::u8 blk = 1;
         util::u8 retries = 0;
 
-        util::u8 ch{};
+        util::u8 byte{};
         while (true) {
-            if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) {
+            const auto r = read_byte(ch, byte, cfg.timeout_ms);
+            if (r == ReadStatus::timeout) {
                 if (++retries > cfg.max_retries) return Result{Status::timeout, total};
                 continue;
             }
-            if (ch == C || ch == NAK) break;
-            if (ch == CAN) return Result{Status::cancel, total};
+            if (r == ReadStatus::io_error) return Result{Status::io_error, total};
+            if (byte == C || byte == NAK) break;
+            if (byte == CAN) return Result{Status::cancel, total};
         }
 
         std::array<util::u8, MaxBlock> block{};
         while (true) {
             util::usize len = 0;
             if (!next_block(in_ctx, std::span<util::u8>(block.data(), block_len), len)) {
-                cb.write(cb.ctx, EOT);
-                if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) return Result{Status::timeout, total};
-                if (ch == ACK) return Result{Status::ok, total};
+                (void)write_byte(ch, EOT);
+                if (read_byte(ch, byte, cfg.timeout_ms) != ReadStatus::ok) return Result{Status::timeout, total};
+                if (byte == ACK) return Result{Status::ok, total};
                 return Result{Status::io_error, total};
             }
             if (len < block_len) {
@@ -203,29 +245,31 @@ export namespace modem {
             }
 
             const util::u8 head = (block_len == 1024) ? STX : SOH;
-            cb.write(cb.ctx, head);
-            cb.write(cb.ctx, blk);
-            cb.write(cb.ctx, static_cast<util::u8>(~blk));
-            cb.write_data(cb.ctx, std::span<const util::u8>(block.data(), block_len));
+            (void)write_byte(ch, head);
+            (void)write_byte(ch, blk);
+            (void)write_byte(ch, static_cast<util::u8>(~blk));
+            if (!write_data(ch, std::span<const util::u8>(block.data(), block_len))) {
+                return Result{Status::io_error, total};
+            }
             const util::u16 crc = crc16_ccitt(std::span<const util::u8>(block.data(), block_len));
-            cb.write(cb.ctx, static_cast<util::u8>(crc >> 8));
-            cb.write(cb.ctx, static_cast<util::u8>(crc & 0xFF));
+            (void)write_byte(ch, static_cast<util::u8>(crc >> 8));
+            (void)write_byte(ch, static_cast<util::u8>(crc & 0xFF));
 
-            if (!cb.read(cb.ctx, ch, cfg.timeout_ms)) {
+            if (read_byte(ch, byte, cfg.timeout_ms) != ReadStatus::ok) {
                 if (++retries > cfg.max_retries) return Result{Status::timeout, total};
                 continue;
             }
-            if (ch == ACK) {
+            if (byte == ACK) {
                 total += static_cast<util::u32>(block_len);
                 ++blk;
                 retries = 0;
                 continue;
             }
-            if (ch == NAK) {
+            if (byte == NAK) {
                 if (++retries > cfg.max_retries) return Result{Status::retries_exhausted, total};
                 continue;
             }
-            if (ch == CAN) return Result{Status::cancel, total};
+            if (byte == CAN) return Result{Status::cancel, total};
         }
     }
 }

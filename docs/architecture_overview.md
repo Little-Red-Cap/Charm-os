@@ -78,6 +78,8 @@ Draft/        # 计划/草案（可变动）
 - FatFs 示例：`docs/fs_fatfs_demo.md`
 - Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
 - IO Channel：`Modules/io/channel/io.channel.cppm`
+- IO Channel 契约：`docs/io_channel_contract.md`
+- IO Reactor：`Modules/io/reactor/io.reactor.cppm`
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`

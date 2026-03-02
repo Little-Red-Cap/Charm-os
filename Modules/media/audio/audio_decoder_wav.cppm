@@ -57,10 +57,10 @@ export namespace audio {
         detail::RiffHeader riff{};
         auto read_riff = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&riff), sizeof(riff)));
         if (!read_riff || *read_riff != sizeof(riff)) {
-            return unexpected(Err{Errc::invalid_arg, 0});
+            return unexpected(Errc::invalid_arg);
         }
         if (!detail::match_id(riff.riff, "RIFF") || !detail::match_id(riff.wave, "WAVE")) {
-            return unexpected(Err{Errc::invalid_arg, 0});
+            return unexpected(Errc::invalid_arg);
         }
 
         WavInfo info{};
@@ -74,12 +74,12 @@ export namespace audio {
 
             if (detail::match_id(ch.id, "fmt ")) {
                 if (ch.size < sizeof(detail::FmtChunk)) {
-                    return unexpected(Err{Errc::invalid_arg, 0});
+                    return unexpected(Errc::invalid_arg);
                 }
                 detail::FmtChunk fmt{};
                 auto read_fmt = src.read(std::span<std::byte>(reinterpret_cast<std::byte*>(&fmt), sizeof(fmt)));
                 if (!read_fmt || *read_fmt != sizeof(fmt)) {
-                    return unexpected(Err{Errc::io_error, 0});
+                    return unexpected(Errc::io_error);
                 }
                 const auto skip = static_cast<std::int64_t>(ch.size - sizeof(fmt));
                 if (skip > 0) {
@@ -87,7 +87,7 @@ export namespace audio {
                     if (!sk) return unexpected(sk.error());
                 }
                 if (fmt.audio_format != 1) {
-                    return unexpected(Err{Errc::not_supported, 0});
+                    return unexpected(Errc::not_supported);
                 }
                 info.channels = fmt.channels;
                 info.sample_rate = fmt.sample_rate;
@@ -110,7 +110,7 @@ export namespace audio {
         }
 
         if (!got_fmt || !got_data) {
-            return unexpected(Err{Errc::invalid_arg, 0});
+            return unexpected(Errc::invalid_arg);
         }
 
         return info;
@@ -136,14 +136,14 @@ export namespace audio {
         }
 
         Result<void> reset() noexcept {
-            if (!src_.ops || !opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_.ops || !opened_) return unexpected(Errc::bad_state);
             auto res = src_.seek(static_cast<std::int64_t>(info_.data_offset), media::SeekWhence::set);
             return res ? Result<void>{} : unexpected(res.error());
         }
 
         Result<media::FilterResult> process(std::span<const std::byte>,
                                             std::span<std::byte> out) noexcept {
-            if (!src_.ops || !opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_.ops || !opened_) return unexpected(Errc::bad_state);
             if (out.empty()) return media::FilterResult{};
             auto pos = src_.tell();
             if (!pos) return unexpected(pos.error());

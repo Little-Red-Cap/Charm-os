@@ -7,7 +7,7 @@
 - service_json: 最小 JSON writer
 
 ## Shell 选型（MVP）
-- shell_core: Errno/Result + Console
+- shell_core: Errc/Result + Console
 - shell_time: time/delay 接口
 - shell_stdio: 最小 write 接口
 

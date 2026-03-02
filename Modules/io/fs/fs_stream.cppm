@@ -12,8 +12,8 @@ import fs_errno;
 
 export namespace fs {
     struct Status {
-        Err err{Err::ok};
-        constexpr explicit operator bool() const noexcept { return err == Err::ok; }
+        Errc err{Errc::ok};
+        constexpr explicit operator bool() const noexcept { return err == Errc::ok; }
     };
 
     template <typename T>

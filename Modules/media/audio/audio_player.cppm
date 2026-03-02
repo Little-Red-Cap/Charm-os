@@ -263,14 +263,14 @@ export namespace audio {
         ~AudioPlayer() { stop_internal(); }
 
         Result<void> play(const char* path) {
-            if (!path || !*path) return unexpected(Err{Errc::invalid_arg, 0});
+            if (!path || !*path) return unexpected(Errc::invalid_arg);
             Command cmd{};
             cmd.type = CommandType::play;
             if (!cmd.path.assign(path)) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
@@ -279,7 +279,7 @@ export namespace audio {
             Command cmd{};
             cmd.type = CommandType::stop;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
@@ -288,7 +288,7 @@ export namespace audio {
             Command cmd{};
             cmd.type = CommandType::pause;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
@@ -297,7 +297,7 @@ export namespace audio {
             Command cmd{};
             cmd.type = CommandType::resume;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
@@ -307,46 +307,46 @@ export namespace audio {
             cmd.type = CommandType::set_eq;
             cmd.eq = eq;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
 
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Errc::bad_state);
             }
             if (!is_wav_ && !is_flac_ && !is_mp3_) {
-                return unexpected(Err{Errc::not_supported, 0});
+                return unexpected(Errc::not_supported);
             }
             if (total_frames_ == 0) {
-                return unexpected(Err{Errc::not_supported, 0});
+                return unexpected(Errc::not_supported);
             }
             Command cmd{};
             cmd.type = CommandType::seek_ms;
             cmd.seek_ms = ms;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
 
         Result<void> reconfigure_format(const AudioFormat& input_fmt) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Errc::bad_state);
             }
             Command cmd{};
             cmd.type = CommandType::reconfigure;
             cmd.fmt = input_fmt;
             if (!queue_.push(cmd)) {
-                return unexpected(Err{Errc::timeout, 0});
+                return unexpected(Errc::timeout);
             }
             return {};
         }
 
         Result<void> reconfigure_output(std::uint32_t fixed_rate, std::uint32_t fade_in_ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
-                return unexpected(Err{Errc::bad_state, 0});
+                return unexpected(Errc::bad_state);
             }
             config_.fade_in_ms = fade_in_ms;
             if (fixed_rate == 0) {
@@ -426,7 +426,8 @@ export namespace audio {
 
         AudioFormat input_format() const noexcept { return input_fmt_; }
 
-        Err last_error() const noexcept { return last_err_; }
+        Errc last_error() const noexcept { return last_err_; }
+        PlayerErrorStage last_error_stage() const noexcept { return last_err_stage_; }
 
         EqConfig eq_config() const noexcept { return eq_; }
 
@@ -636,7 +637,8 @@ export namespace audio {
         void handle_play(const char* path) {
             stop_internal();
             state_ = PlayerState::opening;
-            last_err_ = Err{};
+            last_err_ = Errc::ok;
+            last_err_stage_ = PlayerErrorStage::none;
 
             if (!src_.open(path)) {
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
@@ -958,7 +960,8 @@ export namespace audio {
             resample_enabled_ = false;
             resample_cache_frames_ = 0;
             last_decode_eos_ = false;
-            last_err_ = Err{};
+            last_err_ = Errc::ok;
+            last_err_stage_ = PlayerErrorStage::none;
             for (auto& biquad : eq_biquads_) {
                 biquad.enabled = false;
                 biquad.reset();
@@ -971,7 +974,8 @@ export namespace audio {
         }
 
         void set_error(Errc code, PlayerErrorStage stage) noexcept {
-            last_err_ = Err{code, static_cast<std::uint16_t>(stage)};
+            last_err_ = code;
+            last_err_stage_ = stage;
             state_ = PlayerState::error;
         }
 
@@ -1411,7 +1415,8 @@ export namespace audio {
         std::size_t data_size_{0};
         std::size_t remaining_bytes_{0};
         std::uint64_t total_frames_{0};
-        Err last_err_{};
+        Errc last_err_{Errc::ok};
+        PlayerErrorStage last_err_stage_{PlayerErrorStage::none};
         EqConfig eq_{};
         std::array<Biquad, EqConfig::max_bands> eq_biquads_{};
         bool eq_ready_{false};

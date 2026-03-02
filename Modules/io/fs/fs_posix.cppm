@@ -41,7 +41,7 @@ export namespace fs_posix {
         }
 
         static int open(const char* path, int flags) noexcept {
-            if (!path) return -static_cast<int>(fs::Err::inval);
+            if (!path) return -static_cast<int>(fs::Errc::inval);
             auto idx = alloc_fd();
             if (idx < 0) return idx;
             fs::OpenFlags oflags = fs::OpenFlags::read;
@@ -81,14 +81,14 @@ export namespace fs_posix {
         }
 
         static int close(int fd) noexcept {
-            if (!valid(fd)) return -static_cast<int>(fs::Err::inval);
+            if (!valid(fd)) return -static_cast<int>(fs::Errc::inval);
             auto st = fs::vfs_close(fds_[fd].file);
             fds_[fd].used = false;
             return st ? 0 : -static_cast<int>(st.err);
         }
 
         static int read(int fd, void* buf, std::size_t n) noexcept {
-            if (!valid(fd) || !buf) return -static_cast<int>(fs::Err::inval);
+            if (!valid(fd) || !buf) return -static_cast<int>(fs::Errc::inval);
             auto& file = fds_[fd].file;
             const auto before = file.node.offset;
             auto st = fs::vfs_read(file, std::span<util::u8>(reinterpret_cast<util::u8*>(buf), n));
@@ -99,7 +99,7 @@ export namespace fs_posix {
         }
 
         static int write(int fd, const void* buf, std::size_t n) noexcept {
-            if (!valid(fd) || !buf) return -static_cast<int>(fs::Err::inval);
+            if (!valid(fd) || !buf) return -static_cast<int>(fs::Errc::inval);
             auto& file = fds_[fd].file;
             const auto before = file.node.offset;
             auto st = fs::vfs_write(file, std::span<const util::u8>(reinterpret_cast<const util::u8*>(buf), n));
@@ -114,7 +114,7 @@ export namespace fs_posix {
         }
 
         static int lseek(int fd, std::int64_t off, int whence) noexcept {
-            if (!valid(fd)) return -static_cast<int>(fs::Err::inval);
+            if (!valid(fd)) return -static_cast<int>(fs::Errc::inval);
             auto& file = fds_[fd].file;
             std::int64_t base = 0;
             switch (whence) {
@@ -128,29 +128,29 @@ export namespace fs_posix {
                 base = file.node.size;
                 break;
             default:
-                return -static_cast<int>(fs::Err::inval);
+                return -static_cast<int>(fs::Errc::inval);
             }
             const auto target = base + off;
-            if (target < 0) return -static_cast<int>(fs::Err::inval);
+            if (target < 0) return -static_cast<int>(fs::Errc::inval);
             auto st = fs::vfs_seek(file, target);
             if (!st) return -static_cast<int>(st.err);
             return static_cast<int>(file.node.offset);
         }
 
         static int unlink(const char* path) noexcept {
-            if (!path) return -static_cast<int>(fs::Err::inval);
+            if (!path) return -static_cast<int>(fs::Errc::inval);
             auto st = fs::vfs_unlink(path);
             return st ? 0 : -static_cast<int>(st.err);
         }
 
         static int rename(const char* from, const char* to) noexcept {
-            if (!from || !to) return -static_cast<int>(fs::Err::inval);
+            if (!from || !to) return -static_cast<int>(fs::Errc::inval);
             auto st = fs::vfs_rename(from, to);
             return st ? 0 : -static_cast<int>(st.err);
         }
 
         static int truncate(const char* path, std::uint64_t size) noexcept {
-            if (!path) return -static_cast<int>(fs::Err::inval);
+            if (!path) return -static_cast<int>(fs::Errc::inval);
             auto st = fs::vfs_truncate(path, size);
             return st ? 0 : -static_cast<int>(st.err);
         }
@@ -167,7 +167,7 @@ export namespace fs_posix {
                     return static_cast<int>(i);
                 }
             }
-            return -static_cast<int>(fs::Err::busy);
+            return -static_cast<int>(fs::Errc::busy);
         }
 
         static inline std::array<FileDesc, MaxFd> fds_{};

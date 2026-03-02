@@ -34,11 +34,11 @@ export namespace fs {
     }
 
     inline Status add_mount(std::string_view prefix, Mount* m) noexcept {
-        if (!m) return Status{Err::inval};
-        if (g_mount_count >= max_mounts) return Status{Err::busy};
+        if (!m) return Status{Errc::inval};
+        if (g_mount_count >= max_mounts) return Status{Errc::busy};
         auto norm = normalize(prefix);
         g_mounts[g_mount_count++] = MountPoint{std::string_view{norm.data, norm.size}, m};
-        return Status{Err::ok};
+        return Status{Errc::ok};
     }
 
     inline Status remove_mount(std::string_view prefix) noexcept {
@@ -51,10 +51,10 @@ export namespace fs {
                 }
                 g_mounts[g_mount_count - 1] = MountPoint{};
                 --g_mount_count;
-                return Status{Err::ok};
+                return Status{Errc::ok};
             }
         }
-        return Status{Err::noent};
+        return Status{Errc::noent};
     }
 
     inline Status vfs_flush(std::string_view prefix) noexcept {
@@ -63,13 +63,13 @@ export namespace fs {
         for (std::size_t i = 0; i < g_mount_count; ++i) {
             if (g_mounts[i].prefix == pre) {
                 auto* m = g_mounts[i].mount;
-                if (!m || !m->ops || !m->ops->flush) return Status{Err::nosys};
+                if (!m || !m->ops || !m->ops->flush) return Status{Errc::nosys};
                 auto st = m->ops->flush(m);
                 if (st) clear_dirty(m);
                 return st;
             }
         }
-        return Status{Err::noent};
+        return Status{Errc::noent};
     }
 
     inline bool vfs_is_dirty(std::string_view prefix) noexcept {
@@ -98,10 +98,10 @@ export namespace fs {
                 }
                 g_mounts[g_mount_count - 1] = MountPoint{};
                 --g_mount_count;
-                return Status{Err::ok};
+                return Status{Errc::ok};
             }
         }
-        return Status{Err::noent};
+        return Status{Errc::noent};
     }
 
     inline std::size_t mount_count() noexcept { return g_mount_count; }
@@ -141,7 +141,7 @@ export namespace fs {
     inline Status vfs_open(std::string_view path, File& f, OpenFlags flags) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
-        if (!chosen || !chosen->ops || !chosen->ops->open) return Status{Err::nosys};
+        if (!chosen || !chosen->ops || !chosen->ops->open) return Status{Errc::nosys};
 
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};
@@ -182,7 +182,7 @@ export namespace fs {
     inline Status vfs_unlink(std::string_view path) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
-        if (!chosen || !chosen->ops || !chosen->ops->unlink) return Status{Err::nosys};
+        if (!chosen || !chosen->ops || !chosen->ops->unlink) return Status{Errc::nosys};
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};
         std::string_view rest = p.substr(prefix.size());
@@ -196,7 +196,7 @@ export namespace fs {
     inline Status vfs_truncate(std::string_view path, util::u64 size) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
-        if (!chosen || !chosen->ops || !chosen->ops->truncate) return Status{Err::nosys};
+        if (!chosen || !chosen->ops || !chosen->ops->truncate) return Status{Errc::nosys};
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};
         std::string_view rest = p.substr(prefix.size());
@@ -210,7 +210,7 @@ export namespace fs {
     inline Status vfs_mkdir(std::string_view path) noexcept {
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
-        if (!chosen || !chosen->ops || !chosen->ops->mkdir) return Status{Err::nosys};
+        if (!chosen || !chosen->ops || !chosen->ops->mkdir) return Status{Errc::nosys};
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};
         std::string_view rest = p.substr(prefix.size());
@@ -226,9 +226,9 @@ export namespace fs {
         std::string_view prefix_to{};
         auto* src = find_mount(from, prefix_from);
         auto* dst = find_mount(to, prefix_to);
-        if (!src || !dst) return Status{Err::noent};
-        if (src != dst) return Status{Err::notsup};
-        if (!src->ops || !src->ops->rename) return Status{Err::nosys};
+        if (!src || !dst) return Status{Errc::noent};
+        if (src != dst) return Status{Errc::notsup};
+        if (!src->ops || !src->ops->rename) return Status{Errc::nosys};
         auto norm_from = normalize(from);
         std::string_view pfrom{norm_from.data, norm_from.size};
         std::string_view rest_from = pfrom.substr(prefix_from.size());
@@ -245,10 +245,10 @@ export namespace fs {
     }
 
     inline Status vfs_list(std::string_view path, void* ctx, MountOps::ListFn fn) noexcept {
-        if (!fn) return Status{Err::inval};
+        if (!fn) return Status{Errc::inval};
         std::string_view prefix{};
         auto* chosen = find_mount(path, prefix);
-        if (!chosen || !chosen->ops || !chosen->ops->list) return Status{Err::nosys};
+        if (!chosen || !chosen->ops || !chosen->ops->list) return Status{Errc::nosys};
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};
         std::string_view rest = p.substr(prefix.size());

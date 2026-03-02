@@ -85,23 +85,23 @@ export namespace shell_service {
     }
 
     inline shell::Result cmd_jobs(shell::Console& con, int, std::span<std::string_view>) noexcept {
-        if (!g_jobs) return shell::err(shell::Errno::nosys);
+        if (!g_jobs) return shell::err(shell::Errc::nosys);
         g_jobs->list(con);
         return shell::ok();
     }
 
     inline shell::Result cmd_start(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-        if (!g_jobs) return shell::err(shell::Errno::nosys);
-        if (argc < 2) return shell::err(shell::Errno::inval);
+        if (!g_jobs) return shell::err(shell::Errc::nosys);
+        if (argc < 2) return shell::err(shell::Errc::inval);
         const auto id = g_jobs->start(argv[1]);
-        return id == 0 ? shell::err(shell::Errno::busy) : shell::ok();
+        return id == 0 ? shell::err(shell::Errc::busy) : shell::ok();
     }
 
     inline shell::Result cmd_stop(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-        if (!g_jobs) return shell::err(shell::Errno::nosys);
-        if (argc < 2) return shell::err(shell::Errno::inval);
+        if (!g_jobs) return shell::err(shell::Errc::nosys);
+        if (argc < 2) return shell::err(shell::Errc::inval);
         const auto id = static_cast<util::u32>(std::strtoul(argv[1].data(), nullptr, 10));
-        return g_jobs->stop(id) ? shell::ok() : shell::err(shell::Errno::noent);
+        return g_jobs->stop(id) ? shell::ok() : shell::err(shell::Errc::noent);
     }
 
     struct VarsEntry {
@@ -170,17 +170,17 @@ export namespace shell_service {
 
     template <util::usize MaxVars>
     inline shell::Result cmd_set(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-        if (!g_vars<MaxVars>) return shell::err(shell::Errno::nosys);
-        if (argc < 3) return shell::err(shell::Errno::inval);
-        return g_vars<MaxVars>->set(argv[1], argv[2]) ? shell::ok() : shell::err(shell::Errno::busy);
+        if (!g_vars<MaxVars>) return shell::err(shell::Errc::nosys);
+        if (argc < 3) return shell::err(shell::Errc::inval);
+        return g_vars<MaxVars>->set(argv[1], argv[2]) ? shell::ok() : shell::err(shell::Errc::busy);
     }
 
     template <util::usize MaxVars>
     inline shell::Result cmd_get(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
-        if (!g_vars<MaxVars>) return shell::err(shell::Errno::nosys);
-        if (argc < 2) return shell::err(shell::Errno::inval);
+        if (!g_vars<MaxVars>) return shell::err(shell::Errc::nosys);
+        if (argc < 2) return shell::err(shell::Errc::inval);
         const auto val = g_vars<MaxVars>->get(argv[1]);
-        if (val.empty()) return shell::err(shell::Errno::noent);
+        if (val.empty()) return shell::err(shell::Errc::noent);
         (void)shell::write(con, val);
         (void)shell::write(con, "\n");
         return shell::ok();
@@ -188,7 +188,7 @@ export namespace shell_service {
 
     template <util::usize MaxVars>
     inline shell::Result cmd_vars(shell::Console& con, int, std::span<std::string_view>) noexcept {
-        if (!g_vars<MaxVars>) return shell::err(shell::Errno::nosys);
+        if (!g_vars<MaxVars>) return shell::err(shell::Errc::nosys);
         g_vars<MaxVars>->list(con);
         return shell::ok();
     }
@@ -253,13 +253,13 @@ export namespace shell_service {
 
     template <util::usize MaxAliases>
     inline shell::Result cmd_alias(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
-        if (!g_alias<MaxAliases>) return shell::err(shell::Errno::nosys);
+        if (!g_alias<MaxAliases>) return shell::err(shell::Errc::nosys);
         if (argc == 1) {
             g_alias<MaxAliases>->list(con);
             return shell::ok();
         }
-        if (argc < 3) return shell::err(shell::Errno::inval);
-        return g_alias<MaxAliases>->set(argv[1], argv[2]) ? shell::ok() : shell::err(shell::Errno::busy);
+        if (argc < 3) return shell::err(shell::Errc::inval);
+        return g_alias<MaxAliases>->set(argv[1], argv[2]) ? shell::ok() : shell::err(shell::Errc::busy);
     }
 
     template <shell::Result (*Runner)(shell::Console&, std::string_view) noexcept>

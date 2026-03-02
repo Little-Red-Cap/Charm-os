@@ -1,4 +1,6 @@
 import io.proto.modem_xymodem;
+import io.channel;
+import io.channel.adapters;
 import out.api;
 import util.core;
 
@@ -9,6 +11,7 @@ import util.core;
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <cstdio>
 #include <thread>
 #include <vector>
 
@@ -18,13 +21,8 @@ namespace {
         std::condition_variable cv;
         std::deque<util::u8> q;
 
-        bool read_byte(util::u8& out, util::u32 timeout_ms) {
-            std::unique_lock<std::mutex> lock(mu);
-            if (q.empty()) {
-                if (cv.wait_for(lock, std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout) {
-                    return false;
-                }
-            }
+        bool try_read_byte(util::u8& out) {
+            std::lock_guard<std::mutex> lock(mu);
             if (q.empty()) return false;
             out = q.front();
             q.pop_front();
@@ -55,37 +53,72 @@ namespace {
 }
 
 int main() {
+    struct StdoutCtx {};
+    StdoutCtx stdout_ctx{};
+    io::UartChannel<StdoutCtx> stdout_ch{};
+    stdout_ch.ctx = &stdout_ctx;
+    stdout_ch.read = [](void*, io::MutByteView) noexcept -> io::result {
+        return io::fail(io::errc::would_block);
+    };
+    stdout_ch.write = [](void*, io::ByteView buf) noexcept -> io::result {
+        if (buf.empty()) return io::ok(0);
+        const auto n = std::fwrite(buf.data(), 1, buf.size(), stdout);
+        std::fflush(stdout);
+        return io::ok(static_cast<util::usize>(n));
+    };
+    stdout_ch.flush = [](void*) noexcept -> io::result {
+        std::fflush(stdout);
+        return io::ok(0);
+    };
+    auto console = stdout_ch.channel();
+    io::set_default_console_channel(&console);
+
     Duplex link{};
 
-    modem::Callbacks sender_cb{};
-    sender_cb.ctx = &link;
-    sender_cb.read = [](void* ctx, util::u8& out, util::u32 timeout_ms) noexcept {
-        auto* l = static_cast<Duplex*>(ctx);
-        return l->b_to_a.read_byte(out, timeout_ms);
+    auto now_ms = [](void*) noexcept -> io::tick_t {
+        using clock = std::chrono::steady_clock;
+        static const auto start = clock::now();
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count();
+        return static_cast<io::tick_t>(ms);
     };
-    sender_cb.write = [](void* ctx, util::u8 byte) noexcept {
-        auto* l = static_cast<Duplex*>(ctx);
-        l->a_to_b.write_byte(byte);
-    };
-    sender_cb.write_data = [](void* ctx, std::span<const util::u8> data) noexcept {
-        auto* l = static_cast<Duplex*>(ctx);
-        l->a_to_b.write_data(data);
-    };
+    io::set_now_ms_provider(now_ms, nullptr);
 
-    modem::Callbacks receiver_cb{};
-    receiver_cb.ctx = &link;
-    receiver_cb.read = [](void* ctx, util::u8& out, util::u32 timeout_ms) noexcept {
+    io::UartChannel<Duplex> sender{};
+    sender.ctx = &link;
+    sender.read = [](void* ctx, io::MutByteView buf) noexcept -> io::result {
+        if (buf.empty()) return io::ok(0);
         auto* l = static_cast<Duplex*>(ctx);
-        return l->a_to_b.read_byte(out, timeout_ms);
+        util::u8 b = 0;
+        if (!l->b_to_a.try_read_byte(b)) return io::fail(io::errc::would_block);
+        buf[0] = b;
+        return io::ok(1);
     };
-    receiver_cb.write = [](void* ctx, util::u8 byte) noexcept {
+    sender.write = [](void* ctx, io::ByteView buf) noexcept -> io::result {
         auto* l = static_cast<Duplex*>(ctx);
-        l->b_to_a.write_byte(byte);
+        l->a_to_b.write_data(std::span<const util::u8>(buf.data(), buf.size()));
+        return io::ok(buf.size());
     };
-    receiver_cb.write_data = [](void* ctx, std::span<const util::u8> data) noexcept {
+    sender.flush = [](void*) noexcept -> io::result { return io::ok(0); };
+
+    io::UartChannel<Duplex> receiver{};
+    receiver.ctx = &link;
+    receiver.read = [](void* ctx, io::MutByteView buf) noexcept -> io::result {
+        if (buf.empty()) return io::ok(0);
         auto* l = static_cast<Duplex*>(ctx);
-        l->b_to_a.write_data(data);
+        util::u8 b = 0;
+        if (!l->a_to_b.try_read_byte(b)) return io::fail(io::errc::would_block);
+        buf[0] = b;
+        return io::ok(1);
     };
+    receiver.write = [](void* ctx, io::ByteView buf) noexcept -> io::result {
+        auto* l = static_cast<Duplex*>(ctx);
+        l->b_to_a.write_data(std::span<const util::u8>(buf.data(), buf.size()));
+        return io::ok(buf.size());
+    };
+    receiver.flush = [](void*) noexcept -> io::result { return io::ok(0); };
+
+    auto sender_ch = sender.channel();
+    auto receiver_ch = receiver.channel();
 
     std::array<util::u8, 2048> payload{};
     for (util::usize i = 0; i < payload.size(); ++i) {
@@ -102,7 +135,7 @@ int main() {
 
     std::thread receiver([&] {
         auto res = modem::receive<1024>(
-            receiver_cb,
+            receiver_ch,
             cfg,
             [](void* ctx, std::span<const util::u8> data, util::usize len) noexcept {
                 auto* vec = static_cast<std::vector<util::u8>*>(ctx);
@@ -121,7 +154,7 @@ int main() {
 
     std::thread sender([&] {
         auto res = modem::send<1024>(
-            sender_cb,
+            sender_ch,
             cfg,
             [](void* ctx, std::span<util::u8> out, util::usize& len) noexcept {
                 auto* state = static_cast<SendState*>(ctx);

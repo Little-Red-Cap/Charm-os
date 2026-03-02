@@ -24,7 +24,7 @@ export namespace fs {
             const auto st = file_.open(path, block_size);
             if (!st) return st;
             mal_ = make_mal_from_block(file_.device(), MalKind::file);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         void close() noexcept {

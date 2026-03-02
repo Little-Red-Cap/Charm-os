@@ -51,12 +51,12 @@ export namespace audio {
             callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
             period_frames_ = period;
             if (callback_bytes_ > scratch_.size()) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             scratch_size_ = callback_bytes_;
 
             if (!SDL_Init(SDL_INIT_AUDIO)) {
-                return unexpected(Err{Errc::io_error, 1});
+                return unexpected(Errc::io_error);
             }
 
             spec_.freq = static_cast<int>(fmt_.rate);
@@ -65,7 +65,7 @@ export namespace audio {
 
             stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec_, &Sdl3AudioSink::sdl_audio_callback, this);
             if (!stream_) {
-                return unexpected(Err{Errc::io_error, 2});
+                return unexpected(Errc::io_error);
             }
 
             if (spec_.freq > 0) {
@@ -83,13 +83,13 @@ export namespace audio {
         }
 
         Result<void> start() noexcept {
-            if (!stream_) return unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Errc::io_error);
             SDL_ResumeAudioStreamDevice(stream_);
             return {};
         }
 
         Result<void> stop() noexcept {
-            if (!stream_) return unexpected(Err{Errc::io_error, 3});
+            if (!stream_) return unexpected(Errc::io_error);
             SDL_PauseAudioStreamDevice(stream_);
             return {};
         }

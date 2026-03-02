@@ -69,7 +69,7 @@ export namespace audio {
                 mp3_detail::SourceOps<Source>::on_seek,
                 mp3_detail::SourceOps<Source>::on_tell,
                 nullptr, src_, nullptr)) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             Mp3Info info{};
             info.sample_rate = mp3_.sampleRate;
@@ -78,15 +78,15 @@ export namespace audio {
         }
 
         Result<std::size_t> read_s16(std::int16_t* out, std::size_t frames) {
-            if (!src_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_) return unexpected(Errc::bad_state);
             const auto read = drmp3_read_pcm_frames_s16(&mp3_, frames, out);
             return static_cast<std::size_t>(read);
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) {
-            if (!src_) return unexpected(Err{Errc::bad_state, 0});
+            if (!src_) return unexpected(Errc::bad_state);
             const auto ok = drmp3_seek_to_pcm_frame(&mp3_, static_cast<drmp3_uint64>(frame));
-            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+            return ok ? Result<void>{} : unexpected(Errc::invalid_arg);
         }
 
         std::uint64_t total_frames() const noexcept {
@@ -125,15 +125,15 @@ export namespace audio {
         }
 
         Result<void> reset() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(0);
         }
 
         Result<media::FilterResult> process(std::span<const std::byte>,
                                             std::span<std::byte> out) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int16_t);
-            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            if (frame_bytes == 0) return unexpected(Errc::bad_state);
             const std::size_t frames = out.size() / frame_bytes;
             if (frames == 0) return media::FilterResult{};
             auto* pcm = reinterpret_cast<std::int16_t*>(out.data());
@@ -153,7 +153,7 @@ export namespace audio {
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(frame);
         }
 

@@ -174,7 +174,7 @@ static shell::Result run_line_with_alias(shell::Console& con, std::string_view l
 }
 
 static shell::Result cmd_write(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 3) return shell::err(shell::Errno::inval);
+    if (argc < 3) return shell::err(shell::Errc::inval);
     const auto path = argv[1];
     char msg[128]{};
     std::size_t len = 0;
@@ -190,7 +190,7 @@ static shell::Result cmd_write(shell::Console& con, int argc, std::span<std::str
     msg[len] = '\0';
     char path_buf[96]{};
     int fd = Posix::open(to_cstr(path, path_buf, sizeof(path_buf)), shell_posix::O_CREAT | shell_posix::O_TRUNC);
-    if (fd < 0) return shell::err(shell::Errno::io);
+    if (fd < 0) return shell::err(shell::Errc::io);
     (void)Posix::write(fd, msg, len);
     Posix::close(fd);
     return shell::ok();
@@ -219,12 +219,12 @@ static shell::Result cmd_ls(shell::Console& con, int argc, std::span<std::string
         util::usize count = 0;
         auto cb = +[](void* c, const fs::MountOps::ListEntry& entry) noexcept -> fs::Status {
             auto* ctx = static_cast<std::pair<Entry*, util::usize*>*>(c);
-            if (!ctx || !ctx->first || !ctx->second) return fs::Status{fs::Err::inval};
+            if (!ctx || !ctx->first || !ctx->second) return fs::Status{fs::Errc::inval};
             auto* entries = ctx->first;
             auto& idx = *ctx->second;
-            if (idx >= 32) return fs::Status{fs::Err::ok};
+            if (idx >= 32) return fs::Status{fs::Errc::ok};
             entries[idx++] = Entry{entry.name, entry.type, entry.size};
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         };
         auto ctx = std::pair<Entry*, util::usize*>{entries.data(), &count};
         auto st = fs::vfs_list(dir, &ctx, cb);
@@ -262,7 +262,7 @@ static shell::Result cmd_ls(shell::Console& con, int argc, std::span<std::string
             (void)shell::write(con, "\n");
         }
 
-        if (!recursive) return fs::Status{fs::Err::ok};
+        if (!recursive) return fs::Status{fs::Errc::ok};
 
         for (util::usize i = 0; i < count; ++i) {
             if (entries[i].type != fs::NodeType::dir) continue;
@@ -283,22 +283,22 @@ static shell::Result cmd_ls(shell::Console& con, int argc, std::span<std::string
             buf[len] = '\0';
             (void)self(self, std::string_view{buf, len}, depth + 1);
         }
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     };
 
     auto st = list_dir(list_dir, path, 0);
-    return st ? shell::ok() : shell::err(shell::Errno::io);
+    return st ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_cat(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 2) return shell::err(shell::Errno::inval);
+    if (argc < 2) return shell::err(shell::Errc::inval);
     char path_buf[96]{};
     int fd = Posix::open(to_cstr(argv[1], path_buf, sizeof(path_buf)));
-    if (fd < 0) return shell::err(shell::Errno::noent);
+    if (fd < 0) return shell::err(shell::Errc::noent);
     char buf[128]{};
     int n = Posix::read(fd, buf, sizeof(buf) - 1);
     Posix::close(fd);
-    if (n < 0) return shell::err(shell::Errno::io);
+    if (n < 0) return shell::err(shell::Errc::io);
     buf[n] = '\0';
     (void)shell::write(con, buf);
     (void)shell::write(con, "\n");
@@ -319,7 +319,7 @@ static shell::Result cmd_cp(shell::Console&, int argc, std::span<std::string_vie
             to_sv = arg;
         }
     }
-    if (from_sv.empty() || to_sv.empty()) return shell::err(shell::Errno::inval);
+    if (from_sv.empty() || to_sv.empty()) return shell::err(shell::Errc::inval);
 
     auto copy_file = [](std::string_view from_sv, std::string_view to_sv) noexcept -> bool {
         char from_buf[96]{};
@@ -350,7 +350,7 @@ static shell::Result cmd_cp(shell::Console&, int argc, std::span<std::string_vie
         auto cb = +[](void* c, const fs::MountOps::ListEntry&) noexcept -> fs::Status {
             auto* cnt = static_cast<util::usize*>(c);
             if (cnt) ++(*cnt);
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         };
         auto st = fs::vfs_list(path, &count, cb);
         return static_cast<bool>(st);
@@ -362,12 +362,12 @@ static shell::Result cmd_cp(shell::Console&, int argc, std::span<std::string_vie
         util::usize count = 0;
         auto cb = +[](void* c, const fs::MountOps::ListEntry& entry) noexcept -> fs::Status {
             auto* pack = static_cast<std::pair<fs::MountOps::ListEntry*, util::usize*>*>(c);
-            if (!pack || !pack->first || !pack->second) return fs::Status{fs::Err::inval};
+            if (!pack || !pack->first || !pack->second) return fs::Status{fs::Errc::inval};
             auto* entries = pack->first;
             auto& idx = *pack->second;
-            if (idx >= 32) return fs::Status{fs::Err::ok};
+            if (idx >= 32) return fs::Status{fs::Errc::ok};
             entries[idx++] = entry;
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         };
         auto ctx = std::pair<fs::MountOps::ListEntry*, util::usize*>{entries.data(), &count};
         auto st = fs::vfs_list(src, &ctx, cb);
@@ -416,33 +416,33 @@ static shell::Result cmd_cp(shell::Console&, int argc, std::span<std::string_vie
     };
 
     if (recursive && is_dir(from_sv)) {
-        return copy_dir(copy_dir, from_sv, to_sv) ? shell::ok() : shell::err(shell::Errno::io);
+        return copy_dir(copy_dir, from_sv, to_sv) ? shell::ok() : shell::err(shell::Errc::io);
     }
-    return copy_file(from_sv, to_sv) ? shell::ok() : shell::err(shell::Errno::io);
+    return copy_file(from_sv, to_sv) ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_rm(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 2) return shell::err(shell::Errno::inval);
+    if (argc < 2) return shell::err(shell::Errc::inval);
     char path_buf[96]{};
     const int rc = Posix::unlink(to_cstr(argv[1], path_buf, sizeof(path_buf)));
-    return rc == 0 ? shell::ok() : shell::err(shell::Errno::io);
+    return rc == 0 ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_mv(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 3) return shell::err(shell::Errno::inval);
+    if (argc < 3) return shell::err(shell::Errc::inval);
     char from_buf[96]{};
     char to_buf[96]{};
     const int rc = Posix::rename(to_cstr(argv[1], from_buf, sizeof(from_buf)),
                                  to_cstr(argv[2], to_buf, sizeof(to_buf)));
-    return rc == 0 ? shell::ok() : shell::err(shell::Errno::io);
+    return rc == 0 ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_trunc(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 3) return shell::err(shell::Errno::inval);
+    if (argc < 3) return shell::err(shell::Errc::inval);
     const auto sz = static_cast<util::u64>(std::strtoull(argv[2].data(), nullptr, 10));
     char path_buf[96]{};
     const int rc = Posix::truncate(to_cstr(argv[1], path_buf, sizeof(path_buf)), sz);
-    return rc == 0 ? shell::ok() : shell::err(shell::Errno::io);
+    return rc == 0 ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_dirty(shell::Console& con, int, std::span<std::string_view>) noexcept {
@@ -513,23 +513,23 @@ static bool load_module_from_fs(shell::Console& con, std::string_view path) noex
 }
 
 static shell::Result cmd_modload(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
-    if (argc < 2) return shell::err(shell::Errno::inval);
+    if (argc < 2) return shell::err(shell::Errc::inval);
     const bool ok = load_module_from_fs(con, argv[1]);
-    return ok ? shell::ok() : shell::err(shell::Errno::io);
+    return ok ? shell::ok() : shell::err(shell::Errc::io);
 }
 
 static shell::Result cmd_modexec(shell::Console& con, int argc, std::span<std::string_view> argv) noexcept {
     if (argc >= 2) {
-        if (!load_module_from_fs(con, argv[1])) return shell::err(shell::Errno::io);
+        if (!load_module_from_fs(con, argv[1])) return shell::err(shell::Errc::io);
     }
     if (g_mod_entry == 0) {
         if (!g_mod_view_ok || g_mod_entry_internal == 0) {
             (void)shell::write(con, "[mod] no entry\n");
-            return shell::err(shell::Errno::noent);
+            return shell::err(shell::Errc::noent);
         }
         if (!modulex::can_exec_internal(g_mod_view, g_mod_entry_internal)) {
             (void)shell::write(con, "[mod] internal entry out of text\n");
-            return shell::err(shell::Errno::io);
+            return shell::err(shell::Errc::io);
         }
         print_num(con, "[mod] exec internal=", static_cast<long long>(g_mod_entry_internal));
         auto* fn = reinterpret_cast<void (*)()>(g_mod_entry_internal);

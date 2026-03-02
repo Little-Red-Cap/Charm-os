@@ -213,7 +213,7 @@ namespace {
         static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             for (util::u32 i = 0; i < count; ++i) {
@@ -224,28 +224,28 @@ namespace {
                         if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
                             uart_write("sdio: read failed\r\n");
                             uart_write_uint(HAL_SD_GetError(&hsd));
-                            return fs::Status{fs::Err::io};
+                            return fs::Status{fs::Errc::io};
                         }
                     }
                 } else {
                     if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
                         uart_write("sdio: read failed\r\n");
                         uart_write_uint(HAL_SD_GetError(&hsd));
-                        return fs::Status{fs::Err::io};
+                        return fs::Status{fs::Errc::io};
                     }
                 }
                 const util::u32 start = HAL_GetTick();
                 while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-                    if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                    if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
                 }
             }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             const bool use_dma = can_dma(data.data(), data.size()) && (count == 1);
@@ -254,28 +254,28 @@ namespace {
                         static_cast<uint32_t>(lba), count) != HAL_OK) {
                     if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
                             static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                        return fs::Status{fs::Err::io};
+                        return fs::Status{fs::Errc::io};
                     }
                 }
             } else {
                 if (HAL_SD_WriteBlocks(&hsd, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             }
             const util::u32 start = HAL_GetTick();
             while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
             }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status erase_impl(void*, util::u64, util::u64) noexcept {
-            return fs::Status{fs::Err::nosys};
+            return fs::Status{fs::Errc::nosys};
         }
 
         static fs::Status flush_impl(void*) noexcept {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         fs::BlockDevice device_{};
@@ -310,7 +310,7 @@ namespace {
         uart_write(entry.type == fs::NodeType::dir ? "dir" : "file");
         uart_write(") ");
         uart_write_uint(entry.size);
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     struct FirstFileCtx {
@@ -344,7 +344,7 @@ namespace {
 
     fs::Status list_first_file(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<FirstFileCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
+        if (!out) return fs::Status{fs::Errc::inval};
         out->count++;
         const auto len = name_len(entry.name);
         uart_write_span(entry.name.data(), len);
@@ -353,7 +353,7 @@ namespace {
         uart_write(") ");
         uart_write_uint(entry.size);
         if (entry.type != fs::NodeType::file || out->found || len == 0) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         constexpr const char prefix[] = "/PICTURE/";
         std::size_t pos = 0;
@@ -365,18 +365,18 @@ namespace {
         }
         out->path[pos] = '\0';
         out->found = true;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     fs::Status list_first_bmp(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<BmpFileCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
+        if (!out) return fs::Status{fs::Errc::inval};
         out->count++;
         if (entry.type != fs::NodeType::file || out->found) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         if (!is_bmp_name(entry.name)) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         const auto len = name_len(entry.name);
         std::size_t pos = 0;
@@ -388,7 +388,7 @@ namespace {
         }
         out->path[pos] = '\0';
         out->found = true;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     util::u16 read_u16_le(const util::u8* data) noexcept {
@@ -500,7 +500,7 @@ namespace {
 
     fs::Status list_recursive_cb(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* info = static_cast<ListCtx*>(ctx);
-        if (!info || !info->base) return fs::Status{fs::Err::inval};
+        if (!info || !info->base) return fs::Status{fs::Errc::inval};
         const auto len = name_len(entry.name);
         const std::string_view name{entry.name.data(), len};
 
@@ -512,17 +512,17 @@ namespace {
         uart_write_uint(entry.size);
 
         if (entry.type != fs::NodeType::dir || info->depth >= kMaxListDepth) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         if (is_dot_dir(name) || is_system_volume_info(name)) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         char child[256]{};
         std::size_t pos = 0;
         const auto base_len = std::strlen(info->base);
         if (base_len + 1 + len + 1 >= sizeof(child)) {
-            return fs::Status{fs::Err::nametoolong};
+            return fs::Status{fs::Errc::nametoolong};
         }
         std::memcpy(child, info->base, base_len);
         pos = base_len;
@@ -537,7 +537,7 @@ namespace {
     }
 
     fs::Status list_recursive(const char* path, int depth) noexcept {
-        if (!path) return fs::Status{fs::Err::inval};
+        if (!path) return fs::Status{fs::Errc::inval};
         uart_write("fs demo: list ");
         uart_write(path);
         uart_write("\r\n");

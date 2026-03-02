@@ -72,7 +72,7 @@ namespace {
                         static_cast<int>(e.name.size()),
                         e.name.data(),
                         static_cast<unsigned long long>(e.size));
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         });
     }
 }

@@ -86,7 +86,7 @@ export namespace fs {
     }
 
     inline Status read(File& f, std::span<util::u8> buf) noexcept {
-        if (!f.node.ops || !f.node.ops->read) return Status{Err::nosys};
+        if (!f.node.ops || !f.node.ops->read) return Status{Errc::nosys};
         const auto before = f.node.offset;
         auto st = f.node.ops->read(f.node, buf);
         if (st && f.node.offset >= 0) {
@@ -98,7 +98,7 @@ export namespace fs {
     }
 
     inline Status write(File& f, std::span<const util::u8> buf) noexcept {
-        if (!f.node.ops || !f.node.ops->write) return Status{Err::nosys};
+        if (!f.node.ops || !f.node.ops->write) return Status{Errc::nosys};
         const auto before = f.node.offset;
         auto st = f.node.ops->write(f.node, buf);
         if (st && f.node.offset >= 0) {
@@ -112,18 +112,18 @@ export namespace fs {
     }
 
     inline Status seek(File& f, util::i64 off) noexcept {
-        if (!f.node.ops || !f.node.ops->seek) return Status{Err::nosys};
+        if (!f.node.ops || !f.node.ops->seek) return Status{Errc::nosys};
         f.node.offset = off;
         return f.node.ops->seek(f.node, off);
     }
 
     inline Status flush(File& f) noexcept {
-        if (!f.node.ops || !f.node.ops->flush) return Status{Err::nosys};
+        if (!f.node.ops || !f.node.ops->flush) return Status{Errc::nosys};
         return f.node.ops->flush(f.node);
     }
 
     inline Status close(File& f) noexcept {
-        if (!f.node.ops || !f.node.ops->close) return Status{Err::nosys};
+        if (!f.node.ops || !f.node.ops->close) return Status{Errc::nosys};
         auto st = f.node.ops->close(f.node);
         if (st) {
             f.node = {};

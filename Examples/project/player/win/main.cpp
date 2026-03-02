@@ -666,7 +666,7 @@ int main(int argc, char** argv) {
         g_ctx.mount_status = "Mounted";
         g_ctx.update_list_placeholder();
         g_vfs_tracks.clear();
-        fs::Status list_st{fs::Err::ok};
+        fs::Status list_st{fs::Errc::ok};
         g_ctx.mount_status = "Scanning /music...";
         if (!collect_tracks_from_dir("/music", g_vfs_tracks, nullptr, list_st)) {
             std::vector<std::string> subdirs;

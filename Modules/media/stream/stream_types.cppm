@@ -5,7 +5,7 @@ module;
 export module media.stream.types;
 
 import util.core;
-import util.expected;
+import util.error;
 
 export namespace media {
     enum class StreamKind : util::u8 {
@@ -23,22 +23,8 @@ export namespace media {
         util::u32 height{0};
     };
 
-    enum class Errc : util::u16 {
-        ok = 0,
-        not_supported,
-        invalid_arg,
-        io_error,
-        decode_error,
-        end_of_stream,
-        bad_state,
-        timeout
-    };
-
-    struct Error {
-        Errc code{Errc::ok};
-        util::u16 ext{0};
-    };
+    typedef util::Errc Errc;
 
     template <class T>
-    using Result = util::expected<T, Error>;
+    using Result = util::Result<T>;
 }

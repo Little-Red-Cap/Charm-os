@@ -319,57 +319,57 @@ namespace {
         static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             const bool use_dma = can_dma(data.data(), data.size());
             if (use_dma) {
                 if (HAL_SD_ReadBlocks_DMA(&hsd2, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             } else {
                 if (HAL_SD_ReadBlocks(&hsd2, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             }
             const util::u32 start = HAL_GetTick();
             while (HAL_SD_GetCardState(&hsd2) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
             }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> data) noexcept {
             auto* self = static_cast<SdBlockDevice*>(ctx);
             if (!self || data.empty() || (data.size() % self->block_size_) != 0) {
-                return fs::Status{fs::Err::inval};
+                return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             const bool use_dma = can_dma(data.data(), data.size());
             if (use_dma) {
                 if (HAL_SD_WriteBlocks_DMA(&hsd2, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             } else {
                 if (HAL_SD_WriteBlocks(&hsd2, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Err::io};
+                    return fs::Status{fs::Errc::io};
                 }
             }
             const util::u32 start = HAL_GetTick();
             while (HAL_SD_GetCardState(&hsd2) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
+                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
             }
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         static fs::Status erase_impl(void*, util::u64, util::u64) noexcept {
-            return fs::Status{fs::Err::nosys};
+            return fs::Status{fs::Errc::nosys};
         }
 
         static fs::Status flush_impl(void*) noexcept {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         fs::BlockDevice device_{};

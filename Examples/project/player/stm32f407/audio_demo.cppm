@@ -270,8 +270,8 @@ namespace {
 
     fs::Status find_first_audio(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<FindAudioCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
-        if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
+        if (!out) return fs::Status{fs::Errc::inval};
+        if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
         AudioKind kind{};
         if (is_mp3_name(entry.name)) {
             kind = AudioKind::mp3;
@@ -280,10 +280,10 @@ namespace {
         } else if (is_wav_name(entry.name)) {
             kind = AudioKind::wav;
         } else {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         if (out->found && kind_priority(kind) <= kind_priority(out->kind)) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         const auto len = name_len(entry.name);
         const char prefix[] = "/MUSIC/";
@@ -297,14 +297,14 @@ namespace {
         out->path[pos] = '\0';
         out->found = true;
         out->kind = kind;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     struct FileSource {
         fs::File* file{nullptr};
 
         media::Result<util::usize> read(std::span<std::byte> out) noexcept {
-            if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (!file) return util::unexpected(media::Errc::bad_state);
             const auto remaining = file->node.size - file->node.offset;
             if (remaining <= 0) return static_cast<util::usize>(0);
             const auto to_read = static_cast<std::size_t>(
@@ -312,14 +312,14 @@ namespace {
             const auto before = file->node.offset;
             auto st = fs::vfs_read(*file, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
-            if (!st) return util::unexpected(media::Error{media::Errc::io_error, 0});
+            if (!st) return util::unexpected(media::Errc::io_error);
             const auto after = file->node.offset;
-            if (after < before) return util::unexpected(media::Error{media::Errc::io_error, 0});
+            if (after < before) return util::unexpected(media::Errc::io_error);
             return static_cast<util::usize>(after - before);
         }
 
         media::Result<util::i64> seek(util::i64 offset, media::SeekWhence whence) noexcept {
-            if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (!file) return util::unexpected(media::Errc::bad_state);
             util::i64 target = offset;
             if (whence == media::SeekWhence::cur) {
                 target = file->node.offset + offset;
@@ -327,17 +327,17 @@ namespace {
                 target = file->node.size + offset;
             }
             auto st = fs::vfs_seek(*file, target);
-            if (!st) return util::unexpected(media::Error{media::Errc::io_error, 0});
+            if (!st) return util::unexpected(media::Errc::io_error);
             return target;
         }
 
         media::Result<util::i64> tell() noexcept {
-            if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (!file) return util::unexpected(media::Errc::bad_state);
             return file->node.offset;
         }
 
         media::Result<util::i64> size() noexcept {
-            if (!file) return util::unexpected(media::Error{media::Errc::bad_state, 0});
+            if (!file) return util::unexpected(media::Errc::bad_state);
             return file->node.size;
         }
     };

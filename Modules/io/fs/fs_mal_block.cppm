@@ -16,7 +16,7 @@ export namespace fs {
         Status bind(BlockDevice& dev) noexcept {
             mal_ = make_mal_from_block(dev, MalKind::block);
             dev_ = &dev;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         void unbind() noexcept {

@@ -47,7 +47,7 @@ export namespace media {
         }
 
         Result<util::usize> flush(std::span<std::byte> out) noexcept {
-            if (!ops->flush) return util::unexpected(Error{Errc::not_supported, 0});
+            if (!ops->flush) return util::unexpected(Errc::not_supported);
             return ops->flush(self, out);
         }
 
@@ -70,7 +70,7 @@ export namespace media {
                 if constexpr (requires(T& t) { t.flush(out); }) {
                     return static_cast<T*>(self)->flush(out);
                 } else {
-                    return util::unexpected(Error{Errc::not_supported, 0});
+                    return util::unexpected(Errc::not_supported);
                 }
             },
             .format = [](void* self) noexcept -> StreamFormat {

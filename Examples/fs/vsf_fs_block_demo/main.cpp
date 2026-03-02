@@ -14,21 +14,21 @@ struct MemBlock {
     std::array<std::byte, block_size * block_count> storage{};
 
     fs::Status read(util::u64 lba, std::span<util::u8> out) noexcept {
-        if (lba >= block_count || out.size() != block_size) return fs::Status{fs::Err::inval};
+        if (lba >= block_count || out.size() != block_size) return fs::Status{fs::Errc::inval};
         std::memcpy(out.data(), storage.data() + lba * block_size, block_size);
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     fs::Status write(util::u64 lba, std::span<const util::u8> in) noexcept {
-        if (lba >= block_count || in.size() != block_size) return fs::Status{fs::Err::inval};
+        if (lba >= block_count || in.size() != block_size) return fs::Status{fs::Errc::inval};
         std::memcpy(storage.data() + lba * block_size, in.data(), block_size);
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     fs::Status erase(util::u64 lba, util::u64 count) noexcept {
-        if (lba + count > block_count) return fs::Status{fs::Err::inval};
+        if (lba + count > block_count) return fs::Status{fs::Errc::inval};
         std::memset(storage.data() + lba * block_size, 0, block_size * count);
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 };
 
@@ -36,19 +36,19 @@ static MemBlock* g_mem = nullptr;
 static fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>* g_bfs = nullptr;
 
 static fs::Status dev_read(util::u64 lba, std::span<util::u8> out) noexcept {
-    return g_mem ? g_mem->read(lba, out) : fs::Status{fs::Err::nosys};
+    return g_mem ? g_mem->read(lba, out) : fs::Status{fs::Errc::nosys};
 }
 
 static fs::Status dev_write(util::u64 lba, std::span<const util::u8> in) noexcept {
-    return g_mem ? g_mem->write(lba, in) : fs::Status{fs::Err::nosys};
+    return g_mem ? g_mem->write(lba, in) : fs::Status{fs::Errc::nosys};
 }
 
 static fs::Status dev_erase(util::u64 lba, util::u64 count) noexcept {
-    return g_mem ? g_mem->erase(lba, count) : fs::Status{fs::Err::nosys};
+    return g_mem ? g_mem->erase(lba, count) : fs::Status{fs::Errc::nosys};
 }
 
 static fs::Status dev_flush() noexcept {
-    return fs::Status{fs::Err::ok};
+    return fs::Status{fs::Errc::ok};
 }
 
 int main() {
@@ -73,27 +73,27 @@ int main() {
 
     static fs::MountOps mops{
         .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept {
-            return g_bfs ? g_bfs->open(path, f) : fs::Status{fs::Err::nosys};
+            return g_bfs ? g_bfs->open(path, f) : fs::Status{fs::Errc::nosys};
         },
         .flush = +[](fs::Mount* m) noexcept {
             auto* bfs = m ? static_cast<fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>*>(m->data) : nullptr;
-            return bfs ? bfs->flush() : fs::Status{fs::Err::nosys};
+            return bfs ? bfs->flush() : fs::Status{fs::Errc::nosys};
         },
         .unmount = +[](fs::Mount* m, bool force) noexcept {
             auto* bfs = m ? static_cast<fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>*>(m->data) : nullptr;
-            return bfs ? bfs->unmount(force) : fs::Status{fs::Err::nosys};
+            return bfs ? bfs->unmount(force) : fs::Status{fs::Errc::nosys};
         },
         .unlink = +[](fs::Mount* m, std::string_view path) noexcept {
             auto* bfs = m ? static_cast<fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>*>(m->data) : nullptr;
-            return bfs ? bfs->unlink(path) : fs::Status{fs::Err::nosys};
+            return bfs ? bfs->unlink(path) : fs::Status{fs::Errc::nosys};
         },
         .rename = +[](fs::Mount* m, std::string_view from, std::string_view to) noexcept {
             auto* bfs = m ? static_cast<fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>*>(m->data) : nullptr;
-            return bfs ? bfs->rename(from, to) : fs::Status{fs::Err::nosys};
+            return bfs ? bfs->rename(from, to) : fs::Status{fs::Errc::nosys};
         },
         .truncate = +[](fs::Mount* m, std::string_view path, util::u64 size) noexcept {
             auto* bfs = m ? static_cast<fs::BlockFs<MemBlock::block_size, 4, MemBlock::block_count>*>(m->data) : nullptr;
-            return bfs ? bfs->truncate(path, size) : fs::Status{fs::Err::nosys};
+            return bfs ? bfs->truncate(path, size) : fs::Status{fs::Errc::nosys};
         }
     };
     static fs::Mount m{ &mops, g_bfs };

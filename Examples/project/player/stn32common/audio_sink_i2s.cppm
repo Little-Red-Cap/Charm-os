@@ -58,13 +58,13 @@ export namespace audio {
             period_bytes_ = static_cast<std::size_t>(period_frames_) * fmt_.frame_size();
             buffer_bytes_ = period_bytes_ * 2;
             if (buffer_bytes_ > buffer_.size()) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             return {};
         }
 
         Result<void> start() noexcept {
-            if (!fill_cb_) return unexpected(Err{Errc::bad_state, 0});
+            if (!fill_cb_) return unexpected(Errc::bad_state);
             active_ = this;
             underrun_flag_ = 0;
             underrun_count_ = 0;
@@ -79,7 +79,7 @@ export namespace audio {
                     reinterpret_cast<uint16_t*>(buffer_.data()),
                     static_cast<uint16_t>(buffer_bytes_ / 2)) != HAL_OK) {
                 active_ = nullptr;
-                return unexpected(Err{Errc::io_error, 0});
+                return unexpected(Errc::io_error);
             }
             return {};
         }

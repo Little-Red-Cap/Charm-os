@@ -70,7 +70,7 @@ export namespace audio {
                 detail::SourceOps<Source>::on_tell,
                 src_, nullptr);
             if (!flac_) {
-                return unexpected(Err{Errc::invalid_arg, 0});
+                return unexpected(Errc::invalid_arg);
             }
             flac_->_noSeekTableSeek = DRFLAC_TRUE;
             flac_->_noBinarySearchSeek = DRFLAC_TRUE;
@@ -81,22 +81,22 @@ export namespace audio {
         }
 
         Result<std::size_t> read_s32(std::int32_t* out, std::size_t frames) {
-            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            if (!flac_) return unexpected(Errc::bad_state);
             const auto read = drflac_read_pcm_frames_s32(
                 flac_, frames, reinterpret_cast<drflac_int32*>(out));
             return static_cast<std::size_t>(read);
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) {
-            if (!flac_) return unexpected(Err{Errc::bad_state, 0});
+            if (!flac_) return unexpected(Errc::bad_state);
             const auto total = static_cast<std::uint64_t>(flac_->totalPCMFrameCount);
-            if (total == 0) return unexpected(Err{Errc::not_supported, 0});
+            if (total == 0) return unexpected(Errc::not_supported);
             if (frame >= total) frame = total - 1;
             flac_->_noSeekTableSeek = DRFLAC_TRUE;
             flac_->_noBinarySearchSeek = DRFLAC_TRUE;
             flac_->_noBruteForceSeek = DRFLAC_FALSE;
             const auto ok = drflac_seek_to_pcm_frame(flac_, static_cast<drflac_uint64>(frame));
-            return ok ? Result<void>{} : unexpected(Err{Errc::invalid_arg, 0});
+            return ok ? Result<void>{} : unexpected(Errc::invalid_arg);
         }
 
         std::uint64_t total_frames() const noexcept {
@@ -135,15 +135,15 @@ export namespace audio {
         }
 
         Result<void> reset() noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(0);
         }
 
         Result<media::FilterResult> process(std::span<const std::byte>,
                                             std::span<std::byte> out) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             const std::size_t frame_bytes = static_cast<std::size_t>(info_.channels) * sizeof(std::int32_t);
-            if (frame_bytes == 0) return unexpected(Err{Errc::bad_state, 0});
+            if (frame_bytes == 0) return unexpected(Errc::bad_state);
             const std::size_t frames = out.size() / frame_bytes;
             if (frames == 0) return media::FilterResult{};
             auto* pcm = reinterpret_cast<std::int32_t*>(out.data());
@@ -163,7 +163,7 @@ export namespace audio {
         }
 
         Result<void> seek_pcm_frame(std::uint64_t frame) noexcept {
-            if (!opened_) return unexpected(Err{Errc::bad_state, 0});
+            if (!opened_) return unexpected(Errc::bad_state);
             return decoder_.seek_pcm_frame(frame);
         }
 

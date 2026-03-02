@@ -10,7 +10,7 @@ import shell_core;
 
 export namespace shell {
     inline Result write(Console& c, std::string_view sv) noexcept {
-        if (!c.write) return err(Errno::nosys);
+        if (!c.write) return err(Errc::nosys);
         Buffer buf{sv.data(), sv.size()};
         (void)c.write(c.ctx, buf);
         return ok();

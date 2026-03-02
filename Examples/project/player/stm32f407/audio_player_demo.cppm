@@ -76,10 +76,10 @@ namespace {
 
     fs::Status find_first_audio(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<FindAudioCtx*>(ctx);
-        if (!out) return fs::Status{fs::Err::inval};
-        if (out->found || entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
+        if (!out) return fs::Status{fs::Errc::inval};
+        if (out->found || entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
         if (!is_mp3_name(entry.name) && !is_flac_name(entry.name) && !is_wav_name(entry.name)) {
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
         const auto len = name_len(entry.name);
         const char prefix[] = "/MUSIC/";
@@ -92,7 +92,7 @@ namespace {
         }
         out->path[pos] = '\0';
         out->found = true;
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     audio::AudioPlayer* g_player = nullptr;

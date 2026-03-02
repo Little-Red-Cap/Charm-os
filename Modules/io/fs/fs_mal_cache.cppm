@@ -22,12 +22,12 @@ export namespace fs {
         CachedMal& operator=(const CachedMal&) = delete;
 
         Status bind(const MalDevice& dev, std::span<util::u8> cache_buf) noexcept {
-            if (dev.block_size == 0 || dev.block_count == 0) return Status{Err::inval};
-            if (!dev.ops.read || !dev.ops.write) return Status{Err::nosys};
+            if (dev.block_size == 0 || dev.block_count == 0) return Status{Errc::inval};
+            if (!dev.ops.read || !dev.ops.write) return Status{Errc::nosys};
             base_ = dev;
             const util::usize max_by_buf = cache_buf.size() / dev.block_size;
             entry_count_ = max_by_buf < MaxEntries ? max_by_buf : MaxEntries;
-            if (entry_count_ == 0) return Status{Err::inval};
+            if (entry_count_ == 0) return Status{Errc::inval};
             cache_buf_ = cache_buf.subspan(0, entry_count_ * dev.block_size);
             clear();
             cached_ = dev;
@@ -36,7 +36,7 @@ export namespace fs {
             cached_.ops.write = &CachedMal::write_impl;
             cached_.ops.erase = &CachedMal::erase_impl;
             cached_.ops.flush = &CachedMal::flush_impl;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         void clear() noexcept {
@@ -61,40 +61,40 @@ export namespace fs {
 
         static Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
             auto* self = static_cast<CachedMal*>(ctx);
-            if (!self) return Status{Err::inval};
-            if (self->base_.block_size == 0) return Status{Err::inval};
-            if ((out.size() % self->base_.block_size) != 0) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
+            if (self->base_.block_size == 0) return Status{Errc::inval};
+            if ((out.size() % self->base_.block_size) != 0) return Status{Errc::inval};
             const util::u64 blocks = out.size() / self->base_.block_size;
-            if (lba + blocks > self->base_.block_count) return Status{Err::inval};
+            if (lba + blocks > self->base_.block_count) return Status{Errc::inval};
             for (util::u64 i = 0; i < blocks; ++i) {
                 auto st = self->read_sector(lba + i, out.subspan(i * self->base_.block_size,
                     self->base_.block_size));
                 if (!st) return st;
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
             auto* self = static_cast<CachedMal*>(ctx);
-            if (!self) return Status{Err::inval};
-            if (self->base_.block_size == 0) return Status{Err::inval};
-            if ((in.size() % self->base_.block_size) != 0) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
+            if (self->base_.block_size == 0) return Status{Errc::inval};
+            if ((in.size() % self->base_.block_size) != 0) return Status{Errc::inval};
             const util::u64 blocks = in.size() / self->base_.block_size;
-            if (lba + blocks > self->base_.block_count) return Status{Err::inval};
+            if (lba + blocks > self->base_.block_count) return Status{Errc::inval};
             for (util::u64 i = 0; i < blocks; ++i) {
                 auto st = self->write_sector(lba + i, in.subspan(i * self->base_.block_size,
                     self->base_.block_size));
                 if (!st) return st;
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
             auto* self = static_cast<CachedMal*>(ctx);
-            if (!self) return Status{Err::inval};
-            if (!self->base_.ops.erase) return Status{Err::nosys};
-            if (self->base_.block_size == 0) return Status{Err::inval};
-            if (lba + count > self->base_.block_count) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
+            if (!self->base_.ops.erase) return Status{Errc::nosys};
+            if (self->base_.block_size == 0) return Status{Errc::inval};
+            if (lba + count > self->base_.block_count) return Status{Errc::inval};
             auto st = self->base_.ops.erase(self->base_.ctx, lba, count);
             if (st) self->invalidate_range(lba, count);
             return st;
@@ -102,8 +102,8 @@ export namespace fs {
 
         static Status flush_impl(void* ctx) noexcept {
             auto* self = static_cast<CachedMal*>(ctx);
-            if (!self) return Status{Err::inval};
-            if (!self->base_.ops.flush) return Status{Err::nosys};
+            if (!self) return Status{Errc::inval};
+            if (!self->base_.ops.flush) return Status{Errc::nosys};
             return self->base_.ops.flush(self->base_.ctx);
         }
 
@@ -112,7 +112,7 @@ export namespace fs {
             if (idx < entry_count_) {
                 touch(idx);
                 std::memcpy(out.data(), entry_data(idx), out.size());
-                return Status{Err::ok};
+                return Status{Errc::ok};
             }
             auto st = base_.ops.read(base_.ctx, lba, out);
             if (!st) return st;
@@ -123,7 +123,7 @@ export namespace fs {
                 touch(idx);
                 std::memcpy(entry_data(idx), out.data(), out.size());
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status write_sector(util::u64 lba, std::span<const util::u8> in) noexcept {
@@ -139,7 +139,7 @@ export namespace fs {
                 touch(idx);
                 std::memcpy(entry_data(idx), in.data(), in.size());
             }
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         util::usize find(util::u64 lba) noexcept {

@@ -40,34 +40,34 @@ export namespace fs {
         FIL file{};
     };
 
-    inline Err err_from_fr(FRESULT fr) noexcept {
+    inline Errc err_from_fr(FRESULT fr) noexcept {
         switch (fr) {
-        case FR_OK: return Err::ok;
+        case FR_OK: return Errc::ok;
         case FR_NO_FILE:
         case FR_NO_PATH:
-            return Err::noent;
+            return Errc::noent;
         case FR_INVALID_NAME:
         case FR_INVALID_OBJECT:
         case FR_INVALID_PARAMETER:
-            return Err::inval;
+            return Errc::inval;
         case FR_EXIST:
-            return Err::exist;
+            return Errc::exist;
         case FR_DENIED:
-            return Err::perm;
+            return Errc::perm;
         case FR_WRITE_PROTECTED:
-            return Err::rofs;
+            return Errc::rofs;
         case FR_NOT_READY:
         case FR_DISK_ERR:
         case FR_INT_ERR:
-            return Err::io;
+            return Errc::io;
         case FR_NO_FILESYSTEM:
-            return Err::noent;
+            return Errc::noent;
         case FR_TIMEOUT:
-            return Err::timeout;
+            return Errc::timeout;
         case FR_NOT_ENOUGH_CORE:
-            return Err::nomem;
+            return Errc::nomem;
         default:
-            return Err::io;
+            return Errc::io;
         }
     }
 
@@ -129,14 +129,14 @@ export namespace fs {
                 if (fr != FR_OK) return status_from_fr(fr);
                 fr = f_mount(&fs_, empty_tchar_path(), 1);
 #else
-                return Status{Err::notsup};
+                return Status{Errc::notsup};
 #endif
             }
             if (fr != FR_OK) return status_from_fr(fr);
             mount_.ops = &ops_;
             mount_.data = this;
             clear_dirty(&mount_);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Status mount(BlockDevice& dev, std::span<util::u8> cache, bool format_if_needed = false,
@@ -166,14 +166,14 @@ export namespace fs {
             mal_block_ = {};
             mount_.ops = nullptr;
             mount_.data = nullptr;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         Mount* mount_point() noexcept { return &mount_; }
 
         Status close(File& f) noexcept {
             auto* slot = static_cast<FatFsFileSlot*>(f.node.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             const auto fr = f_close(&slot->file);
             slot->used = false;
             f.node.data = nullptr;
@@ -186,16 +186,16 @@ export namespace fs {
         static MountOps ops_;
 
         static Status open_impl(Mount* m, std::string_view path, File& out, OpenFlags flags) noexcept {
-            if (!m) return Status{Err::inval};
+            if (!m) return Status{Errc::inval};
             auto* self = static_cast<FatFsMount*>(m->data);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto* slot = self->alloc_slot();
-            if (!slot) return Status{Err::nomem};
+            if (!slot) return Status{Errc::nomem};
 
             auto buf = self->build_path(path);
             if (!buf) {
                 self->free_slot(slot);
-                return Status{Err::nametoolong};
+                return Status{Errc::nametoolong};
             }
             const auto* cpath = buf->data();
             BYTE mode = 0;
@@ -206,7 +206,7 @@ export namespace fs {
 
             if ((want_create || want_trunc) && !want_write) {
                 self->free_slot(slot);
-                return Status{Err::perm};
+                return Status{Errc::perm};
             }
 
             mode |= want_read ? FA_READ : 0;
@@ -241,44 +241,44 @@ export namespace fs {
             out.node.size = static_cast<util::i64>(f_size(&slot->file));
             out.node.offset = static_cast<util::i64>(f_tell(&slot->file));
             out.mount = m;
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status flush_impl(Mount* m) noexcept {
-            if (!m) return Status{Err::inval};
+            if (!m) return Status{Errc::inval};
             clear_dirty(m);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status unmount_impl(Mount* m, bool force) noexcept {
-            if (!m) return Status{Err::inval};
+            if (!m) return Status{Errc::inval};
             auto* self = static_cast<FatFsMount*>(m->data);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             return self->unmount(force);
         }
 
         static Status unlink_impl(Mount* m, std::string_view path) noexcept {
             auto* self = static_cast<FatFsMount*>(m ? m->data : nullptr);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto buf = self->build_path(path);
-            if (!buf) return Status{Err::nametoolong};
+            if (!buf) return Status{Errc::nametoolong};
             return status_from_fr(f_unlink(buf->data()));
         }
 
         static Status rename_impl(Mount* m, std::string_view from, std::string_view to) noexcept {
             auto* self = static_cast<FatFsMount*>(m ? m->data : nullptr);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto bfrom = self->build_path(from);
             auto bto = self->build_path(to);
-            if (!bfrom || !bto) return Status{Err::nametoolong};
+            if (!bfrom || !bto) return Status{Errc::nametoolong};
             return status_from_fr(f_rename(bfrom->data(), bto->data()));
         }
 
         static Status truncate_impl(Mount* m, std::string_view path, util::u64 size) noexcept {
             auto* self = static_cast<FatFsMount*>(m ? m->data : nullptr);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto buf = self->build_path(path);
-            if (!buf) return Status{Err::nametoolong};
+            if (!buf) return Status{Errc::nametoolong};
             FIL fil{};
             auto fr = f_open(&fil, buf->data(), FA_WRITE);
             if (fr != FR_OK) return status_from_fr(fr);
@@ -290,18 +290,18 @@ export namespace fs {
 
         static Status mkdir_impl(Mount* m, std::string_view path) noexcept {
             auto* self = static_cast<FatFsMount*>(m ? m->data : nullptr);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto buf = self->build_path(path);
-            if (!buf) return Status{Err::nametoolong};
+            if (!buf) return Status{Errc::nametoolong};
             return status_from_fr(f_mkdir(buf->data()));
         }
 
         static Status list_impl(Mount* m, std::string_view path, void* ctx, MountOps::ListFn fn) noexcept {
-            if (!fn) return Status{Err::inval};
+            if (!fn) return Status{Errc::inval};
             auto* self = static_cast<FatFsMount*>(m ? m->data : nullptr);
-            if (!self) return Status{Err::inval};
+            if (!self) return Status{Errc::inval};
             auto buf = self->build_path(path);
-            if (!buf) return Status{Err::nametoolong};
+            if (!buf) return Status{Errc::nametoolong};
 
             DIR dir{};
             auto fr = f_opendir(&dir, buf->data());
@@ -358,49 +358,49 @@ export namespace fs {
                 }
             }
             (void)f_closedir(&dir);
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status read_impl(Node& n, std::span<util::u8> buf) noexcept {
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             UINT read = 0;
             auto fr = f_read(&slot->file, buf.data(), static_cast<UINT>(buf.size()), &read);
             if (fr != FR_OK) return status_from_fr(fr);
             n.offset = static_cast<util::i64>(f_tell(&slot->file));
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status write_impl(Node& n, std::span<const util::u8> buf) noexcept {
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             UINT written = 0;
             auto fr = f_write(&slot->file, buf.data(), static_cast<UINT>(buf.size()), &written);
             if (fr != FR_OK) return status_from_fr(fr);
             n.offset = static_cast<util::i64>(f_tell(&slot->file));
             n.size = static_cast<util::i64>(f_size(&slot->file));
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status seek_impl(Node& n, util::i64 off) noexcept {
-            if (off < 0) return Status{Err::inval};
+            if (off < 0) return Status{Errc::inval};
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             auto fr = f_lseek(&slot->file, static_cast<FatFsSize>(off));
             if (fr != FR_OK) return status_from_fr(fr);
             n.offset = static_cast<util::i64>(f_tell(&slot->file));
-            return Status{Err::ok};
+            return Status{Errc::ok};
         }
 
         static Status file_flush_impl(Node& n) noexcept {
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             return status_from_fr(f_sync(&slot->file));
         }
 
         static Status close_impl(Node& n) noexcept {
             auto* slot = static_cast<FatFsFileSlot*>(n.data);
-            if (!slot || !slot->used) return Status{Err::inval};
+            if (!slot || !slot->used) return Status{Errc::inval};
             const auto fr = f_close(&slot->file);
             slot->used = false;
             std::memset(&slot->file, 0, sizeof(slot->file));
@@ -747,10 +747,10 @@ extern "C" {
 export namespace fs {
     class FatFsMount {
     public:
-        Status mount(BlockDevice&, bool = false) noexcept { return Status{Err::nosys}; }
-        Status unmount(bool = false) noexcept { return Status{Err::nosys}; }
+        Status mount(BlockDevice&, bool = false) noexcept { return Status{Errc::nosys}; }
+        Status unmount(bool = false) noexcept { return Status{Errc::nosys}; }
         Mount* mount_point() noexcept { return nullptr; }
-        Status close(File&) noexcept { return Status{Err::nosys}; }
+        Status close(File&) noexcept { return Status{Errc::nosys}; }
     };
 }
 #endif

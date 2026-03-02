@@ -73,9 +73,9 @@ export namespace player::fs_utils {
 
         fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
             auto* info = static_cast<TrackListContext*>(ctx);
-            if (!info || !info->out) return fs::Status{fs::Err::inval};
+            if (!info || !info->out) return fs::Status{fs::Errc::inval};
             if (entry.type == fs::NodeType::dir) {
-                if (!info->subdirs) return fs::Status{fs::Err::ok};
+                if (!info->subdirs) return fs::Status{fs::Errc::ok};
                 std::string path;
                 if (info->dir.empty() || info->dir == "/") {
                     path = "/";
@@ -85,10 +85,10 @@ export namespace player::fs_utils {
                 }
                 path.append(entry.name.begin(), entry.name.end());
                 info->subdirs->push_back(path);
-                return fs::Status{fs::Err::ok};
+                return fs::Status{fs::Errc::ok};
             }
-            if (entry.type != fs::NodeType::file) return fs::Status{fs::Err::ok};
-            if (!has_audio_ext(entry.name)) return fs::Status{fs::Err::ok};
+            if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
+            if (!has_audio_ext(entry.name)) return fs::Status{fs::Errc::ok};
 
             std::string path;
             if (info->dir.empty() || info->dir == "/") {
@@ -99,7 +99,7 @@ export namespace player::fs_utils {
             }
             path.append(entry.name.begin(), entry.name.end());
             info->out->push_back(path);
-            return fs::Status{fs::Err::ok};
+            return fs::Status{fs::Errc::ok};
         }
 
         struct OffsetDevice {
@@ -121,7 +121,7 @@ export namespace player::fs_utils {
             }
             static fs::Status flush_impl(void* ctx) noexcept {
                 auto* self = static_cast<OffsetDevice*>(ctx);
-                return self->base->flush ? self->base->flush(self->base->ctx) : fs::Status{fs::Err::ok};
+                return self->base->flush ? self->base->flush(self->base->ctx) : fs::Status{fs::Errc::ok};
             }
 
             void init(fs::BlockDevice& dev, std::uint32_t offset) noexcept {
@@ -140,20 +140,20 @@ export namespace player::fs_utils {
 
     const char* fs_err_text(fs::Err err) {
         switch (err) {
-        case fs::Err::ok: return "ok";
-        case fs::Err::perm: return "perm";
-        case fs::Err::noent: return "noent";
-        case fs::Err::exist: return "exist";
-        case fs::Err::io: return "io";
-        case fs::Err::busy: return "busy";
-        case fs::Err::inval: return "inval";
-        case fs::Err::nametoolong: return "nametoolong";
-        case fs::Err::nosys: return "nosys";
-        case fs::Err::nomem: return "nomem";
-        case fs::Err::notsup: return "notsup";
-        case fs::Err::rofs: return "rofs";
-        case fs::Err::timeout: return "timeout";
-        case fs::Err::again: return "again";
+        case fs::Errc::ok: return "ok";
+        case fs::Errc::perm: return "perm";
+        case fs::Errc::noent: return "noent";
+        case fs::Errc::exist: return "exist";
+        case fs::Errc::io: return "io";
+        case fs::Errc::busy: return "busy";
+        case fs::Errc::inval: return "inval";
+        case fs::Errc::nametoolong: return "nametoolong";
+        case fs::Errc::nosys: return "nosys";
+        case fs::Errc::nomem: return "nomem";
+        case fs::Errc::notsup: return "notsup";
+        case fs::Errc::rofs: return "rofs";
+        case fs::Errc::timeout: return "timeout";
+        case fs::Errc::again: return "again";
         }
         return "unknown";
     }
@@ -168,7 +168,7 @@ export namespace player::fs_utils {
     }
 
     fs::Status mount_fatfs_from_vhd(const char* path) {
-        if (!path || !*path) return fs::Status{fs::Err::inval};
+        if (!path || !*path) return fs::Status{fs::Errc::inval};
         static fs::MalFile file_dev;
         static detail::OffsetDevice part_dev;
         static fs::MalBlock mal_part;
@@ -191,7 +191,7 @@ export namespace player::fs_utils {
 
         fs::clear_mounts();
         (void)fs::add_mount("/", fat.mount_point());
-        return fs::Status{fs::Err::ok};
+        return fs::Status{fs::Errc::ok};
     }
 
     bool fs_seek_selftest(const char* path) {

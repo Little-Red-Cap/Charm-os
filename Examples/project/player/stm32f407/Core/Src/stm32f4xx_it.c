@@ -60,6 +60,7 @@ extern void charm_audio_i2s_full_notify(void);
 extern DMA_HandleTypeDef hdma_spi2_tx;
 extern I2S_HandleTypeDef hi2s2;
 extern DMA_HandleTypeDef hdma_sdio;
+extern SD_HandleTypeDef hsd;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -235,8 +236,8 @@ void SPI2_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles DMA2 stream3 global interrupt.
-  */
+ * @brief This function handles DMA2 stream3 global interrupt.
+ */
 void DMA2_Stream3_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream3_IRQn 0 */
@@ -254,6 +255,14 @@ void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
   if (hi2s == &hi2s2) {
     charm_audio_i2s_half_notify();
   }
+}
+
+/**
+  * @brief This function handles SDIO global interrupt.
+  */
+void SDIO_IRQHandler(void)
+{
+  HAL_SD_IRQHandler(&hsd);
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)

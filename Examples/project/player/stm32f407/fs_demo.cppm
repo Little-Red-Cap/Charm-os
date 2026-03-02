@@ -216,10 +216,19 @@ namespace {
                 return fs::Status{fs::Err::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size()) && (count == 1);
-            if (use_dma) {
-                if (HAL_SD_ReadBlocks_DMA(&hsd, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    if (HAL_SD_ReadBlocks(&hsd, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
+            for (util::u32 i = 0; i < count; ++i) {
+                auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
+                const bool use_dma = false;
+                if (use_dma) {
+                    if (HAL_SD_ReadBlocks_DMA(&hsd, dst, static_cast<uint32_t>(lba + i), 1) != HAL_OK) {
+                        if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
+                            uart_write("sdio: read failed\r\n");
+                            uart_write_uint(HAL_SD_GetError(&hsd));
+                            return fs::Status{fs::Err::io};
+                        }
+                    }
+                } else {
+                    if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
                         uart_write("sdio: read failed\r\n");
                         uart_write_uint(HAL_SD_GetError(&hsd));
                         return fs::Status{fs::Err::io};
@@ -228,19 +237,6 @@ namespace {
                 const util::u32 start = HAL_GetTick();
                 while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
                     if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
-                }
-            } else {
-                for (util::u32 i = 0; i < count; ++i) {
-                    auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
-                    if (HAL_SD_ReadBlocks(&hsd, dst, static_cast<uint32_t>(lba + i), 1, kTimeoutMs) != HAL_OK) {
-                        uart_write("sdio: read failed\r\n");
-                        uart_write_uint(HAL_SD_GetError(&hsd));
-                        return fs::Status{fs::Err::io};
-                    }
-                    const util::u32 start = HAL_GetTick();
-                    while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
-                        if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Err::timeout};
-                    }
                 }
             }
             return fs::Status{fs::Err::ok};
@@ -287,6 +283,25 @@ namespace {
         util::u32 block_size_{kBlockSize};
         util::u32 block_count_{0};
     };
+
+    bool sdio_dma_read_block(util::u32 lba, std::span<util::u32> out) noexcept {
+        if (HAL_SD_ReadBlocks_DMA(&hsd,
+                reinterpret_cast<std::uint8_t*>(out.data()),
+                lba, 1) != HAL_OK) {
+            uart_write("sdio: dma read failed\r\n");
+            uart_write_uint(HAL_SD_GetError(&hsd));
+            return false;
+        }
+        const util::u32 start = HAL_GetTick();
+        while (HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER) {
+            if ((HAL_GetTick() - start) > kTimeoutMs) {
+                uart_write("sdio: dma read timeout\r\n");
+                uart_write_uint(HAL_SD_GetError(&hsd));
+                return false;
+            }
+        }
+        return true;
+    }
 
     fs::Status list_cb(void*, const fs::MountOps::ListEntry& entry) noexcept {
         const auto len = name_len(entry.name);
@@ -609,4 +624,39 @@ export bool fs_boot_init() noexcept {
     fs::set_mount(mount.mount_point());
     uart_write("fs boot: mount ok\r\n");
     return true;
+}
+
+export void sdio_dma_selftest() noexcept {
+    SdBlockDevice dev{};
+    if (!dev.init()) {
+        uart_write("sdio: selftest init failed\r\n");
+        return;
+    }
+    constexpr util::u32 kBlocksPerRound = 32;
+    constexpr util::u32 kRounds = 32;
+    alignas(4) static std::array<util::u32, kBlocksPerRound * 128> buf{};
+    uart_write("sdio: selftest begin\r\n");
+    uart_write("sdio: rounds ");
+    uart_write_uint(kRounds);
+    uart_write("sdio: blocks ");
+    uart_write_uint(kBlocksPerRound);
+    util::u32 lba = 0;
+    for (util::u32 i = 0; i < kRounds; ++i) {
+        util::u32 xor_sum = 0;
+        for (util::u32 b = 0; b < kBlocksPerRound; ++b) {
+            auto block = std::span<util::u32>(
+                buf.data() + static_cast<std::size_t>(b) * 128u, 128u);
+            if (!sdio_dma_read_block(lba + b, block)) {
+                uart_write("sdio: dma read failed\r\n");
+                return;
+            }
+            for (auto v : block) xor_sum ^= v;
+        }
+        uart_write("sdio: dma read ok lba ");
+        uart_write_uint(lba);
+        uart_write("sdio: dma xor ");
+        uart_write_uint(xor_sum);
+        lba += kBlocksPerRound;
+    }
+    uart_write("sdio: selftest end\r\n");
 }

@@ -1,5 +1,6 @@
 module;
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,7 @@ import fs_core;
 import fs_errno;
 import fs_stream;
 import fs_vfs;
+import media.stream.filter;
 import media.stream.source;
 import media.stream.types;
 import out.api;
@@ -25,16 +27,35 @@ import util.expected;
 
 namespace {
     constexpr std::uint32_t kTimeoutMs = 1000;
-    constexpr std::size_t kI2sBufFrames = 1024;
-    constexpr int kGainShift = 0;
-    constexpr std::size_t kI2sWordsPerFrame = 4; // 32-bit stereo: 2 words per channel
+    constexpr std::size_t kI2sBufFrames = 2048;
+    constexpr int kGainShift = 8;
+    constexpr std::size_t kI2sWordsPerFrame = 2; // 16-bit stereo: 1 word per channel
+    constexpr std::uint32_t kI2sStandard = I2S_STANDARD_PHILIPS;
+    constexpr std::uint32_t kI2sDataFormat = I2S_DATAFORMAT_16B_EXTENDED;
     constexpr bool kVerbose = false;
     constexpr bool kRuntimeLog = false;
     constexpr bool kStartupLog = true;
+    constexpr bool kMp3FileDiag = false;
+    constexpr bool kMp3DecodeDiag = false;
+    constexpr bool kUseBlockingI2s = true;
     constexpr std::uint32_t kFilterOpenLogStep = 128;
     constexpr std::uint32_t kFilterOpenSeekLogStep = 64;
     constexpr bool kUseDrmp3Id3Skip = true;
     constexpr std::size_t kMaxStreamRead = 4096;
+    constexpr std::size_t kDiagReadChunk = 4096;
+    constexpr std::size_t kDiagDecodeFrames = 1024;
+    constexpr std::size_t kDiagDecodeBlocks = 3;
+
+    std::uint32_t crc32_update(std::uint32_t crc, std::span<const util::u8> data) noexcept {
+        for (const auto b : data) {
+            crc ^= static_cast<std::uint32_t>(b);
+            for (int i = 0; i < 8; ++i) {
+                const std::uint32_t mask = (crc & 1u) ? 0xEDB88320u : 0u;
+                crc = (crc >> 1) ^ mask;
+            }
+        }
+        return crc;
+    }
 
     static bool g_in_filter_open = false;
     static std::uint32_t g_filter_open_reads = 0;
@@ -62,6 +83,8 @@ namespace {
         const auto freq = map_i2s_freq(rate);
         if (freq == 0) return false;
         hi2s2.Init.AudioFreq = freq;
+        hi2s2.Init.Standard = kI2sStandard;
+        hi2s2.Init.DataFormat = kI2sDataFormat;
         HAL_I2S_DeInit(&hi2s2);
         return HAL_I2S_Init(&hi2s2) == HAL_OK;
     }
@@ -85,6 +108,16 @@ namespace {
         const char c2 = ascii_lower(name.data()[len - 2]);
         const char c3 = ascii_lower(name.data()[len - 1]);
         return c0 == '.' && c1 == 'm' && c2 == 'p' && c3 == '3';
+    }
+
+    bool is_wav_name(std::string_view name) noexcept {
+        const auto len = name_len(name);
+        if (len < 4) return false;
+        const char c0 = ascii_lower(name.data()[len - 4]);
+        const char c1 = ascii_lower(name.data()[len - 3]);
+        const char c2 = ascii_lower(name.data()[len - 2]);
+        const char c3 = ascii_lower(name.data()[len - 1]);
+        return c0 == '.' && c1 == 'w' && c2 == 'a' && c3 == 'v';
     }
 
     struct FindAudioCtx {
@@ -242,6 +275,253 @@ namespace {
         bool ended{false};
     };
 
+    struct WavInfo {
+        std::uint16_t channels{0};
+        std::uint32_t sample_rate{0};
+        std::uint16_t bits_per_sample{0};
+        std::uint32_t data_offset{0};
+        std::uint32_t data_size{0};
+    };
+
+    std::uint16_t read_u16_le(const std::uint8_t* data) noexcept {
+        return static_cast<std::uint16_t>(data[0] | (static_cast<std::uint16_t>(data[1]) << 8));
+    }
+
+    std::uint32_t read_u32_le(const std::uint8_t* data) noexcept {
+        return static_cast<std::uint32_t>(data[0])
+            | (static_cast<std::uint32_t>(data[1]) << 8)
+            | (static_cast<std::uint32_t>(data[2]) << 16)
+            | (static_cast<std::uint32_t>(data[3]) << 24);
+    }
+
+    bool read_wav_header(fs::File& f, WavInfo& info) noexcept {
+        std::array<std::uint8_t, 12> riff{};
+        auto st = fs::vfs_read(f, std::span<std::uint8_t>{riff});
+        if (!st) return false;
+        if (std::memcmp(riff.data(), "RIFF", 4) != 0 || std::memcmp(riff.data() + 8, "WAVE", 4) != 0) {
+            return false;
+        }
+        std::uint32_t cursor = 12;
+        bool fmt_ok = false;
+        bool data_ok = false;
+        while (!fmt_ok || !data_ok) {
+            if (cursor + 8 > f.node.size) return false;
+            std::array<std::uint8_t, 8> chunk{};
+            st = fs::vfs_read(f, std::span<std::uint8_t>{chunk});
+            if (!st) return false;
+            cursor += 8;
+            const std::uint32_t size = read_u32_le(chunk.data() + 4);
+            std::uint32_t next = cursor + size;
+            if (size & 1u) {
+                ++next;
+            }
+            if (std::memcmp(chunk.data(), "fmt ", 4) == 0) {
+                if (size < 16) return false;
+                std::array<std::uint8_t, 16> fmt{};
+                st = fs::vfs_read(f, std::span<std::uint8_t>{fmt});
+                if (!st) return false;
+                cursor += 16;
+                const std::uint16_t format = read_u16_le(fmt.data());
+                info.channels = read_u16_le(fmt.data() + 2);
+                info.sample_rate = read_u32_le(fmt.data() + 4);
+                info.bits_per_sample = read_u16_le(fmt.data() + 14);
+                if (format != 1 && format != 0xFFFEu) return false;
+                fmt_ok = true;
+            } else if (std::memcmp(chunk.data(), "data", 4) == 0) {
+                info.data_offset = cursor;
+                info.data_size = size;
+                data_ok = true;
+            } else {
+                // skip unknown chunk
+            }
+            if (!fmt_ok || !data_ok) {
+                cursor = next;
+                st = fs::vfs_seek(f, static_cast<std::int64_t>(cursor));
+                if (!st) return false;
+            }
+        }
+        return true;
+    }
+
+    bool play_wav_blocking(fs::File& f, const WavInfo& info) noexcept {
+        if ((info.bits_per_sample != 16 && info.bits_per_sample != 24) ||
+            (info.channels != 1 && info.channels != 2)) {
+            out::println<"wav: only 16/24-bit mono/stereo supported">();
+            return false;
+        }
+        if (!reinit_i2s(info.sample_rate)) {
+            out::println<"wav: unsupported sample rate {}">(info.sample_rate);
+            return false;
+        }
+        if (!fs::vfs_seek(f, static_cast<std::int64_t>(info.data_offset))) return false;
+
+        std::array<std::uint8_t, 4096> read_buf{};
+        std::array<std::uint16_t, 2048> i2s_buf{};
+        std::uint32_t remaining = info.data_size;
+        const std::size_t sample_bytes = static_cast<std::size_t>(info.bits_per_sample / 8);
+        const std::size_t frame_bytes = static_cast<std::size_t>(info.channels) * sample_bytes;
+
+        while (remaining > 0) {
+            const std::size_t want = std::min<std::size_t>(read_buf.size(), remaining);
+            const auto before = f.node.offset;
+            auto st = fs::vfs_read(f, std::span<std::uint8_t>{read_buf.data(), want});
+            if (!st) return false;
+            const auto after = f.node.offset;
+            if (after < before) return false;
+            const std::size_t got = static_cast<std::size_t>(after - before);
+            if (got == 0) break;
+            remaining -= static_cast<std::uint32_t>(got);
+            const std::size_t usable = got - (got % frame_bytes);
+            if (usable == 0) continue;
+
+            if (info.bits_per_sample == 16) {
+                const std::uint16_t* samples = reinterpret_cast<const std::uint16_t*>(read_buf.data());
+                const std::size_t sample_count = usable / sizeof(std::uint16_t);
+                if (info.channels == 2) {
+                    std::size_t offset = 0;
+                    while (offset < sample_count) {
+                        const std::size_t chunk = std::min<std::size_t>(i2s_buf.size(), sample_count - offset);
+                        std::memcpy(i2s_buf.data(), samples + offset, chunk * sizeof(std::uint16_t));
+                        if (HAL_I2S_Transmit(&hi2s2, i2s_buf.data(),
+                                static_cast<uint16_t>(chunk), kTimeoutMs) != HAL_OK) {
+                            return false;
+                        }
+                        offset += chunk;
+                    }
+                } else {
+                    std::size_t offset = 0;
+                    while (offset < sample_count) {
+                        const std::size_t frames = std::min<std::size_t>(i2s_buf.size() / 2, sample_count - offset);
+                        for (std::size_t i = 0; i < frames; ++i) {
+                            const std::uint16_t s = samples[offset + i];
+                            i2s_buf[i * 2] = s;
+                            i2s_buf[i * 2 + 1] = s;
+                        }
+                        if (HAL_I2S_Transmit(&hi2s2, i2s_buf.data(),
+                                static_cast<uint16_t>(frames * 2), kTimeoutMs) != HAL_OK) {
+                            return false;
+                        }
+                        offset += frames;
+                    }
+                }
+            } else {
+                auto decode24 = [](const std::uint8_t* p) -> std::int16_t {
+                    std::int32_t v = static_cast<std::int32_t>(
+                        static_cast<std::uint32_t>(p[0]) |
+                        (static_cast<std::uint32_t>(p[1]) << 8) |
+                        (static_cast<std::uint32_t>(p[2]) << 16));
+                    if (v & 0x800000) v |= static_cast<std::int32_t>(0xFF000000u);
+                    return static_cast<std::int16_t>(v >> 8);
+                };
+                const std::uint8_t* bytes = read_buf.data();
+                const std::size_t frames = usable / frame_bytes;
+                std::size_t offset = 0;
+                while (offset < frames) {
+                    const std::size_t chunk = std::min<std::size_t>(i2s_buf.size() / 2, frames - offset);
+                    for (std::size_t i = 0; i < chunk; ++i) {
+                        const std::uint8_t* frame = bytes + (offset + i) * frame_bytes;
+                        const std::int16_t l = decode24(frame);
+                        const std::int16_t r = (info.channels == 2) ? decode24(frame + 3) : l;
+                        i2s_buf[i * 2] = static_cast<std::uint16_t>(l);
+                        i2s_buf[i * 2 + 1] = static_cast<std::uint16_t>(r);
+                    }
+                    if (HAL_I2S_Transmit(&hi2s2, i2s_buf.data(),
+                            static_cast<uint16_t>(chunk * 2), kTimeoutMs) != HAL_OK) {
+                        return false;
+                    }
+                    offset += chunk;
+                }
+            }
+        }
+        return true;
+    }
+
+    void mp3_diag_file(fs::File& f, util::i64 base) noexcept {
+        if constexpr (!kMp3FileDiag) return;
+        out::println<"mp3 diag: file read begin size={}">(f.node.size);
+        std::array<util::u8, kDiagReadChunk> buf{};
+        util::u64 total = 0;
+        std::uint32_t crc = 0xFFFFFFFFu;
+        util::i64 remaining = static_cast<util::i64>(f.node.size);
+        if (!fs::vfs_seek(f, 0)) {
+            out::println<"mp3 diag: seek 0 failed">();
+            return;
+        }
+        while (true) {
+            const auto before = f.node.offset;
+            if (remaining <= 0) break;
+            const auto want = static_cast<std::size_t>(std::min<util::i64>(
+                remaining, static_cast<util::i64>(buf.size())));
+            auto st = fs::vfs_read(f, std::span<util::u8>(buf.data(), want));
+            if (!st) {
+                out::println<"mp3 diag: read failed {}">(static_cast<int>(st.err));
+                break;
+            }
+            const auto after = f.node.offset;
+            if (after <= before) break;
+            const auto read_bytes = static_cast<std::size_t>(after - before);
+            total += read_bytes;
+            remaining -= static_cast<util::i64>(read_bytes);
+            crc = crc32_update(crc, std::span<const util::u8>(buf.data(), read_bytes));
+        }
+        crc ^= 0xFFFFFFFFu;
+        out::println<"mp3 diag: file read total={} size={} crc=0x{}">(
+            total, f.node.size, crc);
+        const util::i64 probes[] = {0, 2048, 1048576, static_cast<util::i64>(f.node.size) - 16};
+        for (const auto off : probes) {
+            if (off < 0) continue;
+            if (!fs::vfs_seek(f, off)) {
+                out::println<"mp3 diag: seek {} failed">(static_cast<long long>(off));
+                continue;
+            }
+            std::array<util::u8, 16> head{};
+            (void)fs::vfs_read(f, head);
+            out::println<"mp3 diag: head@{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+                static_cast<long long>(off),
+                head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7],
+                head[8], head[9], head[10], head[11], head[12], head[13], head[14], head[15]);
+        }
+        (void)fs::vfs_seek(f, base);
+    }
+
+    void mp3_diag_decode(Mp3Session& s, std::uint8_t channels) noexcept {
+        if constexpr (!kMp3DecodeDiag) return;
+        out::println<"mp3 diag: total_frames={}">(
+            static_cast<long long>(s.filter.total_frames()));
+        std::array<std::int16_t, kDiagDecodeFrames * 2> pcm{};
+        for (std::size_t b = 0; b < kDiagDecodeBlocks; ++b) {
+            auto dst = std::span<std::byte>(
+                reinterpret_cast<std::byte*>(pcm.data()),
+                pcm.size() * sizeof(std::int16_t));
+            auto res = s.filter.process({}, dst);
+            if (!res) {
+                out::println<"mp3 diag: decode err">();
+                return;
+            }
+            if (res->produced == 0 && res->end_of_stream) {
+                out::println<"mp3 diag: decode eos">();
+                return;
+            }
+            const auto samples = static_cast<std::size_t>(res->produced / sizeof(std::int16_t));
+            const auto frames = (channels == 0) ? 0 : (samples / channels);
+            std::int16_t min_v = 32767;
+            std::int16_t max_v = -32768;
+            std::uint32_t nonzero = 0;
+            for (std::size_t i = 0; i < samples; ++i) {
+                const auto v = pcm[i];
+                if (v < min_v) min_v = v;
+                if (v > max_v) max_v = v;
+                if (v != 0) ++nonzero;
+            }
+            out::println<"mp3 diag: dec#{} prod={} frames={} min={} max={} nz={} eos={}">(
+                b, res->produced, frames, min_v, max_v, nonzero, res->end_of_stream ? 1 : 0);
+        }
+        auto rst = s.filter.reset();
+        if (!rst) {
+            out::println<"mp3 diag: reset failed">();
+        }
+    }
+
     bool mp3_fill_block(
         Mp3Session& s,
         std::span<std::int16_t> pcm,
@@ -257,22 +537,39 @@ namespace {
         auto dst = std::span<std::byte>(
             reinterpret_cast<std::byte*>(pcm.data()),
             pcm.size() * sizeof(std::int16_t));
-        auto res = s.filter.process({}, dst);
-        if constexpr (kVerbose) {
-            if (debug_blocks < 3) {
-            out::println<"mp3 demo: produced={} eos={}">(res ? res->produced : 0, res ? res->end_of_stream : 0);
-            ++debug_blocks;
+        std::size_t written = 0;
+        media::FilterResult last{};
+        while (written < dst.size()) {
+            auto out = dst.subspan(written);
+            auto res = s.filter.process({}, out);
+            if (!res) {
+                s.ended = true;
+                std::memset(out_words.data(), 0, out_words.size_bytes());
+                return false;
+            }
+            last = *res;
+            if (last.produced == 0) {
+                if (last.end_of_stream) {
+                    s.ended = true;
+                }
+                break;
+            }
+            written += static_cast<std::size_t>(last.produced);
+            if (last.end_of_stream) {
+                s.ended = true;
+                break;
             }
         }
-        if (!res) {
-            s.ended = true;
-            std::memset(out_words.data(), 0, out_words.size_bytes());
-            return false;
+        if constexpr (kVerbose) {
+            if (debug_blocks < 3) {
+                out::println<"mp3 demo: produced={} eos={}">(last.produced, last.end_of_stream ? 1 : 0);
+                ++debug_blocks;
+            }
         }
-        if (res->produced < dst.size()) {
-            std::memset(dst.data() + res->produced, 0, dst.size() - res->produced);
+        if (written < dst.size()) {
+            std::memset(dst.data() + written, 0, dst.size() - written);
         }
-        if (res->produced == 0 && res->end_of_stream) {
+        if (written == 0 && s.ended) {
             s.ended = true;
             return false;
         }
@@ -302,9 +599,7 @@ namespace {
             const std::int16_t r = (channels > 1) ? pcm[i * channels + 1] : l;
             const std::size_t o = i * kI2sWordsPerFrame;
             out_words[o + 0] = static_cast<std::uint16_t>(l);
-            out_words[o + 1] = 0;
-            out_words[o + 2] = static_cast<std::uint16_t>(r);
-            out_words[o + 3] = 0;
+            out_words[o + 1] = static_cast<std::uint16_t>(r);
         }
         if constexpr (kVerbose) {
             if (energy_blocks < 3) {
@@ -312,10 +607,12 @@ namespace {
             ++energy_blocks;
             }
         }
-        if constexpr (kVerbose) {
-            if ((block_count % 100) == 0) {
-            out::println<"mp3 demo: block#{} pre=[{},{}] post=[{},{}]">(
-                block_count, pre_min, pre_max, post_min, post_max);
+        {
+            static bool printed = false;
+            if (!printed) {
+                out::println<"mp3 demo: block0 pre=[{},{}] post=[{},{}] nonzero={}">(
+                    pre_min, pre_max, post_min, post_max, nonzero);
+                printed = true;
             }
         }
         if constexpr (kVerbose) {
@@ -337,10 +634,12 @@ namespace {
 } // namespace
 
 static volatile bool g_half_ready = false;
-static volatile bool g_full_ready = false;
+    static volatile bool g_full_ready = false;
 static volatile std::uint32_t g_underruns = 0;
 static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
-static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer{};
+    static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer{};
+    constexpr std::size_t kTestFrames = 512;
+    static std::array<std::uint16_t, kTestFrames * 2 * kI2sWordsPerFrame> g_i2s_test_buffer{};
 
 extern "C" void charm_audio_i2s_half_notify() {
     g_half_ready = true;
@@ -353,114 +652,53 @@ extern "C" void charm_audio_i2s_full_notify() {
 export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s2);
     FindAudioCtx ctx{};
-    const char music_prefix[] = "/MUSIC/";
-    ctx.prefix = music_prefix;
-    ctx.prefix_len = sizeof(music_prefix) - 1;
-    auto st = fs::vfs_list("/MUSIC", &ctx, &find_first_mp3);
-    if (!st || !ctx.found) {
-        ctx = {};
-        const char root_prefix[] = "/";
-        ctx.prefix = root_prefix;
-        ctx.prefix_len = sizeof(root_prefix) - 1;
-        st = fs::vfs_list("/", &ctx, &find_first_mp3);
+    const char fixed_path[] = "/jtwayne-pianos-by-jtwayne-7-174717.wav";
+    std::size_t pos = 0;
+    for (std::size_t i = 0; i + 1 < sizeof(fixed_path) && pos + 1 < sizeof(ctx.path); ++i) {
+        ctx.path[pos++] = fixed_path[i];
     }
-    if (!st || !ctx.found) {
-        out::println<"mp3 demo: no mp3 found">();
-        return;
-    }
+    ctx.path[pos] = '\0';
+    ctx.found = true;
 
     if constexpr (kStartupLog) {
         out::println<"mp3 demo: open {}">(ctx.path);
     }
     fs::File f{};
-    st = fs::vfs_open(ctx.path, f);
+    auto st = fs::vfs_open(ctx.path, f);
     if (!st) {
         out::println<"mp3 demo: open failed {}">(static_cast<int>(st.err));
         return;
     }
-    {
-        std::array<util::u8, 16> head{};
-        (void)fs::vfs_seek(f, 0);
-        auto st_read = fs::vfs_read(f, head);
-        (void)st_read;
-        if constexpr (kStartupLog) {
-            out::println<"mp3 demo: head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7],
-                head[8], head[9], head[10], head[11], head[12], head[13], head[14], head[15]);
+    if (is_wav_name(ctx.path)) {
+        WavInfo info{};
+        if (!read_wav_header(f, info)) {
+            std::array<std::uint8_t, 12> head{};
+            (void)fs::vfs_seek(f, 0);
+            (void)fs::vfs_read(f, head);
+            out::println<"wav: head {} {} {} {} {} {} {} {} {} {} {} {}">(
+                head[0], head[1], head[2], head[3], head[4], head[5],
+                head[6], head[7], head[8], head[9], head[10], head[11]);
+            out::println<"wav: invalid header">();
+            (void)fs::vfs_close(f);
+            return;
         }
-        (void)fs::vfs_seek(f, 0);
+        out::println<"wav: rate={} ch={} bits={} data={}">(
+            info.sample_rate, info.channels, info.bits_per_sample, info.data_size);
+        const auto ok = play_wav_blocking(f, info);
+        out::println<"wav: end {}">(ok ? 1 : 0);
+        (void)fs::vfs_close(f);
+        return;
     }
-    (void)fs::vfs_seek(f, 0);
-
     Mp3Session session{};
     session.source = FileSource{&f};
-    {
-        std::array<util::u8, 10> id3{};
-        (void)fs::vfs_seek(f, 0);
-        (void)fs::vfs_read(f, id3);
-        util::i64 base = 0;
-        util::i64 id3_skip = 0;
-        if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3') {
-            const std::uint32_t sz =
-                (static_cast<std::uint32_t>(id3[6] & 0x7f) << 21) |
-                (static_cast<std::uint32_t>(id3[7] & 0x7f) << 14) |
-                (static_cast<std::uint32_t>(id3[8] & 0x7f) << 7) |
-                (static_cast<std::uint32_t>(id3[9] & 0x7f));
-            base = static_cast<util::i64>(10 + sz);
-            id3_skip = base;
-        }
-        if (kUseDrmp3Id3Skip) {
-            base = 0;
-        }
-        session.source.base_offset = base;
-        if constexpr (kStartupLog) {
-            out::println<"mp3 demo: base={}">(base);
-        }
-        if constexpr (kVerbose) {
-            std::array<util::u8, 512> peek{};
-            (void)fs::vfs_seek(f, base);
-            const auto before = f.node.offset;
-            (void)fs::vfs_read(f, peek);
-            const auto after = f.node.offset;
-            const auto read_bytes = static_cast<util::usize>(after > before ? (after - before) : 0);
-            std::size_t nonzero = 0;
-            std::size_t zeros = 0;
-            std::size_t ff = 0;
-            for (auto b : peek) {
-                if (b == 0) ++zeros;
-                if (b == 0xFF) ++ff;
-                if (b != 0) ++nonzero;
-            }
-            out::println<"mp3 demo: data nonzero {} zeros {} ff {} read {}">(
-                nonzero, zeros, ff, read_bytes);
-            out::println<"mp3 demo: data16 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                peek[0], peek[1], peek[2], peek[3], peek[4], peek[5], peek[6], peek[7],
-                peek[8], peek[9], peek[10], peek[11], peek[12], peek[13], peek[14], peek[15]);
-        }
-        (void)fs::vfs_seek(f, base);
-        if constexpr (kStartupLog) {
-            std::array<util::u8, 16> head2{};
-            (void)fs::vfs_read(f, head2);
-            out::println<"mp3 demo: base head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                head2[0], head2[1], head2[2], head2[3], head2[4], head2[5], head2[6], head2[7],
-                head2[8], head2[9], head2[10], head2[11], head2[12], head2[13], head2[14], head2[15]);
-            (void)fs::vfs_seek(f, base);
-        }
-        if constexpr (kStartupLog) {
-            if (id3_skip > 0) {
-                std::array<util::u8, 16> head3{};
-                (void)fs::vfs_seek(f, id3_skip);
-                (void)fs::vfs_read(f, head3);
-                out::println<"mp3 demo: id3 skip {} head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                    static_cast<long long>(id3_skip),
-                    head3[0], head3[1], head3[2], head3[3], head3[4], head3[5], head3[6], head3[7],
-                    head3[8], head3[9], head3[10], head3[11], head3[12], head3[13], head3[14], head3[15]);
-                (void)fs::vfs_seek(f, base);
-            }
-        }
-    }
+    const util::i64 base = 0;
+    session.source.base_offset = base;
+    (void)fs::vfs_seek(f, 0);
     if constexpr (kStartupLog) {
         out::println<"mp3 demo: filter open begin">();
+    }
+    if constexpr (kMp3FileDiag) {
+        mp3_diag_file(f, base);
     }
     auto ref = media::make_stream_source_ref(session.source);
     g_in_filter_open = true;
@@ -491,6 +729,16 @@ export void audio_mp3_demo_run() noexcept {
         out::println<"mp3 demo: rate={} ch={}">(fmt.rate, fmt.channels);
         out::println<"mp3 demo: size={}">(f.node.size);
     }
+    if constexpr (kMp3DecodeDiag) {
+        mp3_diag_decode(session, fmt.channels);
+        session.filter.close();
+        auto re = session.filter.open(ref);
+        if (!re) {
+            out::println<"mp3 demo: decoder reopen failed">();
+            (void)fs::vfs_close(f);
+            return;
+        }
+    }
     if (!reinit_i2s(fmt.rate)) {
         out::println<"mp3 demo: unsupported sample rate {}">(fmt.rate);
         session.filter.close();
@@ -498,93 +746,133 @@ export void audio_mp3_demo_run() noexcept {
         return;
     }
 
-    const std::size_t period_words = kI2sBufFrames * kI2sWordsPerFrame;
-    if (period_words == 0) {
-        out::println<"mp3 demo: invalid period">();
+    auto pcm_first = std::span<std::int16_t>(g_pcm_buffer.data(), kI2sBufFrames * 2);
+    auto pcm_second = std::span<std::int16_t>(g_pcm_buffer.data() + kI2sBufFrames * 2, kI2sBufFrames * 2);
+    auto out_first = std::span<std::uint16_t>(g_i2s_buffer.data(), kI2sBufFrames * kI2sWordsPerFrame);
+    auto out_second = std::span<std::uint16_t>(g_i2s_buffer.data() + (kI2sBufFrames * kI2sWordsPerFrame),
+        kI2sBufFrames * kI2sWordsPerFrame);
+
+    if constexpr (kUseBlockingI2s) {
+        bool first_block = true;
+        std::uint32_t block_count = 0;
+        while (true) {
+            if (!mp3_fill_block(session, pcm_first, out_first, fmt.channels)) {
+                out::println<"mp3 demo: fill1 failed ended={}">(
+                    session.ended ? 1 : 0);
+                break;
+            }
+            const auto samples = static_cast<uint16_t>(out_first.size());
+            if (first_block) {
+                std::uint16_t min_w = 0xFFFF;
+                std::uint16_t max_w = 0;
+                std::uint32_t nz = 0;
+                for (const auto w : out_first) {
+                    if (w < min_w) min_w = w;
+                    if (w > max_w) max_w = w;
+                    if (w != 0) ++nz;
+                }
+                out::println<"mp3 demo: out0 min={} max={} nz={}">(
+                    min_w, max_w, nz);
+            }
+            const auto t0 = HAL_GetTick();
+            const auto tx = HAL_I2S_Transmit(&hi2s2, out_first.data(), samples, kTimeoutMs);
+            const auto t1 = HAL_GetTick();
+            if (first_block) {
+                out::println<"mp3 demo: tx0 ms={} ret={} err={}">(
+                    static_cast<int>(t1 - t0), static_cast<int>(tx),
+                    static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+            }
+            if (tx != HAL_OK) {
+                out::println<"mp3 demo: i2s tx failed {}">(static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+                break;
+            }
+            if (!mp3_fill_block(session, pcm_second, out_second, fmt.channels)) {
+                out::println<"mp3 demo: fill2 failed ended={}">(
+                    session.ended ? 1 : 0);
+                break;
+            }
+            const auto samples2 = static_cast<uint16_t>(out_second.size());
+            if (HAL_I2S_Transmit(&hi2s2, out_second.data(), samples2, kTimeoutMs) != HAL_OK) {
+                out::println<"mp3 demo: i2s tx failed {}">(static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+                break;
+            }
+            block_count += 2;
+            if (session.ended) break;
+            first_block = false;
+        }
+        out::println<"mp3 demo: end blocks={} ended={}">(
+            block_count, session.ended ? 1 : 0);
         session.filter.close();
         (void)fs::vfs_close(f);
         return;
     }
+    session.filter.close();
+    (void)fs::vfs_close(f);
+}
 
-    auto pcm_first = std::span<std::int16_t>(g_pcm_buffer.data(), kI2sBufFrames * 2);
-    auto pcm_second = std::span<std::int16_t>(g_pcm_buffer.data() + kI2sBufFrames * 2, kI2sBufFrames * 2);
-    auto out_first = std::span<std::uint16_t>(g_i2s_buffer.data(), period_words);
-    auto out_second = std::span<std::uint16_t>(g_i2s_buffer.data() + period_words, period_words);
-    mp3_fill_block(session, pcm_first, out_first, fmt.channels);
-    mp3_fill_block(session, pcm_second, out_second, fmt.channels);
-    {
-        auto* pcm = g_pcm_buffer.data();
-        const std::size_t samples = kI2sBufFrames * 2;
-        std::int16_t min_v = 32767;
-        std::int16_t max_v = -32768;
-        for (std::size_t i = 0; i < samples; ++i) {
-            const auto v = pcm[i];
-            if (v < min_v) min_v = v;
-            if (v > max_v) max_v = v;
-        }
-        if constexpr (kStartupLog) {
-            out::println<"mp3 demo: pcm min={} max={} s0={} s1={} s2={} s3={}">(min_v, max_v, pcm[0], pcm[1], pcm[2], pcm[3]);
-        }
+export void i2s_dma_selftest() noexcept {
+    HAL_I2S_DMAStop(&hi2s2);
+    g_half_ready = false;
+    g_full_ready = false;
+    g_underruns = 0;
+
+    const auto ok = reinit_i2s(44100);
+    if (!ok) {
+        out::println<"i2s test: reinit failed">();
+        return;
+    }
+
+    std::uint16_t sample = 0x2000;
+    for (std::size_t i = 0; i < g_i2s_test_buffer.size(); i += 2) {
+        sample = (sample == 0x2000) ? 0xE000 : 0x2000;
+        g_i2s_test_buffer[i] = sample;
+        g_i2s_test_buffer[i + 1] = sample;
     }
 
     const auto dma_status = HAL_I2S_Transmit_DMA(&hi2s2,
-        g_i2s_buffer.data(),
-        static_cast<uint16_t>(g_i2s_buffer.size()));
+        g_i2s_test_buffer.data(),
+        static_cast<uint16_t>(g_i2s_test_buffer.size()));
     if (dma_status != HAL_OK) {
-        out::println<"mp3 demo: dma start failed {}">(static_cast<int>(dma_status));
-        out::println<"mp3 demo: i2s state={} err={} hdmatx={}">(
-            static_cast<int>(hi2s2.State),
-            static_cast<int>(HAL_I2S_GetError(&hi2s2)),
-            reinterpret_cast<std::uintptr_t>(hi2s2.hdmatx));
-        session.filter.close();
-        (void)fs::vfs_close(f);
+        out::println<"i2s test: dma start failed {}">(static_cast<int>(dma_status));
         return;
     }
-    if constexpr (kStartupLog) {
-        out::println<"mp3 demo: i2s state={} err={}">(static_cast<int>(hi2s2.State),
-            static_cast<int>(HAL_I2S_GetError(&hi2s2)));
-    }
 
-    std::size_t idle_ticks = 0;
-    std::size_t tick = 0;
-    bool half_filled = true;
-    bool full_filled = true;
-    while (true) {
+    std::uint32_t half_cnt = 0;
+    std::uint32_t full_cnt = 0;
+    std::uint32_t stress_cnt = 0;
+    const auto start = HAL_GetTick();
+    while ((HAL_GetTick() - start) < 60000u) {
         if (g_half_ready) {
             g_half_ready = false;
-            if (!mp3_fill_block(session, pcm_first, out_first, fmt.channels)) {
-                ++g_underruns;
-                half_filled = false;
-            } else {
-                half_filled = true;
+            ++half_cnt;
+            for (std::size_t i = 0; i < g_i2s_test_buffer.size() / 2; i += 2) {
+                sample = static_cast<std::uint16_t>(sample + 0x1111u);
+                g_i2s_test_buffer[i] = sample;
+                g_i2s_test_buffer[i + 1] = sample;
             }
+            for (volatile int i = 0; i < 20000; ++i) {
+                __asm volatile("");
+            }
+            ++stress_cnt;
         }
         if (g_full_ready) {
             g_full_ready = false;
-            if (!mp3_fill_block(session, pcm_second, out_second, fmt.channels)) {
-                ++g_underruns;
-                full_filled = false;
-            } else {
-                full_filled = true;
+            ++full_cnt;
+            const std::size_t base = g_i2s_test_buffer.size() / 2;
+            for (std::size_t i = 0; i < g_i2s_test_buffer.size() / 2; i += 2) {
+                sample = static_cast<std::uint16_t>(sample + 0x1111u);
+                g_i2s_test_buffer[base + i] = sample;
+                g_i2s_test_buffer[base + i + 1] = sample;
             }
-        }
-        if (session.ended) {
-            if (++idle_ticks > 50) break;
-        }
-        if constexpr (kRuntimeLog) {
-            if ((++tick % 5000) == 0) {
-                auto* dma = hi2s2.hdmatx;
-                const auto ndtr = (dma && dma->Instance) ? static_cast<int>(dma->Instance->NDTR) : -1;
-                const auto dstate = dma ? static_cast<int>(dma->State) : -1;
-                out::println<"mp3 demo: playing... ndtr={} dma_state={} i2s_state={} underrun={} half_ok={} full_ok={} hdmatx={}">(
-                    ndtr, dstate, static_cast<int>(hi2s2.State), g_underruns,
-                    static_cast<int>(half_filled), static_cast<int>(full_filled),
-                    reinterpret_cast<std::uintptr_t>(dma));
+            for (volatile int i = 0; i < 20000; ++i) {
+                __asm volatile("");
             }
+            ++stress_cnt;
         }
     }
-    out::println<"mp3 demo: end">();
     HAL_I2S_DMAStop(&hi2s2);
-    session.filter.close();
-    (void)fs::vfs_close(f);
+    out::println<"i2s test: half={} full={} underrun={} err={}">(
+        half_cnt, full_cnt, g_underruns, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+    out::println<"i2s test: stress={}">(
+        stress_cnt);
 }

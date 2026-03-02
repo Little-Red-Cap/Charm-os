@@ -38,6 +38,8 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    constexpr std::size_t kMaxStyleTableBytes = 128 * 1024;
+
     const char* event_type_name(Event::Type type) noexcept {
         switch (type) {
             case Event::Type::HoverEnter: return "HoverEnter";
@@ -391,6 +393,10 @@ namespace {
         const std::uint32_t table_after = sheet.style_table_compile_count();
         expect_true(role_after == role_before + 1u, "style: role palette not rebuilt", fails);
         expect_true(table_after == table_before + 1u, "style: style table not rebuilt", fails);
+
+        const StyleStats stats = sheet.style_stats();
+        expect_true(!stats.metrics_overflowed, "style: metrics pool overflowed", fails);
+        expect_true(stats.style_table_total_bytes <= kMaxStyleTableBytes, "style: table bytes too large", fails);
 
         if (fails == 0) {
             (void)out::println<"[soa] style regression OK">();

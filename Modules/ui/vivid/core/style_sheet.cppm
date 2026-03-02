@@ -138,6 +138,20 @@ struct ResolvedStyleView {
     const ResolvedMetrics* metrics{nullptr};
 };
 
+#if defined(VIVID_SOA_TRACE_INPUT)
+export
+struct StyleStats {
+    std::size_t style_colors_bytes{0};
+    std::size_t style_metrics_id_bytes{0};
+    std::size_t metrics_pool_bytes{0};
+    std::size_t style_table_total_bytes{0};
+    std::uint32_t metrics_pool_size{0};
+    std::uint32_t style_lookup_count{0};
+    std::uint32_t theme_recompile_count{0};
+    bool metrics_overflowed{false};
+};
+#endif
+
 static_assert(std::is_trivially_copyable_v<ResolvedColors>);
 static_assert(std::is_trivially_copyable_v<ResolvedMetrics>);
 static_assert(std::is_trivially_copyable_v<ResolvedStyleView>);
@@ -152,6 +166,7 @@ struct StyleTable {
     std::array<ResolvedMetrics, kMaxMetricsPool> metrics_pool{};
     std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants> metrics_id{};
     std::uint8_t metrics_count{0};
+    bool metrics_overflowed{false};
     std::uint32_t tokens_version{std::numeric_limits<std::uint32_t>::max()};
     std::uint32_t stylesheet_version{std::numeric_limits<std::uint32_t>::max()};
     bool valid{false};
@@ -163,6 +178,7 @@ struct StyleTable {
         metrics_pool.fill(ResolvedMetrics{});
         metrics_id.fill(0);
         metrics_count = 0;
+        metrics_overflowed = false;
         valid = false;
     }
 };
@@ -373,6 +389,9 @@ public:
     }
 
     ResolvedStyleView lookup(WidgetKind kind, const StyleState& state) const noexcept {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        style_lookup_count_ += 1u;
+#endif
         if (!style_table_.valid) {
 #ifndef NDEBUG
             assert(false && "StyleSheet compiled table is not ready");
@@ -447,6 +466,19 @@ public:
 
     std::uint32_t style_table_compile_count() const noexcept {
         return style_table_compile_count_;
+    }
+
+    StyleStats style_stats() const noexcept {
+        StyleStats s{};
+        s.style_colors_bytes = style_table_.colors.size() * sizeof(ResolvedColors);
+        s.style_metrics_id_bytes = style_table_.metrics_id.size() * sizeof(std::uint8_t);
+        s.metrics_pool_bytes = static_cast<std::size_t>(style_table_.metrics_count) * sizeof(ResolvedMetrics);
+        s.style_table_total_bytes = s.style_colors_bytes + s.style_metrics_id_bytes + s.metrics_pool_bytes;
+        s.metrics_pool_size = style_table_.metrics_count;
+        s.style_lookup_count = style_lookup_count_;
+        s.theme_recompile_count = style_table_compile_count_;
+        s.metrics_overflowed = style_table_.metrics_overflowed;
+        return s;
     }
 #endif
 
@@ -552,6 +584,7 @@ private:
 #ifndef NDEBUG
                         assert(false && "StyleSheet metrics pool overflow");
 #endif
+                        style_table_.metrics_overflowed = true;
                         metrics_slot = 0;
                     }
                 }
@@ -679,6 +712,7 @@ private:
 #if defined(VIVID_SOA_TRACE_INPUT)
     std::uint32_t role_palette_compile_count_{0};
     std::uint32_t style_table_compile_count_{0};
+    std::uint32_t style_lookup_count_{0};
 #endif
 };
 

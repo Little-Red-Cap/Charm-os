@@ -230,6 +230,7 @@ flowchart TB
 - 控件以 theme token 作为样式入口，避免散落硬编码。
 - role 派生通过 `ResolvedTheme` 预编译（仅在 tokens 变更时生成），StyleSheet 热路径不再做派生计算。
 - StyleSheet 预编译触发仅依赖 `tokens_version` 与 `stylesheet_version`，热路径只做索引查表。
+- 预编译样式输出 `ResolvedStyleView`：颜色表按 state 维度查表，metrics 走 per-kind/per-variant 索引，避免热路径搬运大对象。
 - 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
 - StyleSheet 规则优先级为确定性模型：kind specificity > variant specificity > state mask 位数（更多位更具体），同级按插入顺序稳定排序。
 

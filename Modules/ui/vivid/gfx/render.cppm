@@ -25,7 +25,13 @@ inline constexpr int abs_int(int v) noexcept {
     return (v < 0) ? -v : v;
 }
 
-export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const Style& st, bool focused, int inset = 0, int radius = -1) noexcept {
+inline void draw_focus_ring_impl(CanvasBase& cvs,
+                                 const Rect& rect,
+                                 const rgba& color,
+                                 int corner_radius,
+                                 bool focused,
+                                 int inset,
+                                 int radius) noexcept {
     if (!focused) return;
     Rect r = rect;
     r.x += inset;
@@ -33,12 +39,22 @@ export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const Styl
     r.w -= inset * 2;
     r.h -= inset * 2;
     if (r.w <= 0 || r.h <= 0) return;
-    const int rad = (radius < 0) ? st.metrics.corner_radius : radius;
-    const rgba c = st.colors.border_focus;
+    const int rad = (radius < 0) ? corner_radius : radius;
+    const rgba c = color;
     auto plot = [&](int x, int y) { cvs.set_pixel(x, y, c); };
     auto hline = [&](int x0, int x1, int y) { cvs.draw_hline(x0, x1, y, c); };
     auto vline = [&](int y0, int y1, int x) { cvs.draw_vline(y0, y1, x, c); };
     alg::round_rect::outline(r.x, r.y, r.w, r.h, rad, plot, hline, vline);
+}
+
+export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const Style& st, bool focused,
+                                   int inset = 0, int radius = -1) noexcept {
+    draw_focus_ring_impl(cvs, rect, st.colors.border_focus, st.metrics.corner_radius, focused, inset, radius);
+}
+
+export inline void draw_focus_ring(CanvasBase& cvs, const Rect& rect, const rgba& color, int corner_radius,
+                                   bool focused, int inset = 0, int radius = -1) noexcept {
+    draw_focus_ring_impl(cvs, rect, color, corner_radius, focused, inset, radius);
 }
 
 // CanvasBase helpers

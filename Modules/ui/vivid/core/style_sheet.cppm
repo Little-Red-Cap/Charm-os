@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 export module charm.core.style_sheet;
 
 export import charm.core.style;
@@ -108,6 +109,7 @@ inline constexpr std::size_t kWidgetKindCount =
 inline constexpr std::uint8_t kMaxStyleVariants = 4;
 inline constexpr std::uint8_t kStyleStateCount = 16;
 
+export
 struct ResolvedColors {
     rgba bg{};
     rgba border{};
@@ -117,10 +119,36 @@ struct ResolvedColors {
     rgba border_focus{};
 };
 
+export
+struct ResolvedMetrics {
+    const Font* font{nullptr};
+    std::int16_t border_width{0};
+    std::int16_t corner_radius{0};
+    std::int16_t padding{0};
+    std::int16_t header_padding{0};
+    std::int16_t content_padding{0};
+    std::int16_t scrollbar_margin{0};
+    std::int16_t scrollbar_thumb_min{0};
+};
+
+export
+struct ResolvedStyleView {
+    const ResolvedColors* colors{nullptr};
+    const ResolvedMetrics* metrics{nullptr};
+};
+
+static_assert(std::is_trivially_copyable_v<ResolvedColors>);
+static_assert(std::is_trivially_copyable_v<ResolvedMetrics>);
+static_assert(std::is_trivially_copyable_v<ResolvedStyleView>);
+static_assert(sizeof(ResolvedColors) <= 32);
+static_assert(sizeof(ResolvedMetrics) <= 32);
+static_assert(sizeof(ResolvedStyleView) <= 24);
+
 struct StyleTable {
     std::array<ResolvedColors, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> colors{};
     std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> matched{};
     std::array<std::uint8_t, kWidgetKindCount> kind_compiled{};
+    std::array<ResolvedMetrics, kWidgetKindCount * kMaxStyleVariants> metrics{};
     std::uint32_t tokens_version{std::numeric_limits<std::uint32_t>::max()};
     std::uint32_t stylesheet_version{std::numeric_limits<std::uint32_t>::max()};
     bool valid{false};
@@ -129,6 +157,7 @@ struct StyleTable {
         colors.fill(ResolvedColors{});
         matched.fill(0);
         kind_compiled.fill(0);
+        metrics.fill(ResolvedMetrics{});
         valid = false;
     }
 };
@@ -198,6 +227,25 @@ inline ResolvedColors build_resolved_colors(const Style& st, const StyleState& s
     return ResolvedColors{bg, border, font, accent, st.colors.on_accent, st.colors.border_focus};
 }
 
+inline std::int16_t clamp_i16(int v) noexcept {
+    if (v > std::numeric_limits<std::int16_t>::max()) return std::numeric_limits<std::int16_t>::max();
+    if (v < std::numeric_limits<std::int16_t>::min()) return std::numeric_limits<std::int16_t>::min();
+    return static_cast<std::int16_t>(v);
+}
+
+inline ResolvedMetrics build_resolved_metrics(const Style& st) noexcept {
+    ResolvedMetrics m{};
+    m.font = st.font;
+    m.border_width = clamp_i16(st.metrics.border_width);
+    m.corner_radius = clamp_i16(st.metrics.corner_radius);
+    m.padding = clamp_i16(st.metrics.padding);
+    m.header_padding = clamp_i16(st.metrics.header_padding);
+    m.content_padding = clamp_i16(st.metrics.content_padding);
+    m.scrollbar_margin = clamp_i16(st.metrics.scrollbar_margin);
+    m.scrollbar_thumb_min = clamp_i16(st.metrics.scrollbar_thumb_min);
+    return m;
+}
+
 inline void apply_resolved_colors(Style& style, const ResolvedColors& colors) noexcept {
     style.colors.bg_color = colors.bg;
     style.colors.bg_hover = colors.bg;
@@ -220,6 +268,22 @@ inline void apply_resolved_colors(Style& style, const ResolvedColors& colors) no
 inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
     const auto idx = role_index(role);
     return (idx < palette.values.size()) ? palette.values[idx] : rgba{};
+}
+
+inline bool patch_has_metrics(const StylePatch& patch) noexcept {
+    return patch.has_border_width ||
+        patch.has_corner_radius ||
+        patch.has_padding ||
+        patch.has_header_padding ||
+        patch.has_content_padding ||
+        patch.has_scrollbar_margin ||
+        patch.has_scrollbar_thumb_min ||
+        patch.has_glass_highlight_pos ||
+        patch.has_glass_highlight_alpha ||
+        patch.has_glass_shadow_alpha ||
+        patch.has_glass_opacity_min ||
+        patch.has_glass_opacity_max ||
+        patch.has_font;
 }
 
 inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const RolePalette& palette) noexcept {
@@ -290,6 +354,36 @@ public:
                Style& out,
                const Style& base) const noexcept {
         return apply_compiled(kind, state, out, base);
+    }
+
+    ResolvedStyleView lookup(WidgetKind kind, const StyleState& state) const noexcept {
+        if (!style_table_.valid) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table is not ready");
+#endif
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+        }
+        const auto& tokens = Theme::instance().get_tokens();
+        if (style_table_.tokens_version != tokens.version ||
+            style_table_.stylesheet_version != stylesheet_version_) {
+#ifndef NDEBUG
+            assert(false && "StyleSheet compiled table out of date");
+#endif
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+        }
+        const auto kind_idx = static_cast<std::size_t>(kind);
+        if (kind_idx >= kWidgetKindCount || style_table_.kind_compiled[kind_idx] == 0) {
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+        }
+        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t state_idx = style_state_index(state);
+        const std::size_t color_entry =
+            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+        const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
+        return ResolvedStyleView{
+            &style_table_.colors[color_entry],
+            &style_table_.metrics[metrics_entry]
+        };
     }
 
     void set_base_style(WidgetKind kind, const Style& style) noexcept {
@@ -402,17 +496,11 @@ private:
 
     void rebuild_style_table() noexcept {
         style_table_.reset();
-        std::array<std::uint8_t, kWidgetKindCount> kind_used{};
         bool has_global_rule = false;
         for (std::size_t i = 0; i < count_; ++i) {
             const auto& rule = rules_[i];
             if (rule.selector.kind == WidgetKind::None) {
                 has_global_rule = true;
-                continue;
-            }
-            const auto kind_idx = static_cast<std::size_t>(rule.selector.kind);
-            if (kind_idx < kWidgetKindCount) {
-                kind_used[kind_idx] = 1;
             }
         }
         if (has_global_rule) {
@@ -421,17 +509,16 @@ private:
 #endif
         }
         for (std::size_t kind_idx = 0; kind_idx < kWidgetKindCount; ++kind_idx) {
-            if (!has_global_rule && kind_used[kind_idx] == 0) {
-                continue;
-            }
+            if (base_style_set_[kind_idx] == 0) continue;
             style_table_.kind_compiled[kind_idx] = static_cast<std::uint8_t>(1);
             Style base = base_styles_[kind_idx];
 #ifndef NDEBUG
-            if (base_style_set_[kind_idx] == 0) {
-                assert(false && "StyleSheet base style missing");
-            }
+            if (base_style_set_[kind_idx] == 0) assert(false && "StyleSheet base style missing");
 #endif
+            const ResolvedMetrics metrics = build_resolved_metrics(base);
             for (std::uint8_t variant = 0; variant < kMaxStyleVariants; ++variant) {
+                const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
+                style_table_.metrics[metrics_entry] = metrics;
                 for (std::uint8_t state_idx = 0; state_idx < kStyleStateCount; ++state_idx) {
                     const StyleState state = style_state_from_index(state_idx, variant);
                     Style scratch{};
@@ -441,6 +528,11 @@ private:
                         if (rule.selector.kind != WidgetKind::None &&
                             rule.selector.kind != static_cast<WidgetKind>(kind_idx)) {
                             continue;
+                        }
+                        if (rule.kind == StyleRuleKind::Patch && patch_has_metrics(rule.patch)) {
+#ifndef NDEBUG
+                            assert(false && "StyleSheet metrics patch not supported in compiled table");
+#endif
                         }
                         if (rule.selector.variant != kStyleVariantAny &&
                             rule.selector.variant >= kMaxStyleVariants) {
@@ -545,6 +637,8 @@ private:
     std::array<std::uint8_t, kWidgetKindCount> base_style_set_{};
     std::uint32_t stylesheet_version_{0};
     mutable StyleTable style_table_{};
+    ResolvedColors fallback_colors_{};
+    ResolvedMetrics fallback_metrics_{};
 #if defined(VIVID_SOA_TRACE_INPUT)
     std::uint32_t role_palette_compile_count_{0};
     std::uint32_t style_table_compile_count_{0};

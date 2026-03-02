@@ -17,6 +17,8 @@ option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
 option(CHARM_ENABLE_DEPENDENCY_WHITELIST "Enforce dependency whitelist at configure time" ON)
+option(CHARM_ENABLE_BANNED_API_CHECK "Ban printf-family APIs in project code" ON)
+option(CHARM_BANNED_API_CHECK_EXAMPLES "Also check Examples/ for banned APIs" OFF)
 
 add_library(${target_name})
 
@@ -51,6 +53,10 @@ endif()
 if (CHARM_ENABLE_DEPENDENCY_WHITELIST)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DependencyWhitelist.cmake")
     charm_enforce_dependency_whitelist()
+endif()
+if (CHARM_ENABLE_BANNED_API_CHECK)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BannedApiCheck.cmake")
+    charm_enforce_banned_api_check()
 endif()
 
 target_compile_definitions(${target_name} PRIVATE

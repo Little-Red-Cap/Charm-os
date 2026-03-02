@@ -14,38 +14,10 @@ export import charm.core.geometry;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.event;
-export import charm.core.container;
 export import charm.gfx.canvas;
 export import charm.gfx.render;
 export import charm.widgets.text;
 export import charm.font.typography;
-#if CHARM_VIVID_ENABLE_WIDGET_Button
-export import charm.widgets.button;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
-export import charm.widgets.checkbox;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Label
-export import charm.widgets.label;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_List
-export import charm.widgets.list;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Progress
-export import charm.widgets.progress;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Radio
-export import charm.widgets.radio;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Slider
-export import charm.widgets.slider;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Switch
-export import charm.widgets.switcher;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
-export import charm.widgets.scroll_container;
-#endif
 
 namespace {
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {

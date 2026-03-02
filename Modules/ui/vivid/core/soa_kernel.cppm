@@ -15,27 +15,8 @@ export import charm.core.config;
 export import charm.core.event;
 export import charm.core.widget_registry;
 
-import charm.core.container;
 import charm.core.style;
 import charm.core.style_sheet;
-#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
-import charm.widgets.checkbox;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_List
-import charm.widgets.list;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Radio
-import charm.widgets.radio;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
-import charm.widgets.scroll_container;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Slider
-import charm.widgets.slider;
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Switch
-import charm.widgets.switcher;
-#endif
 
 namespace {
     constexpr std::uint16_t kInvalidIndex = 0xFFFF;
@@ -229,6 +210,13 @@ enum class SoaClickBehavior : std::uint8_t {
     ListItemGroup
 };
 
+struct SoaDefaults {
+    bool hit_test{true};
+    bool focusable{false};
+    bool clip_children{false};
+    SoaLayoutKind layout_kind{SoaLayoutKind::None};
+};
+
 export
 class SoaKernel {
 public:
@@ -268,11 +256,14 @@ public:
         if (free_head_ == kInvalidIndex) return {};
         const std::uint16_t idx = free_head_;
         free_head_ = common_.free_next[idx];
+        const SoaDefaults defaults = default_for_kind(kind);
         common_.kind[idx] = kind;
         common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
             | static_cast<std::uint8_t>(SoaNodeFlag::Visible)
             | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
-            | static_cast<std::uint8_t>(SoaNodeFlag::HitTest);
+            | (defaults.hit_test ? static_cast<std::uint8_t>(SoaNodeFlag::HitTest) : std::uint8_t{0})
+            | (defaults.focusable ? static_cast<std::uint8_t>(SoaNodeFlag::Focusable) : std::uint8_t{0})
+            | (defaults.clip_children ? static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren) : std::uint8_t{0});
         common_.state_flags[idx] = 0;
         common_.variant[idx] = 0;
         common_.rects[idx] = Rect{};
@@ -283,7 +274,7 @@ public:
         common_.next_sibling[idx] = kInvalidIndex;
         common_.prev_sibling[idx] = kInvalidIndex;
         common_.child_count[idx] = 0;
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+        common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
         reset_payload(kind, idx);
         mark_layout_dirty();
         return WidgetHandle{kind, idx, common_.generation[idx]};
@@ -592,7 +583,6 @@ public:
     void input_dispatch(const Event& e) noexcept {
         if (!input_root_) return;
         input_events_.clear();
-        input_refresh_styles();
         switch (e.type) {
         case Event::Type::HoverEnter:
             break;
@@ -602,10 +592,11 @@ public:
             input_last_x_ = e.x;
             input_last_y_ = e.y;
             input_handle_hover(e.x, e.y, e.button);
-            if (input_pressed_) {
+            if (input_pressed_ || input_captured_) {
                 input_handle_drag(e.x, e.y, input_button_);
-                if (kind(input_pressed_) == WidgetKind::Slider) {
-                    input_update_slider_value(input_pressed_, e.x);
+                const WidgetHandle drag_target = input_drag_target();
+                if (drag_target && press_updates_slider(kind(drag_target))) {
+                    input_update_slider_value(drag_target, e.x);
                 }
             } else if (input_hovered_) {
                 input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button));
@@ -1239,6 +1230,34 @@ public:
         return kind == WidgetKind::Slider;
     }
 
+    static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
+        SoaDefaults defaults{};
+        switch (kind) {
+        case WidgetKind::Label:
+            defaults.hit_test = false;
+            break;
+        case WidgetKind::Progress:
+            defaults.hit_test = false;
+            break;
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::ListItem:
+            defaults.focusable = true;
+            break;
+        case WidgetKind::List:
+            defaults.clip_children = true;
+            defaults.layout_kind = SoaLayoutKind::List;
+            break;
+        case WidgetKind::ScrollContainer:
+            defaults.clip_children = true;
+            defaults.focusable = true;
+            break;
+        default:
+            break;
+        }
+        return defaults;
+    }
+
     static constexpr soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
         using namespace soa_detail;
         if (!widget_kind_enabled(kind)) {
@@ -1387,12 +1406,6 @@ private:
         }
     }
 
-    static constexpr std::size_t kWidgetKindCount = enabled_widget_kind_count;
-
-    struct InputStyleTable {
-        std::array<Style, kWidgetKindCount> styles{};
-    };
-
     static constexpr std::size_t kMaxInputEvents = 32;
 
     struct InputEventQueue {
@@ -1406,8 +1419,6 @@ private:
         }
     };
 
-    InputStyleTable input_style_table_{};
-    std::uint32_t input_style_version_{0};
     InputEventQueue input_events_{};
     WidgetHandle input_root_{};
     WidgetHandle input_hovered_{};
@@ -1425,91 +1436,18 @@ private:
     int input_drag_threshold_sq_{25};
     bool input_dragging_{false};
 
-    static const Style& input_style_for_kind(const InputStyleTable& table, WidgetKind kind) noexcept {
-        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
-        if (idx == invalid_widget_kind_index || idx >= table.styles.size()) {
-            const auto fallback_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
-            if (fallback_idx == invalid_widget_kind_index || fallback_idx >= table.styles.size()) {
-                return table.styles[0];
-            }
-            return table.styles[fallback_idx];
-        }
-        return table.styles[idx];
-    }
-
     static StyleState input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
         return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
     }
 
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept {
-        return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
+        const auto desc = payload_descriptor(kind);
+        return desc.scroll != soa_detail::ScrollSlot::None;
     }
 
     static int clamp_int(int v, int lo, int hi) noexcept {
         return (v < lo) ? lo : (v > hi ? hi : v);
-    }
-
-    void input_refresh_styles() {
-        const auto version = Theme::instance().get_tokens().version;
-        if (version == input_style_version_) return;
-        input_style_version_ = version;
-        const Style fallback = Theme::instance().get<Container>();
-        input_style_table_.styles.fill(fallback);
-        const auto container_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
-        if (container_idx != invalid_widget_kind_index && container_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[container_idx] = Theme::instance().get<Container>();
-        }
-#if CHARM_VIVID_ENABLE_WIDGET_Slider
-        const auto slider_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Slider)];
-        if (slider_idx != invalid_widget_kind_index && slider_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[slider_idx] = Theme::instance().get<Slider>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_List
-        const auto list_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::List)];
-        if (list_idx != invalid_widget_kind_index && list_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[list_idx] = Theme::instance().get<List>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ListItem && CHARM_VIVID_ENABLE_WIDGET_List
-        const auto list_item_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::ListItem)];
-        if (list_item_idx != invalid_widget_kind_index && list_item_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[list_item_idx] = Theme::instance().get<ListItem>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
-        const auto scroll_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::ScrollContainer)];
-        if (scroll_idx != invalid_widget_kind_index && scroll_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[scroll_idx] = Theme::instance().get<ScrollContainer>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
-        const auto checkbox_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Checkbox)];
-        if (checkbox_idx != invalid_widget_kind_index && checkbox_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[checkbox_idx] = Theme::instance().get<Checkbox>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Radio
-        const auto radio_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Radio)];
-        if (radio_idx != invalid_widget_kind_index && radio_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[radio_idx] = Theme::instance().get<Radio>();
-        }
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Switch
-        const auto switch_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Switch)];
-        if (switch_idx != invalid_widget_kind_index && switch_idx < input_style_table_.styles.size()) {
-            input_style_table_.styles[switch_idx] = Theme::instance().get<Switch>();
-        }
-#endif
-    }
-
-    const Style& input_resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {
-        const Style& base = input_style_for_kind(input_style_table_, kind);
-        if (StyleSheet::instance().apply(kind, state, scratch, base)) {
-            return scratch;
-        }
-        return base;
     }
 
     void input_emit_event(WidgetHandle target, const Event& e) noexcept {
@@ -1562,15 +1500,18 @@ private:
     }
 
     void input_handle_release(int x, int y, int button) {
-        if (!input_pressed_) return;
+        const WidgetHandle target = input_drag_target();
+        if (!target) return;
         const bool was_dragging = input_dragging_;
         if (was_dragging) {
-            input_emit_event(input_pressed_, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
         }
-        set_pressed(input_pressed_, false);
+        if (input_pressed_) {
+            set_pressed(input_pressed_, false);
+        }
         WidgetHandle hit = input_hit_test(x, y);
-        input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseUp, x, y, button));
-        if (!was_dragging && hit == input_pressed_) {
+        input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button));
+        if (!was_dragging && hit == input_pressed_ && input_pressed_) {
             input_emit_event(input_pressed_, Event::mouse(Event::Type::Click, x, y, button));
             input_handle_click(input_pressed_);
         }
@@ -1582,6 +1523,8 @@ private:
     }
 
     void input_handle_drag(int x, int y, int button) {
+        const WidgetHandle target = input_drag_target();
+        if (!target) return;
         const int dx = x - input_drag_last_x_;
         const int dy = y - input_drag_last_y_;
         input_drag_last_x_ = x;
@@ -1591,16 +1534,16 @@ private:
             const int total_dy = y - input_drag_start_y_;
             if ((total_dx * total_dx + total_dy * total_dy) >= input_drag_threshold_sq_) {
                 input_dragging_ = true;
-                input_emit_event(input_pressed_, Event::drag(Event::Type::DragStart, x, y, 0, 0, button));
+                input_emit_event(target, Event::drag(Event::Type::DragStart, x, y, 0, 0, button));
             }
         }
         if (input_dragging_) {
-            input_emit_event(input_pressed_, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
-            if (input_scroll_target_ && !drag_blocks_scroll(kind(input_pressed_))) {
+            input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
+            if (input_scroll_target_ && !drag_blocks_scroll(kind(target))) {
                 input_scroll_by(input_scroll_target_, -dy);
             }
         } else {
-            input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseMove, x, y, button));
+            input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button));
         }
     }
 
@@ -1787,11 +1730,10 @@ private:
     }
 
     void input_update_slider_value(WidgetHandle h, int x) {
-        Style scratch;
         const StyleState state = input_make_state(*this, h);
-        const Style& st = input_resolve_style(WidgetKind::Slider, state, scratch);
+        const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::Slider, state);
+        const int pad = view.metrics ? view.metrics->padding : 0;
         Rect r = input_world_rect(h);
-        const int pad = st.metrics.padding;
         const int inner_w = r.w - pad * 2;
         if (inner_w <= 0) return;
         const int min_v = min_value(h);
@@ -1857,6 +1799,10 @@ private:
             set_focused(input_focused_, true);
             input_emit_event(input_focused_, Event::key(Event::Type::FocusIn, Event::Key::Unknown));
         }
+    }
+
+    WidgetHandle input_drag_target() const noexcept {
+        return input_captured_ ? input_captured_ : input_pressed_;
     }
 
     std::uint16_t index_of(WidgetHandle h) const noexcept {

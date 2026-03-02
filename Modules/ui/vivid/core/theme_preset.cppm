@@ -6,6 +6,10 @@ export module charm.core.theme_preset;
 
 export import charm.core.style;
 export import charm.core.style_sheet;
+#if CHARM_VIVID_SOA_ONLY
+export import charm.core.widget_registry;
+export import charm.font.typography;
+#else
 #if CHARM_VIVID_ENABLE_WIDGET_Button
 export import charm.widgets.button;
 #endif
@@ -48,7 +52,15 @@ export import charm.widgets.text_area;
 #if CHARM_VIVID_ENABLE_WIDGET_ImageBox
 export import charm.widgets.image_box;
 #endif
+#endif
 
+#if CHARM_VIVID_SOA_ONLY
+inline void sync_style_sheet_bases() noexcept {
+    auto& sheet = StyleSheet::instance();
+    sheet.notify_base_style_changed();
+    sheet.rebuild_if_needed();
+}
+#else
 inline void sync_style_sheet_bases() noexcept {
     auto& theme = Theme::instance();
     auto& sheet = StyleSheet::instance();
@@ -107,6 +119,15 @@ inline void sync_style_sheet_bases() noexcept {
     sheet.notify_base_style_changed();
     sheet.rebuild_if_needed();
 }
+#endif
+
+#if CHARM_VIVID_SOA_ONLY
+inline void ensure_style_font(Style& s) noexcept {
+    if (!s.font) {
+        s.font = &get_font(FontId::Normal);
+    }
+}
+#endif
 
 export
 struct ThemePreset {
@@ -142,6 +163,56 @@ struct ThemePreset {
 
 export
 inline void apply_theme_preset(const ThemePreset& preset) noexcept {
+#if CHARM_VIVID_SOA_ONLY
+    auto& sheet = StyleSheet::instance();
+    auto set_base = [&](Style s, WidgetKind kind) {
+        ensure_style_font(s);
+        sheet.set_base_style(kind, s);
+    };
+#if CHARM_VIVID_ENABLE_WIDGET_Label
+    if (preset.has_label) set_base(preset.label, WidgetKind::Label);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Button
+    if (preset.has_button) set_base(preset.button, WidgetKind::Button);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
+    if (preset.has_checkbox) set_base(preset.checkbox, WidgetKind::Checkbox);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ListView
+    if (preset.has_list_view) set_base(preset.list_view, WidgetKind::ListView);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ListItem && CHARM_VIVID_ENABLE_WIDGET_List
+    if (preset.has_list_item) set_base(preset.list_item, WidgetKind::ListItem);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_List
+    if (preset.has_list) set_base(preset.list, WidgetKind::List);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Progress
+    if (preset.has_progress) set_base(preset.progress, WidgetKind::Progress);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
+    if (preset.has_scroll_container) set_base(preset.scroll_container, WidgetKind::ScrollContainer);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollBar
+    if (preset.has_scroll_bar) set_base(preset.scroll_bar, WidgetKind::ScrollBar);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Slider
+    if (preset.has_slider) set_base(preset.slider, WidgetKind::Slider);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Switch
+    if (preset.has_switch) set_base(preset.switcher, WidgetKind::Switch);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Radio
+    if (preset.has_radio) set_base(preset.radio, WidgetKind::Radio);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextInput
+    if (preset.has_text_input) set_base(preset.text_input, WidgetKind::TextInput);
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_TextArea
+    if (preset.has_text_area) set_base(preset.text_area, WidgetKind::TextArea);
+#endif
+    sync_style_sheet_bases();
+#else
     auto& theme = Theme::instance();
 #if CHARM_VIVID_ENABLE_WIDGET_Label
     if (preset.has_label) theme.set<Label>(preset.label);
@@ -186,10 +257,20 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_text_area) theme.set<TextArea>(preset.text_area);
 #endif
     sync_style_sheet_bases();
+#endif
 }
 
 export
 inline void apply_baseline_theme_preset(const Style& base) noexcept {
+#if CHARM_VIVID_SOA_ONLY
+    auto& sheet = StyleSheet::instance();
+    Style base_copy = base;
+    ensure_style_font(base_copy);
+    for (const auto kind : enabled_widget_kinds) {
+        sheet.set_base_style(kind, base_copy);
+    }
+    sync_style_sheet_bases();
+#else
     auto& theme = Theme::instance();
     auto apply_base = [&](Style& s) {
         s.colors.bg_color = base.colors.bg_color;
@@ -291,10 +372,22 @@ inline void apply_baseline_theme_preset(const Style& base) noexcept {
 #endif
 
     apply_theme_preset(preset);
+#endif
 }
 
 export
 inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
+#if CHARM_VIVID_SOA_ONLY
+    auto& theme = Theme::instance();
+    theme.set_tokens_unsafe(tokens);
+    auto& sheet = StyleSheet::instance();
+    Style base = make_style_from_tokens(tokens);
+    ensure_style_font(base);
+    for (const auto kind : enabled_widget_kinds) {
+        sheet.set_base_style(kind, base);
+    }
+    sync_style_sheet_bases();
+#else
     auto& theme = Theme::instance();
     theme.set_tokens_unsafe(tokens);
 
@@ -347,10 +440,11 @@ inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
 #if CHARM_VIVID_ENABLE_WIDGET_TextArea
     apply_widget(static_cast<TextArea*>(nullptr));
 #endif
-    #if CHARM_VIVID_ENABLE_WIDGET_ImageBox
+#if CHARM_VIVID_ENABLE_WIDGET_ImageBox
     apply_widget(static_cast<ImageBox*>(nullptr));
-    #endif
+#endif
     sync_style_sheet_bases();
+#endif
 }
 
 export

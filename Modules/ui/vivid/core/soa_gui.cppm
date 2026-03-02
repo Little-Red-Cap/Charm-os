@@ -63,8 +63,9 @@ namespace {
 
     void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
-        (void)kind;
-        assert(false && "SoaGui unsupported WidgetKind");
+        if (kind == WidgetKind::None) {
+            assert(false && "SoaGui unsupported WidgetKind");
+        }
 #else
         (void)kind;
 #endif

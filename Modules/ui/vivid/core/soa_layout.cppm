@@ -3,14 +3,21 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#include "features.hpp"
+
 export module charm.core.soa_layout;
 
 export import charm.core.soa_kernel;
 export import charm.core.container;
 export import charm.core.style;
 export import charm.core.style_sheet;
+export import charm.core.widget_registry;
+#if CHARM_VIVID_ENABLE_WIDGET_List
 export import charm.widgets.list;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
 export import charm.widgets.scroll_container;
+#endif
 
 export
 class SoaLayoutPass {
@@ -35,8 +42,7 @@ public:
     }
 
 private:
-    static constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+    static constexpr std::size_t kWidgetKindCount = enabled_widget_kind_count;
 
     struct StyleTable {
         std::array<Style, kWidgetKindCount> styles{};
@@ -48,9 +54,13 @@ private:
     std::uint32_t tokens_version_{0};
 
     static const Style& style_for_kind(const StyleTable& table, WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= table.styles.size()) {
-            return table.styles[static_cast<std::size_t>(WidgetKind::Container)];
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == invalid_widget_kind_index || idx >= table.styles.size()) {
+            const auto fallback_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
+            if (fallback_idx == invalid_widget_kind_index || fallback_idx >= table.styles.size()) {
+                return table.styles[0];
+            }
+            return table.styles[fallback_idx];
         }
         return table.styles[idx];
     }
@@ -80,9 +90,22 @@ private:
         style_version_ = version;
         const Style fallback = Theme::instance().get<Container>();
         style_table_.styles.fill(fallback);
-        style_table_.styles[static_cast<std::size_t>(WidgetKind::Container)] = Theme::instance().get<Container>();
-        style_table_.styles[static_cast<std::size_t>(WidgetKind::List)] = Theme::instance().get<List>();
-        style_table_.styles[static_cast<std::size_t>(WidgetKind::ScrollContainer)] = Theme::instance().get<ScrollContainer>();
+        const auto container_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
+        if (container_idx != invalid_widget_kind_index && container_idx < style_table_.styles.size()) {
+            style_table_.styles[container_idx] = Theme::instance().get<Container>();
+        }
+#if CHARM_VIVID_ENABLE_WIDGET_List
+        const auto list_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::List)];
+        if (list_idx != invalid_widget_kind_index && list_idx < style_table_.styles.size()) {
+            style_table_.styles[list_idx] = Theme::instance().get<List>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
+        const auto scroll_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::ScrollContainer)];
+        if (scroll_idx != invalid_widget_kind_index && scroll_idx < style_table_.styles.size()) {
+            style_table_.styles[scroll_idx] = Theme::instance().get<ScrollContainer>();
+        }
+#endif
     }
 
     const Style& resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {

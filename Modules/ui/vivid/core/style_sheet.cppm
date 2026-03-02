@@ -9,6 +9,7 @@ export module charm.core.style_sheet;
 
 export import charm.core.style;
 export import charm.core.handle;
+export import charm.core.widget_registry;
 
 export
 enum class StyleStateFlag : std::uint8_t {
@@ -104,8 +105,8 @@ struct RolePalette {
     std::array<rgba, kRoleCount> values{};
 };
 
-inline constexpr std::size_t kWidgetKindCount =
-    static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+inline constexpr std::size_t kWidgetKindCount = enabled_widget_kind_count;
+inline constexpr std::uint8_t kInvalidKindIndex = invalid_widget_kind_index;
 inline constexpr std::uint8_t kMaxStyleVariants = 4;
 inline constexpr std::uint8_t kStyleStateCount = 16;
 inline constexpr std::uint8_t kMaxMetricsPool = 64;
@@ -406,15 +407,15 @@ public:
 #endif
             return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
         }
-        const auto kind_idx = static_cast<std::size_t>(kind);
-        if (kind_idx >= kWidgetKindCount || style_table_.kind_compiled[kind_idx] == 0) {
+        const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (kind_idx == kInvalidKindIndex || style_table_.kind_compiled[kind_idx] == 0) {
             return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
         }
         const std::uint8_t variant = clamp_variant(state.variant);
         const std::uint8_t state_idx = style_state_index(state);
         const std::size_t color_entry =
-            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
-        const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
+            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+        const std::size_t metrics_entry = static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant;
         return ResolvedStyleView{
             &style_table_.colors[color_entry],
             &style_table_.metrics_pool[style_table_.metrics_id[metrics_entry]]
@@ -422,8 +423,8 @@ public:
     }
 
     void set_base_style(WidgetKind kind, const Style& style) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= kWidgetKindCount) return;
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return;
         base_styles_[idx] = style;
         base_style_set_[idx] = 1;
     }
@@ -558,6 +559,7 @@ private:
         }
         for (std::size_t kind_idx = 0; kind_idx < kWidgetKindCount; ++kind_idx) {
             if (base_style_set_[kind_idx] == 0) continue;
+            const WidgetKind kind = enabled_widget_kinds[kind_idx];
             style_table_.kind_compiled[kind_idx] = static_cast<std::uint8_t>(1);
             Style base = base_styles_[kind_idx];
 #ifndef NDEBUG
@@ -596,7 +598,7 @@ private:
                     for (std::size_t r = 0; r < count_; ++r) {
                         const auto& rule = rules_[r];
                         if (rule.selector.kind != WidgetKind::None &&
-                            rule.selector.kind != static_cast<WidgetKind>(kind_idx)) {
+                            rule.selector.kind != kind) {
                             continue;
                         }
                         if (rule.kind == StyleRuleKind::Patch && patch_has_metrics(rule.patch)) {
@@ -656,13 +658,13 @@ private:
 #endif
             return false;
         }
-        const auto kind_idx = static_cast<std::size_t>(kind);
-        if (kind_idx >= kWidgetKindCount) return false;
+        const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
         const std::uint8_t variant = clamp_variant(state.variant);
         const std::uint8_t state_idx = style_state_index(state);
         const std::size_t entry =
-            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
         if (style_table_.matched[entry] == 0) return false;
         apply_resolved_colors(style, style_table_.colors[entry]);
         return true;
@@ -686,13 +688,13 @@ private:
 #endif
             return false;
         }
-        const auto kind_idx = static_cast<std::size_t>(kind);
-        if (kind_idx >= kWidgetKindCount) return false;
+        const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
         const std::uint8_t variant = clamp_variant(state.variant);
         const std::uint8_t state_idx = style_state_index(state);
         const std::size_t entry =
-            ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
         if (style_table_.matched[entry] == 0) return false;
         out = base;
         apply_resolved_colors(out, style_table_.colors[entry]);

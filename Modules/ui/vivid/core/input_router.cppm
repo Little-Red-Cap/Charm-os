@@ -494,11 +494,13 @@ private:
         if (!obj) return {};
         if (!obj->is_visible()) return {};
         if (!obj->is_enabled()) return {};
+        #if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
         if (h.kind == WidgetKind::ScrollContainer) {
             if (auto* sc = factory_.get_scroll_container(h)) {
                 sc->apply_scroll([&](WidgetHandle ch){ return factory_.get(ch); });
             }
         }
+        #endif
 
         for (std::size_t i = obj->child_count(); i > 0; --i) {
             auto ch = obj->child_at(i - 1);

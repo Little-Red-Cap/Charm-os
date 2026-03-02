@@ -10,6 +10,8 @@ option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
 set(CHARM_VIVID_PROFILE "basic" CACHE STRING "Vivid profile: basic or full")
 set_property(CACHE CHARM_VIVID_PROFILE PROPERTY STRINGS basic full)
+set(CHARM_VIVID_FEATURESET "FULL" CACHE STRING "Vivid featureset: FULL or MCU_MIN")
+set_property(CACHE CHARM_VIVID_FEATURESET PROPERTY STRINGS FULL MCU_MIN)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
@@ -55,6 +57,13 @@ target_compile_definitions(${target_name} PRIVATE
     CHARM_ENABLE_UI_INK=$<BOOL:${CHARM_ENABLE_UI_INK}>
     CHARM_ENABLE_UI_VIVID=$<BOOL:${CHARM_ENABLE_UI_VIVID}>
 )
+if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
+    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_MCU_MIN=1)
+elseif (CHARM_VIVID_FEATURESET STREQUAL "FULL")
+    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_FULL=1)
+else()
+    message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
+endif()
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
 if (NOT CHARM_ENABLE_SDL3)

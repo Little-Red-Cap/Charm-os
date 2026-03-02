@@ -4,6 +4,8 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#include "features.hpp"
+
 export module charm.core.soa_gui;
 
 export import charm.core.soa_kernel;
@@ -17,20 +19,35 @@ export import charm.gfx.canvas;
 export import charm.gfx.render;
 export import charm.widgets.text;
 export import charm.font.typography;
+#if CHARM_VIVID_ENABLE_WIDGET_Button
 export import charm.widgets.button;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
 export import charm.widgets.checkbox;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Label
 export import charm.widgets.label;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_List
 export import charm.widgets.list;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Progress
 export import charm.widgets.progress;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Radio
 export import charm.widgets.radio;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Slider
 export import charm.widgets.slider;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Switch
 export import charm.widgets.switcher;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
 export import charm.widgets.scroll_container;
+#endif
 
 namespace {
-    constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
-
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
         return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);

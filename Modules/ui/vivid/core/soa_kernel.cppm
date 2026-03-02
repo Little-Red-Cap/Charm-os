@@ -5,22 +5,37 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#include "features.hpp"
+
 export module charm.core.soa_kernel;
 
 export import charm.core.handle;
 export import charm.core.geometry;
 export import charm.core.config;
 export import charm.core.event;
+export import charm.core.widget_registry;
 
 import charm.core.container;
 import charm.core.style;
 import charm.core.style_sheet;
+#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
 import charm.widgets.checkbox;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_List
 import charm.widgets.list;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Radio
 import charm.widgets.radio;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
 import charm.widgets.scroll_container;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Slider
 import charm.widgets.slider;
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Switch
 import charm.widgets.switcher;
+#endif
 
 namespace {
     constexpr std::uint16_t kInvalidIndex = 0xFFFF;
@@ -234,6 +249,10 @@ public:
     }
 
     WidgetHandle create(WidgetKind kind) noexcept {
+        if (!widget_kind_enabled(kind)) {
+            unsupported_kind(kind);
+            return {};
+        }
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) {
             unsupported_kind(kind);
@@ -1193,6 +1212,9 @@ public:
 
     static constexpr soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
         using namespace soa_detail;
+        if (!widget_kind_enabled(kind)) {
+            return make_desc(false);
+        }
         switch (kind) {
         case WidgetKind::None:
             return make_desc(false);
@@ -1455,8 +1477,7 @@ private:
         }
     }
 
-    static constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+    static constexpr std::size_t kWidgetKindCount = enabled_widget_kind_count;
 
     struct InputStyleTable {
         std::array<Style, kWidgetKindCount> styles{};
@@ -1495,9 +1516,13 @@ private:
     bool input_dragging_{false};
 
     static const Style& input_style_for_kind(const InputStyleTable& table, WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= table.styles.size()) {
-            return table.styles[static_cast<std::size_t>(WidgetKind::Container)];
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == invalid_widget_kind_index || idx >= table.styles.size()) {
+            const auto fallback_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
+            if (fallback_idx == invalid_widget_kind_index || fallback_idx >= table.styles.size()) {
+                return table.styles[0];
+            }
+            return table.styles[fallback_idx];
         }
         return table.styles[idx];
     }
@@ -1521,14 +1546,52 @@ private:
         input_style_version_ = version;
         const Style fallback = Theme::instance().get<Container>();
         input_style_table_.styles.fill(fallback);
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Container)] = Theme::instance().get<Container>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Slider)] = Theme::instance().get<Slider>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::List)] = Theme::instance().get<List>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::ListItem)] = Theme::instance().get<ListItem>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::ScrollContainer)] = Theme::instance().get<ScrollContainer>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Checkbox)] = Theme::instance().get<Checkbox>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Radio)] = Theme::instance().get<Radio>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Switch)] = Theme::instance().get<Switch>();
+        const auto container_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Container)];
+        if (container_idx != invalid_widget_kind_index && container_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[container_idx] = Theme::instance().get<Container>();
+        }
+#if CHARM_VIVID_ENABLE_WIDGET_Slider
+        const auto slider_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Slider)];
+        if (slider_idx != invalid_widget_kind_index && slider_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[slider_idx] = Theme::instance().get<Slider>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_List
+        const auto list_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::List)];
+        if (list_idx != invalid_widget_kind_index && list_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[list_idx] = Theme::instance().get<List>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ListItem && CHARM_VIVID_ENABLE_WIDGET_List
+        const auto list_item_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::ListItem)];
+        if (list_item_idx != invalid_widget_kind_index && list_item_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[list_item_idx] = Theme::instance().get<ListItem>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
+        const auto scroll_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::ScrollContainer)];
+        if (scroll_idx != invalid_widget_kind_index && scroll_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[scroll_idx] = Theme::instance().get<ScrollContainer>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
+        const auto checkbox_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Checkbox)];
+        if (checkbox_idx != invalid_widget_kind_index && checkbox_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[checkbox_idx] = Theme::instance().get<Checkbox>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Radio
+        const auto radio_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Radio)];
+        if (radio_idx != invalid_widget_kind_index && radio_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[radio_idx] = Theme::instance().get<Radio>();
+        }
+#endif
+#if CHARM_VIVID_ENABLE_WIDGET_Switch
+        const auto switch_idx = widget_kind_index[static_cast<std::size_t>(WidgetKind::Switch)];
+        if (switch_idx != invalid_widget_kind_index && switch_idx < input_style_table_.styles.size()) {
+            input_style_table_.styles[switch_idx] = Theme::instance().get<Switch>();
+        }
+#endif
     }
 
     const Style& input_resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {

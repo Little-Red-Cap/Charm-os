@@ -24,10 +24,11 @@ export import input.trace;
 
 export import at.parser;
 export import at.session;
-export import at.transport_uart;
-export import at.transport_cdc;
+export import at.transport_channel;
 
 export import port.kernel;
+export import io.channel;
+export import io.channel.adapters;
 
 export import fs_block;
 export import fs_block_file;
@@ -60,11 +61,11 @@ export import input.nav;
 
 export import out.ansi;
 export import out.api;
+export import out.channel;
 export import out.core;
 export import out.domain;
 export import out.format;
 export import out.logger;
-export import out.port;
 export import out.print;
 export import out.sink;
 

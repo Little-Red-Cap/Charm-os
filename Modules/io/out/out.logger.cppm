@@ -10,17 +10,19 @@
 #include <cstring>
 export module out.logger;
 // Dependency contract (DO NOT VIOLATE)
-// Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.port, out.ansi
+// Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.ansi, out.channel
 // Forbidden out.* imports: out.api, out.print
 // Rationale: logger is the single behavior owner (prefix/style/timestamp/newline/flush/error-policy).
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
 import out.ansi;
+import out.channel;
 import out.core;
 import out.domain;
 import out.format;
-import out.port;
 import out.sink;
+import io.channel;
+import util.expected;
 
 #if defined(OUT_ERROR_PROPAGATE)
 #define OUT_LOGGER_NODISCARD [[nodiscard]]
@@ -116,8 +118,8 @@ export namespace out {
         };
 
 #if defined(OUT_DEV)
-        static_assert(ansi::AnsiSink<ansi::ansi_sink_ref<port::console_sink, true>>);
-        using ansi_ref = sink_ref<ansi::ansi_sink_ref<port::console_sink, true>>;
+        static_assert(ansi::AnsiSink<ansi::ansi_sink_ref<channel_sink, true>>);
+        using ansi_ref = sink_ref<ansi::ansi_sink_ref<channel_sink, true>>;
         static_assert(ansi::AnsiSink<ansi_ref>);
 #endif
 
@@ -303,12 +305,12 @@ export namespace out {
             std::size_t total = 0;
             for (std::uint8_t i = 0; i < style_count; ++i) {
                 auto rs = write_style(s, styles[i]);
-                if (!rs) return std::unexpected(rs.error());
+                if (!rs) return util::unexpected(rs.error());
                 total += *rs;
             }
             if (include_reset) {
                 auto rr = write_style(s, make_style(reset_t{}));
-                if (!rr) return std::unexpected(rr.error());
+                if (!rr) return util::unexpected(rr.error());
                 total += *rr;
             }
             return ok(total);
@@ -323,28 +325,28 @@ export namespace out {
                 detail::buffered_writer<decltype(sink), OUT_LOGGER_WRITE_BUFFER_SIZE> bw{sink};
 
                 if (with_timestamp) {
-                    auto rts = vprint<"[{}] ", decltype(bw), false>(bw, port::now_ms());
-                    if (!rts) return std::unexpected(rts.error());
+                    auto rts = vprint<"[{}] ", decltype(bw), false>(bw, io::now_ms());
+                    if (!rts) return util::unexpected(rts.error());
                     total += *rts;
                 }
 
                 if (with_level) {
                     char buf[4] = {'[', level_tag(), ']', ' '};
                     auto rp = bw.append(std::string_view{buf, sizeof(buf)});
-                    if (!rp) return std::unexpected(rp.error());
+                    if (!rp) return util::unexpected(rp.error());
                     total += *rp;
                 }
 
                 if (with_domain) {
                     if constexpr (domain_name<Domain>.size() != 0) {
                         auto r1 = bw.append("[");
-                        if (!r1) return std::unexpected(r1.error());
+                        if (!r1) return util::unexpected(r1.error());
                         total += *r1;
                         auto r2 = bw.append(domain_name<Domain>);
-                        if (!r2) return std::unexpected(r2.error());
+                        if (!r2) return util::unexpected(r2.error());
                         total += *r2;
                         auto r3 = bw.append("] ");
-                        if (!r3) return std::unexpected(r3.error());
+                        if (!r3) return util::unexpected(r3.error());
                         total += *r3;
                     }
                 }
@@ -352,19 +354,19 @@ export namespace out {
                 bool need_reset = auto_reset_enabled && style_count > 0;
                 constexpr bool sink_is_ansi = ansi::AnsiSink<decltype(bw)>;
                 auto rs = write_styles_combined(bw, sink_is_ansi && need_reset);
-                if (!rs) return std::unexpected(rs.error());
+                if (!rs) return util::unexpected(rs.error());
                 total += *rs;
                 if constexpr (sink_is_ansi) {
                     if (need_reset) need_reset = false;
                 }
 
                 auto r = vprint<Fmt, decltype(bw), false>(bw, eval(std::forward<Args>(args))...);
-                if (!r) return std::unexpected(r.error());
+                if (!r) return util::unexpected(r.error());
                 total += *r;
 
                 if (need_reset) {
                     auto rr = write_style(bw, make_style(reset_t{}));
-                    if (!rr) return std::unexpected(rr.error());
+                    if (!rr) return util::unexpected(rr.error());
                     total += *rr;
                 }
 
@@ -372,13 +374,13 @@ export namespace out {
                     if (nl != newline::none) {
                         std::string_view nl_sv = (nl == newline::crlf) ? "\r\n" : "\n";
                         auto rn = bw.append(nl_sv);
-                        if (!rn) return std::unexpected(rn.error());
+                        if (!rn) return util::unexpected(rn.error());
                         total += *rn;
                     }
                 }
 
                 auto rwo = bw.flush();
-                if (!rwo) return std::unexpected(rwo.error());
+                if (!rwo) return util::unexpected(rwo.error());
                 total += *rwo;
 
                 if constexpr (WithNewline) {
@@ -388,7 +390,7 @@ export namespace out {
                             using base_t = std::remove_reference_t<decltype(*base)>;
                             if constexpr (Flushable<base_t>) {
                                 auto rf = base->flush();
-                                if (!rf) return std::unexpected(rf.error());
+                                if (!rf) return util::unexpected(rf.error());
                                 total += *rf;
                             }
                         }

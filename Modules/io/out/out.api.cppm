@@ -5,18 +5,20 @@
 #include <utility>
 export module out.api;
 // Dependency contract (DO NOT VIOLATE)
-// Allowed out.* imports: (re-export only) out.core/out.sink/out.format/out.domain/out.port/out.ansi/out.logger
+// Allowed out.* imports: (re-export only) out.core/out.sink/out.format/out.domain/out.channel/out.ansi/out.logger
 // Forbidden out.* imports: (implementation should stay empty or thin wrappers only)
 // Rationale: public facade; must not reintroduce a second behavior path.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
 export import out.ansi;
+export import out.channel;
 export import out.core;
 export import out.domain;
 export import out.format;
 export import out.logger;
-export import out.port;
 export import out.sink;
+
+import io.channel;
 
 #if defined(OUT_ERROR_PROPAGATE)
 #define OUT_API_NODISCARD [[nodiscard]]
@@ -25,11 +27,13 @@ export import out.sink;
 #endif
 
 export namespace out {
+    inline channel_sink default_channel_sink() noexcept {
+        return channel_sink{io::default_console_channel()};
+    }
+
     template <level L, class Domain = default_domain>
     inline auto log() noexcept {
-        return logger<L, Domain, detail::sink_ref<port::console_sink>>{
-            detail::sink_ref<port::console_sink>{&port::default_console()}
-        };
+        return logger<L, Domain, channel_sink>{default_channel_sink()};
     }
 
     template <level L, class Domain = default_domain, class S>
@@ -38,9 +42,7 @@ export namespace out {
     }
 
     inline auto raw() noexcept {
-        auto out = logger<level::info, default_domain, detail::sink_ref<port::console_sink>, true>{
-            detail::sink_ref<port::console_sink>{&port::default_console()}
-        };
+        auto out = logger<level::info, default_domain, channel_sink, true>{default_channel_sink()};
         out.level_prefix(false);
         out.domain_prefix(false);
         out.no_flush();

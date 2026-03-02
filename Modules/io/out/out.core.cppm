@@ -1,8 +1,7 @@
-module;
+﻿module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <expected>
 #include <type_traits>
 #include <utility>
 export module out.core;
@@ -15,20 +14,14 @@ export module out.core;
 // out.core intentionally contains only the minimal, cross-module primitives.
 // Do NOT turn this into a general utilities header.
 
+import util.error;
+
 export namespace out {
 
-    enum class errc : std::uint8_t {
-        ok = 0,
-        io_error,
-        // io_fault,
-        // would_block,
-        buffer_overflow,
-        invalid_format,
-        not_supported,
-    };
+    using errc = util::Errc;
 
     template <class T>
-    using result = std::expected<T, errc>;
+    using result = util::Result<T>;
 
     using bytes = std::span<const std::byte>;
     using cbytes = std::span<const char>;

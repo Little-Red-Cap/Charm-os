@@ -8,17 +8,11 @@ module;
 export module at.parser;
 
 import util.core;
+import io.channel;
 
 export namespace at {
-    struct ByteView {
-        const util::u8* data{nullptr};
-        util::usize size{0};
-    };
-
-    struct MutByteView {
-        util::u8* data{nullptr};
-        util::usize size{0};
-    };
+    using ByteView = io::ByteView;
+    using MutByteView = io::MutByteView;
 
     enum class EventKind : util::u8 {
         line,
@@ -49,8 +43,8 @@ export namespace at {
         }
 
         void feed(ByteView data) noexcept {
-            for (util::usize i = 0; i < data.size; ++i) {
-                const char ch = static_cast<char>(data.data[i]);
+            for (util::usize i = 0; i < data.size(); ++i) {
+                const char ch = static_cast<char>(data.data()[i]);
                 if (ch == '\r') {
                     saw_cr_ = true;
                     continue;

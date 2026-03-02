@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <cstdint>
 #include <string_view>
 export module out.domain;

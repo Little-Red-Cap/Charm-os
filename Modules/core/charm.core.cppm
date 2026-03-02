@@ -2,6 +2,7 @@ export module charm.core;
 
 export import util.contract;
 export import util.core;
+export import util.error;
 export import util.expected;
 export import util.optional;
 export import util.type_list;

@@ -12,12 +12,13 @@
 export module out.format;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink
-// Forbidden out.* imports: out.ansi, out.logger, out.api, out.port, out.print, out.domain
+// Forbidden out.* imports: out.ansi, out.logger, out.api, out.print, out.domain
 // Rationale: formatting core; must not depend on ANSI/logger/policy/ports.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
 import out.core;
 import out.sink;
+import util.expected;
 
 
 export namespace out {
@@ -235,7 +236,7 @@ export namespace out {
           if (ansi_pos == 0) return ok<std::size_t>(0u);
           const std::size_t n = ansi_pos;
           auto r = sink.write_ansi(std::string_view{ansi_buf.data(), ansi_pos});
-          if (!r) return std::unexpected(r.error());
+          if (!r) return util::unexpected(r.error());
           ansi_pos = 0;
           return ok(n);
         } else {
@@ -247,30 +248,30 @@ export namespace out {
         if (pos == 0) return ok<std::size_t>(0u);
         const std::size_t n = pos;
         auto r = out::write(sink, std::string_view{buf.data(), pos});
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         pos = 0;
         return ok(n);
       }
 
       result<std::size_t> flush() noexcept {
         auto ra = flush_ansi();
-        if (!ra) return std::unexpected(ra.error());
+        if (!ra) return util::unexpected(ra.error());
         auto rb = flush_bytes();
-        if (!rb) return std::unexpected(rb.error());
+        if (!rb) return util::unexpected(rb.error());
         return ok(*ra + *rb);
       }
 
       result<std::size_t> append(std::string_view sv) noexcept {
         if constexpr (!ansi_is_bytes_final_v<S>) {
           auto ra = flush_ansi();
-          if (!ra) return std::unexpected(ra.error());
+          if (!ra) return util::unexpected(ra.error());
         }
         const std::size_t len = sv.size();
         while (!sv.empty()) {
           std::size_t space = N - pos;
           if (space == 0) {
             auto r = flush_bytes();
-            if (!r) return std::unexpected(r.error());
+            if (!r) return util::unexpected(r.error());
             space = N;
           }
           const std::size_t n = (sv.size() < space) ? sv.size() : space;
@@ -292,15 +293,15 @@ export namespace out {
           return append(sv);
         }
         auto rb = flush_bytes();
-        if (!rb) return std::unexpected(rb.error());
+        if (!rb) return util::unexpected(rb.error());
         if (sv.size() > ansi_buf.size()) {
           auto rf = flush_ansi();
-          if (!rf) return std::unexpected(rf.error());
+          if (!rf) return util::unexpected(rf.error());
           return sink.write_ansi(sv);
         }
         if (ansi_pos + sv.size() > ansi_buf.size()) {
           auto rf = flush_ansi();
-          if (!rf) return std::unexpected(rf.error());
+          if (!rf) return util::unexpected(rf.error());
         }
         std::memcpy(ansi_buf.data() + ansi_pos, sv.data(), sv.size());
         ansi_pos += sv.size();
@@ -358,7 +359,7 @@ export namespace out {
 
       (step(emit_token_buffered<PF, Is>(bw, tup)), ...);
 
-      if (!ok_all) return std::unexpected(first_err);
+      if (!ok_all) return util::unexpected(first_err);
       return ok(total);
     }
 
@@ -450,7 +451,7 @@ export namespace out {
     } else if (base == 2) {
 #ifndef OUT_ENABLE_BINARY
       (void)v; (void)spec;
-      return std::unexpected(errc::invalid_format);
+      return util::unexpected(errc::invalid_format);
 #else
       char* p = last;
       do {
@@ -460,10 +461,10 @@ export namespace out {
       first = p;
 #endif
     } else {
-      return std::unexpected(errc::invalid_format);
+      return util::unexpected(errc::invalid_format);
     }
 
-    if (ec != std::errc{}) return std::unexpected(errc::buffer_overflow);
+    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
 
     std::size_t len = static_cast<std::size_t>(last - first);
     std::size_t total = 0;
@@ -477,14 +478,14 @@ export namespace out {
       while (pad != 0) {
         const std::size_t n = (pad > sizeof(pad_buf)) ? sizeof(pad_buf) : pad;
         auto r = write(sink, std::string_view{pad_buf, n});
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         total += *r;
         pad -= n;
       }
     }
 
     auto r = write(sink, std::string_view{first, len});
-    if (!r) return std::unexpected(r.error());
+    if (!r) return util::unexpected(r.error());
     total += *r;
     return ok(total);
   }
@@ -510,7 +511,7 @@ export namespace out {
     ? std::to_chars(first, last, v, fmt)
     : std::to_chars(first, last, v, fmt, static_cast<int>(spec.precision));
 
-    if (r0.ec != std::errc{}) return std::unexpected(errc::buffer_overflow);
+    if (r0.ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
     last = r0.ptr;
 
     // Uppercase E: replace 'e' with 'E' in output.
@@ -529,14 +530,14 @@ export namespace out {
       while (pad != 0) {
         const std::size_t n = (pad > sizeof(pad_buf)) ? sizeof(pad_buf) : pad;
         auto r = write(sink, std::string_view{pad_buf, n});
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         total += *r;
         pad -= n;
       }
     }
 
     auto r1 = write(sink, std::string_view{first, len});
-    if (!r1) return std::unexpected(r1.error());
+    if (!r1) return util::unexpected(r1.error());
     total += *r1;
     return ok(total);
   }
@@ -560,7 +561,7 @@ namespace detail {
     while (n != 0) {
       const std::size_t chunk = (n > sizeof(pad_buf)) ? sizeof(pad_buf) : n;
       auto r = write(sink, std::string_view{pad_buf, chunk});
-      if (!r) return std::unexpected(r.error());
+      if (!r) return util::unexpected(r.error());
       total += *r;
       n -= chunk;
     }
@@ -572,7 +573,7 @@ namespace detail {
   inline result<std::size_t> write_float_fixed_mcu(S& sink, float v, fmt_spec spec) noexcept {
     // Accept only 0 / f / F.
     if (spec.type != 0 && spec.type != 'f' && spec.type != 'F')
-      return std::unexpected(errc::invalid_format);
+      return util::unexpected(errc::invalid_format);
 
     std::uint8_t prec = (spec.precision == 0xFF) ? 6 : spec.precision;
     if (prec > 9) prec = 9;
@@ -591,26 +592,26 @@ namespace detail {
 
       if (spec.zero_pad && with_sign) {
         auto r0 = write(sink, std::string_view{"-", 1});
-        if (!r0) return std::unexpected(r0.error());
+        if (!r0) return util::unexpected(r0.error());
         total += *r0;
 
         auto rp = write_pad(sink, pad_ch, pad);
-        if (!rp) return std::unexpected(rp.error());
+        if (!rp) return util::unexpected(rp.error());
         total += *rp;
       } else {
         auto rp = write_pad(sink, pad_ch, pad);
-        if (!rp) return std::unexpected(rp.error());
+        if (!rp) return util::unexpected(rp.error());
         total += *rp;
 
         if (with_sign) {
           auto r0 = write(sink, std::string_view{"-", 1});
-          if (!r0) return std::unexpected(r0.error());
+          if (!r0) return util::unexpected(r0.error());
           total += *r0;
         }
       }
 
       auto r1 = write(sink, core);
-      if (!r1) return std::unexpected(r1.error());
+      if (!r1) return util::unexpected(r1.error());
       total += *r1;
       return ok(total);
     };
@@ -662,16 +663,16 @@ namespace detail {
     char* end = buf + sizeof(buf);
 
     auto [ptr, ec] = std::to_chars(p, end, ip, 10);
-    if (ec != std::errc{}) return std::unexpected(errc::buffer_overflow);
+    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
     p = ptr;
 
     if (prec != 0) {
-      if (p >= end) return std::unexpected(errc::buffer_overflow);
+      if (p >= end) return util::unexpected(errc::buffer_overflow);
       *p++ = '.';
 
       // Write prec fractional digits (with leading zero).
       if (static_cast<std::size_t>(end - p) < prec)
-        return std::unexpected(errc::buffer_overflow);
+        return util::unexpected(errc::buffer_overflow);
 
       char* q = p + prec;
       std::uint32_t x = frac_scaled;
@@ -711,14 +712,14 @@ namespace detail {
         while (pad != 0) {
           const std::size_t n = (pad > sizeof(pad_buf)) ? sizeof(pad_buf) : pad;
           auto r = write(sink, std::string_view{pad_buf, n});
-          if (!r) return std::unexpected(r.error());
+          if (!r) return util::unexpected(r.error());
           total += *r;
           pad -= n;
         }
       }
 
       auto r = write(sink, sv);
-      if (!r) return std::unexpected(r.error());
+      if (!r) return util::unexpected(r.error());
       total += *r;
       return ok(total);
     } else if constexpr (std::is_floating_point_v<T>) {
@@ -729,14 +730,14 @@ namespace detail {
         static_assert(dependent_false_v<T>,
           "double formatting is disabled on MCU. "
           "Use float (e.g. 3.14159f) to avoid huge code size.");
-        return std::unexpected(errc::invalid_format);
+        return util::unexpected(errc::invalid_format);
       } else {
         return detail::write_float_fixed_mcu(sink, static_cast<float>(value), spec);
       }
 #else
       static_assert(dependent_false_v<T>,
         "floating-point formatting requested but OUT_ENABLE_FLOAT is not defined");
-      return std::unexpected(errc::invalid_format);
+      return util::unexpected(errc::invalid_format);
 #endif
     } else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>) {
       // using Raw = std::conditional_t<std::is_enum_v<T>, std::underlying_type_t<T>, T>;
@@ -754,7 +755,7 @@ namespace detail {
       if constexpr (std::is_signed_v<Raw>) {
         if (rv < 0) {
           auto r = write(sink, std::string_view{"-", 1});
-          if (!r) return std::unexpected(r.error());
+          if (!r) return util::unexpected(r.error());
           if (spec.width > 0) --spec.width;
 
           // Make abs value (handle INT_MIN).
@@ -763,10 +764,10 @@ namespace detail {
 
           unsigned base = pick_base(spec.type);
 #ifndef OUT_ENABLE_BINARY
-          if (base == 2) return std::unexpected(errc::invalid_format);
+          if (base == 2) return util::unexpected(errc::invalid_format);
 #endif
           auto rr = write_uint_base(sink, uv, base, spec);
-          if (!rr) return std::unexpected(rr.error());
+          if (!rr) return util::unexpected(rr.error());
           return ok(*r + *rr);
         }
       }
@@ -774,7 +775,7 @@ namespace detail {
       U uv = static_cast<U>(rv);
       unsigned base = pick_base(spec.type);
 #ifndef OUT_ENABLE_BINARY
-      if (base == 2) return std::unexpected(errc::invalid_format);
+      if (base == 2) return util::unexpected(errc::invalid_format);
 #endif
       return write_uint_base(sink, uv, base, spec);
     } else if constexpr (requires {
@@ -785,7 +786,7 @@ namespace detail {
       static_assert(dependent_false_v<T>,
         "Type is not formattable. "
         "Provide formatter<T>::write(sink, value, spec).");
-      return std::unexpected(errc::invalid_format);
+      return util::unexpected(errc::invalid_format);
     }
   }
 
@@ -822,7 +823,7 @@ namespace detail {
       if constexpr (pf.toks.size() <= OUT_UNROLL_TOKENS_MAX) {
         auto r = detail::unroll_tokens_seq<detail::parsed_v<Fmt>>(
           sink, tup, std::make_index_sequence<pf.toks.size()>{});
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         total += *r;
       } else {
         for (std::size_t i = 0; i < pf.toks.size(); ++i) {
@@ -830,19 +831,19 @@ namespace detail {
           if (tk.kind == token_kind::lit) {
             auto sv = pf.text.substr(tk.pos, tk.len);
             auto r = sink.append(sv);
-            if (!r) return std::unexpected(r.error());
+            if (!r) return util::unexpected(r.error());
             total += *r;
           } else {
             // ?????????
             auto idx = tk.arg_index;
-            result<std::size_t> r = std::unexpected(errc::invalid_format);
+            result<std::size_t> r = util::unexpected(errc::invalid_format);
 
             // ????? lambda + index_sequence ? compile-time ??
             [&]<std::size_t... Is>(std::index_sequence<Is...>) {
               ((idx == Is ? r = write_one(sink, std::get<Is>(tup), tk.spec) : r), ...);
             }(std::make_index_sequence<sizeof...(Args)>{});
 
-            if (!r) return std::unexpected(r.error());
+            if (!r) return util::unexpected(r.error());
             total += *r;
           }
         }
@@ -853,26 +854,26 @@ namespace detail {
         if (tk.kind == token_kind::lit) {
           auto sv = pf.text.substr(tk.pos, tk.len);
           auto r = sink.append(sv);
-          if (!r) return std::unexpected(r.error());
+          if (!r) return util::unexpected(r.error());
           total += *r;
         } else {
           // ?????????
           auto idx = tk.arg_index;
-          result<std::size_t> r = std::unexpected(errc::invalid_format);
+          result<std::size_t> r = util::unexpected(errc::invalid_format);
 
           // ????? lambda + index_sequence ? compile-time ??
           [&]<std::size_t... Is>(std::index_sequence<Is...>) {
             ((idx == Is ? r = write_one(sink, std::get<Is>(tup), tk.spec) : r), ...);
           }(std::make_index_sequence<sizeof...(Args)>{});
 
-          if (!r) return std::unexpected(r.error());
+          if (!r) return util::unexpected(r.error());
           total += *r;
         }
       }
 #endif
       if constexpr (FinalFlush) {
         auto rf = sink.flush();
-        if (!rf) return std::unexpected(rf.error());
+        if (!rf) return util::unexpected(rf.error());
         total += *rf;
       }
       return ok(total);
@@ -882,11 +883,11 @@ namespace detail {
       detail::buffered_writer<S, OUT_WRITE_BUFFER_SIZE> bw{sink};
       auto r = detail::unroll_tokens_seq<detail::parsed_v<Fmt>>(
         bw, tup, std::make_index_sequence<pf.toks.size()>{});
-      if (!r) return std::unexpected(r.error());
+      if (!r) return util::unexpected(r.error());
       std::size_t total = *r;
       if constexpr (FinalFlush) {
         auto rf = bw.flush();
-        if (!rf) return std::unexpected(rf.error());
+        if (!rf) return util::unexpected(rf.error());
         total += *rf;
       }
       return ok(total);
@@ -899,25 +900,25 @@ namespace detail {
       if (tk.kind == token_kind::lit) {
         auto sv = pf.text.substr(tk.pos, tk.len);
         auto r = bw.append(sv);
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         total += *r;
       } else {
         // ?????????
         auto idx = tk.arg_index;
-        result<std::size_t> r = std::unexpected(errc::invalid_format);
+        result<std::size_t> r = util::unexpected(errc::invalid_format);
 
         // ????? lambda + index_sequence ? compile-time ??
         [&]<std::size_t... Is>(std::index_sequence<Is...>) {
           ((idx == Is ? r = write_one(bw, std::get<Is>(tup), tk.spec) : r), ...);
         }(std::make_index_sequence<sizeof...(Args)>{});
 
-        if (!r) return std::unexpected(r.error());
+        if (!r) return util::unexpected(r.error());
         total += *r;
       }
     }
     if constexpr (FinalFlush) {
       auto rf = bw.flush();
-      if (!rf) return std::unexpected(rf.error());
+      if (!rf) return util::unexpected(rf.error());
       total += *rf;
     }
     return ok(total);

@@ -57,7 +57,6 @@ charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
-    "${CHARM_ROOT}/Examples/io/out/windows/out.port.windows.cpp"
 )
 
 set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")

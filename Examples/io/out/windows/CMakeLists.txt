@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 project(out-example-win)
 set(target_name ${PROJECT_NAME})
 
@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 26)
 
 add_executable(${target_name}
         main.cpp
-        out.port.windows.cpp
         ../example.cpp
 )
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 
 #
 # This file is generated only once,
@@ -78,7 +78,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/main.cpp
     Core/Src/player_app.cpp
-    Core/Src/out.port.stm32.cpp
 )
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS

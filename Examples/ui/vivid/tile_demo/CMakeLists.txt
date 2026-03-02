@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 project(vivid-tile-demo)
 set(target_name ${PROJECT_NAME})
 
@@ -26,7 +26,6 @@ charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
-    "${CHARM_ROOT}/Modules/io/out/out.port.template.cpp"
 )
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")

@@ -300,6 +300,18 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "layout: scroll container pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "layout: scroll container missing paint invalidation", fails);
 
+        kernel.layout_trace_reset();
+        const int drag_before = kernel.scroll_y(scroll);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 300, 280, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 300, 320, 0));
+        gui.render();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 300, 320, 1));
+        const int drag_after = kernel.scroll_y(scroll);
+        expect_true(drag_after != drag_before, "layout: scroll drag did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: scroll drag invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: scroll drag pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: scroll drag missing paint invalidation", fails);
+
         auto list_root = factory.create_container();
         auto list = factory.create_list();
         auto list_item_a = factory.create_list_item("Item A");

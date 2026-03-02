@@ -1,0 +1,6 @@
+CompileFlags:
+  CompilationDatabase: cmake-build-debug
+
+HeaderInsertion: Never
+Diagnostics:
+  UnusedIncludes: Strict

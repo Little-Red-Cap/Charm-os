@@ -3,17 +3,12 @@
 #include <cstdint>
 #include <cstring>
 
-import charm.core.gui;
-import charm.core.factory;
+import charm.core.soa_gui;
+import charm.core.soa_kernel;
 import charm.core.event;
 import charm.core.config;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
-import charm.widgets.button;
-import charm.widgets.label;
-import charm.widgets.progress;
-import charm.widgets.slider;
-import charm.widgets.switcher;
 import out.api;
 
 namespace {
@@ -100,21 +95,10 @@ int main() {
     DefaultCanvas canvas{fb};
     SDLTileBackend backend{fb};
 
-    using TileFrameBuffer = FrameBuffer<screen_pixel_format, 128, 128>;
-    TileFrameBuffer tile_fb{};
-    FrameBufferView tile_view{
-        screen_pixel_format,
-        tile_fb.data(),
-        TileFrameBuffer::width,
-        TileFrameBuffer::height,
-        TileFrameBuffer::stride_bytes
-    };
-
-    UiFactory factory{};
+    SoaKernel kernel{};
+    SoaFactory factory{kernel};
     auto root = factory.create_container();
-    if (auto* root_obj = factory.get(root)) {
-        root_obj->set_rect({0, 0, screen_width, screen_height});
-    }
+    kernel.set_rect(root, {0, 0, screen_width, screen_height});
 
     auto title = factory.create_label("Tile/PFB Render Demo");
     auto btn = factory.create_button("Press");
@@ -128,27 +112,15 @@ int main() {
     factory.link(root, slider);
     factory.link(root, progress);
 
-    if (auto* obj = factory.get_label(title)) {
-        obj->set_rect({24, 16, screen_width - 48, 24});
-    }
-    if (auto* obj = factory.get(btn)) {
-        obj->set_rect({24, 60, 160, 40});
-    }
-    if (auto* obj = factory.get(sw)) {
-        obj->set_rect({24, 112, 96, 32});
-    }
-    if (auto* obj = factory.get(slider)) {
-        obj->set_rect({24, 168, 280, 24});
-    }
-    if (auto* obj = factory.get(progress)) {
-        obj->set_rect({24, 208, 280, 18});
-    }
+    kernel.set_rect(title, {24, 16, screen_width - 48, 24});
+    kernel.set_rect(btn, {24, 60, 160, 40});
+    kernel.set_rect(sw, {24, 112, 96, 32});
+    kernel.set_rect(slider, {24, 168, 280, 24});
+    kernel.set_rect(progress, {24, 208, 280, 18});
+    kernel.set_range(slider, 0, 100);
+    kernel.set_range(progress, 0, 100);
 
-    Gui gui(canvas, factory, root);
-
-    Gui::TileRenderConfig tile_cfg{};
-    tile_cfg.tile_width = 128;
-    tile_cfg.tile_height = 128;
+    SoaGui gui(canvas, kernel, root);
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -191,16 +163,10 @@ int main() {
         }
 
         progress_value = (progress_value + 1) % 101;
-        if (auto* obj = factory.get_progress(progress)) {
-            obj->set_range(0, 100);
-            obj->set_value(progress_value);
-        }
-        if (auto* obj = factory.get_slider(slider)) {
-            obj->set_range(0, 100);
-            obj->set_value(progress_value);
-        }
-
-        (void)gui.render_tiles(backend, tile_view, tile_cfg);
+        kernel.set_value(progress, progress_value);
+        kernel.set_value(slider, progress_value);
+        (void)backend;
+        gui.render();
 
         SDL_UpdateTexture(texture, nullptr, fb.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);

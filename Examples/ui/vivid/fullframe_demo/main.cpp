@@ -2,17 +2,12 @@
 #include <cstddef>
 #include <cstdint>
 
-import charm.core.gui;
-import charm.core.factory;
+import charm.core.soa_gui;
+import charm.core.soa_kernel;
 import charm.core.event;
 import charm.core.config;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
-import charm.widgets.button;
-import charm.widgets.label;
-import charm.widgets.progress;
-import charm.widgets.slider;
-import charm.widgets.switcher;
 import out.api;
 
 namespace {
@@ -42,27 +37,6 @@ namespace {
         return true;
     }
 
-    struct SDLDirtyBackend {
-        SDL_Texture* texture{nullptr};
-        std::size_t bytes_per_pixel{0};
-
-        int width() const noexcept { return screen_width; }
-        int height() const noexcept { return screen_height; }
-        void begin_frame() noexcept {}
-        void end_frame() noexcept {}
-
-        void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
-            if (!texture || !src || bytes == 0) return;
-            if (bytes_per_pixel == 0) return;
-            if (x < 0 || y < 0 || x >= screen_width || y >= screen_height) return;
-            const int w = static_cast<int>(bytes / bytes_per_pixel);
-            if (w <= 0) return;
-            SDL_Rect rect{x, y, w, 1};
-            SDL_UpdateTexture(texture, &rect, src, static_cast<int>(bytes));
-        }
-
-        void mark_dirty(int, int, int, int) noexcept {}
-    };
 }
 
 int main() {
@@ -98,21 +72,10 @@ int main() {
 
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
-    SDLDirtyBackend backend{texture, DefaultFrameBuffer::bytes_per_pixel};
-
-    FrameBufferView fb_view{
-        screen_pixel_format,
-        fb.data(),
-        static_cast<std::size_t>(screen_width),
-        static_cast<std::size_t>(screen_height),
-        DefaultFrameBuffer::stride_bytes
-    };
-
-    UiFactory factory{};
+    SoaKernel kernel{};
+    SoaFactory factory{kernel};
     auto root = factory.create_container();
-    if (auto* root_obj = factory.get(root)) {
-        root_obj->set_rect({0, 0, screen_width, screen_height});
-    }
+    kernel.set_rect(root, {0, 0, screen_width, screen_height});
 
     auto title = factory.create_label("FullFrame Dirty Demo");
     auto btn = factory.create_button("Press");
@@ -126,27 +89,15 @@ int main() {
     factory.link(root, slider);
     factory.link(root, progress);
 
-    if (auto* obj = factory.get_label(title)) {
-        obj->set_rect({24, 16, screen_width - 48, 24});
-    }
-    if (auto* obj = factory.get(btn)) {
-        obj->set_rect({24, 60, 160, 40});
-    }
-    if (auto* obj = factory.get(sw)) {
-        obj->set_rect({24, 112, 96, 32});
-    }
-    if (auto* obj = factory.get(slider)) {
-        obj->set_rect({24, 168, 280, 24});
-    }
-    if (auto* obj = factory.get(progress)) {
-        obj->set_rect({24, 208, 280, 18});
-    }
+    kernel.set_rect(title, {24, 16, screen_width - 48, 24});
+    kernel.set_rect(btn, {24, 60, 160, 40});
+    kernel.set_rect(sw, {24, 112, 96, 32});
+    kernel.set_rect(slider, {24, 168, 280, 24});
+    kernel.set_rect(progress, {24, 208, 280, 18});
+    kernel.set_range(slider, 0, 100);
+    kernel.set_range(progress, 0, 100);
 
-    Gui gui(canvas, factory, root);
-
-    Gui::FullFrameConfig full_cfg{};
-    full_cfg.use_dirty = true;
-    full_cfg.present = true;
+    SoaGui gui(canvas, kernel, root);
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -154,8 +105,6 @@ int main() {
     int mouse_x = 0;
     int mouse_y = 0;
     int progress_value = 0;
-    bool first_frame = true;
-
     while (running) {
         SDL_Event evt{};
         SDL_GetWindowSize(window, &win_w, &win_h);
@@ -190,19 +139,12 @@ int main() {
         }
 
         progress_value = (progress_value + 1) % 101;
-        if (auto* obj = factory.get_progress(progress)) {
-            obj->set_range(0, 100);
-            obj->set_value(progress_value);
-        }
-        if (auto* obj = factory.get_slider(slider)) {
-            obj->set_range(0, 100);
-            obj->set_value(progress_value);
-        }
+        kernel.set_value(progress, progress_value);
+        kernel.set_value(slider, progress_value);
 
-        full_cfg.clear_buffer = first_frame;
-        (void)gui.render_fullframe(backend, fb_view, full_cfg);
-        first_frame = false;
+        gui.render();
 
+        SDL_UpdateTexture(texture, nullptr, fb.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
         SDL_RenderClear(renderer);
         SDL_FRect dst{

@@ -4,24 +4,15 @@
 #include <cstdio>
 #include <cstdint>
 
-import charm.core.gui;
-import charm.core.factory;
+import charm.core.soa_gui;
+import charm.core.soa_kernel;
 import charm.core.event;
 import charm.core.handle;
-import charm.core.object;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.core.config;
 import charm.gfx.canvas;
-import charm.widgets.button;
-import charm.widgets.checkbox;
-import charm.widgets.label;
-import charm.widgets.list;
-import charm.widgets.progress;
-import charm.widgets.radio;
-import charm.widgets.slider;
-import charm.widgets.switcher;
 
 namespace {
     struct ThemeEntry {
@@ -69,7 +60,7 @@ namespace {
         auto& sheet = StyleSheet::instance();
         sheet.clear();
 
-        const Style& base = Theme::instance().get<Button>();
+        const Style base = make_style_from_tokens(Theme::instance().get_tokens());
         Style out{};
 
         auto mk = [](std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
@@ -160,11 +151,10 @@ int main() {
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
 
-    UiFactory factory{};
+    SoaKernel kernel{};
+    SoaFactory factory{kernel};
     auto root = factory.create_container();
-    if (auto* root_obj = factory.get(root)) {
-        root_obj->set_rect({0, 0, screen_width, screen_height});
-    }
+    kernel.set_rect(root, {0, 0, screen_width, screen_height});
 
     auto title = factory.create_label("Theme: Light");
     auto subtitle = factory.create_label("Keys: 1 Light  2 Dark  3 High Contrast");
@@ -195,52 +185,32 @@ int main() {
     const int row_h = 36;
     const int gap = 12;
 
-    if (auto* lbl = factory.get_label(title)) {
-        lbl->set_rect({col_x, y, screen_width - col_x * 2, 24});
-    }
+    kernel.set_rect(title, {col_x, y, screen_width - col_x * 2, 24});
     y += 28;
-    if (auto* lbl = factory.get_label(subtitle)) {
-        lbl->set_rect({col_x, y, screen_width - col_x * 2, 20});
-    }
+    kernel.set_rect(subtitle, {col_x, y, screen_width - col_x * 2, 20});
     y += 36;
 
-    if (auto* btn = factory.get_button(btn_primary)) {
-        btn->set_rect({col_x, y, col_w, row_h});
-    }
+    kernel.set_rect(btn_primary, {col_x, y, col_w, row_h});
     y += row_h + gap;
-    if (auto* btn = factory.get_button(btn_secondary)) {
-        btn->set_rect({col_x, y, col_w, row_h});
-        btn->set_style_variant(kVariantSecondary);
-    }
+    kernel.set_rect(btn_secondary, {col_x, y, col_w, row_h});
+    kernel.set_variant(btn_secondary, kVariantSecondary);
     y += row_h + gap;
-    if (auto* s = factory.get_switch(sw)) {
-        s->set_rect({col_x, y, 64, 28});
-        s->set_on(true);
-    }
-    if (auto* c = factory.get_checkbox(cb)) {
-        c->set_rect({col_x + 90, y, col_w, 28});
-        c->set_checked(true);
-    }
+    kernel.set_rect(sw, {col_x, y, 64, 28});
+    kernel.set_checked(sw, true);
+    kernel.set_rect(cb, {col_x + 90, y, col_w, 28});
+    kernel.set_checked(cb, true);
     y += 40;
-    if (auto* r = factory.get_radio(radio)) {
-        r->set_rect({col_x, y, col_w, 28});
-        r->set_checked(true);
-    }
+    kernel.set_rect(radio, {col_x, y, col_w, 28});
+    kernel.set_checked(radio, true);
     y += 40;
-    if (auto* s = factory.get_slider(slider)) {
-        s->set_rect({col_x, y, col_w, 24});
-        s->set_range(0, 100);
-        s->set_value(60);
-    }
+    kernel.set_rect(slider, {col_x, y, col_w, 24});
+    kernel.set_range(slider, 0, 100);
+    kernel.set_value(slider, 60);
     y += 40;
-    if (auto* p = factory.get_progress(progress)) {
-        p->set_rect({col_x, y, col_w, 16});
-        p->set_value(30);
-    }
+    kernel.set_rect(progress, {col_x, y, col_w, 16});
+    kernel.set_value(progress, 30);
     y += 32;
-    if (auto* li = factory.get_list_item(list_item)) {
-        li->set_rect({col_x, y, col_w, 28});
-    }
+    kernel.set_rect(list_item, {col_x, y, col_w, 28});
 
     ThemeEntry themes[] = {
         {"Light", ThemeTokens{
@@ -329,17 +299,15 @@ int main() {
         list_pressed.font_color = StyleRole::OnAccent;
         sheet.add_role_rule(StyleSelector{WidgetKind::ListItem, mask_pressed()}, list_pressed);
 
-        if (auto* lbl = factory.get_label(title)) {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "Theme: %s", themes[index].name);
-            lbl->set_text(buf);
-        }
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "Theme: %s", themes[index].name);
+        kernel.set_text(title, buf);
     };
 
     int theme_index = 0;
     apply_demo_theme(theme_index);
 
-    Gui gui{canvas, factory, root};
+    SoaGui gui{canvas, kernel, root};
 
     auto t0 = std::chrono::steady_clock::now();
     bool running = true;
@@ -414,10 +382,8 @@ int main() {
 
         const auto now = std::chrono::steady_clock::now();
         const float t = std::chrono::duration<float>(now - t0).count();
-        if (auto* p = factory.get_progress(progress)) {
-            const int value = static_cast<int>((std::sin(t) * 0.5f + 0.5f) * 100.0f);
-            p->set_value(value);
-        }
+        const int value = static_cast<int>((std::sin(t) * 0.5f + 0.5f) * 100.0f);
+        kernel.set_value(progress, value);
 
         gui.render();
 

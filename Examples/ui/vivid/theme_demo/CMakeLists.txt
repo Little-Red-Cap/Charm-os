@@ -21,6 +21,7 @@ charm_example_sdl3_options()
 set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_VIVID_SOA_ONLY ON CACHE BOOL "" FORCE)
 
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 

@@ -5,22 +5,18 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#include "features.hpp"
+
 export module charm.core.soa_kernel;
 
 export import charm.core.handle;
 export import charm.core.geometry;
 export import charm.core.config;
 export import charm.core.event;
+export import charm.core.widget_registry;
 
-import charm.core.container;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.checkbox;
-import charm.widgets.list;
-import charm.widgets.radio;
-import charm.widgets.scroll_container;
-import charm.widgets.slider;
-import charm.widgets.switcher;
 
 namespace {
     constexpr std::uint16_t kInvalidIndex = 0xFFFF;
@@ -207,6 +203,20 @@ enum class SoaLayoutKind : std::uint8_t {
     List = 1
 };
 
+enum class SoaClickBehavior : std::uint8_t {
+    None,
+    Toggle,
+    RadioGroup,
+    ListItemGroup
+};
+
+struct SoaDefaults {
+    bool hit_test{true};
+    bool focusable{false};
+    bool clip_children{false};
+    SoaLayoutKind layout_kind{SoaLayoutKind::None};
+};
+
 export
 class SoaKernel {
 public:
@@ -234,6 +244,10 @@ public:
     }
 
     WidgetHandle create(WidgetKind kind) noexcept {
+        if (!widget_kind_enabled(kind)) {
+            unsupported_kind(kind);
+            return {};
+        }
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) {
             unsupported_kind(kind);
@@ -242,11 +256,14 @@ public:
         if (free_head_ == kInvalidIndex) return {};
         const std::uint16_t idx = free_head_;
         free_head_ = common_.free_next[idx];
+        const SoaDefaults defaults = default_for_kind(kind);
         common_.kind[idx] = kind;
         common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
             | static_cast<std::uint8_t>(SoaNodeFlag::Visible)
             | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
-            | static_cast<std::uint8_t>(SoaNodeFlag::HitTest);
+            | (defaults.hit_test ? static_cast<std::uint8_t>(SoaNodeFlag::HitTest) : std::uint8_t{0})
+            | (defaults.focusable ? static_cast<std::uint8_t>(SoaNodeFlag::Focusable) : std::uint8_t{0})
+            | (defaults.clip_children ? static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren) : std::uint8_t{0});
         common_.state_flags[idx] = 0;
         common_.variant[idx] = 0;
         common_.rects[idx] = Rect{};
@@ -257,7 +274,7 @@ public:
         common_.next_sibling[idx] = kInvalidIndex;
         common_.prev_sibling[idx] = kInvalidIndex;
         common_.child_count[idx] = 0;
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+        common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
         reset_payload(kind, idx);
         mark_layout_dirty();
         return WidgetHandle{kind, idx, common_.generation[idx]};
@@ -566,7 +583,6 @@ public:
     void input_dispatch(const Event& e) noexcept {
         if (!input_root_) return;
         input_events_.clear();
-        input_refresh_styles();
         switch (e.type) {
         case Event::Type::HoverEnter:
             break;
@@ -576,10 +592,11 @@ public:
             input_last_x_ = e.x;
             input_last_y_ = e.y;
             input_handle_hover(e.x, e.y, e.button);
-            if (input_pressed_) {
+            if (input_pressed_ || input_captured_) {
                 input_handle_drag(e.x, e.y, input_button_);
-                if (kind(input_pressed_) == WidgetKind::Slider) {
-                    input_update_slider_value(input_pressed_, e.x);
+                const WidgetHandle drag_target = input_drag_target();
+                if (drag_target && press_updates_slider(kind(drag_target))) {
+                    input_update_slider_value(drag_target, e.x);
                 }
             } else if (input_hovered_) {
                 input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button));
@@ -1191,8 +1208,61 @@ public:
 #endif
     }
 
+    static constexpr SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
+        switch (kind) {
+        case WidgetKind::Switch:
+        case WidgetKind::Checkbox:
+            return SoaClickBehavior::Toggle;
+        case WidgetKind::Radio:
+            return SoaClickBehavior::RadioGroup;
+        case WidgetKind::ListItem:
+            return SoaClickBehavior::ListItemGroup;
+        default:
+            return SoaClickBehavior::None;
+        }
+    }
+
+    static constexpr bool press_updates_slider(WidgetKind kind) noexcept {
+        return kind == WidgetKind::Slider;
+    }
+
+    static constexpr bool drag_blocks_scroll(WidgetKind kind) noexcept {
+        return kind == WidgetKind::Slider;
+    }
+
+    static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
+        SoaDefaults defaults{};
+        switch (kind) {
+        case WidgetKind::Label:
+            defaults.hit_test = false;
+            break;
+        case WidgetKind::Progress:
+            defaults.hit_test = false;
+            break;
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::ListItem:
+            defaults.focusable = true;
+            break;
+        case WidgetKind::List:
+            defaults.clip_children = true;
+            defaults.layout_kind = SoaLayoutKind::List;
+            break;
+        case WidgetKind::ScrollContainer:
+            defaults.clip_children = true;
+            defaults.focusable = true;
+            break;
+        default:
+            break;
+        }
+        return defaults;
+    }
+
     static constexpr soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
         using namespace soa_detail;
+        if (!widget_kind_enabled(kind)) {
+            return make_desc(false);
+        }
         switch (kind) {
         case WidgetKind::None:
             return make_desc(false);
@@ -1200,20 +1270,12 @@ public:
             return make_desc(true);
         case WidgetKind::ScrollContainer:
             return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::None, ScrollSlot::ScrollContainer);
-        case WidgetKind::Dial:
-            return make_desc(false);
-        case WidgetKind::Arc:
-            return make_desc(false);
-        case WidgetKind::Image:
-            return make_desc(false);
         case WidgetKind::Label:
             return make_desc(true, TextSlot::Label);
         case WidgetKind::Button:
             return make_desc(true, TextSlot::Button);
         case WidgetKind::Checkbox:
             return make_desc(true, TextSlot::Checkbox, CheckSlot::Checkbox);
-        case WidgetKind::Led:
-            return make_desc(false);
         case WidgetKind::Slider:
             return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::Slider);
         case WidgetKind::Switch:
@@ -1224,122 +1286,11 @@ public:
             return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::None, ScrollSlot::List);
         case WidgetKind::ListItem:
             return make_desc(true, TextSlot::ListItem, CheckSlot::ListItem);
-        case WidgetKind::ListView:
-            return make_desc(false);
-        case WidgetKind::IconList:
-            return make_desc(false);
-        case WidgetKind::TextTrackingList:
-            return make_desc(false);
-        case WidgetKind::TextList:
-            return make_desc(false);
-        case WidgetKind::ModalDialog:
-            return make_desc(false);
-        case WidgetKind::ProgressBarSimple:
-            return make_desc(false);
-        case WidgetKind::DynamicNebula:
-            return make_desc(false);
-        case WidgetKind::CrtScreen:
-            return make_desc(false);
-        case WidgetKind::ScrollBar:
-            return make_desc(false);
-        case WidgetKind::SegmentedControl:
-            return make_desc(false);
-        case WidgetKind::TextArea:
-            return make_desc(false);
-        case WidgetKind::TextInput:
-            return make_desc(false);
-        case WidgetKind::NumberInput:
-            return make_desc(false);
-        case WidgetKind::ToggleGroup:
-            return make_desc(false);
-        case WidgetKind::TableView:
-            return make_desc(false);
-        case WidgetKind::TreeView:
-            return make_desc(false);
-        case WidgetKind::Dropdown:
-            return make_desc(false);
-        case WidgetKind::TabView:
-            return make_desc(false);
-        case WidgetKind::Roller:
-            return make_desc(false);
-        case WidgetKind::Spinner:
-            return make_desc(false);
-        case WidgetKind::Bar:
-            return make_desc(false);
-        case WidgetKind::PopupLayer:
-            return make_desc(false);
-        case WidgetKind::MessageBox:
-            return make_desc(false);
-        case WidgetKind::Menu:
-            return make_desc(false);
-        case WidgetKind::MenuItem:
-            return make_desc(false);
         case WidgetKind::Radio:
             return make_desc(true, TextSlot::Radio, CheckSlot::Radio);
-        case WidgetKind::RadioGroup:
-            return make_desc(false);
-        case WidgetKind::Chart:
-            return make_desc(false);
-        case WidgetKind::Waveform:
-            return make_desc(false);
-        case WidgetKind::Gauge:
-            return make_desc(false);
-        case WidgetKind::PrimitivesCanvas:
-            return make_desc(false);
-        case WidgetKind::PerfOverlay:
-            return make_desc(false);
-        case WidgetKind::Stepper:
-            return make_desc(false);
-        case WidgetKind::Timeline:
-            return make_desc(false);
-        case WidgetKind::RichText:
-            return make_desc(false);
-        case WidgetKind::CodeBlock:
-            return make_desc(false);
-        case WidgetKind::ProgressWheel:
-            return make_desc(false);
-        case WidgetKind::WaveformView:
-            return make_desc(false);
-        case WidgetKind::BatteryGauge:
-            return make_desc(false);
-        case WidgetKind::HistogramView:
-            return make_desc(false);
-        case WidgetKind::RingIndication:
-            return make_desc(false);
-        case WidgetKind::TextBox:
-            return make_desc(false);
-        case WidgetKind::FoldablePanel:
-            return make_desc(false);
-        case WidgetKind::ProgressFlowing:
-            return make_desc(false);
-        case WidgetKind::CloudyGlass:
-            return make_desc(false);
-        case WidgetKind::NumberList:
-            return make_desc(false);
-        case WidgetKind::ProgressBarRound:
-            return make_desc(false);
-        case WidgetKind::SpinZoomWidget:
-            return make_desc(false);
-        case WidgetKind::SpinningWheel:
-            return make_desc(false);
-        case WidgetKind::ImageBox:
-            return make_desc(false);
-        case WidgetKind::MeterPointer:
-            return make_desc(false);
-        case WidgetKind::ProgressBarDrill:
-            return make_desc(false);
-        case WidgetKind::SpectrumView:
-            return make_desc(false);
-        case WidgetKind::BusyWheel:
-            return make_desc(false);
-        case WidgetKind::ConsoleBox:
-            return make_desc(false);
-        case WidgetKind::BatteryGasGauge:
-            return make_desc(false);
-        case WidgetKind::Histogram:
-            return make_desc(false);
+        default:
+            return make_desc(true);
         }
-        return make_desc(false);
     }
 
     void reset_payload(WidgetKind kind, std::uint16_t idx) noexcept {
@@ -1455,13 +1406,6 @@ private:
         }
     }
 
-    static constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
-
-    struct InputStyleTable {
-        std::array<Style, kWidgetKindCount> styles{};
-    };
-
     static constexpr std::size_t kMaxInputEvents = 32;
 
     struct InputEventQueue {
@@ -1475,8 +1419,6 @@ private:
         }
     };
 
-    InputStyleTable input_style_table_{};
-    std::uint32_t input_style_version_{0};
     InputEventQueue input_events_{};
     WidgetHandle input_root_{};
     WidgetHandle input_hovered_{};
@@ -1494,49 +1436,18 @@ private:
     int input_drag_threshold_sq_{25};
     bool input_dragging_{false};
 
-    static const Style& input_style_for_kind(const InputStyleTable& table, WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= table.styles.size()) {
-            return table.styles[static_cast<std::size_t>(WidgetKind::Container)];
-        }
-        return table.styles[idx];
-    }
-
     static StyleState input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
         return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
     }
 
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept {
-        return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
+        const auto desc = payload_descriptor(kind);
+        return desc.scroll != soa_detail::ScrollSlot::None;
     }
 
     static int clamp_int(int v, int lo, int hi) noexcept {
         return (v < lo) ? lo : (v > hi ? hi : v);
-    }
-
-    void input_refresh_styles() {
-        const auto version = Theme::instance().get_tokens().version;
-        if (version == input_style_version_) return;
-        input_style_version_ = version;
-        const Style fallback = Theme::instance().get<Container>();
-        input_style_table_.styles.fill(fallback);
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Container)] = Theme::instance().get<Container>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Slider)] = Theme::instance().get<Slider>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::List)] = Theme::instance().get<List>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::ListItem)] = Theme::instance().get<ListItem>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::ScrollContainer)] = Theme::instance().get<ScrollContainer>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Checkbox)] = Theme::instance().get<Checkbox>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Radio)] = Theme::instance().get<Radio>();
-        input_style_table_.styles[static_cast<std::size_t>(WidgetKind::Switch)] = Theme::instance().get<Switch>();
-    }
-
-    const Style& input_resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {
-        const Style& base = input_style_for_kind(input_style_table_, kind);
-        if (StyleSheet::instance().apply(kind, state, scratch, base)) {
-            return scratch;
-        }
-        return base;
     }
 
     void input_emit_event(WidgetHandle target, const Event& e) noexcept {
@@ -1582,22 +1493,25 @@ private:
                 input_set_focus(input_pressed_);
             }
             input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseDown, x, y, button));
-            if (kind(input_pressed_) == WidgetKind::Slider) {
+            if (press_updates_slider(kind(input_pressed_))) {
                 input_update_slider_value(input_pressed_, x);
             }
         }
     }
 
     void input_handle_release(int x, int y, int button) {
-        if (!input_pressed_) return;
+        const WidgetHandle target = input_drag_target();
+        if (!target) return;
         const bool was_dragging = input_dragging_;
         if (was_dragging) {
-            input_emit_event(input_pressed_, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
         }
-        set_pressed(input_pressed_, false);
+        if (input_pressed_) {
+            set_pressed(input_pressed_, false);
+        }
         WidgetHandle hit = input_hit_test(x, y);
-        input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseUp, x, y, button));
-        if (!was_dragging && hit == input_pressed_) {
+        input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button));
+        if (!was_dragging && hit == input_pressed_ && input_pressed_) {
             input_emit_event(input_pressed_, Event::mouse(Event::Type::Click, x, y, button));
             input_handle_click(input_pressed_);
         }
@@ -1609,6 +1523,8 @@ private:
     }
 
     void input_handle_drag(int x, int y, int button) {
+        const WidgetHandle target = input_drag_target();
+        if (!target) return;
         const int dx = x - input_drag_last_x_;
         const int dy = y - input_drag_last_y_;
         input_drag_last_x_ = x;
@@ -1618,16 +1534,16 @@ private:
             const int total_dy = y - input_drag_start_y_;
             if ((total_dx * total_dx + total_dy * total_dy) >= input_drag_threshold_sq_) {
                 input_dragging_ = true;
-                input_emit_event(input_pressed_, Event::drag(Event::Type::DragStart, x, y, 0, 0, button));
+                input_emit_event(target, Event::drag(Event::Type::DragStart, x, y, 0, 0, button));
             }
         }
         if (input_dragging_) {
-            input_emit_event(input_pressed_, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
-            if (input_scroll_target_ && kind(input_pressed_) != WidgetKind::Slider) {
+            input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
+            if (input_scroll_target_ && !drag_blocks_scroll(kind(target))) {
                 input_scroll_by(input_scroll_target_, -dy);
             }
         } else {
-            input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseMove, x, y, button));
+            input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button));
         }
     }
 
@@ -1785,222 +1701,19 @@ private:
     }
 
     void input_handle_click(WidgetHandle h) {
-        switch (kind(h)) {
-        case WidgetKind::None:
-            unsupported_kind(WidgetKind::None);
+        switch (click_behavior_for_kind(kind(h))) {
+        case SoaClickBehavior::None:
             break;
-        case WidgetKind::Container:
-            unsupported_kind(WidgetKind::Container);
-            break;
-        case WidgetKind::ScrollContainer:
-            unsupported_kind(WidgetKind::ScrollContainer);
-            break;
-        case WidgetKind::Dial:
-            unsupported_kind(WidgetKind::Dial);
-            break;
-        case WidgetKind::Arc:
-            unsupported_kind(WidgetKind::Arc);
-            break;
-        case WidgetKind::Image:
-            unsupported_kind(WidgetKind::Image);
-            break;
-        case WidgetKind::Label:
-            unsupported_kind(WidgetKind::Label);
-            break;
-        case WidgetKind::Button:
-            unsupported_kind(WidgetKind::Button);
-            break;
-        case WidgetKind::Switch:
-        case WidgetKind::Checkbox:
+        case SoaClickBehavior::Toggle:
             set_checked(h, !checked(h));
             break;
-        case WidgetKind::Led:
-            unsupported_kind(WidgetKind::Led);
-            break;
-        case WidgetKind::Slider:
-            unsupported_kind(WidgetKind::Slider);
-            break;
-        case WidgetKind::Progress:
-            unsupported_kind(WidgetKind::Progress);
-            break;
-        case WidgetKind::List:
-            unsupported_kind(WidgetKind::List);
-            break;
-        case WidgetKind::Radio:
+        case SoaClickBehavior::RadioGroup:
             set_checked(h, true);
             input_clear_sibling_checks(h, WidgetKind::Radio);
             break;
-        case WidgetKind::ListItem:
+        case SoaClickBehavior::ListItemGroup:
             set_checked(h, true);
             input_clear_sibling_checks(h, WidgetKind::ListItem);
-            break;
-        case WidgetKind::ListView:
-            unsupported_kind(WidgetKind::ListView);
-            break;
-        case WidgetKind::IconList:
-            unsupported_kind(WidgetKind::IconList);
-            break;
-        case WidgetKind::TextTrackingList:
-            unsupported_kind(WidgetKind::TextTrackingList);
-            break;
-        case WidgetKind::TextList:
-            unsupported_kind(WidgetKind::TextList);
-            break;
-        case WidgetKind::ModalDialog:
-            unsupported_kind(WidgetKind::ModalDialog);
-            break;
-        case WidgetKind::ProgressBarSimple:
-            unsupported_kind(WidgetKind::ProgressBarSimple);
-            break;
-        case WidgetKind::DynamicNebula:
-            unsupported_kind(WidgetKind::DynamicNebula);
-            break;
-        case WidgetKind::CrtScreen:
-            unsupported_kind(WidgetKind::CrtScreen);
-            break;
-        case WidgetKind::ScrollBar:
-            unsupported_kind(WidgetKind::ScrollBar);
-            break;
-        case WidgetKind::SegmentedControl:
-            unsupported_kind(WidgetKind::SegmentedControl);
-            break;
-        case WidgetKind::TextArea:
-            unsupported_kind(WidgetKind::TextArea);
-            break;
-        case WidgetKind::TextInput:
-            unsupported_kind(WidgetKind::TextInput);
-            break;
-        case WidgetKind::NumberInput:
-            unsupported_kind(WidgetKind::NumberInput);
-            break;
-        case WidgetKind::ToggleGroup:
-            unsupported_kind(WidgetKind::ToggleGroup);
-            break;
-        case WidgetKind::TableView:
-            unsupported_kind(WidgetKind::TableView);
-            break;
-        case WidgetKind::TreeView:
-            unsupported_kind(WidgetKind::TreeView);
-            break;
-        case WidgetKind::Dropdown:
-            unsupported_kind(WidgetKind::Dropdown);
-            break;
-        case WidgetKind::TabView:
-            unsupported_kind(WidgetKind::TabView);
-            break;
-        case WidgetKind::Roller:
-            unsupported_kind(WidgetKind::Roller);
-            break;
-        case WidgetKind::Spinner:
-            unsupported_kind(WidgetKind::Spinner);
-            break;
-        case WidgetKind::Bar:
-            unsupported_kind(WidgetKind::Bar);
-            break;
-        case WidgetKind::PopupLayer:
-            unsupported_kind(WidgetKind::PopupLayer);
-            break;
-        case WidgetKind::MessageBox:
-            unsupported_kind(WidgetKind::MessageBox);
-            break;
-        case WidgetKind::Menu:
-            unsupported_kind(WidgetKind::Menu);
-            break;
-        case WidgetKind::MenuItem:
-            unsupported_kind(WidgetKind::MenuItem);
-            break;
-        case WidgetKind::RadioGroup:
-            unsupported_kind(WidgetKind::RadioGroup);
-            break;
-        case WidgetKind::Chart:
-            unsupported_kind(WidgetKind::Chart);
-            break;
-        case WidgetKind::Waveform:
-            unsupported_kind(WidgetKind::Waveform);
-            break;
-        case WidgetKind::Gauge:
-            unsupported_kind(WidgetKind::Gauge);
-            break;
-        case WidgetKind::PrimitivesCanvas:
-            unsupported_kind(WidgetKind::PrimitivesCanvas);
-            break;
-        case WidgetKind::PerfOverlay:
-            unsupported_kind(WidgetKind::PerfOverlay);
-            break;
-        case WidgetKind::Stepper:
-            unsupported_kind(WidgetKind::Stepper);
-            break;
-        case WidgetKind::Timeline:
-            unsupported_kind(WidgetKind::Timeline);
-            break;
-        case WidgetKind::RichText:
-            unsupported_kind(WidgetKind::RichText);
-            break;
-        case WidgetKind::CodeBlock:
-            unsupported_kind(WidgetKind::CodeBlock);
-            break;
-        case WidgetKind::ProgressWheel:
-            unsupported_kind(WidgetKind::ProgressWheel);
-            break;
-        case WidgetKind::WaveformView:
-            unsupported_kind(WidgetKind::WaveformView);
-            break;
-        case WidgetKind::BatteryGauge:
-            unsupported_kind(WidgetKind::BatteryGauge);
-            break;
-        case WidgetKind::HistogramView:
-            unsupported_kind(WidgetKind::HistogramView);
-            break;
-        case WidgetKind::RingIndication:
-            unsupported_kind(WidgetKind::RingIndication);
-            break;
-        case WidgetKind::TextBox:
-            unsupported_kind(WidgetKind::TextBox);
-            break;
-        case WidgetKind::FoldablePanel:
-            unsupported_kind(WidgetKind::FoldablePanel);
-            break;
-        case WidgetKind::ProgressFlowing:
-            unsupported_kind(WidgetKind::ProgressFlowing);
-            break;
-        case WidgetKind::CloudyGlass:
-            unsupported_kind(WidgetKind::CloudyGlass);
-            break;
-        case WidgetKind::NumberList:
-            unsupported_kind(WidgetKind::NumberList);
-            break;
-        case WidgetKind::ProgressBarRound:
-            unsupported_kind(WidgetKind::ProgressBarRound);
-            break;
-        case WidgetKind::SpinZoomWidget:
-            unsupported_kind(WidgetKind::SpinZoomWidget);
-            break;
-        case WidgetKind::SpinningWheel:
-            unsupported_kind(WidgetKind::SpinningWheel);
-            break;
-        case WidgetKind::ImageBox:
-            unsupported_kind(WidgetKind::ImageBox);
-            break;
-        case WidgetKind::MeterPointer:
-            unsupported_kind(WidgetKind::MeterPointer);
-            break;
-        case WidgetKind::ProgressBarDrill:
-            unsupported_kind(WidgetKind::ProgressBarDrill);
-            break;
-        case WidgetKind::SpectrumView:
-            unsupported_kind(WidgetKind::SpectrumView);
-            break;
-        case WidgetKind::BusyWheel:
-            unsupported_kind(WidgetKind::BusyWheel);
-            break;
-        case WidgetKind::ConsoleBox:
-            unsupported_kind(WidgetKind::ConsoleBox);
-            break;
-        case WidgetKind::BatteryGasGauge:
-            unsupported_kind(WidgetKind::BatteryGasGauge);
-            break;
-        case WidgetKind::Histogram:
-            unsupported_kind(WidgetKind::Histogram);
             break;
         }
     }
@@ -2017,11 +1730,10 @@ private:
     }
 
     void input_update_slider_value(WidgetHandle h, int x) {
-        Style scratch;
         const StyleState state = input_make_state(*this, h);
-        const Style& st = input_resolve_style(WidgetKind::Slider, state, scratch);
+        const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::Slider, state);
+        const int pad = view.metrics ? view.metrics->padding : 0;
         Rect r = input_world_rect(h);
-        const int pad = st.metrics.padding;
         const int inner_w = r.w - pad * 2;
         if (inner_w <= 0) return;
         const int min_v = min_value(h);
@@ -2087,6 +1799,10 @@ private:
             set_focused(input_focused_, true);
             input_emit_event(input_focused_, Event::key(Event::Type::FocusIn, Event::Key::Unknown));
         }
+    }
+
+    WidgetHandle input_drag_target() const noexcept {
+        return input_captured_ ? input_captured_ : input_pressed_;
     }
 
     std::uint16_t index_of(WidgetHandle h) const noexcept {

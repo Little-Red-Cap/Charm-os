@@ -8,8 +8,11 @@ option(CHARM_AUDIO_SINK_I2S "Enable I2S audio sink" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)
 option(CHARM_ENABLE_UI_INK "Enable Ink UI modules" ON)
 option(CHARM_ENABLE_UI_VIVID "Enable Vivid UI modules" ON)
+option(CHARM_VIVID_SOA_ONLY "Build Vivid with SoA-only kernel (no ObjectBase/UiFactory)" OFF)
 set(CHARM_VIVID_PROFILE "basic" CACHE STRING "Vivid profile: basic or full")
 set_property(CACHE CHARM_VIVID_PROFILE PROPERTY STRINGS basic full)
+set(CHARM_VIVID_FEATURESET "FULL" CACHE STRING "Vivid featureset: FULL or MCU_MIN")
+set_property(CACHE CHARM_VIVID_FEATURESET PROPERTY STRINGS FULL MCU_MIN)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
@@ -55,6 +58,16 @@ target_compile_definitions(${target_name} PRIVATE
     CHARM_ENABLE_UI_INK=$<BOOL:${CHARM_ENABLE_UI_INK}>
     CHARM_ENABLE_UI_VIVID=$<BOOL:${CHARM_ENABLE_UI_VIVID}>
 )
+if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
+    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_MCU_MIN=1)
+elseif (CHARM_VIVID_FEATURESET STREQUAL "FULL")
+    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_FULL=1)
+else()
+    message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
+endif()
+if (CHARM_VIVID_SOA_ONLY)
+    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_SOA_ONLY=1)
+endif()
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
 if (NOT CHARM_ENABLE_SDL3)
@@ -87,7 +100,28 @@ if (NOT CHARM_ENABLE_UI_VIVID)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/core/alg/alg_text_layout.cppm")
 else()
-    if (CHARM_VIVID_PROFILE STREQUAL "basic")
+    if (CHARM_VIVID_SOA_ONLY)
+        list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
+        list(APPEND MODULE_INTERFACE_UNITS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/text.cppm")
+        list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/container.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/gui.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/input_router.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/input_interaction.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/layout.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/object.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/charm.ui.vivid.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.full.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/anim.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_ascii_16.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_sc_16.cppm"
+        )
+    endif()
+    if (NOT CHARM_VIVID_SOA_ONLY AND CHARM_VIVID_PROFILE STREQUAL "basic")
         set(CHARM_VIVID_BASIC_WIDGETS
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/button.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/widgets/checkbox.cppm"
@@ -116,12 +150,12 @@ else()
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/anim.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_ascii_16.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/font/font_noto_sc_16.cppm")
-    elseif (CHARM_VIVID_PROFILE STREQUAL "full")
+    elseif (NOT CHARM_VIVID_SOA_ONLY AND CHARM_VIVID_PROFILE STREQUAL "full")
         list(REMOVE_ITEM MODULE_INTERFACE_UNITS
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/factory.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.cppm")
         target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_PROFILE_FULL=1)
-    elseif (NOT CHARM_VIVID_PROFILE STREQUAL "full")
+    elseif (NOT CHARM_VIVID_SOA_ONLY AND NOT CHARM_VIVID_PROFILE STREQUAL "full")
         message(FATAL_ERROR "Unknown CHARM_VIVID_PROFILE: ${CHARM_VIVID_PROFILE}")
     endif()
 endif()

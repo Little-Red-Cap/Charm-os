@@ -4,6 +4,8 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#include "features.hpp"
+
 export module charm.core.soa_gui;
 
 export import charm.core.soa_kernel;
@@ -12,25 +14,12 @@ export import charm.core.geometry;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.event;
-export import charm.core.container;
 export import charm.gfx.canvas;
 export import charm.gfx.render;
 export import charm.widgets.text;
 export import charm.font.typography;
-export import charm.widgets.button;
-export import charm.widgets.checkbox;
-export import charm.widgets.label;
-export import charm.widgets.list;
-export import charm.widgets.progress;
-export import charm.widgets.radio;
-export import charm.widgets.slider;
-export import charm.widgets.switcher;
-export import charm.widgets.scroll_container;
 
 namespace {
-    constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
-
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
         return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
@@ -46,8 +35,9 @@ namespace {
 
     void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
-        (void)kind;
-        assert(false && "SoaGui unsupported WidgetKind");
+        if (kind == WidgetKind::None) {
+            assert(false && "SoaGui unsupported WidgetKind");
+        }
 #else
         (void)kind;
 #endif

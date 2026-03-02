@@ -1,12 +1,13 @@
 export module charm.ui.vivid.full;
 
 export import charm.core.config;
-export import charm.core.container;
 export import charm.core.event;
 export import charm.core.factory;
 export import charm.core.geometry;
-export import charm.core.gui;
 export import charm.core.handle;
+#if !defined(CHARM_VIVID_SOA_ONLY)
+export import charm.core.container;
+export import charm.core.gui;
 export import charm.core.input_router;
 export import charm.core.input_interaction;
 export import ui.input_adapter;
@@ -16,10 +17,13 @@ export import charm.core.layout;
 export import charm.core.object;
 export import charm.core.pool;
 export import charm.core.string;
+#endif
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
+#if !defined(CHARM_VIVID_SOA_ONLY)
 export import charm.core.render_tree;
+#endif
 export import charm.core.soa_kernel;
 export import charm.core.soa_layout;
 export import charm.core.soa_gui;
@@ -40,6 +44,7 @@ export import charm.font.font_noto_ascii_16;
 export import charm.font.font_noto_sc_12;
 export import charm.font.font_noto_sc_16;
 
+#if !defined(CHARM_VIVID_SOA_ONLY)
 export import charm.widgets.arc;
 export import charm.widgets.bar;
 export import charm.widgets.button;
@@ -114,3 +119,4 @@ export import charm.widgets.dynamic_nebula;
 export import charm.widgets.crt_screen;
 export import charm.widgets.meter_pointer;
 export import charm.widgets.spectrum_view;
+#endif

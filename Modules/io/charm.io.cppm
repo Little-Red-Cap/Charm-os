@@ -24,11 +24,13 @@ export import input.trace;
 
 export import at.parser;
 export import at.session;
+export import at.driver_reactor;
 export import at.transport_channel;
 
 export import port.kernel;
 export import io.channel;
 export import io.channel.adapters;
+export import io.reactor;
 
 export import fs_block;
 export import fs_block_file;

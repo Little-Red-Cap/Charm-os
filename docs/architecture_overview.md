@@ -6,7 +6,7 @@
 Charm（统一架构）
 ├─ Core（util/trace/service/alg）
 ├─ System（Kernel/ModuleX/Boot）
-├─ IO（HAL/Port/FS/Shell/Out）
+├─ IO（Channel/HAL/Port/FS/Shell/Out）
 ├─ Media（Audio）
 ├─ UI/Ink（低资源 UI）
 └─ UI/Vivid（富 UI）
@@ -32,6 +32,7 @@ graph TD
     SYS --> M[ModuleX]
     SYS --> B[Boot]
     IO --> P[Port]
+    IO --> CH[Channel]
     IO --> H[HAL]
     IO --> F[FS/VFS]
     IO --> SH[Shell]
@@ -46,6 +47,7 @@ Modules/
   core/        # util/trace/service/alg
   system/      # kernel/modulex/boot
   io/          # hal/port/fs/shell/out/usb
+  io/channel/  # 统一字节通道（out/AT/协议复用）
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
@@ -75,6 +77,7 @@ Draft/        # 计划/草案（可变动）
 - POSIX facade：`docs/fs_posix_facade.md`
 - FatFs 示例：`docs/fs_fatfs_demo.md`
 - Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
+- IO Channel：`Modules/io/channel/io.channel.cppm`
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
@@ -119,7 +122,6 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Foundation（能力基座）
 范围：
 - `Modules/core/*`（util/trace/service/alg）
-- `Modules/io/out/*`
 
 规则：
 - 只能被上层依赖，禁止依赖 Runtime/Domains
@@ -128,7 +130,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Runtime（运行时与系统能力）
 范围：
 - `Modules/system/*`（kernel/modulex/boot）
-- `Modules/io/*`（hal/port/fs/shell）
+- `Modules/io/*`（channel/hal/port/fs/shell/out）
 - `Modules/platform/*`
 
 规则：
@@ -195,6 +197,20 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### 关键开关
 - `CHARM_USE_SYSTEM_SDL3` / `CHARM_FETCHCONTENT_SDL3`
 
+## 1.5 统一错误模型
+
+- 核心错误码：`util::Errc`（POSIX 负值 + 扩展码）
+- 结果类型：`util::Result<T>`（`expected<T, Errc>`）
+- 模块可保留 stage/context，但对外只暴露 Errc + 明确的 stage 字段
+- 日志/trace 统一记录 Errc（可附 stage/ctx）
+
+## 1.6 错误模型 + 通道层（短规范）
+
+- 所有对外 API 使用 `util::Result<T>`，禁止自建 Error/Err/Errno 类型
+- 错误码统一为 `util::Errc`，允许内部 stage/context，但对外只暴露 Errc + stage
+- IO/协议层只依赖 `io::Channel`，平台只实现一次通道
+- out/AT/协议统一走通道，不直接绑定 UART/CDC/TCP
+
 ## 2. 当前已具备的拼图
 
 ### Kernel
@@ -230,7 +246,14 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### Out
 - out.core/out.api/out.format/out.ansi/out.logger
-- out.sink/out.print/out.domain/out.port
+- out.sink/out.print/out.domain/out.channel（统一走 io.channel）
+
+### IO Channel
+- io.channel（统一字节通道）
+- io.channel.adapters（UART/CDC/TCP 通道适配模板）
+- out.channel（out 走通道）
+- at.transport_channel（AT 走通道）
+> 平台初始化需设置默认通道：`io::set_default_console_channel(...)`，否则 out 默认输出为空。
 
 ### USB
 - 设备端骨架：descriptor/common、EP0 状态机

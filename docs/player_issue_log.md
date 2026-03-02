@@ -19,32 +19,27 @@
 - 临时修复：补导入对应字体模块
 - 建议：字体注册统一入口/生成脚本校验；已迁移为 `font_builder.py` 生成字体
 
-4) `Modules/io/out/out.port.template.cpp` 缺少基础 include/import
-- 现象：`std::size_t`/`std::unexpected` 等未识别
-- 临时修复：补 `<cstddef>`、`<expected>`、`import out.core;`
-- 建议：平台端口模板应可直接编译通过
-
-5) `AudioPlayer::seek_ms` 仅支持 WAV
+4) `AudioPlayer::seek_ms` 仅支持 WAV
 - 现象：FLAC/MP3 返回 `Errc::not_supported`，示例里只能提示“不支持 seek”
 - 临时处理：示例限制拖拽仅在播放期触发 seek，失败则回滚
 - 建议：补 FLAC/MP3 的 seek 能力或提供统一的“是否可 seek”查询
 
-6) `charm.core.pool` 缺少 `<cstddef>` 引用
+5) `charm.core.pool` 缺少 `<cstddef>` 引用
 - 现象：`std::size_t` 未声明导致模块编译失败
 - 临时修复：在模块全局片段补 `#include <cstddef>`
 - 建议：基础容器模块做一次 “头文件自检”
 
-7) `UiFactory::make_handle` 模板推导失败
+6) `UiFactory::make_handle` 模板推导失败
 - 现象：`make_handle(containers_.create(), ...)` 无法推导 `Pool`
 - 临时修复：改为 `template <typename Handle> make_handle(std::optional<Handle>, ...)`
 - 建议：避免在非推导上下文中使用 `Pool::Handle`
 
-8) `Gui` 使用 `trace::TraceKind` 未导入命名空间
+7) `Gui` 使用 `trace::TraceKind` 未导入命名空间
 - 现象：`trace` 未声明
 - 临时修复：改为 `service::TraceKind::counter`
 - 建议：统一 trace 的导出与命名约定
 
-9) `gui.trace`/`input.trace` 的导出常量与命名冲突
+8) `gui.trace`/`input.trace` 的导出常量与命名冲突
 - 现象：`TraceKind` 在 `gui::trace`/`input::trace` 命名空间内被遮蔽，且 `static constexpr` 导致导出报错
 - 临时修复：使用 `service::TraceKind::*`，并将常量改为 `inline constexpr`
 - 建议：trace 子模块命名与全局 `trace` 保持区分，避免二义性

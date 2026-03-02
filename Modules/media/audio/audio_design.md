@@ -10,24 +10,9 @@
 ### 1) 基础类型
 
 ```cpp
-enum class Errc : uint16_t {
-  ok = 0,
-  invalid_arg,
-  not_supported,
-  io_error,
-  decode_error,
-  end_of_stream,
-  bad_state,
-  timeout,
-};
-
-struct Err {
-  Errc code{};
-  uint16_t ext{};        // 模块内扩展码（SDL/decoder/driver 等）
-};
-
 template<class T>
-using Result = std::expected<T, Err>;
+using Result = util::Result<T>;
+// 错误码直接使用 util::Errc。
 
 enum class SampleType : uint8_t { s16, s24_in_32, s32, f32 };
 
@@ -55,7 +40,7 @@ struct IDataSource {
 
   // 可选：并行预读/索引查表
   virtual Result<size_t> read_at(int64_t offset, std::span<std::byte> out) {
-    return std::unexpected(Err{Errc::not_supported, 0});
+    return std::unexpected(Errc::not_supported);
   }
 };
 ```
@@ -1103,7 +1088,7 @@ Downmix（2→1）：
 1) 进入重配事务（非实时线程）
 2) sink.stop()（确保回调停止）
 3) fifo.clear()，清 underrun 标志
-4) 返回 Errc::not_supported（可带 ext=channels）
+4) 返回 Errc::not_supported（需要上下文时用 stage 字段）
 5) state = Error（或回到 Idle，由上层策略决定）
 
 关键：失败也必须安全停输出，禁止“半重配”后继续播放。

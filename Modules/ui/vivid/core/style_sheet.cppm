@@ -159,8 +159,86 @@ inline constexpr auto kKindVariantCounts = build_kind_variant_counts();
 inline constexpr auto kKindVariantOffsets = build_kind_variant_offsets(kKindVariantCounts);
 inline constexpr std::size_t kTotalVariantSlots = count_total_variant_slots(kKindVariantCounts);
 
-constexpr std::uint8_t style_state_mask_for_kind(WidgetKind) noexcept {
-    return kStyleStateMaskDefault;
+constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
+    const std::uint8_t interactive = kStyleStateMaskDefault;
+    const std::uint8_t readonly = static_cast<std::uint8_t>(StyleStateFlag::Disabled);
+    switch (kind) {
+        case WidgetKind::None:
+        case WidgetKind::Container:
+        case WidgetKind::Dial:
+        case WidgetKind::Arc:
+        case WidgetKind::Image:
+        case WidgetKind::Label:
+        case WidgetKind::Led:
+        case WidgetKind::Progress:
+        case WidgetKind::ModalDialog:
+        case WidgetKind::ProgressBarSimple:
+        case WidgetKind::DynamicNebula:
+        case WidgetKind::CrtScreen:
+        case WidgetKind::Bar:
+        case WidgetKind::PopupLayer:
+        case WidgetKind::MessageBox:
+        case WidgetKind::RadioGroup:
+        case WidgetKind::Chart:
+        case WidgetKind::Waveform:
+        case WidgetKind::Gauge:
+        case WidgetKind::PrimitivesCanvas:
+        case WidgetKind::PerfOverlay:
+        case WidgetKind::Timeline:
+        case WidgetKind::RichText:
+        case WidgetKind::CodeBlock:
+        case WidgetKind::ProgressWheel:
+        case WidgetKind::WaveformView:
+        case WidgetKind::BatteryGauge:
+        case WidgetKind::HistogramView:
+        case WidgetKind::RingIndication:
+        case WidgetKind::TextBox:
+        case WidgetKind::FoldablePanel:
+        case WidgetKind::ProgressFlowing:
+        case WidgetKind::CloudyGlass:
+        case WidgetKind::ProgressBarRound:
+        case WidgetKind::SpinningWheel:
+        case WidgetKind::ImageBox:
+        case WidgetKind::MeterPointer:
+        case WidgetKind::ProgressBarDrill:
+        case WidgetKind::SpectrumView:
+        case WidgetKind::BusyWheel:
+        case WidgetKind::ConsoleBox:
+        case WidgetKind::BatteryGasGauge:
+        case WidgetKind::Histogram:
+            return readonly;
+        case WidgetKind::Button:
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::Switch:
+        case WidgetKind::Slider:
+        case WidgetKind::ScrollBar:
+        case WidgetKind::SegmentedControl:
+        case WidgetKind::Dropdown:
+        case WidgetKind::TabView:
+        case WidgetKind::Stepper:
+        case WidgetKind::Menu:
+        case WidgetKind::MenuItem:
+        case WidgetKind::TextInput:
+        case WidgetKind::TextArea:
+        case WidgetKind::NumberInput:
+        case WidgetKind::ToggleGroup:
+        case WidgetKind::ListItem:
+        case WidgetKind::List:
+        case WidgetKind::ListView:
+        case WidgetKind::IconList:
+        case WidgetKind::TextTrackingList:
+        case WidgetKind::TextList:
+        case WidgetKind::TableView:
+        case WidgetKind::TreeView:
+        case WidgetKind::ScrollContainer:
+        case WidgetKind::Roller:
+        case WidgetKind::Spinner:
+        case WidgetKind::NumberList:
+        case WidgetKind::SpinZoomWidget:
+            return interactive;
+    }
+    return readonly;
 }
 
 constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_masks() noexcept {

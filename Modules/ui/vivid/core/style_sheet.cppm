@@ -108,6 +108,7 @@ inline constexpr std::size_t kWidgetKindCount =
     static_cast<std::size_t>(WidgetKind::Histogram) + 1;
 inline constexpr std::uint8_t kMaxStyleVariants = 4;
 inline constexpr std::uint8_t kStyleStateCount = 16;
+inline constexpr std::uint8_t kMaxMetricsPool = 64;
 
 export
 struct ResolvedColors {
@@ -148,7 +149,9 @@ struct StyleTable {
     std::array<ResolvedColors, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> colors{};
     std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> matched{};
     std::array<std::uint8_t, kWidgetKindCount> kind_compiled{};
-    std::array<ResolvedMetrics, kWidgetKindCount * kMaxStyleVariants> metrics{};
+    std::array<ResolvedMetrics, kMaxMetricsPool> metrics_pool{};
+    std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants> metrics_id{};
+    std::uint8_t metrics_count{0};
     std::uint32_t tokens_version{std::numeric_limits<std::uint32_t>::max()};
     std::uint32_t stylesheet_version{std::numeric_limits<std::uint32_t>::max()};
     bool valid{false};
@@ -157,7 +160,9 @@ struct StyleTable {
         colors.fill(ResolvedColors{});
         matched.fill(0);
         kind_compiled.fill(0);
-        metrics.fill(ResolvedMetrics{});
+        metrics_pool.fill(ResolvedMetrics{});
+        metrics_id.fill(0);
+        metrics_count = 0;
         valid = false;
     }
 };
@@ -286,6 +291,17 @@ inline bool patch_has_metrics(const StylePatch& patch) noexcept {
         patch.has_font;
 }
 
+inline bool metrics_equal(const ResolvedMetrics& a, const ResolvedMetrics& b) noexcept {
+    return a.font == b.font &&
+        a.border_width == b.border_width &&
+        a.corner_radius == b.corner_radius &&
+        a.padding == b.padding &&
+        a.header_padding == b.header_padding &&
+        a.content_padding == b.content_padding &&
+        a.scrollbar_margin == b.scrollbar_margin &&
+        a.scrollbar_thumb_min == b.scrollbar_thumb_min;
+}
+
 inline void apply_role_patch(Style& style, const StyleRolePatch& patch, const RolePalette& palette) noexcept {
     if (patch.has_bg_color) style.colors.bg_color = role_color(palette, patch.bg_color);
     if (patch.has_bg_hover) style.colors.bg_hover = role_color(palette, patch.bg_hover);
@@ -382,7 +398,7 @@ public:
         const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
         return ResolvedStyleView{
             &style_table_.colors[color_entry],
-            &style_table_.metrics[metrics_entry]
+            &style_table_.metrics_pool[style_table_.metrics_id[metrics_entry]]
         };
     }
 
@@ -515,10 +531,31 @@ private:
 #ifndef NDEBUG
             if (base_style_set_[kind_idx] == 0) assert(false && "StyleSheet base style missing");
 #endif
-            const ResolvedMetrics metrics = build_resolved_metrics(base);
             for (std::uint8_t variant = 0; variant < kMaxStyleVariants; ++variant) {
                 const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
-                style_table_.metrics[metrics_entry] = metrics;
+                const ResolvedMetrics metrics = build_resolved_metrics(base);
+                std::uint8_t metrics_slot = 0;
+                bool found = false;
+                for (std::uint8_t i = 0; i < style_table_.metrics_count; ++i) {
+                    if (metrics_equal(style_table_.metrics_pool[i], metrics)) {
+                        metrics_slot = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    if (style_table_.metrics_count < kMaxMetricsPool) {
+                        metrics_slot = style_table_.metrics_count;
+                        style_table_.metrics_pool[metrics_slot] = metrics;
+                        style_table_.metrics_count = static_cast<std::uint8_t>(style_table_.metrics_count + 1);
+                    } else {
+#ifndef NDEBUG
+                        assert(false && "StyleSheet metrics pool overflow");
+#endif
+                        metrics_slot = 0;
+                    }
+                }
+                style_table_.metrics_id[metrics_entry] = metrics_slot;
                 for (std::uint8_t state_idx = 0; state_idx < kStyleStateCount; ++state_idx) {
                     const StyleState state = style_state_from_index(state_idx, variant);
                     Style scratch{};

@@ -397,10 +397,17 @@ public:
     }
 
     void set_enabled(WidgetHandle h, bool on) noexcept {
-        set_flag(h, SoaNodeFlag::Enabled, on);
-        if (layout_state_influence_) {
-            mark_layout_dirty();
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = flag_raw(idx, SoaNodeFlag::Enabled);
+        if (prev == on) return;
+        const std::uint8_t mask = static_cast<std::uint8_t>(SoaNodeFlag::Enabled);
+        if (on) {
+            common_.flags[idx] |= mask;
+        } else {
+            common_.flags[idx] = static_cast<std::uint8_t>(common_.flags[idx] & ~mask);
         }
+        on_state_change(idx, SoaStateMask::Enabled);
     }
 
     bool enabled(WidgetHandle h) const noexcept {
@@ -432,24 +439,30 @@ public:
     }
 
     void set_hovered(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0;
+        if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Hovered, on);
-        if (layout_state_influence_) {
-            mark_layout_dirty();
-        }
+        on_state_change(idx, SoaStateMask::Hovered);
     }
 
     void set_pressed(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0;
+        if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Pressed, on);
-        if (layout_state_influence_) {
-            mark_layout_dirty();
-        }
+        on_state_change(idx, SoaStateMask::Pressed);
     }
 
     void set_focused(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0;
+        if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Focused, on);
-        if (layout_state_influence_) {
-            mark_layout_dirty();
-        }
+        on_state_change(idx, SoaStateMask::Focused);
     }
 
     bool hovered(WidgetHandle h) const noexcept {
@@ -686,6 +699,7 @@ public:
     void set_variant(WidgetHandle h, std::uint8_t variant) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
+        if (common_.variant[idx] == variant) return;
         common_.variant[idx] = variant;
         mark_layout_dirty();
     }
@@ -719,6 +733,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             break;
         }
+        mark_layout_dirty();
     }
 
     const char* text(WidgetHandle h) const noexcept {
@@ -749,10 +764,16 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.range) {
         case soa_detail::RangeSlot::Slider:
-            slider_range_.value[idx] = value;
+            if (slider_range_.value[idx] != value) {
+                slider_range_.value[idx] = value;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::RangeSlot::Progress:
-            progress_range_.value[idx] = value;
+            if (progress_range_.value[idx] != value) {
+                progress_range_.value[idx] = value;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::RangeSlot::None:
             unsupported_kind(common_.kind[idx]);
@@ -786,12 +807,14 @@ public:
             slider_range_.max_value[idx] = max_value;
             if (slider_range_.value[idx] < min_value) slider_range_.value[idx] = min_value;
             if (slider_range_.value[idx] > max_value) slider_range_.value[idx] = max_value;
+            mark_layout_dirty();
             break;
         case soa_detail::RangeSlot::Progress:
             progress_range_.min_value[idx] = min_value;
             progress_range_.max_value[idx] = max_value;
             if (progress_range_.value[idx] < min_value) progress_range_.value[idx] = min_value;
             if (progress_range_.value[idx] > max_value) progress_range_.value[idx] = max_value;
+            mark_layout_dirty();
             break;
         case soa_detail::RangeSlot::None:
             unsupported_kind(common_.kind[idx]);
@@ -853,6 +876,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             break;
         }
+        mark_paint_dirty();
     }
 
     bool checked(WidgetHandle h) const noexcept {
@@ -881,10 +905,16 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.scroll) {
         case soa_detail::ScrollSlot::List:
-            list_store_.scroll_y[idx] = y;
+            if (list_store_.scroll_y[idx] != y) {
+                list_store_.scroll_y[idx] = y;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::ScrollSlot::ScrollContainer:
-            scroll_store_.scroll_y[idx] = y;
+            if (scroll_store_.scroll_y[idx] != y) {
+                scroll_store_.scroll_y[idx] = y;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::ScrollSlot::None:
             unsupported_kind(common_.kind[idx]);
@@ -1026,8 +1056,16 @@ public:
         return layout_state_influence_;
     }
 
+    std::uint8_t layout_state_influence_mask(WidgetKind kind) const noexcept {
+        return layout_state_mask_for_kind(kind);
+    }
+
     std::uint32_t layout_dirty_version() const noexcept {
         return layout_dirty_version_;
+    }
+
+    std::uint32_t paint_dirty_version() const noexcept {
+        return paint_dirty_version_;
     }
 
     std::uint32_t layout_applied_version() const noexcept {
@@ -1037,6 +1075,30 @@ public:
     void set_layout_applied_version(std::uint32_t v) noexcept {
         layout_applied_version_ = v;
     }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    void layout_trace_reset() noexcept {
+        layout_invalidated_count_ = 0;
+        layout_pass_count_ = 0;
+        paint_invalidated_count_ = 0;
+    }
+
+    std::uint32_t layout_invalidated_count() const noexcept {
+        return layout_invalidated_count_;
+    }
+
+    std::uint32_t layout_pass_count() const noexcept {
+        return layout_pass_count_;
+    }
+
+    std::uint32_t paint_invalidated_count() const noexcept {
+        return paint_invalidated_count_;
+    }
+
+    void layout_trace_on_pass() noexcept {
+        layout_pass_count_ += 1u;
+    }
+#endif
 
     int compute_content_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
@@ -1078,10 +1140,16 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.scroll) {
         case soa_detail::ScrollSlot::List:
-            list_store_.scroll_y[idx] = clamped;
+            if (list_store_.scroll_y[idx] != clamped) {
+                list_store_.scroll_y[idx] = clamped;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::ScrollSlot::ScrollContainer:
-            scroll_store_.scroll_y[idx] = clamped;
+            if (scroll_store_.scroll_y[idx] != clamped) {
+                scroll_store_.scroll_y[idx] = clamped;
+                mark_paint_dirty();
+            }
             break;
         case soa_detail::ScrollSlot::None:
             unsupported_kind(common_.kind[idx]);
@@ -1105,8 +1173,14 @@ public:
     soa_detail::ScrollStore<kMaxNodes> scroll_store_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};
+    std::uint32_t paint_dirty_version_{0};
     std::uint32_t layout_applied_version_{0};
     bool layout_state_influence_{true};
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t layout_invalidated_count_{0};
+    std::uint32_t layout_pass_count_{0};
+    std::uint32_t paint_invalidated_count_{0};
+#endif
 
     static void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
@@ -1337,6 +1411,48 @@ public:
 private:
     void mark_layout_dirty() noexcept {
         layout_dirty_version_ += 1u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        layout_invalidated_count_ += 1u;
+#endif
+    }
+
+    void mark_paint_dirty() noexcept {
+        paint_dirty_version_ += 1u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        paint_invalidated_count_ += 1u;
+#endif
+    }
+
+    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {
+        if (!layout_state_influence_) {
+            mark_paint_dirty();
+            return;
+        }
+        const std::uint8_t mask = layout_state_mask_for_kind(common_.kind[idx]);
+        if ((mask & static_cast<std::uint8_t>(bit)) != 0) {
+            mark_layout_dirty();
+            return;
+        }
+        mark_paint_dirty();
+    }
+
+    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept {
+        switch (kind) {
+        case WidgetKind::Container:
+        case WidgetKind::ScrollContainer:
+        case WidgetKind::Label:
+        case WidgetKind::Button:
+        case WidgetKind::Switch:
+        case WidgetKind::Slider:
+        case WidgetKind::Progress:
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::List:
+        case WidgetKind::ListItem:
+            return 0;
+        default:
+            return 0;
+        }
     }
 
     static constexpr std::size_t kWidgetKindCount =

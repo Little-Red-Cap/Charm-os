@@ -88,6 +88,52 @@ sequenceDiagram
 - ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
 - FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
 
+### 3.1 布局失效策略矩阵（代码契约）
+
+布局失效采用“三件套”约束：
+
+1. 文档矩阵（本文）
+2. 代码矩阵（`SoaKernel::layout_state_influence_mask`）
+3. 回归矩阵（`soa_demo --soa-regress-layout`）
+
+#### 状态位分类
+
+- **布局影响位**：允许触发布局（极少数状态）
+- **仅重绘位**：只允许触发绘制，不得触发布局
+
+默认契约（SoA 子集）：
+
+| 状态位 | 布局 | 绘制 | 说明 |
+| --- | --- | --- | --- |
+| Enabled | 否 | 是 | 禁止因启用状态重排 |
+| Hovered | 否 | 是 | 交互态只重绘 |
+| Pressed | 否 | 是 | 交互态只重绘 |
+| Focused | 否 | 是 | Focus ring 走绘制叠加 |
+
+> 目前 `layout_state_influence_mask` 对 SoA 子集返回 0，等价于“所有状态仅重绘，不触发布局”。
+
+#### 数据变更的布局触发点
+
+以下属于数据变更，必须触发布局失效：
+
+- 文本内容变化（`set_text`）
+- 约束/尺寸变化（`set_rect` / `set_layout_kind` / `set_list_row_height`）
+- 影响布局的范围/尺寸参数（如 `set_range`）
+
+#### 可执行契约（代码）
+
+- `layout_state_influence_mask(kind)` 决定“哪些状态位可影响布局”。
+- 状态变化时：`delta & mask != 0` → `mark_layout_dirty()`，否则只 `mark_paint_dirty()`。
+- Layout 计算仅使用 mask 中允许的状态位（其余位在 layout 阶段强制忽略）。
+- `layout_state_influence` 为策略开关，关闭时强制按 mask=0 处理（只重绘）。
+
+#### 回归矩阵（trace-only）
+
+`soa_demo --soa-regress-layout` 验证：
+
+- hover/press/drag/scroll **不触发布局**，但 **必须触发绘制失效**。
+- 文本变更 **必须触发布局失效**。
+
 ```mermaid
 flowchart LR
   subgraph WidgetTree[控件树]
@@ -182,6 +228,9 @@ flowchart TB
 - 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
 - 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
 - 控件以 theme token 作为样式入口，避免散落硬编码。
+- role 派生通过 `ResolvedTheme` 预编译（仅在 tokens 变更时生成），StyleSheet 热路径不再做派生计算。
+- StyleSheet 预编译触发仅依赖 `tokens_version` 与 `stylesheet_version`，热路径只做索引查表。
+- 预编译样式输出 `ResolvedStyleView`：颜色表按 state 维度查表，metrics 走 `metrics_id -> metrics_pool` 去重索引，避免热路径搬运大对象。
 - 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
 - StyleSheet 规则优先级为确定性模型：kind specificity > variant specificity > state mask 位数（更多位更具体），同级按插入顺序稳定排序。
 

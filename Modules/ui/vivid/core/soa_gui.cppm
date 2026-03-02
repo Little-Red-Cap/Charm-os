@@ -16,6 +16,7 @@ export import charm.core.container;
 export import charm.gfx.canvas;
 export import charm.gfx.render;
 export import charm.widgets.text;
+export import charm.font.typography;
 export import charm.widgets.button;
 export import charm.widgets.checkbox;
 export import charm.widgets.label;
@@ -30,21 +31,13 @@ namespace {
     constexpr std::size_t kWidgetKindCount =
         static_cast<std::size_t>(WidgetKind::Histogram) + 1;
 
-    struct StyleTable {
-        std::array<Style, kWidgetKindCount> styles{};
-    };
-
-    const Style& style_for_kind(const StyleTable& table, WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= table.styles.size()) {
-            return table.styles[static_cast<std::size_t>(WidgetKind::Container)];
-        }
-        return table.styles[idx];
-    }
-
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
         return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
+    }
+
+    const Font& font_from_metrics(const ResolvedMetrics& metrics) noexcept {
+        return metrics.font ? *metrics.font : get_font(FontId::Normal);
     }
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
@@ -78,28 +71,38 @@ private:
     SoaKernel& kernel_;
     WidgetHandle root_{};
     SoaLayoutPass layout_;
-    StyleTable style_table_{};
     std::uint32_t style_version_{0};
+    std::uint32_t stylesheet_version_{0};
 
     void refresh_styles();
-    const Style& resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept;
+    ResolvedStyleView resolve_style(WidgetKind kind, const StyleState& state) const noexcept;
     void draw_tree();
     void draw_node(WidgetHandle h, const Rect& world_rect);
 
-    static void draw_label(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text);
-    static void draw_button(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text);
-    static void draw_switch(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, bool checked);
-    static void draw_checkbox(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+    static void draw_label(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                           const StyleState& state, const char* text);
+    static void draw_button(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                            const StyleState& state, const char* text);
+    static void draw_switch(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                            const StyleState& state, bool checked);
+    static void draw_checkbox(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                              const StyleState& state,
                               const char* text, bool checked);
-    static void draw_radio(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+    static void draw_radio(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                           const StyleState& state,
                            const char* text, bool checked);
-    static void draw_list(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state);
-    static void draw_list_item(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+    static void draw_list(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                          const StyleState& state);
+    static void draw_list_item(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                               const StyleState& state,
                                const char* text, bool selected);
-    static void draw_scroll_container(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state);
-    static void draw_slider(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+    static void draw_scroll_container(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                      const StyleState& state);
+    static void draw_slider(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                            const StyleState& state,
                             int value, int min_value, int max_value);
-    static void draw_progress(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+    static void draw_progress(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                              const StyleState& state,
                               int value, int min_value, int max_value);
 };
 
@@ -139,30 +142,16 @@ WidgetHandle SoaGui::hit_test(int x, int y) noexcept {
 }
 
 void SoaGui::refresh_styles() {
-    const auto version = Theme::instance().get_tokens().version;
-    if (version == style_version_) return;
-    style_version_ = version;
-    const Style fallback = Theme::instance().get<Container>();
-    style_table_.styles.fill(fallback);
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Container)] = Theme::instance().get<Container>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Label)] = Theme::instance().get<Label>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Button)] = Theme::instance().get<Button>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Switch)] = Theme::instance().get<Switch>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Slider)] = Theme::instance().get<Slider>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Progress)] = Theme::instance().get<Progress>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Checkbox)] = Theme::instance().get<Checkbox>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::Radio)] = Theme::instance().get<Radio>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::List)] = Theme::instance().get<List>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::ListItem)] = Theme::instance().get<ListItem>();
-    style_table_.styles[static_cast<std::size_t>(WidgetKind::ScrollContainer)] = Theme::instance().get<ScrollContainer>();
+    const auto token_version = Theme::instance().get_tokens().version;
+    const auto sheet_version = StyleSheet::instance().stylesheet_version();
+    if (token_version == style_version_ && sheet_version == stylesheet_version_) return;
+    style_version_ = token_version;
+    stylesheet_version_ = sheet_version;
+    StyleSheet::instance().rebuild_if_needed();
 }
 
-const Style& SoaGui::resolve_style(WidgetKind kind, const StyleState& state, Style& scratch) const noexcept {
-    const Style& base = style_for_kind(style_table_, kind);
-    if (StyleSheet::instance().apply(kind, state, scratch, base)) {
-        return scratch;
-    }
-    return base;
+ResolvedStyleView SoaGui::resolve_style(WidgetKind kind, const StyleState& state) const noexcept {
+    return StyleSheet::instance().lookup(kind, state);
 }
 
 
@@ -269,9 +258,10 @@ void SoaGui::draw_tree() {
 
 void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
     const WidgetKind kind = kernel_.kind(h);
-    Style scratch;
     const StyleState state = make_state(kernel_, h);
-    const Style& st = resolve_style(kind, state, scratch);
+    const ResolvedStyleView style = resolve_style(kind, state);
+    const ResolvedColors& colors = *style.colors;
+    const ResolvedMetrics& metrics = *style.metrics;
     switch (kind) {
     case WidgetKind::None:
         unsupported_kind(kind);
@@ -279,7 +269,7 @@ void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
     case WidgetKind::Container:
         break;
     case WidgetKind::ScrollContainer:
-        draw_scroll_container(canvas_, world_rect, st, state);
+        draw_scroll_container(canvas_, world_rect, colors, metrics, state);
         break;
     case WidgetKind::Dial:
         unsupported_kind(kind);
@@ -291,31 +281,33 @@ void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
         unsupported_kind(kind);
         break;
     case WidgetKind::Label:
-        draw_label(canvas_, world_rect, st, state, kernel_.text(h));
+        draw_label(canvas_, world_rect, colors, metrics, state, kernel_.text(h));
         break;
     case WidgetKind::Button:
-        draw_button(canvas_, world_rect, st, state, kernel_.text(h));
+        draw_button(canvas_, world_rect, colors, metrics, state, kernel_.text(h));
         break;
     case WidgetKind::Checkbox:
-        draw_checkbox(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        draw_checkbox(canvas_, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::Led:
         unsupported_kind(kind);
         break;
     case WidgetKind::Slider:
-        draw_slider(canvas_, world_rect, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        draw_slider(canvas_, world_rect, colors, metrics, state,
+                    kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::Switch:
-        draw_switch(canvas_, world_rect, st, state, kernel_.checked(h));
+        draw_switch(canvas_, world_rect, colors, metrics, state, kernel_.checked(h));
         break;
     case WidgetKind::Progress:
-        draw_progress(canvas_, world_rect, st, state, kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        draw_progress(canvas_, world_rect, colors, metrics, state,
+                      kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::List:
-        draw_list(canvas_, world_rect, st, state);
+        draw_list(canvas_, world_rect, colors, metrics, state);
         break;
     case WidgetKind::ListItem:
-        draw_list_item(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        draw_list_item(canvas_, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::ListView:
         unsupported_kind(kind);
@@ -393,7 +385,7 @@ void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
         unsupported_kind(kind);
         break;
     case WidgetKind::Radio:
-        draw_radio(canvas_, world_rect, st, state, kernel_.text(h), kernel_.checked(h));
+        draw_radio(canvas_, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::RadioGroup:
         unsupported_kind(kind);
@@ -491,88 +483,71 @@ void SoaGui::draw_node(WidgetHandle h, const Rect& world_rect) {
     }
 }
 
-void SoaGui::draw_label(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)bg;
-    (void)border;
-    draw_text_box(cvs, r, text ? text : "", font, resolve_font(st),
+void SoaGui::draw_label(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                        const ResolvedMetrics& metrics, const StyleState& state, const char* text) {
+    (void)state;
+    const auto font = colors.font;
+    draw_text_box(cvs, r, text ? text : "", font, font_from_metrics(metrics),
                   TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 }
 
-void SoaGui::draw_button(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, const char* text) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    const int rad = st.metrics.corner_radius;
-    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, bg, true);
-    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, border, false);
-    draw_text_box(cvs, r, text ? text : "", font, resolve_font(st),
+void SoaGui::draw_button(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                         const ResolvedMetrics& metrics, const StyleState& state, const char* text) {
+    const int rad = metrics.corner_radius;
+    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, colors.bg, true);
+    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, colors.border, false);
+    draw_text_box(cvs, r, text ? text : "", colors.font, font_from_metrics(metrics),
                   TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    ui::render::draw_focus_ring(cvs, r, st, state.focused, 0, rad);
+    ui::render::draw_focus_ring(cvs, r, colors.border_focus, metrics.corner_radius, state.focused, 0, rad);
 }
 
-void SoaGui::draw_switch(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state, bool checked) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)font;
-    const rgba accent = resolve_accent(st, state);
+void SoaGui::draw_switch(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                         const ResolvedMetrics& metrics, const StyleState& state, bool checked) {
+    (void)metrics;
+    (void)state;
     const int rad = r.h / 2;
-    const rgba track = checked ? accent : bg;
+    const rgba track = checked ? colors.accent : colors.bg;
     ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, track, true);
-    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, border, false);
+    ui::render::draw_round_rect(cvs, r.x, r.y, r.w, r.h, rad, colors.border, false);
     const int knob = r.h - 4;
     const int knob_x = checked ? (r.x + r.w - knob - 2) : (r.x + 2);
-    ui::render::draw_round_rect(cvs, knob_x, r.y + 2, knob, knob, knob / 2, st.colors.on_accent, true);
+    ui::render::draw_round_rect(cvs, knob_x, r.y + 2, knob, knob, knob / 2, colors.on_accent, true);
 }
 
-void SoaGui::draw_checkbox(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+void SoaGui::draw_checkbox(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                           const ResolvedMetrics& metrics, const StyleState& state,
                            const char* text, bool checked) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    const rgba accent = resolve_accent(st, state);
     int box = r.h;
     if (box > r.w) box = r.w;
     const int box_x = r.x;
     const int box_y = r.y + (r.h - box) / 2;
-    ui::render::draw_rect(cvs, box_x, box_y, box, box, border, false);
+    ui::render::draw_rect(cvs, box_x, box_y, box, box, colors.border, false);
     if (checked && box > 4) {
-        ui::render::draw_rect(cvs, box_x + 2, box_y + 2, box - 4, box - 4, accent, true);
+        ui::render::draw_rect(cvs, box_x + 2, box_y + 2, box - 4, box - 4, colors.accent, true);
     }
     Rect text_r{
-        r.x + box + st.metrics.padding,
+        r.x + box + metrics.padding,
         r.y,
-        r.w - box - st.metrics.padding,
+        r.w - box - metrics.padding,
         r.h
     };
     if (text_r.w < 0) text_r.w = 0;
-    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+    draw_text_box(cvs, text_r, text ? text : "", colors.font, font_from_metrics(metrics),
                   TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+    ui::render::draw_focus_ring(cvs, r, colors.border_focus, metrics.corner_radius, state.focused);
 }
 
-void SoaGui::draw_radio(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+void SoaGui::draw_radio(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                        const ResolvedMetrics& metrics, const StyleState& state,
                         const char* text, bool checked) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    const rgba accent = resolve_accent(st, state);
-    const int pad = st.metrics.padding;
+    const int pad = metrics.padding;
     int radius = r.h / 2;
     if (radius < 2) radius = 2;
     const int cx = r.x + pad + radius;
     const int cy = r.y + r.h / 2;
-    ui::render::draw_circle(cvs, cx, cy, radius, border, false);
+    ui::render::draw_circle(cvs, cx, cy, radius, colors.border, false);
     if (checked && radius > 2) {
-        ui::render::draw_circle(cvs, cx, cy, radius - 2, accent, true);
+        ui::render::draw_circle(cvs, cx, cy, radius - 2, colors.accent, true);
     }
     Rect text_r{
         cx + radius + pad,
@@ -581,95 +556,78 @@ void SoaGui::draw_radio(CanvasBase& cvs, const Rect& r, const Style& st, const S
         r.h
     };
     if (text_r.w < 0) text_r.w = 0;
-    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+    draw_text_box(cvs, text_r, text ? text : "", colors.font, font_from_metrics(metrics),
                   TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+    ui::render::draw_focus_ring(cvs, r, colors.border_focus, metrics.corner_radius, state.focused);
 }
 
-void SoaGui::draw_list(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)font;
-    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
-    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+void SoaGui::draw_list(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                       const ResolvedMetrics& metrics, const StyleState& state) {
+    (void)metrics;
+    (void)state;
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, colors.bg, true);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, colors.border, false);
 }
 
-void SoaGui::draw_list_item(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+void SoaGui::draw_list_item(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                            const ResolvedMetrics& metrics, const StyleState& state,
                             const char* text, bool selected) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
+    rgba bg = colors.bg;
+    rgba font = colors.font;
     if (selected) {
-        const rgba accent = resolve_accent(st, state);
-        bg = accent;
-        font = st.colors.on_accent;
+        bg = colors.accent;
+        font = colors.on_accent;
     }
     ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
-    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, colors.border, false);
     Rect text_r{
-        r.x + st.metrics.padding,
+        r.x + metrics.padding,
         r.y,
-        r.w - st.metrics.padding * 2,
+        r.w - metrics.padding * 2,
         r.h
     };
     if (text_r.w < 0) text_r.w = 0;
-    draw_text_box(cvs, text_r, text ? text : "", font, resolve_font(st),
+    draw_text_box(cvs, text_r, text ? text : "", font, font_from_metrics(metrics),
                   TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+    ui::render::draw_focus_ring(cvs, r, colors.border_focus, metrics.corner_radius, state.focused);
 }
 
-void SoaGui::draw_scroll_container(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)font;
-    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
-    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-    ui::render::draw_focus_ring(cvs, r, st, state.focused);
+void SoaGui::draw_scroll_container(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                                   const ResolvedMetrics& metrics, const StyleState& state) {
+    (void)metrics;
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, colors.bg, true);
+    ui::render::draw_rect(cvs, r.x, r.y, r.w, r.h, colors.border, false);
+    ui::render::draw_focus_ring(cvs, r, colors.border_focus, metrics.corner_radius, state.focused);
 }
 
-void SoaGui::draw_slider(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+void SoaGui::draw_slider(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                         const ResolvedMetrics& metrics, const StyleState& state,
                          int value, int min_value, int max_value) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)bg;
-    (void)font;
-    const rgba accent = resolve_accent(st, state);
-    const int pad = st.metrics.padding;
+    (void)state;
+    const int pad = metrics.padding;
     const int track_h = 4;
     const int inner_w = r.w - pad * 2;
     if (inner_w <= 0) return;
     const int range = (max_value > min_value) ? (max_value - min_value) : 1;
     const int fill = (inner_w * (value - min_value)) / range;
     const int track_y = r.y + (r.h - track_h) / 2;
-    ui::render::draw_rect(cvs, r.x + pad, track_y, inner_w, track_h, border, true);
-    ui::render::draw_rect(cvs, r.x + pad, track_y, fill, track_h, accent, true);
+    ui::render::draw_rect(cvs, r.x + pad, track_y, inner_w, track_h, colors.border, true);
+    ui::render::draw_rect(cvs, r.x + pad, track_y, fill, track_h, colors.accent, true);
     const int knob = r.h - pad * 2;
     const int knob_x = r.x + pad + fill - knob / 2;
-    ui::render::draw_round_rect(cvs, knob_x, r.y + pad, knob, knob, knob / 2, accent, true);
+    ui::render::draw_round_rect(cvs, knob_x, r.y + pad, knob, knob, knob / 2, colors.accent, true);
 }
 
-void SoaGui::draw_progress(CanvasBase& cvs, const Rect& r, const Style& st, const StyleState& state,
+void SoaGui::draw_progress(CanvasBase& cvs, const Rect& r, const ResolvedColors& colors,
+                           const ResolvedMetrics& metrics, const StyleState& state,
                            int value, int min_value, int max_value) {
-    rgba bg{};
-    rgba border{};
-    rgba font{};
-    resolve_colors(st, state, bg, border, font);
-    (void)bg;
-    (void)font;
-    const rgba accent = resolve_accent(st, state);
-    const int pad = st.metrics.padding;
+    (void)state;
+    const int pad = metrics.padding;
     const int inner_w = r.w - pad * 2;
     const int inner_h = r.h - pad * 2;
     if (inner_w <= 0 || inner_h <= 0) return;
     const int range = (max_value > min_value) ? (max_value - min_value) : 1;
     const int fill = (inner_w * (value - min_value)) / range;
-    ui::render::draw_rect(cvs, r.x + pad, r.y + pad, inner_w, inner_h, border, false);
-    ui::render::draw_rect(cvs, r.x + pad, r.y + pad, fill, inner_h, accent, true);
+    ui::render::draw_rect(cvs, r.x + pad, r.y + pad, inner_w, inner_h, colors.border, false);
+    ui::render::draw_rect(cvs, r.x + pad, r.y + pad, fill, inner_h, colors.accent, true);
 }

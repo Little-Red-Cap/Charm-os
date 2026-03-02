@@ -76,6 +76,91 @@ export import charm.widgets.ring_indication;
 export import charm.widgets.busy_wheel;
 export import charm.widgets.console_box;
 
+inline void sync_style_sheet_bases() noexcept {
+        auto& theme = Theme::instance();
+        auto& sheet = StyleSheet::instance();
+
+        auto set_base = [&](auto* tag, WidgetKind kind) {
+            using Widget = std::remove_pointer_t<decltype(tag)>;
+            sheet.set_base_style(kind, theme.get<Widget>());
+        };
+
+        set_base(static_cast<Label*>(nullptr), WidgetKind::Label);
+        set_base(static_cast<Button*>(nullptr), WidgetKind::Button);
+        set_base(static_cast<Checkbox*>(nullptr), WidgetKind::Checkbox);
+        set_base(static_cast<ListView*>(nullptr), WidgetKind::ListView);
+        set_base(static_cast<ListItem*>(nullptr), WidgetKind::ListItem);
+        set_base(static_cast<List*>(nullptr), WidgetKind::List);
+        set_base(static_cast<IconList*>(nullptr), WidgetKind::IconList);
+        set_base(static_cast<TextList*>(nullptr), WidgetKind::TextList);
+        set_base(static_cast<TextTrackingList*>(nullptr), WidgetKind::TextTrackingList);
+        set_base(static_cast<Progress*>(nullptr), WidgetKind::Progress);
+        set_base(static_cast<ProgressBarSimple*>(nullptr), WidgetKind::ProgressBarSimple);
+        set_base(static_cast<ProgressBarRound*>(nullptr), WidgetKind::ProgressBarRound);
+        set_base(static_cast<ProgressBarDrill*>(nullptr), WidgetKind::ProgressBarDrill);
+        set_base(static_cast<ProgressBarFlowing*>(nullptr), WidgetKind::ProgressFlowing);
+        set_base(static_cast<ProgressFlowing*>(nullptr), WidgetKind::ProgressFlowing);
+        set_base(static_cast<ProgressWheel*>(nullptr), WidgetKind::ProgressWheel);
+        set_base(static_cast<Spinner*>(nullptr), WidgetKind::Spinner);
+        set_base(static_cast<ScrollContainer*>(nullptr), WidgetKind::ScrollContainer);
+        set_base(static_cast<ScrollBar*>(nullptr), WidgetKind::ScrollBar);
+        set_base(static_cast<SegmentedControl*>(nullptr), WidgetKind::SegmentedControl);
+        set_base(static_cast<Slider*>(nullptr), WidgetKind::Slider);
+        set_base(static_cast<Switch*>(nullptr), WidgetKind::Switch);
+        set_base(static_cast<Radio*>(nullptr), WidgetKind::Radio);
+        set_base(static_cast<RadioGroup*>(nullptr), WidgetKind::RadioGroup);
+        set_base(static_cast<TextInput*>(nullptr), WidgetKind::TextInput);
+        set_base(static_cast<TextArea*>(nullptr), WidgetKind::TextArea);
+        set_base(static_cast<TextBox*>(nullptr), WidgetKind::TextBox);
+        set_base(static_cast<NumberInput*>(nullptr), WidgetKind::NumberInput);
+        set_base(static_cast<NumberList*>(nullptr), WidgetKind::NumberList);
+        set_base(static_cast<ToggleGroup*>(nullptr), WidgetKind::ToggleGroup);
+        set_base(static_cast<TableView*>(nullptr), WidgetKind::TableView);
+        set_base(static_cast<TreeView*>(nullptr), WidgetKind::TreeView);
+        set_base(static_cast<Dropdown*>(nullptr), WidgetKind::Dropdown);
+        set_base(static_cast<Menu*>(nullptr), WidgetKind::Menu);
+        set_base(static_cast<MenuItem*>(nullptr), WidgetKind::MenuItem);
+        set_base(static_cast<TabView*>(nullptr), WidgetKind::TabView);
+        set_base(static_cast<Roller*>(nullptr), WidgetKind::Roller);
+        set_base(static_cast<Stepper*>(nullptr), WidgetKind::Stepper);
+        set_base(static_cast<Timeline*>(nullptr), WidgetKind::Timeline);
+        set_base(static_cast<PerfOverlay*>(nullptr), WidgetKind::PerfOverlay);
+        set_base(static_cast<PopupLayer*>(nullptr), WidgetKind::PopupLayer);
+        set_base(static_cast<ModalDialog*>(nullptr), WidgetKind::ModalDialog);
+        set_base(static_cast<MessageBox*>(nullptr), WidgetKind::MessageBox);
+        set_base(static_cast<PrimitivesCanvas*>(nullptr), WidgetKind::PrimitivesCanvas);
+        set_base(static_cast<FoldablePanel*>(nullptr), WidgetKind::FoldablePanel);
+        set_base(static_cast<CloudyGlass*>(nullptr), WidgetKind::CloudyGlass);
+        set_base(static_cast<DynamicNebula*>(nullptr), WidgetKind::DynamicNebula);
+        set_base(static_cast<CrtScreen*>(nullptr), WidgetKind::CrtScreen);
+        set_base(static_cast<SpectrumView*>(nullptr), WidgetKind::SpectrumView);
+        set_base(static_cast<SpinningWheel*>(nullptr), WidgetKind::SpinningWheel);
+        set_base(static_cast<SpinZoomWidget*>(nullptr), WidgetKind::SpinZoomWidget);
+        set_base(static_cast<MeterPointer*>(nullptr), WidgetKind::MeterPointer);
+        set_base(static_cast<Arc*>(nullptr), WidgetKind::Arc);
+        set_base(static_cast<Bar*>(nullptr), WidgetKind::Bar);
+        set_base(static_cast<Dial*>(nullptr), WidgetKind::Dial);
+        set_base(static_cast<Image*>(nullptr), WidgetKind::Image);
+        set_base(static_cast<ImageBox*>(nullptr), WidgetKind::ImageBox);
+        set_base(static_cast<Led*>(nullptr), WidgetKind::Led);
+        set_base(static_cast<BusyWheel*>(nullptr), WidgetKind::BusyWheel);
+        set_base(static_cast<ConsoleBox*>(nullptr), WidgetKind::ConsoleBox);
+        set_base(static_cast<BatteryGauge*>(nullptr), WidgetKind::BatteryGauge);
+        set_base(static_cast<BatteryGasGauge*>(nullptr), WidgetKind::BatteryGasGauge);
+        set_base(static_cast<Histogram*>(nullptr), WidgetKind::Histogram);
+        set_base(static_cast<HistogramView*>(nullptr), WidgetKind::HistogramView);
+        set_base(static_cast<Chart*>(nullptr), WidgetKind::Chart);
+        set_base(static_cast<Waveform*>(nullptr), WidgetKind::Waveform);
+        set_base(static_cast<WaveformView*>(nullptr), WidgetKind::WaveformView);
+        set_base(static_cast<Gauge*>(nullptr), WidgetKind::Gauge);
+        set_base(static_cast<RingIndication*>(nullptr), WidgetKind::RingIndication);
+        set_base(static_cast<RichText*>(nullptr), WidgetKind::RichText);
+        set_base(static_cast<CodeBlock*>(nullptr), WidgetKind::CodeBlock);
+
+        sheet.notify_base_style_changed();
+        sheet.rebuild_if_needed();
+}
+
 export
 struct ThemePreset {
     bool has_label{false};
@@ -242,6 +327,7 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_ring_indication) theme.set<RingIndication>(preset.ring_indication);
     if (preset.has_busy_wheel) theme.set<BusyWheel>(preset.busy_wheel);
     if (preset.has_console_box) theme.set<ConsoleBox>(preset.console_box);
+    sync_style_sheet_bases();
 }
 
 export
@@ -522,6 +608,7 @@ inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
     apply_widget(static_cast<RingIndication*>(nullptr));
     apply_widget(static_cast<RichText*>(nullptr));
     apply_widget(static_cast<CodeBlock*>(nullptr));
+    sync_style_sheet_bases();
 }
 
 export

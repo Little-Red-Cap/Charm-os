@@ -6,6 +6,7 @@ import charm.core.soa_kernel;
 import charm.core.soa_gui;
 import charm.core.event;
 import charm.core.config;
+import charm.core.theme_preset;
 import charm.gfx.canvas;
 import out.api;
 
@@ -37,6 +38,8 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    constexpr std::size_t kMaxStyleTableBytes = 128 * 1024;
+
     const char* event_type_name(Event::Type type) noexcept {
         switch (type) {
             case Event::Type::HoverEnter: return "HoverEnter";
@@ -215,16 +218,203 @@ namespace {
         }
         return fails == 0;
     }
+
+    bool run_layout_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
+        int fails = 0;
+
+        auto layout_root = factory.create_container();
+        auto layout_box = factory.create_checkbox("Layout");
+        factory.link(root, layout_root);
+        factory.link(layout_root, layout_box);
+        kernel.set_rect(layout_root, {40, 260, 220, 120});
+        kernel.set_rect(layout_box, {10, 10, 180, 32});
+
+        gui.render();
+
+        kernel.set_layout_state_influence(false);
+        gui.render();
+        kernel.layout_trace_reset();
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: hover pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: hover missing paint invalidation", fails);
+        kernel.layout_trace_reset();
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 60, 280, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 90, 300, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: drag invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: drag pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: drag missing paint invalidation", fails);
+        kernel.layout_trace_reset();
+
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 90, 300, 1));
+        gui.dispatch_event(Event::wheel(60, 280, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: wheel invalidated with influence off", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: wheel pass with influence off", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: wheel missing paint invalidation", fails);
+
+        kernel.set_layout_state_influence(true);
+        gui.render();
+        kernel.layout_trace_reset();
+
+        kernel.set_focused(layout_box, true);
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: focus invalidated but mask forbids", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: focus pass but mask forbids", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: focus missing paint invalidation", fails);
+
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated but mask forbids", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: hover pass but mask forbids", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: hover missing paint invalidation", fails);
+
+        auto scroll_root = factory.create_container();
+        auto scroll = factory.create_scroll_container();
+        auto scroll_a = factory.create_button("Scroll A");
+        auto scroll_b = factory.create_button("Scroll B");
+        auto scroll_c = factory.create_button("Scroll C");
+        factory.link(root, scroll_root);
+        factory.link(scroll_root, scroll);
+        factory.link(scroll, scroll_a);
+        factory.link(scroll, scroll_b);
+        factory.link(scroll, scroll_c);
+        kernel.set_rect(scroll_root, {280, 260, 220, 120});
+        kernel.set_rect(scroll, {10, 10, 180, 80});
+        kernel.set_rect(scroll_a, {0, 0, 160, 30});
+        kernel.set_rect(scroll_b, {0, 35, 160, 30});
+        kernel.set_rect(scroll_c, {0, 70, 160, 30});
+        kernel.set_scroll_step(scroll, 12);
+        gui.render();
+
+        kernel.layout_trace_reset();
+        const int scroll_before = kernel.scroll_y(scroll);
+        gui.dispatch_event(Event::wheel(300, 280, 1));
+        gui.render();
+        const int scroll_after = kernel.scroll_y(scroll);
+        expect_true(scroll_after != scroll_before, "layout: scroll container did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: scroll container invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: scroll container pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: scroll container missing paint invalidation", fails);
+
+        kernel.layout_trace_reset();
+        const int drag_before = kernel.scroll_y(scroll);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 300, 280, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 300, 320, 0));
+        gui.render();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 300, 320, 1));
+        const int drag_after = kernel.scroll_y(scroll);
+        expect_true(drag_after != drag_before, "layout: scroll drag did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: scroll drag invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: scroll drag pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: scroll drag missing paint invalidation", fails);
+
+        auto list_root = factory.create_container();
+        auto list = factory.create_list();
+        auto list_item_a = factory.create_list_item("Item A");
+        auto list_item_b = factory.create_list_item("Item B");
+        auto list_item_c = factory.create_list_item("Item C");
+        auto list_item_d = factory.create_list_item("Item D");
+        auto list_item_e = factory.create_list_item("Item E");
+        auto list_item_f = factory.create_list_item("Item F");
+        factory.link(root, list_root);
+        factory.link(list_root, list);
+        factory.link(list, list_item_a);
+        factory.link(list, list_item_b);
+        factory.link(list, list_item_c);
+        factory.link(list, list_item_d);
+        factory.link(list, list_item_e);
+        factory.link(list, list_item_f);
+        kernel.set_rect(list_root, {40, 420, 220, 120});
+        kernel.set_rect(list, {10, 10, 180, 80});
+        kernel.set_list_row_height(list, 24);
+        kernel.set_scroll_step(list, 12);
+        gui.render();
+
+        kernel.layout_trace_reset();
+        const int list_before = kernel.scroll_y(list);
+        gui.dispatch_event(Event::wheel(60, 440, 1));
+        gui.render();
+        const int list_after = kernel.scroll_y(list);
+        expect_true(list_after != list_before, "layout: list did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: list invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: list pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: list missing paint invalidation", fails);
+
+        kernel.layout_trace_reset();
+        kernel.set_text(layout_box, "Layout Updated");
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() > 0, "layout: text change did not invalidate", fails);
+        expect_true(kernel.layout_pass_count() > 0, "layout: text change did not run pass", fails);
+
+        kernel.destroy(list_item_f);
+        kernel.destroy(list_item_e);
+        kernel.destroy(list_item_d);
+        kernel.destroy(list_item_c);
+        kernel.destroy(list_item_b);
+        kernel.destroy(list_item_a);
+        kernel.destroy(list);
+        kernel.destroy(list_root);
+        kernel.destroy(scroll_c);
+        kernel.destroy(scroll_b);
+        kernel.destroy(scroll_a);
+        kernel.destroy(scroll);
+        kernel.destroy(scroll_root);
+        kernel.destroy(layout_box);
+        kernel.destroy(layout_root);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] layout regression OK">();
+        }
+        return fails == 0;
+    }
+
+    bool run_style_regression(SoaGui& gui) noexcept {
+        int fails = 0;
+        auto& sheet = StyleSheet::instance();
+        sheet.style_trace_reset();
+        const std::uint32_t role_before = sheet.role_palette_compile_count();
+        const std::uint32_t table_before = sheet.style_table_compile_count();
+
+        gui.render();
+        expect_true(sheet.role_palette_compile_count() == role_before,
+                    "style: role palette compiled without token change", fails);
+        expect_true(sheet.style_table_compile_count() == table_before,
+                    "style: style table compiled without token change", fails);
+
+        ThemeTokens tokens = Theme::instance().get_tokens();
+        apply_theme_tokens(tokens);
+        const std::uint32_t role_after = sheet.role_palette_compile_count();
+        const std::uint32_t table_after = sheet.style_table_compile_count();
+        expect_true(role_after == role_before + 1u, "style: role palette not rebuilt", fails);
+        expect_true(table_after == table_before + 1u, "style: style table not rebuilt", fails);
+
+        const StyleStats stats = sheet.style_stats();
+        expect_true(!stats.metrics_overflowed, "style: metrics pool overflowed", fails);
+        expect_true(stats.style_table_total_bytes <= kMaxStyleTableBytes, "style: table bytes too large", fails);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] style regression OK">();
+        }
+        return fails == 0;
+    }
 #endif
 }
 
 int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     bool run_regress = false;
+    bool run_regress_layout = false;
 #else
     (void)argc;
     (void)argv;
 #endif
+    apply_theme_tokens(ThemeTokens{});
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
         return 1;
@@ -234,6 +424,9 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (std::string_view(argv[i]) == "--soa-regress") {
             run_regress = true;
+            run_regress_layout = true;
+        } else if (std::string_view(argv[i]) == "--soa-regress-layout") {
+            run_regress_layout = true;
         }
     }
 #endif
@@ -333,6 +526,22 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         if (!run_input_regression(gui, kernel, factory, root)) {
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+        if (!run_style_regression(gui)) {
+            SDL_DestroyTexture(texture);
+            SDL_DestroyRenderer(renderer);
+            SDL_DestroyWindow(window);
+            SDL_Quit();
+            return 1;
+        }
+    }
+    if (run_regress_layout) {
+        if (!run_layout_regression(gui, kernel, factory, root)) {
             SDL_DestroyTexture(texture);
             SDL_DestroyRenderer(renderer);
             SDL_DestroyWindow(window);

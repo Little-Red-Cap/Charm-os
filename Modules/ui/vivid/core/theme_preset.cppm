@@ -19,6 +19,35 @@ export import charm.widgets.text_input;
 export import charm.widgets.text_area;
 export import charm.widgets.image_box;
 
+inline void sync_style_sheet_bases() noexcept {
+    auto& theme = Theme::instance();
+    auto& sheet = StyleSheet::instance();
+
+    auto set_base = [&](auto* tag, WidgetKind kind) {
+        using Widget = std::remove_pointer_t<decltype(tag)>;
+        sheet.set_base_style(kind, theme.get<Widget>());
+    };
+
+    set_base(static_cast<Label*>(nullptr), WidgetKind::Label);
+    set_base(static_cast<Button*>(nullptr), WidgetKind::Button);
+    set_base(static_cast<Checkbox*>(nullptr), WidgetKind::Checkbox);
+    set_base(static_cast<ListView*>(nullptr), WidgetKind::ListView);
+    set_base(static_cast<ListItem*>(nullptr), WidgetKind::ListItem);
+    set_base(static_cast<List*>(nullptr), WidgetKind::List);
+    set_base(static_cast<Progress*>(nullptr), WidgetKind::Progress);
+    set_base(static_cast<ScrollContainer*>(nullptr), WidgetKind::ScrollContainer);
+    set_base(static_cast<ScrollBar*>(nullptr), WidgetKind::ScrollBar);
+    set_base(static_cast<Slider*>(nullptr), WidgetKind::Slider);
+    set_base(static_cast<Switch*>(nullptr), WidgetKind::Switch);
+    set_base(static_cast<Radio*>(nullptr), WidgetKind::Radio);
+    set_base(static_cast<TextInput*>(nullptr), WidgetKind::TextInput);
+    set_base(static_cast<TextArea*>(nullptr), WidgetKind::TextArea);
+    set_base(static_cast<ImageBox*>(nullptr), WidgetKind::ImageBox);
+
+    sheet.notify_base_style_changed();
+    sheet.rebuild_if_needed();
+}
+
 export
 struct ThemePreset {
     bool has_label{false};
@@ -68,6 +97,7 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     if (preset.has_radio) theme.set<Radio>(preset.radio);
     if (preset.has_text_input) theme.set<TextInput>(preset.text_input);
     if (preset.has_text_area) theme.set<TextArea>(preset.text_area);
+    sync_style_sheet_bases();
 }
 
 export
@@ -174,6 +204,7 @@ inline void apply_tokens_to_all_widgets(const ThemeTokens& tokens) noexcept {
     apply_widget(static_cast<TextInput*>(nullptr));
     apply_widget(static_cast<TextArea*>(nullptr));
     apply_widget(static_cast<ImageBox*>(nullptr));
+    sync_style_sheet_bases();
 }
 
 export

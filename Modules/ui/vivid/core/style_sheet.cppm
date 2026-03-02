@@ -111,6 +111,44 @@ inline constexpr std::uint8_t kMaxStyleVariants = 4;
 inline constexpr std::uint8_t kStyleStateCount = 16;
 inline constexpr std::uint8_t kMaxMetricsPool = 64;
 
+constexpr std::uint8_t variant_count_for_kind(WidgetKind) noexcept {
+    return 1;
+}
+
+constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_variant_counts() noexcept {
+    std::array<std::uint8_t, kWidgetKindCount> counts{};
+    for (std::size_t i = 0; i < kWidgetKindCount; ++i) {
+        counts[i] = variant_count_for_kind(enabled_widget_kinds[i]);
+        if (counts[i] == 0) counts[i] = 1;
+        if (counts[i] > kMaxStyleVariants) counts[i] = kMaxStyleVariants;
+    }
+    return counts;
+}
+
+constexpr std::array<std::uint16_t, kWidgetKindCount> build_kind_variant_offsets(
+    const std::array<std::uint8_t, kWidgetKindCount>& counts) noexcept {
+    std::array<std::uint16_t, kWidgetKindCount> offsets{};
+    std::uint16_t sum = 0;
+    for (std::size_t i = 0; i < kWidgetKindCount; ++i) {
+        offsets[i] = sum;
+        sum = static_cast<std::uint16_t>(sum + counts[i]);
+    }
+    return offsets;
+}
+
+constexpr std::size_t count_total_variant_slots(
+    const std::array<std::uint8_t, kWidgetKindCount>& counts) noexcept {
+    std::size_t sum = 0;
+    for (std::uint8_t count : counts) {
+        sum += count;
+    }
+    return sum;
+}
+
+inline constexpr auto kKindVariantCounts = build_kind_variant_counts();
+inline constexpr auto kKindVariantOffsets = build_kind_variant_offsets(kKindVariantCounts);
+inline constexpr std::size_t kTotalVariantSlots = count_total_variant_slots(kKindVariantCounts);
+
 export
 struct ResolvedColors {
     rgba bg{};
@@ -161,11 +199,11 @@ static_assert(sizeof(ResolvedMetrics) <= 32);
 static_assert(sizeof(ResolvedStyleView) <= 24);
 
 struct StyleTable {
-    std::array<ResolvedColors, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> colors{};
-    std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants * kStyleStateCount> matched{};
+    std::array<ResolvedColors, kTotalVariantSlots * kStyleStateCount> colors{};
+    std::array<std::uint8_t, kTotalVariantSlots * kStyleStateCount> matched{};
     std::array<std::uint8_t, kWidgetKindCount> kind_compiled{};
     std::array<ResolvedMetrics, kMaxMetricsPool> metrics_pool{};
-    std::array<std::uint8_t, kWidgetKindCount * kMaxStyleVariants> metrics_id{};
+    std::array<std::uint8_t, kTotalVariantSlots> metrics_id{};
     std::uint8_t metrics_count{0};
     bool metrics_overflowed{false};
     std::uint32_t tokens_version{std::numeric_limits<std::uint32_t>::max()};
@@ -219,8 +257,10 @@ inline ResolvedTheme build_resolved_theme(const ThemeTokens& t) noexcept {
     return r;
 }
 
-inline std::uint8_t clamp_variant(std::uint8_t variant) noexcept {
-    return (variant < kMaxStyleVariants) ? variant : static_cast<std::uint8_t>(0);
+inline std::uint8_t clamp_variant(std::uint8_t variant, std::uint8_t variant_count) noexcept {
+    if (variant_count == 0) return 0;
+    if (variant >= variant_count) return 0;
+    return variant;
 }
 
 inline std::uint8_t style_state_index(const StyleState& state) noexcept {
@@ -411,11 +451,11 @@ public:
         if (kind_idx == kInvalidKindIndex || style_table_.kind_compiled[kind_idx] == 0) {
             return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
         }
-        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
         const std::uint8_t state_idx = style_state_index(state);
-        const std::size_t color_entry =
-            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
-        const std::size_t metrics_entry = static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant;
+        const std::size_t entry = static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant;
+        const std::size_t color_entry = entry * kStyleStateCount + state_idx;
+        const std::size_t metrics_entry = entry;
         return ResolvedStyleView{
             &style_table_.colors[color_entry],
             &style_table_.metrics_pool[style_table_.metrics_id[metrics_entry]]
@@ -565,8 +605,10 @@ private:
 #ifndef NDEBUG
             if (base_style_set_[kind_idx] == 0) assert(false && "StyleSheet base style missing");
 #endif
-            for (std::uint8_t variant = 0; variant < kMaxStyleVariants; ++variant) {
-                const std::size_t metrics_entry = kind_idx * kMaxStyleVariants + variant;
+            const std::uint8_t variant_count = kKindVariantCounts[kind_idx];
+            for (std::uint8_t variant = 0; variant < variant_count; ++variant) {
+                const std::size_t metrics_entry =
+                    static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant;
                 const ResolvedMetrics metrics = build_resolved_metrics(base);
                 std::uint8_t metrics_slot = 0;
                 bool found = false;
@@ -607,7 +649,7 @@ private:
 #endif
                         }
                         if (rule.selector.variant != kStyleVariantAny &&
-                            rule.selector.variant >= kMaxStyleVariants) {
+                            rule.selector.variant >= variant_count) {
 #ifndef NDEBUG
                             assert(false && "StyleSheet variant out of range");
 #endif
@@ -632,8 +674,7 @@ private:
                         }
                     }
                     const ResolvedColors colors = build_resolved_colors(matched ? scratch : base, state);
-                    const std::size_t entry =
-                        ((kind_idx * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+                    const std::size_t entry = (metrics_entry * kStyleStateCount + state_idx);
                     style_table_.colors[entry] = colors;
                     style_table_.matched[entry] = matched
                         ? static_cast<std::uint8_t>(1)
@@ -661,10 +702,10 @@ private:
         const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
         if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
-        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
         const std::uint8_t state_idx = style_state_index(state);
         const std::size_t entry =
-            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+            (static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant) * kStyleStateCount + state_idx;
         if (style_table_.matched[entry] == 0) return false;
         apply_resolved_colors(style, style_table_.colors[entry]);
         return true;
@@ -691,10 +732,10 @@ private:
         const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
         if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
-        const std::uint8_t variant = clamp_variant(state.variant);
+        const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
         const std::uint8_t state_idx = style_state_index(state);
         const std::size_t entry =
-            ((static_cast<std::size_t>(kind_idx) * kMaxStyleVariants + variant) * kStyleStateCount + state_idx);
+            (static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant) * kStyleStateCount + state_idx;
         if (style_table_.matched[entry] == 0) return false;
         out = base;
         apply_resolved_colors(out, style_table_.colors[entry]);

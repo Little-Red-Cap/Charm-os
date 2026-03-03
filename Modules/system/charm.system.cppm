@@ -55,8 +55,10 @@ export import power.trace;
 export import power.types;
 
 export import charm.system.init;
+export import charm.system.init_core;
 export import charm.system.init_usart;
 export import charm.system.bringup;
+export import charm.system.bringup.stm32_stub;
 export import charm.system.bringup.win_stub;
 export import charm.system.reactor_pump;
 

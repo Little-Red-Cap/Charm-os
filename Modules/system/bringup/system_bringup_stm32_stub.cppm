@@ -3,7 +3,7 @@ module;
 #include <cstddef>
 #include <utility>
 
-export module charm.system.bringup.win_stub;
+export module charm.system.bringup.stm32_stub;
 
 import charm.system.bringup;
 import charm.system.reactor_pump;
@@ -13,10 +13,7 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
-import platform.board.win_stub;
-import platform.win.irq_guard;
-import platform.win.time_source;
-import platform.win.wakeup;
+import platform.board.stm32_stub;
 import util.core;
 import util.error;
 
@@ -26,15 +23,10 @@ export namespace charm::system {
         static constexpr std::size_t evtq_capacity = 8;
     };
 
-    struct PumpCaps {
-        using TimeSource = platform::win::SteadyClock;
-        using IrqGuard = platform::win::SpinIrqGuard;
-        using Wakeup = platform::win::NoopWakeup;
-        using SwiTrigger = kernel::NoopSwiTrigger;
-    };
+    using PumpCaps = kernel::NoopCapabilities;
 
-    inline util::Result<void> bringup_minimal_win_stub() noexcept {
-        auto caps = platform::board::win_stub::make_board_caps();
+    inline util::Result<void> bringup_minimal_stm32_stub() noexcept {
+        auto caps = platform::board::stm32_stub::make_board_caps();
         using PumpTask = charm::system::ReactorPumpTask;
         using Registry = kernel::TaskRegistry<PumpTask>;
         Registry registry{};

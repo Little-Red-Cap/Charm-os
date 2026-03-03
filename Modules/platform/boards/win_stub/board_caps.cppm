@@ -8,7 +8,7 @@ import hal_uart;
 import hal_win;
 import util.core;
 
-namespace {
+namespace platform::board::win_stub::detail {
     struct WinUartCtx {
         hal::UartHandle handle{};
     };
@@ -52,21 +52,20 @@ namespace {
         auto* self = static_cast<WinUartCtx*>(ctx);
         hal::win::Uart::clear_irq(self->handle, mask);
     }
-
-} // namespace
+} // namespace platform::board::win_stub::detail
 
 export namespace platform::board::win_stub {
     inline BoardCaps make_board_caps() noexcept {
-        static WinUartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
+        static detail::WinUartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kWinUartOps{
-            &win_uart_init,
-            &win_uart_enable,
-            &win_uart_disable,
-            &win_uart_try_write,
-            &win_uart_try_read,
-            &win_uart_enable_irq,
-            &win_uart_disable_irq,
-            &win_uart_clear_irq
+            &detail::win_uart_init,
+            &detail::win_uart_enable,
+            &detail::win_uart_disable,
+            &detail::win_uart_try_write,
+            &detail::win_uart_try_read,
+            &detail::win_uart_enable_irq,
+            &detail::win_uart_disable_irq,
+            &detail::win_uart_clear_irq
         };
         BoardCaps caps{};
         caps.uart1.handle = hal::UartIoHandle{&uart1_ctx, &kWinUartOps};

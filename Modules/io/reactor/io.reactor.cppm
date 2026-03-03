@@ -78,6 +78,7 @@ export namespace io {
             if (pending_count_ >= pending_.size()) {
                 drop_count_++;
                 overflowed_ = true;
+                overflow_pending_ = true;
                 overflow_ch_ = &ch;
                 if (waker_) waker_(waker_ctx_);
                 return;
@@ -96,13 +97,19 @@ export namespace io {
                 pending_count_--;
                 dispatch(*ev.ch, ev.events);
             }
-            if (overflowed_ && overflow_ch_) {
-                overflowed_ = false;
+            if (overflow_pending_ && overflow_ch_) {
+                overflow_pending_ = false;
                 dispatch(*overflow_ch_, static_cast<util::u32>(Event::error));
             }
         }
 
         util::u32 dropped_events() const noexcept { return drop_count_; }
+        bool overflowed() const noexcept { return overflowed_; }
+        void clear_overflow() noexcept {
+            overflowed_ = false;
+            overflow_pending_ = false;
+            overflow_ch_ = nullptr;
+        }
 
     private:
         struct Slot {
@@ -136,6 +143,7 @@ export namespace io {
         util::u32 next_id_{1};
         util::u32 drop_count_{0};
         bool overflowed_{false};
+        bool overflow_pending_{false};
         Channel* overflow_ch_{nullptr};
         WakeFn waker_{nullptr};
         void* waker_ctx_{nullptr};

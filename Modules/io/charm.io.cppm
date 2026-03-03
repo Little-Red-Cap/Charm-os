@@ -30,6 +30,7 @@ export import at.transport_channel;
 export import port.kernel;
 export import io.channel;
 export import io.channel.adapters;
+export import io.registry;
 export import io.reactor;
 
 export import fs_block;

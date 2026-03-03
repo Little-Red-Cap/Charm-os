@@ -47,7 +47,7 @@ export namespace init {
             for (util::usize i = 0; i < node_count_; ++i) {
                 in_degree_[i] = 0;
                 const auto* node = nodes_[i];
-                for (const auto req : node->requires) {
+                for (const auto req : node->requires_caps) {
                     if (req == 0) return util::unexpected(util::Errc::invalid_arg);
                     const auto provider = find_cap_index(req);
                     if (provider < 0) {
@@ -126,7 +126,7 @@ export namespace init {
             const auto* node = nodes_[node_idx];
             const auto* prov = nodes_[provider_idx];
             if (!node || !prov) return false;
-            for (const auto req : node->requires) {
+            for (const auto req : node->requires_caps) {
                 for (const auto cap : prov->provides) {
                     if (req == cap) return true;
                 }

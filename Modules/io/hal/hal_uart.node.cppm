@@ -31,7 +31,7 @@ export namespace hal {
         UartIoHandle handle{};
         UartConfig config{};
         std::array<init::CapId, 1> provides{};
-        std::array<init::CapId, 1> requires{};
+        std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
 
         UartBinding(UartIoHandle h,
@@ -42,13 +42,13 @@ export namespace hal {
                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : handle(h), config(cfg) {
             provides[0] = init::cap_id(cap_name);
-            requires[0] = init::cap_id(irq_cap_name);
+            requires_caps[0] = init::cap_id(irq_cap_name);
             node = init::Node{
                 cap_name,
                 phase,
                 runlevel_mask,
                 std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires.data(), requires.size()),
+                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
                 &UartBinding::init_trampoline,
                 nullptr,
                 this

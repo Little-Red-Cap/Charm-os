@@ -47,13 +47,18 @@ export namespace io {
         Reactor* reactor{nullptr};
     };
 
-    consteval CapId cap_id(const char* literal) {
+    constexpr CapId cap_id(std::string_view sv) {
         CapId hash = 2166136261u;
-        for (const unsigned char* p = reinterpret_cast<const unsigned char*>(literal); *p; ++p) {
-            hash ^= static_cast<CapId>(*p);
+        for (unsigned char c : sv) {
+            hash ^= static_cast<CapId>(c);
             hash *= 16777619u;
         }
         return hash == 0 ? 1u : hash;
+    }
+
+    template <std::size_t N>
+    consteval CapId cap_id(const char (&literal)[N]) {
+        return cap_id(std::string_view{literal, N > 0 ? (N - 1) : 0});
     }
 
     template <util::usize MaxEndpoints>

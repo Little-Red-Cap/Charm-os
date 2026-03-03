@@ -3,10 +3,12 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 export module driver.usart_channel;
 
 import hal_uart;
+import hal_core;
 import io.channel;
 import io.reactor;
 import io.registry;
@@ -168,7 +170,7 @@ export namespace driver::usart {
         io::Reactor* reactor{nullptr};
         io::EndpointDesc desc{};
         std::array<init::CapId, 1> provides{};
-        std::array<init::CapId, 3> requires{};
+        std::array<init::CapId, 3> requires_caps{};
         init::Node node{};
 
         ChannelBinding(RegistryT& reg,
@@ -184,15 +186,15 @@ export namespace driver::usart {
                    io::EndpointKind::channel,
                    io::EndpointCaps::duplex} {
             provides[0] = init::cap_id(endpoint_name);
-            requires[0] = init::cap_id("io.registry");
-            requires[1] = init::cap_id("io.reactor");
-            requires[2] = init::cap_id(hal_cap_name);
+            requires_caps[0] = init::cap_id("io.registry");
+            requires_caps[1] = init::cap_id("io.reactor");
+            requires_caps[2] = init::cap_id(hal_cap_name);
             node = init::Node{
                 endpoint_name,
                 init::Phase::core,
                 static_cast<util::u32>(init::Runlevel::all),
                 std::span<const init::CapId>(provides.data(), provides.size()),
-                std::span<const init::CapId>(requires.data(), requires.size()),
+                std::span<const init::CapId>(requires_caps.data(), requires_caps.size()),
                 &ChannelBinding::init_trampoline,
                 nullptr,
                 this

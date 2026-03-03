@@ -5,7 +5,7 @@ module;
 export module util.error;
 
 import util.core;
-import util.expected;
+export import util.expected;
 
 export namespace util {
     // Unified error codes (core model).

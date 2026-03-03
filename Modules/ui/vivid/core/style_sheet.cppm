@@ -193,7 +193,6 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::HistogramView:
         case WidgetKind::RingIndication:
         case WidgetKind::TextBox:
-        case WidgetKind::FoldablePanel:
         case WidgetKind::ProgressFlowing:
         case WidgetKind::CloudyGlass:
         case WidgetKind::ProgressBarRound:
@@ -206,6 +205,14 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::ConsoleBox:
         case WidgetKind::BatteryGasGauge:
         case WidgetKind::Histogram:
+        case WidgetKind::List:
+        case WidgetKind::ListView:
+        case WidgetKind::IconList:
+        case WidgetKind::TextTrackingList:
+        case WidgetKind::TextList:
+        case WidgetKind::TableView:
+        case WidgetKind::TreeView:
+        case WidgetKind::ScrollContainer:
             return readonly;
         case WidgetKind::Button:
         case WidgetKind::Checkbox:
@@ -224,14 +231,7 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::NumberInput:
         case WidgetKind::ToggleGroup:
         case WidgetKind::ListItem:
-        case WidgetKind::List:
-        case WidgetKind::ListView:
-        case WidgetKind::IconList:
-        case WidgetKind::TextTrackingList:
-        case WidgetKind::TextList:
-        case WidgetKind::TableView:
-        case WidgetKind::TreeView:
-        case WidgetKind::ScrollContainer:
+        case WidgetKind::FoldablePanel:
         case WidgetKind::Roller:
         case WidgetKind::Spinner:
         case WidgetKind::NumberList:
@@ -250,19 +250,22 @@ constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_masks() no
     return masks;
 }
 
-constexpr std::uint8_t popcount4(std::uint8_t mask) noexcept {
-    mask = static_cast<std::uint8_t>(mask & 0x0F);
+constexpr std::uint8_t popcount8(std::uint8_t mask) noexcept {
     return static_cast<std::uint8_t>(((mask >> 0) & 1u)
         + ((mask >> 1) & 1u)
         + ((mask >> 2) & 1u)
-        + ((mask >> 3) & 1u));
+        + ((mask >> 3) & 1u)
+        + ((mask >> 4) & 1u)
+        + ((mask >> 5) & 1u)
+        + ((mask >> 6) & 1u)
+        + ((mask >> 7) & 1u));
 }
 
 constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_counts(
     const std::array<std::uint8_t, kWidgetKindCount>& masks) noexcept {
     std::array<std::uint8_t, kWidgetKindCount> counts{};
     for (std::size_t i = 0; i < kWidgetKindCount; ++i) {
-        const std::uint8_t bits = popcount4(masks[i]);
+        const std::uint8_t bits = popcount8(masks[i]);
         counts[i] = static_cast<std::uint8_t>(1u << bits);
         if (counts[i] == 0) counts[i] = 1;
     }
@@ -335,6 +338,16 @@ struct StyleStats {
     std::uint32_t style_lookup_count{0};
     std::uint32_t theme_recompile_count{0};
     bool metrics_overflowed{false};
+};
+
+export
+struct StyleKindStateInfo {
+    WidgetKind kind{WidgetKind::None};
+    std::uint8_t mask{0};
+    std::uint8_t state_count{0};
+    std::uint16_t state_offset{0};
+    std::uint8_t variant_count{0};
+    std::uint16_t variant_offset{0};
 };
 #endif
 
@@ -722,6 +735,19 @@ public:
         s.theme_recompile_count = style_table_compile_count_;
         s.metrics_overflowed = style_table_.metrics_overflowed;
         return s;
+    }
+
+    StyleKindStateInfo style_kind_state_info(WidgetKind kind) const noexcept {
+        StyleKindStateInfo info{};
+        info.kind = kind;
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return info;
+        info.mask = kKindStateMasks[idx];
+        info.state_count = kKindStateCounts[idx];
+        info.state_offset = kKindStateOffsets[idx];
+        info.variant_count = kKindVariantCounts[idx];
+        info.variant_offset = kKindVariantOffsets[idx];
+        return info;
     }
 #endif
 

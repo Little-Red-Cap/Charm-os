@@ -7,6 +7,7 @@ import charm.core.soa_gui;
 import charm.core.event;
 import charm.core.config;
 import charm.core.theme_preset;
+import charm.core.widget_registry;
 import charm.gfx.canvas;
 import out.api;
 
@@ -397,6 +398,17 @@ namespace {
         const StyleStats stats = sheet.style_stats();
         expect_true(!stats.metrics_overflowed, "style: metrics pool overflowed", fails);
         expect_true(stats.style_table_total_bytes <= kMaxStyleTableBytes, "style: table bytes too large", fails);
+
+        for (WidgetKind kind : enabled_widget_kinds) {
+            const StyleKindStateInfo info = sheet.style_kind_state_info(kind);
+            (void)out::println<"[soa] style kind={} mask=0x{:02X} states={} offset={} variants={} v_offset={}">(
+                widget_kind_name(kind),
+                static_cast<int>(info.mask),
+                static_cast<int>(info.state_count),
+                static_cast<int>(info.state_offset),
+                static_cast<int>(info.variant_count),
+                static_cast<int>(info.variant_offset));
+        }
 
         if (fails == 0) {
             (void)out::println<"[soa] style regression OK">();

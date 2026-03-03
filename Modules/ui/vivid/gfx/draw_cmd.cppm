@@ -42,6 +42,7 @@ export namespace ui::draw_cmd {
         FillCircle,
         StrokeCircle,
         DrawImage,
+        DrawImageNineSlice,
         DrawTextBox,
         FocusRing,
     };
@@ -58,6 +59,7 @@ export namespace ui::draw_cmd {
         std::int16_t p0{0};
         std::int16_t p1{0};
         std::int16_t p2{0};
+        std::int16_t p3{0};
         TextSpan text{};
         const Point* path{nullptr};
         const ImageView* image{nullptr};
@@ -225,6 +227,21 @@ export namespace ui::draw_cmd {
 
         bool draw_icon(const Rect& rect, const ImageView& image) noexcept {
             return draw_image(rect, image);
+        }
+
+        bool draw_image_nine_slice(const Rect& rect,
+                                   const ImageView& image,
+                                   int left,
+                                   int top,
+                                   int right,
+                                   int bottom) noexcept {
+            auto cmd = make_cmd(CmdType::DrawImageNineSlice, rect);
+            cmd.image = &image;
+            cmd.p0 = static_cast<std::int16_t>(left);
+            cmd.p1 = static_cast<std::int16_t>(top);
+            cmd.p2 = static_cast<std::int16_t>(right);
+            cmd.p3 = static_cast<std::int16_t>(bottom);
+            return push_cmd(cmd);
         }
 
         bool draw_text_box(const Rect& rect,
@@ -430,6 +447,15 @@ export namespace ui::draw_cmd {
                     } else {
                         ui::render::draw_image(canvas, cmd.rect.x, cmd.rect.y, *cmd.image);
                     }
+                    break;
+                }
+                case CmdType::DrawImageNineSlice: {
+                    if (!cmd.image || !(*cmd.image)) break;
+                    ui::render::draw_image_nine_slice(canvas,
+                                                      cmd.rect.x, cmd.rect.y,
+                                                      cmd.rect.w, cmd.rect.h,
+                                                      *cmd.image,
+                                                      cmd.p0, cmd.p1, cmd.p2, cmd.p3);
                     break;
                 }
                 case CmdType::DrawTextBox: {

@@ -65,6 +65,10 @@ namespace {
     constexpr int kTestIconHeight = 8;
     constexpr std::uint16_t kTestIconOn = 0xFFE0;
     constexpr std::uint16_t kTestIconOff = 0x0000;
+    constexpr int kSliceWidth = 6;
+    constexpr int kSliceHeight = 6;
+    constexpr std::uint16_t kSliceBorder = 0x4208;
+    constexpr std::uint16_t kSliceCenter = 0xFFFF;
     constexpr rgba kDemoBg{246, 248, 252, 255};
     constexpr rgba kDemoPanel{232, 236, 244, 255};
     constexpr rgba kDemoPanelBorder{176, 184, 196, 255};
@@ -79,6 +83,14 @@ namespace {
         kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff,
         kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn
     };
+    constexpr std::array<std::uint16_t, kSliceWidth * kSliceHeight> kSliceData{
+        kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder,
+        kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder,
+        kSliceBorder, kSliceBorder, kSliceCenter, kSliceCenter, kSliceBorder, kSliceBorder,
+        kSliceBorder, kSliceBorder, kSliceCenter, kSliceCenter, kSliceBorder, kSliceBorder,
+        kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder,
+        kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder, kSliceBorder
+    };
     std::array<Point, 4> g_demo_path_points{};
 
     const ImageView kTestIconView = make_image_view(PixelFormat::RGB565,
@@ -88,9 +100,20 @@ namespace {
                                                     reinterpret_cast<const std::byte*>(kTestIconData.data()),
                                                     false,
                                                     false);
+    const ImageView kSliceView = make_image_view(PixelFormat::RGB565,
+                                                 kSliceWidth,
+                                                 kSliceHeight,
+                                                 kSliceWidth * static_cast<int>(sizeof(std::uint16_t)),
+                                                 reinterpret_cast<const std::byte*>(kSliceData.data()),
+                                                 false,
+                                                 false);
 
     const ImageView& get_test_icon() noexcept {
         return kTestIconView;
+    }
+
+    const ImageView& get_slice_image() noexcept {
+        return kSliceView;
     }
 
     void append_path_icon(ui::draw_cmd::DefaultDrawCmdBuffer& buf, int screen_width) noexcept {
@@ -99,6 +122,7 @@ namespace {
         const int path_h = 60;
         const int path_x = screen_width - path_w - 16;
         const Rect panel_rect{path_x - 8, path_y - 8, path_w + 16, path_h + 16};
+        const Rect slice_rect{path_x - 6, path_y + path_h + 6, path_w + 12, 18};
         buf.fill_round_rect(panel_rect, 10, kDemoPanel);
         buf.stroke_round_rect(panel_rect, 10, kDemoPanelBorder);
         g_demo_path_points[0] = Point{path_x, path_y + path_h};
@@ -107,6 +131,7 @@ namespace {
         g_demo_path_points[3] = Point{path_x, path_y + path_h};
         buf.draw_path(g_demo_path_points.data(), 4, false, kDemoPath);
         buf.draw_icon(Rect{path_x + 44, path_y + 16, 24, 24}, get_test_icon());
+        buf.draw_image_nine_slice(slice_rect, get_slice_image(), 2, 2, 2, 2);
     }
 
     struct SdlTileBackend {

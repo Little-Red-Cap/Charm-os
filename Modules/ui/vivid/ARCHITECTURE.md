@@ -108,7 +108,7 @@ flowchart LR
 
 ### 2.2 命令集扩展与一致性校验（R2）
 
-- 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
+- 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawImageNineSlice` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验。
 

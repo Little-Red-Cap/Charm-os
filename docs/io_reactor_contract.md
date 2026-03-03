@@ -11,6 +11,7 @@ This document defines the non-negotiable contract for io.reactor.
 
 - drain() dispatches callbacks and must be driven by a kernel task/EDA.
 - drain() may call multiple callbacks; callbacks must not block.
+- Production code must not call drain() directly outside the reactor pump task.
 
 ## 3) Callback rules (budgeted)
 

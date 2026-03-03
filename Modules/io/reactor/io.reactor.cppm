@@ -31,8 +31,8 @@ export namespace io {
     using Callback = void (*)(void* ctx, Channel& ch, util::u32 events) noexcept;
     using WakeFn = void (*)(void* ctx) noexcept;
 
-    class Reactor {
-    public:
+class Reactor {
+public:
         using ResultSub = util::Result<Subscription>;
 
         ResultSub subscribe(Channel& ch, util::u32 events, Callback cb, void* ctx) noexcept {
@@ -73,7 +73,7 @@ export namespace io {
                 const auto idx = (pending_head_ + i) % pending_.size();
                 if (pending_[idx].ch == &ch) {
                     pending_[idx].events |= events;
-                    if (waker_) waker_(waker_ctx_);
+                    try_wake();
                     return;
                 }
             }
@@ -82,27 +82,39 @@ export namespace io {
                 overflowed_ = true;
                 overflow_pending_ = true;
                 overflow_ch_ = &ch;
-                if (waker_) waker_(waker_ctx_);
+                try_wake();
                 return;
             }
             pending_[pending_tail_] = Pending{&ch, events};
             pending_tail_ = (pending_tail_ + 1) % pending_.size();
             pending_count_++;
-            if (waker_) waker_(waker_ctx_);
+            try_wake();
         }
 
         // Call in task context to dispatch pending events.
-        void drain() noexcept {
-            while (pending_count_ > 0) {
+        bool drain(util::usize budget = 0) noexcept {
+            if (budget == 0) {
+                budget = static_cast<util::usize>(-1);
+            }
+            wake_pending_ = false;
+            util::usize processed = 0;
+            while (pending_count_ > 0 && processed < budget) {
                 const auto ev = pending_[pending_head_];
                 pending_head_ = (pending_head_ + 1) % pending_.size();
                 pending_count_--;
                 dispatch(*ev.ch, ev.events);
+                ++processed;
             }
-            if (overflow_pending_ && overflow_ch_) {
+            if (processed < budget && overflow_pending_ && overflow_ch_) {
                 overflow_pending_ = false;
                 dispatch(*overflow_ch_, static_cast<util::u32>(Event::error));
+                ++processed;
             }
+            const bool more = (pending_count_ > 0) || overflow_pending_;
+            if (more) {
+                try_wake();
+            }
+            return more;
         }
 
         util::u32 dropped_events() const noexcept { return drop_count_; }
@@ -137,6 +149,14 @@ export namespace io {
             }
         }
 
+        void try_wake() noexcept {
+            if (!waker_ || wake_pending_) {
+                return;
+            }
+            wake_pending_ = true;
+            waker_(waker_ctx_);
+        }
+
         std::array<Slot, 32> subs_{};
         std::array<Pending, 64> pending_{};
         util::usize pending_head_{0};
@@ -147,6 +167,7 @@ export namespace io {
         bool overflowed_{false};
         bool overflow_pending_{false};
         Channel* overflow_ch_{nullptr};
+        bool wake_pending_{false};
         WakeFn waker_{nullptr};
         void* waker_ctx_{nullptr};
     };

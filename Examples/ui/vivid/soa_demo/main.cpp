@@ -785,6 +785,7 @@ int main(int argc, char** argv) {
         ui::draw_cmd::DrawCmdExecutor exec{};
         gui.record_commands(buf);
         append_path_icon(buf, screen_width);
+        const auto cmp_stats = buf.stats();
 
         fb.clear(kDemoBg);
         canvas.begin_frame();
@@ -793,12 +794,24 @@ int main(int argc, char** argv) {
         const std::uint32_t hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
         fb.clear(kDemoBg);
-        exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
+        const auto tile_stats = exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
         const std::uint32_t hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
         (void)out::println<"[soa] compare full=0x{:08X} tile=0x{:08X}">(
             static_cast<unsigned>(hash_full),
             static_cast<unsigned>(hash_tile));
+        if (cmp_stats.cmd_overflowed || cmp_stats.text_overflowed || cmp_stats.cmd_count == 0) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            close_regress_log();
+#endif
+            return 1;
+        }
+        if (tile_stats.tiles_total == 0 || tile_stats.tiles_drawn == 0) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            close_regress_log();
+#endif
+            return 1;
+        }
         if (hash_full != hash_tile) {
 #if defined(VIVID_SOA_TRACE_INPUT)
             close_regress_log();
@@ -935,8 +948,14 @@ int main(int argc, char** argv) {
         ui::draw_cmd::DrawCmdTileStats tile_stats{};
         std::uint32_t dirty_area = 0;
         std::uint8_t dirty_pct = 0;
+        std::uint8_t tile_hit_pct = 0;
         if (use_tiles) {
             tile_stats = cmd_exec.execute_tiles(tile_backend, tile_view, cmd_buf, tile_config);
+            if (tile_stats.tiles_total > 0) {
+                tile_hit_pct = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(tile_stats.tiles_drawn) * 100u)
+                    / static_cast<std::uint32_t>(tile_stats.tiles_total));
+            }
             Rect dirty{};
             if (tile_backend.dirty_rect(dirty)) {
                 const std::uint64_t area = static_cast<std::uint64_t>(dirty.w)
@@ -968,7 +987,7 @@ int main(int argc, char** argv) {
             if (stat_frame >= stat_interval) {
                 stat_frame = 0;
                 if (use_tiles) {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={}">(
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={} tile_hit_pct={}">(
                         static_cast<std::uint32_t>(cmd_stats.cmd_count),
                         static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
                         cmd_stats.cmd_overflowed ? 1 : 0,
@@ -977,7 +996,8 @@ int main(int argc, char** argv) {
                         tile_stats.tiles_total,
                         tile_stats.tile_flush_count,
                         dirty_area,
-                        static_cast<std::uint32_t>(dirty_pct));
+                        static_cast<std::uint32_t>(dirty_pct),
+                        static_cast<std::uint32_t>(tile_hit_pct));
                 } else {
                     (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={}">(
                         static_cast<std::uint32_t>(cmd_stats.cmd_count),

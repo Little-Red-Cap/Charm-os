@@ -100,7 +100,7 @@ flowchart LR
 **SoA demo 支持：**
 
 - `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
-- `vivid-soa-demo --soa-stats`：输出命令数、tile flush 与 dirty 命中率。
+- `vivid-soa-demo --soa-stats`：输出命令数、tile flush、dirty 命中率与 tile hit 率。
 
 **可移植模板：**
 
@@ -110,7 +110,7 @@ flowchart LR
 
 - 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawImageNineSlice` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
 - 热路径保持 record/execute，不引入 runtime patch/派生。
-- `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验。
+- `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
 
 ## 3. 布局与容器
 

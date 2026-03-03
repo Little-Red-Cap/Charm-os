@@ -70,7 +70,6 @@ export import out.core;
 export import out.domain;
 export import out.format;
 export import out.logger;
-export import out.print;
 export import out.sink;
 
 export import usb.common;

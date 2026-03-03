@@ -12,7 +12,7 @@
 export module out.format;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink
-// Forbidden out.* imports: out.ansi, out.logger, out.api, out.print, out.domain
+// Forbidden out.* imports: out.ansi, out.logger, out.api, out.domain
 // Rationale: formatting core; must not depend on ANSI/logger/policy/ports.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 

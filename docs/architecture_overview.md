@@ -165,7 +165,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 目标：把“最强实现”收敛为真实依赖，但不立即清理旧实现。
 
 ### UI/Ink 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.print`
+- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
 - 日志与诊断：内部日志 → `out.logger`（或 `trace_core`）
 - 容器与池：自建容器/池 → `core/service/*`（fixed_vector/slot_pool/ring_queue）
 - 字符串/视图：自建 span/optional/expected → `core/util/*`
@@ -173,7 +173,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 输入事件：内部队列 → `service_ring_buffer` / `service_fifo`
 
 ### UI/Vivid 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.print`
+- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
 - 诊断与 trace：内部 debug → `trace_core` + `service_trace`
 - 容器与池：自建容器/池 → `core/service/*`
 - 字符串/视图：内部 span/optional/expected → `core/util/*`
@@ -257,7 +257,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### Out
 - out.core/out.api/out.format/out.ansi/out.logger
-- out.sink/out.print/out.domain/out.channel（统一走 io.channel）
+- out.sink/out.domain/out.channel（统一走 io.channel）
 
 ### IO Channel
 - io.channel（统一字节通道）

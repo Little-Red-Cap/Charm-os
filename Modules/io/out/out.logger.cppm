@@ -11,7 +11,7 @@
 export module out.logger;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.ansi, out.channel
-// Forbidden out.* imports: out.api, out.print
+// Forbidden out.* imports: out.api
 // Rationale: logger is the single behavior owner (prefix/style/timestamp/newline/flush/error-policy).
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 

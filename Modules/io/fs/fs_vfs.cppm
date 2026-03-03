@@ -106,12 +106,6 @@ export namespace fs {
 
     inline std::size_t mount_count() noexcept { return g_mount_count; }
 
-    // Backward-compat: set a single root mount.
-    inline void set_mount(Mount* m) noexcept {
-        clear_mounts();
-        (void)add_mount("/", m);
-    }
-
     inline Mount* find_mount(std::string_view path, std::string_view& out_prefix) noexcept {
         auto norm = normalize(path);
         std::string_view p{norm.data, norm.size};

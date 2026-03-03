@@ -19,7 +19,8 @@ int main() {
     st = fat.mount(mal_file.device(), false, 0);
     if (!st) return -2;
 
-    vfs::set_mount(fat.mount_point());
+    vfs::clear_mounts();
+    (void)vfs::add_mount("/", fat.mount_point());
     return 0;
 }
 ```
@@ -40,7 +41,8 @@ int main() {
     auto st = fat.mount(mal_block.device(), false, 0);
     if (!st) return -1;
 
-    vfs::set_mount(fat.mount_point());
+    vfs::clear_mounts();
+    (void)vfs::add_mount("/", fat.mount_point());
     return 0;
 }
 ```
@@ -49,4 +51,4 @@ int main() {
 
 - `MalFile` 仅用于 PC 验证或文件镜像后端。
 - `FatFsMount::mount(MalDevice&)` 仍会走 BlockDevice 形状（内部转换），保证兼容。
-- `vfs::set_mount()` 会清空现有挂载并将 `/` 指向该挂载点。
+- `vfs::clear_mounts()` + `vfs::add_mount("/", mount)` 用于显式建立根挂载。

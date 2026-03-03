@@ -6,7 +6,7 @@
 
 | 能力 | 目标依赖 | 现状 | 备注 |
 |---|---|---|---|
-| 格式化/输出 | `out.format` / `out.print` | Done | Ink 内部格式化已切换 |
+| 格式化/输出 | `out.format` / `out.api` | Done | Ink 内部格式化已切换 |
 | 日志与诊断 | `out.logger` / `trace_core` | TODO | trace_core 只写入 |
 | 容器/池 | `core/service/*` | TODO | 只替换存储模型 |
 | span/optional/expected | `core/util/*` | TODO | util 层统一别名 |
@@ -17,7 +17,7 @@
 
 | 能力 | 目标依赖 | 现状 | 备注 |
 |---|---|---|---|
-| 格式化/输出 | `out.format` / `out.print` | TODO | 与 Ink 同步 |
+| 格式化/输出 | `out.format` / `out.api` | TODO | 与 Ink 同步 |
 | 诊断/trace | `trace_core` / `service_trace` | Done | 日志统一接入 out.logger |
 | 容器/池 | `core/service/*` | TODO | 固定容量优先 |
 | span/optional/expected | `core/util/*` | TODO | util 层统一别名 |

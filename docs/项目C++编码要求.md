@@ -69,6 +69,7 @@
 | 格式化 | ✅ `out::format` / `out::printf` | 禁止 `printf/snprintf` |
 | 日志 | ✅ `out::logger` / `trace_core` | `trace_core` 只写入、不可格式化 |
 | 实时路径 | ⚠️ 只允许写入原始字节 | 不做格式化、不分配 |
+| 入口 | ✅ `out.api` | `out.print` 兼容层已移除 |
 
 ### B.2 模块依赖
 
@@ -86,6 +87,7 @@
 - `close/flush` 必须走统一回收路径。
 - 只读打开禁止隐式创建文件。
 - 错误码向上透传，不吞掉。
+- 根挂载需显式 `clear_mounts()` + `add_mount("/", mount)`。
 
 ### B.4 统一错误模型
 

@@ -392,7 +392,8 @@ export bool fs_boot_init() noexcept {
         out::println<"fs boot: mount failed {}">(static_cast<int>(st.err));
         return false;
     }
-    fs::set_mount(mount.mount_point());
+    fs::clear_mounts();
+    (void)fs::add_mount("/", mount.mount_point());
     out::println<"fs boot: mount ok">();
     return true;
 }

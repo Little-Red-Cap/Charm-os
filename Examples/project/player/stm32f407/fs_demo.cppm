@@ -563,7 +563,8 @@ export void fs_demo_run() noexcept {
         uart_write_int(static_cast<util::i32>(st.err));
         return;
     }
-    fs::set_mount(mount.mount_point());
+    fs::clear_mounts();
+    (void)fs::add_mount("/", mount.mount_point());
 
     uart_write("fs demo: list /\r\n");
     st = list_recursive("/", 0);
@@ -621,7 +622,8 @@ export bool fs_boot_init() noexcept {
         uart_write("fs boot: mount failed\r\n");
         return false;
     }
-    fs::set_mount(mount.mount_point());
+    fs::clear_mounts();
+    (void)fs::add_mount("/", mount.mount_point());
     uart_write("fs boot: mount ok\r\n");
     return true;
 }

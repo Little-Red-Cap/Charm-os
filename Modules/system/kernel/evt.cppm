@@ -17,6 +17,7 @@ export namespace kernel {
         sync,
         message,
         terminate,
+        reactor_drain,
         user0,
         user1,
         count

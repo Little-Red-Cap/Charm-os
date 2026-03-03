@@ -7,7 +7,6 @@ export module charm.system.init_usart;
 
 import init.graph;
 import init.node;
-import io.registry;
 import io.reactor;
 import platform.irq;
 import hal_uart;
@@ -17,34 +16,24 @@ import util.core;
 import util.error;
 
 export namespace charm::system {
-    template <util::usize MaxEndpoints, util::usize RxCap, util::usize TxCap>
+    template <typename RegistryT, util::usize RxCap, util::usize TxCap>
     struct UsartInitChain {
-        using RegistryT = io::Registry<MaxEndpoints>;
-
-        RegistryT registry{};
-        io::Reactor reactor{};
         platform::IrqBinding irq{};
-        io::RegistryBinding<RegistryT> registry_binding;
-        io::ReactorBinding reactor_binding;
         hal::UartBinding uart_binding;
         driver::usart::ChannelBinding<RegistryT, RxCap, TxCap> channel_binding;
-        std::array<const init::Node*, 5> nodes{};
+        std::array<const init::Node*, 3> nodes{};
 
-        UsartInitChain(hal::UartIoHandle uart,
+        UsartInitChain(RegistryT& registry,
+                       io::Reactor& reactor,
+                       hal::UartIoHandle uart,
                        const hal::UartConfig& cfg,
                        const char* uart_cap = "io.uart1",
                        const char* hal_cap = "hal.uart1") noexcept
-            : registry(),
-              reactor(),
-              irq(),
-              registry_binding(registry),
-              reactor_binding(reactor),
+            : irq(),
               uart_binding(uart, cfg, hal_cap, "platform.irq"),
               channel_binding(registry, reactor, uart, uart_cap, hal_cap) {
             nodes = {
                 &irq.node,
-                &registry_binding.node,
-                &reactor_binding.node,
                 &uart_binding.node,
                 &channel_binding.node
             };

@@ -1,19 +1,16 @@
 module;
 
-#include <array>
 #include <cstddef>
-#include <span>
+#include <utility>
 
 export module charm.system.bringup.win_stub;
 
 import charm.system.bringup;
 import charm.system.reactor_pump;
 import io.channel;
-import init.node;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
-import kernel.eda.node;
 import kernel.evt;
 import kernel.scheduler;
 import platform.board.win_stub;
@@ -38,7 +35,6 @@ export namespace charm::system {
 
     inline util::Result<void> bringup_minimal_win_stub() noexcept {
         auto caps = platform::board::win_stub::make_board_caps();
-        BringupMinimal<8, 16, 8, 64, 64> bringup{caps.uart1};
         using PumpTask = charm::system::ReactorPumpTask;
         using Registry = kernel::TaskRegistry<PumpTask>;
         Registry registry{};
@@ -48,22 +44,15 @@ export namespace charm::system {
         const auto pump_id = Registry::id_of<PumpTask>();
         auto& pump = registry.get<PumpTask>();
 
-        kernel::EdaBinding eda_binding{};
-        charm::system::ReactorPumpBinding pump_binding{
+        BringupMinimal<8, 16, 8, 64, 64> bringup{
+            caps.uart1,
             pump,
-            bringup.reactor(),
             &charm::system::scheduler_post<decltype(running)>,
             &running,
             pump_id,
             8
         };
-        const std::array<const init::Node*, 2> extra_nodes{
-            &eda_binding.node,
-            &pump_binding.node
-        };
-        auto r = bringup.start(static_cast<util::u32>(init::Runlevel::all),
-                               init::Phase::app,
-                               std::span<const init::Node* const>(extra_nodes.data(), extra_nodes.size()));
+        auto r = bringup.start();
         if (!r) return r;
 
         auto* ch = bringup.registry().open_channel("io.uart1");

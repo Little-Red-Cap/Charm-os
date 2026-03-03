@@ -11,7 +11,7 @@
 export module out.logger;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format, out.domain, out.ansi, out.channel
-// Forbidden out.* imports: out.api, out.print
+// Forbidden out.* imports: out.api
 // Rationale: logger is the single behavior owner (prefix/style/timestamp/newline/flush/error-policy).
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 
@@ -21,7 +21,7 @@ import out.core;
 import out.domain;
 import out.format;
 import out.sink;
-import io.channel;
+import util.core;
 import util.expected;
 
 #if defined(OUT_ERROR_PROPAGATE)
@@ -49,8 +49,22 @@ export namespace out {
         error_policy::ignore;
 #endif
 
+    using TimestampFn = util::u64 (*)(void* ctx) noexcept;
+
     // error_hook is intended to be set during initialization only (not thread-safe).
     inline void (*error_hook)(errc) = nullptr;
+    inline TimestampFn timestamp_fn = nullptr;
+    inline void* timestamp_ctx = nullptr;
+
+    inline void set_timestamp_provider(TimestampFn fn, void* ctx) noexcept {
+        timestamp_fn = fn;
+        timestamp_ctx = ctx;
+    }
+
+    inline util::u64 timestamp_now() noexcept {
+        if (!timestamp_fn) return 0;
+        return timestamp_fn(timestamp_ctx);
+    }
 
     enum class newline : std::uint8_t { none, lf, crlf };
 
@@ -325,7 +339,7 @@ export namespace out {
                 detail::buffered_writer<decltype(sink), OUT_LOGGER_WRITE_BUFFER_SIZE> bw{sink};
 
                 if (with_timestamp) {
-                    auto rts = vprint<"[{}] ", decltype(bw), false>(bw, io::now_ms());
+                    auto rts = vprint<"[{}] ", decltype(bw), false>(bw, timestamp_now());
                     if (!rts) return util::unexpected(rts.error());
                     total += *rts;
                 }

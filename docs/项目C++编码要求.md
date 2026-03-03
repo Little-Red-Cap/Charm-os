@@ -1,18 +1,20 @@
-# 项目规范（持续维护）
+﻿# 项目规范（持续维护）
 
 目标：把分散的子库统一到同一套工程约束中，减少“各用各的”。
 
-## 1) 输出与日志
+> 说明：本规范分为两类。
+> - A 通用 C++ 要求：语言/运行时/编码习惯
+> - B Charm 架构要求：模块装配/通道/错误模型/依赖纪律
 
-使用`out::format` / `out::printf`替换 `std::printf` / `std::snprintf`
+## A) 通用 C++ 要求
 
-| 项目 | 规则 | 说明 |
-| --- | --- | --- |
-| 格式化 | ✅ `out::format` / `out::printf` | 禁止 `printf/snprintf` |
-| 日志 | ✅ `out::logger` / `trace_core` | `trace_core` 只写入、不可格式化 |
-| 实时路径 | ⚠️ 只允许写入原始字节 | 不做格式化、不分配 |
+### A.1 语言与运行时
 
-## 2) 容器与内存
+- 禁止异常（`throw`）、RTTI（`dynamic_cast`）
+- 除 Windows 平台外，禁止 `std::thread` / `std::mutex` / `std::atomic`
+- 默认使用 C++ Modules，C++23/26 语义为主
+
+### A.2 容器与内存
 
 | 类别 | MCU 实时路径 | MCU 非实时 | PC/工具 |
 | --- | --- | --- | --- |
@@ -24,7 +26,52 @@
 - Kernel/驱动/实时回调禁止 `new/delete`。
 - 长生命周期对象优先池化或固定容量容器。
 
-## 3) 模块依赖
+### A.3 C++ 特性使用清单
+
+#### 允许
+
+- `enum class`、`constexpr`、`consteval`
+- `std::array`、`std::span`、`std::string_view`
+- `concept`、`requires`（优先替代虚表）
+- `std::optional`（可替换为轻量方案时再替）
+
+#### 受限
+
+- `std::vector/string/deque`：仅限非实时路径，需明确上限
+- `std::chrono`：仅限 PC/工具或通过 TimeSource 统一
+- `std::function`：优先用函数指针或 `function_ref`
+
+#### 禁止（除 Windows 平台）
+
+- `std::thread` / `std::mutex` / `std::atomic`
+- 异常（`throw`）、RTTI（`dynamic_cast`）
+
+> Windows 平台可按需开放，但不得影响 MCU 路径。
+
+### A.4 虚表与多态
+
+- MCU 路径默认禁用虚表，优先 `concept + template`。
+- 仅在 PC/工具端允许虚表，且必须标注平台限定。
+
+### A.5 字符集与编码
+
+- 对外接口统一 UTF-8。
+- 文档允许非 ASCII，代码默认 ASCII（除非已有非 ASCII 且有必要）。
+
+## B) Charm 架构要求
+
+### B.1 输出与日志
+
+使用 `out::format` / `out::printf` 替换 `std::printf` / `std::snprintf`
+
+| 项目 | 规则 | 说明 |
+| --- | --- | --- |
+| 格式化 | ✅ `out::format` / `out::printf` | 禁止 `printf/snprintf` |
+| 日志 | ✅ `out::logger` / `trace_core` | `trace_core` 只写入、不可格式化 |
+| 实时路径 | ⚠️ 只允许写入原始字节 | 不做格式化、不分配 |
+| 入口 | ✅ `out.api` | `out.print` 兼容层已移除 |
+
+### B.2 模块依赖
 
 分层：Foundation → Runtime → IO → Domain(UI/Media)
 
@@ -35,64 +82,48 @@
 | IO | Foundation/Runtime | Domain |
 | Domain | Foundation/Runtime/IO | 反向渗透 |
 
-## 4) 字符集与编码
-
-- 对外接口统一 UTF-8。
-- FAT LFN/UTF-16 处理放在 `fs` 层。
-- 文档允许非 ASCII，代码默认 ASCII（除非已有非 ASCII 且有必要）。
-
-## 5) 文件系统与 IO
+### B.3 文件系统与 IO
 
 - `close/flush` 必须走统一回收路径。
 - 只读打开禁止隐式创建文件。
 - 错误码向上透传，不吞掉。
+- 根挂载需显式 `clear_mounts()` + `add_mount("/", mount)`。
 
-## 5.1) 统一错误模型
+### B.4 统一错误模型
 
 - 错误码统一使用 `util::Errc`。
 - 结果类型统一使用 `util::Result<T>`（`expected<T, Errc>`）。
 - 需要额外上下文时，使用 `Errc + stage/context` 并显式命名，不再自建 Error 结构体。
 
-## 6) C++ 特性使用清单
+### B.5 IO 通道与协议纪律
 
-### 允许
+- `io::Channel` 的 `read/write` 必须非阻塞，禁止返回 `Ok(0)`。
+- 资源暂不可用必须返回 `Errc::would_block`。
+- 协议层禁止 busy-spin/阻塞/睡眠；等待/超时必须走 Kernel/EDA + `io.reactor`。
+- 通道获取优先 `io.registry.open("io.console0")` 或 cap id；默认通道仅兼容。
 
-- `enum class`、`constexpr`、`consteval`
-- `std::array`、`std::span`、`std::string_view`
-- `concept`、`requires`（优先替代虚表）
-- `std::optional`（可替换为轻量方案时再替）
+### B.6 初始化与能力装配
 
-### 受限
+- 初始化统一走 `init.graph`，禁止入口手写顺序。
+- 核心底座放入 `CoreSystemChain`，板级能力放入 `BoardChain`。
+- `extra nodes` 仅允许服务/应用类节点，禁止底座能力进入 extra。
 
-- `std::vector/string/deque`：仅限非实时路径，需明确上限
-- `std::chrono`：仅限 PC/工具或通过 TimeSource 统一
-- `std::function`：优先用函数指针或 `function_ref`
+### B.7 模块导出约定
 
-### 禁止（除 Windows 平台）
+- IO/Runtime/Foundation 层的 API 只导出统一入口，不暴露内部细节。
 
-- `std::thread` / `std::mutex` / `std::atomic`
-- 异常（`throw`）、RTTI（`dynamic_cast`）
-
-> Windows 平台可按需开放，但不得影响 MCU 路径。
-
-## 7) 虚表与多态
-
-- MCU 路径默认禁用虚表，优先 `concept + template`。
-- 仅在 PC/工具端允许虚表，且必须标注平台限定。
-
-## 8) CMake 与第三方
+### B.8 CMake 与第三方
 
 - 优先 `find_package` → 本地路径 → `FetchContent`。
 - 避免在核心模块引入“必须联网”的依赖。
 - 第三方库必须有开关控制（可编译排除）。
+- FatFs 固定使用 `Modules/thirdparty/fatfs`，覆盖目录用 `CHARM_FATFS_ROOT`。
 
-## 9) 模块导出约定
+### B.9 注意
 
-- IO/Runtime/Foundation 层的 API 只导出统一入口，不暴露内部细节。
+- 本项目使用 C++ Modules 需使用 CMake 4.0 及以上版本。
 
-## 10) 注意
-- 本项目使用C++ Module需使用 CMake 4.0及以上版本
+### B.10 提交与构建要求
 
-## 11）提交Git要求
-尽量进行构建后确认再提交
-如果是架构核心代码，需分别进行PC和MCU构建
+- 尽量进行构建后确认再提交。
+- 如果是架构核心代码，需分别进行 PC 和 MCU 构建。

@@ -97,7 +97,8 @@ int main() {
         }
     };
     static fs::Mount m{ &mops, g_bfs };
-    fs::set_mount(&m);
+    fs::clear_mounts();
+    (void)fs::add_mount("/", &m);
 
     using Posix = shell_posix::PosixApi<4>;
     int fd = Posix::open("/hello.txt");

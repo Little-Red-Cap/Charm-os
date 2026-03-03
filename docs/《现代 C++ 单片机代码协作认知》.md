@@ -87,6 +87,9 @@
 - ❌ RTTI（`typeid` / `dynamic_cast`）
 - ❌ 宏承担语义职责（宏仅用于条件编译和简单常量）
 - ❌ 运行期分支模拟编译期选择
+- ❌ 协议层 busy-spin/阻塞等待/自定义超时循环
+- ❌ 协议层直接依赖 platform/hal/driver（必须走 `io.channel/io.reactor/io.registry`）
+- ❌ 入口手写初始化顺序（必须走 `init.graph`）
 
 ### 3.2 强烈不推荐（尽量避免，需充分理由）
 

@@ -4,9 +4,9 @@
 
 ```
 Charm（统一架构）
-├─ Core（util/trace/service/alg）
-├─ System（Kernel/ModuleX/Boot）
-├─ IO（Channel/HAL/Port/FS/Shell/Out）
+├─ Core（util/trace/service/alg/init）
+├─ System（Kernel/ModuleX/Boot/InitChain）
+├─ IO（Channel/Reactor/Registry/HAL/Port/FS/Shell/Out）
 ├─ Media（Audio）
 ├─ UI/Ink（低资源 UI）
 └─ UI/Vivid（富 UI）
@@ -17,6 +17,7 @@ Charm（统一架构）
 将“分层”落到编译期入口，所有上层代码优先使用这些入口模块：
 
 - Foundation：`charm.foundation`（对外只暴露 util/trace/service/alg）
+- System：`charm.system`（system/init/bringup 汇总入口）
 - Runtime：`charm.runtime`（system + io）
 - Domains：`charm.domain`（media + ui）
 
@@ -44,10 +45,12 @@ graph TD
 
 ```
 Modules/
-  core/        # util/trace/service/alg
-  system/      # kernel/modulex/boot
-  io/          # hal/port/fs/shell/out/usb
+  core/        # util/trace/service/alg/init
+  system/      # kernel/modulex/boot/init/bringup
+  io/          # channel/reactor/registry/hal/port/fs/shell/out/usb
   io/channel/  # 统一字节通道（out/AT/协议复用）
+  io/reactor/  # 事件驱动 IO 反应堆
+  io/registry/ # IO 能力注册与发现
   media/       # audio
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
@@ -80,6 +83,9 @@ Draft/        # 计划/草案（可变动）
 - IO Channel：`Modules/io/channel/io.channel.cppm`
 - IO Channel 契约：`docs/io_channel_contract.md`
 - IO Reactor：`Modules/io/reactor/io.reactor.cppm`
+- IO Reactor 契约：`docs/io_reactor_contract.md`
+- IO Registry：`Modules/io/registry/io.registry.cppm`
+- IO Registry 契约：`docs/io_registry_contract.md`
 - Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
@@ -102,6 +108,7 @@ Draft/        # 计划/草案（可变动）
 - MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
 - VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
 - Service/Component 初始化顺序：`docs/service_component_init.md`
+- InitGraph 契约：`docs/init_graph_contract.md`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -113,13 +120,13 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### 初始化顺序（统一约束）
 
-应用层按固定顺序完成初始化，避免组件过早访问 HAL/服务：
+统一通过 `init.graph` 装配系统，避免“入口拼装地狱”：
 
-1) `service_init`（Foundation 服务层）
-2) `hal_init`（HAL/Port/平台）
-3) `component_init`（按需启用组件）
+1) `CoreSystemChain`：`io.registry` / `io.reactor` / `kernel.eda` / `reactor_pump` 等底座
+2) `BoardChain`：`platform.irq` / `hal.uart1` / `driver.usart_channel` 等板级能力
+3) `extra nodes`：仅允许服务/应用类节点（禁止底座能力进入 extra）
 
-> 说明：组件初始化由应用显式控制，避免默认启用全部子系统。
+> 说明：旧式 `service_init/hal_init/component_init` 已移除，新增功能必须走 `init.graph`。
 
 ### Foundation（能力基座）
 范围：
@@ -158,7 +165,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 目标：把“最强实现”收敛为真实依赖，但不立即清理旧实现。
 
 ### UI/Ink 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.print`
+- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
 - 日志与诊断：内部日志 → `out.logger`（或 `trace_core`）
 - 容器与池：自建容器/池 → `core/service/*`（fixed_vector/slot_pool/ring_queue）
 - 字符串/视图：自建 span/optional/expected → `core/util/*`
@@ -166,7 +173,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 输入事件：内部队列 → `service_ring_buffer` / `service_fifo`
 
 ### UI/Vivid 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.print`
+- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
 - 诊断与 trace：内部 debug → `trace_core` + `service_trace`
 - 容器与池：自建容器/池 → `core/service/*`
 - 字符串/视图：内部 span/optional/expected → `core/util/*`
@@ -195,9 +202,11 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### 依赖清单（当前）
 - SDL3：`cmake/SDL3.cmake`（PC 音频/窗口）
 - dr_mp3 / dr_flac：`cmake/DRLibs.cmake`（音频解码头文件）
+- FatFs：`Modules/thirdparty/fatfs`（内置源码）
 
 ### 关键开关
 - `CHARM_USE_SYSTEM_SDL3` / `CHARM_FETCHCONTENT_SDL3`
+- `CHARM_FATFS_ROOT`（仅用于覆盖本地 FatFs 目录）
 
 ## 1.5 统一错误模型
 
@@ -248,14 +257,16 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### Out
 - out.core/out.api/out.format/out.ansi/out.logger
-- out.sink/out.print/out.domain/out.channel（统一走 io.channel）
+- out.sink/out.domain/out.channel（统一走 io.channel）
 
 ### IO Channel
 - io.channel（统一字节通道）
+- io.reactor（事件驱动反应堆，唯一 drain 由 PumpTask 负责）
+- io.registry（能力注册/发现，替代全局默认通道）
 - io.channel.adapters（UART/CDC/TCP 通道适配模板）
 - out.channel（out 走通道）
-- at.transport_channel（AT 走通道）
-> 平台初始化需设置默认通道：`io::set_default_console_channel(...)`，否则 out 默认输出为空。
+- at.driver_reactor（AT 走通道 + Reactor 驱动）
+> 默认通道已移除；新代码必须通过 `io.registry` 或 RuntimeContext 注入通道。
 
 ### USB
 - 设备端骨架：descriptor/common、EP0 状态机
@@ -447,6 +458,8 @@ sequenceDiagram
 ## 10. 当前收敛状态
 
 - Windows 主线 M0–M3：已通过
+- InitGraph + CoreSystemChain + BoardChain：已落地
+- io.channel/io.reactor/io.registry：契约已固化
 - HAL/Service/Shell/FS/ModuleX demos：已通过
 - STM32：编译通过（待烧录验证）
 

@@ -7,7 +7,7 @@
 export module out.ansi;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink, out.format
-// Forbidden out.* imports: out.logger, out.api, out.print, out.domain
+// Forbidden out.* imports: out.logger, out.api, out.domain
 // Rationale: ANSI tokens are just formattable values; keep logger/ports out.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 

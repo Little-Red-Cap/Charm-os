@@ -129,8 +129,10 @@ export namespace init {
             const auto* node = nodes_[node_idx];
             const auto* prov = nodes_[provider_idx];
             if (!node || !prov) return false;
-            for (const auto req : node->requires_caps) {
-                for (const auto cap : prov->provides) {
+            for (util::usize r = 0; r < node->requires_caps.size(); ++r) {
+                const auto req = node->requires_caps[r];
+                for (util::usize p = 0; p < prov->provides.size(); ++p) {
+                    const auto cap = prov->provides[p];
                     if (req == cap) return true;
                 }
             }

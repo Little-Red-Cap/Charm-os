@@ -26,7 +26,6 @@ export import input.trace;
 export import at.parser;
 export import at.session;
 export import at.driver_reactor;
-export import at.transport_channel;
 
 export import port.kernel;
 export import io.channel;
@@ -71,7 +70,6 @@ export import out.core;
 export import out.domain;
 export import out.format;
 export import out.logger;
-export import out.print;
 export import out.sink;
 
 export import usb.common;

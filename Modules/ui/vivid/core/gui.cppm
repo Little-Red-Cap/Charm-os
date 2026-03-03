@@ -62,13 +62,14 @@ public:
     int last_frame_nodes() const noexcept { return debug_nodes_; }
     int last_depth_hits() const noexcept { return debug_depth_hits_; }
     int last_cycle_hits() const noexcept { return debug_cycle_hits_; }
-    void dump_trace() const noexcept {
+    template <out::Sink S>
+    void dump_trace(S& sink) const noexcept {
         const auto total = trace_.size();
         const auto cap = trace_.capacity();
         const auto head = trace_.head();
         const auto& data = trace_.data();
         const auto start = (head + cap - total) % cap;
-        auto out = out::raw();
+        auto out = out::raw(sink);
         (void)out.template try_println<"trace_v1,t,id,kind,payload,count">();
         for (util::usize i = 0; i < total; ++i) {
             const auto idx = (start + i) % cap;
@@ -82,11 +83,12 @@ public:
         }
     }
 
-    void dump_trace_demo() noexcept {
+    template <out::Sink S>
+    void dump_trace_demo(S& sink) noexcept {
         if (trace_.size() == 0) {
             trace_counter(GuiTraceId::FrameNodes, 0, 0);
         }
-        dump_trace();
+        dump_trace(sink);
     }
 
     struct TileRenderConfig {

@@ -8,7 +8,7 @@
 export module out.sink;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core
-// Forbidden out.* imports: out.format, out.ansi, out.logger, out.api, out.print
+// Forbidden out.* imports: out.format, out.ansi, out.logger, out.api
 // Rationale: low-level I/O concept + basic sinks. Must stay formatting-agnostic.
 // If you need functionality from a higher layer, add an extension point in this layer instead.
 

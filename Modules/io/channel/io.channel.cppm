@@ -42,51 +42,28 @@ export namespace io {
 
         result read(MutByteView buf) noexcept {
             if (!ops.read) return fail(errc::invalid);
-            return ops.read(ctx, buf);
+            auto r = ops.read(ctx, buf);
+            if (r && r.value() == 0) util::halt();
+            return r;
         }
 
         result write(ByteView buf) noexcept {
             if (!ops.write) return fail(errc::invalid);
-            return ops.write(ctx, buf);
+            auto r = ops.write(ctx, buf);
+            if (r && r.value() == 0) util::halt();
+            return r;
         }
 
         result flush() noexcept {
-            if (!ops.flush) return ok(0);
+            if (!ops.flush) return fail(errc::not_supported);
             return ops.flush(ctx);
         }
     };
 
-    Channel* default_console_channel() noexcept;
-    void set_default_console_channel(Channel* ch) noexcept;
-
-    using tick_t = util::u64;
-    using NowFn = tick_t (*)(void* ctx) noexcept;
-    tick_t now_ms() noexcept;
-    void set_now_ms_provider(NowFn fn, void* ctx) noexcept;
 }
 
 namespace io::detail {
-    inline Channel* g_default_console_channel = nullptr;
-    inline NowFn g_now_ms_fn = nullptr;
-    inline void* g_now_ms_ctx = nullptr;
 }
 
 export namespace io {
-    inline Channel* default_console_channel() noexcept {
-        return detail::g_default_console_channel;
-    }
-
-    inline void set_default_console_channel(Channel* ch) noexcept {
-        detail::g_default_console_channel = ch;
-    }
-
-    inline tick_t now_ms() noexcept {
-        if (!detail::g_now_ms_fn) return 0;
-        return detail::g_now_ms_fn(detail::g_now_ms_ctx);
-    }
-
-    inline void set_now_ms_provider(NowFn fn, void* ctx) noexcept {
-        detail::g_now_ms_fn = fn;
-        detail::g_now_ms_ctx = ctx;
-    }
 }

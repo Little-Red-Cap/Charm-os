@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <new>
 #include <type_traits>
 
@@ -20,7 +21,21 @@ import out.api;
 
 extern "C" void SystemClock_Config(void);
 
-out::port::console_sink uart_sink;
+struct uart_console_sink {
+    out::result<std::size_t> write(out::bytes b) noexcept {
+        if (b.empty()) return out::ok<std::size_t>(0u);
+        auto* data = const_cast<std::uint8_t*>(
+            reinterpret_cast<const std::uint8_t*>(b.data()));
+        const auto st = HAL_UART_Transmit(&huart1, data,
+            static_cast<std::uint16_t>(b.size()), 1000);
+        if (st != HAL_OK) {
+            return out::result<std::size_t>{std::unexpected(out::errc::io_error)};
+        }
+        return out::ok(b.size());
+    }
+};
+
+uart_console_sink uart_sink;
 
 namespace {
     constexpr bool kRunFsDemo = false;
@@ -29,6 +44,12 @@ namespace {
     enum class SelfTestMode : std::uint8_t { none, i2s_dma, sdio_dma, both };
     constexpr auto kSelfTest = SelfTestMode::none;
     std::array<std::uint16_t, 512> g_i2s_dma_buf{};
+
+    out::result<std::size_t> uart_sink_write(void* ctx, out::bytes b) noexcept {
+        auto* sink = static_cast<uart_console_sink*>(ctx);
+        if (!sink) return out::result<std::size_t>{std::unexpected(out::errc::io_error)};
+        return sink->write(b);
+    }
 
     void i2s_wave_dma_start() noexcept {
         constexpr std::size_t half_period = 24; // ~1kHz at 48kHz, ~918Hz at 44.1kHz
@@ -71,6 +92,7 @@ int main()
     MX_DMA_Init();
     MX_I2S2_Init();
     MX_USART1_UART_Init();
+    audio_mp3_demo_set_sink(&uart_sink, &uart_sink_write);
     {
         __HAL_RCC_GPIOA_CLK_ENABLE();
         GPIO_InitTypeDef gpio_init = {};

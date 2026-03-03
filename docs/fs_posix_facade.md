@@ -28,7 +28,8 @@ using Posix = fs_posix::PosixApi<8>;
 
 void demo_posix() {
     fs::RamFs<512, 8, 32> ramfs{};
-    fs::set_mount(ramfs.mount_point());
+    fs::clear_mounts();
+    (void)fs::add_mount("/", ramfs.mount_point());
 
     int fd = Posix::open("/hello.txt", fs_posix::O_CREAT | fs_posix::O_TRUNC | fs_posix::O_RDWR);
     if (fd < 0) return;

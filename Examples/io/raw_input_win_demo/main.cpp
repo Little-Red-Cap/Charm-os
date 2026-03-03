@@ -7,7 +7,7 @@ import hal_input;
 import hal_win;
 import input.sampler;
 import input.raw_event;
-import out.print;
+import out.api;
 
 namespace {
     struct ScriptedInput {

@@ -58,3 +58,9 @@ Reentrancy rules (default):
 
 Protocol layers must not implement wait loops.
 Waiting and timeout are handled by the kernel (Reactor/EDA).
+
+## 6) Contract violations
+
+- Any `Ok(0)` from read/write is treated as a hard fault.
+- Protocol-layer busy-spin/sleep is forbidden and should fail CI checks.
+- Protocol modules must not import platform/hal directly (enforced by import checks).

@@ -9,6 +9,8 @@ export module driver.usart_channel;
 import hal_uart;
 import io.channel;
 import io.reactor;
+import io.registry;
+import init.node;
 import service_ring_buffer;
 import util.core;
 import util.error;
@@ -31,6 +33,7 @@ export namespace driver::usart {
         const io::Channel& channel() const noexcept { return channel_; }
 
         void set_reactor(io::Reactor* r) noexcept { reactor_ = r; }
+        hal::UartIoHandle uart_handle() const noexcept { return uart_; }
 
         void on_irq() noexcept {
             const bool rx_was_empty = rx_.empty();
@@ -156,5 +159,55 @@ export namespace driver::usart {
         bool tx_pending_valid_{false};
         bool rx_overflow_{false};
         bool tx_full_{false};
+    };
+
+    template <typename RegistryT, util::usize RxCap, util::usize TxCap>
+    struct ChannelBinding {
+        ChannelAdapter<RxCap, TxCap> adapter;
+        RegistryT* registry{nullptr};
+        io::Reactor* reactor{nullptr};
+        io::EndpointDesc desc{};
+        std::array<init::CapId, 1> provides{};
+        std::array<init::CapId, 3> requires{};
+        init::Node node{};
+
+        ChannelBinding(RegistryT& reg,
+                       io::Reactor& r,
+                       hal::UartIoHandle uart,
+                       const char* endpoint_name,
+                       const char* hal_cap_name = "hal.uart1") noexcept
+            : adapter(uart, &r),
+              registry(&reg),
+              reactor(&r),
+              desc{endpoint_name,
+                   io::cap_id(endpoint_name),
+                   io::EndpointKind::channel,
+                   io::EndpointCaps::duplex} {
+            provides[0] = init::cap_id(endpoint_name);
+            requires[0] = init::cap_id("io.registry");
+            requires[1] = init::cap_id("io.reactor");
+            requires[2] = init::cap_id(hal_cap_name);
+            node = init::Node{
+                endpoint_name,
+                init::Phase::service,
+                static_cast<util::u32>(init::Runlevel::all),
+                std::span<const init::CapId>(provides.data(), provides.size()),
+                std::span<const init::CapId>(requires.data(), requires.size()),
+                &ChannelBinding::init_trampoline,
+                nullptr,
+                this
+            };
+        }
+
+        static util::Result<void> init_trampoline(void* ctx) noexcept {
+            auto* self = static_cast<ChannelBinding*>(ctx);
+            if (!self || !self->registry) return util::unexpected(util::Errc::invalid_arg);
+            auto r = self->registry->register_channel(self->desc, self->adapter.channel(), self->reactor);
+            if (!r) return r;
+            hal::uart_enable_irq(self->adapter.uart_handle(),
+                                 static_cast<util::u32>(hal::UartIrq::rx) |
+                                 static_cast<util::u32>(hal::UartIrq::err));
+            return {};
+        }
     };
 }

@@ -571,7 +571,7 @@ public:
             input_emit_event(input_root_, Event::mouse(Event::Type::MouseMove, input_last_x_, input_last_y_, 0));
         }
         if (input_events_.overflowed) {
-            input_handle_overflow();
+            input_handle_overflow(false);
         }
     }
 #endif
@@ -1570,6 +1570,7 @@ private:
             input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button));
             set_hovered(input_hovered_, false);
         }
+        input_hovered_ = {};
         input_pressed_ = {};
         input_captured_ = {};
         input_scroll_target_ = {};
@@ -1577,10 +1578,12 @@ private:
         input_button_ = 0;
     }
 
-    void input_handle_overflow() {
+    void input_handle_overflow(bool allow_assert = true) {
         // Overflow is fail-safe: state is cleared, semantic events are not guaranteed.
 #ifndef NDEBUG
-        assert(false && "SoaKernel input event overflow");
+        if (allow_assert) {
+            assert(false && "SoaKernel input event overflow");
+        }
 #endif
         if (input_pressed_) {
             set_pressed(input_pressed_, false);

@@ -1,5 +1,7 @@
-#include <SDL3/SDL.h>
+﻿#include <SDL3/SDL.h>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <string_view>
 
 import charm.core.soa_kernel;
@@ -39,7 +41,8 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 128 * 1024;
+    constexpr std::size_t kMaxStyleTableBytes = 5900;
+    std::FILE* g_regress_log = nullptr;
 
     const char* event_type_name(Event::Type type) noexcept {
         switch (type) {
@@ -94,6 +97,9 @@ namespace {
     bool expect_true(bool cond, const char* label, int& fails) noexcept {
         if (cond) return true;
         (void)out::println<"[soa][fail] {}">(label);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log, "[soa][fail] %s\n", label);
+        }
         ++fails;
         return false;
     }
@@ -236,6 +242,10 @@ namespace {
         gui.render();
         kernel.layout_trace_reset();
 
+        gui.dispatch_event(Event::mouse(Event::Type::Cancel, 0, 0, 0));
+        gui.render();
+        kernel.layout_trace_reset();
+
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
         gui.render();
         expect_true(kernel.layout_invalidated_count() == 0, "layout: hover invalidated with influence off", fails);
@@ -260,6 +270,7 @@ namespace {
 
         kernel.set_layout_state_influence(true);
         gui.render();
+        kernel.set_focused(layout_box, false);
         kernel.layout_trace_reset();
 
         kernel.set_focused(layout_box, true);
@@ -268,6 +279,8 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "layout: focus pass but mask forbids", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "layout: focus missing paint invalidation", fails);
 
+        gui.dispatch_event(Event::mouse(Event::Type::Cancel, 0, 0, 0));
+        gui.render();
         kernel.layout_trace_reset();
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 280, 0));
         gui.render();
@@ -295,7 +308,7 @@ namespace {
 
         kernel.layout_trace_reset();
         const int scroll_before = kernel.scroll_y(scroll);
-        gui.dispatch_event(Event::wheel(300, 280, 1));
+        gui.dispatch_event(Event::wheel(300, 280, -1));
         gui.render();
         const int scroll_after = kernel.scroll_y(scroll);
         expect_true(scroll_after != scroll_before, "layout: scroll container did not scroll", fails);
@@ -306,9 +319,9 @@ namespace {
         kernel.layout_trace_reset();
         const int drag_before = kernel.scroll_y(scroll);
         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 300, 280, 1));
-        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 300, 320, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 300, 240, 0));
         gui.render();
-        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 300, 320, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 300, 240, 1));
         const int drag_after = kernel.scroll_y(scroll);
         expect_true(drag_after != drag_before, "layout: scroll drag did not scroll", fails);
         expect_true(kernel.layout_invalidated_count() == 0, "layout: scroll drag invalidated layout", fails);
@@ -339,7 +352,7 @@ namespace {
 
         kernel.layout_trace_reset();
         const int list_before = kernel.scroll_y(list);
-        gui.dispatch_event(Event::wheel(60, 440, 1));
+        gui.dispatch_event(Event::wheel(60, 440, -1));
         gui.render();
         const int list_after = kernel.scroll_y(list);
         expect_true(list_after != list_before, "layout: list did not scroll", fails);
@@ -396,8 +409,26 @@ namespace {
         expect_true(table_after == table_before + 1u, "style: style table not rebuilt", fails);
 
         const StyleStats stats = sheet.style_stats();
+        (void)out::println<"[soa] style bytes: colors={} metrics_id={} pool={} total={} pool_size={}">(
+            static_cast<std::uint32_t>(stats.style_colors_bytes),
+            static_cast<std::uint32_t>(stats.style_metrics_id_bytes),
+            static_cast<std::uint32_t>(stats.metrics_pool_bytes),
+            static_cast<std::uint32_t>(stats.style_table_total_bytes),
+            static_cast<std::uint32_t>(stats.metrics_pool_size));
         expect_true(!stats.metrics_overflowed, "style: metrics pool overflowed", fails);
         expect_true(stats.style_table_total_bytes <= kMaxStyleTableBytes, "style: table bytes too large", fails);
+
+        if (g_regress_log) {
+            std::fprintf(g_regress_log,
+                         "[soa] style bytes: colors=%u metrics_id=%u pool=%u total=%u pool_size=%u\n",
+                         static_cast<unsigned>(stats.style_colors_bytes),
+                         static_cast<unsigned>(stats.style_metrics_id_bytes),
+                         static_cast<unsigned>(stats.metrics_pool_bytes),
+                         static_cast<unsigned>(stats.style_table_total_bytes),
+                         static_cast<unsigned>(stats.metrics_pool_size));
+            std::fprintf(g_regress_log, "[soa] metrics_overflowed=%u\n",
+                         stats.metrics_overflowed ? 1u : 0u);
+        }
 
         for (WidgetKind kind : enabled_widget_kinds) {
             const StyleKindStateInfo info = sheet.style_kind_state_info(kind);
@@ -408,6 +439,16 @@ namespace {
                 static_cast<int>(info.state_offset),
                 static_cast<int>(info.variant_count),
                 static_cast<int>(info.variant_offset));
+            if (g_regress_log) {
+                std::fprintf(g_regress_log,
+                             "[soa] style kind=%s mask=0x%02X states=%u offset=%u variants=%u v_offset=%u\n",
+                             widget_kind_name(kind),
+                             static_cast<unsigned>(info.mask),
+                             static_cast<unsigned>(info.state_count),
+                             static_cast<unsigned>(info.state_offset),
+                             static_cast<unsigned>(info.variant_count),
+                             static_cast<unsigned>(info.variant_offset));
+            }
         }
 
         if (fails == 0) {
@@ -419,20 +460,17 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-#if defined(VIVID_SOA_TRACE_INPUT)
     bool run_regress = false;
     bool run_regress_layout = false;
-#else
-    (void)argc;
-    (void)argv;
-#endif
-    apply_theme_tokens(ThemeTokens{});
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
-        return 1;
-    }
-
 #if defined(VIVID_SOA_TRACE_INPUT)
+    char log_path[512]{};
+    const char* temp_dir = std::getenv("TEMP");
+    if (temp_dir && temp_dir[0]) {
+        std::snprintf(log_path, sizeof(log_path), "%s\\soa_regress.log", temp_dir);
+    } else {
+        std::snprintf(log_path, sizeof(log_path), "soa_regress.log");
+    }
+    g_regress_log = std::fopen(log_path, "wb");
     for (int i = 1; i < argc; ++i) {
         if (std::string_view(argv[i]) == "--soa-regress") {
             run_regress = true;
@@ -441,34 +479,26 @@ int main(int argc, char** argv) {
             run_regress_layout = true;
         }
     }
+    if (g_regress_log) {
+        std::fprintf(g_regress_log, "[soa] log_path=%s\n", log_path);
+        std::fprintf(g_regress_log, "[soa] regress=%u layout=%u\n",
+                     run_regress ? 1u : 0u, run_regress_layout ? 1u : 0u);
+    }
+    auto close_regress_log = []() noexcept {
+        if (g_regress_log) {
+            std::fclose(g_regress_log);
+            g_regress_log = nullptr;
+        }
+    };
+#else
+    (void)argc;
+    (void)argv;
 #endif
+    apply_theme_tokens(ThemeTokens{});
+    const bool run_headless = run_regress || run_regress_layout;
 
-    SDL_Window* window = SDL_CreateWindow("Vivid SoA Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
-    if (!window) {
-        (void)out::error<"SDL_CreateWindow failed: {}">(SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) {
-        (void)out::error<"SDL_CreateRenderer failed: {}">(SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
-                                             screen_width, screen_height);
-    if (!texture) {
-        (void)out::error<"SDL_CreateTexture failed: {}">(SDL_GetError());
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    DefaultFrameBuffer fb{};
+    // Keep the large framebuffer off the stack to avoid stack overflow.
+    static DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
 
     SoaKernel kernel{};
@@ -538,30 +568,75 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
         if (!run_input_regression(gui, kernel, factory, root)) {
-            SDL_DestroyTexture(texture);
-            SDL_DestroyRenderer(renderer);
-            SDL_DestroyWindow(window);
-            SDL_Quit();
+            close_regress_log();
             return 1;
         }
         if (!run_style_regression(gui)) {
-            SDL_DestroyTexture(texture);
-            SDL_DestroyRenderer(renderer);
-            SDL_DestroyWindow(window);
-            SDL_Quit();
+            close_regress_log();
             return 1;
         }
     }
     if (run_regress_layout) {
         if (!run_layout_regression(gui, kernel, factory, root)) {
-            SDL_DestroyTexture(texture);
-            SDL_DestroyRenderer(renderer);
-            SDL_DestroyWindow(window);
-            SDL_Quit();
+            close_regress_log();
             return 1;
         }
     }
+    if (run_headless) {
+        close_regress_log();
+        return 0;
+    }
 #endif
+
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
+#if defined(VIVID_SOA_TRACE_INPUT)
+        close_regress_log();
+#endif
+        return 1;
+    }
+
+    SDL_Window* window = SDL_CreateWindow("Vivid SoA Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
+    if (!window) {
+        (void)out::error<"SDL_CreateWindow failed: {}">(SDL_GetError());
+        SDL_Quit();
+#if defined(VIVID_SOA_TRACE_INPUT)
+        close_regress_log();
+#endif
+        return 1;
+    }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer) {
+        (void)out::error<"SDL_CreateRenderer failed: {}">(SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+#if defined(VIVID_SOA_TRACE_INPUT)
+        close_regress_log();
+#endif
+        return 1;
+    }
+
+    auto to_sdl_format = []() noexcept {
+        switch (screen_pixel_format) {
+        case PixelFormat::RGB565: return SDL_PIXELFORMAT_RGB565;
+        case PixelFormat::RGB888: return SDL_PIXELFORMAT_RGB24;
+        case PixelFormat::ARGB8888: return SDL_PIXELFORMAT_ARGB8888;
+        }
+        return SDL_PIXELFORMAT_RGB24;
+    };
+    SDL_Texture* texture = SDL_CreateTexture(renderer, to_sdl_format(), SDL_TEXTUREACCESS_STREAMING,
+                                             screen_width, screen_height);
+    if (!texture) {
+        (void)out::error<"SDL_CreateTexture failed: {}">(SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+#if defined(VIVID_SOA_TRACE_INPUT)
+        close_regress_log();
+#endif
+        return 1;
+    }
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -639,5 +714,9 @@ int main(int argc, char** argv) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+#if defined(VIVID_SOA_TRACE_INPUT)
+    close_regress_log();
+#endif
     return 0;
 }
+

@@ -161,6 +161,9 @@ inline constexpr std::size_t kTotalVariantSlots = count_total_variant_slots(kKin
 
 constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
     const std::uint8_t interactive = kStyleStateMaskDefault;
+    const std::uint8_t press_only =
+        static_cast<std::uint8_t>(StyleStateFlag::Pressed)
+        | static_cast<std::uint8_t>(StyleStateFlag::Disabled);
     const std::uint8_t readonly = static_cast<std::uint8_t>(StyleStateFlag::Disabled);
     switch (kind) {
         case WidgetKind::None:
@@ -214,28 +217,29 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::TreeView:
         case WidgetKind::ScrollContainer:
             return readonly;
+        case WidgetKind::Slider:
+        case WidgetKind::ScrollBar:
+        case WidgetKind::Roller:
+        case WidgetKind::Spinner:
+        case WidgetKind::NumberList:
+        case WidgetKind::SpinZoomWidget:
+        case WidgetKind::TextInput:
+        case WidgetKind::TextArea:
+        case WidgetKind::NumberInput:
+            return press_only;
         case WidgetKind::Button:
         case WidgetKind::Checkbox:
         case WidgetKind::Radio:
         case WidgetKind::Switch:
-        case WidgetKind::Slider:
-        case WidgetKind::ScrollBar:
         case WidgetKind::SegmentedControl:
         case WidgetKind::Dropdown:
         case WidgetKind::TabView:
         case WidgetKind::Stepper:
         case WidgetKind::Menu:
         case WidgetKind::MenuItem:
-        case WidgetKind::TextInput:
-        case WidgetKind::TextArea:
-        case WidgetKind::NumberInput:
         case WidgetKind::ToggleGroup:
         case WidgetKind::ListItem:
         case WidgetKind::FoldablePanel:
-        case WidgetKind::Roller:
-        case WidgetKind::Spinner:
-        case WidgetKind::NumberList:
-        case WidgetKind::SpinZoomWidget:
             return interactive;
     }
     return readonly;
@@ -1000,7 +1004,7 @@ private:
 #if defined(VIVID_SOA_TRACE_INPUT)
     std::uint32_t role_palette_compile_count_{0};
     std::uint32_t style_table_compile_count_{0};
-    std::uint32_t style_lookup_count_{0};
+    mutable std::uint32_t style_lookup_count_{0};
 #endif
 };
 

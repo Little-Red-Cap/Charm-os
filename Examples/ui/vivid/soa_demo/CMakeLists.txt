@@ -3,6 +3,7 @@ project(vivid-soa-demo)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
+option(CHARM_VIVID_SOA_TRACE_INPUT "Enable SoA trace-only hooks for regression" OFF)
 
 add_executable(${target_name}
     main.cpp
@@ -24,6 +25,11 @@ set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
 set(CHARM_VIVID_SOA_ONLY ON CACHE BOOL "" FORCE)
 
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
+
+if (CHARM_VIVID_SOA_TRACE_INPUT)
+    target_compile_definitions(${target_name} PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
+endif()
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"

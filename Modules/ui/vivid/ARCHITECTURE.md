@@ -234,6 +234,19 @@ flowchart TB
 - 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
 - StyleSheet 规则优先级为确定性模型：kind specificity > variant specificity > state mask 位数（更多位更具体），同级按插入顺序稳定排序。
 
+### 6.1 Style 状态掩码矩阵（StyleState mask）
+
+目的：按控件裁剪 style 维度，避免表尺寸爆炸；Focused 不进入 style（只用于 focus ring 绘制）。
+
+- `style_state_mask_for_kind(kind)` 为编译期常量；`state_count = 1 << popcount(mask)`。
+- mask 只包含 `Hovered / Pressed / Disabled` 三类状态位（Focused 不进入 style）。
+
+| 分类 | mask | 说明 | 控件 |
+| --- | --- | --- | --- |
+| readonly | Disabled | 展示类控件，仅允许禁用态影响样式 | Container、ScrollContainer、Dial、Arc、Image、Label、Led、Progress、ModalDialog、ProgressBarSimple、DynamicNebula、CrtScreen、Bar、PopupLayer、MessageBox、RadioGroup、Chart、Waveform、Gauge、PrimitivesCanvas、PerfOverlay、Timeline、RichText、CodeBlock、ProgressWheel、WaveformView、BatteryGauge、HistogramView、RingIndication、TextBox、ProgressFlowing、CloudyGlass、ProgressBarRound、SpinningWheel、ImageBox、MeterPointer、ProgressBarDrill、SpectrumView、BusyWheel、ConsoleBox、BatteryGasGauge、Histogram、List、ListView、IconList、TextTrackingList、TextList、TableView、TreeView |
+| press_only | Pressed + Disabled | 允许按下态但不跟随 hover | Slider、ScrollBar、Roller、Spinner、NumberList、SpinZoomWidget、TextInput、TextArea、NumberInput |
+| interactive | Hovered + Pressed + Disabled | 典型交互控件 | Button、Checkbox、Radio、Switch、SegmentedControl、Dropdown、TabView、Stepper、Menu、MenuItem、ToggleGroup、ListItem、FoldablePanel |
+
 ## 7. 诊断与可观测性
 
 - 统一接入 trace_core 做机器可读事件输出。

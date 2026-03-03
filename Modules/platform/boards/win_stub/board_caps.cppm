@@ -3,8 +3,9 @@ module;
 export module platform.board.win_stub;
 
 import platform.board;
+import hal_core;
+import hal_uart;
 import hal_win;
-import util.core;
 
 namespace {
     struct WinUartCtx {
@@ -51,21 +52,21 @@ namespace {
         hal::win::Uart::clear_irq(self->handle, mask);
     }
 
-    const hal::UartOps kWinUartOps{
-        &win_uart_init,
-        &win_uart_enable,
-        &win_uart_disable,
-        &win_uart_try_write,
-        &win_uart_try_read,
-        &win_uart_enable_irq,
-        &win_uart_disable_irq,
-        &win_uart_clear_irq
-    };
 } // namespace
 
 export namespace platform::board::win_stub {
     inline BoardCaps make_board_caps() noexcept {
         static WinUartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
+        static const hal::UartOps kWinUartOps{
+            &win_uart_init,
+            &win_uart_enable,
+            &win_uart_disable,
+            &win_uart_try_write,
+            &win_uart_try_read,
+            &win_uart_enable_irq,
+            &win_uart_disable_irq,
+            &win_uart_clear_irq
+        };
         BoardCaps caps{};
         caps.uart1.handle = hal::UartIoHandle{&uart1_ctx, &kWinUartOps};
         caps.uart1.config = hal::UartConfig{};

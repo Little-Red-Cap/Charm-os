@@ -6,6 +6,7 @@ module;
 export module hal_uart.node;
 
 import hal_uart;
+import hal_core;
 import init.node;
 import util.core;
 import util.error;

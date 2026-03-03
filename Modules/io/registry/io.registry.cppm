@@ -116,7 +116,9 @@ export namespace io {
 
         const ChannelEndpoint* find_channel(std::string_view name) const noexcept {
             for (util::usize i = 0; i < count_; ++i) {
-                if (endpoints_[i].desc.name == name) return &endpoints_[i];
+                if (endpoints_[i].desc.name.compare(name) == 0) {
+                    return &endpoints_[i];
+                }
             }
             return nullptr;
         }

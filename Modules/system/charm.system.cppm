@@ -6,6 +6,7 @@ export import kernel.context;
 export import kernel.deps;
 export import kernel.dynamic_registry;
 export import kernel.eda;
+export import kernel.eda.node;
 export import kernel.evt;
 export import kernel.evt_queue;
 export import kernel.event_queue;
@@ -56,6 +57,8 @@ export import power.types;
 export import charm.system.init;
 export import charm.system.init_usart;
 export import charm.system.bringup;
+export import charm.system.bringup.win_stub;
+export import charm.system.reactor_pump;
 
 export import device.desc;
 export import device.bus;

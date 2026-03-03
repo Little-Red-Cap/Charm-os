@@ -95,7 +95,7 @@ export namespace io {
             }
             for (util::usize i = 0; i < count_; ++i) {
                 if (endpoints_[i].desc.cap != desc.cap) continue;
-                if (endpoints_[i].desc.name != desc.name) {
+                if (endpoints_[i].desc.name.compare(desc.name) != 0) {
                     return util::unexpected(util::Errc::exist);
                 }
                 endpoints_[i] = ChannelEndpoint{desc, &ch, reactor};

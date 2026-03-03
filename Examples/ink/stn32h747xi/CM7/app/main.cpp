@@ -2,10 +2,33 @@
 #include <cstdint>
 #include <utility>
 
+/*
+LED
+    StateLED-> PI15
+
+UART
+    PA10     ------> USART1_RX
+    PA9     ------> USART1_TX
+
+OLED
+    PB10     ------> I2C2_SCL
+    PB11     ------> I2C2_SDA
+
+Encoder
+    PI7     ------> Key
+    PI6     ------> TIM8_CH2
+    PI5     ------> TIM8_CH1
+
+Debug
+    PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
+    PA13 (JTMS/SWDIO)   ------> DEBUG_JTMS-SWDIO
+ */
+
 import charm.system.bringup;
 import charm.system.reactor_pump;
 import driver.usart_channel;
 import io.channel;
+import io.registry;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
@@ -87,6 +110,21 @@ int main() {
         Error_Handler();
     }
     g_uart_adapter = static_cast<driver::usart::ChannelAdapter<kRxCap, kTxCap>*>(ch->ctx);
+
+    io::EndpointDesc console_desc{
+        "io.console0",
+        io::cap_id("io.console0"),
+        io::EndpointKind::channel,
+        io::EndpointCaps::duplex
+    };
+    auto& reg = bringup.registry();
+    auto* console_ep = reg.find_channel("io.console0");
+    auto r_console = console_ep
+        ? reg.replace_channel(console_desc, *ch, &bringup.reactor())
+        : reg.register_channel(console_desc, *ch, &bringup.reactor());
+    if (!r_console) {
+        Error_Handler();
+    }
 
     const char msg[] = "bringup ok\n";
     auto wr = ch->write(io::ByteView{

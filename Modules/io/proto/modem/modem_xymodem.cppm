@@ -24,6 +24,7 @@ export namespace modem {
         crc_error,
         format_error,
         io_error,
+        overflow,
         retries_exhausted,
     };
 
@@ -141,11 +142,18 @@ export namespace modem {
         }
 
         void on_rx(ByteView data) noexcept {
-            in_.push(data);
+            if (state_ == State::error || state_ == State::done) return;
+            const auto pushed = in_.push(data);
+            if (pushed < data.size()) {
+                state_ = State::error;
+                last_status_ = Status::overflow;
+                return;
+            }
             step();
         }
 
         void on_timeout() noexcept {
+            if (state_ == State::error || state_ == State::done) return;
             if (state_ == State::wait_header || state_ == State::recv_block) {
                 if (++retries_ > cfg_.max_retries) {
                     state_ = State::error;
@@ -326,6 +334,11 @@ export namespace modem {
             sub_ = {};
         }
 
+        void set_budgets(int rx, int tx) noexcept {
+            rx_budget_ = rx;
+            tx_budget_ = tx;
+        }
+
         void on_timeout() noexcept {
             modem_.on_timeout();
             flush_tx();
@@ -339,13 +352,16 @@ export namespace modem {
 
         void handle(io::Channel& ch, util::u32 ev) noexcept {
             if (ev & static_cast<util::u32>(io::Event::readable)) {
-                for (int i = 0; i < 4; ++i) {
+                for (int i = 0; i < rx_budget_; ++i) {
                     auto r = ch.read(io::MutByteView{rx_buf_.data(), rx_buf_.size()});
                     if (!r) {
                         if (r.error() == util::Errc::would_block) break;
                         return;
                     }
-                    if (r.value() == 0) break;
+                    if (r.value() == 0) {
+                        util::halt();
+                        return;
+                    }
                     modem_.on_rx(ByteView{rx_buf_.data(), r.value()});
                 }
                 flush_tx();
@@ -356,7 +372,7 @@ export namespace modem {
         }
 
         void flush_tx() noexcept {
-            while (true) {
+            for (int i = 0; i < tx_budget_; ++i) {
                 if (pending_len_ == 0) {
                     if (!modem_.has_tx()) return;
                     pending_len_ = modem_.take_tx(io::MutByteView{tx_buf_.data(), tx_buf_.size()});
@@ -374,6 +390,10 @@ export namespace modem {
                     pending_off_ = 0;
                     return;
                 }
+                if (w.value() == 0) {
+                    util::halt();
+                    return;
+                }
                 pending_off_ += w.value();
                 if (pending_off_ < pending_len_) return;
                 pending_len_ = 0;
@@ -389,5 +409,7 @@ export namespace modem {
         std::array<util::u8, 256> tx_buf_{};
         util::usize pending_len_{0};
         util::usize pending_off_{0};
+        int rx_budget_{4};
+        int tx_budget_{4};
     };
 }

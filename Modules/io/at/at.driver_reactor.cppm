@@ -111,7 +111,10 @@ export namespace at {
                         return;
                     }
                     const auto n = r.value();
-                    if (n == 0) break;
+                    if (n == 0) {
+                        util::halt();
+                        return;
+                    }
                     session_.feed(io::ByteView{rx_buf_.data(), n});
                 }
             }
@@ -137,6 +140,10 @@ export namespace at {
                     if (w.error() == util::Errc::would_block) return;
                     pending_len_ = 0;
                     pending_off_ = 0;
+                    return;
+                }
+                if (w.value() == 0) {
+                    util::halt();
                     return;
                 }
                 pending_off_ += w.value();

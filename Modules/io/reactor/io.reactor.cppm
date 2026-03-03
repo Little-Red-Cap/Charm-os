@@ -27,6 +27,7 @@ export namespace io {
     };
 
     using Callback = void (*)(void* ctx, Channel& ch, util::u32 events) noexcept;
+    using WakeFn = void (*)(void* ctx) noexcept;
 
     class Reactor {
     public:
@@ -58,25 +59,46 @@ export namespace io {
             }
         }
 
+        void set_waker(WakeFn fn, void* ctx) noexcept {
+            waker_ = fn;
+            waker_ctx_ = ctx;
+        }
+
         // ISR-safe: enqueue only, do not run callbacks here.
         void notify(Channel& ch, util::u32 events) noexcept {
             if (events == 0) return;
+            for (util::usize i = 0; i < pending_count_; ++i) {
+                const auto idx = (pending_head_ + i) % pending_.size();
+                if (pending_[idx].ch == &ch) {
+                    pending_[idx].events |= events;
+                    if (waker_) waker_(waker_ctx_);
+                    return;
+                }
+            }
             if (pending_count_ >= pending_.size()) {
                 drop_count_++;
+                overflowed_ = true;
+                overflow_ch_ = &ch;
+                if (waker_) waker_(waker_ctx_);
                 return;
             }
-            pending_[pending_count_++] = Pending{&ch, events};
+            pending_[pending_tail_] = Pending{&ch, events};
+            pending_tail_ = (pending_tail_ + 1) % pending_.size();
+            pending_count_++;
+            if (waker_) waker_(waker_ctx_);
         }
 
         // Call in task context to dispatch pending events.
         void drain() noexcept {
             while (pending_count_ > 0) {
-                const auto ev = pending_[0];
-                for (util::usize i = 1; i < pending_count_; ++i) {
-                    pending_[i - 1] = pending_[i];
-                }
+                const auto ev = pending_[pending_head_];
+                pending_head_ = (pending_head_ + 1) % pending_.size();
                 pending_count_--;
                 dispatch(*ev.ch, ev.events);
+            }
+            if (overflowed_ && overflow_ch_) {
+                overflowed_ = false;
+                dispatch(*overflow_ch_, static_cast<util::u32>(Event::error));
             }
         }
 
@@ -108,8 +130,14 @@ export namespace io {
 
         std::array<Slot, 32> subs_{};
         std::array<Pending, 64> pending_{};
+        util::usize pending_head_{0};
+        util::usize pending_tail_{0};
         util::usize pending_count_{0};
         util::u32 next_id_{1};
         util::u32 drop_count_{0};
+        bool overflowed_{false};
+        Channel* overflow_ch_{nullptr};
+        WakeFn waker_{nullptr};
+        void* waker_ctx_{nullptr};
     };
 }

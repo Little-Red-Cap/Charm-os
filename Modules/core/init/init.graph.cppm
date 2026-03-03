@@ -22,7 +22,8 @@ export namespace init {
             if (nodes.size() > MaxNodes) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
-            for (auto* node : nodes) {
+            for (util::usize i = 0; i < nodes.size(); ++i) {
+                const auto* node = nodes[i];
                 if (!node) continue;
                 if (!(node->runlevel_mask & runlevel_mask)) continue;
                 if (static_cast<util::u8>(node->phase) > static_cast<util::u8>(max_phase)) continue;
@@ -32,7 +33,8 @@ export namespace init {
 
             for (util::usize i = 0; i < node_count_; ++i) {
                 const auto* node = nodes_[i];
-                for (const auto cap : node->provides) {
+                for (util::usize j = 0; j < node->provides.size(); ++j) {
+                    const auto cap = node->provides[j];
                     if (cap == 0) return util::unexpected(util::Errc::invalid_arg);
                     if (find_cap_index(cap) >= 0) {
                         return util::unexpected(util::Errc::exist);
@@ -47,7 +49,8 @@ export namespace init {
             for (util::usize i = 0; i < node_count_; ++i) {
                 in_degree_[i] = 0;
                 const auto* node = nodes_[i];
-                for (const auto req : node->requires_caps) {
+                for (util::usize j = 0; j < node->requires_caps.size(); ++j) {
+                    const auto req = node->requires_caps[j];
                     if (req == 0) return util::unexpected(util::Errc::invalid_arg);
                     const auto provider = find_cap_index(req);
                     if (provider < 0) {

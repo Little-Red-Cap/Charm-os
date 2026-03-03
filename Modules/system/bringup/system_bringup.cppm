@@ -12,6 +12,7 @@ import init.graph;
 import init.node;
 import io.registry;
 import io.reactor;
+import kernel.eda;
 import platform.board;
 import util.core;
 import util.error;
@@ -46,20 +47,20 @@ export namespace charm::system {
             }
             std::array<const init::Node*, MaxNodes> nodes{};
             util::usize idx = 0;
-            for (auto* node : core_nodes) {
-                nodes[idx++] = node;
+            for (util::usize i = 0; i < core_nodes.size(); ++i) {
+                nodes[idx++] = core_nodes[i];
             }
-            for (auto* node : board_nodes) {
-                nodes[idx++] = node;
+            for (util::usize i = 0; i < board_nodes.size(); ++i) {
+                nodes[idx++] = board_nodes[i];
             }
-            for (auto* node : extra_nodes) {
-                nodes[idx++] = node;
+            for (util::usize i = 0; i < extra_nodes.size(); ++i) {
+                nodes[idx++] = extra_nodes[i];
             }
             auto r = graph_.build(std::span<const init::Node* const>(nodes.data(), idx),
                                   runlevel_mask, max_phase);
             if (!r) return r;
-            r = graph_.start();
-            if (!r) return r;
+            auto r_start = graph_.start();
+            if (!r_start) return r_start;
             if (!core_.registry.open_channel(uart_.io_cap)) {
                 return util::unexpected(util::Errc::noent);
             }

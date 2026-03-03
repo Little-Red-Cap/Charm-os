@@ -6,8 +6,9 @@ import platform.board;
 import hal_core;
 import hal_uart;
 import hal_stm32_stub;
+import util.core;
 
-namespace {
+namespace platform::board::stm32_stub::detail {
     struct Stm32UartCtx {
         hal::UartHandle handle{};
     };
@@ -51,20 +52,20 @@ namespace {
         auto* self = static_cast<Stm32UartCtx*>(ctx);
         hal::stm32_stub::Uart::clear_irq(self->handle, mask);
     }
-} // namespace
+} // namespace platform::board::stm32_stub::detail
 
 export namespace platform::board::stm32_stub {
     inline BoardCaps make_board_caps() noexcept {
-        static Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
+        static detail::Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kStm32UartOps{
-            &stm32_uart_init,
-            &stm32_uart_enable,
-            &stm32_uart_disable,
-            &stm32_uart_try_write,
-            &stm32_uart_try_read,
-            &stm32_uart_enable_irq,
-            &stm32_uart_disable_irq,
-            &stm32_uart_clear_irq
+            &detail::stm32_uart_init,
+            &detail::stm32_uart_enable,
+            &detail::stm32_uart_disable,
+            &detail::stm32_uart_try_write,
+            &detail::stm32_uart_try_read,
+            &detail::stm32_uart_enable_irq,
+            &detail::stm32_uart_disable_irq,
+            &detail::stm32_uart_clear_irq
         };
         BoardCaps caps{};
         caps.uart1.handle = hal::UartIoHandle{&uart1_ctx, &kStm32UartOps};

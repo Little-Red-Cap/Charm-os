@@ -5,12 +5,15 @@ module;
 
 export module charm.system.init_core;
 
+import init.node;
 import init.graph;
 import io.registry;
 import io.reactor;
+import kernel.eda;
 import kernel.eda.node;
 import charm.system.reactor_pump;
 import util.core;
+import util.error;
 
 export namespace charm::system {
     template <util::usize MaxEndpoints>

@@ -5,6 +5,7 @@ module;
 
 export module charm.system.init_usart;
 
+import init.node;
 import init.graph;
 import init.node;
 import io.reactor;

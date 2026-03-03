@@ -16,6 +16,7 @@ import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
+import charm.gfx.image;
 import out.api;
 
 namespace {
@@ -58,6 +59,47 @@ namespace {
             hash *= 16777619u;
         }
         return hash;
+    }
+
+    constexpr int kTestIconWidth = 8;
+    constexpr int kTestIconHeight = 8;
+    constexpr std::uint16_t kTestIconOn = 0xFFE0;
+    constexpr std::uint16_t kTestIconOff = 0x0000;
+    constexpr std::array<std::uint16_t, kTestIconWidth * kTestIconHeight> kTestIconData{
+        kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,
+        kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff,
+        kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff,
+        kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff,
+        kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff,
+        kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff,
+        kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff,
+        kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn
+    };
+    std::array<Point, 4> g_demo_path_points{};
+
+    const ImageView kTestIconView = make_image_view(PixelFormat::RGB565,
+                                                    kTestIconWidth,
+                                                    kTestIconHeight,
+                                                    kTestIconWidth * static_cast<int>(sizeof(std::uint16_t)),
+                                                    reinterpret_cast<const std::byte*>(kTestIconData.data()),
+                                                    false,
+                                                    false);
+
+    const ImageView& get_test_icon() noexcept {
+        return kTestIconView;
+    }
+
+    void append_path_icon(ui::draw_cmd::DefaultDrawCmdBuffer& buf, int screen_width) noexcept {
+        const int path_y = 24;
+        const int path_w = 120;
+        const int path_h = 60;
+        const int path_x = screen_width - path_w - 16;
+        g_demo_path_points[0] = Point{path_x, path_y + path_h};
+        g_demo_path_points[1] = Point{path_x + path_w / 2, path_y};
+        g_demo_path_points[2] = Point{path_x + path_w, path_y + path_h};
+        g_demo_path_points[3] = Point{path_x, path_y + path_h};
+        buf.draw_path(g_demo_path_points.data(), 4, false, rgba{255, 196, 0, 255});
+        buf.draw_icon(Rect{path_x + 46, path_y + 18, 16, 16}, get_test_icon());
     }
 
     struct SdlTileBackend {
@@ -114,7 +156,7 @@ namespace {
     };
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 5680;
+    constexpr std::size_t kMaxStyleTableBytes = 5670;
     std::FILE* g_regress_log = nullptr;
 
     const char* event_type_name(Event::Type type) noexcept {
@@ -434,6 +476,18 @@ namespace {
         expect_true(kernel.paint_invalidated_count() > 0, "layout: list missing paint invalidation", fails);
 
         kernel.layout_trace_reset();
+        const int list_drag_before = kernel.scroll_y(list);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 60, 440, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 60, 410, 0));
+        gui.render();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 60, 410, 1));
+        const int list_drag_after = kernel.scroll_y(list);
+        expect_true(list_drag_after != list_drag_before, "layout: list drag did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "layout: list drag invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "layout: list drag pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "layout: list drag missing paint invalidation", fails);
+
+        kernel.layout_trace_reset();
         kernel.set_text(layout_box, "Layout Updated");
         gui.render();
         expect_true(kernel.layout_invalidated_count() > 0, "layout: text change did not invalidate", fails);
@@ -567,6 +621,11 @@ int main(int argc, char** argv) {
 #endif
     }
 #if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_regress || run_regress_layout) {
+        run_compare = true;
+    }
+#endif
+#if defined(VIVID_SOA_TRACE_INPUT)
     if (g_regress_log) {
         std::fprintf(g_regress_log, "[soa] log_path=%s\n", log_path);
         std::fprintf(g_regress_log, "[soa] regress=%u layout=%u\n",
@@ -613,7 +672,9 @@ int main(int argc, char** argv) {
     auto slider = factory.create_slider();
     auto progress = factory.create_progress();
     auto list = factory.create_list();
+    auto list_scroll = factory.create_scrollbar_for(list);
     auto scroll = factory.create_scroll_container();
+    auto scroll_scroll = factory.create_scrollbar_for(scroll);
 
     factory.link(root, title);
     factory.link(root, btn);
@@ -623,7 +684,9 @@ int main(int argc, char** argv) {
     factory.link(root, slider);
     factory.link(root, progress);
     factory.link(root, list);
+    factory.link(root, list_scroll);
     factory.link(root, scroll);
+    factory.link(root, scroll_scroll);
 
     kernel.set_rect(title, {24, 16, screen_width - 48, 24});
     kernel.set_rect(btn, {24, 60, 160, 40});
@@ -633,11 +696,15 @@ int main(int argc, char** argv) {
     kernel.set_rect(slider, {24, 250, 280, 24});
     kernel.set_rect(progress, {24, 290, 280, 18});
     kernel.set_rect(list, {24, 340, 200, 200});
+    kernel.set_rect(list_scroll, {230, 340, 12, 200});
     kernel.set_rect(scroll, {250, 340, 200, 200});
+    kernel.set_rect(scroll_scroll, {456, 340, 12, 200});
 
     kernel.set_range(slider, 0, 100);
     kernel.set_range(progress, 0, 100);
     kernel.set_list_row_height(list, 28);
+    kernel.set_scrollbar_orientation(list_scroll, ScrollBarOrientation::Vertical);
+    kernel.set_scrollbar_orientation(scroll_scroll, ScrollBarOrientation::Vertical);
 
     const char* list_items[] = {
         "Item 1", "Item 2", "Item 3", "Item 4", "Item 5",
@@ -684,6 +751,7 @@ int main(int argc, char** argv) {
         ui::draw_cmd::DefaultDrawCmdBuffer buf{};
         ui::draw_cmd::DrawCmdExecutor exec{};
         gui.record_commands(buf);
+        append_path_icon(buf, screen_width);
 
         fb.clear({});
         canvas.begin_frame();
@@ -766,6 +834,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf{};
+    ui::draw_cmd::DrawCmdExecutor cmd_exec{};
+
     int win_w = screen_width;
     int win_h = screen_height;
     int mouse_x = 0;
@@ -824,11 +895,25 @@ int main(int argc, char** argv) {
             kernel.set_value(slider, value);
         }
 
+        gui.record_commands(cmd_buf);
+        append_path_icon(cmd_buf, screen_width);
+        const auto cmd_stats = cmd_buf.stats();
+
         ui::draw_cmd::DrawCmdTileStats tile_stats{};
+        std::uint32_t dirty_area = 0;
+        std::uint8_t dirty_pct = 0;
         if (use_tiles) {
-            tile_stats = gui.render_tiles(tile_backend, tile_view, tile_config);
+            tile_stats = cmd_exec.execute_tiles(tile_backend, tile_view, cmd_buf, tile_config);
             Rect dirty{};
             if (tile_backend.dirty_rect(dirty)) {
+                const std::uint64_t area = static_cast<std::uint64_t>(dirty.w)
+                    * static_cast<std::uint64_t>(dirty.h);
+                dirty_area = static_cast<std::uint32_t>(area);
+                const std::uint64_t screen_area = static_cast<std::uint64_t>(screen_width)
+                    * static_cast<std::uint64_t>(screen_height);
+                dirty_pct = (screen_area > 0)
+                    ? static_cast<std::uint8_t>((area * 100u) / screen_area)
+                    : 0;
                 SDL_Rect rect{dirty.x, dirty.y, dirty.w, dirty.h};
                 const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
                 const std::size_t stride = DefaultFrameBuffer::stride_bytes;
@@ -838,7 +923,9 @@ int main(int argc, char** argv) {
                 SDL_UpdateTexture(texture, &rect, src, static_cast<int>(stride));
             }
         } else {
-            gui.render();
+            canvas.begin_frame();
+            cmd_exec.execute(canvas, cmd_buf);
+            canvas.end_frame();
             SDL_UpdateTexture(texture, nullptr, canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
         }
 
@@ -846,22 +933,23 @@ int main(int argc, char** argv) {
             ++stat_frame;
             if (stat_frame >= stat_interval) {
                 stat_frame = 0;
-                const auto stats = gui.last_cmd_stats();
                 if (use_tiles) {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={}">(
-                        static_cast<std::uint32_t>(stats.cmd_count),
-                        static_cast<std::uint32_t>(stats.cmd_bytes),
-                        stats.cmd_overflowed ? 1 : 0,
-                        stats.text_overflowed ? 1 : 0,
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={}">(
+                        static_cast<std::uint32_t>(cmd_stats.cmd_count),
+                        static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
+                        cmd_stats.cmd_overflowed ? 1 : 0,
+                        cmd_stats.text_overflowed ? 1 : 0,
                         tile_stats.tiles_drawn,
                         tile_stats.tiles_total,
-                        tile_stats.tile_flush_count);
+                        tile_stats.tile_flush_count,
+                        dirty_area,
+                        static_cast<std::uint32_t>(dirty_pct));
                 } else {
                     (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={}">(
-                        static_cast<std::uint32_t>(stats.cmd_count),
-                        static_cast<std::uint32_t>(stats.cmd_bytes),
-                        stats.cmd_overflowed ? 1 : 0,
-                        stats.text_overflowed ? 1 : 0);
+                        static_cast<std::uint32_t>(cmd_stats.cmd_count),
+                        static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
+                        cmd_stats.cmd_overflowed ? 1 : 0,
+                        cmd_stats.text_overflowed ? 1 : 0);
                 }
             }
         }

@@ -100,7 +100,7 @@ flowchart LR
 **SoA demo 支持：**
 
 - `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
-- `vivid-soa-demo --soa-stats`：输出命令数与 tile 统计。
+- `vivid-soa-demo --soa-stats`：输出命令数、tile flush 与 dirty 命中率。
 
 **可移植模板：**
 
@@ -108,7 +108,7 @@ flowchart LR
 
 ### 2.2 命令集扩展与一致性校验（R2）
 
-- 命令集扩展：支持 `DrawLine` / `DrawImage` 等基础原语，保持命令为 POD。
+- 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验。
 
@@ -280,6 +280,8 @@ flowchart TB
 | readonly | Disabled | 展示类控件，仅允许禁用态影响样式 | Container、ScrollContainer、Dial、Arc、Image、Label、Led、Progress、ModalDialog、ProgressBarSimple、DynamicNebula、CrtScreen、Bar、PopupLayer、MessageBox、RadioGroup、Chart、Waveform、Gauge、PrimitivesCanvas、PerfOverlay、Timeline、RichText、CodeBlock、ProgressWheel、WaveformView、BatteryGauge、HistogramView、RingIndication、TextBox、ProgressFlowing、CloudyGlass、ProgressBarRound、SpinningWheel、ImageBox、MeterPointer、ProgressBarDrill、SpectrumView、BusyWheel、ConsoleBox、BatteryGasGauge、Histogram、List、ListView、IconList、TextTrackingList、TextList、TableView、TreeView、TextInput、TextArea、NumberInput |
 | press_only | Pressed + Disabled | 允许按下态但不跟随 hover | Slider、ScrollBar、Roller、Spinner、NumberList、SpinZoomWidget |
 | interactive | Hovered + Pressed + Disabled | 典型交互控件 | Button、Checkbox、Radio、Switch、SegmentedControl、Dropdown、TabView、Stepper、Menu、MenuItem、ToggleGroup、ListItem、FoldablePanel |
+
+> 备注：TextInput/TextArea/NumberInput 在 SoA-only 路径中按只读处理，当前 mask 仅保留 Disabled。
 
 ## 7. 诊断与可观测性
 

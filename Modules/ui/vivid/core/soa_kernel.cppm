@@ -77,6 +77,18 @@ namespace soa_detail {
     };
 
     template <std::size_t N>
+    struct ScrollBarStore {
+        std::array<std::uint8_t, N> orientation{};
+        std::array<int, N> page_size{};
+        std::array<WidgetHandle, N> target{};
+        void reset(std::uint16_t idx) noexcept {
+            orientation[idx] = 0;
+            page_size[idx] = 0;
+            target[idx] = {};
+        }
+    };
+
+    template <std::size_t N>
     struct ScrollStore {
         std::array<int, N> scroll_y{};
         std::array<int, N> scroll_step{};
@@ -118,6 +130,7 @@ namespace soa_detail {
     enum class RangeSlot : std::uint8_t {
         None,
         Slider,
+        ScrollBar,
         Progress
     };
 
@@ -127,20 +140,27 @@ namespace soa_detail {
         ScrollContainer
     };
 
+    enum class ScrollBarSlot : std::uint8_t {
+        None,
+        ScrollBar
+    };
+
     struct PayloadDescriptor {
         bool supported{false};
         TextSlot text{TextSlot::None};
         CheckSlot check{CheckSlot::None};
         RangeSlot range{RangeSlot::None};
         ScrollSlot scroll{ScrollSlot::None};
+        ScrollBarSlot scrollbar{ScrollBarSlot::None};
     };
 
     constexpr PayloadDescriptor make_desc(bool supported,
         TextSlot text = TextSlot::None,
         CheckSlot check = CheckSlot::None,
         RangeSlot range = RangeSlot::None,
-        ScrollSlot scroll = ScrollSlot::None) noexcept {
-        return PayloadDescriptor{supported, text, check, range, scroll};
+        ScrollSlot scroll = ScrollSlot::None,
+        ScrollBarSlot scrollbar = ScrollBarSlot::None) noexcept {
+        return PayloadDescriptor{supported, text, check, range, scroll, scrollbar};
     }
 }
 
@@ -167,6 +187,12 @@ enum class SoaStateMask : std::uint8_t {
     Hovered = 1 << 1,
     Pressed = 1 << 2,
     Focused = 1 << 3
+};
+
+export
+enum class ScrollBarOrientation : std::uint8_t {
+    Horizontal = 0,
+    Vertical = 1
 };
 
 export
@@ -284,6 +310,7 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         input_on_destroy(h);
+        clear_scrollbar_targets(h);
         const WidgetKind old_kind = common_.kind[idx];
         detach_from_parent(idx);
         detach_children(idx);
@@ -596,7 +623,7 @@ public:
                 input_handle_drag(e.x, e.y, input_button_);
                 const WidgetHandle drag_target = input_drag_target();
                 if (drag_target && press_updates_slider(kind(drag_target))) {
-                    input_update_slider_value(drag_target, e.x);
+                    input_update_slider_value(drag_target, e.x, e.y);
                 }
             } else if (input_hovered_) {
                 input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button));
@@ -786,6 +813,12 @@ public:
                 mark_paint_dirty();
             }
             break;
+        case soa_detail::RangeSlot::ScrollBar:
+            if (slider_range_.value[idx] != value) {
+                slider_range_.value[idx] = value;
+                mark_paint_dirty();
+            }
+            break;
         case soa_detail::RangeSlot::Progress:
             if (progress_range_.value[idx] != value) {
                 progress_range_.value[idx] = value;
@@ -805,6 +838,8 @@ public:
         switch (desc.range) {
         case soa_detail::RangeSlot::Slider:
             return slider_range_.value[idx];
+        case soa_detail::RangeSlot::ScrollBar:
+            return slider_range_.value[idx];
         case soa_detail::RangeSlot::Progress:
             return progress_range_.value[idx];
         case soa_detail::RangeSlot::None:
@@ -820,6 +855,13 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.range) {
         case soa_detail::RangeSlot::Slider:
+            slider_range_.min_value[idx] = min_value;
+            slider_range_.max_value[idx] = max_value;
+            if (slider_range_.value[idx] < min_value) slider_range_.value[idx] = min_value;
+            if (slider_range_.value[idx] > max_value) slider_range_.value[idx] = max_value;
+            mark_layout_dirty();
+            break;
+        case soa_detail::RangeSlot::ScrollBar:
             slider_range_.min_value[idx] = min_value;
             slider_range_.max_value[idx] = max_value;
             if (slider_range_.value[idx] < min_value) slider_range_.value[idx] = min_value;
@@ -846,6 +888,8 @@ public:
         switch (desc.range) {
         case soa_detail::RangeSlot::Slider:
             return slider_range_.min_value[idx];
+        case soa_detail::RangeSlot::ScrollBar:
+            return slider_range_.min_value[idx];
         case soa_detail::RangeSlot::Progress:
             return progress_range_.min_value[idx];
         case soa_detail::RangeSlot::None:
@@ -862,6 +906,8 @@ public:
         switch (desc.range) {
         case soa_detail::RangeSlot::Slider:
             return slider_range_.max_value[idx];
+        case soa_detail::RangeSlot::ScrollBar:
+            return slider_range_.max_value[idx];
         case soa_detail::RangeSlot::Progress:
             return progress_range_.max_value[idx];
         case soa_detail::RangeSlot::None:
@@ -869,6 +915,84 @@ public:
             return 0;
         }
         return 0;
+    }
+
+    void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation orient) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        scrollbar_store_.orientation[idx] = static_cast<std::uint8_t>(orient);
+        mark_paint_dirty();
+    }
+
+    ScrollBarOrientation scrollbar_orientation(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return ScrollBarOrientation::Horizontal;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return ScrollBarOrientation::Horizontal;
+        }
+        return static_cast<ScrollBarOrientation>(scrollbar_store_.orientation[idx]);
+    }
+
+    void set_scrollbar_page_size(WidgetHandle h, int page_size) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        scrollbar_store_.page_size[idx] = (page_size > 0) ? page_size : 0;
+        mark_paint_dirty();
+    }
+
+    int scrollbar_page_size(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        return scrollbar_store_.page_size[idx];
+    }
+
+    void set_scrollbar_target(WidgetHandle h, WidgetHandle target) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        WidgetHandle next = target;
+        if (next && !valid(next)) {
+            next = {};
+        }
+        if (next && !input_is_scrollable_kind(kind(next))) {
+            next = {};
+        }
+        scrollbar_store_.target[idx] = next;
+        mark_paint_dirty();
+    }
+
+    WidgetHandle scrollbar_target(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+            unsupported_kind(common_.kind[idx]);
+            return {};
+        }
+        const WidgetHandle target = scrollbar_store_.target[idx];
+        if (!target) return {};
+        return valid(target) ? target : WidgetHandle{};
     }
 
     void set_checked(WidgetHandle h, bool on) noexcept {
@@ -1188,6 +1312,7 @@ public:
     soa_detail::RangeStore<kMaxNodes> progress_range_{};
     soa_detail::ListStore<kMaxNodes> list_store_{};
     soa_detail::ScrollStore<kMaxNodes> scroll_store_{};
+    soa_detail::ScrollBarStore<kMaxNodes> scrollbar_store_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};
     std::uint32_t paint_dirty_version_{0};
@@ -1223,11 +1348,11 @@ public:
     }
 
     static constexpr bool press_updates_slider(WidgetKind kind) noexcept {
-        return kind == WidgetKind::Slider;
+        return kind == WidgetKind::Slider || kind == WidgetKind::ScrollBar;
     }
 
     static constexpr bool drag_blocks_scroll(WidgetKind kind) noexcept {
-        return kind == WidgetKind::Slider;
+        return kind == WidgetKind::Slider || kind == WidgetKind::ScrollBar;
     }
 
     static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
@@ -1242,6 +1367,9 @@ public:
         case WidgetKind::Checkbox:
         case WidgetKind::Radio:
         case WidgetKind::ListItem:
+            defaults.focusable = true;
+            break;
+        case WidgetKind::ScrollBar:
             defaults.focusable = true;
             break;
         case WidgetKind::List:
@@ -1278,6 +1406,9 @@ public:
             return make_desc(true, TextSlot::Checkbox, CheckSlot::Checkbox);
         case WidgetKind::Slider:
             return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::Slider);
+        case WidgetKind::ScrollBar:
+            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::ScrollBar, ScrollSlot::None,
+                             ScrollBarSlot::ScrollBar);
         case WidgetKind::Switch:
             return make_desc(true, TextSlot::None, CheckSlot::Switch);
         case WidgetKind::Progress:
@@ -1340,6 +1471,9 @@ public:
         case soa_detail::RangeSlot::Slider:
             slider_range_.reset(idx);
             break;
+        case soa_detail::RangeSlot::ScrollBar:
+            slider_range_.reset(idx);
+            break;
         case soa_detail::RangeSlot::Progress:
             progress_range_.reset(idx);
             break;
@@ -1355,6 +1489,14 @@ public:
             scroll_store_.reset(idx);
             break;
         case soa_detail::ScrollSlot::None:
+            break;
+        }
+
+        switch (desc.scrollbar) {
+        case soa_detail::ScrollBarSlot::ScrollBar:
+            scrollbar_store_.reset(idx);
+            break;
+        case soa_detail::ScrollBarSlot::None:
             break;
         }
     }
@@ -1494,7 +1636,15 @@ private:
             }
             input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseDown, x, y, button));
             if (press_updates_slider(kind(input_pressed_))) {
-                input_update_slider_value(input_pressed_, x);
+                const WidgetKind k = kind(input_pressed_);
+                if (k == WidgetKind::ScrollBar) {
+                    const StyleState state = input_make_state(*this, input_pressed_);
+                    const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::ScrollBar, state);
+                    if (input_scrollbar_page_click(input_pressed_, x, y, view.metrics)) {
+                        return;
+                    }
+                }
+                input_update_slider_value(input_pressed_, x, y);
             }
         }
     }
@@ -1623,6 +1773,18 @@ private:
         return false;
     }
 
+    void clear_scrollbar_targets(WidgetHandle h) noexcept {
+        for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
+            if (!flag_raw(i, SoaNodeFlag::Used)) continue;
+            if (common_.kind[i] != WidgetKind::ScrollBar) continue;
+            WidgetHandle target = scrollbar_store_.target[i];
+            if (!target) continue;
+            if (input_is_invalid(target) || input_is_descendant(target, h)) {
+                scrollbar_store_.target[i] = {};
+            }
+        }
+    }
+
     void input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) {
         if (input_captured_ == h) return;
         const WidgetHandle old = input_captured_;
@@ -1721,6 +1883,102 @@ private:
         }
     }
 
+    struct ScrollBarTrackInfo {
+        ScrollBarOrientation orient{ScrollBarOrientation::Vertical};
+        int track_start{0};
+        int track_len{0};
+        int thumb_start{0};
+        int thumb_len{0};
+        int max_thumb{0};
+        int max_scroll{0};
+        int page{0};
+        int min_value{0};
+        int scroll{0};
+        WidgetHandle target{};
+    };
+
+    bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) {
+        const ScrollBarOrientation orient = scrollbar_orientation(h);
+        Rect r = input_world_rect(h);
+        int margin = metrics ? metrics->scrollbar_margin : 0;
+        if (margin < 0) margin = 0;
+        int track_len = (orient == ScrollBarOrientation::Vertical)
+            ? (r.h - margin * 2)
+            : (r.w - margin * 2);
+        if (track_len <= 0) return false;
+
+        WidgetHandle target = scrollbar_target(h);
+        const int min_v = min_value(h);
+        const int max_v = max_value(h);
+        const int range = (max_v > min_v) ? (max_v - min_v) : 0;
+        int max_scroll_value = target ? max_scroll(target) : range;
+        if (max_scroll_value < 0) max_scroll_value = 0;
+
+        int page = scrollbar_page_size(h);
+        if (page <= 0) {
+            if (target) {
+                const Rect tr = rect(target);
+                page = (orient == ScrollBarOrientation::Vertical) ? tr.h : tr.w;
+            } else {
+                page = (orient == ScrollBarOrientation::Vertical) ? r.h : r.w;
+            }
+        }
+        if (page <= 0) page = 1;
+
+        int thumb_min = metrics ? metrics->scrollbar_thumb_min : 0;
+        if (thumb_min <= 0) thumb_min = 12;
+        int content_len = page + max_scroll_value;
+        if (content_len <= 0) content_len = track_len;
+        int thumb_len = (track_len * page) / content_len;
+        if (thumb_len < thumb_min) thumb_len = thumb_min;
+        if (thumb_len > track_len) thumb_len = track_len;
+        int max_thumb = track_len - thumb_len;
+
+        int scroll = target ? scroll_y(target) : (value(h) - min_v);
+        if (scroll < 0) scroll = 0;
+        if (scroll > max_scroll_value) scroll = max_scroll_value;
+        const int track_start = (orient == ScrollBarOrientation::Vertical) ? (r.y + margin) : (r.x + margin);
+        const int thumb_start = track_start
+            + ((max_scroll_value > 0 && max_thumb > 0) ? (max_thumb * scroll) / max_scroll_value : 0);
+
+        info.orient = orient;
+        info.track_start = track_start;
+        info.track_len = track_len;
+        info.thumb_start = thumb_start;
+        info.thumb_len = thumb_len;
+        info.max_thumb = max_thumb;
+        info.max_scroll = max_scroll_value;
+        info.page = page;
+        info.min_value = min_v;
+        info.scroll = scroll;
+        info.target = target;
+        return true;
+    }
+
+    bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) {
+        ScrollBarTrackInfo info{};
+        if (!scrollbar_track_info(h, metrics, info)) return false;
+        const int coord = (info.orient == ScrollBarOrientation::Vertical) ? y : x;
+        const int thumb_end = info.thumb_start + info.thumb_len;
+        if (coord >= info.thumb_start && coord <= thumb_end) {
+            return false;
+        }
+        int next = info.scroll;
+        if (coord < info.thumb_start) {
+            next -= info.page;
+        } else if (coord > thumb_end) {
+            next += info.page;
+        }
+        if (next < 0) next = 0;
+        if (next > info.max_scroll) next = info.max_scroll;
+        if (info.target) {
+            set_scroll_y_clamped(info.target, next);
+        } else {
+            set_value(h, info.min_value + next);
+        }
+        return true;
+    }
+
     void input_clear_sibling_checks(WidgetHandle h, WidgetKind kind) {
         const WidgetHandle p = parent(h);
         if (!p) return;
@@ -1732,16 +1990,37 @@ private:
         }
     }
 
-    void input_update_slider_value(WidgetHandle h, int x) {
+    void input_update_slider_value(WidgetHandle h, int x, int y) {
+        const WidgetKind k = kind(h);
         const StyleState state = input_make_state(*this, h);
-        const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::Slider, state);
-        const int pad = view.metrics ? view.metrics->padding : 0;
+        const ResolvedStyleView view = StyleSheet::instance().lookup(k, state);
+        const ResolvedMetrics* metrics = view.metrics;
+
+        if (k == WidgetKind::ScrollBar) {
+            ScrollBarTrackInfo info{};
+            if (!scrollbar_track_info(h, metrics, info)) return;
+            const int coord = (info.orient == ScrollBarOrientation::Vertical) ? y : x;
+            const int clamped = clamp_int(coord, info.track_start, info.track_start + info.max_thumb);
+            const int offset = clamped - info.track_start;
+            int next = 0;
+            if (info.max_thumb > 0 && info.max_scroll > 0) {
+                next = (offset * info.max_scroll) / info.max_thumb;
+            }
+            if (info.target) {
+                set_scroll_y_clamped(info.target, next);
+            } else {
+                set_value(h, info.min_value + next);
+            }
+            return;
+        }
+
         Rect r = input_world_rect(h);
-        const int inner_w = r.w - pad * 2;
-        if (inner_w <= 0) return;
         const int min_v = min_value(h);
         const int max_v = max_value(h);
         const int range = (max_v > min_v) ? (max_v - min_v) : 1;
+        const int pad = metrics ? metrics->padding : 0;
+        const int inner_w = r.w - pad * 2;
+        if (inner_w <= 0) return;
         const int x0 = r.x + pad;
         const int x1 = x0 + inner_w;
         const int clamped = clamp_int(x, x0, x1);
@@ -1931,6 +2210,16 @@ public:
     }
     WidgetHandle create_slider() noexcept {
         auto h = kernel_.create(WidgetKind::Slider);
+        return h;
+    }
+    WidgetHandle create_scrollbar() noexcept {
+        auto h = kernel_.create(WidgetKind::ScrollBar);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
+    WidgetHandle create_scrollbar_for(WidgetHandle target) noexcept {
+        auto h = create_scrollbar();
+        kernel_.set_scrollbar_target(h, target);
         return h;
     }
     WidgetHandle create_progress() noexcept {

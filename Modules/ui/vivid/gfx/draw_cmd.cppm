@@ -34,6 +34,7 @@ export namespace ui::draw_cmd {
         PushClip,
         PopClip,
         DrawLine,
+        DrawPath,
         FillRect,
         StrokeRect,
         FillRoundRect,
@@ -58,6 +59,7 @@ export namespace ui::draw_cmd {
         std::int16_t p1{0};
         std::int16_t p2{0};
         TextSpan text{};
+        const Point* path{nullptr};
         const ImageView* image{nullptr};
         const Font* font{nullptr};
         TextAlignH align_h{TextAlignH::Left};
@@ -146,6 +148,33 @@ export namespace ui::draw_cmd {
             return push_cmd(cmd);
         }
 
+        bool draw_path(const Point* points, int count, bool closed, const rgba& color) noexcept {
+            if (!points || count < 2) return false;
+            Rect bounds{points[0].x, points[0].y, 0, 0};
+            int min_x = points[0].x;
+            int max_x = points[0].x;
+            int min_y = points[0].y;
+            int max_y = points[0].y;
+            for (int i = 1; i < count; ++i) {
+                const int px = points[i].x;
+                const int py = points[i].y;
+                if (px < min_x) min_x = px;
+                if (px > max_x) max_x = px;
+                if (py < min_y) min_y = py;
+                if (py > max_y) max_y = py;
+            }
+            bounds.x = min_x;
+            bounds.y = min_y;
+            bounds.w = max_x - min_x + 1;
+            bounds.h = max_y - min_y + 1;
+            auto cmd = make_cmd(CmdType::DrawPath, bounds);
+            cmd.color = color;
+            cmd.path = points;
+            cmd.p0 = static_cast<std::int16_t>(count);
+            cmd.p1 = closed ? 1 : 0;
+            return push_cmd(cmd);
+        }
+
         bool fill_rect(const Rect& rect, const rgba& color) noexcept {
             auto cmd = make_cmd(CmdType::FillRect, rect);
             cmd.color = color;
@@ -192,6 +221,10 @@ export namespace ui::draw_cmd {
             auto cmd = make_cmd(CmdType::DrawImage, rect);
             cmd.image = &image;
             return push_cmd(cmd);
+        }
+
+        bool draw_icon(const Rect& rect, const ImageView& image) noexcept {
+            return draw_image(rect, image);
         }
 
         bool draw_text_box(const Rect& rect,
@@ -341,6 +374,28 @@ export namespace ui::draw_cmd {
                                           cmd.rect.h,
                                           cmd.color);
                     break;
+                case CmdType::DrawPath: {
+                    const int count = cmd.p0;
+                    if (!cmd.path || count < 2) break;
+                    const bool closed = (cmd.p1 != 0);
+                    for (int i = 1; i < count; ++i) {
+                        ui::render::draw_line(canvas,
+                                              cmd.path[i - 1].x,
+                                              cmd.path[i - 1].y,
+                                              cmd.path[i].x,
+                                              cmd.path[i].y,
+                                              cmd.color);
+                    }
+                    if (closed) {
+                        ui::render::draw_line(canvas,
+                                              cmd.path[count - 1].x,
+                                              cmd.path[count - 1].y,
+                                              cmd.path[0].x,
+                                              cmd.path[0].y,
+                                              cmd.color);
+                    }
+                    break;
+                }
                 case CmdType::FillRect:
                     ui::render::draw_rect(canvas, cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h, cmd.color, true);
                     break;

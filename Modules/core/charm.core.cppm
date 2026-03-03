@@ -10,6 +10,9 @@ export import util.type_state;
 export import util.units;
 export import util.variant;
 
+export import init.node;
+export import init.graph;
+
 export import trace_core;
 
 export import service.bitmap;

@@ -29,6 +29,21 @@ export constexpr std::size_t soa_max_nodes = 256;
 #endif
 
 namespace soa_detail {
+    constexpr std::uint16_t kInvalidPayloadSlot = 0xFFFF;
+
+    struct PayloadHandle {
+        std::uint16_t slot{kInvalidPayloadSlot};
+        std::uint16_t generation{0};
+    };
+
+    constexpr PayloadHandle invalid_payload_handle() noexcept {
+        return PayloadHandle{kInvalidPayloadSlot, 0};
+    }
+
+    constexpr bool payload_valid(PayloadHandle h) noexcept {
+        return h.slot != kInvalidPayloadSlot;
+    }
+
     template <std::size_t N>
     struct CommonSoA {
         std::array<WidgetKind, N> kind{};
@@ -46,122 +61,178 @@ namespace soa_detail {
         std::array<Rect, N> rects{};
         std::array<Rect, N> paint_bounds{};
         std::array<std::uint8_t, N> layout_kind{};
+        std::array<PayloadHandle, N> payload{};
     };
 
-    template <std::size_t N>
-    struct TextStore {
-        std::array<const char*, N> text{};
-        void reset(std::uint16_t idx) noexcept {
-            text[idx] = nullptr;
-        }
+    struct LabelPayload {
+        const char* text{nullptr};
     };
 
-    template <std::size_t N>
-    struct CheckStore {
-        std::array<std::uint8_t, N> checked{};
-        void reset(std::uint16_t idx) noexcept {
-            checked[idx] = 0;
-        }
+    struct ButtonPayload {
+        const char* text{nullptr};
     };
 
-    template <std::size_t N>
-    struct RangeStore {
-        std::array<int, N> value{};
-        std::array<int, N> min_value{};
-        std::array<int, N> max_value{};
-        void reset(std::uint16_t idx) noexcept {
-            value[idx] = 0;
-            min_value[idx] = 0;
-            max_value[idx] = 100;
-        }
+    struct CheckboxPayload {
+        const char* text{nullptr};
+        std::uint8_t checked{0};
     };
 
-    template <std::size_t N>
-    struct ScrollBarStore {
-        std::array<std::uint8_t, N> orientation{};
-        std::array<int, N> page_size{};
-        std::array<WidgetHandle, N> target{};
-        void reset(std::uint16_t idx) noexcept {
-            orientation[idx] = 0;
-            page_size[idx] = 0;
-            target[idx] = {};
-        }
+    struct RadioPayload {
+        const char* text{nullptr};
+        std::uint8_t checked{0};
     };
 
-    template <std::size_t N>
-    struct ScrollStore {
-        std::array<int, N> scroll_y{};
-        std::array<int, N> scroll_step{};
-        void reset(std::uint16_t idx) noexcept {
-            scroll_y[idx] = 0;
-            scroll_step[idx] = 24;
-        }
+    struct ListItemPayload {
+        const char* text{nullptr};
+        std::uint8_t checked{0};
     };
 
-    template <std::size_t N>
-    struct ListStore {
-        std::array<int, N> scroll_y{};
-        std::array<int, N> scroll_step{};
-        std::array<int, N> row_height{};
-        void reset(std::uint16_t idx) noexcept {
-            scroll_y[idx] = 0;
-            scroll_step[idx] = 24;
-            row_height[idx] = 28;
-        }
+    struct SwitchPayload {
+        std::uint8_t checked{0};
     };
 
-    enum class TextSlot : std::uint8_t {
+    struct SliderPayload {
+        int value{0};
+        int min_value{0};
+        int max_value{100};
+    };
+
+    struct ProgressPayload {
+        int value{0};
+        int min_value{0};
+        int max_value{100};
+    };
+
+    struct ScrollBarPayload {
+        int value{0};
+        int min_value{0};
+        int max_value{100};
+        std::uint8_t orientation{0};
+        int page_size{0};
+        WidgetHandle target{};
+    };
+
+    struct ListPayload {
+        int scroll_y{0};
+        int scroll_step{24};
+        int row_height{28};
+    };
+
+    struct ScrollContainerPayload {
+        int scroll_y{0};
+        int scroll_step{24};
+    };
+
+    enum class PayloadKind : std::uint8_t {
         None,
         Label,
         Button,
         Checkbox,
         Radio,
-        ListItem
-    };
-
-    enum class CheckSlot : std::uint8_t {
-        None,
+        ListItem,
         Switch,
-        Checkbox,
-        Radio,
-        ListItem
-    };
-
-    enum class RangeSlot : std::uint8_t {
-        None,
         Slider,
         ScrollBar,
-        Progress
-    };
-
-    enum class ScrollSlot : std::uint8_t {
-        None,
+        Progress,
         List,
         ScrollContainer
     };
 
-    enum class ScrollBarSlot : std::uint8_t {
-        None,
-        ScrollBar
-    };
-
     struct PayloadDescriptor {
         bool supported{false};
-        TextSlot text{TextSlot::None};
-        CheckSlot check{CheckSlot::None};
-        RangeSlot range{RangeSlot::None};
-        ScrollSlot scroll{ScrollSlot::None};
-        ScrollBarSlot scrollbar{ScrollBarSlot::None};
+        PayloadKind payload{PayloadKind::None};
     };
 
     constexpr PayloadDescriptor make_desc(bool supported,
-        TextSlot text = TextSlot::None,
-        CheckSlot check = CheckSlot::None,
-        RangeSlot range = RangeSlot::None,
-        ScrollSlot scroll = ScrollSlot::None,
-        ScrollBarSlot scrollbar = ScrollBarSlot::None) noexcept {
-        return PayloadDescriptor{supported, text, check, range, scroll, scrollbar};
+        PayloadKind payload = PayloadKind::None) noexcept {
+        return PayloadDescriptor{supported, payload};
     }
+
+    template <typename T, std::size_t N>
+    struct PayloadPool {
+        std::array<T, N> items{};
+        std::array<std::uint16_t, N> generation{};
+        std::array<std::uint16_t, N> free_next{};
+        std::uint16_t free_head{kInvalidPayloadSlot};
+#ifndef NDEBUG
+        std::array<std::uint16_t, N> owner{};
+#endif
+
+        void reset() noexcept {
+            free_head = 0;
+            for (std::uint16_t i = 0; i < N; ++i) {
+                generation[i] = 1;
+                free_next[i] = (i + 1 < N) ? static_cast<std::uint16_t>(i + 1) : kInvalidPayloadSlot;
+                items[i] = T{};
+#ifndef NDEBUG
+                owner[i] = kInvalidIndex;
+#endif
+            }
+        }
+
+        PayloadHandle alloc(std::uint16_t owner_idx) noexcept {
+            if (free_head == kInvalidPayloadSlot) {
+                return invalid_payload_handle();
+            }
+            const std::uint16_t slot = free_head;
+            free_head = free_next[slot];
+            items[slot] = T{};
+#ifndef NDEBUG
+            owner[slot] = owner_idx;
+#else
+            (void)owner_idx;
+#endif
+            return PayloadHandle{slot, generation[slot]};
+        }
+
+        void free(PayloadHandle h, std::uint16_t owner_idx) noexcept {
+            if (!payload_valid(h) || h.slot >= N) return;
+            const std::uint16_t slot = h.slot;
+            if (generation[slot] != h.generation) return;
+#ifndef NDEBUG
+            if (owner[slot] != owner_idx) {
+                assert(false && "PayloadPool owner mismatch");
+            }
+            owner[slot] = kInvalidIndex;
+#else
+            (void)owner_idx;
+#endif
+            generation[slot] = static_cast<std::uint16_t>(generation[slot] + 1u);
+            free_next[slot] = free_head;
+            free_head = slot;
+            items[slot] = T{};
+        }
+
+        T* get(PayloadHandle h, std::uint16_t owner_idx) noexcept {
+            if (!payload_valid(h) || h.slot >= N) return nullptr;
+            const std::uint16_t slot = h.slot;
+            if (generation[slot] != h.generation) return nullptr;
+#ifndef NDEBUG
+            if (owner[slot] != owner_idx) {
+                assert(false && "PayloadPool owner mismatch");
+                return nullptr;
+            }
+#else
+            (void)owner_idx;
+#endif
+            return &items[slot];
+        }
+
+        const T* get(PayloadHandle h, std::uint16_t owner_idx) const noexcept {
+            if (!payload_valid(h) || h.slot >= N) return nullptr;
+            const std::uint16_t slot = h.slot;
+            if (generation[slot] != h.generation) return nullptr;
+#ifndef NDEBUG
+            if (owner[slot] != owner_idx) {
+                assert(false && "PayloadPool owner mismatch");
+                return nullptr;
+            }
+#else
+            (void)owner_idx;
+#endif
+            return &items[slot];
+        }
+    };
 }
 
 export
@@ -248,33 +319,45 @@ class SoaKernel {
 public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
 
-    SoaKernel() noexcept {
-        free_head_ = 0;
-        for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
-            common_.free_next[i] = (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex;
-            common_.kind[i] = WidgetKind::None;
-            common_.generation[i] = 1;
-            common_.flags[i] = 0;
-            common_.state_flags[i] = 0;
-            common_.variant[i] = 0;
-            common_.rects[i] = Rect{};
-            common_.paint_bounds[i] = Rect{};
-            common_.parent[i] = kInvalidIndex;
-            common_.first_child[i] = kInvalidIndex;
-            common_.last_child[i] = kInvalidIndex;
-            common_.next_sibling[i] = kInvalidIndex;
-            common_.prev_sibling[i] = kInvalidIndex;
-            common_.child_count[i] = 0;
-            common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+        SoaKernel() noexcept {
+            free_head_ = 0;
+            for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
+                common_.free_next[i] = (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex;
+                common_.kind[i] = WidgetKind::None;
+                common_.generation[i] = 1;
+                common_.flags[i] = 0;
+                common_.state_flags[i] = 0;
+                common_.variant[i] = 0;
+                common_.rects[i] = Rect{};
+                common_.paint_bounds[i] = Rect{};
+                common_.parent[i] = kInvalidIndex;
+                common_.first_child[i] = kInvalidIndex;
+                common_.last_child[i] = kInvalidIndex;
+                common_.next_sibling[i] = kInvalidIndex;
+                common_.prev_sibling[i] = kInvalidIndex;
+                common_.child_count[i] = 0;
+                common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+                common_.payload[i] = soa_detail::invalid_payload_handle();
+            }
+            label_pool_.reset();
+            button_pool_.reset();
+            checkbox_pool_.reset();
+            radio_pool_.reset();
+            list_item_pool_.reset();
+            switch_pool_.reset();
+            slider_pool_.reset();
+            progress_pool_.reset();
+            scrollbar_pool_.reset();
+            list_pool_.reset();
+            scroll_container_pool_.reset();
         }
-    }
 
-    WidgetHandle create(WidgetKind kind) noexcept {
-        if (!widget_kind_enabled(kind)) {
-            unsupported_kind(kind);
-            return {};
-        }
-        const auto desc = payload_descriptor(kind);
+        WidgetHandle create(WidgetKind kind) noexcept {
+            if (!widget_kind_enabled(kind)) {
+                unsupported_kind(kind);
+                return {};
+            }
+            const auto desc = payload_descriptor(kind);
         if (!desc.supported) {
             unsupported_kind(kind);
             return {};
@@ -298,13 +381,33 @@ public:
         common_.first_child[idx] = kInvalidIndex;
         common_.last_child[idx] = kInvalidIndex;
         common_.next_sibling[idx] = kInvalidIndex;
-        common_.prev_sibling[idx] = kInvalidIndex;
-        common_.child_count[idx] = 0;
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
-        reset_payload(kind, idx);
-        mark_layout_dirty();
-        return WidgetHandle{kind, idx, common_.generation[idx]};
-    }
+            common_.prev_sibling[idx] = kInvalidIndex;
+            common_.child_count[idx] = 0;
+            common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
+            const auto payload = payload_alloc(kind, idx);
+            if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
+                common_.kind[idx] = WidgetKind::None;
+                common_.flags[idx] = 0;
+                common_.state_flags[idx] = 0;
+                common_.variant[idx] = 0;
+                common_.rects[idx] = Rect{};
+                common_.paint_bounds[idx] = Rect{};
+                common_.parent[idx] = kInvalidIndex;
+                common_.first_child[idx] = kInvalidIndex;
+                common_.last_child[idx] = kInvalidIndex;
+                common_.next_sibling[idx] = kInvalidIndex;
+                common_.prev_sibling[idx] = kInvalidIndex;
+                common_.child_count[idx] = 0;
+                common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+                common_.payload[idx] = soa_detail::invalid_payload_handle();
+                common_.free_next[idx] = free_head_;
+                free_head_ = idx;
+                return {};
+            }
+            common_.payload[idx] = payload;
+            mark_layout_dirty();
+            return WidgetHandle{kind, idx, common_.generation[idx]};
+        }
 
     void destroy(WidgetHandle h) noexcept {
         const std::uint16_t idx = index_of(h);
@@ -316,17 +419,18 @@ public:
         detach_children(idx);
         common_.kind[idx] = WidgetKind::None;
         common_.flags[idx] = 0;
-        common_.state_flags[idx] = 0;
-        common_.variant[idx] = 0;
-        common_.rects[idx] = Rect{};
-        common_.paint_bounds[idx] = Rect{};
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
-        reset_payload(old_kind, idx);
-        mark_layout_dirty();
-        common_.generation[idx] = static_cast<std::uint16_t>(common_.generation[idx] + 1);
-        common_.free_next[idx] = free_head_;
-        free_head_ = idx;
-    }
+            common_.state_flags[idx] = 0;
+            common_.variant[idx] = 0;
+            common_.rects[idx] = Rect{};
+            common_.paint_bounds[idx] = Rect{};
+            common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+            payload_free(old_kind, common_.payload[idx], idx);
+            common_.payload[idx] = soa_detail::invalid_payload_handle();
+            mark_layout_dirty();
+            common_.generation[idx] = static_cast<std::uint16_t>(common_.generation[idx] + 1);
+            common_.free_next[idx] = free_head_;
+            free_head_ = idx;
+        }
 
     bool valid(WidgetHandle h) const noexcept {
         return index_of(h) != kInvalidIndex;
@@ -757,23 +861,38 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.text) {
-        case soa_detail::TextSlot::Label:
-            label_text_.text[idx] = text;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Label: {
+            auto* payload = payload_get(label_pool_, idx);
+            if (!payload) return;
+            payload->text = text;
             break;
-        case soa_detail::TextSlot::Button:
-            button_text_.text[idx] = text;
+        }
+        case soa_detail::PayloadKind::Button: {
+            auto* payload = payload_get(button_pool_, idx);
+            if (!payload) return;
+            payload->text = text;
             break;
-        case soa_detail::TextSlot::Checkbox:
-            checkbox_text_.text[idx] = text;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            auto* payload = payload_get(checkbox_pool_, idx);
+            if (!payload) return;
+            payload->text = text;
             break;
-        case soa_detail::TextSlot::Radio:
-            radio_text_.text[idx] = text;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            auto* payload = payload_get(radio_pool_, idx);
+            if (!payload) return;
+            payload->text = text;
             break;
-        case soa_detail::TextSlot::ListItem:
-            list_item_text_.text[idx] = text;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            auto* payload = payload_get(list_item_pool_, idx);
+            if (!payload) return;
+            payload->text = text;
             break;
-        case soa_detail::TextSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -784,18 +903,28 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return nullptr;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.text) {
-        case soa_detail::TextSlot::Label:
-            return label_text_.text[idx];
-        case soa_detail::TextSlot::Button:
-            return button_text_.text[idx];
-        case soa_detail::TextSlot::Checkbox:
-            return checkbox_text_.text[idx];
-        case soa_detail::TextSlot::Radio:
-            return radio_text_.text[idx];
-        case soa_detail::TextSlot::ListItem:
-            return list_item_text_.text[idx];
-        case soa_detail::TextSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Label: {
+            const auto* payload = payload_get(label_pool_, idx);
+            return payload ? payload->text : nullptr;
+        }
+        case soa_detail::PayloadKind::Button: {
+            const auto* payload = payload_get(button_pool_, idx);
+            return payload ? payload->text : nullptr;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            const auto* payload = payload_get(checkbox_pool_, idx);
+            return payload ? payload->text : nullptr;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            const auto* payload = payload_get(radio_pool_, idx);
+            return payload ? payload->text : nullptr;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            const auto* payload = payload_get(list_item_pool_, idx);
+            return payload ? payload->text : nullptr;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return nullptr;
         }
@@ -806,26 +935,35 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            if (slider_range_.value[idx] != value) {
-                slider_range_.value[idx] = value;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Slider: {
+            auto* payload = payload_get(slider_pool_, idx);
+            if (!payload) return;
+            if (payload->value != value) {
+                payload->value = value;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::RangeSlot::ScrollBar:
-            if (slider_range_.value[idx] != value) {
-                slider_range_.value[idx] = value;
+        }
+        case soa_detail::PayloadKind::ScrollBar: {
+            auto* payload = payload_get(scrollbar_pool_, idx);
+            if (!payload) return;
+            if (payload->value != value) {
+                payload->value = value;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::RangeSlot::Progress:
-            if (progress_range_.value[idx] != value) {
-                progress_range_.value[idx] = value;
+        }
+        case soa_detail::PayloadKind::Progress: {
+            auto* payload = payload_get(progress_pool_, idx);
+            if (!payload) return;
+            if (payload->value != value) {
+                payload->value = value;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::RangeSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -835,14 +973,20 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            return slider_range_.value[idx];
-        case soa_detail::RangeSlot::ScrollBar:
-            return slider_range_.value[idx];
-        case soa_detail::RangeSlot::Progress:
-            return progress_range_.value[idx];
-        case soa_detail::RangeSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Slider: {
+            const auto* payload = payload_get(slider_pool_, idx);
+            return payload ? payload->value : 0;
+        }
+        case soa_detail::PayloadKind::ScrollBar: {
+            const auto* payload = payload_get(scrollbar_pool_, idx);
+            return payload ? payload->value : 0;
+        }
+        case soa_detail::PayloadKind::Progress: {
+            const auto* payload = payload_get(progress_pool_, idx);
+            return payload ? payload->value : 0;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
@@ -853,29 +997,38 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            slider_range_.min_value[idx] = min_value;
-            slider_range_.max_value[idx] = max_value;
-            if (slider_range_.value[idx] < min_value) slider_range_.value[idx] = min_value;
-            if (slider_range_.value[idx] > max_value) slider_range_.value[idx] = max_value;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Slider: {
+            auto* payload = payload_get(slider_pool_, idx);
+            if (!payload) return;
+            payload->min_value = min_value;
+            payload->max_value = max_value;
+            if (payload->value < min_value) payload->value = min_value;
+            if (payload->value > max_value) payload->value = max_value;
             mark_layout_dirty();
             break;
-        case soa_detail::RangeSlot::ScrollBar:
-            slider_range_.min_value[idx] = min_value;
-            slider_range_.max_value[idx] = max_value;
-            if (slider_range_.value[idx] < min_value) slider_range_.value[idx] = min_value;
-            if (slider_range_.value[idx] > max_value) slider_range_.value[idx] = max_value;
+        }
+        case soa_detail::PayloadKind::ScrollBar: {
+            auto* payload = payload_get(scrollbar_pool_, idx);
+            if (!payload) return;
+            payload->min_value = min_value;
+            payload->max_value = max_value;
+            if (payload->value < min_value) payload->value = min_value;
+            if (payload->value > max_value) payload->value = max_value;
             mark_layout_dirty();
             break;
-        case soa_detail::RangeSlot::Progress:
-            progress_range_.min_value[idx] = min_value;
-            progress_range_.max_value[idx] = max_value;
-            if (progress_range_.value[idx] < min_value) progress_range_.value[idx] = min_value;
-            if (progress_range_.value[idx] > max_value) progress_range_.value[idx] = max_value;
+        }
+        case soa_detail::PayloadKind::Progress: {
+            auto* payload = payload_get(progress_pool_, idx);
+            if (!payload) return;
+            payload->min_value = min_value;
+            payload->max_value = max_value;
+            if (payload->value < min_value) payload->value = min_value;
+            if (payload->value > max_value) payload->value = max_value;
             mark_layout_dirty();
             break;
-        case soa_detail::RangeSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -885,14 +1038,20 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            return slider_range_.min_value[idx];
-        case soa_detail::RangeSlot::ScrollBar:
-            return slider_range_.min_value[idx];
-        case soa_detail::RangeSlot::Progress:
-            return progress_range_.min_value[idx];
-        case soa_detail::RangeSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Slider: {
+            const auto* payload = payload_get(slider_pool_, idx);
+            return payload ? payload->min_value : 0;
+        }
+        case soa_detail::PayloadKind::ScrollBar: {
+            const auto* payload = payload_get(scrollbar_pool_, idx);
+            return payload ? payload->min_value : 0;
+        }
+        case soa_detail::PayloadKind::Progress: {
+            const auto* payload = payload_get(progress_pool_, idx);
+            return payload ? payload->min_value : 0;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
@@ -903,14 +1062,20 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            return slider_range_.max_value[idx];
-        case soa_detail::RangeSlot::ScrollBar:
-            return slider_range_.max_value[idx];
-        case soa_detail::RangeSlot::Progress:
-            return progress_range_.max_value[idx];
-        case soa_detail::RangeSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Slider: {
+            const auto* payload = payload_get(slider_pool_, idx);
+            return payload ? payload->max_value : 0;
+        }
+        case soa_detail::PayloadKind::ScrollBar: {
+            const auto* payload = payload_get(scrollbar_pool_, idx);
+            return payload ? payload->max_value : 0;
+        }
+        case soa_detail::PayloadKind::Progress: {
+            const auto* payload = payload_get(progress_pool_, idx);
+            return payload ? payload->max_value : 0;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
@@ -921,11 +1086,13 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        scrollbar_store_.orientation[idx] = static_cast<std::uint8_t>(orient);
+        auto* payload = payload_get(scrollbar_pool_, idx);
+        if (!payload) return;
+        payload->orientation = static_cast<std::uint8_t>(orient);
         mark_paint_dirty();
     }
 
@@ -933,22 +1100,26 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return ScrollBarOrientation::Horizontal;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return ScrollBarOrientation::Horizontal;
         }
-        return static_cast<ScrollBarOrientation>(scrollbar_store_.orientation[idx]);
+        const auto* payload = payload_get(scrollbar_pool_, idx);
+        if (!payload) return ScrollBarOrientation::Horizontal;
+        return static_cast<ScrollBarOrientation>(payload->orientation);
     }
 
     void set_scrollbar_page_size(WidgetHandle h, int page_size) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        scrollbar_store_.page_size[idx] = (page_size > 0) ? page_size : 0;
+        auto* payload = payload_get(scrollbar_pool_, idx);
+        if (!payload) return;
+        payload->page_size = (page_size > 0) ? page_size : 0;
         mark_paint_dirty();
     }
 
@@ -956,18 +1127,19 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
-        return scrollbar_store_.page_size[idx];
+        const auto* payload = payload_get(scrollbar_pool_, idx);
+        return payload ? payload->page_size : 0;
     }
 
     void set_scrollbar_target(WidgetHandle h, WidgetHandle target) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return;
         }
@@ -978,7 +1150,9 @@ public:
         if (next && !input_is_scrollable_kind(kind(next))) {
             next = {};
         }
-        scrollbar_store_.target[idx] = next;
+        auto* payload = payload_get(scrollbar_pool_, idx);
+        if (!payload) return;
+        payload->target = next;
         mark_paint_dirty();
     }
 
@@ -986,11 +1160,12 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return {};
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scrollbar != soa_detail::ScrollBarSlot::ScrollBar) {
+        if (desc.payload != soa_detail::PayloadKind::ScrollBar) {
             unsupported_kind(common_.kind[idx]);
             return {};
         }
-        const WidgetHandle target = scrollbar_store_.target[idx];
+        const auto* payload = payload_get(scrollbar_pool_, idx);
+        const WidgetHandle target = payload ? payload->target : WidgetHandle{};
         if (!target) return {};
         return valid(target) ? target : WidgetHandle{};
     }
@@ -1000,20 +1175,32 @@ public:
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
         const std::uint8_t value = static_cast<std::uint8_t>(on ? 1 : 0);
-        switch (desc.check) {
-        case soa_detail::CheckSlot::Switch:
-            switch_checked_.checked[idx] = value;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Switch: {
+            auto* payload = payload_get(switch_pool_, idx);
+            if (!payload) return;
+            payload->checked = value;
             break;
-        case soa_detail::CheckSlot::Checkbox:
-            checkbox_checked_.checked[idx] = value;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            auto* payload = payload_get(checkbox_pool_, idx);
+            if (!payload) return;
+            payload->checked = value;
             break;
-        case soa_detail::CheckSlot::Radio:
-            radio_checked_.checked[idx] = value;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            auto* payload = payload_get(radio_pool_, idx);
+            if (!payload) return;
+            payload->checked = value;
             break;
-        case soa_detail::CheckSlot::ListItem:
-            list_item_checked_.checked[idx] = value;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            auto* payload = payload_get(list_item_pool_, idx);
+            if (!payload) return;
+            payload->checked = value;
             break;
-        case soa_detail::CheckSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -1024,16 +1211,24 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.check) {
-        case soa_detail::CheckSlot::Switch:
-            return switch_checked_.checked[idx] != 0;
-        case soa_detail::CheckSlot::Checkbox:
-            return checkbox_checked_.checked[idx] != 0;
-        case soa_detail::CheckSlot::Radio:
-            return radio_checked_.checked[idx] != 0;
-        case soa_detail::CheckSlot::ListItem:
-            return list_item_checked_.checked[idx] != 0;
-        case soa_detail::CheckSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Switch: {
+            const auto* payload = payload_get(switch_pool_, idx);
+            return payload ? payload->checked != 0 : false;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            const auto* payload = payload_get(checkbox_pool_, idx);
+            return payload ? payload->checked != 0 : false;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            const auto* payload = payload_get(radio_pool_, idx);
+            return payload ? payload->checked != 0 : false;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            const auto* payload = payload_get(list_item_pool_, idx);
+            return payload ? payload->checked != 0 : false;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return false;
         }
@@ -1044,20 +1239,26 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            if (list_store_.scroll_y[idx] != y) {
-                list_store_.scroll_y[idx] = y;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            auto* payload = payload_get(list_pool_, idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::ScrollSlot::ScrollContainer:
-            if (scroll_store_.scroll_y[idx] != y) {
-                scroll_store_.scroll_y[idx] = y;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            auto* payload = payload_get(scroll_container_pool_, idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::ScrollSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -1067,14 +1268,20 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            list_store_.scroll_y[idx] += dy;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            auto* payload = payload_get(list_pool_, idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
             break;
-        case soa_detail::ScrollSlot::ScrollContainer:
-            scroll_store_.scroll_y[idx] += dy;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            auto* payload = payload_get(scroll_container_pool_, idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
             break;
-        case soa_detail::ScrollSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -1084,12 +1291,16 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            return list_store_.scroll_y[idx];
-        case soa_detail::ScrollSlot::ScrollContainer:
-            return scroll_store_.scroll_y[idx];
-        case soa_detail::ScrollSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            const auto* payload = payload_get(list_pool_, idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            const auto* payload = payload_get(scroll_container_pool_, idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
@@ -1101,14 +1312,20 @@ public:
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
         const int value = (step > 0) ? step : 1;
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            list_store_.scroll_step[idx] = value;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            auto* payload = payload_get(list_pool_, idx);
+            if (!payload) return;
+            payload->scroll_step = value;
             break;
-        case soa_detail::ScrollSlot::ScrollContainer:
-            scroll_store_.scroll_step[idx] = value;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            auto* payload = payload_get(scroll_container_pool_, idx);
+            if (!payload) return;
+            payload->scroll_step = value;
             break;
-        case soa_detail::ScrollSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
@@ -1118,12 +1335,16 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            return list_store_.scroll_step[idx];
-        case soa_detail::ScrollSlot::ScrollContainer:
-            return scroll_store_.scroll_step[idx];
-        case soa_detail::ScrollSlot::None:
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            const auto* payload = payload_get(list_pool_, idx);
+            return payload ? payload->scroll_step : 24;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            const auto* payload = payload_get(scroll_container_pool_, idx);
+            return payload ? payload->scroll_step : 24;
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             return 24;
         }
@@ -1134,11 +1355,13 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scroll != soa_detail::ScrollSlot::List) {
+        if (desc.payload != soa_detail::PayloadKind::List) {
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        list_store_.row_height[idx] = (row_h > 0) ? row_h : 1;
+        auto* payload = payload_get(list_pool_, idx);
+        if (!payload) return;
+        payload->row_height = (row_h > 0) ? row_h : 1;
         mark_layout_dirty();
     }
 
@@ -1146,22 +1369,25 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 28;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scroll != soa_detail::ScrollSlot::List) {
+        if (desc.payload != soa_detail::PayloadKind::List) {
             unsupported_kind(common_.kind[idx]);
             return 28;
         }
-        return list_store_.row_height[idx];
+        const auto* payload = payload_get(list_pool_, idx);
+        return payload ? payload->row_height : 28;
     }
 
     void apply_list_layout(WidgetHandle h, int padding) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.scroll != soa_detail::ScrollSlot::List) {
+        if (desc.payload != soa_detail::PayloadKind::List) {
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        const int row_h = list_store_.row_height[idx];
+        const auto* payload = payload_get(list_pool_, idx);
+        if (!payload) return;
+        const int row_h = payload->row_height;
         Rect r = common_.rects[idx];
         int x = padding;
         int y = padding;
@@ -1279,40 +1505,43 @@ public:
         if (idx == kInvalidIndex) return;
         const int clamped = clamp_scroll_y(h, y);
         const auto desc = payload_descriptor(common_.kind[idx]);
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            if (list_store_.scroll_y[idx] != clamped) {
-                list_store_.scroll_y[idx] = clamped;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::List: {
+            auto* payload = payload_get(list_pool_, idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::ScrollSlot::ScrollContainer:
-            if (scroll_store_.scroll_y[idx] != clamped) {
-                scroll_store_.scroll_y[idx] = clamped;
+        }
+        case soa_detail::PayloadKind::ScrollContainer: {
+            auto* payload = payload_get(scroll_container_pool_, idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
                 mark_paint_dirty();
             }
             break;
-        case soa_detail::ScrollSlot::None:
+        }
+        default:
             unsupported_kind(common_.kind[idx]);
             break;
         }
     }
 
     soa_detail::CommonSoA<kMaxNodes> common_{};
-    soa_detail::TextStore<kMaxNodes> label_text_{};
-    soa_detail::TextStore<kMaxNodes> button_text_{};
-    soa_detail::TextStore<kMaxNodes> checkbox_text_{};
-    soa_detail::TextStore<kMaxNodes> radio_text_{};
-    soa_detail::TextStore<kMaxNodes> list_item_text_{};
-    soa_detail::CheckStore<kMaxNodes> switch_checked_{};
-    soa_detail::CheckStore<kMaxNodes> checkbox_checked_{};
-    soa_detail::CheckStore<kMaxNodes> radio_checked_{};
-    soa_detail::CheckStore<kMaxNodes> list_item_checked_{};
-    soa_detail::RangeStore<kMaxNodes> slider_range_{};
-    soa_detail::RangeStore<kMaxNodes> progress_range_{};
-    soa_detail::ListStore<kMaxNodes> list_store_{};
-    soa_detail::ScrollStore<kMaxNodes> scroll_store_{};
-    soa_detail::ScrollBarStore<kMaxNodes> scrollbar_store_{};
+    soa_detail::PayloadPool<soa_detail::LabelPayload, kMaxNodes> label_pool_{};
+    soa_detail::PayloadPool<soa_detail::ButtonPayload, kMaxNodes> button_pool_{};
+    soa_detail::PayloadPool<soa_detail::CheckboxPayload, kMaxNodes> checkbox_pool_{};
+    soa_detail::PayloadPool<soa_detail::RadioPayload, kMaxNodes> radio_pool_{};
+    soa_detail::PayloadPool<soa_detail::ListItemPayload, kMaxNodes> list_item_pool_{};
+    soa_detail::PayloadPool<soa_detail::SwitchPayload, kMaxNodes> switch_pool_{};
+    soa_detail::PayloadPool<soa_detail::SliderPayload, kMaxNodes> slider_pool_{};
+    soa_detail::PayloadPool<soa_detail::ProgressPayload, kMaxNodes> progress_pool_{};
+    soa_detail::PayloadPool<soa_detail::ScrollBarPayload, kMaxNodes> scrollbar_pool_{};
+    soa_detail::PayloadPool<soa_detail::ListPayload, kMaxNodes> list_pool_{};
+    soa_detail::PayloadPool<soa_detail::ScrollContainerPayload, kMaxNodes> scroll_container_pool_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};
     std::uint32_t paint_dirty_version_{0};
@@ -1397,108 +1626,127 @@ public:
         case WidgetKind::Container:
             return make_desc(true);
         case WidgetKind::ScrollContainer:
-            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::None, ScrollSlot::ScrollContainer);
+            return make_desc(true, PayloadKind::ScrollContainer);
         case WidgetKind::Label:
-            return make_desc(true, TextSlot::Label);
+            return make_desc(true, PayloadKind::Label);
         case WidgetKind::Button:
-            return make_desc(true, TextSlot::Button);
+            return make_desc(true, PayloadKind::Button);
         case WidgetKind::Checkbox:
-            return make_desc(true, TextSlot::Checkbox, CheckSlot::Checkbox);
+            return make_desc(true, PayloadKind::Checkbox);
         case WidgetKind::Slider:
-            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::Slider);
+            return make_desc(true, PayloadKind::Slider);
         case WidgetKind::ScrollBar:
-            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::ScrollBar, ScrollSlot::None,
-                             ScrollBarSlot::ScrollBar);
+            return make_desc(true, PayloadKind::ScrollBar);
         case WidgetKind::Switch:
-            return make_desc(true, TextSlot::None, CheckSlot::Switch);
+            return make_desc(true, PayloadKind::Switch);
         case WidgetKind::Progress:
-            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::Progress);
+            return make_desc(true, PayloadKind::Progress);
         case WidgetKind::List:
-            return make_desc(true, TextSlot::None, CheckSlot::None, RangeSlot::None, ScrollSlot::List);
+            return make_desc(true, PayloadKind::List);
         case WidgetKind::ListItem:
-            return make_desc(true, TextSlot::ListItem, CheckSlot::ListItem);
+            return make_desc(true, PayloadKind::ListItem);
         case WidgetKind::Radio:
-            return make_desc(true, TextSlot::Radio, CheckSlot::Radio);
+            return make_desc(true, PayloadKind::Radio);
         default:
             return make_desc(true);
         }
     }
 
-    void reset_payload(WidgetKind kind, std::uint16_t idx) noexcept {
+    soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) {
-            unsupported_kind(kind);
+            return soa_detail::invalid_payload_handle();
+        }
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::None:
+            return soa_detail::invalid_payload_handle();
+        case soa_detail::PayloadKind::Label:
+            return label_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Button:
+            return button_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Checkbox:
+            return checkbox_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Radio:
+            return radio_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::ListItem:
+            return list_item_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Switch:
+            return switch_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Slider:
+            return slider_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::ScrollBar:
+            return scrollbar_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::Progress:
+            return progress_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::List:
+            return list_pool_.alloc(owner_idx);
+        case soa_detail::PayloadKind::ScrollContainer:
+            return scroll_container_pool_.alloc(owner_idx);
+        }
+        return soa_detail::invalid_payload_handle();
+    }
+
+    void payload_free(WidgetKind kind, soa_detail::PayloadHandle handle, std::uint16_t owner_idx) noexcept {
+        if (!soa_detail::payload_valid(handle)) return;
+        const auto desc = payload_descriptor(kind);
+        if (!desc.supported) return;
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::None:
             return;
+        case soa_detail::PayloadKind::Label:
+            label_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Button:
+            button_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Checkbox:
+            checkbox_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Radio:
+            radio_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::ListItem:
+            list_item_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Switch:
+            switch_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Slider:
+            slider_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::ScrollBar:
+            scrollbar_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::Progress:
+            progress_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::List:
+            list_pool_.free(handle, owner_idx);
+            break;
+        case soa_detail::PayloadKind::ScrollContainer:
+            scroll_container_pool_.free(handle, owner_idx);
+            break;
         }
-        switch (desc.text) {
-        case soa_detail::TextSlot::Label:
-            label_text_.reset(idx);
-            break;
-        case soa_detail::TextSlot::Button:
-            button_text_.reset(idx);
-            break;
-        case soa_detail::TextSlot::Checkbox:
-            checkbox_text_.reset(idx);
-            break;
-        case soa_detail::TextSlot::Radio:
-            radio_text_.reset(idx);
-            break;
-        case soa_detail::TextSlot::ListItem:
-            list_item_text_.reset(idx);
-            break;
-        case soa_detail::TextSlot::None:
-            break;
-        }
+    }
 
-        switch (desc.check) {
-        case soa_detail::CheckSlot::Switch:
-            switch_checked_.reset(idx);
-            break;
-        case soa_detail::CheckSlot::Checkbox:
-            checkbox_checked_.reset(idx);
-            break;
-        case soa_detail::CheckSlot::Radio:
-            radio_checked_.reset(idx);
-            break;
-        case soa_detail::CheckSlot::ListItem:
-            list_item_checked_.reset(idx);
-            break;
-        case soa_detail::CheckSlot::None:
-            break;
+    template <typename T>
+    T* payload_get(soa_detail::PayloadPool<T, kMaxNodes>& pool, std::uint16_t idx) noexcept {
+        const auto handle = common_.payload[idx];
+        T* payload = pool.get(handle, idx);
+        if (!payload) {
+            unsupported_kind(common_.kind[idx]);
         }
+        return payload;
+    }
 
-        switch (desc.range) {
-        case soa_detail::RangeSlot::Slider:
-            slider_range_.reset(idx);
-            break;
-        case soa_detail::RangeSlot::ScrollBar:
-            slider_range_.reset(idx);
-            break;
-        case soa_detail::RangeSlot::Progress:
-            progress_range_.reset(idx);
-            break;
-        case soa_detail::RangeSlot::None:
-            break;
+    template <typename T>
+    const T* payload_get(const soa_detail::PayloadPool<T, kMaxNodes>& pool, std::uint16_t idx) const noexcept {
+        const auto handle = common_.payload[idx];
+        const T* payload = pool.get(handle, idx);
+        if (!payload) {
+            unsupported_kind(common_.kind[idx]);
         }
-
-        switch (desc.scroll) {
-        case soa_detail::ScrollSlot::List:
-            list_store_.reset(idx);
-            break;
-        case soa_detail::ScrollSlot::ScrollContainer:
-            scroll_store_.reset(idx);
-            break;
-        case soa_detail::ScrollSlot::None:
-            break;
-        }
-
-        switch (desc.scrollbar) {
-        case soa_detail::ScrollBarSlot::ScrollBar:
-            scrollbar_store_.reset(idx);
-            break;
-        case soa_detail::ScrollBarSlot::None:
-            break;
-        }
+        return payload;
     }
 
 private:
@@ -1584,8 +1832,7 @@ private:
     }
 
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept {
-        const auto desc = payload_descriptor(kind);
-        return desc.scroll != soa_detail::ScrollSlot::None;
+        return kind == WidgetKind::List || kind == WidgetKind::ScrollContainer;
     }
 
     static int clamp_int(int v, int lo, int hi) noexcept {
@@ -1777,10 +2024,14 @@ private:
         for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
             if (!flag_raw(i, SoaNodeFlag::Used)) continue;
             if (common_.kind[i] != WidgetKind::ScrollBar) continue;
-            WidgetHandle target = scrollbar_store_.target[i];
+            const auto* payload = payload_get(scrollbar_pool_, i);
+            WidgetHandle target = payload ? payload->target : WidgetHandle{};
             if (!target) continue;
             if (input_is_invalid(target) || input_is_descendant(target, h)) {
-                scrollbar_store_.target[i] = {};
+                auto* mutable_payload = payload_get(scrollbar_pool_, i);
+                if (mutable_payload) {
+                    mutable_payload->target = {};
+                }
             }
         }
     }

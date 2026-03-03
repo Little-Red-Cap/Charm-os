@@ -117,6 +117,12 @@ flowchart LR
 - Tile 执行阶段先基于命令包围盒构建命中表（tile_count <= 1024），避免逐 tile 全量扫描。
 - tile_count 超过上限时回退到逐 tile 命中检测，保持正确性。
 
+### 2.4 SoA Payload Pools（C1）
+
+- Node 只保留 `kind + payload_handle`（slot+generation），CommonSoA 不再存 payload 字段。
+- 每个 kind 对应独立 `PayloadPool`，固定容量、无动态分配；默认容量为 `soa_max_nodes`。
+- debug 下校验 slot/generation 与 owner，释放后 generation++，避免悬挂句柄。
+
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。

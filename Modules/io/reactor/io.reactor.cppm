@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstdint>
+#include <span>
 
 export module io.reactor;
 
 import io.channel;
+import init.node;
 import util.core;
 import util.error;
 
@@ -147,5 +149,44 @@ export namespace io {
         Channel* overflow_ch_{nullptr};
         WakeFn waker_{nullptr};
         void* waker_ctx_{nullptr};
+    };
+
+    struct ReactorBinding {
+        Reactor* reactor{nullptr};
+        WakeFn waker{nullptr};
+        void* waker_ctx{nullptr};
+        std::array<init::CapId, 1> provides{};
+        init::Node node{};
+
+        explicit ReactorBinding(Reactor& r,
+                                WakeFn wake = nullptr,
+                                void* ctx = nullptr,
+                                const char* cap_name = "io.reactor",
+                                init::Phase phase = init::Phase::core,
+                                util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
+            : reactor(&r), waker(wake), waker_ctx(ctx) {
+            provides[0] = init::cap_id(cap_name);
+            node = init::Node{
+                cap_name,
+                phase,
+                runlevel_mask,
+                std::span<const init::CapId>(provides.data(), provides.size()),
+                {},
+                &ReactorBinding::init_trampoline,
+                nullptr,
+                this
+            };
+        }
+
+        static util::Result<void> init_trampoline(void* ctx) noexcept {
+            auto* self = static_cast<ReactorBinding*>(ctx);
+            if (!self || !self->reactor) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (self->waker) {
+                self->reactor->set_waker(self->waker, self->waker_ctx);
+            }
+            return {};
+        }
     };
 }

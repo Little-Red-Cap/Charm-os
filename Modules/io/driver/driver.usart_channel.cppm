@@ -189,7 +189,7 @@ export namespace driver::usart {
             requires[2] = init::cap_id(hal_cap_name);
             node = init::Node{
                 endpoint_name,
-                init::Phase::service,
+                init::Phase::core,
                 static_cast<util::u32>(init::Runlevel::all),
                 std::span<const init::CapId>(provides.data(), provides.size()),
                 std::span<const init::CapId>(requires.data(), requires.size()),

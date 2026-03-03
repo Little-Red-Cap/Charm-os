@@ -6,12 +6,15 @@ module;
 export module charm.system.init_usart;
 
 import init.graph;
+import init.node;
 import io.registry;
 import io.reactor;
 import platform.irq;
+import hal_uart;
 import hal_uart.node;
 import driver.usart_channel;
 import util.core;
+import util.error;
 
 export namespace charm::system {
     template <util::usize MaxEndpoints, util::usize RxCap, util::usize TxCap>

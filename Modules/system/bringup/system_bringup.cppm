@@ -4,6 +4,9 @@ export module charm.system.bringup;
 
 import charm.system.init_usart;
 import init.graph;
+import init.node;
+import io.registry;
+import io.reactor;
 import platform.board;
 import util.core;
 import util.error;

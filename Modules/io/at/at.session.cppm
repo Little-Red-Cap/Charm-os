@@ -3,15 +3,17 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string_view>
 
 export module at.session;
 
 import util.core;
+import util.error;
 import at.parser;
 
 export namespace at {
-    using SendFn = bool (*)(void* ctx, ByteView data) noexcept;
+    using SendFn = util::Result<util::usize> (*)(void* ctx, ByteView data) noexcept;
     using LineFn = void (*)(void* ctx, std::string_view line) noexcept;
     using DoneFn = void (*)(void* ctx, bool ok) noexcept;
     using UrcFn  = void (*)(void* ctx, std::string_view line) noexcept;
@@ -45,6 +47,8 @@ export namespace at {
             count_ = 0;
             active_ = false;
             last_send_ms_ = 0;
+            send_len_ = 0;
+            send_off_ = 0;
             parser_.reset();
         }
 
@@ -70,6 +74,12 @@ export namespace at {
                     pop_active();
                 }
             }
+        }
+
+        void notify_writable(util::u32 now_ms) noexcept {
+            if (!active_) return;
+            if (send_len_ == 0) return;
+            send_current(now_ms);
         }
 
     private:
@@ -103,25 +113,53 @@ export namespace at {
         void send_current(util::u32 now_ms) noexcept {
             if (!send_) return;
             auto& cur = queue_[head_];
-            if (cur.append_crlf) {
-                auto sent = send_(send_ctx_, ByteView{
-                    reinterpret_cast<const util::u8*>(cur.text.data()),
-                    static_cast<util::usize>(cur.text.size())});
-                if (sent) {
-                    static constexpr util::u8 crlf[2] = {'\r', '\n'};
-                    (void)send_(send_ctx_, ByteView{crlf, 2});
+            if (send_len_ == 0) {
+                const auto text_len = static_cast<util::usize>(cur.text.size());
+                const auto total_len = text_len + (cur.append_crlf ? 2u : 0u);
+                if (total_len > send_buf_.size()) {
+                    if (cur.on_done) cur.on_done(cur.user, false);
+                    pop_active();
+                    return;
                 }
-            } else {
-                (void)send_(send_ctx_, ByteView{
-                    reinterpret_cast<const util::u8*>(cur.text.data()),
-                    static_cast<util::usize>(cur.text.size())});
+                if (text_len > 0) {
+                    std::memcpy(send_buf_.data(), cur.text.data(), text_len);
+                }
+                send_len_ = total_len;
+                send_off_ = 0;
+                if (cur.append_crlf) {
+                    send_buf_[text_len] = '\r';
+                    send_buf_[text_len + 1] = '\n';
+                }
             }
+            while (send_off_ < send_len_) {
+                auto view = ByteView{
+                    send_buf_.data() + send_off_,
+                    send_len_ - send_off_
+                };
+                auto sent = send_(send_ctx_, view);
+                if (!sent) {
+                    if (sent.error() == util::Errc::would_block) return;
+                    if (cur.on_done) cur.on_done(cur.user, false);
+                    send_len_ = 0;
+                    send_off_ = 0;
+                    pop_active();
+                    return;
+                }
+                if (sent.value() == 0) {
+                    util::halt();
+                    return;
+                }
+                send_off_ += sent.value();
+            }
+            send_len_ = 0;
+            send_off_ = 0;
             last_send_ms_ = now_ms;
             ++attempts_;
         }
 
         bool timeout_expired(util::u32 now_ms) const noexcept {
             const auto& cur = queue_[head_];
+            if (send_len_ != 0) return false;
             return (now_ms - last_send_ms_) >= cur.timeout_ms;
         }
 
@@ -162,6 +200,9 @@ export namespace at {
         void* send_ctx_{nullptr};
         UrcFn urc_{nullptr};
         void* urc_ctx_{nullptr};
+        std::array<util::u8, LineCap + 2> send_buf_{};
+        util::usize send_len_{0};
+        util::usize send_off_{0};
 
     public:
         Session() {

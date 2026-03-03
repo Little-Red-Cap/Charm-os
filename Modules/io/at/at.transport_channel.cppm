@@ -7,6 +7,7 @@ module;
 export module at.transport_channel;
 
 import util.core;
+import util.error;
 import io.channel;
 import at.parser;
 import at.session;
@@ -27,16 +28,28 @@ export namespace at {
         void poll() noexcept {
             if (!channel_) return;
             auto r = channel_->read(MutByteView{rx_buf_.data(), rx_buf_.size()});
-            if (!r || *r == 0) return;
-            session_->feed(ByteView{rx_buf_.data(), *r});
+            if (!r) {
+                if (r.error() == util::Errc::would_block) return;
+                return;
+            }
+            if (r.value() == 0) {
+                util::halt();
+                return;
+            }
+            session_->feed(ByteView{rx_buf_.data(), r.value()});
         }
 
     private:
-        static bool send_trampoline(void* ctx, ByteView data) noexcept {
+        static util::Result<util::usize> send_trampoline(void* ctx, ByteView data) noexcept {
             auto* self = static_cast<ChannelBridge*>(ctx);
-            if (!self || !self->channel_) return false;
+            if (!self || !self->channel_) return util::unexpected(util::Errc::invalid_arg);
             auto r = self->channel_->write(data);
-            return r.has_value();
+            if (!r) return util::unexpected(r.error());
+            if (r.value() == 0) {
+                util::halt();
+                return util::unexpected(util::Errc::io_error);
+            }
+            return r.value();
         }
 
         Session<MaxQueue, LineCap>* session_{nullptr};

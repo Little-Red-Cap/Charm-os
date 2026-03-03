@@ -78,6 +78,7 @@ export namespace at {
         }
 
         void tick(util::u32 now_ms) noexcept {
+            last_now_ms_ = now_ms;
             session_.tick(now_ms);
         }
 
@@ -92,11 +93,12 @@ export namespace at {
             if (self) self->handle(ch, ev);
         }
 
-        static bool send_trampoline(void* ctx, io::ByteView data) noexcept {
+        static util::Result<util::usize> send_trampoline(void* ctx, io::ByteView data) noexcept {
             auto* self = static_cast<ReactorDriver*>(ctx);
-            if (!self) return false;
+            if (!self) return util::unexpected(util::Errc::invalid_arg);
             const auto pushed = self->tx_.push(data);
-            return pushed == data.size();
+            if (pushed == 0) return util::unexpected(util::Errc::would_block);
+            return pushed;
         }
 
         void handle(io::Channel& ch, util::u32 ev) noexcept {
@@ -117,9 +119,12 @@ export namespace at {
                     }
                     session_.feed(io::ByteView{rx_buf_.data(), n});
                 }
+                flush_tx();
+                session_.notify_writable(last_now_ms_);
             }
             if (ev & static_cast<util::u32>(io::Event::writable)) {
                 flush_tx();
+                session_.notify_writable(last_now_ms_);
             }
         }
 
@@ -164,5 +169,6 @@ export namespace at {
         util::usize pending_off_{0};
         int rx_budget_{4};
         int tx_budget_{4};
+        util::u32 last_now_ms_{0};
     };
 }

@@ -49,13 +49,18 @@ export namespace hal::win {
 
     struct Uart {
         static Result init(UartHandle, UartConfig) noexcept { return ok(); }
-        static Result write(UartHandle, std::span<const util::u8> tx) noexcept {
-            if (!tx.empty()) std::fwrite(tx.data(), 1, tx.size(), stdout);
+        static Result enable(UartHandle) noexcept { return ok(); }
+        static Result disable(UartHandle) noexcept { return ok(); }
+        static Result try_write(UartHandle, util::u8 byte) noexcept {
+            std::fwrite(&byte, 1, 1, stdout);
             return ok();
         }
-        static Result read(UartHandle, std::span<util::u8>) noexcept {
-            return err(Status::unsupported);
+        static Result try_read(UartHandle, util::u8&) noexcept {
+            return err(Status::busy);
         }
+        static void enable_irq(UartHandle, util::u32) noexcept {}
+        static void disable_irq(UartHandle, util::u32) noexcept {}
+        static void clear_irq(UartHandle, util::u32) noexcept {}
     };
 
     struct Timer {

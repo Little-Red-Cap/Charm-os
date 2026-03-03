@@ -506,15 +506,72 @@ export namespace ui::draw_cmd {
                                       tile_buffer.format,
                                       stride);
 
+            const int tiles_x = (screen_w + tile_w - 1) / tile_w;
+            const int tiles_y = (screen_h + tile_h - 1) / tile_h;
+            constexpr std::size_t kMaxTileHitEntries = 1024;
+            const std::size_t tile_count = static_cast<std::size_t>(tiles_x) * static_cast<std::size_t>(tiles_y);
+            std::array<std::uint8_t, kMaxTileHitEntries> tile_hits{};
+            const bool use_hit_cache = (tile_count <= kMaxTileHitEntries);
+            if (use_hit_cache) {
+                Rect screen_rect{0, 0, screen_w, screen_h};
+                Rect clipped{};
+                const DrawCmd* cmds = buf.data();
+                const std::size_t count = buf.size();
+                for (std::size_t i = 0; i < count; ++i) {
+                    const auto& cmd = cmds[i];
+                    if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
+                        continue;
+                    }
+                    Rect bounds = cmd.rect;
+                    if (cmd.type == CmdType::DrawLine) {
+                        const int x0 = cmd.rect.x;
+                        const int y0 = cmd.rect.y;
+                        const int x1 = cmd.rect.w;
+                        const int y1 = cmd.rect.h;
+                        bounds = Rect{
+                            (x0 < x1) ? x0 : x1,
+                            (y0 < y1) ? y0 : y1,
+                            (x0 < x1) ? (x1 - x0 + 1) : (x0 - x1 + 1),
+                            (y0 < y1) ? (y1 - y0 + 1) : (y0 - y1 + 1)
+                        };
+                    }
+                    if (!rect_valid(bounds)) continue;
+                    if (!rect_intersect(bounds, screen_rect, clipped)) continue;
+
+                    int tx0 = clipped.x / tile_w;
+                    int ty0 = clipped.y / tile_h;
+                    int tx1 = (clipped.x + clipped.w - 1) / tile_w;
+                    int ty1 = (clipped.y + clipped.h - 1) / tile_h;
+                    if (tx0 < 0) tx0 = 0;
+                    if (ty0 < 0) ty0 = 0;
+                    if (tx1 >= tiles_x) tx1 = tiles_x - 1;
+                    if (ty1 >= tiles_y) ty1 = tiles_y - 1;
+                    for (int ty = ty0; ty <= ty1; ++ty) {
+                        const std::size_t row = static_cast<std::size_t>(ty) * static_cast<std::size_t>(tiles_x);
+                        for (int tx = tx0; tx <= tx1; ++tx) {
+                            tile_hits[row + static_cast<std::size_t>(tx)] = 1;
+                        }
+                    }
+                }
+            }
+
             backend.begin_frame();
-            for (int y = 0; y < screen_h; y += tile_h) {
-                for (int x = 0; x < screen_w; x += tile_w) {
+            for (int ty = 0; ty < tiles_y; ++ty) {
+                const int y = ty * tile_h;
+                for (int tx = 0; tx < tiles_x; ++tx) {
+                    const int x = tx * tile_w;
                     const int w = ((x + tile_w) <= screen_w) ? tile_w : (screen_w - x);
                     const int h = ((y + tile_h) <= screen_h) ? tile_h : (screen_h - y);
                     if (w <= 0 || h <= 0) continue;
                     Rect tile_rect{x, y, w, h};
                     stats.tiles_total++;
-                    if (!buf.any_draw_hits(tile_rect)) continue;
+                    if (use_hit_cache) {
+                        const std::size_t idx = static_cast<std::size_t>(ty) * static_cast<std::size_t>(tiles_x)
+                            + static_cast<std::size_t>(tx);
+                        if (idx >= tile_hits.size() || tile_hits[idx] == 0) continue;
+                    } else {
+                        if (!buf.any_draw_hits(tile_rect)) continue;
+                    }
 
                     if (config.clear_tile) {
                         tile_canvas.clear(config.clear_color);

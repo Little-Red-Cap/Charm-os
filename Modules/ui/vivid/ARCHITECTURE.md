@@ -112,6 +112,11 @@ flowchart LR
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
 
+### 2.3 Tile 命中裁剪（R3）
+
+- Tile 执行阶段先基于命令包围盒构建命中表（tile_count <= 1024），避免逐 tile 全量扫描。
+- tile_count 超过上限时回退到逐 tile 命中检测，保持正确性。
+
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。

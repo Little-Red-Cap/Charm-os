@@ -1,5 +1,8 @@
 module;
 
+#include <array>
+#include <span>
+
 export module charm.system.bringup;
 
 import charm.system.init_usart;
@@ -24,8 +27,23 @@ export namespace charm::system {
               chain_(uart.handle, uart.config, uart.io_cap, uart.hal_cap) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app) noexcept {
-            auto r = chain_.build(graph_, runlevel_mask, max_phase);
+                                 init::Phase max_phase = init::Phase::app,
+                                 std::span<const init::Node* const> extra_nodes = {}) noexcept {
+            const auto chain_nodes = chain_.node_span();
+            const auto total = chain_nodes.size() + extra_nodes.size();
+            if (total > MaxNodes) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            std::array<const init::Node*, MaxNodes> nodes{};
+            util::usize idx = 0;
+            for (auto* node : chain_nodes) {
+                nodes[idx++] = node;
+            }
+            for (auto* node : extra_nodes) {
+                nodes[idx++] = node;
+            }
+            auto r = graph_.build(std::span<const init::Node* const>(nodes.data(), idx),
+                                  runlevel_mask, max_phase);
             if (!r) return r;
             r = graph_.start();
             if (!r) return r;

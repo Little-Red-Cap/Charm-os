@@ -6,6 +6,7 @@ export import kernel.context;
 export import kernel.deps;
 export import kernel.dynamic_registry;
 export import kernel.eda;
+export import kernel.eda.node;
 export import kernel.evt;
 export import kernel.evt_queue;
 export import kernel.event_queue;

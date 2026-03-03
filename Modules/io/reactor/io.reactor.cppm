@@ -31,8 +31,8 @@ export namespace io {
     using Callback = void (*)(void* ctx, Channel& ch, util::u32 events) noexcept;
     using WakeFn = void (*)(void* ctx) noexcept;
 
-class Reactor {
-public:
+    class Reactor {
+    public:
         using ResultSub = util::Result<Subscription>;
 
         ResultSub subscribe(Channel& ch, util::u32 events, Callback cb, void* ctx) noexcept {
@@ -64,6 +64,9 @@ public:
         void set_waker(WakeFn fn, void* ctx) noexcept {
             waker_ = fn;
             waker_ctx_ = ctx;
+            if (waker_ && (pending_count_ > 0 || overflow_pending_)) {
+                try_wake();
+            }
         }
 
         // ISR-safe: enqueue only, do not run callbacks here.

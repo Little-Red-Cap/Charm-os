@@ -65,6 +65,10 @@ namespace {
     constexpr int kTestIconHeight = 8;
     constexpr std::uint16_t kTestIconOn = 0xFFE0;
     constexpr std::uint16_t kTestIconOff = 0x0000;
+    constexpr rgba kDemoBg{246, 248, 252, 255};
+    constexpr rgba kDemoPanel{232, 236, 244, 255};
+    constexpr rgba kDemoPanelBorder{176, 184, 196, 255};
+    constexpr rgba kDemoPath{32, 120, 220, 255};
     constexpr std::array<std::uint16_t, kTestIconWidth * kTestIconHeight> kTestIconData{
         kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,
         kTestIconOff, kTestIconOn,  kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOff, kTestIconOn,  kTestIconOff,
@@ -94,12 +98,15 @@ namespace {
         const int path_w = 120;
         const int path_h = 60;
         const int path_x = screen_width - path_w - 16;
+        const Rect panel_rect{path_x - 8, path_y - 8, path_w + 16, path_h + 16};
+        buf.fill_round_rect(panel_rect, 10, kDemoPanel);
+        buf.stroke_round_rect(panel_rect, 10, kDemoPanelBorder);
         g_demo_path_points[0] = Point{path_x, path_y + path_h};
         g_demo_path_points[1] = Point{path_x + path_w / 2, path_y};
         g_demo_path_points[2] = Point{path_x + path_w, path_y + path_h};
         g_demo_path_points[3] = Point{path_x, path_y + path_h};
-        buf.draw_path(g_demo_path_points.data(), 4, false, rgba{255, 196, 0, 255});
-        buf.draw_icon(Rect{path_x + 46, path_y + 18, 16, 16}, get_test_icon());
+        buf.draw_path(g_demo_path_points.data(), 4, false, kDemoPath);
+        buf.draw_icon(Rect{path_x + 44, path_y + 16, 24, 24}, get_test_icon());
     }
 
     struct SdlTileBackend {
@@ -638,7 +645,7 @@ int main(int argc, char** argv) {
         }
     };
 #endif
-    apply_theme_tokens(ThemeTokens{});
+    apply_ios_light_preset();
     const bool run_headless = run_regress || run_regress_layout || run_compare;
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
@@ -656,6 +663,7 @@ int main(int argc, char** argv) {
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;
+    tile_config.clear_color = kDemoBg;
 
     SoaKernel kernel{};
     SoaFactory factory{kernel};
@@ -753,13 +761,13 @@ int main(int argc, char** argv) {
         gui.record_commands(buf);
         append_path_icon(buf, screen_width);
 
-        fb.clear({});
+        fb.clear(kDemoBg);
         canvas.begin_frame();
         exec.execute(canvas, buf);
         canvas.end_frame();
         const std::uint32_t hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
-        fb.clear({});
+        fb.clear(kDemoBg);
         exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
         const std::uint32_t hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
@@ -923,6 +931,7 @@ int main(int argc, char** argv) {
                 SDL_UpdateTexture(texture, &rect, src, static_cast<int>(stride));
             }
         } else {
+            fb.clear(kDemoBg);
             canvas.begin_frame();
             cmd_exec.execute(canvas, cmd_buf);
             canvas.end_frame();

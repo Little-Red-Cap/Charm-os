@@ -6,6 +6,7 @@ This document defines the non-negotiable contract for io.registry.
 
 - Registry must not allocate memory at runtime.
 - Capacity is fixed at compile time (template parameter).
+- When capacity is exhausted, register_channel() returns Errc::buffer_overflow.
 
 ## 2) Static name lifetime
 
@@ -14,7 +15,7 @@ This document defines the non-negotiable contract for io.registry.
 
 ## 3) Duplicate names/caps are forbidden
 
-- register_channel() rejects duplicates with Errc::already_exists.
+- register_channel() rejects duplicates with Errc::exist.
 - Use a separate replace API if override is required.
 
 ## 4) Ownership
@@ -25,4 +26,5 @@ This document defines the non-negotiable contract for io.registry.
 ## 5) Lookup behavior
 
 - open_channel() returns nullptr when not found.
-- Callers must translate to Errc::not_found where needed.
+- Callers must translate to Errc::noent where needed.
+- replace_channel() returns Errc::noent when target is missing.

@@ -51,7 +51,7 @@ export namespace io {
             hash ^= static_cast<CapId>(*p);
             hash *= 16777619u;
         }
-        return hash;
+        return hash == 0 ? 1u : hash;
     }
 
     template <util::usize MaxEndpoints>
@@ -71,13 +71,30 @@ export namespace io {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (find_channel(desc.name) || find_channel(desc.cap)) {
-                return util::unexpected(util::Errc::already_exists);
+                return util::unexpected(util::Errc::exist);
             }
             if (count_ >= endpoints_.size()) {
-                return util::unexpected(util::Errc::no_space);
+                return util::unexpected(util::Errc::buffer_overflow);
             }
             endpoints_[count_++] = ChannelEndpoint{desc, &ch, reactor};
             return {};
+        }
+
+        util::Result<void> replace_channel(const EndpointDesc& desc,
+                                           Channel& ch,
+                                           Reactor* reactor = nullptr) noexcept {
+            if (desc.name.empty() || desc.cap == 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < count_; ++i) {
+                if (endpoints_[i].desc.cap != desc.cap) continue;
+                if (endpoints_[i].desc.name != desc.name) {
+                    return util::unexpected(util::Errc::exist);
+                }
+                endpoints_[i] = ChannelEndpoint{desc, &ch, reactor};
+                return {};
+            }
+            return util::unexpected(util::Errc::noent);
         }
 
         Channel* open_channel(std::string_view name) noexcept {
@@ -120,4 +137,28 @@ export namespace io {
         std::array<ChannelEndpoint, MaxEndpoints> endpoints_{};
         util::usize count_{0};
     };
+
+#ifndef NDEBUG
+    inline bool registry_self_check() noexcept {
+        Registry<4> reg{};
+        reg.init();
+        Channel ch_a{};
+        Channel ch_b{};
+        EndpointDesc a{"io.console0", cap_id("io.console0"), EndpointKind::channel, EndpointCaps::duplex};
+        EndpointDesc b{"io.uart1", cap_id("io.uart1"), EndpointKind::channel, EndpointCaps::readable};
+        if (!reg.register_channel(a, ch_a)) return false;
+        if (reg.register_channel(a, ch_a)) return false;
+        if (reg.find_channel("io.console0") == nullptr) return false;
+        if (reg.open_channel(a.cap) != &ch_a) return false;
+        if (reg.replace_channel(b, ch_b)) return false;
+        if (!reg.replace_channel(a, ch_b)) return false;
+        if (reg.open_channel("io.console0") != &ch_b) return false;
+        util::usize count = 0;
+        reg.list_channels([](void* ctx, const ChannelEndpoint&) noexcept {
+            auto* c = static_cast<util::usize*>(ctx);
+            ++(*c);
+        }, &count);
+        return count == 1;
+    }
+#endif
 }

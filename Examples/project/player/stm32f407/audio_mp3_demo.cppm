@@ -25,6 +25,8 @@ import out.api;
 import util.core;
 import util.expected;
 
+export using log_write_fn = out::result<std::size_t> (*)(void*, out::bytes) noexcept;
+
 namespace {
     constexpr std::uint32_t kTimeoutMs = 1000;
     constexpr std::size_t kI2sBufFrames = 2048;
@@ -45,6 +47,23 @@ namespace {
     constexpr std::size_t kDiagReadChunk = 4096;
     constexpr std::size_t kDiagDecodeFrames = 1024;
     constexpr std::size_t kDiagDecodeBlocks = 3;
+
+    struct log_sink {
+        void* ctx{nullptr};
+        log_write_fn write_fn{nullptr};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!write_fn) return util::unexpected(out::errc::io_error);
+            return write_fn(ctx, b);
+        }
+    };
+
+    log_sink g_log_sink{};
+
+    void set_log_sink(void* ctx, log_write_fn fn) noexcept {
+        g_log_sink.ctx = ctx;
+        g_log_sink.write_fn = fn;
+    }
 
     std::uint32_t crc32_update(std::uint32_t crc, std::span<const util::u8> data) noexcept {
         for (const auto b : data) {
@@ -171,14 +190,14 @@ namespace {
             if (g_in_filter_open) {
                 const auto count = ++g_filter_open_read_calls;
                 if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
-                    out::println<"mp3 demo: filter read call#{} off {} req {}">(
+                    out::println<"mp3 demo: filter read call#{} off {} req {}">(g_log_sink, 
                         count, before, to_read);
                 }
             }
             auto st = fs::vfs_read(*file, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
             if (!st) {
-                out::println<"mp3 demo: read failed err={}">(
+                out::println<"mp3 demo: read failed err={}">(g_log_sink, 
                     static_cast<int>(st.err));
                 return util::unexpected(media::Errc::io_error);
             }
@@ -188,16 +207,16 @@ namespace {
             if (g_in_filter_open) {
                 const auto count = ++g_filter_open_reads;
                 if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
-                    out::println<"mp3 demo: filter read#{} off {} -> {} req {}">(
+                    out::println<"mp3 demo: filter read#{} off {} -> {} req {}">(g_log_sink, 
                         count, before, after, to_read);
                 }
             }
             if constexpr (kVerbose) {
                 if (debug_read < 4) {
-                    out::println<"mp3 demo: read before={} after={} req={}">(before, after, to_read);
+                    out::println<"mp3 demo: read before={} after={} req={}">(g_log_sink, before, after, to_read);
                     if (before == base_offset && to_read >= 8) {
                         auto* b = reinterpret_cast<const util::u8*>(out.data());
-                        out::println<"mp3 demo: data {} {} {} {} {} {} {} {}">(b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
+                        out::println<"mp3 demo: data {} {} {} {} {} {} {} {}">(g_log_sink, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
                     }
                     ++debug_read;
                 }
@@ -206,7 +225,7 @@ namespace {
                 if (g_in_filter_open) {
                     const auto count = ++g_filter_open_zero_reads;
                     if (count <= 8 || (count % kFilterOpenLogStep) == 0) {
-                        out::println<"mp3 demo: filter read zero#{} off {} -> {} req {}">(
+                        out::println<"mp3 demo: filter read zero#{} off {} -> {} req {}">(g_log_sink, 
                             count, before, after, to_read);
                     }
                 }
@@ -228,14 +247,14 @@ namespace {
             if constexpr (kVerbose) {
                 static int debug_seek = 0;
                 if (debug_seek < 4) {
-                    out::println<"mp3 demo: seek whence={} off={} -> {}">(static_cast<int>(whence), offset, target);
+                    out::println<"mp3 demo: seek whence={} off={} -> {}">(g_log_sink, static_cast<int>(whence), offset, target);
                     ++debug_seek;
                 }
             }
             if (g_in_filter_open) {
                 const auto count = ++g_filter_open_seeks;
                 if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
-                    out::println<"mp3 demo: filter seek#{} whence={} off={} -> {}">(count,
+                    out::println<"mp3 demo: filter seek#{} whence={} off={} -> {}">(g_log_sink, count,
                         static_cast<int>(whence), offset, target);
                 }
             }
@@ -249,7 +268,7 @@ namespace {
             if (g_in_filter_open) {
                 const auto count = ++g_filter_open_tells;
                 if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
-                    out::println<"mp3 demo: filter tell#{} -> {}">(
+                    out::println<"mp3 demo: filter tell#{} -> {}">(g_log_sink, 
                         count, static_cast<long long>(file->node.offset - base_offset));
                 }
             }
@@ -261,7 +280,7 @@ namespace {
             if (g_in_filter_open) {
                 const auto count = ++g_filter_open_sizes;
                 if (count <= 8 || (count % kFilterOpenSeekLogStep) == 0) {
-                    out::println<"mp3 demo: filter size#{} -> {}">(
+                    out::println<"mp3 demo: filter size#{} -> {}">(g_log_sink, 
                         count, static_cast<long long>(file->node.size - base_offset));
                 }
             }
@@ -346,11 +365,11 @@ namespace {
     bool play_wav_blocking(fs::File& f, const WavInfo& info) noexcept {
         if ((info.bits_per_sample != 16 && info.bits_per_sample != 24) ||
             (info.channels != 1 && info.channels != 2)) {
-            out::println<"wav: only 16/24-bit mono/stereo supported">();
+            out::println<"wav: only 16/24-bit mono/stereo supported">(g_log_sink);
             return false;
         }
         if (!reinit_i2s(info.sample_rate)) {
-            out::println<"wav: unsupported sample rate {}">(info.sample_rate);
+            out::println<"wav: unsupported sample rate {}">(g_log_sink, info.sample_rate);
             return false;
         }
         if (!fs::vfs_seek(f, static_cast<std::int64_t>(info.data_offset))) return false;
@@ -438,13 +457,13 @@ namespace {
 
     void mp3_diag_file(fs::File& f, util::i64 base) noexcept {
         if constexpr (!kMp3FileDiag) return;
-        out::println<"mp3 diag: file read begin size={}">(f.node.size);
+        out::println<"mp3 diag: file read begin size={}">(g_log_sink, f.node.size);
         std::array<util::u8, kDiagReadChunk> buf{};
         util::u64 total = 0;
         std::uint32_t crc = 0xFFFFFFFFu;
         util::i64 remaining = static_cast<util::i64>(f.node.size);
         if (!fs::vfs_seek(f, 0)) {
-            out::println<"mp3 diag: seek 0 failed">();
+            out::println<"mp3 diag: seek 0 failed">(g_log_sink);
             return;
         }
         while (true) {
@@ -454,7 +473,7 @@ namespace {
                 remaining, static_cast<util::i64>(buf.size())));
             auto st = fs::vfs_read(f, std::span<util::u8>(buf.data(), want));
             if (!st) {
-                out::println<"mp3 diag: read failed {}">(static_cast<int>(st.err));
+                out::println<"mp3 diag: read failed {}">(g_log_sink, static_cast<int>(st.err));
                 break;
             }
             const auto after = f.node.offset;
@@ -465,18 +484,18 @@ namespace {
             crc = crc32_update(crc, std::span<const util::u8>(buf.data(), read_bytes));
         }
         crc ^= 0xFFFFFFFFu;
-        out::println<"mp3 diag: file read total={} size={} crc=0x{}">(
+        out::println<"mp3 diag: file read total={} size={} crc=0x{}">(g_log_sink, 
             total, f.node.size, crc);
         const util::i64 probes[] = {0, 2048, 1048576, static_cast<util::i64>(f.node.size) - 16};
         for (const auto off : probes) {
             if (off < 0) continue;
             if (!fs::vfs_seek(f, off)) {
-                out::println<"mp3 diag: seek {} failed">(static_cast<long long>(off));
+                out::println<"mp3 diag: seek {} failed">(g_log_sink, static_cast<long long>(off));
                 continue;
             }
             std::array<util::u8, 16> head{};
             (void)fs::vfs_read(f, head);
-            out::println<"mp3 diag: head@{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+            out::println<"mp3 diag: head@{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(g_log_sink, 
                 static_cast<long long>(off),
                 head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7],
                 head[8], head[9], head[10], head[11], head[12], head[13], head[14], head[15]);
@@ -486,7 +505,7 @@ namespace {
 
     void mp3_diag_decode(Mp3Session& s, std::uint8_t channels) noexcept {
         if constexpr (!kMp3DecodeDiag) return;
-        out::println<"mp3 diag: total_frames={}">(
+        out::println<"mp3 diag: total_frames={}">(g_log_sink, 
             static_cast<long long>(s.filter.total_frames()));
         std::array<std::int16_t, kDiagDecodeFrames * 2> pcm{};
         for (std::size_t b = 0; b < kDiagDecodeBlocks; ++b) {
@@ -495,11 +514,11 @@ namespace {
                 pcm.size() * sizeof(std::int16_t));
             auto res = s.filter.process({}, dst);
             if (!res) {
-                out::println<"mp3 diag: decode err">();
+                out::println<"mp3 diag: decode err">(g_log_sink);
                 return;
             }
             if (res->produced == 0 && res->end_of_stream) {
-                out::println<"mp3 diag: decode eos">();
+                out::println<"mp3 diag: decode eos">(g_log_sink);
                 return;
             }
             const auto samples = static_cast<std::size_t>(res->produced / sizeof(std::int16_t));
@@ -513,12 +532,12 @@ namespace {
                 if (v > max_v) max_v = v;
                 if (v != 0) ++nonzero;
             }
-            out::println<"mp3 diag: dec#{} prod={} frames={} min={} max={} nz={} eos={}">(
+            out::println<"mp3 diag: dec#{} prod={} frames={} min={} max={} nz={} eos={}">(g_log_sink, 
                 b, res->produced, frames, min_v, max_v, nonzero, res->end_of_stream ? 1 : 0);
         }
         auto rst = s.filter.reset();
         if (!rst) {
-            out::println<"mp3 diag: reset failed">();
+            out::println<"mp3 diag: reset failed">(g_log_sink);
         }
     }
 
@@ -562,7 +581,7 @@ namespace {
         }
         if constexpr (kVerbose) {
             if (debug_blocks < 3) {
-                out::println<"mp3 demo: produced={} eos={}">(last.produced, last.end_of_stream ? 1 : 0);
+                out::println<"mp3 demo: produced={} eos={}">(g_log_sink, last.produced, last.end_of_stream ? 1 : 0);
                 ++debug_blocks;
             }
         }
@@ -603,14 +622,14 @@ namespace {
         }
         if constexpr (kVerbose) {
             if (energy_blocks < 3) {
-            out::println<"mp3 demo: energy nonzero={} sum={}">(nonzero, abs_sum);
+            out::println<"mp3 demo: energy nonzero={} sum={}">(g_log_sink, nonzero, abs_sum);
             ++energy_blocks;
             }
         }
         {
             static bool printed = false;
             if (!printed) {
-                out::println<"mp3 demo: block0 pre=[{},{}] post=[{},{}] nonzero={}">(
+                out::println<"mp3 demo: block0 pre=[{},{}] post=[{},{}] nonzero={}">(g_log_sink, 
                     pre_min, pre_max, post_min, post_max, nonzero);
                 printed = true;
             }
@@ -624,7 +643,7 @@ namespace {
                 if (v < min_v) min_v = v;
                 if (v > max_v) max_v = v;
             }
-            out::println<"mp3 demo: block min={} max={} s0={} s1={} s2={} s3={} s4={} s5={}">(min_v, max_v,
+            out::println<"mp3 demo: block min={} max={} s0={} s1={} s2={} s3={} s4={} s5={}">(g_log_sink, min_v, max_v,
                 pcm[0], pcm[1], pcm[2], pcm[3], pcm[4], pcm[5]);
             }
         }
@@ -649,7 +668,12 @@ extern "C" void charm_audio_i2s_full_notify() {
     g_full_ready = true;
 }
 
+export void audio_mp3_demo_set_sink(void* ctx, log_write_fn fn) noexcept {
+    set_log_sink(ctx, fn);
+}
+
 export void audio_mp3_demo_run() noexcept {
+    if (!g_log_sink.write_fn) return;
     HAL_I2S_DMAStop(&hi2s2);
     FindAudioCtx ctx{};
     const char fixed_path[] = "/jtwayne-pianos-by-jtwayne-7-174717.wav";
@@ -661,12 +685,12 @@ export void audio_mp3_demo_run() noexcept {
     ctx.found = true;
 
     if constexpr (kStartupLog) {
-        out::println<"mp3 demo: open {}">(ctx.path);
+        out::println<"mp3 demo: open {}">(g_log_sink, ctx.path);
     }
     fs::File f{};
     auto st = fs::vfs_open(ctx.path, f);
     if (!st) {
-        out::println<"mp3 demo: open failed {}">(static_cast<int>(st.err));
+        out::println<"mp3 demo: open failed {}">(g_log_sink, static_cast<int>(st.err));
         return;
     }
     if (is_wav_name(ctx.path)) {
@@ -675,17 +699,17 @@ export void audio_mp3_demo_run() noexcept {
             std::array<std::uint8_t, 12> head{};
             (void)fs::vfs_seek(f, 0);
             (void)fs::vfs_read(f, head);
-            out::println<"wav: head {} {} {} {} {} {} {} {} {} {} {} {}">(
+            out::println<"wav: head {} {} {} {} {} {} {} {} {} {} {} {}">(g_log_sink, 
                 head[0], head[1], head[2], head[3], head[4], head[5],
                 head[6], head[7], head[8], head[9], head[10], head[11]);
-            out::println<"wav: invalid header">();
+            out::println<"wav: invalid header">(g_log_sink);
             (void)fs::vfs_close(f);
             return;
         }
-        out::println<"wav: rate={} ch={} bits={} data={}">(
+        out::println<"wav: rate={} ch={} bits={} data={}">(g_log_sink, 
             info.sample_rate, info.channels, info.bits_per_sample, info.data_size);
         const auto ok = play_wav_blocking(f, info);
-        out::println<"wav: end {}">(ok ? 1 : 0);
+        out::println<"wav: end {}">(g_log_sink, ok ? 1 : 0);
         (void)fs::vfs_close(f);
         return;
     }
@@ -695,7 +719,7 @@ export void audio_mp3_demo_run() noexcept {
     session.source.base_offset = base;
     (void)fs::vfs_seek(f, 0);
     if constexpr (kStartupLog) {
-        out::println<"mp3 demo: filter open begin">();
+        out::println<"mp3 demo: filter open begin">(g_log_sink);
     }
     if constexpr (kMp3FileDiag) {
         mp3_diag_file(f, base);
@@ -711,36 +735,36 @@ export void audio_mp3_demo_run() noexcept {
     auto rst = session.filter.open(ref);
     g_in_filter_open = false;
     if constexpr (kStartupLog) {
-        out::println<"mp3 demo: filter open end">();
+        out::println<"mp3 demo: filter open end">(g_log_sink);
     }
     if (!rst) {
-        out::println<"mp3 demo: decoder open failed">();
+        out::println<"mp3 demo: decoder open failed">(g_log_sink);
         (void)fs::vfs_close(f);
         return;
     }
     const auto fmt = session.filter.format();
     if (fmt.channels != 1 && fmt.channels != 2) {
-        out::println<"mp3 demo: channels {} not supported">(fmt.channels);
+        out::println<"mp3 demo: channels {} not supported">(g_log_sink, fmt.channels);
         session.filter.close();
         (void)fs::vfs_close(f);
         return;
     }
     if constexpr (kStartupLog) {
-        out::println<"mp3 demo: rate={} ch={}">(fmt.rate, fmt.channels);
-        out::println<"mp3 demo: size={}">(f.node.size);
+        out::println<"mp3 demo: rate={} ch={}">(g_log_sink, fmt.rate, fmt.channels);
+        out::println<"mp3 demo: size={}">(g_log_sink, f.node.size);
     }
     if constexpr (kMp3DecodeDiag) {
         mp3_diag_decode(session, fmt.channels);
         session.filter.close();
         auto re = session.filter.open(ref);
         if (!re) {
-            out::println<"mp3 demo: decoder reopen failed">();
+            out::println<"mp3 demo: decoder reopen failed">(g_log_sink);
             (void)fs::vfs_close(f);
             return;
         }
     }
     if (!reinit_i2s(fmt.rate)) {
-        out::println<"mp3 demo: unsupported sample rate {}">(fmt.rate);
+        out::println<"mp3 demo: unsupported sample rate {}">(g_log_sink, fmt.rate);
         session.filter.close();
         (void)fs::vfs_close(f);
         return;
@@ -757,7 +781,7 @@ export void audio_mp3_demo_run() noexcept {
         std::uint32_t block_count = 0;
         while (true) {
             if (!mp3_fill_block(session, pcm_first, out_first, fmt.channels)) {
-                out::println<"mp3 demo: fill1 failed ended={}">(
+                out::println<"mp3 demo: fill1 failed ended={}">(g_log_sink, 
                     session.ended ? 1 : 0);
                 break;
             }
@@ -771,36 +795,36 @@ export void audio_mp3_demo_run() noexcept {
                     if (w > max_w) max_w = w;
                     if (w != 0) ++nz;
                 }
-                out::println<"mp3 demo: out0 min={} max={} nz={}">(
+                out::println<"mp3 demo: out0 min={} max={} nz={}">(g_log_sink, 
                     min_w, max_w, nz);
             }
             const auto t0 = HAL_GetTick();
             const auto tx = HAL_I2S_Transmit(&hi2s2, out_first.data(), samples, kTimeoutMs);
             const auto t1 = HAL_GetTick();
             if (first_block) {
-                out::println<"mp3 demo: tx0 ms={} ret={} err={}">(
+                out::println<"mp3 demo: tx0 ms={} ret={} err={}">(g_log_sink, 
                     static_cast<int>(t1 - t0), static_cast<int>(tx),
                     static_cast<int>(HAL_I2S_GetError(&hi2s2)));
             }
             if (tx != HAL_OK) {
-                out::println<"mp3 demo: i2s tx failed {}">(static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+                out::println<"mp3 demo: i2s tx failed {}">(g_log_sink, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
                 break;
             }
             if (!mp3_fill_block(session, pcm_second, out_second, fmt.channels)) {
-                out::println<"mp3 demo: fill2 failed ended={}">(
+                out::println<"mp3 demo: fill2 failed ended={}">(g_log_sink, 
                     session.ended ? 1 : 0);
                 break;
             }
             const auto samples2 = static_cast<uint16_t>(out_second.size());
             if (HAL_I2S_Transmit(&hi2s2, out_second.data(), samples2, kTimeoutMs) != HAL_OK) {
-                out::println<"mp3 demo: i2s tx failed {}">(static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+                out::println<"mp3 demo: i2s tx failed {}">(g_log_sink, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
                 break;
             }
             block_count += 2;
             if (session.ended) break;
             first_block = false;
         }
-        out::println<"mp3 demo: end blocks={} ended={}">(
+        out::println<"mp3 demo: end blocks={} ended={}">(g_log_sink, 
             block_count, session.ended ? 1 : 0);
         session.filter.close();
         (void)fs::vfs_close(f);
@@ -811,6 +835,7 @@ export void audio_mp3_demo_run() noexcept {
 }
 
 export void i2s_dma_selftest() noexcept {
+    if (!g_log_sink.write_fn) return;
     HAL_I2S_DMAStop(&hi2s2);
     g_half_ready = false;
     g_full_ready = false;
@@ -818,7 +843,7 @@ export void i2s_dma_selftest() noexcept {
 
     const auto ok = reinit_i2s(44100);
     if (!ok) {
-        out::println<"i2s test: reinit failed">();
+        out::println<"i2s test: reinit failed">(g_log_sink);
         return;
     }
 
@@ -833,7 +858,7 @@ export void i2s_dma_selftest() noexcept {
         g_i2s_test_buffer.data(),
         static_cast<uint16_t>(g_i2s_test_buffer.size()));
     if (dma_status != HAL_OK) {
-        out::println<"i2s test: dma start failed {}">(static_cast<int>(dma_status));
+        out::println<"i2s test: dma start failed {}">(g_log_sink, static_cast<int>(dma_status));
         return;
     }
 
@@ -871,8 +896,10 @@ export void i2s_dma_selftest() noexcept {
         }
     }
     HAL_I2S_DMAStop(&hi2s2);
-    out::println<"i2s test: half={} full={} underrun={} err={}">(
+    out::println<"i2s test: half={} full={} underrun={} err={}">(g_log_sink, 
         half_cnt, full_cnt, g_underruns, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
-    out::println<"i2s test: stress={}">(
+    out::println<"i2s test: stress={}">(g_log_sink, 
         stress_cnt);
 }
+
+

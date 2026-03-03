@@ -160,7 +160,11 @@ export namespace modem {
                     last_status_ = Status::retries_exhausted;
                     return;
                 }
-                push_tx(C);
+                if (state_ == State::wait_header) {
+                    push_tx(C);
+                } else {
+                    push_tx(NAK);
+                }
             }
         }
 

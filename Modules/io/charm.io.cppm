@@ -26,7 +26,6 @@ export import input.trace;
 export import at.parser;
 export import at.session;
 export import at.driver_reactor;
-export import at.transport_channel;
 
 export import port.kernel;
 export import io.channel;

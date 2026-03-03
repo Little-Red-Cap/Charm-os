@@ -12,10 +12,8 @@ export import kernel.evt_queue;
 export import kernel.event_queue;
 export import kernel.event_queue_list;
 export import kernel.event_token;
-export import kernel.init_list;
 export import kernel.ipc;
 export import kernel.scheduler;
-export import kernel.startup;
 export import kernel.sync;
 export import kernel.sync_base;
 export import kernel.sync_object;
@@ -54,7 +52,6 @@ export import power.port;
 export import power.trace;
 export import power.types;
 
-export import charm.system.init;
 export import charm.system.init_core;
 export import charm.system.init_usart;
 export import charm.system.bringup;

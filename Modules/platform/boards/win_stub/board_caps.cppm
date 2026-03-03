@@ -6,6 +6,7 @@ import platform.board;
 import hal_core;
 import hal_uart;
 import hal_win;
+import util.core;
 
 namespace {
     struct WinUartCtx {

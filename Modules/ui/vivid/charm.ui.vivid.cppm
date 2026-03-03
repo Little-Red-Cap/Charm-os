@@ -34,6 +34,7 @@ export import charm.core.soa_router;
 export import ui.render_backend;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
+export import charm.gfx.draw_cmd;
 export import charm.gfx.framebuffer;
 export import charm.gfx.image;
 export import charm.gfx.pixel_format;

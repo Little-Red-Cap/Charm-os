@@ -138,7 +138,7 @@ export namespace player::fs_utils {
         };
     }
 
-    const char* fs_err_text(fs::Err err) {
+    const char* fs_err_text(fs::Errc err) {
         switch (err) {
         case fs::Errc::ok: return "ok";
         case fs::Errc::perm: return "perm";
@@ -154,6 +154,8 @@ export namespace player::fs_utils {
         case fs::Errc::rofs: return "rofs";
         case fs::Errc::timeout: return "timeout";
         case fs::Errc::again: return "again";
+        default:
+            break;
         }
         return "unknown";
     }

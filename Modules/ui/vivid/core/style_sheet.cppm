@@ -216,6 +216,9 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::TableView:
         case WidgetKind::TreeView:
         case WidgetKind::ScrollContainer:
+        case WidgetKind::TextInput:
+        case WidgetKind::TextArea:
+        case WidgetKind::NumberInput:
             return readonly;
         case WidgetKind::Slider:
         case WidgetKind::ScrollBar:
@@ -223,9 +226,6 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::Spinner:
         case WidgetKind::NumberList:
         case WidgetKind::SpinZoomWidget:
-        case WidgetKind::TextInput:
-        case WidgetKind::TextArea:
-        case WidgetKind::NumberInput:
             return press_only;
         case WidgetKind::Button:
         case WidgetKind::Checkbox:

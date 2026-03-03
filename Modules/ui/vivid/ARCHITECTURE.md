@@ -78,6 +78,40 @@ sequenceDiagram
   GFX->>HW: blit/flush
 ```
 
+### 2.1 命令缓冲 + Tile/PFB 执行（R1）
+
+- SoA 渲染改为 **record/execute**：控件只记录命令，不直接绘制。
+- `DrawCmdBuffer` 固定容量、无堆分配；命令只包含 POD（坐标/颜色/半径/文字索引）。
+- `DrawCmdExecutor` 是唯一“画像素”的入口，支持：
+  - **FullFrame**：直接执行到 `CanvasBase`（全屏缓冲）。
+  - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
+- `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
+- 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
+
+```mermaid
+flowchart LR
+  A[SoaGui] --> B[DrawCmdBuffer]
+  B --> C[DrawCmdExecutor]
+  C --> D1[FullFrame Canvas]
+  C --> D2[Tile/PFB RuntimeCanvas]
+  D2 --> HW[RenderBackend::blit_span/mark_dirty]
+```
+
+**SoA demo 支持：**
+
+- `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
+- `vivid-soa-demo --soa-stats`：输出命令数与 tile 统计。
+
+**可移植模板：**
+
+- `Examples/ui/vivid/port_template/tile_backend_template.cppm` 提供 MCU 侧 `RenderBackend` 模板。
+
+### 2.2 命令集扩展与一致性校验（R2）
+
+- 命令集扩展：支持 `DrawLine` / `DrawImage` 等基础原语，保持命令为 POD。
+- 热路径保持 record/execute，不引入 runtime patch/派生。
+- `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验。
+
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
@@ -243,8 +277,8 @@ flowchart TB
 
 | 分类 | mask | 说明 | 控件 |
 | --- | --- | --- | --- |
-| readonly | Disabled | 展示类控件，仅允许禁用态影响样式 | Container、ScrollContainer、Dial、Arc、Image、Label、Led、Progress、ModalDialog、ProgressBarSimple、DynamicNebula、CrtScreen、Bar、PopupLayer、MessageBox、RadioGroup、Chart、Waveform、Gauge、PrimitivesCanvas、PerfOverlay、Timeline、RichText、CodeBlock、ProgressWheel、WaveformView、BatteryGauge、HistogramView、RingIndication、TextBox、ProgressFlowing、CloudyGlass、ProgressBarRound、SpinningWheel、ImageBox、MeterPointer、ProgressBarDrill、SpectrumView、BusyWheel、ConsoleBox、BatteryGasGauge、Histogram、List、ListView、IconList、TextTrackingList、TextList、TableView、TreeView |
-| press_only | Pressed + Disabled | 允许按下态但不跟随 hover | Slider、ScrollBar、Roller、Spinner、NumberList、SpinZoomWidget、TextInput、TextArea、NumberInput |
+| readonly | Disabled | 展示类控件，仅允许禁用态影响样式 | Container、ScrollContainer、Dial、Arc、Image、Label、Led、Progress、ModalDialog、ProgressBarSimple、DynamicNebula、CrtScreen、Bar、PopupLayer、MessageBox、RadioGroup、Chart、Waveform、Gauge、PrimitivesCanvas、PerfOverlay、Timeline、RichText、CodeBlock、ProgressWheel、WaveformView、BatteryGauge、HistogramView、RingIndication、TextBox、ProgressFlowing、CloudyGlass、ProgressBarRound、SpinningWheel、ImageBox、MeterPointer、ProgressBarDrill、SpectrumView、BusyWheel、ConsoleBox、BatteryGasGauge、Histogram、List、ListView、IconList、TextTrackingList、TextList、TableView、TreeView、TextInput、TextArea、NumberInput |
+| press_only | Pressed + Disabled | 允许按下态但不跟随 hover | Slider、ScrollBar、Roller、Spinner、NumberList、SpinZoomWidget |
 | interactive | Hovered + Pressed + Disabled | 典型交互控件 | Button、Checkbox、Radio、Switch、SegmentedControl、Dropdown、TabView、Stepper、Menu、MenuItem、ToggleGroup、ListItem、FoldablePanel |
 
 ## 7. 诊断与可观测性

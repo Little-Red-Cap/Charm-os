@@ -1,16 +1,21 @@
 ﻿#include <SDL3/SDL.h>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string_view>
 
 import charm.core.soa_kernel;
 import charm.core.soa_gui;
 import charm.core.event;
 import charm.core.config;
+import charm.core.geometry;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
+import charm.gfx.draw_cmd;
 import out.api;
 
 namespace {
@@ -40,8 +45,76 @@ namespace {
         return true;
     }
 
+    constexpr int kTileWidth = 64;
+    constexpr int kTileHeight = 64;
+    constexpr std::size_t kTileStride = static_cast<std::size_t>(kTileWidth) * DefaultFrameBuffer::bytes_per_pixel;
+    constexpr std::size_t kTileBytes = kTileStride * static_cast<std::size_t>(kTileHeight);
+
+    std::uint32_t hash_bytes(const std::byte* data, std::size_t len) noexcept {
+        std::uint32_t hash = 2166136261u;
+        if (!data) return hash;
+        for (std::size_t i = 0; i < len; ++i) {
+            hash ^= static_cast<std::uint8_t>(data[i]);
+            hash *= 16777619u;
+        }
+        return hash;
+    }
+
+    struct SdlTileBackend {
+        DefaultFrameBuffer& fb;
+        bool dirty_set{false};
+        int dirty_left{0};
+        int dirty_top{0};
+        int dirty_right{0};
+        int dirty_bottom{0};
+
+        int width() const noexcept { return screen_width; }
+        int height() const noexcept { return screen_height; }
+
+        void begin_frame() noexcept { dirty_set = false; }
+        void end_frame() noexcept {}
+
+        void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
+            if (!src || bytes == 0) return;
+            if (x < 0 || y < 0 || x >= screen_width || y >= screen_height) return;
+            const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
+            const std::size_t stride = DefaultFrameBuffer::stride_bytes;
+            const std::size_t max_bytes = static_cast<std::size_t>(screen_width - x) * bpp;
+            if (bytes > max_bytes) bytes = max_bytes;
+            auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
+                + static_cast<std::size_t>(x) * bpp;
+            std::memcpy(dst, src, bytes);
+        }
+
+        void mark_dirty(int x, int y, int w, int h) noexcept {
+            if (w <= 0 || h <= 0) return;
+            const int left = x;
+            const int top = y;
+            const int right = x + w;
+            const int bottom = y + h;
+            if (!dirty_set) {
+                dirty_set = true;
+                dirty_left = left;
+                dirty_top = top;
+                dirty_right = right;
+                dirty_bottom = bottom;
+                return;
+            }
+            if (left < dirty_left) dirty_left = left;
+            if (top < dirty_top) dirty_top = top;
+            if (right > dirty_right) dirty_right = right;
+            if (bottom > dirty_bottom) dirty_bottom = bottom;
+        }
+
+        bool dirty_rect(Rect& out) const noexcept {
+            if (!dirty_set) return false;
+            out = Rect{dirty_left, dirty_top, dirty_right - dirty_left, dirty_bottom - dirty_top};
+            return out.w > 0 && out.h > 0;
+        }
+    };
+
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 5900;
+    constexpr std::size_t kMaxStyleTableBytes = 5680;
     std::FILE* g_regress_log = nullptr;
 
     const char* event_type_name(Event::Type type) noexcept {
@@ -462,6 +535,9 @@ namespace {
 int main(int argc, char** argv) {
     bool run_regress = false;
     bool run_regress_layout = false;
+    bool use_tiles = false;
+    bool print_stats = false;
+    bool run_compare = false;
 #if defined(VIVID_SOA_TRACE_INPUT)
     char log_path[512]{};
     const char* temp_dir = std::getenv("TEMP");
@@ -471,14 +547,26 @@ int main(int argc, char** argv) {
         std::snprintf(log_path, sizeof(log_path), "soa_regress.log");
     }
     g_regress_log = std::fopen(log_path, "wb");
+#endif
     for (int i = 1; i < argc; ++i) {
-        if (std::string_view(argv[i]) == "--soa-regress") {
+        const std::string_view arg = argv[i];
+        if (arg == "--soa-tile") {
+            use_tiles = true;
+        } else if (arg == "--soa-stats") {
+            print_stats = true;
+        } else if (arg == "--soa-compare") {
+            run_compare = true;
+        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        else if (arg == "--soa-regress") {
             run_regress = true;
             run_regress_layout = true;
-        } else if (std::string_view(argv[i]) == "--soa-regress-layout") {
+        } else if (arg == "--soa-regress-layout") {
             run_regress_layout = true;
         }
+#endif
     }
+#if defined(VIVID_SOA_TRACE_INPUT)
     if (g_regress_log) {
         std::fprintf(g_regress_log, "[soa] log_path=%s\n", log_path);
         std::fprintf(g_regress_log, "[soa] regress=%u layout=%u\n",
@@ -490,16 +578,25 @@ int main(int argc, char** argv) {
             g_regress_log = nullptr;
         }
     };
-#else
-    (void)argc;
-    (void)argv;
 #endif
     apply_theme_tokens(ThemeTokens{});
-    const bool run_headless = run_regress || run_regress_layout;
+    const bool run_headless = run_regress || run_regress_layout || run_compare;
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
+    static std::array<std::byte, kTileBytes> tile_storage{};
+    FrameBufferView tile_view{
+        screen_pixel_format,
+        tile_storage.data(),
+        static_cast<std::size_t>(kTileWidth),
+        static_cast<std::size_t>(kTileHeight),
+        kTileStride
+    };
+    SdlTileBackend tile_backend{fb};
+    ui::draw_cmd::DrawCmdTileConfig tile_config{};
+    tile_config.tile_width = kTileWidth;
+    tile_config.tile_height = kTileHeight;
 
     SoaKernel kernel{};
     SoaFactory factory{kernel};
@@ -582,8 +679,39 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+#endif
+    if (run_compare) {
+        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
+        ui::draw_cmd::DrawCmdExecutor exec{};
+        gui.record_commands(buf);
+
+        fb.clear({});
+        canvas.begin_frame();
+        exec.execute(canvas, buf);
+        canvas.end_frame();
+        const std::uint32_t hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+
+        fb.clear({});
+        exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
+        const std::uint32_t hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+
+        (void)out::println<"[soa] compare full=0x{:08X} tile=0x{:08X}">(
+            static_cast<unsigned>(hash_full),
+            static_cast<unsigned>(hash_tile));
+        if (hash_full != hash_tile) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            close_regress_log();
+#endif
+            return 1;
+        }
+    }
+#if defined(VIVID_SOA_TRACE_INPUT)
     if (run_headless) {
         close_regress_log();
+        return 0;
+    }
+#else
+    if (run_headless) {
         return 0;
     }
 #endif
@@ -644,6 +772,8 @@ int main(int argc, char** argv) {
     int mouse_y = 0;
     bool running = true;
     int value = 0;
+    int stat_frame = 0;
+    const int stat_interval = 60;
 
     while (running) {
         SDL_Event evt{};
@@ -694,9 +824,47 @@ int main(int argc, char** argv) {
             kernel.set_value(slider, value);
         }
 
-        gui.render();
+        ui::draw_cmd::DrawCmdTileStats tile_stats{};
+        if (use_tiles) {
+            tile_stats = gui.render_tiles(tile_backend, tile_view, tile_config);
+            Rect dirty{};
+            if (tile_backend.dirty_rect(dirty)) {
+                SDL_Rect rect{dirty.x, dirty.y, dirty.w, dirty.h};
+                const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
+                const std::size_t stride = DefaultFrameBuffer::stride_bytes;
+                const std::byte* src = fb.data()
+                    + static_cast<std::size_t>(dirty.y) * stride
+                    + static_cast<std::size_t>(dirty.x) * bpp;
+                SDL_UpdateTexture(texture, &rect, src, static_cast<int>(stride));
+            }
+        } else {
+            gui.render();
+            SDL_UpdateTexture(texture, nullptr, canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
+        }
 
-        SDL_UpdateTexture(texture, nullptr, canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
+        if (print_stats) {
+            ++stat_frame;
+            if (stat_frame >= stat_interval) {
+                stat_frame = 0;
+                const auto stats = gui.last_cmd_stats();
+                if (use_tiles) {
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={}">(
+                        static_cast<std::uint32_t>(stats.cmd_count),
+                        static_cast<std::uint32_t>(stats.cmd_bytes),
+                        stats.cmd_overflowed ? 1 : 0,
+                        stats.text_overflowed ? 1 : 0,
+                        tile_stats.tiles_drawn,
+                        tile_stats.tiles_total,
+                        tile_stats.tile_flush_count);
+                } else {
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={}">(
+                        static_cast<std::uint32_t>(stats.cmd_count),
+                        static_cast<std::uint32_t>(stats.cmd_bytes),
+                        stats.cmd_overflowed ? 1 : 0,
+                        stats.text_overflowed ? 1 : 0);
+                }
+            }
+        }
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
         SDL_RenderClear(renderer);
         SDL_FRect dst{

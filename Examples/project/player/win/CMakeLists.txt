@@ -4,14 +4,17 @@ project(charm-player-win)
 set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
+set(CHARM_VIVID_SOA_ONLY OFF CACHE BOOL "" FORCE)
+option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
+
+if (CHARM_VIVID_SOA_ONLY)
+    set(PLAYER_MAIN main_soa.cpp)
+else()
+    set(PLAYER_MAIN main.cpp)
+endif()
 
 add_executable(${target_name}
-    main.cpp
-    ../player.controller.cppm
-    ../player.fs_utils.cppm
-    ../player.ui_debug.cppm
-    ../player.ui_builder.cppm
-    ../player.ui.cppm
+    ${PLAYER_MAIN}
 )
 
 target_compile_definitions(${target_name} PRIVATE
@@ -45,6 +48,9 @@ set(CHARM_FATFS_GIT_REPOSITORY "https://github.com/abbrev/fatfs.git" CACHE STRIN
 set(CHARM_FATFS_GIT_TAG "master" CACHE STRING "" FORCE)
 
 set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747/|/stn32common/")
+if (CHARM_VIVID_SOA_ONLY)
+    set(CHARM_PLAYER_EXCLUDE_REGEX "${CHARM_PLAYER_EXCLUDE_REGEX}|player\\.ui|player\\.controller")
+endif()
 charm_example_sources_filtered(${target_name}
     "${CHARM_ROOT}"
     "${CHARM_PLAYER_EXCLUDE_REGEX}"
@@ -54,6 +60,11 @@ charm_example_sources(${target_name} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/ui/vivid/assets/*.cppm"
 )
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
+
+if (CHARM_PLAYER_SOA_TRACE)
+    target_compile_definitions(${target_name} PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
+endif()
 
 target_sources(${target_name} PRIVATE
     "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"

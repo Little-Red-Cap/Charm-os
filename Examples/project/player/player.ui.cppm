@@ -552,5 +552,7 @@ export namespace player::ui {
         spectrum_patch.has_border_focus = true;
         spectrum_patch.border_focus = kUiOk;
         theme.patch<SpectrumView>(spectrum_patch);
+
+        sheet.rebuild_if_needed();
     }
 }

@@ -798,7 +798,7 @@ export namespace player {
             auto res = player->play(track_path);
             if (!res) {
                 char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error().code));
+                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
                 set_status(buf);
                 return;
             }
@@ -818,7 +818,7 @@ export namespace player {
             auto res = player->pause();
             if (!res) {
                 char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error().code));
+                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error()));
                 set_status(buf);
                 return;
             }
@@ -834,7 +834,7 @@ export namespace player {
             auto res = player->resume();
             if (!res) {
                 char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error().code));
+                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error()));
                 set_status(buf);
                 return;
             }

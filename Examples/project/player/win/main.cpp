@@ -790,10 +790,10 @@ int main(int argc, char** argv) {
             g_ctx.playing = false;
             g_ctx.paused = false;
             const auto err = g_player.last_error();
-            const auto stage = static_cast<audio::PlayerErrorStage>(err.ext);
+            const auto stage = g_player.last_error_stage();
             char buf[96]{};
             std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
-                          audio_err_text(err.code), audio_stage_text(stage));
+                          audio_err_text(err), audio_stage_text(stage));
             g_ctx.set_status(buf);
             g_ctx.set_status_color(kUiError);
             g_ctx.set_play_button_icon(false);

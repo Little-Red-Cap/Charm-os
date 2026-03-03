@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <span>
 
 export module charm.system.bringup.win_stub;
 

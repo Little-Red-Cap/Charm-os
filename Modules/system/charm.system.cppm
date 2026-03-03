@@ -55,6 +55,7 @@ export import power.types;
 
 export import charm.system.init;
 export import charm.system.init_usart;
+export import charm.system.bringup;
 
 export import device.desc;
 export import device.bus;

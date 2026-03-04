@@ -65,6 +65,7 @@ export namespace charm::system {
                 const auto* driver = input.desc->driver ? input.desc->driver : &kNullDriver;
                 InputInitCaps caps{
                     input.desc->service_cap,
+                    input.desc->router_cap,
                     input.desc->pump_cap,
                     "system.clock",
                     "kernel.eda"

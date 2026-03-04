@@ -9,6 +9,8 @@ import init.node;
 import init.graph;
 import input.service;
 import input.service.node;
+import input.router;
+import input.router.node;
 import input.pump;
 import hal_input;
 import charm.system.clock;
@@ -25,6 +27,7 @@ export namespace charm::system {
 
     struct InputInitCaps {
         const char* service_cap{"input.service"};
+        const char* router_cap{"input.router"};
         const char* pump_cap{"input.pump"};
         const char* clock_cap{"system.clock"};
         const char* eda_cap{"kernel.eda"};
@@ -32,10 +35,12 @@ export namespace charm::system {
 
     template <typename RegistryT>
     struct InputInitChain {
+        input::Router router;
         input::InputService service;
+        input::RouterBinding router_binding;
         input::ServiceBinding service_binding;
         input::InputPumpBinding pump_binding;
-        std::array<const init::Node*, 2> nodes{};
+        std::array<const init::Node*, 3> nodes{};
 
         InputInitChain(const hal::RawInputSource& source,
                        input::InputPumpTask& pump,
@@ -48,15 +53,17 @@ export namespace charm::system {
                        InputInitCaps caps = {},
                        init::Phase phase = init::Phase::core,
                        util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : service(source, cfg.service),
+            : router(),
+              service(source, cfg.service),
+              router_binding(router, caps.router_cap, phase, runlevel_mask),
               service_binding(service, caps.service_cap, caps.clock_cap, phase, runlevel_mask),
               pump_binding(pump,
                            service,
                            schedule_fn,
                            schedule_ctx,
                            pump_id,
-                           sink_fn,
-                           sink_ctx,
+                           sink_fn ? sink_fn : &input::Router::sink_trampoline,
+                           sink_fn ? sink_ctx : static_cast<void*>(&router),
                            cfg.period_ms,
                            cfg.budget,
                            caps.pump_cap,
@@ -65,12 +72,14 @@ export namespace charm::system {
                            caps.clock_cap,
                            phase,
                            runlevel_mask) {
-            nodes = {&service_binding.node, &pump_binding.node};
+            nodes = {&service_binding.node, &router_binding.node, &pump_binding.node};
         }
 
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }
+
+        input::Router& router_ref() noexcept { return router; }
 
         template <util::usize MaxNodes, util::usize MaxCaps>
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,

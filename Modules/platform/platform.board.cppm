@@ -23,6 +23,7 @@ export namespace platform::board {
     struct InputDesc {
         const hal::RawInputDriver* driver{nullptr};
         const char* service_cap{"input.service"};
+        const char* router_cap{"input.router"};
         const char* pump_cap{"input.pump"};
     };
 

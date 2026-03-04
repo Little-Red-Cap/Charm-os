@@ -233,7 +233,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - Windows/STM32 参考实现（board_caps）
 
 ### HAL
-- `hal_core/clock/time/irq/gpio/uart/timer`
+- `hal_core/irq/gpio/uart/timer/spi/i2c/input`
 - HAL Win stub + board_caps 时钟注入
 
 ### Audio

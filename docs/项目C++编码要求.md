@@ -38,7 +38,7 @@
 #### 受限
 
 - `std::vector/string/deque`：仅限非实时路径，需明确上限
-- `std::chrono`：仅限 PC/工具或通过 TimeSource 统一
+- `std::chrono`：仅限 PC/工具；核心库统一使用 `charm.system.clock`
 - `std::function`：优先用函数指针或 `function_ref`
 
 #### 禁止（除 Windows 平台）
@@ -100,13 +100,14 @@
 - `io::Channel` 的 `read/write` 必须非阻塞，禁止返回 `Ok(0)`。
 - 资源暂不可用必须返回 `Errc::would_block`。
 - 协议层禁止 busy-spin/阻塞/睡眠；等待/超时必须走 Kernel/EDA + `io.reactor`。
-- 通道获取优先 `io.registry.open("io.console0")` 或 cap id；默认通道仅兼容。
+- 通道获取优先 `io.registry.open("io.console0")` 或 cap id；默认通道已移除，必须通过 `io.registry` 或 RuntimeContext 注入。
 
 ### B.6 初始化与能力装配
 
 - 初始化统一走 `init.graph`，禁止入口手写顺序。
 - 核心底座放入 `CoreSystemChain`，板级能力放入 `BoardChain`。
 - `extra nodes` 仅允许服务/应用类节点，禁止底座能力进入 extra。
+- 内核能力统一通过 `charm.system.caps::SystemCaps` 定义，禁止临时 Caps 结构体散落。
 
 ### B.7 模块导出约定
 

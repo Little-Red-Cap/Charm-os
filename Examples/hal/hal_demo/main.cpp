@@ -8,15 +8,6 @@
 import charm.foundation;
 import charm.runtime;
 
-struct WinTime {
-    using Tick = hal::tick_t;
-    static Tick now() noexcept {
-        using namespace std::chrono;
-        auto ms = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-        return static_cast<Tick>(ms);
-    }
-};
-
 struct WinDelay {
     static void delay_ms(hal::tick_t ms) noexcept {
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -47,8 +38,6 @@ struct WinTimer {
     static hal::Result set_callback(hal::TimerHandle, hal::TimerCallback) noexcept { return hal::ok(); }
 };
 
-static_assert(hal::TimeSource<WinTime>);
-static_assert(hal::DelayProvider<WinDelay>);
 static_assert(hal::GpioDriver<WinGpio>);
 static_assert(hal::UartDriver<WinUart>);
 static_assert(hal::TimerDriver<WinTimer>);

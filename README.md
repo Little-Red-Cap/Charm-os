@@ -45,7 +45,7 @@
 **IO / HAL**
 - hal：UART/SPI/I2C/GPIO/IRQ/Timer/Clock
 - input：RawInputEvent/Sampler/Intent/导航
-- fs：VFS + RamFs + BlockFs + FatFs + MAL + POSIX facade
+- fs：VFS + RamFs + BlockFs + FatFs + MAL
 - usb：common/device/driver + CDC/UAC/MSC 骨架
 - proto：X/YModem（含最小 demo）
 
@@ -72,7 +72,7 @@
 3. 跑示例：`Examples/kernel/windows`
 
 ### FS/VFS
-1. 读文档：`Modules/io/fs/fs_migration_notes.md`
+1. 读文档：`docs/fs_vfs_mount_rules.md`
 2. 看实现：`Modules/io/fs/`
 3. 跑示例：`Examples/fs/`
 
@@ -82,14 +82,14 @@
 3. 跑示例：`Examples/hal/hal_demo`
 
 ### Shell/Service
-1. 读文档：`Modules/io/shell/vsf_migration_service_shell_module.md`、`Modules/core/service/vsf_migration_service_detail.md`
+1. 读文档：`docs/architecture_overview.md`
 2. 看实现：`Modules/io/shell/`、`Modules/core/service/`
 3. 跑示例：`Examples/shell/`、`Examples/service/`
 
 ### ModuleX
 1. 读文档：`Modules/system/modulex/ModuleX_格式草案.md`
 2. 看实现：`Modules/system/modulex/`
-3. 跑示例：`Examples/shell/vsf_shell_fs_module`
+3. 跑示例：`Examples/shell/vsf_service_shell`
 
 ### USB
 1. 读文档：`docs/usb_arch_plan.md`
@@ -140,7 +140,7 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 - Windows：`Examples/kernel/windows/port.kernel.windows.cpp`
 - STM32：`Draft/Examples/stm32f103c8/Core/Src/kernel.port.stm32.cpp`
 
-## 🧰 VSF 迁移模块
+## 🧰 模块清单（架构侧）
 - HAL：`Modules/io/hal/*`
 - Service：`Modules/core/service/*`
 - Shell：`Modules/io/shell/*`
@@ -153,10 +153,7 @@ cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 - `Examples/service/vsf_service_core`：Service 基础示例
 - `Examples/service/service_ds_demo`：Service DS 示例
 - `Examples/fs/vsf_fs_demo`：VFS + RAMFS 试验
-- `Examples/fs/vsf_fs_block_demo`：BlockFS 试验
 - `Examples/fs/vsf_fs_vfs_demo`：VFS 组合示例
-- `Examples/fs/vsf_fs_posix`：POSIX 封装示例
-- `Examples/shell/vsf_shell_fs_module`：Shell + FS + ModuleX 示例
 - `Examples/alg/alg_demo`：算法/压缩示例
 - `Examples/boot/bootloader_demo`：bootloader 示例
 - `Examples/audio/sdl3_wav_demo`：SDL3 音频示例
@@ -219,7 +216,7 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 - 协作规范：`docs/《协作期待与规范》.md`
 - 协作认知：`docs/《现代 C++ 单片机代码协作认知》.md`
 - 推进与分工：`docs/推进TODO与分工.md`、`docs/refactor_todo_ownership.md`
-- 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`Modules/io/fs/fs_migration_notes.md`、Shell=`Modules/io/shell/vsf_migration_service_shell_module.md`、Service=`Modules/core/service/vsf_migration_service_detail.md`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
+- 组件文档：Audio=`Modules/media/audio/audio_design.md`、HAL=`Modules/io/hal/charm_hal_design.md`、FS=`docs/fs_vfs_mount_rules.md`、Shell=`Modules/io/shell/`、Service=`Modules/core/service/`、ModuleX=`Modules/system/modulex/ModuleX_格式草案.md`、Kernel=`Modules/system/kernel/docs/`
 
 ## 🧰 新示例模板（CMake）
 
@@ -229,9 +226,9 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 - SDL3 统一入口：`cmake/SDL3.cmake`（优先 `find_package`，回退到 `Examples/ThirdParty/SDL3`）
 
 ## 🗺 路线图（摘要）
-- **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、shim 最小 POSIX time/sleep
+- **近期**：MCU 运行验证、HAL MVP（GPIO/UART/Timer）、time/sleep facade 最小实现
 - **中期**：module loader/XIP 草案、RT facade（线程 API 包装）、VFS 完善（目录/多块）
-- **远期**：POSIX/Arduino 更丰富、模块热插拔/签名、USB/TCPIP/FS 组件按需引入、FatFS/FlashFS 适配
+- **远期**：Facade/Arduino 更丰富、模块热插拔/签名、USB/TCPIP/FS 组件按需引入、FatFS/FlashFS 适配
 
 ## ✅ 未来 TODO（主线闭环）
 - **升级闭环**：固件签名/密钥管理、版本治理、回滚策略、A/B 分区策略、OTA/下载通道

@@ -8,7 +8,7 @@
 - `boot/bootloader_demo`：Bootloader 示例
 - `audio/sdl3_wav_demo`：SDL3 音频示例
 - `project/player`：播放器项目化示例（win 子目录）
-- `fs/`：VFS/BlockFS/POSIX 示例
+- `fs/`：VFS/BlockFS/FatFs 示例
 - `shell/`：Shell/ModuleX 组合示例
 - `service/`：Service 核心/DS 示例
 - `hal/hal_demo`：HAL 接口示例
@@ -33,25 +33,16 @@ cmake --build Examples/audio/sdl3_wav_demo/build
 cmake -S Examples/project/player -B Examples/project/player/build -G Ninja
 cmake --build Examples/project/player/build
 
-# FS (VFS / BlockFS / POSIX)
+# FS (VFS / BlockFS / FatFs)
 cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja
 cmake --build Examples/fs/vsf_fs_demo/build
-
-cmake -S Examples/fs/vsf_fs_block_demo -B Examples/fs/vsf_fs_block_demo/build -G Ninja
-cmake --build Examples/fs/vsf_fs_block_demo/build
 
 cmake -S Examples/fs/vsf_fs_vfs_demo -B Examples/fs/vsf_fs_vfs_demo/build -G Ninja
 cmake --build Examples/fs/vsf_fs_vfs_demo/build
 
-cmake -S Examples/fs/vsf_fs_posix -B Examples/fs/vsf_fs_posix/build -G Ninja
-cmake --build Examples/fs/vsf_fs_posix/build
-
 # Shell + ModuleX
 cmake -S Examples/shell/vsf_service_shell -B Examples/shell/vsf_service_shell/build -G Ninja
 cmake --build Examples/shell/vsf_service_shell/build
-
-cmake -S Examples/shell/vsf_shell_fs_module -B Examples/shell/vsf_shell_fs_module/build -G Ninja
-cmake --build Examples/shell/vsf_shell_fs_module/build
 
 # Service
 cmake -S Examples/service/vsf_service_core -B Examples/service/vsf_service_core/build -G Ninja

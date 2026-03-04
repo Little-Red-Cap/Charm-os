@@ -1,13 +1,16 @@
 module;
 
+#include <optional>
 #include <span>
 
 export module hal_stm32_stub;
 
 import hal_core;
 import hal_gpio;
+import hal_input;
 import hal_uart;
 import hal_timer;
+import input.raw;
 import util.core;
 
 // Stub implementations to keep the build/link pipeline working.
@@ -38,5 +41,22 @@ export namespace hal::stm32_stub {
         static Result start(TimerHandle) noexcept { return ok(); }
         static Result stop(TimerHandle) noexcept { return ok(); }
         static Result set_callback(TimerHandle, TimerCallback) noexcept { return ok(); }
+    };
+
+    struct RawInput {
+        static bool is_down(void*, input::Button) noexcept { return false; }
+        static input::PointerRaw read_pointer(void*) noexcept { return input::PointerRaw{}; }
+        static input::AxisRaw read_axis(void*) noexcept { return input::AxisRaw{}; }
+        static std::optional<std::uint8_t> pop_encoder_ab(void*) noexcept { return std::nullopt; }
+
+        static hal::RawInputDriver driver() noexcept {
+            return hal::RawInputDriver{
+                .ctx = nullptr,
+                .is_down = &RawInput::is_down,
+                .read_pointer = &RawInput::read_pointer,
+                .read_axis = &RawInput::read_axis,
+                .pop_encoder_ab = &RawInput::pop_encoder_ab
+            };
+        }
     };
 }

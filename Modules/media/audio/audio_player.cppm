@@ -64,6 +64,7 @@ export namespace audio {
 
     class NullAudioSink {
     public:
+        void set_clock(charm::system::Clock&) noexcept {}
         Result<void> open(const SinkConfig&) noexcept { return {}; }
         Result<void> start() noexcept { return {}; }
         Result<void> stop() noexcept { return {}; }
@@ -254,12 +255,21 @@ export namespace audio {
 
     class AudioPlayer {
     public:
-        explicit AudioPlayer(PlayerConfig config)
+        AudioPlayer(PlayerConfig config, charm::system::Clock& clock)
             : config_(config) {
+            set_clock(clock);
             init_spectrum_window();
         }
 
         ~AudioPlayer() { stop_internal(); }
+
+        void set_clock(charm::system::Clock& clock) noexcept {
+            clock_.reset(clock);
+            sink_.set_clock(clock);
+#if CHARM_AUDIO_ENABLE_STRESS
+            seed_rng();
+#endif
+        }
 
         Result<void> play(const char* path) {
             if (!path || !*path) return unexpected(Errc::invalid_arg);
@@ -472,17 +482,21 @@ export namespace audio {
 
     private:
 #if CHARM_AUDIO_ENABLE_STRESS
-        static void stress_delay_ms(std::uint32_t ms) noexcept {
+        void stress_delay_ms(std::uint32_t ms) noexcept {
             if (ms == 0) return;
-            auto& clk = charm::system::clock();
-            const auto start = clk.now_ms();
-            const auto probe = clk.now_ms();
+            const auto start = clock_.now_ms();
+            const auto probe = clock_.now_ms();
             if (start == 0 && probe == 0) return;
             while (true) {
-                const auto now = clk.now_ms();
+                const auto now = clock_.now_ms();
                 if (now < start) break;
                 if (now - start >= ms) break;
             }
+        }
+
+        void seed_rng() noexcept {
+            const auto seed = static_cast<std::uint32_t>(clock_.now_us());
+            rng_.seed(seed);
         }
 #endif
         enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
@@ -1053,7 +1067,7 @@ export namespace audio {
                 return;
             }
 
-            const auto t0 = charm::system::clock().now_us();
+            const auto t0 = clock_.now_us();
             std::size_t bytes_written = 0;
 
             const std::size_t frames_needed = writable / output_fmt_.frame_size();
@@ -1105,7 +1119,7 @@ export namespace audio {
                 fifo_.commit_write(written);
             }
 
-            const auto t1 = charm::system::clock().now_us();
+            const auto t1 = clock_.now_us();
             const double dt_ms = static_cast<double>(t1 - t0) / 1000.0;
             update_refill_stats(dt_ms);
         }
@@ -1453,8 +1467,9 @@ export namespace audio {
         bool last_decode_eos_{false};
 
         std::uint32_t stress_ms_{0};
+        charm::system::ClockRef clock_{};
 #if CHARM_AUDIO_ENABLE_STRESS
-        std::mt19937 rng_{static_cast<std::uint32_t>(charm::system::clock().now_us())};
+        std::mt19937 rng_{};
         std::uniform_int_distribution<int> stress_dist_{0, 0};
 #endif
     };

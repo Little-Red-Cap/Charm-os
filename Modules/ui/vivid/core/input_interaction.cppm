@@ -5,7 +5,6 @@ module;
 export module charm.core.input_interaction;
 
 export import charm.core.event;
-import charm.system.clock;
 
 export
 template<typename T>
@@ -105,26 +104,25 @@ public:
     bool on_event(const Event& e) {
         if (!enabled_) return false;
         if (e.type != Event::Type::Click) return false;
-        if (!is_double_tap(e.x, e.y)) return false;
+        if (!is_double_tap(e.x, e.y, e.ms)) return false;
         if (callback_) callback_(ctx_);
         return true;
     }
 
 private:
-    bool is_double_tap(int x, int y) {
-        const auto now = charm::system::clock().now_ms();
+    bool is_double_tap(int x, int y, std::uint32_t now_ms) {
         bool is_double = false;
         if (double_tap_ms_ > 0) {
-            const auto elapsed = (now >= last_tap_time_) ? (now - last_tap_time_) : 0;
+            const auto elapsed = (now_ms >= last_tap_time_) ? (now_ms - last_tap_time_) : 0;
             const int dx = x - last_tap_x_;
             const int dy = y - last_tap_y_;
             const int dist_sq = dx * dx + dy * dy;
-            if (elapsed <= static_cast<charm::system::ClockTick>(double_tap_ms_) &&
+            if (elapsed <= static_cast<std::uint32_t>(double_tap_ms_) &&
                 dist_sq <= double_tap_dist_sq_) {
                 is_double = true;
             }
         }
-        last_tap_time_ = now;
+        last_tap_time_ = now_ms;
         last_tap_x_ = x;
         last_tap_y_ = y;
         return is_double;
@@ -137,7 +135,7 @@ private:
     int double_tap_dist_sq_{144};
     int last_tap_x_{0};
     int last_tap_y_{0};
-    charm::system::ClockTick last_tap_time_{0};
+    std::uint32_t last_tap_time_{0};
 };
 
 export
@@ -244,7 +242,7 @@ public:
             canceled_ = false;
             start_x_ = e.x;
             start_y_ = e.y;
-            start_time_ = charm::system::clock().now_ms();
+            start_time_ = e.ms;
             return false;
         }
         if (!pressed_) return false;
@@ -263,10 +261,10 @@ public:
             return false;
         }
         if (e.type == Event::Type::MouseUp || e.type == Event::Type::DragEnd) {
-            const auto now = charm::system::clock().now_ms();
+            const auto now = e.ms;
             const auto elapsed = (now >= start_time_) ? (now - start_time_) : 0;
             const bool fire = !canceled_ &&
-                elapsed >= static_cast<charm::system::ClockTick>(threshold_ms_);
+                elapsed >= static_cast<std::uint32_t>(threshold_ms_);
             pressed_ = false;
             canceled_ = false;
             if (fire && callback_) {
@@ -288,5 +286,5 @@ private:
     int move_threshold_sq_{36};
     int start_x_{0};
     int start_y_{0};
-    charm::system::ClockTick start_time_{0};
+    std::uint32_t start_time_{0};
 };

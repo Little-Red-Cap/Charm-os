@@ -119,24 +119,6 @@ export namespace gui::ui {
     }
 
     template <class RawSource>
-    struct SamplerPolicyContext {
-        RawSource*         src{nullptr};
-        gui::input::Sampler* sampler{nullptr};
-    };
-
-    template <class RawSource>
-    std::optional<gui::input::Intent> sampler_poll(void* ctx, std::uint32_t now_ms) noexcept {
-        auto* c = static_cast<SamplerPolicyContext<RawSource>*>(ctx);
-        if (!c || !c->src || !c->sampler) return std::nullopt;
-        return c->sampler->poll(*c->src, now_ms);
-    }
-
-    template <class RawSource>
-    [[nodiscard]] inline InputPolicy make_sampler_policy(SamplerPolicyContext<RawSource>& ctx) noexcept {
-        return InputPolicy{&sampler_poll<RawSource>, &ctx};
-    }
-
-    template <class RawSource>
     struct RawSamplerPolicyContext {
         RawSource*            src{nullptr};
         gui::input::RawSampler* sampler{nullptr};

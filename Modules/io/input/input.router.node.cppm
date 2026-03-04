@@ -39,10 +39,6 @@ export namespace input {
             if (!self || !self->router_ref) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            if (g_router && g_router != self->router_ref) {
-                return util::unexpected(util::Errc::exist);
-            }
-            set_router(*self->router_ref);
             return {};
         }
     };

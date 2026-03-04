@@ -60,6 +60,7 @@ export namespace charm::system {
             if (!input.desc) {
                 input.desc = &input_desc_;
             }
+            input_required_ = (input.desc && input.desc->driver);
             if (input.desc && input.pump && input.schedule) {
                 static const hal::RawInputDriver kNullDriver{};
                 const auto* driver = input.desc->driver ? input.desc->driver : &kNullDriver;
@@ -71,6 +72,7 @@ export namespace charm::system {
                     "kernel.eda"
                 };
                 input_.emplace(hal::RawInputSource{*driver},
+                               core_.clock,
                                *input.pump,
                                input.schedule,
                                input.schedule_ctx,
@@ -86,6 +88,9 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
+            if (input_required_ && input_nodes_.empty()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
             const auto core_nodes = core_.node_span();
             const auto board_nodes = board_.node_span();
             const auto total =
@@ -144,5 +149,6 @@ export namespace charm::system {
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
         std::span<const init::Node* const> input_nodes_{};
+        bool input_required_{false};
     };
 }

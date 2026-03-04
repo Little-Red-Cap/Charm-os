@@ -52,21 +52,29 @@ export namespace charm::system {
         }
     };
 
-    inline Clock* g_clock = nullptr;
+    struct ClockRef {
+        Clock* clock{nullptr};
 
-    inline void set_clock(Clock& clock) noexcept {
-        g_clock = &clock;
-    }
+        constexpr ClockRef() noexcept = default;
+        constexpr explicit ClockRef(Clock& clock_in) noexcept : clock(&clock_in) {}
 
-    [[nodiscard]] inline Clock& clock() noexcept {
-        static Clock fallback{};
-        return g_clock ? *g_clock : fallback;
-    }
+        void reset(Clock& clock_in) noexcept { clock = &clock_in; }
+
+        [[nodiscard]] bool valid() const noexcept { return clock != nullptr; }
+        [[nodiscard]] ClockTick now_ms() const noexcept { return clock ? clock->now_ms() : 0; }
+        [[nodiscard]] ClockTick now_us() const noexcept { return clock ? clock->now_us() : 0; }
+    };
 
     struct ClockCaps {
         struct TimeSource {
             using Tick = ClockTick;
-            static Tick now() noexcept { return clock().now_ms(); }
+            static Tick now() noexcept { return clock_ ? clock_->now_ms() : 0; }
+            static Tick now_us() noexcept { return clock_ ? clock_->now_us() : 0; }
+            static Clock* bound() noexcept { return clock_; }
+            static void bind(Clock& clock_in) noexcept { clock_ = &clock_in; }
+
+        private:
+            inline static Clock* clock_{nullptr};
         };
     };
 
@@ -98,10 +106,11 @@ export namespace charm::system {
             if (!self || !self->clock_ref) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            if (g_clock != nullptr && g_clock != self->clock_ref) {
+            const auto* bound = ClockCaps::TimeSource::bound();
+            if (bound != nullptr && bound != self->clock_ref) {
                 return util::unexpected(util::Errc::exist);
             }
-            set_clock(*self->clock_ref);
+            ClockCaps::TimeSource::bind(*self->clock_ref);
             return {};
         }
     };

@@ -11,10 +11,25 @@ export module input.raw_sampler;
 import input.raw;
 import input.raw_event;
 import input.encoder_decoder;
-import input.sampler;
 import input.trace;
 
 export namespace input {
+    struct DebounceCfg {
+        bool          enabled{true};
+        std::uint16_t ms{20};
+    };
+
+    struct RepeatCfg {
+        bool          enabled{true};
+        std::uint16_t delay_ms{350};
+        std::uint16_t interval_ms{120};
+    };
+
+    struct SamplerCfg {
+        DebounceCfg debounce{};
+        RepeatCfg   repeat{};
+    };
+
     // Raw events only: keep sampling/debounce/repeat, avoid UI semantics.
     class RawSampler {
     public:

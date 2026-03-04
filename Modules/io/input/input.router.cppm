@@ -119,14 +119,4 @@ export namespace input {
         util::u16 used_{0};
     };
 
-    inline Router* g_router = nullptr;
-
-    inline void set_router(Router& router) noexcept {
-        g_router = &router;
-    }
-
-    [[nodiscard]] inline Router& router() noexcept {
-        static Router fallback{};
-        return g_router ? *g_router : fallback;
-    }
 } // namespace input

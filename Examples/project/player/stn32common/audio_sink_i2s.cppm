@@ -12,6 +12,7 @@ export module audio.sink.i2s;
 
 import audio.format;
 import audio.result;
+import charm.system.clock;
 import media.stream.sink;
 import media.stream.types;
 
@@ -41,6 +42,8 @@ export namespace audio {
 
     class I2sAudioSink {
     public:
+        void set_clock(charm::system::Clock&) noexcept {}
+
         static I2S_HandleTypeDef& i2s_handle() noexcept {
 #if defined(STM32F407xx)
             return hi2s2;

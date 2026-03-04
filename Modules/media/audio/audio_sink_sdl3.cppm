@@ -43,6 +43,10 @@ export namespace audio {
 
     class Sdl3AudioSink {
     public:
+        void set_clock(charm::system::Clock& clock) noexcept {
+            clock_.reset(clock);
+        }
+
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
             const std::uint32_t period = cfg.period_frames != 0
@@ -136,8 +140,9 @@ export namespace audio {
         }
 
     private:
-        static std::uint64_t now_ns() {
-            return static_cast<std::uint64_t>(charm::system::clock().now_us()) * 1000u;
+        std::uint64_t now_ns() const noexcept {
+            const auto now_us = clock_.now_us();
+            return static_cast<std::uint64_t>(now_us) * 1000u;
         }
 
         static void update_min(std::atomic<std::uint64_t>& dst, std::uint64_t value) {
@@ -160,7 +165,7 @@ export namespace audio {
 
         static void sdl_audio_callback(void* userdata, SDL_AudioStream* stream, int additional_amount, int) {
             auto* self = static_cast<Sdl3AudioSink*>(userdata);
-            const auto now = now_ns();
+            const auto now = self->now_ns();
             const auto last = self->cb_last_ns_.exchange(now, std::memory_order_relaxed);
             if (last != 0) {
                 const auto dt = now - last;
@@ -221,6 +226,7 @@ export namespace audio {
         std::atomic<std::uint64_t> cb_dt_sum_ns_{0};
         std::atomic<std::uint64_t> cb_last_ns_{0};
         std::atomic<std::uint32_t> cb_last_request_frames_{0};
+        charm::system::ClockRef clock_{};
 
         static AudioFormat from_stream_format(const media::StreamFormat& fmt) {
             AudioFormat out{};

@@ -557,7 +557,7 @@ public:
         input_events_.clear();
         if (!input_root_) return;
         for (std::size_t i = 0; i < (kMaxInputEvents + 4); ++i) {
-            input_emit_event(input_root_, Event::mouse(Event::Type::MouseMove, input_last_x_, input_last_y_, 0));
+            input_emit_event(input_root_, Event::mouse(Event::Type::MouseMove, input_last_x_, input_last_y_, 0, input_last_ms_));
         }
         if (input_events_.overflowed) {
             input_handle_overflow(false);
@@ -573,6 +573,7 @@ public:
         if (!input_root_) return;
         input_events_.clear();
         input_actions_.clear();
+        input_last_ms_ = e.ms;
         switch (e.type) {
         case Event::Type::HoverEnter:
             break;
@@ -592,7 +593,7 @@ public:
                     }
                 }
             } else if (input_hovered_) {
-                input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button));
+                input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button, e.ms));
             }
             break;
         case Event::Type::MouseDown:
@@ -2895,6 +2896,7 @@ private:
     int input_drag_last_y_{0};
     int input_last_x_{0};
     int input_last_y_{0};
+    std::uint32_t input_last_ms_{0};
     int input_button_{0};
     int input_drag_threshold_sq_{25};
     bool input_dragging_{false};
@@ -2992,13 +2994,13 @@ private:
         WidgetHandle hit = input_hit_test(x, y);
         if (hit == input_hovered_) return;
         if (input_hovered_) {
-            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button));
-            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 0, 0});
+            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button, input_last_ms_));
+            set_hovered(input_hovered_, false);
         }
         input_hovered_ = hit;
         if (input_hovered_) {
-            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 1, 0});
-            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverEnter, x, y, button));
+            set_hovered(input_hovered_, true);
+            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverEnter, x, y, button, input_last_ms_));
         }
     }
 
@@ -3037,7 +3039,7 @@ private:
             if (focusable(input_pressed_)) {
                 input_set_focus(input_pressed_);
             }
-            input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseDown, x, y, button));
+            input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseDown, x, y, button, input_last_ms_));
             if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos) {
                 const WidgetKind k = kind(input_pressed_);
                 if (k == WidgetKind::ScrollBar) {
@@ -3057,15 +3059,15 @@ private:
         if (!target) return;
         const bool was_dragging = input_dragging_;
         if (was_dragging) {
-            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button, input_last_ms_));
         }
         if (input_pressed_) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
         }
         WidgetHandle hit = input_hit_test(x, y);
-        input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button));
+        input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button, input_last_ms_));
         if (!was_dragging && hit == input_pressed_ && input_pressed_) {
-            input_emit_event(input_pressed_, Event::mouse(Event::Type::Click, x, y, button));
+            input_emit_event(input_pressed_, Event::mouse(Event::Type::Click, x, y, button, input_last_ms_));
             input_handle_click(input_pressed_, x, y);
         }
         input_pressed_ = {};
@@ -3087,16 +3089,16 @@ private:
             const int total_dy = y - input_drag_start_y_;
             if ((total_dx * total_dx + total_dy * total_dy) >= input_drag_threshold_sq_) {
                 input_dragging_ = true;
-                input_emit_event(target, Event::drag(Event::Type::DragStart, x, y, 0, 0, button));
+                input_emit_event(target, Event::drag(Event::Type::DragStart, x, y, 0, 0, button, input_last_ms_));
             }
         }
         if (input_dragging_) {
-            input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
+            input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button, input_last_ms_));
             if (input_scroll_target_) {
                 input_scroll_by(input_scroll_target_, -dy);
             }
         } else {
-            input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button));
+            input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button, input_last_ms_));
         }
     }
 
@@ -3105,23 +3107,23 @@ private:
         if (!target) return;
         const int step = scroll_step(target);
         input_scroll_by(target, -wheel_y * step);
-        input_emit_event(target, Event::wheel(x, y, wheel_y));
+        input_emit_event(target, Event::wheel(x, y, wheel_y, input_last_ms_));
     }
 
     void input_handle_cancel(int x, int y, int button) {
         const WidgetHandle target = input_captured_ ? input_captured_ : input_pressed_;
         if (input_dragging_ && target) {
-            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button, input_last_ms_));
         }
         if (target) {
-            input_emit_event(target, Event::mouse(Event::Type::Cancel, x, y, button));
+            input_emit_event(target, Event::mouse(Event::Type::Cancel, x, y, button, input_last_ms_));
         }
         if (input_pressed_) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
         }
         if (input_hovered_) {
-            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button));
-            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 0, 0});
+            input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button, input_last_ms_));
+            set_hovered(input_hovered_, false);
         }
         input_hovered_ = {};
         input_pressed_ = {};
@@ -3250,10 +3252,10 @@ private:
         const WidgetHandle old = input_captured_;
         if (emit_cancel && old) {
             if (input_dragging_) {
-                input_emit_event(old, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
+                input_emit_event(old, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button, input_last_ms_));
                 input_dragging_ = false;
             }
-            input_emit_event(old, Event::mouse(Event::Type::Cancel, x, y, button));
+            input_emit_event(old, Event::mouse(Event::Type::Cancel, x, y, button, input_last_ms_));
             if (input_pressed_ == old) {
                 input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
                 input_pressed_ = {};
@@ -3284,15 +3286,15 @@ private:
         }
 
         if (input_dragging_ && drag_target) {
-            input_emit_event(drag_target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, input_button_));
+            input_emit_event(drag_target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, input_button_, input_last_ms_));
             input_dragging_ = false;
         }
 
         if (captured_hit && valid(input_captured_)) {
-            input_emit_event(input_captured_, Event::mouse(Event::Type::Cancel, x, y, input_button_));
+            input_emit_event(input_captured_, Event::mouse(Event::Type::Cancel, x, y, input_button_, input_last_ms_));
         }
         if (pressed_hit && valid(input_pressed_) && input_pressed_ != input_captured_) {
-            input_emit_event(input_pressed_, Event::mouse(Event::Type::Cancel, x, y, input_button_));
+            input_emit_event(input_pressed_, Event::mouse(Event::Type::Cancel, x, y, input_button_, input_last_ms_));
         }
 
         if (pressed_hit) {
@@ -3308,14 +3310,14 @@ private:
         }
         if (hovered_hit) {
             if (valid(input_hovered_)) {
-                input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, input_button_));
+                input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, input_button_, input_last_ms_));
             }
             set_hovered(input_hovered_, false);
             input_hovered_ = {};
         }
         if (focused_hit) {
             if (valid(input_focused_)) {
-                input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown));
+                input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_last_ms_));
             }
             set_focused(input_focused_, false);
             input_focused_ = {};
@@ -3627,13 +3629,13 @@ private:
     void input_set_focus(WidgetHandle h) {
         if (input_focused_ == h) return;
         if (input_focused_) {
-            input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown));
-            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_focused_, 0, 0});
+            input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_last_ms_));
+            set_focused(input_focused_, false);
         }
         input_focused_ = h;
         if (input_focused_) {
-            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_focused_, 1, 0});
-            input_emit_event(input_focused_, Event::key(Event::Type::FocusIn, Event::Key::Unknown));
+            set_focused(input_focused_, true);
+            input_emit_event(input_focused_, Event::key(Event::Type::FocusIn, Event::Key::Unknown, input_last_ms_));
         }
     }
 

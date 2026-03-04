@@ -108,13 +108,13 @@ export namespace input::adapter {
             const auto& p = raw.pointer;
             switch (raw.pointer_action) {
             case PointerAction::Down:
-                out.event = Event::mouse(Event::Type::MouseDown, p.x, p.y, 0);
+                out.event = Event::mouse(Event::Type::MouseDown, p.x, p.y, 0, raw.ms);
                 break;
             case PointerAction::Move:
-                out.event = Event::mouse(Event::Type::MouseMove, p.x, p.y, 0);
+                out.event = Event::mouse(Event::Type::MouseMove, p.x, p.y, 0, raw.ms);
                 break;
             case PointerAction::Up:
-                out.event = Event::mouse(Event::Type::MouseUp, p.x, p.y, 0);
+                out.event = Event::mouse(Event::Type::MouseUp, p.x, p.y, 0, raw.ms);
                 break;
             default:
                 break;
@@ -125,19 +125,19 @@ export namespace input::adapter {
             const auto key = raw.pressed ? key_from_nav(out.nav) : key_from_button(raw.button);
             if (key != Event::Key::Unknown) {
                 const auto type = raw.pressed ? Event::Type::KeyDown : Event::Type::KeyUp;
-                out.event = Event::key(type, key);
+                out.event = Event::key(type, key, raw.ms);
             }
             break;
         }
         case RawInputEventType::Encoder: {
             if (raw.encoder_delta == 0) break;
             if (encoder_map() == EncoderMap::MouseWheel) {
-                out.event = Event::wheel(0, 0, raw.encoder_delta);
+                out.event = Event::wheel(0, 0, raw.encoder_delta, raw.ms);
                 break;
             }
             const auto key = key_from_nav(out.nav);
             if (key != Event::Key::Unknown) {
-                out.event = Event::key(Event::Type::KeyDown, key);
+                out.event = Event::key(Event::Type::KeyDown, key, raw.ms);
             }
             break;
         }

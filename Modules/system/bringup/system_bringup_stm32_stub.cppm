@@ -6,6 +6,7 @@ module;
 export module charm.system.bringup.stm32_stub;
 
 import charm.system.bringup;
+import charm.system.clock;
 import charm.system.reactor_pump;
 import io.channel;
 import kernel.capabilities;
@@ -23,7 +24,12 @@ export namespace charm::system {
         static constexpr std::size_t evtq_capacity = 8;
     };
 
-    using PumpCaps = kernel::NoopCapabilities;
+    struct PumpCaps {
+        using TimeSource = charm::system::ClockCaps::TimeSource;
+        using IrqGuard = kernel::NoopIrqGuard;
+        using Wakeup = kernel::NoopWakeup;
+        using SwiTrigger = kernel::NoopSwiTrigger;
+    };
 
     inline util::Result<void> bringup_minimal_stm32_stub() noexcept {
         auto caps = platform::board::stm32_stub::make_board_caps();
@@ -38,6 +44,7 @@ export namespace charm::system {
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
+            caps.clock,
             pump,
             &charm::system::scheduler_post<decltype(running)>,
             &running,

@@ -3,6 +3,7 @@ module;
 export module platform.board.win_stub;
 
 import platform.board;
+import platform.win.time_source;
 import hal_core;
 import hal_uart;
 import hal_win;
@@ -52,6 +53,10 @@ namespace platform::board::win_stub::detail {
         auto* self = static_cast<WinUartCtx*>(ctx);
         hal::win::Uart::clear_irq(self->handle, mask);
     }
+
+    util::u64 win_now_us(void*) noexcept {
+        return platform::win::SteadyClock::now();
+    }
 } // namespace platform::board::win_stub::detail
 
 export namespace platform::board::win_stub {
@@ -72,6 +77,7 @@ export namespace platform::board::win_stub {
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
+        caps.clock = ClockDesc{nullptr, nullptr, &detail::win_now_us};
         return caps;
     }
 }

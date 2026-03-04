@@ -52,6 +52,10 @@ namespace platform::board::stm32_stub::detail {
         auto* self = static_cast<Stm32UartCtx*>(ctx);
         hal::stm32_stub::Uart::clear_irq(self->handle, mask);
     }
+
+    util::u64 stm32_now_ms(void*) noexcept {
+        return 0;
+    }
 } // namespace platform::board::stm32_stub::detail
 
 export namespace platform::board::stm32_stub {
@@ -72,6 +76,7 @@ export namespace platform::board::stm32_stub {
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
         return caps;
     }
 }

@@ -8,6 +8,7 @@ export module charm.system.bringup;
 import charm.system.init_core;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
+import charm.system.clock;
 import init.graph;
 import init.node;
 import io.registry;
@@ -26,13 +27,16 @@ export namespace charm::system {
     class BringupMinimal {
     public:
         BringupMinimal(const platform::board::UartDesc& uart,
+                       const platform::board::ClockDesc& clock_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8) noexcept
             : uart_(uart),
-              core_(pump_task, post_fn, post_ctx, pump_id, budget),
+              core_(charm::system::ClockOps{clock_desc.now_ms, clock_desc.now_us},
+                    clock_desc.ctx,
+                    pump_task, post_fn, post_ctx, pump_id, budget),
               board_(core_.registry, core_.reactor,
                      uart.handle, uart.config, uart.io_cap, uart.hal_cap) {}
 

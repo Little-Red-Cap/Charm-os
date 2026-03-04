@@ -9,6 +9,7 @@ import init.node;
 import init.graph;
 import io.registry;
 import io.reactor;
+import charm.system.clock;
 import kernel.eda;
 import kernel.eda.node;
 import charm.system.reactor_pump;
@@ -22,24 +23,31 @@ export namespace charm::system {
 
         RegistryT registry{};
         io::Reactor reactor{};
+        charm::system::Clock clock{};
+        charm::system::ClockBinding clock_binding;
         io::RegistryBinding<RegistryT> registry_binding;
         io::ReactorBinding reactor_binding;
         kernel::EdaBinding eda_binding;
         charm::system::ReactorPumpBinding pump_binding;
-        std::array<const init::Node*, 4> nodes{};
+        std::array<const init::Node*, 5> nodes{};
 
-        CoreSystemChain(ReactorPumpTask& pump_task,
+        CoreSystemChain(const charm::system::ClockOps& clock_ops,
+                        void* clock_ctx,
+                        ReactorPumpTask& pump_task,
                         PostFn post_fn,
                         void* post_ctx,
                         kernel::TaskId pump_id,
                         util::usize budget = 8) noexcept
             : registry(),
               reactor(),
+              clock(clock_ctx, clock_ops),
+              clock_binding(clock),
               registry_binding(registry),
               reactor_binding(reactor),
               eda_binding(),
               pump_binding(pump_task, reactor, post_fn, post_ctx, pump_id, budget) {
             nodes = {
+                &clock_binding.node,
                 &registry_binding.node,
                 &reactor_binding.node,
                 &eda_binding.node,

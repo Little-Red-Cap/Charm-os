@@ -6,6 +6,7 @@ module;
 export module charm.system.bringup.win_stub;
 
 import charm.system.bringup;
+import charm.system.clock;
 import charm.system.reactor_pump;
 import io.channel;
 import kernel.capabilities;
@@ -27,7 +28,7 @@ export namespace charm::system {
     };
 
     struct PumpCaps {
-        using TimeSource = platform::win::SteadyClock;
+        using TimeSource = charm::system::ClockCaps::TimeSource;
         using IrqGuard = platform::win::SpinIrqGuard;
         using Wakeup = platform::win::NoopWakeup;
         using SwiTrigger = kernel::NoopSwiTrigger;
@@ -46,6 +47,7 @@ export namespace charm::system {
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
+            caps.clock,
             pump,
             &charm::system::scheduler_post<decltype(running)>,
             &running,

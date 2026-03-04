@@ -1,4 +1,4 @@
-# HAL Migration Notes (Draft)
+﻿# HAL Migration Notes (Draft)
 
 ## Naming Convention
 - All HAL-related modules use hal_* prefix under Modules/.
@@ -7,7 +7,7 @@
 ## Phase 1 (MVP Interfaces)
 - hal_core: Status/Result, tick_t, ClockInfo
 - hal_clock: ClockProvider concept
-- hal_time: TimeSource, DelayProvider, SleepProvider
+- system.clock: TimeSource (board_caps)
 - hal_irq: IrqGuard, IrqController
 - hal_gpio: pin/config + GpioDriver concept
 - hal_uart: config/handle + UartDriver concept
@@ -17,4 +17,5 @@
 - Interfaces only: no platform implementations in core modules.
 - Platform bindings should live in target examples or a future charm-hal repo.
 - Keep modules minimal and orthogonal for easy trimming.
+
 

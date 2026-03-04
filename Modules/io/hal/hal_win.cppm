@@ -11,7 +11,6 @@ module;
 export module hal_win;
 
 import hal_core;
-import hal_time;
 import hal_gpio;
 import hal_uart;
 import hal_timer;
@@ -20,15 +19,6 @@ import input.raw;
 import util.core;
 
 export namespace hal::win {
-    struct Time {
-        using Tick = tick_t;
-        static Tick now() noexcept {
-            using namespace std::chrono;
-            auto ms = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-            return static_cast<Tick>(ms);
-        }
-    };
-
     struct Delay {
         static void delay_ms(tick_t ms) noexcept {
             std::this_thread::sleep_for(std::chrono::milliseconds(ms));

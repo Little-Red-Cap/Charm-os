@@ -1,26 +1,27 @@
-# HAL Æ½Ì¨°ó¶¨Ö¸ÄÏ (Draft)
+ï»¿# HAL Æ½Ì¨ï¿½ï¿½Ö¸ï¿½ï¿½ (Draft)
 
-## Ä¿±ê
-ÎªÃ¿¸öÆ½Ì¨Ìá¹©×îÐ¡ HAL °ó¶¨£¬ÊµÏÖ hal_* ½Ó¿Ú£¬²»ÎÛÈ¾ºËÐÄÄ£¿é¡£
+## Ä¿ï¿½ï¿½
+ÎªÃ¿ï¿½ï¿½Æ½Ì¨ï¿½á¹©ï¿½ï¿½Ð¡ HAL ï¿½ó¶¨£ï¿½Êµï¿½ï¿½ hal_* ï¿½Ó¿Ú£ï¿½ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½ï¿½ï¿½Ä£ï¿½é¡£
 
-## °ó¶¨Î»ÖÃ
-- Æ½Ì¨ÊµÏÖ·ÅÔÚ Draft/Examples/targets »òÎ´À´ charm-hal ×Ó²Ö¿âÖÐ¡£
-- ºËÐÄ Modules ÖÐÖ»±£Áô½Ó¿ÚÓë¸ÅÄî¡£
+## ï¿½ï¿½Î»ï¿½ï¿½
+- Æ½Ì¨Êµï¿½Ö·ï¿½ï¿½ï¿½ Draft/Examples/targets ï¿½ï¿½Î´ï¿½ï¿½ charm-hal ï¿½Ó²Ö¿ï¿½ï¿½Ð¡ï¿½
+- ï¿½ï¿½ï¿½ï¿½ Modules ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½Ó¿ï¿½ï¿½ï¿½ï¿½ï¿½î¡£
 
-## ÐèÒªÊµÏÖµÄ½Ó¿Ú£¨MVP£©
-- hal_time: TimeSource / DelayProvider
+## ï¿½ï¿½ÒªÊµï¿½ÖµÄ½Ó¿Ú£ï¿½MVPï¿½ï¿½
+- system.clock: TimeSource (board_caps)
 - hal_irq: IrqGuard / IrqController
 - hal_gpio: GpioDriver
 - hal_uart: UartDriver
 - hal_timer: TimerDriver
-- hal_clock: ClockProvider£¨¿ÉÑ¡£©
+- hal_clock: ClockProviderï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½
 
-## Ô¼¶¨
-- ×èÈû/³¬Ê±ÓïÒåÐèÎÄµµ»¯¡£
-- ISR ÉÏÏÂÎÄÓëÏß³ÌÉÏÏÂÎÄµÄµ÷ÓÃÔ¼Êø±ØÐëÃ÷È·¡£
-- Èô²»Ö§³Ö¹¦ÄÜ£¬Çë·µ»Ø Status::unsupported¡£
+## Ô¼ï¿½ï¿½
+- ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Äµï¿½ï¿½ï¿½ï¿½ï¿½
+- ISR ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÄµÄµï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½
+- ï¿½ï¿½ï¿½Ö§ï¿½Ö¹ï¿½ï¿½Ü£ï¿½ï¿½ë·µï¿½ï¿½ Status::unsupportedï¿½ï¿½
 
-## Ê¾Àý
+## Ê¾ï¿½ï¿½
 - Windows stub: Draft/Examples/hal_demo/main.cpp
-- STM32 stub: ÍÆ¼ö·Å Draft/Examples/stm32f103c8/Core/Src/hal_*.cpp
+- STM32 stub: ï¿½Æ¼ï¿½ï¿½ï¿½ Draft/Examples/stm32f103c8/Core/Src/hal_*.cpp
+
 

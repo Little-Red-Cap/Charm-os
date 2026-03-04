@@ -234,7 +234,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ### HAL
 - `hal_core/clock/time/irq/gpio/uart/timer`
-- DefaultCaps + Win stub
+- HAL Win stub + board_caps 时钟注入
 
 ### Audio
 - 组件：source/decoder/fifo/sink/player/SRC/声道转换

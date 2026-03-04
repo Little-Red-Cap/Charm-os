@@ -5,7 +5,6 @@ module;
 export module hal_stm32_stub;
 
 import hal_core;
-import hal_time;
 import hal_gpio;
 import hal_uart;
 import hal_timer;
@@ -13,11 +12,6 @@ import util.core;
 
 // Stub implementations to keep the build/link pipeline working.
 export namespace hal::stm32_stub {
-    struct Time {
-        using Tick = tick_t;
-        static Tick now() noexcept { return 0; }
-    };
-
     struct Delay {
         static void delay_ms(tick_t) noexcept {}
     };

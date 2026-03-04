@@ -11,7 +11,6 @@ export import hal_irq;
 export import hal_spi;
 export import hal_spi_stub;
 export import hal_stm32_stub;
-export import hal_time;
 export import hal_timer;
 export import hal_uart;
 export import hal_uart.node;

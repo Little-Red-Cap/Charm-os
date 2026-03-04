@@ -72,7 +72,7 @@
 并在 `Modules/io/hal`（或 `Modules/platform`）形成统一输入能力：
 
 - `hal_input`（新模块）
-- 与 `hal_irq` / `hal_time` 联动，生成一致的 `RawInputEvent`
+- 与 `hal_irq` / `charm.system.clock` 联动，生成一致的 `RawInputEvent`
 
 ### 建议保留在 UI/Ink 的内容
 

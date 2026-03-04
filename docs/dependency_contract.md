@@ -19,7 +19,7 @@
 ## 3) 统一入口 (Single Source of Truth)
 
 - 格式化与日志: 只允许 `out.*` / `trace_core`。
-- 时间/计时: 只允许 `util.units` + `hal_time` / `kernel` 的时间源。
+- 时间/计时: 只允许 `charm.system.clock` / `kernel` 的时间源。
 - 容器与池: 只允许 `core/service/*` 固定容量容器。
 - 事件/调度: 只允许 `kernel` 的 EDA / Sync / Timer。
 - IO 能力: 只允许 `io/*` 入口，不允许 Domain 直接碰 HAL。

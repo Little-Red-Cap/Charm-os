@@ -61,8 +61,22 @@ export namespace charm::system {
             if (!r) return r;
             auto r_start = graph_.start();
             if (!r_start) return r_start;
-            if (!core_.registry.open_channel(uart_.io_cap)) {
+            auto* ch = core_.registry.open_channel(uart_.io_cap);
+            if (!ch) {
                 return util::unexpected(util::Errc::noent);
+            }
+            if (!core_.registry.find_channel("io.console0")) {
+                io::EndpointDesc console_desc{
+                    "io.console0",
+                    io::cap_id("io.console0"),
+                    io::EndpointKind::channel,
+                    io::EndpointCaps::duplex
+                };
+                auto r_console = core_.registry.register_channel(
+                    console_desc, *ch, &core_.reactor);
+                if (!r_console) {
+                    return util::unexpected(r_console.error());
+                }
             }
             return {};
         }

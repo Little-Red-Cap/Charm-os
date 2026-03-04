@@ -2,6 +2,7 @@ module;
 
 export module platform.board;
 
+import hal_input;
 import hal_uart;
 import util.core;
 
@@ -19,8 +20,16 @@ export namespace platform::board {
         const char* hal_cap{"hal.uart1"};
     };
 
+    struct InputDesc {
+        const hal::RawInputDriver* driver{nullptr};
+        const char* service_cap{"input.service"};
+        const char* router_cap{"input.router"};
+        const char* pump_cap{"input.pump"};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
+        InputDesc input{};
     };
 }

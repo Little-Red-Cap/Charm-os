@@ -9,6 +9,7 @@ import charm.system.bringup;
 import charm.system.caps;
 import charm.system.reactor_pump;
 import io.channel;
+import input.pump;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
@@ -31,22 +32,34 @@ export namespace charm::system {
     inline util::Result<void> bringup_minimal_stm32_stub() noexcept {
         auto caps = platform::board::stm32_stub::make_board_caps();
         using PumpTask = charm::system::ReactorPumpTask;
-        using Registry = kernel::TaskRegistry<PumpTask>;
+        using InputPumpTask = input::InputPumpTask;
+        using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
         Registry registry{};
         PumpCaps pump_caps{};
         auto created = kernel::make_scheduler<PumpConfig>(registry, pump_caps);
         auto running = kernel::start(std::move(created));
         const auto pump_id = Registry::id_of<PumpTask>();
+        const auto input_pump_id = Registry::id_of<InputPumpTask>();
         auto& pump = registry.get<PumpTask>();
+        auto& input_pump = registry.get<InputPumpTask>();
+        const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::InputBringupDesc{
+            &caps.input,
+            &input_pump,
+            &input::scheduler_schedule_at<decltype(running)>,
+            &running,
+            input_pump_id
+        };
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
             caps.clock,
+            caps.input,
             pump,
             &charm::system::scheduler_post<decltype(running)>,
             &running,
             pump_id,
-            8
+            8,
+            input_desc
         };
         auto r = bringup.start();
         if (!r) return r;

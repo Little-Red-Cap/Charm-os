@@ -12,6 +12,7 @@ export import charm.core.handle;
 export import charm.core.container;
 export import charm.core.gui;
 export import charm.core.input_router;
+export import charm.core.input_router_bridge;
 export import charm.core.input_interaction;
 export import ui.input_adapter;
 export import charm.core.virtual_list;

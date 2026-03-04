@@ -16,7 +16,11 @@ export import input.raw_event;
 export import input.queue;
 export import input.sampler;
 export import input.raw_sampler;
+export import input.router;
+export import input.router.node;
 export import input.service;
+export import input.service.node;
+export import input.pump;
 export import input.trace;
 
 export import at.parser;

@@ -15,7 +15,7 @@ UART
     PA10     ------> USART1_RX
     PA9     ------> USART1_TX
 
-TF Card
+TF Card (hardware pulled up)
     PC10     ------> SDMMC1_D2
     PC11     ------> SDMMC1_D3
     PC12     ------> SDMMC1_CK

@@ -45,14 +45,12 @@ export import fs_mal_block;
 export import fs_mal_cache;
 export import fs_mal_file;
 export import fs_path;
-export import fs_posix;
 export import fs_ramfs;
 export import fs_stream;
 export import fs_vfs;
 
 export import shell_cmd;
 export import shell_core;
-export import shell_posix;
 export import shell_repl;
 export import shell_service;
 export import shell_stdio;

@@ -64,7 +64,6 @@ Modules/
   io/shell/
     core/      # shell_core/shell_stream/shell_time
     cli/       # shell_cmd/shell_repl/shell_service/shell_stdio
-    facade/    # shell_posix（后续可扩展 arduino_facade）
 
 Examples/     # 示例工程
 docs/         # 架构与协作文档
@@ -75,18 +74,15 @@ Draft/        # 计划/草案（可变动）
 
 - Audio：`Modules/media/audio/audio_design.md`
 - HAL：`Modules/io/hal/charm_hal_design.md`
-- FS：`Modules/io/fs/fs_migration_notes.md`
+- FS/VFS：`docs/fs_vfs_mount_rules.md`
 - Block cache：`docs/fs_block_cache_strategy.md`
-- POSIX facade：`docs/fs_posix_facade.md`
 - FatFs 示例：`docs/fs_fatfs_demo.md`
-- Shell：`Modules/io/shell/vsf_migration_service_shell_module.md`
 - IO Channel：`Modules/io/channel/io.channel.cppm`
 - IO Channel 契约：`docs/io_channel_contract.md`
 - IO Reactor：`Modules/io/reactor/io.reactor.cppm`
 - IO Reactor 契约：`docs/io_reactor_contract.md`
 - IO Registry：`Modules/io/registry/io.registry.cppm`
 - IO Registry 契约：`docs/io_registry_contract.md`
-- Service：`Modules/core/service/vsf_migration_service_detail.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
 - Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
@@ -253,7 +249,6 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Shell
 - cmd/repl/stdio/core/time
 - shell_service（jobs/vars/alias/script）
-- shell_posix（文件/时间/同步/pipe）
 
 ### Out
 - out.core/out.api/out.format/out.ansi/out.logger
@@ -309,7 +304,6 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 ```
 Shell/Script
-  -> POSIX facade (shell_posix)
   -> VFS (fs_vfs)
   -> Mount (fs_ramfs / fs_blockfs)
   -> NodeOps (read/write/seek/flush)
@@ -330,12 +324,10 @@ ModuleX
 ```mermaid
 sequenceDiagram
     participant U as Shell/Script
-    participant PX as shell_posix
     participant V as fs_vfs
     participant MT as Mount
     participant NO as NodeOps
-    U->>PX: open/read/write
-    PX->>V: vfs_open/read/write
+    U->>V: vfs_open/read/write
     V->>MT: mount ops
     MT->>NO: node ops
 ```
@@ -348,8 +340,7 @@ graph LR
     Kernel --> Util[util.core]
     Shell --> ShellCore[shell_core]
     Shell --> ShellCmd[shell_cmd]
-    Shell --> ShellPosix[shell_posix]
-    ShellPosix --> VFS[fs_vfs]
+    ShellCmd --> VFS[fs_vfs]
     VFS --> FSCore[fs_core]
     VFS --> FSPath[fs_path]
     VFS --> FSErr[fs_errno]
@@ -395,7 +386,6 @@ graph LR
 
 ```mermaid
 graph LR
-    POSIX[shell_posix] --> VFS[fs_vfs]
     VFS --> MountOps[fs_core::MountOps]
     VFS --> Path[fs_path]
     VFS --> Err[fs_errno]
@@ -427,14 +417,14 @@ graph LR
     ShellCmd[shell_cmd] --> ShellCore[shell_core]
     ShellRepl[shell_repl] --> ShellCmd
     ShellService[shell_service] --> ShellCmd
-    ShellPosix[shell_posix] --> VFS[fs_vfs]
+    ShellCmd --> VFS[fs_vfs]
     ShellStream[shell_stream] --> Stream[service_stream]
     ShellStdIO[shell_stdio] --> ShellCore
     ServiceTrace[service_trace] --> Trace[trace_core]
     DistBus[service_distbus] --> ServiceTrace
 ```
 
-说明：Shell 目录已拆分为 `core/cli/facade`，模块名保持不变（`shell_posix` 仍作为 facade 入口）。
+说明：Shell 目录已拆分为 `core/cli`，POSIX facade 已移除。
 
 ## 9. 运行期数据流（简化）
 
@@ -442,13 +432,11 @@ graph LR
 sequenceDiagram
     participant User as User/Script
     participant Sh as Shell
-    participant POSIX as shell_posix
     participant VFS as fs_vfs
     participant FS as fs_ramfs/fs_blockfs
     participant K as kernel.scheduler
     User->>Sh: command / script
-    Sh->>POSIX: open/read/write
-    POSIX->>VFS: vfs_open/read/write
+    Sh->>VFS: vfs_open/read/write
     VFS->>FS: mount ops
     FS-->>VFS: status/data
     Sh->>K: post events

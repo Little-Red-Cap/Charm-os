@@ -41,6 +41,26 @@ export namespace charm::system {
             InputInitCfg cfg{};
         };
 
+        static InputBringupDesc make_input_desc(const platform::board::InputDesc& desc,
+                                                input::InputPumpTask& pump,
+                                                input::ScheduleFn schedule,
+                                                void* schedule_ctx,
+                                                kernel::TaskId pump_id,
+                                                input::SinkFn sink = nullptr,
+                                                void* sink_ctx = nullptr,
+                                                InputInitCfg cfg = {}) noexcept {
+            InputBringupDesc out{};
+            out.desc = &desc;
+            out.pump = &pump;
+            out.schedule = schedule;
+            out.schedule_ctx = schedule_ctx;
+            out.pump_id = pump_id;
+            out.sink = sink;
+            out.sink_ctx = sink_ctx;
+            out.cfg = cfg;
+            return out;
+        }
+
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
                        const platform::board::InputDesc& input_desc,

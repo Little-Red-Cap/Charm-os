@@ -1,15 +1,18 @@
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <utility>
+
+#include "stm32h7xx_hal.h"
 
 /*
 LED
     PA3   ------> LED Green Enable:low
     PB1   ------> LED Blue  Enable:low
 
-KEY
-    PA2   ------> PWR_WKUP2 Enable:low
-    PE15   ------> KEY0     Enable:low
+KEY (hardware pulled up)
+    PA2   ------> PWR_WKUP2 Enable:high
+    PA8   ------> KEY0      Enable:high
 
 UART
     PA10     ------> USART1_RX
@@ -22,6 +25,12 @@ TF Card (hardware pulled up)
     PD2     ------> SDMMC1_CMD
     PC8     ------> SDMMC1_D0
     PC9     ------> SDMMC1_D1
+
+Audio
+    PB5     ------> I2S1_SDO
+    PG10     ------> I2S1_WS
+    PA5     ------> I2S1_CK
+    PC4     ------> I2S1_MCK
 
 Debug
     PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
@@ -56,7 +65,6 @@ import util.core;
 import util.error;
 
 extern "C" {
-    void HAL_Init(void);
     void SystemClock_Config(void);
     void MX_GPIO_Init(void);
     void MX_DMA_Init(void);
@@ -69,12 +77,48 @@ extern "C" {
 namespace {
     constexpr util::usize kRxCap = 64;
     constexpr util::usize kTxCap = 640;
+    constexpr bool kKeyActiveHigh = true;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
 
     struct PumpConfig : kernel::KernelConfig {
         static constexpr std::size_t priority_levels = 1;
         static constexpr std::size_t evtq_capacity = 8;
     };
+
+    void hqzy_gpio_init() noexcept {
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+        __HAL_RCC_GPIOD_CLK_ENABLE();
+        __HAL_RCC_GPIOE_CLK_ENABLE();
+
+        GPIO_InitTypeDef gpio_init = {};
+
+        /* SDMMC1: PC8/PC9/PC10/PC11/PC12 + PD2 (external pull-ups). */
+        gpio_init.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12;
+        gpio_init.Mode = GPIO_MODE_AF_PP;
+        gpio_init.Pull = GPIO_NOPULL;
+        gpio_init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+        gpio_init.Alternate = GPIO_AF12_SDIO1;
+        HAL_GPIO_Init(GPIOC, &gpio_init);
+
+        gpio_init.Pin = GPIO_PIN_2;
+        gpio_init.Mode = GPIO_MODE_AF_PP;
+        gpio_init.Pull = GPIO_NOPULL;
+        gpio_init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+        gpio_init.Alternate = GPIO_AF12_SDIO1;
+        HAL_GPIO_Init(GPIOD, &gpio_init);
+
+        /* Keys: PA2 (WKUP2), PA8 (KEY0), active high (external pull-ups). */
+        gpio_init.Pin = GPIO_PIN_2;
+        gpio_init.Mode = GPIO_MODE_INPUT;
+        gpio_init.Pull = GPIO_PULLDOWN;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio_init.Alternate = 0;
+        HAL_GPIO_Init(GPIOA, &gpio_init);
+
+        gpio_init.Pin = GPIO_PIN_8;
+        HAL_GPIO_Init(GPIOA, &gpio_init);
+    }
 }
 
 extern "C" void USART1_IRQHandler(void) {
@@ -92,6 +136,8 @@ int main() {
     MX_USART1_UART_Init();
     // MX_SDMMC1_SD_Init();
     // MX_I2S1_Init();
+
+    hqzy_gpio_init();
 
     auto caps = platform::board::stn32h747xi::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;
@@ -118,6 +164,7 @@ int main() {
     charm::system::BringupMinimal<8, 16, 8, kRxCap, kTxCap> bringup{
         caps.uart1,
         caps.clock,
+        caps.input,
         pump,
         post_fn,
         &running,
@@ -170,6 +217,19 @@ int main() {
             sizeof(fail_msg) - 1
         });
         Error_Handler();
+    }
+
+    {
+        const char wait_msg[] = "boot: wait key\n";
+        (void)ch->write(io::ByteView{
+            reinterpret_cast<const util::u8*>(wait_msg),
+            sizeof(wait_msg) - 1
+        });
+        constexpr GPIO_PinState active = kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
+        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) != active) {
+            HAL_Delay(10);
+        }
+        HAL_Delay(20);
     }
 
     audio_mp3_demo_run();

@@ -81,20 +81,30 @@ export namespace charm::system {
                                input.sink_ctx,
                                input.cfg,
                                caps);
-                input_nodes_ = input_->node_span();
             }
+            util::usize board_count = 0;
+            const auto board_nodes = board_.node_span();
+            for (util::usize i = 0; i < board_nodes.size(); ++i) {
+                board_nodes_[board_count++] = board_nodes[i];
+            }
+            if (input_) {
+                const auto input_nodes = input_->node_span();
+                for (util::usize i = 0; i < input_nodes.size(); ++i) {
+                    board_nodes_[board_count++] = input_nodes[i];
+                }
+            }
+            board_nodes_span_ = std::span<const init::Node* const>(board_nodes_.data(), board_count);
         }
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
-            if (input_required_ && input_nodes_.empty()) {
+            if (input_required_ && !input_) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             const auto core_nodes = core_.node_span();
-            const auto board_nodes = board_.node_span();
             const auto total =
-                core_nodes.size() + board_nodes.size() + input_nodes_.size() + extra_nodes.size();
+                core_nodes.size() + board_nodes_span_.size() + extra_nodes.size();
             if (total > MaxNodes) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
@@ -103,11 +113,8 @@ export namespace charm::system {
             for (util::usize i = 0; i < core_nodes.size(); ++i) {
                 nodes[idx++] = core_nodes[i];
             }
-            for (util::usize i = 0; i < board_nodes.size(); ++i) {
-                nodes[idx++] = board_nodes[i];
-            }
-            for (util::usize i = 0; i < input_nodes_.size(); ++i) {
-                nodes[idx++] = input_nodes_[i];
+            for (util::usize i = 0; i < board_nodes_span_.size(); ++i) {
+                nodes[idx++] = board_nodes_span_[i];
             }
             for (util::usize i = 0; i < extra_nodes.size(); ++i) {
                 nodes[idx++] = extra_nodes[i];
@@ -148,7 +155,8 @@ export namespace charm::system {
         platform::board::InputDesc input_desc_{};
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
-        std::span<const init::Node* const> input_nodes_{};
+        std::array<const init::Node*, 6> board_nodes_{};
+        std::span<const init::Node* const> board_nodes_span_{};
         bool input_required_{false};
     };
 }

@@ -6,7 +6,7 @@
 Charm（统一架构）
 ├─ Core（util/trace/service/alg/init）
 ├─ System（Kernel/ModuleX/Boot/InitChain）
-├─ IO（Channel/Reactor/Registry/HAL/Port/FS/Shell/Out）
+├─ IO（Channel/Reactor/Registry/HAL/FS/Shell/Out）
 ├─ Media（Audio）
 ├─ UI/Ink（低资源 UI）
 └─ UI/Vivid（富 UI）
@@ -26,13 +26,13 @@ graph TD
     A[Charm 统一架构] --> C[Core]
     A --> SYS[System]
     A --> IO[IO]
+    A --> PLAT[Platform]
     A --> AU[Media/Audio]
     A --> UI1[UI/Ink]
     A --> UI2[UI/Vivid]
     SYS --> K[Kernel]
     SYS --> M[ModuleX]
     SYS --> B[Boot]
-    IO --> P[Port]
     IO --> CH[Channel]
     IO --> H[HAL]
     IO --> F[FS/VFS]
@@ -47,7 +47,8 @@ graph TD
 Modules/
   core/        # util/trace/service/alg/init
   system/      # kernel/modulex/boot/init/bringup
-  io/          # channel/reactor/registry/hal/port/fs/shell/out/usb
+  io/          # channel/reactor/registry/hal/fs/shell/out/usb
+  platform/    # board_caps/irq/clock
   io/channel/  # 统一字节通道（out/AT/协议复用）
   io/reactor/  # 事件驱动 IO 反应堆
   io/registry/ # IO 能力注册与发现
@@ -135,7 +136,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 ### Runtime（运行时与系统能力）
 范围：
 - `Modules/system/*`（kernel/modulex/boot）
-- `Modules/io/*`（channel/hal/port/fs/shell/out）
+- `Modules/io/*`（channel/hal/fs/shell/out）
 - `Modules/platform/*`
 
 规则：
@@ -227,9 +228,9 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - 可观测性：trace、统计、alert、replay、JSON 输出
 - 事件策略：dedup/debounce/coalesce/boost/rate-limit
 
-### Port
-- Kernel 能力接口（IRQ/Wakeup/TimeSource/SWI）
-- Windows/STM32 参考实现
+### Platform
+- platform.irq / system.clock 等系统能力接口
+- Windows/STM32 参考实现（board_caps）
 
 ### HAL
 - `hal_core/clock/time/irq/gpio/uart/timer`

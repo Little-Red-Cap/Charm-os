@@ -16,7 +16,7 @@
 不要把整个 `ui/ink/platform/input` 直接下沉到 HAL。
 应拆成两层：
 
-1. 设备输入采样层（Runtime/IO）：归 `Modules/io/hal`（或 `io/port`）
+1. 设备输入采样层（Runtime/IO）：归 `Modules/io/hal`（或 `Modules/platform`）
    - 负责：GPIO/ADC/编码器原始采样、中断触发、去抖、时间戳
    - 输出：统一的 `RawInputEvent`
 
@@ -69,7 +69,7 @@
 - `input.raw.cppm`：原始采样接口与设备读数
 - `input.sampler.cppm`：采样时序、去抖、聚合
 
-并在 `Modules/io/hal`（或 `io/port`）形成统一输入能力：
+并在 `Modules/io/hal`（或 `Modules/platform`）形成统一输入能力：
 
 - `hal_input`（新模块）
 - 与 `hal_irq` / `hal_time` 联动，生成一致的 `RawInputEvent`
@@ -93,7 +93,7 @@
 
 ### Phase 2：替换依赖，不删旧实现
 
-- UI/Ink 改为依赖新的 Runtime 输入接口（HAL/Port）
+- UI/Ink 改为依赖新的 Runtime 输入接口（HAL/Platform）
 - 保留旧 `input.raw/input.sampler`，但停止新增调用
 
 ### Phase 3：稳定后再清理

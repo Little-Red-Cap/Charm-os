@@ -32,7 +32,8 @@ if (CHARM_VIVID_SOA_TRACE_INPUT)
 endif()
 
 target_sources(${target_name} PRIVATE
-    "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
 )
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+
+

@@ -9,7 +9,6 @@ add_executable(${target_name}
         main_m1.cpp
 #        main_m2.cpp
 #        main_m3.cpp
-        port.kernel.windows.cpp
 )
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")

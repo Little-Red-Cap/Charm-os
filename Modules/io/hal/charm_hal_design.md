@@ -11,7 +11,7 @@
 - optional later: flash, entropy, pwm, adc, watchdog.
 
 ## Shape
-- Module: port.kernel keeps KernelCaps for scheduler (time/irq/wakeup/swi).
+- System clock + platform irq are capabilities owned by CoreSystemChain (not HAL).
 - Module: charm-hal.gpio etc. Each module defines:
   - lightweight handle (struct Handle { platform ptr/id })
   - cfg struct (constexpr defaults)
@@ -22,7 +22,7 @@
 
 ## Platform binding
 - For each target: targets/<vendor>/<board>/hal_<periph>.cpp implements the concepts.
-- Provide template file Modules/port/port.kernel.template.cpp as quick start; similar templates for gpio/uart.
+- Use board_caps to centralize clock/irq/uart descriptors; periph impls only bind ops.
 
 ## Unified API routing (VSF-aligned)
 - A single hal::<periph> API should target multiple backends:
@@ -55,7 +55,7 @@
 - Registry wiring example: `Modules/io/hal/hal_device_examples.cppm`.
 
 ## Phasing
-- Phase A (current): port.kernel + minimal time/irq for PC/STM32.
+- Phase A (current): system.clock + platform.irq + minimal uart/gpio for PC/STM32.
 - Phase B: add gpio/uart/timer, publish concepts and template impl.
 - Phase C: spi/i2c/flash + shim time/sleep; start RT facade design.
 - Phase D: entropy/pwm/adc/watchdog + richer shim (POSIX subset).

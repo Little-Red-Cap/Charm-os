@@ -1,4 +1,4 @@
-# Power/Low‑Power 架构总览
+﻿# Power/Low‑Power 架构总览
 
 目标：把功耗管理从“平台细节”提升为“统一策略 + 能力约束”，保证 PC/MCU 行为可对齐。
 
@@ -6,7 +6,7 @@
 
 - **Foundation**：仅提供单位/容器，不含功耗逻辑。
 - **Runtime/System**：功耗策略、状态机、唤醒/时钟约束合并。
-- **Platform/Port**：平台实现（时钟切换、睡眠指令、唤醒源配置）。
+- **Platform**：平台实现（时钟切换、睡眠指令、唤醒源配置）。
 
 ## 2. 状态模型
 
@@ -69,3 +69,4 @@ Manager::exit_state(state)
 - Windows: 空实现（仅记录与模拟）
 - STM32: Stop/Standby + RTC/EXTI 唤醒
 - USB: 作为唤醒源之一接入
+

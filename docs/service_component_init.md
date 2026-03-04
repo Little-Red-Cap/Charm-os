@@ -1,4 +1,4 @@
-# Service/Component 分层与显式初始化顺序
+﻿# Service/Component 分层与显式初始化顺序
 
 本页固定“基础服务 vs 组件”的边界，并定义应用层的统一初始化序列。
 
@@ -11,7 +11,7 @@
 ## 分层语义
 
 - **Service（基础服务层）**：core/service、core/util、core/trace、core/alg、io/out。
-- **HAL/Port（硬件与平台层）**：io/hal、io/port、platform/*。
+- **HAL/Platform（硬件与平台层）**：io/hal、platform/*。
 - **Component（功能组件层）**：fs/usb/tcpip/ui/audio 等按需启用的系统能力。
 
 ## 初始化顺序（必须）
@@ -20,7 +20,7 @@
 sequenceDiagram
   participant App as App
   participant SVC as Service
-  participant HAL as HAL/Port
+  participant HAL as HAL/Platform
   participant CMP as Components
 
   App->>SVC: service_init()
@@ -63,3 +63,5 @@ int charm_boot()
 
 - 在 device registry 中记录组件的 init/deinit hook。
 - 为 component_init 添加优先级或依赖图，但仍由应用选择启用集合。
+
+

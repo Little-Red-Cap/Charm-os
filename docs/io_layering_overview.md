@@ -1,4 +1,4 @@
-﻿# IO 分层总览（HAL/Port/Input/FS/USB/Net）
+﻿# IO 分层总览（HAL/Platform/Input/FS/USB/Net）
 
 相关决策文档：
 - `docs/input_layering_decision.md`（UI/Ink 输入层分层决策）
@@ -19,10 +19,10 @@
 - Runtime：系统运行期与硬件交互层
   - system/kernel
   - io/hal
-  - io/port
   - io/fs
   - io/usb
   - io/net
+  - platform/*
 
 - Domains：完整领域系统（UI/Audio/Shell/…）
   - ui/ink
@@ -35,13 +35,13 @@
 ```
 io/
   hal/            # 纯硬件抽象接口（统一 API + 最小语义）
-  port/           # 平台/芯片适配（寄存器、IRQ、时钟、DMA 等）
   driver/         # 厂商/系列驱动实现（可选单独目录）
   service/        # 运行期适配：fs/net/usb/input 等
+platform/
+  board_caps/     # 板级能力描述（clock/irq/uart/...）
 ```
 
-- hal：对上提供“稳定接口”，对下由 driver/port 实现
-- port：极窄适配层，聚焦时钟/中断/时间源/总线映射
+- hal：对上提供“稳定接口”，对下由 driver 实现
 - driver：芯片级外设实现（可按 vendor/series 组织）
 - service：对上领域友好，包含状态机/缓存/协议适配
 
@@ -52,7 +52,7 @@ io/
 - 不包含 UI/Audio/FS 的业务语义
 - 可绑定 Rust/其他语言接口
 
-### Port（io/port）
+### Platform（platform/*）
 - 只做平台差异与最底层绑定
 - 允许使用寄存器、IRQ、时钟、DMA、内存布局
 
@@ -104,3 +104,7 @@ VSF 在 `Draft/vsf/source/hal` 中采用：
 ---
 
 备注：本文件是架构边界定义，不替代各模块设计文档。
+
+
+
+

@@ -64,7 +64,6 @@ if (CHARM_PLAYER_SOA_TRACE)
 endif()
 
 target_sources(${target_name} PRIVATE
-    "${CHARM_ROOT}/Examples/kernel/windows/port.kernel.windows.cpp"
 )
 
 set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")
@@ -74,3 +73,5 @@ if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_f
 endif()
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+
+

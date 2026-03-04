@@ -27,7 +27,6 @@ export import at.parser;
 export import at.session;
 export import at.driver_reactor;
 
-export import port.kernel;
 export import io.channel;
 export import io.channel.adapters;
 export import io.registry;

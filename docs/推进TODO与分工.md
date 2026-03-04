@@ -93,7 +93,7 @@
 USBHost（你现在只有Device）：Host的管线/Hub/枚举流程可借鉴，但实现可自研。
 2.TCP/IP（IwIP/NSFTCPIP）接口层：不急着搬协议栈，先定义socket/packet/endpoint 抽象。
 3.驱动框架（设备模型+统一init/probe)：VSF有较完整的 driver组织方式，适合抽成”设备注册表”。
-4. Power / Low-Power 管理：时钟域、休眠、唤醒策略，这块现在你的 Kernel/Port还没覆盖。
+4. Power / Low-Power 管理：时钟域、休眠、唤醒策略，这块现在你的 Kernel/Platform还没覆盖。
 5. Audio/Video 中间件 (VSF stream/pipeline 的接口形状): 可对标你音频 pipeline的分层设计。
    我更激进的建议：
    先把**"设备注册表+ driver lifecycle"**抽象出来（ModuleX+Kernel + IO 很好承载)，让 USB/TCPIP/FS 都能挂到统一设备模型上。
@@ -166,3 +166,4 @@ QRCode优化：
 3. 显示质量（添加quiet zone /可选缩放 /边缘更干净)
 4. API 易用性(输入 text、输出 Image1bpp 或直接 draw)
 5. 纠错等级/版本控制 (可配置 L/M/Q/H)
+

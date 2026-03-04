@@ -16,7 +16,7 @@
 为减少互相踩文件，采用“轨道制 + 接口握手”：
 
 - 轨道 A（User）：UI/Ink 输入整理与语义层治理
-- 轨道 B（AI）：Runtime 侧输入能力对接（HAL/Port/EDA 接入）
+- 轨道 B（AI）：Runtime 侧输入能力对接（HAL/Platform/EDA 接入）
 
 接口握手边界：
 
@@ -88,7 +88,7 @@ User 优先负责：
 
 AI 优先负责：
 - `Modules/io/hal/*`（新增 `hal_input`）
-- `Modules/io/port/*`（若输入能力经 port 暴露）
+- `Modules/platform/*`（若输入能力经 platform 暴露）
 - `Modules/system/kernel/eda.cppm`（输入事件接入点）
 - `Modules/core/service/service_ring_buffer.cppm` 适配
 
@@ -150,3 +150,4 @@ AI 优先负责：
 - 增加任务认领 TTL，避免长时间占坑
 - 高风险文件短冻结，降低合并成本
 - 提交按任务号切分，提高可审阅性
+

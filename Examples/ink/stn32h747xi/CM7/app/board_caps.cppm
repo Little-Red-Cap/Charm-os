@@ -18,6 +18,7 @@ extern "C" {
     void charm_uart_enable_irq(void* ctx, util::u32 mask) noexcept;
     void charm_uart_disable_irq(void* ctx, util::u32 mask) noexcept;
     void charm_uart_clear_irq(void* ctx, util::u32 mask) noexcept;
+    util::u32 HAL_GetTick(void);
 }
 
 namespace platform::board::stn32h747xi::detail {
@@ -78,6 +79,10 @@ namespace platform::board::stn32h747xi::detail {
     void stm32_uart_clear_irq(void* ctx, util::u32 mask) noexcept {
         charm_uart_clear_irq(ctx, mask);
     }
+
+    util::u64 stm32_now_ms(void*) noexcept {
+        return static_cast<util::u64>(HAL_GetTick());
+    }
 } // namespace platform::board::stn32h747xi::detail
 
 export namespace platform::board::stn32h747xi {
@@ -98,6 +103,7 @@ export namespace platform::board::stn32h747xi {
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
         return caps;
     }
 }

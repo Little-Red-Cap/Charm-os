@@ -25,6 +25,7 @@ Debug
  */
 
 import charm.system.bringup;
+import charm.system.clock;
 import charm.system.reactor_pump;
 import driver.usart_channel;
 import io.channel;
@@ -78,7 +79,12 @@ int main() {
     using PumpTask = charm::system::ReactorPumpTask;
     using Registry = kernel::TaskRegistry<PumpTask>;
 
-    using PumpCaps = kernel::NoopCapabilities;
+    struct PumpCaps {
+        using TimeSource = charm::system::ClockCaps::TimeSource;
+        using IrqGuard = kernel::NoopIrqGuard;
+        using Wakeup = kernel::NoopWakeup;
+        using SwiTrigger = kernel::NoopSwiTrigger;
+    };
 
     Registry registry{};
     PumpCaps pump_caps{};
@@ -93,6 +99,7 @@ int main() {
     );
     charm::system::BringupMinimal<8, 16, 8, kRxCap, kTxCap> bringup{
         caps.uart1,
+        caps.clock,
         pump,
         post_fn,
         &running,

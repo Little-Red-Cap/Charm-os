@@ -127,3 +127,10 @@
 
 - 尽量进行构建后确认再提交。
 - 如果是架构核心代码，需分别进行 PC 和 MCU 构建。
+
+### B.11 统一时间源
+
+- 全局时间源统一为 `charm.system.clock`（`system.clock` capability）。
+- 业务/协议/驱动禁止自建 `now_ms/now_us`，统一通过 Clock 注入或 `ClockCaps::TimeSource` 使用。
+- 除 PC/工具端外，禁止直接使用 `std::chrono` 获取时间。
+- `BoardCaps` 必须提供 `ClockDesc`，bringup 只负责注入，不在模块内偷取平台时间。

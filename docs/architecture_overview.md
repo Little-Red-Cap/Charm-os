@@ -118,7 +118,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 
 统一通过 `init.graph` 装配系统，避免“入口拼装地狱”：
 
-1) `CoreSystemChain`：`io.registry` / `io.reactor` / `kernel.eda` / `reactor_pump` 等底座
+1) `CoreSystemChain`：`system.clock` / `io.registry` / `io.reactor` / `kernel.eda` / `reactor_pump` 等底座
 2) `BoardChain`：`platform.irq` / `hal.uart1` / `driver.usart_channel` 等板级能力
 3) `extra nodes`：仅允许服务/应用类节点（禁止底座能力进入 extra）
 

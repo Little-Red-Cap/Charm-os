@@ -101,6 +101,7 @@
 - 资源暂不可用必须返回 `Errc::would_block`。
 - 协议层禁止 busy-spin/阻塞/睡眠；等待/超时必须走 Kernel/EDA + `io.reactor`。
 - 通道获取优先 `io.registry.open("io.console0")` 或 cap id；默认通道已移除，必须通过 `io.registry` 或 RuntimeContext 注入。
+- 输入采样统一通过 `input.service`（绑定 `hal_input` + `system.clock`），禁止在业务层直接轮询硬件。
 
 ### B.6 初始化与能力装配
 

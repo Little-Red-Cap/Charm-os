@@ -262,6 +262,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 - io.channel.adapters（UART/CDC/TCP 通道适配模板）
 - out.channel（out 走通道）
 - at.driver_reactor（AT 走通道 + Reactor 驱动）
+- input.service（统一采样入口，绑定 `hal_input` + `system.clock`）
 > 默认通道已移除；新代码必须通过 `io.registry` 或 RuntimeContext 注入通道。
 
 ### USB

@@ -88,6 +88,7 @@
 ### Phase 1：接口先行，不挪文件
 
 - 定义 `RawInputEvent`（Runtime 边界类型）
+- 新增 `input.service`：统一采样入口（绑定 `hal_input` + `charm.system.clock`）
 - 在 UI 输入链路前加一层适配器：`RawInputEvent -> UiInputIntent`
 - 现有 UI 逻辑不变，仅替换入口
 
@@ -116,10 +117,11 @@
 ## 立即可执行的 5 件事
 
 1. 新增 `hal_input` 的最小接口（含 Win/Stub 实现）
-2. 把 `input.raw` 的直接硬件读取改为调用 `hal_input`
-3. 在 `input.intent` 之前引入 `RawInputEvent` 适配层
-4. `input.queue` 改用 `core/service/service_ring_buffer`（替换使用，不删旧 API）
-5. 给输入链路加 trace 点（中断事件、去抖命中、意图识别结果）
+2. 新增 `input.service` 作为统一采样入口（使用 `charm.system.clock`）
+3. 把 `input.raw` 的直接硬件读取改为调用 `hal_input`
+4. 在 `input.intent` 之前引入 `RawInputEvent` 适配层
+5. `input.queue` 改用 `core/service/service_ring_buffer`（替换使用，不删旧 API）
+6. 给输入链路加 trace 点（中断事件、去抖命中、意图识别结果）
 
 ## 协作同步约定（避免并行冲突）
 

@@ -11,6 +11,7 @@ export module gui.ui_input_policy;
 import gui.input;
 import gui.ui_input_adapter;
 import gui.trace;
+import input.service;
 import util.core;
 
 export namespace gui::ui {
@@ -151,5 +152,22 @@ export namespace gui::ui {
     template <class RawSource>
     [[nodiscard]] inline InputPolicy make_raw_sampler_policy(RawSamplerPolicyContext<RawSource>& ctx) noexcept {
         return InputPolicy{&raw_sampler_poll<RawSource>, &ctx};
+    }
+
+    struct RawServicePolicyContext {
+        ::input::InputService* service{nullptr};
+    };
+
+    inline std::optional<gui::input::Intent> raw_service_poll(void* ctx, std::uint32_t) noexcept {
+        auto* c = static_cast<RawServicePolicyContext*>(ctx);
+        if (!c || !c->service) return std::nullopt;
+        if (auto ev = c->service->poll_raw()) {
+            return intent_from_raw(*ev);
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] inline InputPolicy make_raw_service_policy(RawServicePolicyContext& ctx) noexcept {
+        return InputPolicy{&raw_service_poll, &ctx};
     }
 } // namespace gui::ui

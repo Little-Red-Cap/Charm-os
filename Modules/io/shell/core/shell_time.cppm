@@ -1,23 +1,26 @@
 ﻿module;
 
-#include <cstddef>
 #include <cstdint>
 
 export module shell_time;
 
 import shell_core;
-import hal_time;
-import hal_core;
+import charm.system.clock;
 
 export namespace shell {
-    template <hal::TimeSource TS>
+    using Tick = charm::system::ClockTick;
+
     struct TimeApi {
-        using Tick = typename TS::Tick;
-        static Tick now() noexcept { return TS::now(); }
+        static Tick now() noexcept { return charm::system::clock().now_ms(); }
     };
 
-    template <hal::DelayProvider D>
+    template <typename D>
+    concept DelayProvider = requires(Tick ms) {
+        D::delay_ms(ms);
+    };
+
+    template <DelayProvider D>
     struct DelayApi {
-        static void delay_ms(hal::tick_t ms) noexcept { D::delay_ms(ms); }
+        static void delay_ms(Tick ms) noexcept { D::delay_ms(ms); }
     };
 }

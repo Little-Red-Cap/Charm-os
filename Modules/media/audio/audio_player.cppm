@@ -3,7 +3,6 @@ module;
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +16,7 @@ module;
 #endif
 
 #if CHARM_AUDIO_ENABLE_STRESS
+#include <chrono>
 #include <random>
 #include <thread>
 #endif
@@ -32,6 +32,7 @@ import audio.format;
 import audio.resampler.linear;
 import audio.result;
 import alg_fft;
+import charm.system.clock;
 import media.stream.filter;
 import media.stream.sink;
 import media.stream.source;
@@ -1040,7 +1041,7 @@ export namespace audio {
                 return;
             }
 
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = charm::system::clock().now_us();
             std::size_t bytes_written = 0;
 
             const std::size_t frames_needed = writable / output_fmt_.frame_size();
@@ -1092,8 +1093,8 @@ export namespace audio {
                 fifo_.commit_write(written);
             }
 
-            const auto t1 = std::chrono::steady_clock::now();
-            const double dt_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const auto t1 = charm::system::clock().now_us();
+            const double dt_ms = static_cast<double>(t1 - t0) / 1000.0;
             update_refill_stats(dt_ms);
         }
 
@@ -1441,7 +1442,7 @@ export namespace audio {
 
         std::uint32_t stress_ms_{0};
 #if CHARM_AUDIO_ENABLE_STRESS
-        std::mt19937 rng_{static_cast<std::uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count())};
+        std::mt19937 rng_{static_cast<std::uint32_t>(charm::system::clock().now_us())};
         std::uniform_int_distribution<int> stress_dist_{0, 0};
 #endif
     };

@@ -1,11 +1,11 @@
 module;
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <concepts>
 export module charm.core.input_interaction;
 
 export import charm.core.event;
+import charm.system.clock;
 
 export
 template<typename T>
@@ -112,15 +112,15 @@ public:
 
 private:
     bool is_double_tap(int x, int y) {
-        const auto now = std::chrono::steady_clock::now();
+        const auto now = charm::system::clock().now_ms();
         bool is_double = false;
         if (double_tap_ms_ > 0) {
-            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - last_tap_time_).count();
+            const auto elapsed = (now >= last_tap_time_) ? (now - last_tap_time_) : 0;
             const int dx = x - last_tap_x_;
             const int dy = y - last_tap_y_;
             const int dist_sq = dx * dx + dy * dy;
-            if (elapsed >= 0 && elapsed <= double_tap_ms_ && dist_sq <= double_tap_dist_sq_) {
+            if (elapsed <= static_cast<charm::system::ClockTick>(double_tap_ms_) &&
+                dist_sq <= double_tap_dist_sq_) {
                 is_double = true;
             }
         }
@@ -137,7 +137,7 @@ private:
     int double_tap_dist_sq_{144};
     int last_tap_x_{0};
     int last_tap_y_{0};
-    std::chrono::steady_clock::time_point last_tap_time_{};
+    charm::system::ClockTick last_tap_time_{0};
 };
 
 export
@@ -244,7 +244,7 @@ public:
             canceled_ = false;
             start_x_ = e.x;
             start_y_ = e.y;
-            start_time_ = std::chrono::steady_clock::now();
+            start_time_ = charm::system::clock().now_ms();
             return false;
         }
         if (!pressed_) return false;
@@ -263,10 +263,10 @@ public:
             return false;
         }
         if (e.type == Event::Type::MouseUp || e.type == Event::Type::DragEnd) {
-            const auto now = std::chrono::steady_clock::now();
-            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - start_time_).count();
-            const bool fire = !canceled_ && elapsed >= threshold_ms_;
+            const auto now = charm::system::clock().now_ms();
+            const auto elapsed = (now >= start_time_) ? (now - start_time_) : 0;
+            const bool fire = !canceled_ &&
+                elapsed >= static_cast<charm::system::ClockTick>(threshold_ms_);
             pressed_ = false;
             canceled_ = false;
             if (fire && callback_) {
@@ -288,5 +288,5 @@ private:
     int move_threshold_sq_{36};
     int start_x_{0};
     int start_y_{0};
-    std::chrono::steady_clock::time_point start_time_{};
+    charm::system::ClockTick start_time_{0};
 };

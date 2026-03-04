@@ -22,6 +22,7 @@ import app.logic_intent;
 import gui.ui_input_policy;
 
 import gui.input;
+import input.router;
 import input.source.sdl;
 
 import backend.sdl3;
@@ -138,27 +139,33 @@ int main() try {
         raw_b->set_window_id(sdl_b->window_id());
     }
 
-    gui::input::Sampler sampler_a; // optional: gui::input::SamplerCfg{...}
-    std::optional<gui::input::Sampler> sampler_b;
-    gui::ui::SamplerPolicyContext<input::SDLRawSource> input_ctx_a{&raw_a, &sampler_a};
-    const auto sampler_policy_a = gui::ui::make_sampler_policy(input_ctx_a);
+    ::input::Router router{};
+    gui::input::RawSampler raw_sampler_a{};
+    std::optional<gui::input::RawSampler> raw_sampler_b;
+    gui::ui::RouterIntentQueue<> router_queue_a{};
+    std::optional<gui::ui::RouterIntentQueue<>> router_queue_b;
+    router_queue_a.set_consume(!kEnableSecond);
+    (void)router_queue_a.start(router);
+    const auto router_policy_a = router_queue_a.policy();
 
-    state_a.input_policies.set(gui::ui::InputPolicyId::Default, sampler_policy_a);
-    state_a.input_policies.set(gui::ui::InputPolicyId::Encoder, sampler_policy_a);
+    state_a.input_policies.set(gui::ui::InputPolicyId::Default, router_policy_a);
+    state_a.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy_a);
     gui::ui::PolicyChain<2> policy_chain_a{};
-    policy_chain_a.add(sampler_policy_a);
+    policy_chain_a.add(router_policy_a);
     state_a.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain_a));
     state_a.input_policy_id = gui::ui::InputPolicyId::Default;
     state_a.input_policy = state_a.input_policies.get(state_a.input_policy_id);
 
     if (kEnableSecond && raw_b) {
-        sampler_b.emplace();
-        gui::ui::SamplerPolicyContext<input::SDLRawSource> input_ctx_b{raw_b.operator->(), sampler_b.operator->()};
-        const auto sampler_policy_b = gui::ui::make_sampler_policy(input_ctx_b);
-        state_b.input_policies.set(gui::ui::InputPolicyId::Default, sampler_policy_b);
-        state_b.input_policies.set(gui::ui::InputPolicyId::Encoder, sampler_policy_b);
+        raw_sampler_b.emplace();
+        router_queue_b.emplace();
+        router_queue_b->set_consume(false);
+        (void)router_queue_b->start(router);
+        const auto router_policy_b = router_queue_b->policy();
+        state_b.input_policies.set(gui::ui::InputPolicyId::Default, router_policy_b);
+        state_b.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy_b);
         gui::ui::PolicyChain<2> policy_chain_b{};
-        policy_chain_b.add(sampler_policy_b);
+        policy_chain_b.add(router_policy_b);
         state_b.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain_b));
         state_b.input_policy_id = gui::ui::InputPolicyId::Default;
         state_b.input_policy = state_b.input_policies.get(state_b.input_policy_id);
@@ -249,6 +256,14 @@ int main() try {
         }
     };
 
+    auto pump_raw = [&](input::SDLRawSource& raw,
+                        gui::input::RawSampler& sampler,
+                        std::uint32_t now_ms) {
+        while (auto ev = sampler.poll(raw, now_ms)) {
+            router.dispatch(*ev);
+        }
+    };
+
     while (true) {
         const auto now = std::chrono::steady_clock::now();
         const auto real_ms = (std::uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - t0).count();
@@ -270,6 +285,11 @@ int main() try {
             if (kEnableSecond && raw_b) {
                 raw_b->handle_event(e);
             }
+        }
+
+        pump_raw(raw_a, raw_sampler_a, real_ms);
+        if (kEnableSecond && raw_b && raw_sampler_b) {
+            pump_raw(*raw_b, *raw_sampler_b, real_ms);
         }
 
         if (quit_requested || raw_a.should_quit() ||

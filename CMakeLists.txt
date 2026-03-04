@@ -45,7 +45,7 @@ endif()
 
 if (CHARM_ENABLE_FATFS)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")
-#    charm_link_fatfs(${target_name})
+    charm_link_fatfs(${target_name})
 endif()
 
 if (CHARM_AUDIO_USE_VFS)

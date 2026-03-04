@@ -20,7 +20,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_it.h"
-#include "usb.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -56,10 +55,8 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-
-/* USER CODE BEGIN EV */
 extern PCD_HandleTypeDef hpcd_USB_FS;
-
+/* USER CODE BEGIN EV */
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -200,10 +197,33 @@ void SysTick_Handler(void)
 /* please refer to the startup file (startup_stm32f1xx.s).                    */
 /******************************************************************************/
 
-/* USER CODE BEGIN 1 */
-void USB_LP_CAN1_RX0_IRQHandler(void)
+/**
+  * @brief This function handles USB high priority or CAN TX interrupts.
+  */
+void USB_HP_CAN1_TX_IRQHandler(void)
 {
+  /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 0 */
+
+  /* USER CODE END USB_HP_CAN1_TX_IRQn 0 */
   HAL_PCD_IRQHandler(&hpcd_USB_FS);
+  /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 1 */
+
+  /* USER CODE END USB_HP_CAN1_TX_IRQn 1 */
 }
 
+/**
+  * @brief This function handles USB low priority or CAN RX0 interrupts.
+  */
+void USB_LP_CAN1_RX0_IRQHandler(void)
+{
+  /* USER CODE BEGIN USB_LP_CAN1_RX0_IRQn 0 */
+
+  /* USER CODE END USB_LP_CAN1_RX0_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_FS);
+  /* USER CODE BEGIN USB_LP_CAN1_RX0_IRQn 1 */
+
+  /* USER CODE END USB_LP_CAN1_RX0_IRQn 1 */
+}
+
+/* USER CODE BEGIN 1 */
 /* USER CODE END 1 */

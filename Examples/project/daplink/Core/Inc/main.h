@@ -67,8 +67,6 @@ void Error_Handler(void);
 #define TDO_SWO_GPIO_Port GPIOA
 #define T_DIO_IN_Pin GPIO_PIN_3
 #define T_DIO_IN_GPIO_Port GPIOB
-#define T_CLKB4_Pin GPIO_PIN_4
-#define T_CLKB4_GPIO_Port GPIOB
 #define T_DIO_OUT_Pin GPIO_PIN_5
 #define T_DIO_OUT_GPIO_Port GPIOB
 #define CONNECT_LED_Pin GPIO_PIN_6

@@ -4,16 +4,15 @@ module;
 
 #include <cstddef>
 #include <cstdint>
-
+#include <span>
 export module daplink.usb_minimal;
-import daplink.swd_link;
 
 namespace daplink::usb_minimal::detail {
     constexpr std::uint8_t kEp0Mps = 64;
     constexpr std::uint8_t kHidEpOut = 0x01;
     constexpr std::uint8_t kHidEpIn = 0x81;
     constexpr std::uint16_t kHidEpMps = 64;
-    constexpr std::uint8_t kHidPacketSize = 64;
+    constexpr std::size_t kHidPacketSize = 64;
 
     constexpr std::uint8_t kReqGetStatus = 0x00;
     constexpr std::uint8_t kReqClearFeature = 0x01;
@@ -43,40 +42,6 @@ namespace daplink::usb_minimal::detail {
     constexpr std::uint8_t kDirIn = 0x80;
     constexpr std::uint8_t kRecipientInterface = 0x01;
 
-    constexpr std::uint8_t kCmsisDapInfo = 0x00;
-    constexpr std::uint8_t kCmsisDapHostStatus = 0x01;
-    constexpr std::uint8_t kCmsisDapConnect = 0x02;
-    constexpr std::uint8_t kCmsisDapDisconnect = 0x03;
-    constexpr std::uint8_t kCmsisDapTransferConfigure = 0x04;
-    constexpr std::uint8_t kCmsisDapTransfer = 0x05;
-    constexpr std::uint8_t kCmsisDapTransferBlock = 0x06;
-    constexpr std::uint8_t kCmsisDapWriteAbort = 0x08;
-    constexpr std::uint8_t kCmsisDapDelay = 0x09;
-    constexpr std::uint8_t kCmsisDapSwjPins = 0x10;
-    constexpr std::uint8_t kCmsisDapSwjClock = 0x11;
-    constexpr std::uint8_t kCmsisDapSwjSequence = 0x12;
-    constexpr std::uint8_t kCmsisDapSwdConfigure = 0x13;
-    constexpr std::uint8_t kCmsisDapInvalid = 0xFF;
-
-    constexpr std::uint8_t kDapInfoVendor = 1;
-    constexpr std::uint8_t kDapInfoProduct = 2;
-    constexpr std::uint8_t kDapInfoSerial = 3;
-    constexpr std::uint8_t kDapInfoFwVersion = 4;
-    constexpr std::uint8_t kDapInfoCapabilities = 0xF0;
-    constexpr std::uint8_t kDapInfoPacketCount = 0xFE;
-    constexpr std::uint8_t kDapInfoPacketSize = 0xFF;
-
-    constexpr std::uint8_t kDapOk = 0x00;
-    constexpr std::uint8_t kDapPortDisabled = 0x00;
-    constexpr std::uint8_t kDapPortSwd = 0x01;
-    constexpr std::uint8_t kDapTransferOk = 0x01;
-    constexpr std::uint8_t kDapTransferError = 0x08;
-    constexpr std::uint8_t kReqApndp = 1U << 0;
-    constexpr std::uint8_t kReqRnw = 1U << 1;
-    constexpr std::uint8_t kReqMatchValue = 1U << 4;
-    constexpr std::uint8_t kReqMatchMask = 1U << 5;
-    constexpr std::uint8_t kReqDpRdbuff = kReqRnw | (1U << 2) | (1U << 3);
-
     struct setup_packet {
         std::uint8_t bm_request_type;
         std::uint8_t b_request;
@@ -89,14 +54,22 @@ namespace daplink::usb_minimal::detail {
         std::uint8_t config_value = 0;
         std::uint8_t idle_rate = 0;
         std::uint8_t protocol = 1;
-        std::uint8_t dap_port = kDapPortDisabled;
+        std::uint8_t pending_address = 0;
+        bool address_pending = false;
         bool pending_ep0_out = false;
         std::uint16_t pending_out_length = 0;
         std::uint8_t ep0_out[kEp0Mps] = {};
         std::uint8_t ep0_in_zlp[1] = {};
         std::uint8_t ep0_in_data[2] = {};
-        std::uint8_t hid_out[kHidPacketSize] = {};
+        std::uint8_t hid_out[2][kHidPacketSize] = {};
+        std::uint16_t hid_out_len[2] = {};
         std::uint8_t hid_in[kHidPacketSize] = {};
+        volatile std::uint8_t hid_out_full_mask = 0;
+        volatile std::uint8_t hid_out_active_index = 0;
+        volatile std::uint8_t hid_out_read_index = 0;
+        volatile bool hid_out_armed = false;
+        volatile bool reset_pending = false;
+        PCD_HandleTypeDef* hpcd = nullptr;
     };
 
     inline usb_state g_state{};
@@ -143,39 +116,9 @@ namespace daplink::usb_minimal::detail {
     constexpr std::uint8_t serial_string[] = {
         10, 0x03, '0', 0, '0', 0, '0', 0, '1', 0
     };
-    constexpr char dap_vendor[] = "Charm";
-    constexpr char dap_product[] = "Charm CMSIS-DAP";
-    constexpr char dap_serial[] = "0001";
-    constexpr char dap_fw[] = "0.1.0";
 
     inline std::uint16_t min_u16(const std::uint16_t a, const std::uint16_t b) noexcept {
         return (a < b) ? a : b;
-    }
-
-    inline std::uint32_t read_le32(const std::uint8_t* p) noexcept {
-        return static_cast<std::uint32_t>(p[0]) |
-               (static_cast<std::uint32_t>(p[1]) << 8) |
-               (static_cast<std::uint32_t>(p[2]) << 16) |
-               (static_cast<std::uint32_t>(p[3]) << 24);
-    }
-
-    inline void write_le32(std::uint8_t* p, const std::uint32_t v) noexcept {
-        p[0] = static_cast<std::uint8_t>(v & 0xFFU);
-        p[1] = static_cast<std::uint8_t>((v >> 8) & 0xFFU);
-        p[2] = static_cast<std::uint8_t>((v >> 16) & 0xFFU);
-        p[3] = static_cast<std::uint8_t>((v >> 24) & 0xFFU);
-    }
-
-    inline std::uint8_t dap_transfer_once(const std::uint8_t request, std::uint32_t& data) noexcept {
-        if ((request & kReqRnw) != 0U && (request & kReqApndp) != 0U) {
-            std::uint32_t posted_dummy = 0;
-            auto ack = daplink::swd::transfer(request, posted_dummy);
-            if (ack != kDapTransferOk) {
-                return ack;
-            }
-            return daplink::swd::transfer(kReqDpRdbuff, data);
-        }
-        return daplink::swd::transfer(request, data);
     }
 
     inline setup_packet parse_setup(const PCD_HandleTypeDef& hpcd) noexcept {
@@ -208,228 +151,26 @@ namespace daplink::usb_minimal::detail {
         (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, g_state.pending_out_length);
     }
 
-    inline void hid_out_rearm(PCD_HandleTypeDef& hpcd) noexcept {
-        (void)HAL_PCD_EP_Receive(&hpcd, kHidEpOut, g_state.hid_out, kHidEpMps);
+    inline void hid_arm_out(PCD_HandleTypeDef& hpcd, const std::uint8_t index) noexcept {
+        g_state.hid_out_active_index = index;
+        g_state.hid_out_armed = true;
+        (void)HAL_PCD_EP_Receive(&hpcd, kHidEpOut, g_state.hid_out[index], kHidEpMps);
     }
 
-    inline void hid_in_send(PCD_HandleTypeDef& hpcd, const std::uint8_t len) noexcept {
-        (void)len;
-        (void)HAL_PCD_EP_Transmit(&hpcd, kHidEpIn, g_state.hid_in, kHidEpMps);
+    inline void hid_try_rearm(PCD_HandleTypeDef& hpcd) noexcept {
+        if (g_state.hid_out_armed) {
+            return;
+        }
+        if ((g_state.hid_out_full_mask & 0x3U) == 0x3U) {
+            return;
+        }
+        const std::uint8_t free_index = (g_state.hid_out_full_mask & 0x1U) ? 1U : 0U;
+        hid_arm_out(hpcd, free_index);
     }
 
-    inline std::uint8_t fill_dap_info_payload(const std::uint8_t info_id, std::uint8_t* out) noexcept {
-        switch (info_id) {
-            case kDapInfoVendor: {
-                constexpr std::uint8_t n = static_cast<std::uint8_t>(sizeof(dap_vendor));
-                for (std::uint8_t i = 0; i < n; ++i) out[i] = static_cast<std::uint8_t>(dap_vendor[i]);
-                return n;
-            }
-            case kDapInfoProduct: {
-                constexpr std::uint8_t n = static_cast<std::uint8_t>(sizeof(dap_product));
-                for (std::uint8_t i = 0; i < n; ++i) out[i] = static_cast<std::uint8_t>(dap_product[i]);
-                return n;
-            }
-            case kDapInfoSerial: {
-                constexpr std::uint8_t n = static_cast<std::uint8_t>(sizeof(dap_serial));
-                for (std::uint8_t i = 0; i < n; ++i) out[i] = static_cast<std::uint8_t>(dap_serial[i]);
-                return n;
-            }
-            case kDapInfoFwVersion: {
-                constexpr std::uint8_t n = static_cast<std::uint8_t>(sizeof(dap_fw));
-                for (std::uint8_t i = 0; i < n; ++i) out[i] = static_cast<std::uint8_t>(dap_fw[i]);
-                return n;
-            }
-            case kDapInfoCapabilities:
-                out[0] = 0x11; // SWD + Atomic commands
-                return 1;
-            case kDapInfoPacketCount:
-                out[0] = 1;
-                return 1;
-            case kDapInfoPacketSize:
-                out[0] = static_cast<std::uint8_t>(kHidPacketSize & 0xFF);
-                out[1] = static_cast<std::uint8_t>((kHidPacketSize >> 8) & 0xFF);
-                return 2;
-            default:
-                return 0;
-        }
-    }
-
-    inline void build_dap_response() noexcept {
-        for (std::size_t i = 0; i < kHidPacketSize; ++i) {
-            g_state.hid_in[i] = 0;
-        }
-
-        const std::uint8_t cmd = g_state.hid_out[0];
-        g_state.hid_in[0] = cmd;
-
-        switch (cmd) {
-            case kCmsisDapInfo: {
-                const auto info_len = fill_dap_info_payload(g_state.hid_out[1], &g_state.hid_in[2]);
-                g_state.hid_in[1] = info_len;
-                break;
-            }
-            case kCmsisDapHostStatus:
-                g_state.hid_in[1] = kDapOk;
-                break;
-            case kCmsisDapConnect:
-                if (g_state.hid_out[1] == 0 || g_state.hid_out[1] == kDapPortSwd) {
-                    if (daplink::swd::connect_swd()) {
-                        g_state.dap_port = kDapPortSwd;
-                        g_state.hid_in[1] = kDapPortSwd;
-                    } else {
-                        g_state.dap_port = kDapPortDisabled;
-                        g_state.hid_in[1] = kDapPortDisabled;
-                    }
-                } else {
-                    g_state.hid_in[1] = kDapPortDisabled;
-                }
-                break;
-            case kCmsisDapDisconnect:
-                daplink::swd::disconnect();
-                g_state.dap_port = kDapPortDisabled;
-                g_state.hid_in[1] = kDapOk;
-                break;
-            case kCmsisDapTransferConfigure: {
-                const auto idle = g_state.hid_out[1];
-                const auto retry = static_cast<std::uint16_t>(g_state.hid_out[2] | (g_state.hid_out[3] << 8));
-                daplink::swd::set_transfer_config(idle, retry);
-                g_state.hid_in[1] = kDapOk;
-                break;
-            }
-            case kCmsisDapWriteAbort:
-            case kCmsisDapDelay:
-            case kCmsisDapSwjClock:
-                g_state.hid_in[1] = kDapOk;
-                break;
-            case kCmsisDapSwjPins: {
-                const auto value = g_state.hid_out[1];
-                const auto select = g_state.hid_out[2];
-                g_state.hid_in[1] = daplink::swd::swj_pins(value, select);
-                break;
-            }
-            case kCmsisDapSwjSequence: {
-                std::uint32_t bits = g_state.hid_out[1];
-                if (bits == 0) {
-                    bits = 256;
-                }
-                daplink::swd::swj_sequence_bits(&g_state.hid_out[2], bits);
-                g_state.hid_in[1] = kDapOk;
-                break;
-            }
-            case kCmsisDapSwdConfigure:
-                daplink::swd::set_swd_config(g_state.hid_out[1]);
-                g_state.hid_in[1] = kDapOk;
-                break;
-            case kCmsisDapTransfer: {
-                std::uint8_t response_count = 0;
-                std::uint8_t response_value = kDapTransferOk;
-                std::uint8_t in_idx = 3;
-                std::uint8_t out_idx = 3;
-                const auto transfer_count = g_state.hid_out[2];
-
-                if (g_state.dap_port != kDapPortSwd) {
-                    response_value = kDapTransferError;
-                } else {
-                    for (std::uint8_t i = 0; i < transfer_count; ++i) {
-                        if (in_idx >= kHidPacketSize) {
-                            response_value = kDapTransferError;
-                            break;
-                        }
-                        const auto request = g_state.hid_out[in_idx++];
-                        std::uint32_t data = 0;
-                        const bool is_read = (request & kReqRnw) != 0U;
-                        const bool is_match_value = (request & kReqMatchValue) != 0U;
-                        const bool is_match_mask = (request & kReqMatchMask) != 0U;
-
-                        if (!is_read || is_match_value || is_match_mask) {
-                            if ((in_idx + 3) >= kHidPacketSize) {
-                                response_value = kDapTransferError;
-                                break;
-                            }
-                            data = read_le32(&g_state.hid_out[in_idx]);
-                            in_idx = static_cast<std::uint8_t>(in_idx + 4);
-                        }
-
-                        if (is_match_value || is_match_mask) {
-                            // TODO(daplink): implement CMSIS-DAP match-value/mask flow.
-                            response_value = kDapTransferError;
-                            break;
-                        }
-
-                        const auto ack = dap_transfer_once(request, data);
-                        if (ack != kDapTransferOk) {
-                            response_value = ack;
-                            break;
-                        }
-
-                        response_count = static_cast<std::uint8_t>(response_count + 1);
-                        if (is_read) {
-                            if ((out_idx + 3) >= kHidPacketSize) {
-                                response_value = kDapTransferError;
-                                break;
-                            }
-                            write_le32(&g_state.hid_in[out_idx], data);
-                            out_idx = static_cast<std::uint8_t>(out_idx + 4);
-                        }
-                    }
-                }
-
-                g_state.hid_in[1] = response_count;
-                g_state.hid_in[2] = response_value;
-                break;
-            }
-            case kCmsisDapTransferBlock: {
-                std::uint16_t response_count = 0;
-                std::uint8_t response_value = kDapTransferOk;
-                std::uint8_t in_idx = 4;
-                std::uint8_t out_idx = 4;
-                const auto transfer_count = static_cast<std::uint16_t>(g_state.hid_out[1] | (g_state.hid_out[2] << 8));
-                const auto request = g_state.hid_out[3];
-                const bool is_read = (request & kReqRnw) != 0U;
-
-                if (g_state.dap_port != kDapPortSwd) {
-                    response_value = kDapTransferError;
-                } else if ((request & (kReqMatchValue | kReqMatchMask)) != 0U) {
-                    response_value = kDapTransferError;
-                } else {
-                    for (std::uint16_t i = 0; i < transfer_count; ++i) {
-                        std::uint32_t data = 0;
-                        if (!is_read) {
-                            if ((in_idx + 3) >= kHidPacketSize) {
-                                response_value = kDapTransferError;
-                                break;
-                            }
-                            data = read_le32(&g_state.hid_out[in_idx]);
-                            in_idx = static_cast<std::uint8_t>(in_idx + 4);
-                        }
-
-                        const auto ack = dap_transfer_once(request, data);
-                        if (ack != kDapTransferOk) {
-                            response_value = ack;
-                            break;
-                        }
-
-                        ++response_count;
-                        if (is_read) {
-                            if ((out_idx + 3) >= kHidPacketSize) {
-                                response_value = kDapTransferError;
-                                break;
-                            }
-                            write_le32(&g_state.hid_in[out_idx], data);
-                            out_idx = static_cast<std::uint8_t>(out_idx + 4);
-                        }
-                    }
-                }
-
-                g_state.hid_in[1] = static_cast<std::uint8_t>(response_count & 0xFFU);
-                g_state.hid_in[2] = static_cast<std::uint8_t>((response_count >> 8) & 0xFFU);
-                g_state.hid_in[3] = response_value;
-                break;
-            }
-            default:
-                g_state.hid_in[0] = kCmsisDapInvalid;
-                break;
-        }
+    inline void hid_in_send(PCD_HandleTypeDef& hpcd, const std::uint16_t len) noexcept {
+        const std::uint16_t send_len = (len > kHidEpMps) ? kHidEpMps : len;
+        (void)HAL_PCD_EP_Transmit(&hpcd, kHidEpIn, g_state.hid_in, send_len);
     }
 
     inline void handle_get_descriptor(PCD_HandleTypeDef& hpcd, const setup_packet& s) noexcept {
@@ -488,7 +229,10 @@ namespace daplink::usb_minimal::detail {
 export namespace daplink::usb_minimal {
     using namespace detail;
 
+    constexpr std::size_t hid_packet_size = kHidPacketSize;
+
     inline bool attach(PCD_HandleTypeDef& hpcd) noexcept {
+        g_state.hpcd = &hpcd;
         const auto r0 = HAL_PCDEx_PMAConfig(&hpcd, 0x00, PCD_SNG_BUF, 0x18);
         const auto r1 = HAL_PCDEx_PMAConfig(&hpcd, 0x80, PCD_SNG_BUF, 0x58);
         const auto r2 = HAL_PCDEx_PMAConfig(&hpcd, kHidEpIn, PCD_SNG_BUF, 0xC0);
@@ -498,13 +242,15 @@ export namespace daplink::usb_minimal {
 
     inline void on_reset(PCD_HandleTypeDef& hpcd) noexcept {
         g_state = {};
+        g_state.hpcd = &hpcd;
+        g_state.reset_pending = true;
         (void)HAL_PCD_SetAddress(&hpcd, 0);
         (void)HAL_PCD_EP_Open(&hpcd, 0x00, kEp0Mps, EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Open(&hpcd, 0x80, kEp0Mps, EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Open(&hpcd, kHidEpIn, kHidEpMps, EP_TYPE_INTR);
         (void)HAL_PCD_EP_Open(&hpcd, kHidEpOut, kHidEpMps, EP_TYPE_INTR);
         (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, kEp0Mps);
-        hid_out_rearm(hpcd);
+        hid_arm_out(hpcd, 0);
     }
 
     inline void on_setup_stage(PCD_HandleTypeDef& hpcd) noexcept {
@@ -523,7 +269,8 @@ export namespace daplink::usb_minimal {
                     return;
                 case kReqSetAddress:
                     if (!dir_in && s.w_index == 0 && s.w_length == 0 && (s.w_value < 128)) {
-                        (void)HAL_PCD_SetAddress(&hpcd, static_cast<std::uint8_t>(s.w_value & 0x7F));
+                        g_state.pending_address = static_cast<std::uint8_t>(s.w_value & 0x7F);
+                        g_state.address_pending = true;
                         ep0_status_in(hpcd);
                     } else {
                         ep0_stall(hpcd);
@@ -617,11 +364,67 @@ export namespace daplink::usb_minimal {
             return;
         }
         if (epnum == 1) {
-            build_dap_response();
-            hid_in_send(hpcd, static_cast<std::uint8_t>(kHidPacketSize));
-            hid_out_rearm(hpcd);
+            const std::uint8_t index = g_state.hid_out_active_index;
+            g_state.hid_out_len[index] = static_cast<std::uint16_t>(HAL_PCD_EP_GetRxCount(&hpcd, kHidEpOut));
+            const bool was_empty = (g_state.hid_out_full_mask == 0U);
+            g_state.hid_out_full_mask = static_cast<std::uint8_t>(g_state.hid_out_full_mask | (1U << index));
+            if (was_empty) {
+                g_state.hid_out_read_index = index;
+            }
+            g_state.hid_out_armed = false;
+            hid_try_rearm(hpcd);
         }
     }
 
-    inline void on_data_in_stage(PCD_HandleTypeDef&, std::uint8_t) noexcept {}
+    inline void on_data_in_stage(PCD_HandleTypeDef& hpcd, std::uint8_t epnum) noexcept {
+        if (epnum == 0) {
+            if (g_state.address_pending) {
+                g_state.address_pending = false;
+                (void)HAL_PCD_SetAddress(&hpcd, g_state.pending_address);
+            }
+            (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, kEp0Mps);
+        }
+    }
+
+    inline bool out_ready() noexcept {
+        return g_state.hid_out_full_mask != 0U;
+    }
+
+    inline std::span<const std::uint8_t, kHidPacketSize> out_packet() noexcept {
+        return std::span<const std::uint8_t, kHidPacketSize>(g_state.hid_out[g_state.hid_out_read_index]);
+    }
+
+    inline std::uint16_t out_length() noexcept {
+        return g_state.hid_out_len[g_state.hid_out_read_index];
+    }
+
+    inline void consume_out() noexcept {
+        const std::uint8_t index = g_state.hid_out_read_index;
+        g_state.hid_out_full_mask = static_cast<std::uint8_t>(g_state.hid_out_full_mask & ~(1U << index));
+        if (g_state.hid_out_full_mask != 0U) {
+            g_state.hid_out_read_index = static_cast<std::uint8_t>(index ^ 1U);
+        }
+        if (g_state.hpcd != nullptr) {
+            hid_try_rearm(*g_state.hpcd);
+        }
+    }
+
+    inline std::span<std::uint8_t, kHidPacketSize> in_packet() noexcept {
+        return std::span<std::uint8_t, kHidPacketSize>(g_state.hid_in);
+    }
+
+    inline void send_in_packet(const std::uint16_t len) noexcept {
+        if (g_state.hpcd == nullptr) {
+            return;
+        }
+        hid_in_send(*g_state.hpcd, len);
+    }
+
+    inline bool take_reset() noexcept {
+        if (!g_state.reset_pending) {
+            return false;
+        }
+        g_state.reset_pending = false;
+        return true;
+    }
 }

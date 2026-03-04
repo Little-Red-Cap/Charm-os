@@ -16,9 +16,7 @@ module;
 #endif
 
 #if CHARM_AUDIO_ENABLE_STRESS
-#include <chrono>
 #include <random>
-#include <thread>
 #endif
 
 export module audio.player;
@@ -405,7 +403,7 @@ export namespace audio {
                     last_underrun_seen_ = stats_.underrun_count;
 #if CHARM_AUDIO_ENABLE_STRESS
                     if (stress_ms_ > 0) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(stress_dist_(rng_)));
+                        stress_delay_ms(static_cast<std::uint32_t>(stress_dist_(rng_)));
                     }
 #endif
                     refill_once();
@@ -473,6 +471,20 @@ export namespace audio {
         }
 
     private:
+#if CHARM_AUDIO_ENABLE_STRESS
+        static void stress_delay_ms(std::uint32_t ms) noexcept {
+            if (ms == 0) return;
+            auto& clk = charm::system::clock();
+            const auto start = clk.now_ms();
+            const auto probe = clk.now_ms();
+            if (start == 0 && probe == 0) return;
+            while (true) {
+                const auto now = clk.now_ms();
+                if (now < start) break;
+                if (now - start >= ms) break;
+            }
+        }
+#endif
         enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
 
         struct Command {

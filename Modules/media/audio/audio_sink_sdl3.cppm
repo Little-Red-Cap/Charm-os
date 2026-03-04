@@ -6,7 +6,6 @@ module;
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,6 +14,7 @@ export module audio.sink.sdl3;
 
 import audio.format;
 import audio.result;
+import charm.system.clock;
 import media.stream.sink;
 import media.stream.types;
 export namespace audio {
@@ -137,9 +137,7 @@ export namespace audio {
 
     private:
         static std::uint64_t now_ns() {
-            return static_cast<std::uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch()).count());
+            return static_cast<std::uint64_t>(charm::system::clock().now_us()) * 1000u;
         }
 
         static void update_min(std::atomic<std::uint64_t>& dst, std::uint64_t value) {

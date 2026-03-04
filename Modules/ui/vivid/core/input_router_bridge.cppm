@@ -4,6 +4,7 @@ module;
 
 export module charm.core.input_router_bridge;
 
+#if !defined(CHARM_VIVID_SOA_ONLY)
 import charm.core.gui;
 import input.raw_event;
 import input.router;
@@ -57,3 +58,19 @@ private:
     input::Subscription sub_{};
     bool consume_{true};
 };
+#else
+import util.error;
+
+export
+class InputRouterBridge {
+public:
+    template <class RouterT, class GuiT>
+    void bind(RouterT&, GuiT&) noexcept {}
+
+    void set_consume(bool) noexcept {}
+
+    util::Result<void> start() noexcept { return {}; }
+
+    void stop() noexcept {}
+};
+#endif

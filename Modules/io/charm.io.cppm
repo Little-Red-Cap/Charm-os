@@ -1,15 +1,11 @@
 ﻿export module charm.io;
 
-export import hal_clock;
 export import hal_core;
-export import hal_device;
-export import hal_device_examples;
 export import hal_gpio;
 export import hal_i2c;
 export import hal_input;
 export import hal_irq;
 export import hal_spi;
-export import hal_spi_stub;
 export import hal_stm32_stub;
 export import hal_timer;
 export import hal_uart;

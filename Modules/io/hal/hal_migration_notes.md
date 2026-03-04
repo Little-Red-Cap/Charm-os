@@ -6,7 +6,6 @@
 
 ## Phase 1 (MVP Interfaces)
 - hal_core: Status/Result, tick_t, ClockInfo
-- hal_clock: ClockProvider concept
 - system.clock: TimeSource (board_caps)
 - hal_irq: IrqGuard, IrqController
 - hal_gpio: pin/config + GpioDriver concept

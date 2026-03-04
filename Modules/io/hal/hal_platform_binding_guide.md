@@ -13,7 +13,6 @@
 - hal_gpio: GpioDriver
 - hal_uart: UartDriver
 - hal_timer: TimerDriver
-- hal_clock: ClockProvider����ѡ��
 
 ## Լ��
 - ����/��ʱ�������ĵ�����

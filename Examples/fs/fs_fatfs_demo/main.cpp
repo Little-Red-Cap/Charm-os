@@ -79,7 +79,7 @@ namespace {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::printf("usage: vsf-fs-fatfs-demo <disk.img|vhd>\n");
+        std::printf("usage: fs-fatfs-demo <disk.img|vhd>\n");
         return 1;
     }
 

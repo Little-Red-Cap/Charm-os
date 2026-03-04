@@ -124,12 +124,12 @@ jobs:
         example:
           - { name: alg, path: Examples/alg/alg_demo, target: alg-demo }
           - { name: boot, path: Examples/boot/bootloader_demo, target: bootloader-demo }
-          - { name: fs-demo, path: Examples/fs/vsf_fs_demo, target: vsf-fs-demo }
-          - { name: fs-vfs, path: Examples/fs/vsf_fs_vfs_demo, target: vsf-fs-vfs-demo }
+          - { name: fs-demo, path: Examples/fs/fs_demo, target: fs-demo }
+          - { name: fs-vfs, path: Examples/fs/fs_vfs_demo, target: fs-vfs-demo }
           - { name: hal, path: Examples/hal/hal_demo, target: hal-demo }
-          - { name: service-core, path: Examples/service/vsf_service_core, target: vsf-service-core-demo }
+          - { name: service-core, path: Examples/service/service_core, target: service-core-demo }
           - { name: service-ds, path: Examples/service/service_ds_demo, target: service-ds-demo }
-          - { name: shell, path: Examples/shell/vsf_service_shell, target: vsf-service-shell-demo }
+          - { name: shell, path: Examples/shell/service_shell, target: service-shell-demo }
           - { name: audio, path: Examples/audio/sdl3_wav_demo, target: sdl3-wav-demo }
 
     steps:

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(vsf-fs-fatfs-demo)
+project(fs-fatfs-demo)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)

@@ -1,8 +1,8 @@
-ï»¿<div align="center">
+<div align="center">
 
-# âœ¨ Charm âœ¨
+# ? Charm ?
 
-**C++26 Modules Â· Zero-alloc Â· constexpr config Â· Type-level FSM**
+**C++26 Modules ¡¤ Zero-alloc ¡¤ constexpr config ¡¤ Type-level FSM**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
@@ -10,156 +10,156 @@
 [![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 [![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
-> ç»Ÿä¸€çš„æ¨¡å—åŒ–æ¶æ„æ‹¼å›¾ï¼šæ ¸å¿ƒ/ç³»ç»Ÿ/IO/åª’ä½“/UI ä¸€ä½“åŒ–ç»„ç»‡ï¼Œéšå–éšæ’ã€‚
+> Í³Ò»µÄÄ£¿é»¯¼Ü¹¹Æ´Í¼£ººËĞÄ/ÏµÍ³/IO/Ã½Ìå/UI Ò»Ìå»¯×éÖ¯£¬ËæÈ¡Ëæ²å¡£
 
 </div>
 
 ---
 
-## ğŸŒŒ ä¸ºä»€ä¹ˆæ˜¯ Charmï¼Ÿ
-- **æ¨¡å—åŒ–æè‡´**ï¼šå…¨ç¨‹ C++ Modulesï¼Œè¾¹ç•Œæ¸…æ™°ï¼Œå¯ç»„åˆã€å¯è£å‰ªã€‚
-- **é›¶å †å†…å­˜**ï¼šstd::array/std::span + ç¼–è¯‘æœŸè§„åˆ’ï¼ŒåµŒå…¥å¼å‹å¥½ã€‚
-- **ç±»å‹é©±åŠ¨**ï¼šconstexpr/consteval + conceptsï¼Œé…ç½®å³æ ¡éªŒï¼Œèƒ½åŠ›å³çº¦æŸã€‚
-- **å¯é€‰å¢å¼º**ï¼šäº‹ä»¶å»é‡/é˜²æŠ–/åˆå¹¶ã€ä¼˜å…ˆçº§æå‡ã€trace/alert/statsï¼ŒæŒ‰éœ€ç‚¹äº®ã€‚
+## ?? ÎªÊ²Ã´ÊÇ Charm£¿
+- **Ä£¿é»¯¼«ÖÂ**£ºÈ«³Ì C++ Modules£¬±ß½çÇåÎú£¬¿É×éºÏ¡¢¿É²Ã¼ô¡£
+- **Áã¶ÑÄÚ´æ**£ºstd::array/std::span + ±àÒëÆÚ¹æ»®£¬Ç¶ÈëÊ½ÓÑºÃ¡£
+- **ÀàĞÍÇı¶¯**£ºconstexpr/consteval + concepts£¬ÅäÖÃ¼´Ğ£Ñé£¬ÄÜÁ¦¼´Ô¼Êø¡£
+- **¿ÉÑ¡ÔöÇ¿**£ºÊÂ¼şÈ¥ÖØ/·À¶¶/ºÏ²¢¡¢ÓÅÏÈ¼¶ÌáÉı¡¢trace/alert/stats£¬°´ĞèµãÁÁ¡£
 
-## ğŸ—‚ ç›®å½•å¯¼è§ˆ
-- `Modules/core/` â€”â€” util/trace/service/alg
-- `Modules/system/` â€”â€” kernel/modulex/boot
-- `Modules/io/` â€”â€” hal/port/fs/shell/out
-- `Modules/media/` â€”â€” audio
-- `Modules/ui/ink/` â€”â€” Charm-ink UI
-- `Modules/ui/vivid/` â€”â€” Charm-vivid UI
-- `Modules/platform/` â€”â€” å¹³å°é€‚é…ï¼ˆwin/æœªæ¥ MCUï¼‰
-- `Modules/io/usb/` â€”â€” USB è®¾å¤‡ç«¯éª¨æ¶ä¸ç±»è‰æ¡ˆ
-- `Examples/` â€”â€” ç¤ºä¾‹å·¥ç¨‹ï¼ˆå†…æ ¸/boot/audio/fs/shell/service/alg/halï¼‰
-- `docs/` â€”â€” æ¶æ„ä¸åä½œæ–‡æ¡£
-- `Draft/` â€”â€” è®¡åˆ’/è‰æ¡ˆï¼ˆå¯å˜åŠ¨ï¼‰
+## ?? Ä¿Â¼µ¼ÀÀ
+- `Modules/core/` ¡ª¡ª util/trace/service/alg
+- `Modules/system/` ¡ª¡ª kernel/modulex/boot
+- `Modules/io/` ¡ª¡ª hal/port/fs/shell/out
+- `Modules/media/` ¡ª¡ª audio
+- `Modules/ui/ink/` ¡ª¡ª Charm-ink UI
+- `Modules/ui/vivid/` ¡ª¡ª Charm-vivid UI
+- `Modules/platform/` ¡ª¡ª Æ½Ì¨ÊÊÅä£¨win/Î´À´ MCU£©
+- `Modules/io/usb/` ¡ª¡ª USB Éè±¸¶Ë¹Ç¼ÜÓëÀà²İ°¸
+- `Examples/` ¡ª¡ª Ê¾Àı¹¤³Ì£¨ÄÚºË/boot/audio/fs/shell/service/alg/hal£©
+- `docs/` ¡ª¡ª ¼Ü¹¹ÓëĞ­×÷ÎÄµµ
+- `Draft/` ¡ª¡ª ¼Æ»®/²İ°¸£¨¿É±ä¶¯£©
 
-## ğŸ§© ç°æœ‰æ‹¼å›¾ï¼ˆæŒ‰å±‚çº§ï¼‰
+## ?? ÏÖÓĞÆ´Í¼£¨°´²ã¼¶£©
 
 **Foundation**
 - util/expected/units
-- serviceï¼šring_buffer/pool/trace/stream/json
-- outï¼šæ ¼å¼åŒ–ä¸æ—¥å¿—ç»Ÿä¸€é€šè·¯
+- service£ºring_buffer/pool/trace/stream/json
+- out£º¸ñÊ½»¯ÓëÈÕÖ¾Í³Ò»Í¨Â·
 
 **IO / HAL**
-- halï¼šUART/SPI/I2C/GPIO/IRQ/Timer/Clock
-- inputï¼šRawInputEvent/Sampler/Intent/å¯¼èˆª
-- fsï¼šVFS + RamFs + BlockFs + FatFs + MAL
-- usbï¼šcommon/device/driver + CDC/UAC/MSC éª¨æ¶
-- protoï¼šX/YModemï¼ˆå«æœ€å° demoï¼‰
+- hal£ºUART/SPI/I2C/GPIO/IRQ/Timer/Clock
+- input£ºRawInputEvent/Sampler/Intent/µ¼º½
+- fs£ºVFS + RamFs + BlockFs + FatFs + MAL
+- usb£ºcommon/device/driver + CDC/UAC/MSC ¹Ç¼Ü
+- proto£ºX/YModem£¨º¬×îĞ¡ demo£©
 
 **Kernel / System**
-- EDA äº‹ä»¶é˜Ÿåˆ—ä¸è°ƒåº¦éª¨æ¶
-- è®¾å¤‡æ¨¡å‹/registry/driver ç”Ÿå‘½å‘¨æœŸ
-- Power/Low-Power åŸºç¡€æ¡†æ¶
+- EDA ÊÂ¼ş¶ÓÁĞÓëµ÷¶È¹Ç¼Ü
+- Éè±¸Ä£ĞÍ/registry/driver ÉúÃüÖÜÆÚ
+- Power/Low-Power »ù´¡¿ò¼Ü
 
 **Domains**
-- Audioï¼šsink/pipeline/player + SDL3 éªŒè¯é“¾è·¯
-- UIï¼šInk/Vivid èƒ½åŠ›è¿ç§»ä¸ç»Ÿä¸€ï¼ˆå®¹å™¨/trace/ç®—æ³•å¤ç”¨ï¼‰
-- Bootloaderï¼šåˆ†å±‚/é˜¶æ®µæ–‡æ¡£ + ä¼ è¾“åè®®è½ç‚¹
+- Audio£ºsink/pipeline/player + SDL3 ÑéÖ¤Á´Â·
+- UI£ºInk/Vivid ÄÜÁ¦Ç¨ÒÆÓëÍ³Ò»£¨ÈİÆ÷/trace/Ëã·¨¸´ÓÃ£©
+- Bootloader£º·Ö²ã/½×¶ÎÎÄµµ + ´«ÊäĞ­ÒéÂäµã
 
-## ğŸ¯ å‚ä¸å…¥å£ï¼ˆæŒ‰æ–¹å‘å¿«é€Ÿä¸Šæ‰‹ï¼‰
+## ?? ²ÎÓëÈë¿Ú£¨°´·½Ïò¿ìËÙÉÏÊÖ£©
 
 ### Audio
-1. è¯»æ–‡æ¡£ï¼š`Modules/media/audio/audio_design.md`
-2. çœ‹å®ç°ï¼š`Modules/media/audio/`ï¼ˆplayer/sink/decoder/fifo/src/convertï¼‰
-3. è·‘ç¤ºä¾‹ï¼š`Examples/audio/sdl3_wav_demo`
+1. ¶ÁÎÄµµ£º`Modules/media/audio/audio_design.md`
+2. ¿´ÊµÏÖ£º`Modules/media/audio/`£¨player/sink/decoder/fifo/src/convert£©
+3. ÅÜÊ¾Àı£º`Examples/audio/sdl3_wav_demo`
 
 ### Kernel
-1. è¯»æ–‡æ¡£ï¼š`Modules/system/kernel/docs/`
-2. çœ‹å®ç°ï¼š`Modules/system/kernel/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/kernel/windows`
+1. ¶ÁÎÄµµ£º`Modules/system/kernel/docs/`
+2. ¿´ÊµÏÖ£º`Modules/system/kernel/`
+3. ÅÜÊ¾Àı£º`Examples/kernel/windows`
 
 ### FS/VFS
-1. è¯»æ–‡æ¡£ï¼š`docs/fs_vfs_mount_rules.md`
-2. çœ‹å®ç°ï¼š`Modules/io/fs/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/fs/`
+1. ¶ÁÎÄµµ£º`docs/fs_vfs_mount_rules.md`
+2. ¿´ÊµÏÖ£º`Modules/io/fs/`
+3. ÅÜÊ¾Àı£º`Examples/fs/`
 
 ### HAL/Port
-1. è¯»æ–‡æ¡£ï¼š`Modules/io/hal/charm_hal_design.md`ã€`Modules/io/hal/hal_platform_binding_guide.md`
-2. çœ‹å®ç°ï¼š`Modules/io/hal/`ã€`Modules/io/port/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/hal/hal_demo`
+1. ¶ÁÎÄµµ£º`Modules/io/hal/charm_hal_design.md`¡¢`Modules/io/hal/hal_platform_binding_guide.md`
+2. ¿´ÊµÏÖ£º`Modules/io/hal/`¡¢`Modules/io/port/`
+3. ÅÜÊ¾Àı£º`Examples/hal/hal_demo`
 
 ### Shell/Service
-1. è¯»æ–‡æ¡£ï¼š`docs/architecture_overview.md`
-2. çœ‹å®ç°ï¼š`Modules/io/shell/`ã€`Modules/core/service/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/shell/`ã€`Examples/service/`
+1. ¶ÁÎÄµµ£º`docs/architecture_overview.md`
+2. ¿´ÊµÏÖ£º`Modules/io/shell/`¡¢`Modules/core/service/`
+3. ÅÜÊ¾Àı£º`Examples/shell/`¡¢`Examples/service/`
 
 ### ModuleX
-1. è¯»æ–‡æ¡£ï¼š`Modules/system/modulex/ModuleX_æ ¼å¼è‰æ¡ˆ.md`
-2. çœ‹å®ç°ï¼š`Modules/system/modulex/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/shell/vsf_service_shell`
+1. ¶ÁÎÄµµ£º`Modules/system/modulex/ModuleX_¸ñÊ½²İ°¸.md`
+2. ¿´ÊµÏÖ£º`Modules/system/modulex/`
+3. ÅÜÊ¾Àı£º`Examples/shell/service_shell`
 
 ### USB
-1. è¯»æ–‡æ¡£ï¼š`docs/usb_arch_plan.md`
-2. çœ‹å®ç°ï¼š`Modules/io/usb/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/usb/usb_cdc_minimal`
+1. ¶ÁÎÄµµ£º`docs/usb_arch_plan.md`
+2. ¿´ÊµÏÖ£º`Modules/io/usb/`
+3. ÅÜÊ¾Àı£º`Examples/usb/usb_cdc_minimal`
 
 ### UI/Vivid
-1. è¯»æ–‡æ¡£ï¼š`Modules/ui/vivid/ARCHITECTURE.md`ã€`Modules/ui/vivid/FEATURES.md`
-2. çœ‹å®ç°ï¼š`Modules/ui/vivid/`
-3. è·‘ç¤ºä¾‹ï¼š`Examples/project/scope`
+1. ¶ÁÎÄµµ£º`Modules/ui/vivid/ARCHITECTURE.md`¡¢`Modules/ui/vivid/FEATURES.md`
+2. ¿´ÊµÏÖ£º`Modules/ui/vivid/`
+3. ÅÜÊ¾Àı£º`Examples/project/scope`
 
-## ğŸš€ ä¸»çº¿ Demosï¼ˆWindowsï¼‰
-- **M0** `Examples/kernel/windows/main.cpp` ï¼škernel + timer + event queue
-- **M1** `Examples/kernel/windows/main_m1.cpp` ï¼šsync + IPC
-- **M2** `Examples/kernel/windows/main_m2.cpp` ï¼šthread + blocking
-- **M3** `Examples/kernel/windows/main_m3.cpp` ï¼štrace + stats
-> å®éªŒæ€§ demo æ•…æ„ä¸è¿›ä¸»çº¿ï¼Œä¿æŒæ ¸å¿ƒçº¯å‡€ã€‚
+## ?? Ö÷Ïß Demos£¨Windows£©
+- **M0** `Examples/kernel/windows/main.cpp` £ºkernel + timer + event queue
+- **M1** `Examples/kernel/windows/main_m1.cpp` £ºsync + IPC
+- **M2** `Examples/kernel/windows/main_m2.cpp` £ºthread + blocking
+- **M3** `Examples/kernel/windows/main_m3.cpp` £ºtrace + stats
+> ÊµÑéĞÔ demo ¹ÊÒâ²»½øÖ÷Ïß£¬±£³ÖºËĞÄ´¿¾»¡£
 
-### âš¡ å¿«é€Ÿæ„å»ºï¼ˆWindowsï¼‰
+### ? ¿ìËÙ¹¹½¨£¨Windows£©
 ```bash
 cmake -S Examples/kernel/windows -B Examples/kernel/windows/build -G Ninja
 cmake --build Examples/kernel/windows/build
 Examples/kernel/windows/build/os-example-win.exe
 ```
 
-## ğŸ§© å¯é€‰æ¨¡å—ï¼ˆé»˜è®¤å…³é—­ï¼‰
-- åŠ¨æ€æ³¨å†Œï¼š`kernel.dynamic_registry` / `kernel.task_pool` / `kernel.task_auto`
-- åŠ¨æ€ä¼˜å…ˆé˜Ÿåˆ—ï¼š`kernel.event_queue_list`
-- å¯è§‚æµ‹æ€§ï¼š`kernel.trace`ã€alert/replayã€JSON è¯Šæ–­
-- äº‹ä»¶ç­–ç•¥ï¼šdedup / debounce / coalesce / boostï¼Œä¸¢å¼ƒç­–ç•¥
+## ?? ¿ÉÑ¡Ä£¿é£¨Ä¬ÈÏ¹Ø±Õ£©
+- ¶¯Ì¬×¢²á£º`kernel.dynamic_registry` / `kernel.task_pool` / `kernel.task_auto`
+- ¶¯Ì¬ÓÅÏÈ¶ÓÁĞ£º`kernel.event_queue_list`
+- ¿É¹Û²âĞÔ£º`kernel.trace`¡¢alert/replay¡¢JSON Õï¶Ï
+- ÊÂ¼ş²ßÂÔ£ºdedup / debounce / coalesce / boost£¬¶ªÆú²ßÂÔ
 
-## ğŸ›° MCU Demo
-- ä½ç½®ï¼š`Draft/Examples/stm32f103c8`ï¼ˆå¾…è¿ç§»ï¼‰
-- å¼€å…³ï¼š`-DCHARM_MCU_KERNEL_DEMO=ON`ï¼ˆpreset é»˜è®¤å¼€å¯ï¼‰
-- å…¥å£ï¼š`main_mcu_stub.cpp`ï¼ˆ`application()` -> `run_auto`ï¼‰
-- å¹³å°ç»‘å®šï¼š`Core/Src/kernel.port.stm32.cpp`
+## ?? MCU Demo
+- Î»ÖÃ£º`Draft/Examples/stm32f103c8`£¨´ıÇ¨ÒÆ£©
+- ¿ª¹Ø£º`-DCHARM_MCU_KERNEL_DEMO=ON`£¨preset Ä¬ÈÏ¿ªÆô£©
+- Èë¿Ú£º`main_mcu_stub.cpp`£¨`application()` -> `run_auto`£©
+- Æ½Ì¨°ó¶¨£º`Core/Src/kernel.port.stm32.cpp`
 
-### ğŸ”§ MCU æ„å»ºç¤ºä¾‹
+### ?? MCU ¹¹½¨Ê¾Àı
 ```bash
 cmake --preset Release -S Draft/Examples/stm32f103c8 -B Draft/Examples/stm32f103c8/build
 cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
 ```
-> çƒ§å½•æŒ‰æ¿çº§å·¥å…·é“¾æµç¨‹æ‰§è¡Œã€‚
+> ÉÕÂ¼°´°å¼¶¹¤¾ßÁ´Á÷³ÌÖ´ĞĞ¡£
 
-## ğŸŒ‰ Port å±‚ï¼ˆå¹³å°æ— å…³ï¼‰
-- æ¥å£ï¼š`Modules/io/port/port.kernel.cppm`
-- æ¨¡æ¿ï¼š`Modules/io/port/port.kernel.template.cpp`
-- Windowsï¼š`Examples/kernel/windows/port.kernel.windows.cpp`
-- STM32ï¼š`Draft/Examples/stm32f103c8/Core/Src/kernel.port.stm32.cpp`
+## ?? Port ²ã£¨Æ½Ì¨ÎŞ¹Ø£©
+- ½Ó¿Ú£º`Modules/io/port/port.kernel.cppm`
+- Ä£°å£º`Modules/io/port/port.kernel.template.cpp`
+- Windows£º`Examples/kernel/windows/port.kernel.windows.cpp`
+- STM32£º`Draft/Examples/stm32f103c8/Core/Src/kernel.port.stm32.cpp`
 
-## ğŸ§° æ¨¡å—æ¸…å•ï¼ˆæ¶æ„ä¾§ï¼‰
-- HALï¼š`Modules/io/hal/*`
-- Serviceï¼š`Modules/core/service/*`
-- Shellï¼š`Modules/io/shell/*`
-- Module/XIPï¼š`Modules/system/modulex/*`
-- FSï¼š`Modules/io/fs/*`
+## ?? Ä£¿éÇåµ¥£¨¼Ü¹¹²à£©
+- HAL£º`Modules/io/hal/*`
+- Service£º`Modules/core/service/*`
+- Shell£º`Modules/io/shell/*`
+- Module/XIP£º`Modules/system/modulex/*`
+- FS£º`Modules/io/fs/*`
 
-ç‹¬ç«‹ç¤ºä¾‹ï¼ˆExamplesï¼‰ï¼š
-- `Examples/hal/hal_demo`ï¼šHAL æ¥å£æœ€å°ç¤ºä¾‹
-- `Examples/shell/vsf_service_shell`ï¼šService + Shell + Module ç¤ºä¾‹
-- `Examples/service/vsf_service_core`ï¼šService åŸºç¡€ç¤ºä¾‹
-- `Examples/service/service_ds_demo`ï¼šService DS ç¤ºä¾‹
-- `Examples/fs/vsf_fs_demo`ï¼šVFS + RAMFS è¯•éªŒ
-- `Examples/fs/vsf_fs_vfs_demo`ï¼šVFS ç»„åˆç¤ºä¾‹
-- `Examples/alg/alg_demo`ï¼šç®—æ³•/å‹ç¼©ç¤ºä¾‹
-- `Examples/boot/bootloader_demo`ï¼šbootloader ç¤ºä¾‹
-- `Examples/audio/sdl3_wav_demo`ï¼šSDL3 éŸ³é¢‘ç¤ºä¾‹
-- `Examples/usb/usb_cdc_minimal`ï¼šCDC æœ€å°æšä¸¾ç¤ºä¾‹
+¶ÀÁ¢Ê¾Àı£¨Examples£©£º
+- `Examples/hal/hal_demo`£ºHAL ½Ó¿Ú×îĞ¡Ê¾Àı
+- `Examples/shell/service_shell`£ºService + Shell + Module Ê¾Àı
+- `Examples/service/service_core`£ºService »ù´¡Ê¾Àı
+- `Examples/service/service_ds_demo`£ºService DS Ê¾Àı
+- `Examples/fs/fs_demo`£ºVFS + RAMFS ÊÔÑé
+- `Examples/fs/fs_vfs_demo`£ºVFS ×éºÏÊ¾Àı
+- `Examples/alg/alg_demo`£ºËã·¨/Ñ¹ËõÊ¾Àı
+- `Examples/boot/bootloader_demo`£ºbootloader Ê¾Àı
+- `Examples/audio/sdl3_wav_demo`£ºSDL3 ÒôÆµÊ¾Àı
+- `Examples/usb/usb_cdc_minimal`£ºCDC ×îĞ¡Ã¶¾ÙÊ¾Àı
 
-### ç¤ºä¾‹æ„å»º
+### Ê¾Àı¹¹½¨
 ```bash
 # HAL demo
 cmake -S Examples/hal/hal_demo -B Examples/hal/hal_demo/build -G Ninja
@@ -167,19 +167,19 @@ cmake --build Examples/hal/hal_demo/build
 Examples/hal/hal_demo/build/hal-demo
 
 # Service/Shell/Module demo
-cmake -S Examples/shell/vsf_service_shell -B Examples/shell/vsf_service_shell/build -G Ninja
-cmake --build Examples/shell/vsf_service_shell/build
-Examples/shell/vsf_service_shell/build/vsf-service-shell-demo
+cmake -S Examples/shell/service_shell -B Examples/shell/service_shell/build -G Ninja
+cmake --build Examples/shell/service_shell/build
+Examples/shell/service_shell/build/service-shell-demo
 
 # Service core demo
-cmake -S Examples/service/vsf_service_core -B Examples/service/vsf_service_core/build -G Ninja
-cmake --build Examples/service/vsf_service_core/build
-Examples/service/vsf_service_core/build/vsf-service-core-demo
+cmake -S Examples/service/service_core -B Examples/service/service_core/build -G Ninja
+cmake --build Examples/service/service_core/build
+Examples/service/service_core/build/service-core-demo
 
 # FS demo
-cmake -S Examples/fs/vsf_fs_demo -B Examples/fs/vsf_fs_demo/build -G Ninja
-cmake --build Examples/fs/vsf_fs_demo/build
-Examples/fs/vsf_fs_demo/build/vsf-fs-demo
+cmake -S Examples/fs/fs_demo -B Examples/fs/fs_demo/build -G Ninja
+cmake --build Examples/fs/fs_demo/build
+Examples/fs/fs_demo/build/fs-demo
 
 # Alg demo
 cmake -S Examples/alg/alg_demo -B Examples/alg/alg_demo/build -G Ninja
@@ -202,42 +202,43 @@ cmake --build Examples/audio/sdl3_wav_demo/build
 Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 ```
 
-## âœ… æ”¶æ•›çŠ¶æ€
-- Windows ä¸»çº¿ M0â€“M3ï¼šå·²é€šè¿‡
-- HAL demoï¼šå·²é€šè¿‡ï¼ˆ[hal_demo] okï¼‰
-- Service/Shell/Module demoï¼šå·²é€šè¿‡ï¼ˆ[shell] / [shell_time] / [module_demo]ï¼‰
-- Service core demoï¼šå·²é€šè¿‡ï¼ˆ[distbus] / [service_core] okï¼‰
-- FS demoï¼šå·²æ„å»ºï¼ˆå¾…è¿è¡ŒéªŒè¯ï¼‰
-- STM32ï¼šç¼–è¯‘é€šè¿‡ï¼ˆå¾…çƒ§å½•éªŒè¯ï¼‰
+## ? ÊÕÁ²×´Ì¬
+- Windows Ö÷Ïß M0¨CM3£ºÒÑÍ¨¹ı
+- HAL demo£ºÒÑÍ¨¹ı£¨[hal_demo] ok£©
+- Service/Shell/Module demo£ºÒÑÍ¨¹ı£¨[shell] / [shell_time] / [module_demo]£©
+- Service core demo£ºÒÑÍ¨¹ı£¨[distbus] / [service_core] ok£©
+- FS demo£ºÒÑ¹¹½¨£¨´ıÔËĞĞÑéÖ¤£©
+- STM32£º±àÒëÍ¨¹ı£¨´ıÉÕÂ¼ÑéÖ¤£©
 
-## ğŸ“š æ–‡æ¡£
-- æ¶æ„æ€»è§ˆï¼š`docs/architecture_overview.md`
-- è¾“å…¥åˆ†å±‚ï¼š`docs/input_layering_decision.md`
-- åä½œè§„èŒƒï¼š`docs/ã€Šåä½œæœŸå¾…ä¸è§„èŒƒã€‹.md`
-- åä½œè®¤çŸ¥ï¼š`docs/ã€Šç°ä»£ C++ å•ç‰‡æœºä»£ç åä½œè®¤çŸ¥ã€‹.md`
-- æ¨è¿›ä¸åˆ†å·¥ï¼š`docs/æ¨è¿›TODOä¸åˆ†å·¥.md`ã€`docs/refactor_todo_ownership.md`
-- ç»„ä»¶æ–‡æ¡£ï¼šAudio=`Modules/media/audio/audio_design.md`ã€HAL=`Modules/io/hal/charm_hal_design.md`ã€FS=`docs/fs_vfs_mount_rules.md`ã€Shell=`Modules/io/shell/`ã€Service=`Modules/core/service/`ã€ModuleX=`Modules/system/modulex/ModuleX_æ ¼å¼è‰æ¡ˆ.md`ã€Kernel=`Modules/system/kernel/docs/`
+## ?? ÎÄµµ
+- ¼Ü¹¹×ÜÀÀ£º`docs/architecture_overview.md`
+- ÊäÈë·Ö²ã£º`docs/input_layering_decision.md`
+- Ğ­×÷¹æ·¶£º`docs/¡¶Ğ­×÷ÆÚ´ıÓë¹æ·¶¡·.md`
+- Ğ­×÷ÈÏÖª£º`docs/¡¶ÏÖ´ú C++ µ¥Æ¬»ú´úÂëĞ­×÷ÈÏÖª¡·.md`
+- ÍÆ½øÓë·Ö¹¤£º`docs/ÍÆ½øTODOÓë·Ö¹¤.md`¡¢`docs/refactor_todo_ownership.md`
+- ×é¼şÎÄµµ£ºAudio=`Modules/media/audio/audio_design.md`¡¢HAL=`Modules/io/hal/charm_hal_design.md`¡¢FS=`docs/fs_vfs_mount_rules.md`¡¢Shell=`Modules/io/shell/`¡¢Service=`Modules/core/service/`¡¢ModuleX=`Modules/system/modulex/ModuleX_¸ñÊ½²İ°¸.md`¡¢Kernel=`Modules/system/kernel/docs/`
 
-## ğŸ§° æ–°ç¤ºä¾‹æ¨¡æ¿ï¼ˆCMakeï¼‰
+## ?? ĞÂÊ¾ÀıÄ£°å£¨CMake£©
 
-å¿«é€Ÿåˆ›å»ºæ–°ç¤ºä¾‹å·¥ç¨‹ï¼š
-- æ¨¡æ¿ï¼š`Examples/cmake/ExampleTemplate.cmake`
-- æ¨èç”¨æ³•ï¼šåœ¨æ–°ç¤ºä¾‹ `CMakeLists.txt` ä¸­ `include(...)`ï¼Œç„¶åè°ƒç”¨ `charm_example_*` ç³»åˆ—å‡½æ•°
-- SDL3 ç»Ÿä¸€å…¥å£ï¼š`cmake/SDL3.cmake`ï¼ˆä¼˜å…ˆ `find_package`ï¼Œå›é€€åˆ° `Examples/ThirdParty/SDL3`ï¼‰
+¿ìËÙ´´½¨ĞÂÊ¾Àı¹¤³Ì£º
+- Ä£°å£º`Examples/cmake/ExampleTemplate.cmake`
+- ÍÆ¼öÓÃ·¨£ºÔÚĞÂÊ¾Àı `CMakeLists.txt` ÖĞ `include(...)`£¬È»ºóµ÷ÓÃ `charm_example_*` ÏµÁĞº¯Êı
+- SDL3 Í³Ò»Èë¿Ú£º`cmake/SDL3.cmake`£¨ÓÅÏÈ `find_package`£¬»ØÍËµ½ `Examples/ThirdParty/SDL3`£©
 
-## ğŸ—º è·¯çº¿å›¾ï¼ˆæ‘˜è¦ï¼‰
-- **è¿‘æœŸ**ï¼šMCU è¿è¡ŒéªŒè¯ã€HAL MVPï¼ˆGPIO/UART/Timerï¼‰ã€time/sleep facade æœ€å°å®ç°
-- **ä¸­æœŸ**ï¼šmodule loader/XIP è‰æ¡ˆã€RT facadeï¼ˆçº¿ç¨‹ API åŒ…è£…ï¼‰ã€VFS å®Œå–„ï¼ˆç›®å½•/å¤šå—ï¼‰
-- **è¿œæœŸ**ï¼šFacade/Arduino æ›´ä¸°å¯Œã€æ¨¡å—çƒ­æ’æ‹”/ç­¾åã€USB/TCPIP/FS ç»„ä»¶æŒ‰éœ€å¼•å…¥ã€FatFS/FlashFS é€‚é…
+## ?? Â·ÏßÍ¼£¨ÕªÒª£©
+- **½üÆÚ**£ºMCU ÔËĞĞÑéÖ¤¡¢HAL MVP£¨GPIO/UART/Timer£©¡¢time/sleep facade ×îĞ¡ÊµÏÖ
+- **ÖĞÆÚ**£ºmodule loader/XIP ²İ°¸¡¢RT facade£¨Ïß³Ì API °ü×°£©¡¢VFS ÍêÉÆ£¨Ä¿Â¼/¶à¿é£©
+- **Ô¶ÆÚ**£ºFacade/Arduino ¸ü·á¸»¡¢Ä£¿éÈÈ²å°Î/Ç©Ãû¡¢USB/TCPIP/FS ×é¼ş°´ĞèÒıÈë¡¢FatFS/FlashFS ÊÊÅä
 
-## âœ… æœªæ¥ TODOï¼ˆä¸»çº¿é—­ç¯ï¼‰
-- **å‡çº§é—­ç¯**ï¼šå›ºä»¶ç­¾å/å¯†é’¥ç®¡ç†ã€ç‰ˆæœ¬æ²»ç†ã€å›æ»šç­–ç•¥ã€A/B åˆ†åŒºç­–ç•¥ã€OTA/ä¸‹è½½é€šé“
-- **å¹³å°é—­ç¯**ï¼šç»Ÿä¸€é©±åŠ¨æ¨¡å‹ã€BSP ç»„ç»‡ç»“æ„ã€æ¿çº§æ¨¡æ¿ã€ç§»æ¤æŒ‡å—ã€æœ€å°å¯è·‘æ¸…å•
-- **è¿è¡Œé—­ç¯**ï¼šç›‘æ§/è¯Šæ–­/å¼‚å¸¸æ¢å¤ã€å´©æºƒè½¬å‚¨ã€å¥åº·åº¦æŒ‡æ ‡ä¸æ•…éšœå½’å› 
-- **å­˜å‚¨é—­ç¯**ï¼šVFS æŒ‚è½½ç­–ç•¥ã€ç¼“å­˜/ä¸€è‡´æ€§ã€è½»é‡æ—¥å¿—æˆ–äº‹åŠ¡
-- **é€šä¿¡é—­ç¯**ï¼šç»Ÿä¸€ IO/transport æŠ½è±¡ã€RPC/æ¶ˆæ¯åè®®ã€è°ƒè¯•é€šé“
-- **å®‰å…¨é—­ç¯**ï¼šåªè¯»åŒºéªŒè¯ã€æœ€å°ä¿¡ä»»é“¾ã€å¯†é’¥å°è£…æ¥å£
-- **å·¥ç¨‹åŒ–**ï¼šè„šæ‰‹æ¶/æ¨¡æ¿å·¥ç¨‹ã€ä¾èµ–å›¾ä¸ç”Ÿæˆæ–‡æ¡£ã€PC/MCU smoke æµ‹è¯•
+## ? Î´À´ TODO£¨Ö÷Ïß±Õ»·£©
+- **Éı¼¶±Õ»·**£º¹Ì¼şÇ©Ãû/ÃÜÔ¿¹ÜÀí¡¢°æ±¾ÖÎÀí¡¢»Ø¹ö²ßÂÔ¡¢A/B ·ÖÇø²ßÂÔ¡¢OTA/ÏÂÔØÍ¨µÀ
+- **Æ½Ì¨±Õ»·**£ºÍ³Ò»Çı¶¯Ä£ĞÍ¡¢BSP ×éÖ¯½á¹¹¡¢°å¼¶Ä£°å¡¢ÒÆÖ²Ö¸ÄÏ¡¢×îĞ¡¿ÉÅÜÇåµ¥
+- **ÔËĞĞ±Õ»·**£º¼à¿Ø/Õï¶Ï/Òì³£»Ö¸´¡¢±ÀÀ£×ª´¢¡¢½¡¿µ¶ÈÖ¸±êÓë¹ÊÕÏ¹éÒò
+- **´æ´¢±Õ»·**£ºVFS ¹ÒÔØ²ßÂÔ¡¢»º´æ/Ò»ÖÂĞÔ¡¢ÇáÁ¿ÈÕÖ¾»òÊÂÎñ
+- **Í¨ĞÅ±Õ»·**£ºÍ³Ò» IO/transport ³éÏó¡¢RPC/ÏûÏ¢Ğ­Òé¡¢µ÷ÊÔÍ¨µÀ
+- **°²È«±Õ»·**£ºÖ»¶ÁÇøÑéÖ¤¡¢×îĞ¡ĞÅÈÎÁ´¡¢ÃÜÔ¿·â×°½Ó¿Ú
+- **¹¤³Ì»¯**£º½ÅÊÖ¼Ü/Ä£°å¹¤³Ì¡¢ÒÀÀµÍ¼ÓëÉú³ÉÎÄµµ¡¢PC/MCU smoke ²âÊÔ
 
-## ğŸ“œ è®¸å¯
-MITï¼ˆè§ LICENSEï¼‰ã€‚
+## ?? Ğí¿É
+MIT£¨¼û LICENSE£©¡£
+

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 4.0)
-project(vsf-fs-vfs-demo)
+﻿cmake_minimum_required(VERSION 4.0)
+project(service-core-demo)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)

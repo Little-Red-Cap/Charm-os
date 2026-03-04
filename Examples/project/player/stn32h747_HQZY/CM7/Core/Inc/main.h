@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f1xx_hal.h"
+#include "stm32h7xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -57,20 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define T_CLK_Pin GPIO_PIN_5
-#define T_CLK_GPIO_Port GPIOA
-#define T_RST_Pin GPIO_PIN_0
-#define T_RST_GPIO_Port GPIOB
-#define DBG_LED_Pin GPIO_PIN_9
-#define DBG_LED_GPIO_Port GPIOA
-#define TDO_SWO_Pin GPIO_PIN_10
-#define TDO_SWO_GPIO_Port GPIOA
-#define T_DIO_IN_Pin GPIO_PIN_3
-#define T_DIO_IN_GPIO_Port GPIOB
-#define T_DIO_OUT_Pin GPIO_PIN_5
-#define T_DIO_OUT_GPIO_Port GPIOB
-#define CONNECT_LED_Pin GPIO_PIN_6
-#define CONNECT_LED_GPIO_Port GPIOB
+#define KEY_WKUP_Pin GPIO_PIN_2
+#define KEY_WKUP_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

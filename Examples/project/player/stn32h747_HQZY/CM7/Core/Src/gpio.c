@@ -32,48 +32,20 @@
 
 /* USER CODE END 1 */
 
-/** Configure pins as
-        * Analog
-        * Input
-        * Output
-        * EVENT_OUT
-        * EXTI
+/** Configure pins
+     PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
+     PA13 (JTMS/SWDIO)   ------> DEBUG_JTMS-SWDIO
+     PA2   ------> PWR_WKUP2
 */
 void MX_GPIO_Init(void)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(T_CLK_GPIO_Port, T_CLK_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, T_RST_Pin|GPIO_PIN_4|T_DIO_OUT_Pin|CONNECT_LED_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : T_CLK_Pin */
-  GPIO_InitStruct.Pin = T_CLK_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(T_CLK_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : T_RST_Pin PB4 T_DIO_OUT_Pin CONNECT_LED_Pin */
-  GPIO_InitStruct.Pin = T_RST_Pin|GPIO_PIN_4|T_DIO_OUT_Pin|CONNECT_LED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : T_DIO_IN_Pin */
-  GPIO_InitStruct.Pin = T_DIO_IN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(T_DIO_IN_GPIO_Port, &GPIO_InitStruct);
 
 }
 

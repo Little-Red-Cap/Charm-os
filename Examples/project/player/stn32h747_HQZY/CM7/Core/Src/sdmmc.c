@@ -50,6 +50,7 @@ void MX_SDMMC1_SD_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SDMMC1_Init 2 */
+  /* HAL_SD_Init is invoked by the app-level init for diagnostics. */
 
   /* USER CODE END SDMMC1_Init 2 */
 

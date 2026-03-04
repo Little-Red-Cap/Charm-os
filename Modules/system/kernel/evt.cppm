@@ -20,6 +20,7 @@ export namespace kernel {
         reactor_drain,
         user0,
         user1,
+        input_pump,
         count
     };
 

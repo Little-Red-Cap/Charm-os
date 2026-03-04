@@ -64,4 +64,15 @@ export namespace input {
         hal::RawInputSource source_{detail::g_null_driver};
         RawSampler sampler_{};
     };
+
+    inline InputService* g_service = nullptr;
+
+    inline void set_service(InputService& service) noexcept {
+        g_service = &service;
+    }
+
+    [[nodiscard]] inline InputService& service() noexcept {
+        static InputService fallback{};
+        return g_service ? *g_service : fallback;
+    }
 } // namespace input

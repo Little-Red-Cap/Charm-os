@@ -68,7 +68,7 @@ extern "C" {
 
 namespace {
     constexpr util::usize kRxCap = 64;
-    constexpr util::usize kTxCap = 64;
+    constexpr util::usize kTxCap = 640;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
 
     struct PumpConfig : kernel::KernelConfig {
@@ -90,8 +90,8 @@ int main() {
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_USART1_UART_Init();
-    MX_SDMMC1_SD_Init();
-    MX_I2S1_Init();
+    // MX_SDMMC1_SD_Init();
+    // MX_I2S1_Init();
 
     auto caps = platform::board::stn32h747xi::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;

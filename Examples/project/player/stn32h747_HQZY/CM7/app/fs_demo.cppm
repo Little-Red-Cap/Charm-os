@@ -28,14 +28,31 @@ import out.channel;
 
 namespace {
     static out::channel_sink* g_sink = nullptr;
+    constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
         if (!g_sink) return;
-        (void)out::println<Fmt>(*g_sink, std::forward<Args>(args)...);
+        const util::u32 start = HAL_GetTick();
+        while (true) {
+            auto r = out::try_println<Fmt>(*g_sink, std::forward<Args>(args)...);
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
+        const util::u32 flush_start = HAL_GetTick();
+        while (true) {
+            auto r = g_sink->flush();
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - flush_start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
     }
 
     constexpr util::u32 kTimeoutMs = 1000;
     constexpr bool kSdmmcVerbose = true;
+    constexpr bool kSdmmcVerboseGpio = false;
     constexpr util::u32 kSdmmcInitClockDiv = 480; // ~400kHz when SDMMC clock is 192MHz
     constexpr bool kSdmmcTry4Bit = false;
 
@@ -214,31 +231,34 @@ namespace {
                 const auto ahb2enr = static_cast<util::u32>(RCC->AHB2ENR);
                 const auto ahb3enr = static_cast<util::u32>(RCC->AHB3ENR);
                 const auto SDMMC1_en = (__HAL_RCC_SDMMC1_IS_CLK_ENABLED() != 0u) ? 1 : 0;
-                log<"fs sdmmc: rcc sdmmc_src=0x{:08X} ahb2enr=0x{:08X} ahb3enr=0x{:08X} SDMMC1_en={}">(
+                log<"fs sdmmc: rcc src=0x{:08X} SDMMC1_en={}">(
                     sdmmc_src,
-                    ahb2enr,
-                    ahb3enr,
                     SDMMC1_en);
-                log<"fs sdmmc: gpioa moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOA->MODER),
-                    static_cast<util::u32>(GPIOA->PUPDR),
-                    static_cast<util::u32>(GPIOA->AFR[0]),
-                    static_cast<util::u32>(GPIOA->AFR[1]));
-                log<"fs sdmmc: gpiob moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOB->MODER),
-                    static_cast<util::u32>(GPIOB->PUPDR),
-                    static_cast<util::u32>(GPIOB->AFR[0]),
-                    static_cast<util::u32>(GPIOB->AFR[1]));
-                log<"fs sdmmc: gpiod moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOD->MODER),
-                    static_cast<util::u32>(GPIOD->PUPDR),
-                    static_cast<util::u32>(GPIOD->AFR[0]),
-                    static_cast<util::u32>(GPIOD->AFR[1]));
-                log<"fs sdmmc: gpiog moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOG->MODER),
-                    static_cast<util::u32>(GPIOG->PUPDR),
-                    static_cast<util::u32>(GPIOG->AFR[0]),
-                    static_cast<util::u32>(GPIOG->AFR[1]));
+                log<"fs sdmmc: rcc ahb2=0x{:08X} ahb3=0x{:08X}">(
+                    ahb2enr,
+                    ahb3enr);
+                if constexpr (kSdmmcVerboseGpio) {
+                    log<"fs sdmmc: gpioa moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOA->MODER),
+                        static_cast<util::u32>(GPIOA->PUPDR),
+                        static_cast<util::u32>(GPIOA->AFR[0]),
+                        static_cast<util::u32>(GPIOA->AFR[1]));
+                    log<"fs sdmmc: gpiob moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOB->MODER),
+                        static_cast<util::u32>(GPIOB->PUPDR),
+                        static_cast<util::u32>(GPIOB->AFR[0]),
+                        static_cast<util::u32>(GPIOB->AFR[1]));
+                    log<"fs sdmmc: gpiod moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOD->MODER),
+                        static_cast<util::u32>(GPIOD->PUPDR),
+                        static_cast<util::u32>(GPIOD->AFR[0]),
+                        static_cast<util::u32>(GPIOD->AFR[1]));
+                    log<"fs sdmmc: gpiog moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOG->MODER),
+                        static_cast<util::u32>(GPIOG->PUPDR),
+                        static_cast<util::u32>(GPIOG->AFR[0]),
+                        static_cast<util::u32>(GPIOG->AFR[1]));
+                }
                 const auto cmd = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
                 const auto d0 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_14);
                 const auto d1 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_15);

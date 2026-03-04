@@ -1,18 +1,22 @@
 module;
 
 #include <array>
+#include <optional>
 #include <span>
 
 export module charm.system.bringup;
 
 import charm.system.init_core;
+import charm.system.init_input;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
 import charm.system.clock;
+import hal_input;
 import init.graph;
 import init.node;
 import io.registry;
 import io.reactor;
+import input.pump;
 import kernel.eda;
 import platform.board;
 import util.core;
@@ -26,26 +30,65 @@ export namespace charm::system {
               util::usize TxCap>
     class BringupMinimal {
     public:
+        struct InputBringupDesc {
+            const platform::board::InputDesc* desc{nullptr};
+            input::InputPumpTask* pump{nullptr};
+            input::ScheduleFn schedule{nullptr};
+            void* schedule_ctx{nullptr};
+            kernel::TaskId pump_id{};
+            input::SinkFn sink{nullptr};
+            void* sink_ctx{nullptr};
+            InputInitCfg cfg{};
+        };
+
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
+                       const platform::board::InputDesc& input_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
                        void* post_ctx,
                        kernel::TaskId pump_id,
-                       util::usize budget = 8) noexcept
+                       util::usize budget = 8,
+                       InputBringupDesc input = {}) noexcept
             : uart_(uart),
               core_(charm::system::ClockOps{clock_desc.now_ms, clock_desc.now_us},
                     clock_desc.ctx,
                     pump_task, post_fn, post_ctx, pump_id, budget),
               board_(core_.registry, core_.reactor,
-                     uart.handle, uart.config, uart.io_cap, uart.hal_cap) {}
+                     uart.handle, uart.config, uart.io_cap, uart.hal_cap),
+              input_desc_(input_desc) {
+            if (!input.desc) {
+                input.desc = &input_desc_;
+            }
+            if (input.desc && input.pump && input.schedule) {
+                static const hal::RawInputDriver kNullDriver{};
+                const auto* driver = input.desc->driver ? input.desc->driver : &kNullDriver;
+                InputInitCaps caps{
+                    input.desc->service_cap,
+                    input.desc->pump_cap,
+                    "system.clock",
+                    "kernel.eda"
+                };
+                input_.emplace(hal::RawInputSource{*driver},
+                               *input.pump,
+                               input.schedule,
+                               input.schedule_ctx,
+                               input.pump_id,
+                               input.sink,
+                               input.sink_ctx,
+                               input.cfg,
+                               caps);
+                input_nodes_ = input_->node_span();
+            }
+        }
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
             const auto core_nodes = core_.node_span();
             const auto board_nodes = board_.node_span();
-            const auto total = core_nodes.size() + board_nodes.size() + extra_nodes.size();
+            const auto total =
+                core_nodes.size() + board_nodes.size() + input_nodes_.size() + extra_nodes.size();
             if (total > MaxNodes) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
@@ -56,6 +99,9 @@ export namespace charm::system {
             }
             for (util::usize i = 0; i < board_nodes.size(); ++i) {
                 nodes[idx++] = board_nodes[i];
+            }
+            for (util::usize i = 0; i < input_nodes_.size(); ++i) {
+                nodes[idx++] = input_nodes_[i];
             }
             for (util::usize i = 0; i < extra_nodes.size(); ++i) {
                 nodes[idx++] = extra_nodes[i];
@@ -92,7 +138,10 @@ export namespace charm::system {
     private:
         platform::board::UartDesc uart_{};
         CoreSystemChain<MaxEndpoints> core_;
-        init::Graph<MaxNodes, MaxCaps> graph_{};
         UsartInitChain<io::Registry<MaxEndpoints>, RxCap, TxCap> board_;
+        platform::board::InputDesc input_desc_{};
+        init::Graph<MaxNodes, MaxCaps> graph_{};
+        std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
+        std::span<const init::Node* const> input_nodes_{};
     };
 }

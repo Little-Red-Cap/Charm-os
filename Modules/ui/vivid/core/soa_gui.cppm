@@ -1001,13 +1001,13 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     Rect clip_rect{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
     if (clip_rect.w < 0) clip_rect.w = 0;
     if (clip_rect.h < 0) clip_rect.h = 0;
-    out.push_clip(clip_rect);
 
     const std::uint16_t rows = kernel.table_view_row_count(h);
     const std::uint8_t cols = kernel.table_view_col_count(h);
     int row_h = kernel.list_row_height(h);
     if (row_h <= 0) row_h = 1;
     const int scroll_y = kernel.scroll_y(h);
+    const int scroll_x = kernel.table_view_scroll_x(h);
     const std::uint8_t overscan = kernel.table_view_overscan(h);
     int col_w = kernel.table_view_col_width(h);
     const bool has_col_fn = kernel.table_view_has_col_width_fn(h);
@@ -1017,23 +1017,45 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         col_w = (cols > 0) ? (clip_rect.w / cols) : clip_rect.w;
     }
     if (col_w <= 0) col_w = 1;
+    const bool has_header = kernel.table_view_has_header(h);
+    int header_h = kernel.table_view_header_height(h);
+    if (header_h < 0) header_h = 0;
+    if (header_h > clip_rect.h) header_h = clip_rect.h;
+    Rect body_rect{clip_rect.x, clip_rect.y + header_h, clip_rect.w, clip_rect.h - header_h};
+    if (body_rect.h < 0) body_rect.h = 0;
+
     int col_start = 0;
     int col_end = static_cast<int>(cols);
+    int x_start = clip_rect.x;
     if (cols > 0 && clip_rect.w > 0) {
-        if (fixed_cols || equal_cols) {
+        if (fixed_cols) {
+            if (scroll_x > 0 && col_w > 0) {
+                col_start = scroll_x / col_w;
+                const int offset = scroll_x - col_start * col_w;
+                x_start = clip_rect.x - offset;
+            }
             const int visible_cols = (clip_rect.w + col_w - 1) / col_w;
             col_end = col_start + visible_cols + 1;
             if (col_end > static_cast<int>(cols)) col_end = static_cast<int>(cols);
+        } else if (equal_cols) {
+            col_start = 0;
+            col_end = static_cast<int>(cols);
+            x_start = clip_rect.x;
         } else if (has_col_fn) {
-            int x_accum = 0;
-            for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
-                int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-                if (w <= 0) w = 1;
-                x_accum += w;
+            if (scroll_x > 0) {
+                int x_accum = 0;
+                while (col_start < static_cast<int>(cols)) {
+                    int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col_start));
+                    if (w <= 0) w = 1;
+                    if (x_accum + w > scroll_x) break;
+                    x_accum += w;
+                    ++col_start;
+                }
+                x_start = clip_rect.x - (scroll_x - x_accum);
             }
-            int x_cursor = x_accum;
+            int x_cursor = x_start;
             col_end = col_start;
-            while (col_end < static_cast<int>(cols) && x_cursor < clip_rect.w) {
+            while (col_end < static_cast<int>(cols) && x_cursor < clip_rect.x + clip_rect.w) {
                 int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col_end));
                 if (w <= 0) w = 1;
                 x_cursor += w;
@@ -1045,24 +1067,45 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         }
     }
 
+    const int header_pad = (metrics.header_padding > 0) ? metrics.header_padding : pad;
+    if (has_header && header_h > 0 && cols > 0) {
+        const Rect header_rect{clip_rect.x, clip_rect.y, clip_rect.w, header_h};
+        out.fill_rect(header_rect, colors.bg);
+        out.fill_rect(Rect{header_rect.x, header_rect.y + header_rect.h - 1, header_rect.w, 1}, colors.border);
+        int x = x_start;
+        for (int col = col_start; col < col_end; ++col) {
+            int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
+            if (!has_col_fn && equal_cols && cols > 0) {
+                if (static_cast<std::uint8_t>(col + 1) == cols) {
+                    w = clip_rect.x + clip_rect.w - x;
+                }
+            }
+            if (w <= 0) {
+                x += has_col_fn ? 1 : col_w;
+                continue;
+            }
+            Rect cell{x, header_rect.y, w, header_h};
+            const char* text = kernel.table_view_header_text(h, static_cast<std::uint8_t>(col));
+            Rect text_rect{cell.x + header_pad, cell.y, cell.w - header_pad * 2, cell.h};
+            if (text_rect.w < 0) text_rect.w = 0;
+            out.draw_text_box(text_rect, text ? text : "", colors.font, font_from_metrics(metrics),
+                              TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            x += w;
+        }
+    }
+
+    out.push_clip(body_rect);
+
     const int base_start = (row_h > 0) ? (scroll_y / row_h) : 0;
     int start = base_start - static_cast<int>(overscan);
     if (start < 0) start = 0;
-    int y = clip_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
-    const int visible = (row_h > 0) ? (clip_rect.h / row_h + 1 + overscan * 2) : 0;
+    int y = body_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
+    int visible = 0;
+    if (row_h > 0 && body_rect.h > 0) {
+        visible = body_rect.h / row_h + 1 + overscan * 2;
+    }
     int end = start + visible;
     if (end > static_cast<int>(rows)) end = static_cast<int>(rows);
-
-    int x_start = clip_rect.x;
-    if (has_col_fn && col_start > 0) {
-        for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
-            int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-            if (w <= 0) w = 1;
-            x_start += w;
-        }
-    } else if (!has_col_fn && col_start > 0) {
-        x_start = clip_rect.x + col_start * col_w;
-    }
 
     for (int row = start; row < end; ++row) {
         int x = x_start;
@@ -1084,46 +1127,36 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             x += w;
         }
-        out.fill_rect(Rect{clip_rect.x, y + row_h - 1, clip_rect.w, 1}, colors.border);
+        out.fill_rect(Rect{body_rect.x, y + row_h - 1, body_rect.w, 1}, colors.border);
         y += row_h;
     }
 
-    if (end > start) {
-        const int line_h = (end - start) * row_h;
+    out.pop_clip();
+
+    if ((end > start || header_h > 0) && cols > 0) {
+        const int line_h_body = (end > start) ? (end - start) * row_h : 0;
+        const int line_y_body = body_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
+        const int line_y = header_h > 0 ? clip_rect.y : line_y_body;
+        const int line_h = line_h_body + ((header_h > 0) ? header_h : 0);
         if (line_h > 0) {
-            const int line_y = clip_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
-            if (fixed_cols || equal_cols) {
-                for (int col = col_start + 1; col < col_end; ++col) {
-                    const int x = clip_rect.x + col * col_w;
-                    out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                }
-            } else if (has_col_fn) {
-                int x = x_start;
-                for (int col = col_start; col < col_end; ++col) {
-                    int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-                    if (w <= 0) w = 1;
-                    if (col > col_start) {
-                        out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                    }
-                    x += w;
-                }
-            } else {
-                int x = clip_rect.x;
-                for (std::uint8_t col = 0; col < cols; ++col) {
-                    int w = col_w;
-                    if (col + 1u == cols) {
+            int x = x_start;
+            for (int col = col_start; col < col_end; ++col) {
+                int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
+                if (!has_col_fn && equal_cols && cols > 0) {
+                    if (static_cast<std::uint8_t>(col + 1) == cols) {
                         w = clip_rect.x + clip_rect.w - x;
                     }
-                    if (col > 0) {
-                        out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                    }
-                    x += w;
                 }
+                if (col > col_start) {
+                    out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
+                }
+                if (w <= 0) {
+                    w = has_col_fn ? 1 : col_w;
+                }
+                x += w;
             }
         }
     }
-
-    out.pop_clip();
     if (state.focused) {
         out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, -1);
     }

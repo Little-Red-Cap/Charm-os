@@ -210,6 +210,13 @@ namespace {
         return src->rows[row % src->row_count];
     }
 
+    const char* table_view_header_at(const void* ctx, std::uint8_t col) noexcept {
+        const auto* src = static_cast<const TableViewTextSource*>(ctx);
+        if (!src || !src->cols || src->col_count == 0) return "";
+        if (col >= src->col_count) return "";
+        return src->cols[col];
+    }
+
     int table_view_col_width_at(const void* ctx, std::uint8_t col) noexcept {
         const auto* src = static_cast<const TableViewColWidthSource*>(ctx);
         if (!src || !src->widths || src->count == 0) return 0;
@@ -1393,6 +1400,7 @@ namespace {
             static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
         };
         factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
+        factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
         factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {
@@ -1444,6 +1452,16 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const int table_x_before = kernel.table_view_scroll_x(table_view);
+        kernel.set_table_view_scroll_x(table_view, table_x_before + 120);
+        gui.render();
+        const int table_x_after = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after != table_x_before, "tableview: horiz scroll did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: horiz invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: horiz pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: horiz missing paint", fails);
 
         kernel.layout_trace_reset();
         const Rect tree_root_r = kernel.rect(tree_root);
@@ -1901,6 +1919,7 @@ int main(int argc, char** argv) {
         static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
     };
     factory.set_table_view_source(table_view, 1000, 4, &table_source, &table_view_text_at);
+    factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
 
     const char* tree_items[] = {
         "Root", "Alpha", "Beta", "Gamma",

@@ -133,6 +133,7 @@ enum class SoaInputActionType : std::uint8_t {
     ClearSiblingChecks,
     ScrollBy,
     SetScrollYClamped,
+    SetScrollXClamped,
     SetValue,
     UpdateSliderFromPos,
     SetSegmentedIndex,
@@ -1469,7 +1470,31 @@ public:
         payload->text_fn = fn;
         payload->row_count = rows;
         payload->col_count = cols;
+        if (payload->scroll_x != 0) {
+            payload->scroll_x = clamp_scroll_x(h, payload->scroll_x);
+        }
         mark_layout_dirty();
+    }
+
+    void set_table_view_header(WidgetHandle h, const void* ctx,
+                               soa_detail::TableViewHeaderFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (payload->header_ctx != ctx || payload->header_fn != fn) {
+            payload->header_ctx = ctx;
+            payload->header_fn = fn;
+            if (payload->scroll_y != 0) {
+                set_scroll_y_clamped(h, payload->scroll_y);
+            }
+            mark_paint_dirty();
+        }
     }
 
     void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
@@ -1498,6 +1523,31 @@ public:
         return payload ? payload->row_count : 0;
     }
 
+    bool table_view_has_header(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return false;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? (payload->header_fn != nullptr) : false;
+    }
+
+    int table_view_header_height(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload || !payload->header_fn) return 0;
+        return payload->row_height > 0 ? payload->row_height : 0;
+    }
+
     std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
@@ -1508,6 +1558,21 @@ public:
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         return payload ? payload->col_count : 0;
+    }
+
+    const char* table_view_header_text(WidgetHandle h, std::uint8_t col) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload || !payload->header_fn) return "";
+        if (col >= payload->col_count) return "";
+        const char* text = payload->header_fn(payload->header_ctx, col);
+        return text ? text : "";
     }
 
     bool table_view_has_col_width_fn(WidgetHandle h) const noexcept {
@@ -1552,6 +1617,18 @@ public:
         return payload->col_width;
     }
 
+    int table_view_scroll_x(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->scroll_x : 0;
+    }
+
     void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1568,6 +1645,9 @@ public:
             if (col_width > 0) {
                 payload->col_width_ctx = nullptr;
                 payload->col_width_fn = nullptr;
+            }
+            if (payload->scroll_x != 0) {
+                payload->scroll_x = clamp_scroll_x(h, payload->scroll_x);
             }
             mark_paint_dirty();
         }
@@ -1590,8 +1670,15 @@ public:
             if (fn) {
                 payload->col_width = 0;
             }
+            if (payload->scroll_x != 0) {
+                payload->scroll_x = clamp_scroll_x(h, payload->scroll_x);
+            }
             mark_paint_dirty();
         }
+    }
+
+    void set_table_view_scroll_x(WidgetHandle h, int x) noexcept {
+        set_table_view_scroll_x_clamped(h, x);
     }
 
     std::uint8_t table_view_overscan(WidgetHandle h) const noexcept {
@@ -2578,8 +2665,12 @@ public:
             if (!payload) return 0;
             const int count = payload->row_count;
             const int row_h = payload->row_height;
-            if (count <= 0 || row_h <= 0) return 0;
-            return count * row_h;
+            if (row_h <= 0) return 0;
+            int total = count * row_h;
+            if (payload->header_fn) {
+                total += row_h;
+            }
+            return total;
         }
         if (desc.payload == soa_detail::PayloadKind::TreeView) {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
@@ -2617,6 +2708,73 @@ public:
         if (y < 0) return 0;
         if (y > max_scroll_value) return max_scroll_value;
         return y;
+    }
+
+    int table_view_content_width(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) return 0;
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return 0;
+        const std::uint8_t cols = payload->col_count;
+        if (cols == 0) return 0;
+        if (!payload->col_width_fn) {
+            if (payload->col_width <= 0) return 0;
+            return payload->col_width * static_cast<int>(cols);
+        }
+        int total = 0;
+        for (std::uint8_t col = 0; col < cols; ++col) {
+            int w = payload->col_width_fn(payload->col_width_ctx, col);
+            if (w <= 0) w = 1;
+            total += w;
+        }
+        return total;
+    }
+
+    int max_scroll_x(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) return 0;
+        const Rect r = common_.rects[idx];
+        int pad = 0;
+        const StyleState state = input_make_state(*this, h);
+        const ResolvedStyleView view = StyleSheet::instance().lookup(common_.kind[idx], state);
+        if (view.metrics) {
+            pad = view.metrics->padding;
+            if (pad < 0) pad = 0;
+        }
+        int viewport = r.w - pad * 2;
+        if (viewport < 0) viewport = 0;
+        const int content_w = table_view_content_width(h);
+        int max_scroll = content_w - viewport;
+        if (max_scroll < 0) max_scroll = 0;
+        return max_scroll;
+    }
+
+    int clamp_scroll_x(WidgetHandle h, int x) const noexcept {
+        const int max_scroll_value = max_scroll_x(h);
+        if (x < 0) return 0;
+        if (x > max_scroll_value) return max_scroll_value;
+        return x;
+    }
+
+    void set_table_view_scroll_x_clamped(WidgetHandle h, int x) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const int clamped = clamp_scroll_x(h, x);
+        if (payload->scroll_x != clamped) {
+            payload->scroll_x = clamped;
+            mark_paint_dirty();
+        }
     }
 
     void set_scroll_y_clamped(WidgetHandle h, int y) noexcept {
@@ -3367,6 +3525,9 @@ private:
         case SoaInputActionType::SetScrollYClamped:
             set_scroll_y_clamped(action.target, action.a);
             break;
+        case SoaInputActionType::SetScrollXClamped:
+            set_table_view_scroll_x_clamped(action.target, action.a);
+            break;
         case SoaInputActionType::SetValue:
             set_value(action.target, action.a);
             break;
@@ -3591,7 +3752,14 @@ private:
         const int min_v = min_value(h);
         const int max_v = max_value(h);
         const int range = (max_v > min_v) ? (max_v - min_v) : 0;
-        int max_scroll_value = target ? max_scroll(target) : range;
+        int max_scroll_value = 0;
+        if (target) {
+            max_scroll_value = (orient == ScrollBarOrientation::Vertical)
+                ? max_scroll(target)
+                : max_scroll_x(target);
+        } else {
+            max_scroll_value = range;
+        }
         if (max_scroll_value < 0) max_scroll_value = 0;
 
         int page = scrollbar_page_size(h);
@@ -3614,7 +3782,14 @@ private:
         if (thumb_len > track_len) thumb_len = track_len;
         int max_thumb = track_len - thumb_len;
 
-        int scroll = target ? scroll_y(target) : (value(h) - min_v);
+        int scroll = 0;
+        if (target) {
+            scroll = (orient == ScrollBarOrientation::Vertical)
+                ? scroll_y(target)
+                : table_view_scroll_x(target);
+        } else {
+            scroll = value(h) - min_v;
+        }
         if (scroll < 0) scroll = 0;
         if (scroll > max_scroll_value) scroll = max_scroll_value;
         const int track_start = (orient == ScrollBarOrientation::Vertical) ? (r.y + margin) : (r.x + margin);
@@ -3652,7 +3827,11 @@ private:
         if (next < 0) next = 0;
         if (next > info.max_scroll) next = info.max_scroll;
         if (info.target) {
-            input_emit_action(SoaInputAction{SoaInputActionType::SetScrollYClamped, info.target, next, 0});
+            if (info.orient == ScrollBarOrientation::Horizontal) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetScrollXClamped, info.target, next, 0});
+            } else {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetScrollYClamped, info.target, next, 0});
+            }
         } else {
             input_emit_action(SoaInputAction{SoaInputActionType::SetValue, h, info.min_value + next, 0});
         }
@@ -3715,7 +3894,11 @@ private:
                 next = (offset * info.max_scroll) / info.max_thumb;
             }
             if (info.target) {
-                set_scroll_y_clamped(info.target, next);
+                if (info.orient == ScrollBarOrientation::Horizontal) {
+                    set_table_view_scroll_x_clamped(info.target, next);
+                } else {
+                    set_scroll_y_clamped(info.target, next);
+                }
             } else {
                 set_value(h, info.min_value + next);
             }
@@ -4227,6 +4410,11 @@ export
                                    soa_detail::TableViewTextFn fn) noexcept {
             kernel_.set_table_view_source(h, rows, cols, ctx, fn);
         }
+        void set_table_view_header(WidgetHandle h,
+                                   const void* ctx,
+                                   soa_detail::TableViewHeaderFn fn) noexcept {
+            kernel_.set_table_view_header(h, ctx, fn);
+        }
         void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
             kernel_.set_table_view_count(h, rows);
         }
@@ -4237,6 +4425,9 @@ export
                                          const void* ctx,
                                          soa_detail::TableViewColWidthFn fn) noexcept {
             kernel_.set_table_view_col_width_fn(h, ctx, fn);
+        }
+        void set_table_view_scroll_x(WidgetHandle h, int x) noexcept {
+            kernel_.set_table_view_scroll_x(h, x);
         }
         void set_tree_view_source(WidgetHandle h,
                                   std::uint16_t count,

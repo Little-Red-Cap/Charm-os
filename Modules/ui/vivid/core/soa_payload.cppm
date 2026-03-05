@@ -216,6 +216,7 @@ export namespace soa_detail {
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = ImageId (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
+    using TableViewHeaderFn = const char* (*)(const void*, std::uint8_t) noexcept;
     using TableViewColWidthFn = int (*)(const void*, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TreeViewIndentFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
@@ -237,12 +238,15 @@ export namespace soa_detail {
     struct TableViewPayload {
         const void* text_ctx{nullptr};
         TableViewTextFn text_fn{nullptr};
+        const void* header_ctx{nullptr};
+        TableViewHeaderFn header_fn{nullptr};
         const void* col_width_ctx{nullptr};
         TableViewColWidthFn col_width_fn{nullptr};
         std::uint16_t row_count{0};
         std::uint8_t col_count{0};
         std::uint8_t overscan{2};
         int col_width{0};
+        int scroll_x{0};
         int scroll_y{0};
         int row_height{28};
         int wheel_step{24};

@@ -175,6 +175,7 @@ enum class SoaWheelTargetPolicy : std::uint8_t {
 enum class SoaDragBehavior : std::uint8_t {
     None,
     UpdateValueFromPos,
+    ScrollBarTrack,
     ScrollDrag
 };
 
@@ -592,7 +593,8 @@ public:
                 const WidgetHandle drag_target = input_drag_target();
                 if (drag_target) {
                     const SoaBehavior behavior = behavior_for_kind(kind(drag_target));
-                    if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos) {
+                    if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos
+                        || behavior.drag_behavior == SoaDragBehavior::ScrollBarTrack) {
                         input_queue_update_slider_value(drag_target, e.x, e.y);
                     }
                 }
@@ -2711,17 +2713,19 @@ struct SoaBehavior {
     SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
     bool scrollable{false};
     bool capture_on_press{false};
+    bool checkable{false};
     SoaDragBehavior drag_behavior{SoaDragBehavior::None};
 };
 
     static constexpr SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
         SoaBehavior behavior{};
-        switch (kind) {
-        case WidgetKind::Switch:
-        case WidgetKind::Checkbox:
-            behavior.click = SoaClickBehavior::Toggle;
-            behavior.capture_on_press = true;
-            break;
+    switch (kind) {
+    case WidgetKind::Switch:
+    case WidgetKind::Checkbox:
+        behavior.click = SoaClickBehavior::Toggle;
+        behavior.capture_on_press = true;
+        behavior.checkable = true;
+        break;
         case WidgetKind::SegmentedControl:
         case WidgetKind::TabView:
             behavior.click = SoaClickBehavior::SegmentedControl;
@@ -2739,21 +2743,24 @@ struct SoaBehavior {
             behavior.click = SoaClickBehavior::ListView;
             behavior.capture_on_press = true;
             break;
-        case WidgetKind::Radio:
-            behavior.click = SoaClickBehavior::RadioGroup;
-            behavior.group_kind = WidgetKind::Radio;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::ListItem:
-            behavior.click = SoaClickBehavior::ListItemGroup;
-            behavior.group_kind = WidgetKind::ListItem;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::MenuItem:
-            behavior.click = SoaClickBehavior::ListItemGroup;
-            behavior.group_kind = WidgetKind::MenuItem;
-            behavior.capture_on_press = true;
-            break;
+    case WidgetKind::Radio:
+        behavior.click = SoaClickBehavior::RadioGroup;
+        behavior.group_kind = WidgetKind::Radio;
+        behavior.capture_on_press = true;
+        behavior.checkable = true;
+        break;
+    case WidgetKind::ListItem:
+        behavior.click = SoaClickBehavior::ListItemGroup;
+        behavior.group_kind = WidgetKind::ListItem;
+        behavior.capture_on_press = true;
+        behavior.checkable = true;
+        break;
+    case WidgetKind::MenuItem:
+        behavior.click = SoaClickBehavior::ListItemGroup;
+        behavior.group_kind = WidgetKind::MenuItem;
+        behavior.capture_on_press = true;
+        behavior.checkable = true;
+        break;
         default:
             break;
         }
@@ -2797,15 +2804,19 @@ struct SoaBehavior {
         default:
             break;
         }
-        switch (kind) {
-        case WidgetKind::Slider:
-        case WidgetKind::ScrollBar:
-            behavior.drag_behavior = SoaDragBehavior::UpdateValueFromPos;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::Button:
-            behavior.capture_on_press = true;
-            break;
+    switch (kind) {
+    case WidgetKind::Slider:
+        behavior.drag_behavior = SoaDragBehavior::UpdateValueFromPos;
+        behavior.capture_on_press = true;
+        break;
+    case WidgetKind::ScrollBar:
+        behavior.drag_behavior = SoaDragBehavior::ScrollBarTrack;
+        behavior.capture_on_press = true;
+        break;
+    case WidgetKind::Button:
+    case WidgetKind::IconButton:
+        behavior.capture_on_press = true;
+        break;
         case WidgetKind::Switch:
         case WidgetKind::Checkbox:
         case WidgetKind::Radio:
@@ -3093,16 +3104,7 @@ private:
     }
 
     static bool input_is_checkable_kind(WidgetKind kind) noexcept {
-        switch (kind) {
-        case WidgetKind::Switch:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::ListItem:
-        case WidgetKind::MenuItem:
-            return true;
-        default:
-            return false;
-        }
+        return behavior_for_kind(kind).checkable;
     }
 
     static int clamp_int(int v, int lo, int hi) noexcept {
@@ -3223,13 +3225,12 @@ private:
             }
             input_emit_event(input_.pressed, Event::mouse(Event::Type::MouseDown, x, y, button, input_.last_ms));
             if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos) {
-                const WidgetKind k = kind(input_.pressed);
-                if (k == WidgetKind::ScrollBar) {
-                    const StyleState state = input_make_state(*this, input_.pressed);
-                    const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::ScrollBar, state);
-                    if (input_scrollbar_page_click(input_.pressed, x, y, view.metrics)) {
-                        return;
-                    }
+                input_queue_update_slider_value(input_.pressed, x, y);
+            } else if (behavior.drag_behavior == SoaDragBehavior::ScrollBarTrack) {
+                const StyleState state = input_make_state(*this, input_.pressed);
+                const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::ScrollBar, state);
+                if (input_scrollbar_page_click(input_.pressed, x, y, view.metrics)) {
+                    return;
                 }
                 input_queue_update_slider_value(input_.pressed, x, y);
             }
@@ -3514,7 +3515,7 @@ private:
         const SoaBehavior behavior = behavior_for_kind(k);
         const WidgetHandle toggle_group = input_find_toggle_group_ancestor(h);
         const WidgetKind group_kind = toggle_group ? toggle_group_kind(toggle_group) : WidgetKind::None;
-        const bool in_toggle_group = toggle_group && input_is_checkable_kind(k);
+        const bool in_toggle_group = toggle_group && behavior.checkable;
         switch (behavior.click) {
         case SoaClickBehavior::None:
             break;
@@ -3665,7 +3666,7 @@ private:
             if (child == h) continue;
             const WidgetKind child_kind = this->kind(child);
             if (kind == WidgetKind::None) {
-                if (input_is_checkable_kind(child_kind)) {
+                if (behavior_for_kind(child_kind).checkable) {
                     set_checked(child, false);
                 }
             } else if (child_kind == kind) {
@@ -3698,11 +3699,12 @@ private:
 
     void input_apply_update_slider_value(WidgetHandle h, int x, int y) {
         const WidgetKind k = kind(h);
+        const SoaBehavior behavior = behavior_for_kind(k);
         const StyleState state = input_make_state(*this, h);
         const ResolvedStyleView view = StyleSheet::instance().lookup(k, state);
         const ResolvedMetrics* metrics = view.metrics;
 
-        if (k == WidgetKind::ScrollBar) {
+        if (behavior.drag_behavior == SoaDragBehavior::ScrollBarTrack) {
             ScrollBarTrackInfo info{};
             if (!scrollbar_track_info(h, metrics, info)) return;
             const int coord = (info.orient == ScrollBarOrientation::Vertical) ? y : x;
@@ -3717,6 +3719,10 @@ private:
             } else {
                 set_value(h, info.min_value + next);
             }
+            return;
+        }
+
+        if (behavior.drag_behavior != SoaDragBehavior::UpdateValueFromPos) {
             return;
         }
 

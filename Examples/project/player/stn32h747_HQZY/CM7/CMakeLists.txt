@@ -73,6 +73,12 @@ file(GLOB_RECURSE MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/*.cppm"
 )
+list(APPEND MODULE_INTERFACE_UNITS
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_app_state.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_controller.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_fs_utils.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_ui_ink.cppm"
+)
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
@@ -97,7 +103,7 @@ add_compile_definitions(CORE_CM7)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../..")
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
@@ -118,7 +124,3 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 if(CMAKE_C_STANDARD LESS 11)
     message(ERROR "Generated code requires C11 or higher")
 endif()
-
-
-
-

@@ -32,6 +32,26 @@ namespace {
     }
 
     constexpr std::size_t kMaxSegments = 8;
+    constexpr int kWheelQ15 = 32767;
+    constexpr int kWheelLutSize = 72;
+    struct WheelQ15Point {
+        std::int16_t x{};
+        std::int16_t y{};
+    };
+    constexpr std::array<WheelQ15Point, kWheelLutSize> kWheelLut{{
+        {0, -32767},{2856, -32642},{5690, -32269},{8481, -31650},{11207, -30791},{13848, -29697},
+        {16383, -28377},{18794, -26841},{21062, -25101},{23170, -23170},{25101, -21062},{26841, -18794},
+        {28377, -16384},{29697, -13848},{30791, -11207},{31650, -8481},{32269, -5690},{32642, -2856},
+        {32767, 0},{32642, 2856},{32269, 5690},{31650, 8481},{30791, 11207},{29697, 13848},
+        {28377, 16383},{26841, 18794},{25101, 21062},{23170, 23170},{21062, 25101},{18794, 26841},
+        {16384, 28377},{13848, 29697},{11207, 30791},{8481, 31650},{5690, 32269},{2856, 32642},
+        {0, 32767},{-2856, 32642},{-5690, 32269},{-8481, 31650},{-11207, 30791},{-13848, 29697},
+        {-16384, 28377},{-18794, 26841},{-21062, 25101},{-23170, 23170},{-25101, 21062},{-26841, 18794},
+        {-28377, 16384},{-29697, 13848},{-30791, 11207},{-31650, 8481},{-32269, 5690},{-32642, 2856},
+        {-32767, 0},{-32642, -2856},{-32269, -5690},{-31650, -8481},{-30791, -11207},{-29697, -13848},
+        {-28377, -16383},{-26841, -18794},{-25101, -21062},{-23170, -23170},{-21062, -25101},{-18794, -26841},
+        {-16383, -28377},{-13848, -29697},{-11207, -30791},{-8481, -31650},{-5690, -32269},{-2856, -32642},
+    }};
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
         return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
@@ -135,6 +155,12 @@ private:
     static void record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                 const ResolvedMetrics& metrics, const StyleState& state,
                                 int value, int min_value, int max_value);
+    static void record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                           const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                           int value, int min_value, int max_value);
+    static void record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                      const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                      int value, int min_value, int max_value);
     static void record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                const ResolvedColors& colors, std::uint8_t phase);
     static void record_scrollbar(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
@@ -404,11 +430,25 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                              kernel_.scroll_y(h), kernel_.list_row_height(h));
         }
         break;
+    case WidgetKind::ConsoleBox:
+        {
+            const std::uint16_t count = kernel_.text_list_count(h);
+            constexpr std::size_t kMaxTextListItems = soa_detail::kMaxTextListItems;
+            std::array<const char*, kMaxTextListItems> items{};
+            for (std::uint16_t i = 0; i < count && i < items.size(); ++i) {
+                items[i] = kernel_.text_list_item(h, i);
+            }
+            record_text_list(out, world_rect, colors, metrics, state,
+                             items.data(), count, -1,
+                             kernel_.scroll_y(h), kernel_.list_row_height(h));
+        }
+        break;
     case WidgetKind::ModalDialog:
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressBarSimple:
-        unsupported_kind(kind);
+        record_progress_bar_simple(out, world_rect, colors, metrics,
+                                   kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::DynamicNebula:
         unsupported_kind(kind);
@@ -535,7 +575,8 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressWheel:
-        unsupported_kind(kind);
+        record_progress_wheel(out, world_rect, colors, metrics,
+                              kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::WaveformView:
         unsupported_kind(kind);
@@ -586,9 +627,6 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::BusyWheel:
-        unsupported_kind(kind);
-        break;
-    case WidgetKind::ConsoleBox:
         unsupported_kind(kind);
         break;
     case WidgetKind::BatteryGasGauge:
@@ -1075,6 +1113,8 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
     const int scroll_y = kernel.scroll_y(h);
     const std::uint8_t overscan = kernel.tree_view_overscan(h);
     const int indent_px = static_cast<int>(kernel.tree_view_indent_px(h));
+    const int max_indent_px = kernel.tree_view_max_indent_px(h);
+    const int min_text_avail_px = kernel.tree_view_min_text_avail_px(h);
 
     const int base_start = (row_h > 0) ? (scroll_y / row_h) : 0;
     int start = base_start - static_cast<int>(overscan);
@@ -1086,7 +1126,10 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
 
     for (int row = start; row < end; ++row) {
         const std::uint8_t indent = kernel.tree_view_item_indent(h, static_cast<std::uint16_t>(row));
-        const int indent_x = indent_px * static_cast<int>(indent);
+        int indent_x = indent_px * static_cast<int>(indent);
+        if (max_indent_px > 0 && indent_x > max_indent_px) {
+            indent_x = max_indent_px;
+        }
         Rect text_r{
             clip_rect.x + pad + indent_x,
             y,
@@ -1095,8 +1138,15 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         };
         if (text_r.w < 0) text_r.w = 0;
         const char* text = kernel.tree_view_item_text(h, static_cast<std::uint16_t>(row));
-        out.draw_text_box(text_r, text ? text : "", colors.font, font_from_metrics(metrics),
-                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        const bool too_narrow = (min_text_avail_px > 0 && text_r.w < min_text_avail_px);
+        const char* draw_text = text ? text : "";
+        TextEllipsis ellipsis = TextEllipsis::End;
+        if (too_narrow) {
+            draw_text = "...";
+            ellipsis = TextEllipsis::None;
+        }
+        out.draw_text_box(text_r, draw_text, colors.font, font_from_metrics(metrics),
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, ellipsis);
         out.fill_rect(Rect{clip_rect.x, y + row_h - 1, clip_rect.w, 1}, colors.border);
         y += row_h;
     }
@@ -1137,6 +1187,62 @@ void SoaGui::record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect
     const int fill = (inner_w * (value - min_value)) / range;
     out.stroke_rect(Rect{r.x + pad, r.y + pad, inner_w, inner_h}, colors.border);
     out.fill_rect(Rect{r.x + pad, r.y + pad, fill, inner_h}, colors.accent);
+}
+
+void SoaGui::record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                        const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                        int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const int range = (max_value > min_value) ? (max_value - min_value) : 1;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int fill = (inner_w * (clamped - min_value)) / range;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    out.fill_rect(track, colors.border);
+    if (fill > 0) {
+        out.fill_rect(Rect{track.x, track.y, fill, track.h}, colors.accent);
+    }
+}
+
+void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                   const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                   int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int size = (r.w < r.h) ? r.w : r.h;
+    int radius = size / 2 - pad;
+    if (radius <= 0) return;
+    const int cx = r.x + r.w / 2;
+    const int cy = r.y + r.h / 2;
+    out.stroke_circle(cx, cy, radius, colors.border);
+
+    if (max_value <= min_value) return;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int range = max_value - min_value;
+    if (range <= 0) return;
+    if (clamped <= min_value) return;
+    if (clamped >= max_value) {
+        out.stroke_circle(cx, cy, radius, colors.accent);
+        return;
+    }
+    const int value_delta = clamped - min_value;
+    int idx = static_cast<int>((static_cast<std::int64_t>(value_delta) * kWheelLutSize) / range);
+    if (idx <= 0) return;
+    if (idx >= kWheelLutSize) idx = kWheelLutSize - 1;
+    const int point_count = idx + 1;
+    std::array<Point, kWheelLutSize> points{};
+    for (int i = 0; i < point_count; ++i) {
+        const auto q = kWheelLut[static_cast<std::size_t>(i)];
+        const int px = cx + (static_cast<int>(q.x) * radius) / kWheelQ15;
+        const int py = cy + (static_cast<int>(q.y) * radius) / kWheelQ15;
+        points[static_cast<std::size_t>(i)] = Point{px, py};
+    }
+    out.draw_path(points.data(), point_count, false, colors.accent);
 }
 
 void SoaGui::record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,

@@ -134,11 +134,23 @@ namespace {
 
     void ensure_demo_images() noexcept {
         if (g_demo_images_ready) return;
-        g_test_icon_id = ui::draw_cmd::register_image_dedup(kTestIconView);
-        g_slice_id = ui::draw_cmd::register_image_dedup(kSliceView);
+        g_test_icon_id = ui::draw_cmd::register_image_dedup(
+            kTestIconView,
+            ui::draw_cmd::ImageRegisterReason::Init,
+            "demo_images");
+        g_slice_id = ui::draw_cmd::register_image_dedup(
+            kSliceView,
+            ui::draw_cmd::ImageRegisterReason::Init,
+            "demo_images");
         if (g_selftest_dedup) {
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
         }
         g_demo_images_ready = true;
     }
@@ -494,7 +506,11 @@ namespace {
                 img.premultiplied != 0,
                 img.force_opaque != 0);
             ui::draw_cmd::ImageId id{img.slot, img.generation};
-            if (!ui::draw_cmd::register_image_with_id(id, view)) {
+            if (!ui::draw_cmd::register_image_with_id(
+                    id,
+                    view,
+                    ui::draw_cmd::ImageRegisterReason::DumpReplay,
+                    "vcmd_replay")) {
                 std::fclose(file);
                 return false;
             }
@@ -982,9 +998,11 @@ namespace {
         auto menu_item_a = factory.create_menu_item("New");
         auto menu_item_b = factory.create_menu_item("Open");
         auto menu_item_c = factory.create_menu_item("Save");
+        auto console_box = factory.create_console_box();
         factory.link(root, tab_root);
         factory.link(tab_root, tab_bar);
         factory.link(tab_root, menu);
+        factory.link(root, console_box);
         factory.link(menu, menu_item_a);
         factory.link(menu, menu_item_b);
         factory.link(menu, menu_item_c);
@@ -995,16 +1013,27 @@ namespace {
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
         kernel.set_rect(menu_item_b, {0, 28, 180, 24});
         kernel.set_rect(menu_item_c, {0, 56, 180, 24});
+        kernel.set_rect(console_box, {10, 420, 180, 56});
         factory.set_tab_bar_label(tab_bar, 0, "Home");
         factory.set_tab_bar_label(tab_bar, 1, "Stats");
         factory.set_tab_bar_label(tab_bar, 2, "Setup");
         factory.set_tab_bar_selected(tab_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
+        auto progress_wheel = factory.create_progress_wheel();
+        auto progress_simple = factory.create_progress_bar_simple();
         factory.link(tab_root, progress);
+        factory.link(tab_root, progress_wheel);
+        factory.link(tab_root, progress_simple);
         kernel.set_rect(progress, {10, 110, 180, 12});
+        kernel.set_rect(progress_wheel, {150, 78, 32, 32});
+        kernel.set_rect(progress_simple, {10, 130, 180, 8});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
+        kernel.set_range(progress_wheel, 0, 100);
+        kernel.set_value(progress_wheel, 20);
+        kernel.set_range(progress_simple, 0, 100);
+        kernel.set_value(progress_simple, 30);
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
@@ -1072,7 +1101,38 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: progress pass", fails);
         expect_true(paint_after > paint_before, "ui: progress missing paint", fails);
 
+        kernel.layout_trace_reset();
+        const std::uint32_t wheel_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_wheel, 80);
+        gui.render();
+        const std::uint32_t wheel_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress wheel pass", fails);
+        expect_true(wheel_paint_after > wheel_paint_before, "ui: progress wheel missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t simple_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_simple, 90);
+        gui.render();
+        const std::uint32_t simple_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress simple invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress simple pass", fails);
+        expect_true(simple_paint_after > simple_paint_before, "ui: progress simple missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t log_paint_before = kernel.paint_invalidated_count();
+        factory.console_append(console_box, "log: one");
+        factory.console_append(console_box, "log: two");
+        gui.render();
+        const std::uint32_t log_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: log append invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: log append pass", fails);
+        expect_true(log_paint_after > log_paint_before, "ui: log append missing paint", fails);
+
+        kernel.destroy(progress_simple);
+        kernel.destroy(progress_wheel);
         kernel.destroy(progress);
+        kernel.destroy(console_box);
         kernel.destroy(menu_item_c);
         kernel.destroy(menu_item_b);
         kernel.destroy(menu_item_a);
@@ -1291,9 +1351,12 @@ namespace {
             tree_items,
             static_cast<std::uint16_t>(sizeof(tree_items) / sizeof(tree_items[0]))
         };
-        static const TreeViewIndentSource tree_indent{3};
+        static const TreeViewIndentSource tree_indent{20};
         factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
                                      &tree_indent, &tree_view_indent_at);
+        factory.set_tree_view_indent_px(tree_view, 12);
+        factory.set_tree_view_max_indent_px(tree_view, 140);
+        factory.set_tree_view_min_text_avail_px(tree_view, 64);
 
         gui.render();
         expect_true(gui.last_exec_stats().failed_cmds == 0, "tabletree: failed_cmds", fails);
@@ -1626,8 +1689,10 @@ int main(int argc, char** argv) {
     auto radio = factory.create_radio("Radio");
     auto segmented = factory.create_segmented_control();
     auto tab_bar = factory.create_tab_bar();
-    auto slider = factory.create_slider();
-    auto progress = factory.create_progress();
+        auto slider = factory.create_slider();
+        auto progress = factory.create_progress();
+        auto progress_wheel = factory.create_progress_wheel();
+        auto progress_simple = factory.create_progress_bar_simple();
     auto toggle_group = factory.create_toggle_group();
     auto tg_a = factory.create_checkbox("Option A");
     auto tg_b = factory.create_checkbox("Option B");
@@ -1640,6 +1705,7 @@ int main(int argc, char** argv) {
     auto scroll_scroll = factory.create_scrollbar_for(scroll);
     auto table_view = factory.create_table_view();
     auto tree_view = factory.create_tree_view();
+    auto console_box = factory.create_console_box();
     auto menu = factory.create_menu();
     auto menu_item_a = factory.create_menu_item("New");
     auto menu_item_b = factory.create_menu_item("Open");
@@ -1662,6 +1728,8 @@ int main(int argc, char** argv) {
     factory.link(root, toggle_group);
     factory.link(root, slider);
     factory.link(root, progress);
+    factory.link(root, progress_wheel);
+    factory.link(root, progress_simple);
     factory.link(root, list_view);
     factory.link(root, list_scroll);
     factory.link(root, text_list);
@@ -1670,6 +1738,7 @@ int main(int argc, char** argv) {
     factory.link(root, scroll_scroll);
     factory.link(root, table_view);
     factory.link(root, tree_view);
+    factory.link(root, console_box);
     factory.link(root, menu);
     factory.link(toggle_group, tg_a);
     factory.link(toggle_group, tg_b);
@@ -1689,6 +1758,8 @@ int main(int argc, char** argv) {
     kernel.set_rect(tab_bar, {24, 352, 280, 24});
     kernel.set_rect(slider, {24, 290, 280, 24});
     kernel.set_rect(progress, {24, 330, 280, 18});
+    kernel.set_rect(progress_wheel, {320, 300, 48, 48});
+    kernel.set_rect(progress_simple, {24, 356, 280, 10});
     kernel.set_rect(list_view, {24, 380, 200, 200});
     kernel.set_rect(list_scroll, {230, 380, 12, 200});
     kernel.set_rect(text_list, {250, 200, 200, 160});
@@ -1701,6 +1772,7 @@ int main(int argc, char** argv) {
     kernel.set_rect(tg_c, {0, 80, 200, 32});
     kernel.set_rect(table_view, {480, 60, 280, 160});
     kernel.set_rect(tree_view, {480, 240, 280, 160});
+    kernel.set_rect(console_box, {480, 420, 280, 140});
     kernel.set_rect(menu, {250, 600, 200, 120});
     kernel.set_rect(menu_item_a, {0, 0, 200, 28});
     kernel.set_rect(menu_item_b, {0, 36, 200, 28});
@@ -1708,6 +1780,8 @@ int main(int argc, char** argv) {
 
     kernel.set_range(slider, 0, 100);
     kernel.set_range(progress, 0, 100);
+    kernel.set_range(progress_wheel, 0, 100);
+    kernel.set_range(progress_simple, 0, 100);
     kernel.set_list_row_height(list_view, 28);
     kernel.set_list_row_height(text_list, 24);
     kernel.set_scroll_step(text_list, 24);
@@ -1770,6 +1844,10 @@ int main(int argc, char** argv) {
     const TreeViewIndentSource tree_indent{3};
     factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
                                  &tree_indent, &tree_view_indent_at);
+
+    factory.console_append(console_box, "[log] SoA kernel ready");
+    factory.console_append(console_box, "[log] ui regression enabled");
+    factory.console_append(console_box, "[log] cmd budget guard OK");
 
     const char* text_list_items[] = {
         "Alpha", "Beta", "Gamma", "Delta",
@@ -1938,6 +2016,7 @@ int main(int argc, char** argv) {
     ui::draw_cmd::ImageRegistryStats img_stats_after_record{};
     bool img_stats_valid = false;
     bool img_growth_ok = true;
+    std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -1945,10 +2024,22 @@ int main(int argc, char** argv) {
 #endif
         if (selftest_dedup) {
             ensure_demo_images();
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
         }
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
@@ -1956,8 +2047,13 @@ int main(int argc, char** argv) {
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
-        img_growth_ok = (img_stats_after_record.count == img_stats_before_record.count)
-            && (img_stats_after_record.bytes_total == img_stats_before_record.bytes_total);
+        if (img_stats_after_record.register_after_lock >= img_stats_before_record.register_after_lock) {
+            img_growth_count = img_stats_after_record.register_after_lock
+                - img_stats_before_record.register_after_lock;
+        } else {
+            img_growth_count = img_stats_after_record.register_after_lock;
+        }
+        img_growth_ok = (img_growth_count == 0);
 #if defined(VIVID_SOA_TRACE_INPUT)
         const auto font_ptr_maps = static_cast<unsigned>(font_ptr_map_count());
         (void)out::println<"[soa] font ptr map count={}">(g_console, font_ptr_maps);
@@ -2123,6 +2219,15 @@ int main(int argc, char** argv) {
             }
         }
         if (!img_growth_ok) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            const auto reason = ui::draw_cmd::image_registry_first_after_lock_reason();
+            const char* tag = ui::draw_cmd::image_registry_first_after_lock_tag();
+            (void)out::println<"[soa][fail] img_growth_after_lock count={} reason={} tag={}">(
+                g_console,
+                static_cast<unsigned>(img_growth_count),
+                ui::draw_cmd::image_register_reason_name(reason),
+                tag ? tag : "-");
+#endif
             ci_mark_fail("img_growth");
         }
         if (!img_overflow_ok) {
@@ -2172,7 +2277,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(img_stats.count),
             static_cast<unsigned>(img_stats.bytes_total),
             static_cast<unsigned>(img_stats.dedup_hits),
-            img_growth_ok ? 1u : 0u,
+            static_cast<unsigned>(img_growth_count),
             img_overflow_ok ? 0u : 1u,
             img_dedup_ok ? 1u : 0u,
             ci_reason ? ci_reason : "none");
@@ -2299,6 +2404,8 @@ int main(int argc, char** argv) {
 
         value = (value + 1) % 101;
         kernel.set_value(progress, value);
+        kernel.set_value(progress_wheel, value);
+        kernel.set_value(progress_simple, value);
         spinner_phase = static_cast<std::uint8_t>((spinner_phase + 1u) % 8u);
         kernel.set_spinner_phase(spinner, spinner_phase);
         if (!kernel.pressed(slider)) {

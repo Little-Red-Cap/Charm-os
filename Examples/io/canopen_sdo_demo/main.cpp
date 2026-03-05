@@ -521,6 +521,44 @@ int main() {
         }
     }
 
+    // Block download: segment seq mismatch should abort.
+    {
+        LoopbackContext neg_ctx{};
+        ck.expect(neg_ctx.init(), "loopback init");
+        canopen::SdoServer neg_sdo{od, {.node_id = 1}};
+        canopen::SdoService neg_service{neg_sdo, neg_ctx.transport(), {.rx_budget = 2}};
+
+        canopen::CanFrame init{};
+        init.id = canopen::sdo_request_id(1);
+        init.dlc = 8;
+        init.data.fill(0);
+        init.data[0] = 0xC6u;
+        init.data[1] = 0x00;
+        init.data[2] = 0x30;
+        init.data[3] = 0x00;
+        init.data[4] = 10;
+        push_rx_frame(neg_ctx.bus, init);
+        (void)neg_service.poll();
+        (void)pop_tx_frame(neg_ctx.bus, tx);
+
+        canopen::CanFrame seg_bad{};
+        seg_bad.id = canopen::sdo_request_id(1);
+        seg_bad.dlc = 8;
+        seg_bad.data.fill(0);
+        seg_bad.data[0] = 0x02u; // seq=2 (expect 1)
+        for (int i = 0; i < 7; ++i) {
+            seg_bad.data[1 + i] = static_cast<util::u8>(0xB0u + i);
+        }
+        push_rx_frame(neg_ctx.bus, seg_bad);
+        (void)neg_service.poll();
+        if (pop_tx_frame(neg_ctx.bus, tx)) {
+            dump_frame("seg_bad_seq", tx);
+            expect_abort(ck, "seg bad seq", tx, 0x3000, 0x00, 0x05030000u);
+        } else {
+            ck.expect(false, "seg bad seq abort missing");
+        }
+    }
+
     // Block upload for 0x3000.
     {
         canopen::CanFrame req{};
@@ -610,6 +648,58 @@ int main() {
             expect_abort(ck, "seg up bad ack", tx, 0x3000, 0x00, 0x05030000u);
         } else {
             ck.expect(false, "seg up bad ack abort missing");
+        }
+    }
+
+    // Block upload end: n mismatch should abort.
+    {
+        LoopbackContext neg_ctx{};
+        ck.expect(neg_ctx.init(), "loopback init");
+        canopen::SdoServer neg_sdo{od, {.node_id = 1}};
+        canopen::SdoService neg_service{neg_sdo, neg_ctx.transport(), {.rx_budget = 1}};
+
+        canopen::CanFrame req{};
+        req.id = canopen::sdo_request_id(1);
+        req.dlc = 8;
+        req.data.fill(0);
+        req.data[0] = 0xA4u;
+        req.data[1] = 0x00;
+        req.data[2] = 0x30;
+        req.data[3] = 0x00;
+        push_rx_frame(neg_ctx.bus, req);
+        (void)neg_service.poll();
+        (void)pop_tx_frame(neg_ctx.bus, tx);
+
+        canopen::CanFrame ack{};
+        ack.id = canopen::sdo_request_id(1);
+        ack.dlc = 8;
+        ack.data.fill(0);
+        ack.data[0] = 0xA2u;
+        ack.data[1] = 0x00u;
+        ack.data[2] = 0x02u;
+        push_rx_frame(neg_ctx.bus, ack);
+        (void)neg_service.poll();
+        (void)pop_tx_frame(neg_ctx.bus, tx);
+
+        (void)neg_service.poll();
+        (void)pop_tx_frame(neg_ctx.bus, tx);
+
+        (void)neg_service.poll();
+        (void)pop_tx_frame(neg_ctx.bus, tx); // block end
+
+        canopen::CanFrame end{};
+        end.id = canopen::sdo_request_id(1);
+        end.dlc = 8;
+        end.data.fill(0);
+        end.data[0] = 0xA1u;
+        end.data[1] = 0x00u; // wrong n
+        push_rx_frame(neg_ctx.bus, end);
+        (void)neg_service.poll();
+        if (pop_tx_frame(neg_ctx.bus, tx)) {
+            dump_frame("seg_up_bad_n", tx);
+            expect_abort(ck, "seg up bad n", tx, 0x3000, 0x00, 0x05040001u);
+        } else {
+            ck.expect(false, "seg up bad n abort missing");
         }
     }
 

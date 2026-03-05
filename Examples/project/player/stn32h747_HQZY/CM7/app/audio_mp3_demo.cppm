@@ -27,8 +27,15 @@ import util.core;
 import util.expected;
 
 extern "C" I2S_HandleTypeDef hi2s1;
+extern "C" DMA_HandleTypeDef hdma_spi1_tx;
 
 namespace {
+#if defined(__GNUC__)
+#define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
+#else
+#define CHARM_DMA_BUFFER
+#endif
+
     static out::channel_sink* g_sink = nullptr;
     constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
@@ -55,7 +62,7 @@ namespace {
     constexpr std::uint32_t kTimeoutMs = 1000;
     constexpr std::size_t kI2sBufFrames = 1024;
     constexpr int kGainShift = 0;
-    constexpr std::size_t kI2sWordsPerFrame = 4; // 32-bit stereo: 2 words per channel
+    constexpr std::size_t kI2sWordsPerFrame = 2; // 16-bit stereo: 1 word per channel
     constexpr bool kVerbose = false;
     constexpr bool kRuntimeLog = false;
     constexpr bool kStartupLog = true;
@@ -64,6 +71,7 @@ namespace {
     constexpr util::u32 kOpenReadLogEvery = 64;
     constexpr util::u32 kRunReadLogEvery = 512;
     constexpr util::u32 kReadLogMinMs = 200;
+    constexpr std::size_t kMaxRead = 4096;
     constexpr bool kUseFixedPath = true;
     constexpr const char kFixedPath[] = "/jtwayne-pianos-by-jtwayne-7-174717.mp3";
 
@@ -76,6 +84,7 @@ namespace {
     static util::u32 g_seek_calls = 0;
     static util::u32 g_tell_calls = 0;
     static util::u32 g_size_calls = 0;
+    static util::u32 g_read_clamp = 0;
     static util::u32 g_last_read_log_ms = 0;
 
     char ascii_lower(char c) noexcept {
@@ -140,6 +149,16 @@ namespace {
                 if (remaining <= 0) return static_cast<util::usize>(0);
                 to_read = static_cast<std::size_t>(
                     std::min<util::i64>(remaining, static_cast<util::i64>(out.size())));
+            }
+            if (to_read > kMaxRead) {
+                const auto req = to_read;
+                to_read = kMaxRead;
+                if constexpr (kOpenTrace) {
+                    if (g_opening && g_read_clamp < 4) {
+                        log<"mp3 demo: read clamp req={} -> {}">(req, to_read);
+                        ++g_read_clamp;
+                    }
+                }
             }
             const auto before = file->node.offset;
             if constexpr (kOpenTrace) {
@@ -322,15 +341,13 @@ namespace {
             pcm[i] = static_cast<std::int16_t>(v);
         }
         const auto frames = static_cast<std::size_t>(samples / channels);
-        for (std::size_t i = 0; i < frames; ++i) {
-            const std::int16_t l = pcm[i * channels];
-            const std::int16_t r = (channels > 1) ? pcm[i * channels + 1] : l;
-            const std::size_t o = i * kI2sWordsPerFrame;
-            out_words[o + 0] = static_cast<std::uint16_t>(l);
-            out_words[o + 1] = 0;
-            out_words[o + 2] = static_cast<std::uint16_t>(r);
-            out_words[o + 3] = 0;
-        }
+          for (std::size_t i = 0; i < frames; ++i) {
+              const std::int16_t l = pcm[i * channels];
+              const std::int16_t r = (channels > 1) ? pcm[i * channels + 1] : l;
+              const std::size_t o = i * kI2sWordsPerFrame;
+              out_words[o + 0] = static_cast<std::uint16_t>(l);
+              out_words[o + 1] = static_cast<std::uint16_t>(r);
+          }
         if constexpr (kVerbose) {
             if (energy_blocks < 3) {
             log<"mp3 demo: energy nonzero={} sum={}">(nonzero, abs_sum);
@@ -364,16 +381,28 @@ namespace {
 static volatile bool g_half_ready = false;
 static volatile bool g_full_ready = false;
 static volatile std::uint32_t g_underruns = 0;
-static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
-static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer{};
+    static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
+    static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer CHARM_DMA_BUFFER{};
 
-extern "C" void charm_audio_i2s_half_notify() {
-    g_half_ready = true;
-}
+    extern "C" void charm_audio_i2s_half_notify() {
+        g_half_ready = true;
+    }
 
-extern "C" void charm_audio_i2s_full_notify() {
-    g_full_ready = true;
-}
+    extern "C" void charm_audio_i2s_full_notify() {
+        g_full_ready = true;
+    }
+
+    extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
+        if (hi2s == &hi2s1) {
+            charm_audio_i2s_half_notify();
+        }
+    }
+
+    extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
+        if (hi2s == &hi2s1) {
+            charm_audio_i2s_full_notify();
+        }
+    }
 
 export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s1);
@@ -540,6 +569,19 @@ export void audio_mp3_demo_run() noexcept {
         }
     }
 
+    const auto dma_state = HAL_DMA_GetState(&hdma_spi1_tx);
+    if (dma_state != HAL_DMA_STATE_READY) {
+        log<"mp3 demo: i2s dma not ready state={} err={}">(
+            static_cast<int>(dma_state),
+            static_cast<int>(hdma_spi1_tx.ErrorCode));
+        (void)HAL_DMA_Abort(&hdma_spi1_tx);
+        (void)HAL_DMA_DeInit(&hdma_spi1_tx);
+        if (HAL_DMA_Init(&hdma_spi1_tx) != HAL_OK) {
+            log<"mp3 demo: i2s dma reinit failed err={}">(
+                static_cast<int>(hdma_spi1_tx.ErrorCode));
+        }
+    }
+
     if (HAL_I2S_Transmit_DMA(&hi2s1,
             g_i2s_buffer.data(),
             static_cast<uint16_t>(g_i2s_buffer.size())) != HAL_OK) {
@@ -588,10 +630,12 @@ export void audio_mp3_demo_run() noexcept {
         }
         if constexpr (kRuntimeLog || kStatLog) {
             if ((++tick % 50000) == 0) {
-                const auto ndtr = -1;
-                const auto dstate = -1;
-                log<"mp3 demo: playing... ndtr={} dma_state={} i2s_state={} underrun={} half_ok={} full_ok={}">(
-                    ndtr, dstate, static_cast<int>(hi2s1.State), g_underruns,
+                const auto* dma_inst = static_cast<DMA_Stream_TypeDef*>(hdma_spi1_tx.Instance);
+                const auto ndtr = dma_inst ? static_cast<int>(dma_inst->NDTR) : -1;
+                const auto dstate = static_cast<int>(hdma_spi1_tx.State);
+                const auto derr = static_cast<int>(hdma_spi1_tx.ErrorCode);
+                log<"mp3 demo: playing... ndtr={} dma_state={} dma_err={} i2s_state={} underrun={} half_ok={} full_ok={}">(
+                    ndtr, dstate, derr, static_cast<int>(hi2s1.State), g_underruns,
                     static_cast<int>(half_filled), static_cast<int>(full_filled));
             }
         }
@@ -618,5 +662,6 @@ export void audio_mp3_demo_run() noexcept {
 
 export void audio_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;
+    audio::mp3_set_debug_sink(sink);
 }
 

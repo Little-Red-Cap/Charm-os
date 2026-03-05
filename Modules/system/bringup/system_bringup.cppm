@@ -204,6 +204,7 @@ export namespace charm::system {
         init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }
         io::Registry<MaxEndpoints>& registry() noexcept { return core_.registry; }
         io::Reactor& reactor() noexcept { return core_.reactor; }
+        charm::system::Clock& clock() noexcept { return core_.clock; }
 
     private:
         platform::board::UartDesc uart_{};

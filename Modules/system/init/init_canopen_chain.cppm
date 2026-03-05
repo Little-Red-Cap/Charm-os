@@ -40,7 +40,6 @@ export namespace charm::system {
         canopen::NmtService nmt_service;
         canopen::SdoBinding sdo_binding;
         canopen::NmtBinding nmt_binding;
-        canopen::CanopenPumpTask pump_task;
         canopen::CanopenPumpBinding pump_binding;
         std::array<const init::Node*, 4> nodes{};
 
@@ -49,6 +48,7 @@ export namespace charm::system {
                          canopen::NmtNode& nmt_node,
                          charm::system::Clock& clock,
                          Scheduler& scheduler,
+                         canopen::CanopenPumpTask& pump_task,
                          kernel::TaskId pump_id,
                          canopen::SdoServiceConfig sdo_cfg = {},
                          canopen::NmtServiceConfig nmt_cfg = {},
@@ -61,7 +61,6 @@ export namespace charm::system {
               nmt_service(nmt_node, transport_binding.transport, nmt_cfg),
               sdo_binding(sdo_service, caps.sdo_cap, caps.transport_cap, phase, runlevel_mask),
               nmt_binding(nmt_service, caps.nmt_cap, caps.transport_cap, phase, runlevel_mask),
-              pump_task(),
               pump_binding(pump_task,
                            clock,
                            &canopen::scheduler_schedule_at<Scheduler>,

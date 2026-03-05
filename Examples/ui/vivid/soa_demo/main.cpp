@@ -1020,21 +1020,16 @@ namespace {
         factory.set_tab_bar_selected(tab_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
-        auto bar = factory.create_bar();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
         factory.link(tab_root, progress);
-        factory.link(tab_root, bar);
         factory.link(tab_root, progress_wheel);
         factory.link(tab_root, progress_simple);
         kernel.set_rect(progress, {10, 110, 180, 12});
         kernel.set_rect(progress_wheel, {150, 78, 32, 32});
         kernel.set_rect(progress_simple, {10, 130, 180, 8});
-        kernel.set_rect(bar, {10, 146, 180, 6});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
-        kernel.set_range(bar, 0, 100);
-        kernel.set_value(bar, 15);
         kernel.set_range(progress_wheel, 0, 100);
         kernel.set_value(progress_wheel, 20);
         kernel.set_range(progress_simple, 0, 100);
@@ -1125,15 +1120,6 @@ namespace {
         expect_true(simple_paint_after > simple_paint_before, "ui: progress simple missing paint", fails);
 
         kernel.layout_trace_reset();
-        const std::uint32_t bar_paint_before = kernel.paint_invalidated_count();
-        kernel.set_value(bar, 40);
-        gui.render();
-        const std::uint32_t bar_paint_after = kernel.paint_invalidated_count();
-        expect_true(kernel.layout_invalidated_count() == 0, "ui: bar invalidated layout", fails);
-        expect_true(kernel.layout_pass_count() == 0, "ui: bar pass", fails);
-        expect_true(bar_paint_after > bar_paint_before, "ui: bar missing paint", fails);
-
-        kernel.layout_trace_reset();
         const std::uint32_t log_paint_before = kernel.paint_invalidated_count();
         factory.console_append(console_box, "log: one");
         factory.console_append(console_box, "log: two");
@@ -1145,7 +1131,6 @@ namespace {
 
         kernel.destroy(progress_simple);
         kernel.destroy(progress_wheel);
-        kernel.destroy(bar);
         kernel.destroy(progress);
         kernel.destroy(console_box);
         kernel.destroy(menu_item_c);
@@ -1706,7 +1691,6 @@ int main(int argc, char** argv) {
     auto tab_bar = factory.create_tab_bar();
         auto slider = factory.create_slider();
         auto progress = factory.create_progress();
-        auto bar = factory.create_bar();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
     auto toggle_group = factory.create_toggle_group();
@@ -1744,7 +1728,6 @@ int main(int argc, char** argv) {
     factory.link(root, toggle_group);
     factory.link(root, slider);
     factory.link(root, progress);
-    factory.link(root, bar);
     factory.link(root, progress_wheel);
     factory.link(root, progress_simple);
     factory.link(root, list_view);
@@ -1777,7 +1760,6 @@ int main(int argc, char** argv) {
     kernel.set_rect(progress, {24, 330, 280, 18});
     kernel.set_rect(progress_wheel, {320, 300, 48, 48});
     kernel.set_rect(progress_simple, {24, 356, 280, 10});
-    kernel.set_rect(bar, {24, 370, 280, 6});
     kernel.set_rect(list_view, {24, 380, 200, 200});
     kernel.set_rect(list_scroll, {230, 380, 12, 200});
     kernel.set_rect(text_list, {250, 200, 200, 160});
@@ -1798,7 +1780,6 @@ int main(int argc, char** argv) {
 
     kernel.set_range(slider, 0, 100);
     kernel.set_range(progress, 0, 100);
-    kernel.set_range(bar, 0, 100);
     kernel.set_range(progress_wheel, 0, 100);
     kernel.set_range(progress_simple, 0, 100);
     kernel.set_list_row_height(list_view, 28);
@@ -2423,7 +2404,6 @@ int main(int argc, char** argv) {
 
         value = (value + 1) % 101;
         kernel.set_value(progress, value);
-        kernel.set_value(bar, value);
         kernel.set_value(progress_wheel, value);
         kernel.set_value(progress_simple, value);
         spinner_phase = static_cast<std::uint8_t>((spinner_phase + 1u) % 8u);

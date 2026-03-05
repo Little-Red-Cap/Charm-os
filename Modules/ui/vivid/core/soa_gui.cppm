@@ -124,7 +124,7 @@ private:
                              const char* text, bool checked);
     static void record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                          const ResolvedColors& colors, const ResolvedMetrics& metrics,
-                                         const StyleState& state,
+                                         const StyleState& state, std::uint8_t variant,
                                          const char* const* labels, std::uint8_t count, std::uint8_t selected);
     static void record_text_list(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                  const ResolvedColors& colors, const ResolvedMetrics& metrics,
@@ -488,7 +488,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint8_t i = 0; i < count && i < labels.size(); ++i) {
                 labels[i] = kernel_.segmented_label(h, i);
             }
-            record_segmented_control(out, world_rect, colors, metrics, state,
+            record_segmented_control(out, world_rect, colors, metrics, state, state.variant,
                                      labels.data(), count, kernel_.segmented_selected(h));
         }
         break;
@@ -813,21 +813,27 @@ void SoaGui::record_scroll_container(ui::draw_cmd::DefaultDrawCmdBuffer& out, co
 
 void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
-                                      const StyleState& state,
+                                      const StyleState& state, std::uint8_t variant,
                                       const char* const* labels, std::uint8_t count, std::uint8_t selected) {
     const int rad = metrics.corner_radius;
-    out.fill_round_rect(r, rad, colors.bg);
-    out.stroke_round_rect(r, rad, colors.border);
+    const bool underline_mode = (variant != 0);
+    if (underline_mode) {
+        out.fill_rect(r, colors.bg);
+        out.stroke_rect(r, colors.border);
+    } else {
+        out.fill_round_rect(r, rad, colors.bg);
+        out.stroke_round_rect(r, rad, colors.border);
+    }
     if (count == 0 || r.w <= 0) {
         if (state.focused) {
-            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
         }
         return;
     }
     const int seg_w = (count > 0) ? (r.w / count) : 0;
     if (seg_w <= 0) {
         if (state.focused) {
-            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
         }
         return;
     }
@@ -836,9 +842,20 @@ void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, c
         const int w = (i + 1u == count) ? (r.w - static_cast<int>(i) * seg_w) : seg_w;
         Rect seg{x, r.y, w, r.h};
         if (i == selected) {
-            out.fill_rect(seg, colors.accent);
+            if (underline_mode) {
+                Rect underline{
+                    seg.x + metrics.padding,
+                    seg.y + seg.h - 3,
+                    seg.w - metrics.padding * 2,
+                    2
+                };
+                if (underline.w < 0) underline.w = 0;
+                out.fill_rect(underline, colors.accent);
+            } else {
+                out.fill_rect(seg, colors.accent);
+            }
         }
-        if (i > 0) {
+        if (!underline_mode && i > 0) {
             out.fill_rect(Rect{x, r.y + 2, 1, r.h - 4}, colors.border);
         }
         Rect text_r{
@@ -848,13 +865,15 @@ void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, c
             seg.h
         };
         if (text_r.w < 0) text_r.w = 0;
-        const rgba text_color = (i == selected) ? colors.on_accent : colors.font;
+        const rgba text_color = (i == selected)
+            ? (underline_mode ? colors.accent : colors.on_accent)
+            : colors.font;
         const char* label = labels ? labels[i] : "";
         out.draw_text_box(text_r, label ? label : "", text_color, font_from_metrics(metrics),
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
     if (state.focused) {
-        out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+        out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
     }
 }
 

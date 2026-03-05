@@ -3965,6 +3965,11 @@ export
     WidgetHandle create_tab_bar() noexcept {
         return create_tab_view();
     }
+    WidgetHandle create_navigation_bar() noexcept {
+        auto h = create_tab_view();
+        kernel_.set_variant(h, 1);
+        return h;
+    }
     WidgetHandle create_toggle_group(WidgetKind group_kind = WidgetKind::None) noexcept {
         auto h = kernel_.create(WidgetKind::ToggleGroup);
         kernel_.set_hit_testable(h, false);
@@ -4126,6 +4131,15 @@ export
         set_segmented_label(h, index, text);
     }
     void set_tab_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
+        set_segmented_selected(h, index);
+    }
+    void set_navigation_bar_count(WidgetHandle h, std::uint8_t count) noexcept {
+        set_segmented_count(h, count);
+    }
+    void set_navigation_bar_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        set_segmented_label(h, index, text);
+    }
+    void set_navigation_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
         set_segmented_selected(h, index);
     }
         void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {

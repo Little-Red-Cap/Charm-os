@@ -993,14 +993,14 @@ namespace {
     bool run_ui_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
         int fails = 0;
         auto tab_root = factory.create_container();
-        auto tab_bar = factory.create_tab_bar();
+        auto nav_bar = factory.create_navigation_bar();
         auto menu = factory.create_menu();
         auto menu_item_a = factory.create_menu_item("New");
         auto menu_item_b = factory.create_menu_item("Open");
         auto menu_item_c = factory.create_menu_item("Save");
         auto console_box = factory.create_console_box();
         factory.link(root, tab_root);
-        factory.link(tab_root, tab_bar);
+        factory.link(tab_root, nav_bar);
         factory.link(tab_root, menu);
         factory.link(root, console_box);
         factory.link(menu, menu_item_a);
@@ -1008,16 +1008,16 @@ namespace {
         factory.link(menu, menu_item_c);
 
         kernel.set_rect(tab_root, {240, 420, 200, 140});
-        kernel.set_rect(tab_bar, {10, 10, 180, 28});
+        kernel.set_rect(nav_bar, {10, 10, 180, 28});
         kernel.set_rect(menu, {10, 48, 180, 80});
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
         kernel.set_rect(menu_item_b, {0, 28, 180, 24});
         kernel.set_rect(menu_item_c, {0, 56, 180, 24});
         kernel.set_rect(console_box, {10, 420, 180, 56});
-        factory.set_tab_bar_label(tab_bar, 0, "Home");
-        factory.set_tab_bar_label(tab_bar, 1, "Stats");
-        factory.set_tab_bar_label(tab_bar, 2, "Setup");
-        factory.set_tab_bar_selected(tab_bar, 0);
+        factory.set_navigation_bar_label(nav_bar, 0, "Home");
+        factory.set_navigation_bar_label(nav_bar, 1, "Stats");
+        factory.set_navigation_bar_label(nav_bar, 2, "Setup");
+        factory.set_navigation_bar_selected(nav_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
@@ -1037,7 +1037,7 @@ namespace {
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
-        const Rect tab_r = kernel.rect(tab_bar);
+        const Rect tab_r = kernel.rect(nav_bar);
         const int tab_abs_x = tab_root_r.x + tab_r.x;
         const int tab_abs_y = tab_root_r.y + tab_r.y;
         const int seg_w = (tab_r.w > 0) ? (tab_r.w / 3) : 0;
@@ -1049,7 +1049,7 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "ui: tab select invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "ui: tab select pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "ui: tab select missing paint", fails);
-        expect_true(kernel.segmented_selected(tab_bar) == 1, "ui: tab select not applied", fails);
+        expect_true(kernel.segmented_selected(nav_bar) == 1, "ui: tab select not applied", fails);
 
         const Rect menu_r = kernel.rect(menu);
         const Rect item_b_r = kernel.rect(menu_item_b);
@@ -1137,7 +1137,7 @@ namespace {
         kernel.destroy(menu_item_b);
         kernel.destroy(menu_item_a);
         kernel.destroy(menu);
-        kernel.destroy(tab_bar);
+        kernel.destroy(nav_bar);
         kernel.destroy(tab_root);
 
         if (fails == 0) {

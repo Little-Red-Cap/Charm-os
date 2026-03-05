@@ -65,8 +65,10 @@ import kernel.config;
 import kernel.eda;
 import kernel.evt;
 import kernel.scheduler;
+import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;
+import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import platform.board.stn32h747xi;
 import util.core;
@@ -78,6 +80,7 @@ extern "C" {
     void MX_DMA_Init(void);
     void MX_I2S1_Init(void);
     void MX_SDMMC1_SD_Init(void);
+    void MX_SPI5_Init(void);
     void MX_USART1_UART_Init(void);
     void Error_Handler(void);
     extern UART_HandleTypeDef huart1;
@@ -87,6 +90,8 @@ namespace {
     constexpr util::usize kRxCap = 64;
     constexpr util::usize kTxCap = 640;
     constexpr bool kKeyActiveHigh = true;
+    constexpr bool kBringupKeySelect = true;
+    constexpr bool kBringupWaitKey = true;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
 
     struct PumpConfig : kernel::KernelConfig {
@@ -275,6 +280,8 @@ namespace {
         __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOD_CLK_ENABLE();
         __HAL_RCC_GPIOE_CLK_ENABLE();
+        __HAL_RCC_GPIOJ_CLK_ENABLE();
+        __HAL_RCC_GPIOK_CLK_ENABLE();
 
         GPIO_InitTypeDef gpio_init = {};
 
@@ -303,6 +310,77 @@ namespace {
 
         gpio_init.Pin = GPIO_PIN_8;
         HAL_GPIO_Init(GPIOA, &gpio_init);
+
+        /* Display control: PJ5 reset, PJ6 data/cmd. */
+        gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_6;
+        gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
+        gpio_init.Pull = GPIO_NOPULL;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio_init.Alternate = 0;
+        HAL_GPIO_Init(GPIOJ, &gpio_init);
+        HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_RESET);
+
+        /* Display chip select: PK1. */
+        gpio_init.Pin = GPIO_PIN_1;
+        gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
+        gpio_init.Pull = GPIO_NOPULL;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio_init.Alternate = 0;
+        HAL_GPIO_Init(GPIOK, &gpio_init);
+        HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1, GPIO_PIN_SET);
+    }
+
+    enum class BringupMode : std::uint8_t {
+        sd = 0,
+        decode = 1,
+        i2s = 2,
+        full = 3
+    };
+
+    constexpr BringupMode kDefaultBringupMode = BringupMode::full;
+    constexpr util::u32 kSdSelfStartLba = 0;
+    constexpr util::u32 kSdSelfBlocks = 128;
+    constexpr util::u32 kSdSelfStride = 1;
+    constexpr util::u32 kI2sSelfMs = 2000;
+
+    constexpr GPIO_PinState key_active() noexcept {
+        return kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
+    }
+
+    bool key_pressed(GPIO_TypeDef* port, std::uint16_t pin) noexcept {
+        return HAL_GPIO_ReadPin(port, pin) == key_active();
+    }
+
+    const char* bringup_mode_name(BringupMode mode) noexcept {
+        switch (mode) {
+        case BringupMode::sd: return "sd";
+        case BringupMode::decode: return "decode";
+        case BringupMode::i2s: return "i2s";
+        case BringupMode::full: return "full";
+        default: return "unknown";
+        }
+    }
+
+    BringupMode select_bringup_mode() noexcept {
+        if (!kBringupKeySelect) return kDefaultBringupMode;
+        const bool key0 = key_pressed(GPIOA, GPIO_PIN_8);
+        const bool wkup2 = key_pressed(GPIOA, GPIO_PIN_2);
+        if (key0 && wkup2) return BringupMode::i2s;
+        if (key0) return BringupMode::sd;
+        if (wkup2) return BringupMode::decode;
+        return kDefaultBringupMode;
+    }
+
+    void wait_key_press() noexcept {
+        if (!kBringupWaitKey) return;
+        const auto active = key_active();
+        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == active) {
+            HAL_Delay(10);
+        }
+        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) != active) {
+            HAL_Delay(10);
+        }
+        HAL_Delay(20);
     }
 }
 
@@ -327,6 +405,7 @@ int main() {
     MX_USART1_UART_Init();
     // MX_SDMMC1_SD_Init();
     MX_I2S1_Init();
+    MX_SPI5_Init();
 
     hqzy_gpio_init();
 
@@ -409,6 +488,7 @@ int main() {
     static out::channel_sink console_sink = out::make_channel_sink(g_dma_console);
     fs_set_console_sink(console_sink);
     audio_set_console_sink(console_sink);
+    display_set_console_sink(console_sink);
 
     const char msg[] = "bringup ok\n";
     auto wr = g_dma_console.write(io::ByteView{
@@ -419,29 +499,40 @@ int main() {
         Error_Handler();
     }
 
-    if (!fs_boot_init()) {
-        const char fail_msg[] = "fs init failed\n";
-        (void)g_dma_console.write(io::ByteView{
-            reinterpret_cast<const util::u8*>(fail_msg),
-            sizeof(fail_msg) - 1
-        });
-        Error_Handler();
-    }
+    const auto mode = select_bringup_mode();
+    (void)out::try_println<"bringup: mode {}">(console_sink, bringup_mode_name(mode));
 
-    {
-        const char wait_msg[] = "boot: wait key\n";
-        (void)g_dma_console.write(io::ByteView{
-            reinterpret_cast<const util::u8*>(wait_msg),
-            sizeof(wait_msg) - 1
-        });
-        constexpr GPIO_PinState active = kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
-        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) != active) {
-            HAL_Delay(10);
+    if (mode == BringupMode::sd) {
+        (void)out::try_println<"bringup: sd selftest begin">(console_sink);
+        (void)fs_sd_selftest(kSdSelfStartLba, kSdSelfBlocks, kSdSelfStride);
+    } else if (mode == BringupMode::decode) {
+        if (!fs_boot_init()) {
+            (void)out::try_println<"fs init failed">(console_sink);
+            Error_Handler();
         }
-        HAL_Delay(20);
+        (void)out::try_println<"bringup: wait key">(console_sink);
+        wait_key_press();
+        (void)out::try_println<"bringup: decode selftest begin">(console_sink);
+        (void)audio_mp3_decode_selftest();
+    } else if (mode == BringupMode::i2s) {
+        (void)out::try_println<"bringup: wait key">(console_sink);
+        wait_key_press();
+        (void)out::try_println<"bringup: i2s selftest begin">(console_sink);
+        audio_i2s_selftest(kI2sSelfMs);
+    } else {
+        if (!fs_boot_init()) {
+            (void)out::try_println<"fs init failed">(console_sink);
+            Error_Handler();
+        }
+        if (display_st7305_init()) {
+            display_st7305_selftest();
+        } else {
+            (void)out::try_println<"display: init failed">(console_sink);
+        }
+        (void)out::try_println<"boot: wait key">(console_sink);
+        wait_key_press();
+        audio_mp3_demo_run();
     }
-
-    audio_mp3_demo_run();
 
     while (true) {
         (void)running.run_once();

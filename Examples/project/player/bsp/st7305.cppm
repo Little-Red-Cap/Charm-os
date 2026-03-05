@@ -205,9 +205,9 @@ namespace bsp::st7305 {
         if (!io_.reset) return Status::ok;
         const bool active = io_.reset_active_high;
         io_.reset(active);
-        delay_ms(10);
+        delay_ms(20);
         io_.reset(!active);
-        delay_ms(10);
+        delay_ms(20);
         return Status::ok;
     }
 

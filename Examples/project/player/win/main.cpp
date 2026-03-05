@@ -74,8 +74,10 @@ import fs_core;
 import fs_errno;
 import fs_stream;
 import fs_vfs;
+import charm.system.clock;
 import util.core;
 import input.raw_event;
+import platform.win.time_source;
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -115,11 +117,16 @@ namespace {
     const bool kUsePartialBuffer = (CHARM_PLAYER_PFB != 0);
     constexpr int kTileHeight = 96;
 
+    static charm::system::ClockTick now_us(void*) noexcept {
+        return platform::win::SteadyClock::now();
+    }
+
     static DefaultFrameBuffer g_framebuffer{};
     static DefaultCanvas g_canvas(g_framebuffer);
     static UiFactory g_factory{};
     static audio::PlayerConfig g_player_cfg{};
-    static audio::AudioPlayer g_player(g_player_cfg);
+    static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
+    static audio::AudioPlayer g_player(g_player_cfg, g_clock);
     static std::vector<std::string> g_vfs_tracks{};
     
 

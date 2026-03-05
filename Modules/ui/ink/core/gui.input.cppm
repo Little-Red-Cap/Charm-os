@@ -12,7 +12,6 @@ import input.intent;
 import input.events;
 import input.queue;
 import input.encoder_decoder;
-import input.sampler;
 import input.raw_sampler;
 
 export namespace gui::input {
@@ -34,7 +33,6 @@ export namespace gui::input {
     using ::input::RepeatCfg;
     using ::input::RingQueue;
     using ::input::RawSampler;
-    using ::input::Sampler;
     using ::input::SamplerCfg;
     using ::input::Type;
 } // namespace gui::input

@@ -14,7 +14,6 @@ export import hal_win;
 export import input.raw;
 export import input.raw_event;
 export import input.queue;
-export import input.sampler;
 export import input.raw_sampler;
 export import input.router;
 export import input.router.node;
@@ -32,6 +31,12 @@ export import io.channel.adapters;
 export import io.registry;
 export import io.reactor;
 export import driver.usart_channel;
+
+export import block.device;
+export import block.device.node;
+export import block.registry;
+export import block.sdmmc;
+export import block.spi_flash;
 
 export import fs_block;
 export import fs_block_file;

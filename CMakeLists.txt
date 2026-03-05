@@ -330,6 +330,19 @@ message(STATUS "${target_name} Examples: Service/DS -> ${CMAKE_CURRENT_SOURCE_DI
 message(STATUS "${target_name} Examples: HAL/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/hal/hal_demo")
 message(STATUS "${target_name} Examples: Alg/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/alg/alg_demo")
 
+set(ARCH_LINT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/arch_lint.ps1")
+find_program(ARCH_LINT_SHELL NAMES pwsh powershell)
+if (ARCH_LINT_SHELL AND EXISTS "${ARCH_LINT_SCRIPT}")
+    if (WIN32)
+        set(ARCH_LINT_ARGS -NoProfile -ExecutionPolicy Bypass -File "${ARCH_LINT_SCRIPT}")
+    else()
+        set(ARCH_LINT_ARGS -NoProfile -File "${ARCH_LINT_SCRIPT}")
+    endif()
+    add_custom_target(arch_lint
+        COMMAND "${ARCH_LINT_SHELL}" ${ARCH_LINT_ARGS}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 if (CHARM_BUILD_PLAYER)
     add_subdirectory(Examples/project/player)
 endif()

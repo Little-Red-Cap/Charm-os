@@ -43,6 +43,7 @@ export namespace charm::system {
         std::array<const init::Node*, 3> nodes{};
 
         InputInitChain(const hal::RawInputSource& source,
+                       charm::system::Clock& clock,
                        input::InputPumpTask& pump,
                        input::ScheduleFn schedule_fn,
                        void* schedule_ctx,
@@ -54,11 +55,12 @@ export namespace charm::system {
                        init::Phase phase = init::Phase::core,
                        util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : router(),
-              service(source, cfg.service),
+              service(source, clock, cfg.service),
               router_binding(router, caps.router_cap, phase, runlevel_mask),
-              service_binding(service, caps.service_cap, caps.clock_cap, phase, runlevel_mask),
+              service_binding(service, clock, caps.service_cap, caps.clock_cap, phase, runlevel_mask),
               pump_binding(pump,
                            service,
+                           clock,
                            schedule_fn,
                            schedule_ctx,
                            pump_id,
@@ -70,6 +72,7 @@ export namespace charm::system {
                            caps.eda_cap,
                            caps.service_cap,
                            caps.clock_cap,
+                           caps.router_cap,
                            phase,
                            runlevel_mask) {
             nodes = {&service_binding.node, &router_binding.node, &pump_binding.node};

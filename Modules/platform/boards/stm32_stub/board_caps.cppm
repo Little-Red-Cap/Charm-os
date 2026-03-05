@@ -4,6 +4,7 @@ export module platform.board.stm32_stub;
 
 import platform.board;
 import hal_core;
+import hal_input;
 import hal_uart;
 import hal_stm32_stub;
 import util.core;
@@ -71,12 +72,14 @@ export namespace platform::board::stm32_stub {
             &detail::stm32_uart_disable_irq,
             &detail::stm32_uart_clear_irq
         };
+        static const hal::RawInputDriver kStm32RawInput = hal::stm32_stub::RawInput::driver();
         BoardCaps caps{};
         caps.uart1.handle = hal::UartIoHandle{&uart1_ctx, &kStm32UartOps};
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
         caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        caps.input.driver = &kStm32RawInput;
         return caps;
     }
 }

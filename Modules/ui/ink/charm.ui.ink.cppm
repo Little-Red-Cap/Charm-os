@@ -21,7 +21,6 @@ export import input.intent;
 export import input.queue;
 export import input.raw;
 export import input.raw_event;
-export import input.sampler;
 export import input.raw_sampler;
 export import input.service;
 export import input.trace;

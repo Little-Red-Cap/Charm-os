@@ -1,13 +1,16 @@
 ﻿module;
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <array>
+#include <concepts>
 #include <span>
 #include <string_view>
 
 export module fs_vfs;
 
+import block.device;
+import block.registry;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -39,6 +42,78 @@ export namespace fs {
         auto norm = normalize(prefix);
         g_mounts[g_mount_count++] = MountPoint{std::string_view{norm.data, norm.size}, m};
         return Status{Errc::ok};
+    }
+
+    template <typename RegistryT, typename MountT>
+    inline Status vfs_mount_block(std::string_view prefix,
+                                  RegistryT& registry,
+                                  std::string_view dev_name,
+                                  MountT& mount,
+                                  bool format_if_needed = false,
+                                  util::u8 pdrv = 0) noexcept
+        requires requires(MountT& m, block::Device& dev) {
+            { m.mount(dev, format_if_needed, pdrv) } -> std::same_as<Status>;
+            { m.mount_point() } -> std::same_as<Mount*>;
+        }
+    {
+        auto* dev = registry.open_device(dev_name);
+        if (!dev) return Status{Errc::noent};
+        auto st = mount.mount(*dev, format_if_needed, pdrv);
+        if (!st) return st;
+        return add_mount(prefix, mount.mount_point());
+    }
+
+    template <typename RegistryT, typename MountT>
+    inline Status vfs_mount_block(std::string_view prefix,
+                                  RegistryT& registry,
+                                  std::string_view dev_name,
+                                  MountT& mount) noexcept
+        requires requires(MountT& m, block::Device& dev) {
+            { m.mount(dev) } -> std::same_as<Status>;
+            { m.mount_point() } -> std::same_as<Mount*>;
+        }
+    {
+        auto* dev = registry.open_device(dev_name);
+        if (!dev) return Status{Errc::noent};
+        auto st = mount.mount(*dev);
+        if (!st) return st;
+        return add_mount(prefix, mount.mount_point());
+    }
+
+    template <typename RegistryT, typename MountT>
+    inline Status vfs_mount_block(std::string_view prefix,
+                                  RegistryT& registry,
+                                  block::CapId cap,
+                                  MountT& mount,
+                                  bool format_if_needed = false,
+                                  util::u8 pdrv = 0) noexcept
+        requires requires(MountT& m, block::Device& dev) {
+            { m.mount(dev, format_if_needed, pdrv) } -> std::same_as<Status>;
+            { m.mount_point() } -> std::same_as<Mount*>;
+        }
+    {
+        auto* dev = registry.open_device(cap);
+        if (!dev) return Status{Errc::noent};
+        auto st = mount.mount(*dev, format_if_needed, pdrv);
+        if (!st) return st;
+        return add_mount(prefix, mount.mount_point());
+    }
+
+    template <typename RegistryT, typename MountT>
+    inline Status vfs_mount_block(std::string_view prefix,
+                                  RegistryT& registry,
+                                  block::CapId cap,
+                                  MountT& mount) noexcept
+        requires requires(MountT& m, block::Device& dev) {
+            { m.mount(dev) } -> std::same_as<Status>;
+            { m.mount_point() } -> std::same_as<Mount*>;
+        }
+    {
+        auto* dev = registry.open_device(cap);
+        if (!dev) return Status{Errc::noent};
+        auto st = mount.mount(*dev);
+        if (!st) return st;
+        return add_mount(prefix, mount.mount_point());
     }
 
     inline Status remove_mount(std::string_view prefix) noexcept {

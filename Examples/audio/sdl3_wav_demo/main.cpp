@@ -1,4 +1,6 @@
 import charm.domain;
+import charm.system.clock;
+import platform.win.time_source;
 
 #include <chrono>
 #include <cstdint>
@@ -13,6 +15,10 @@ using audio::PlayerConfig;
 using audio::PlayerProfile;
 using audio::PlayerSnapshot;
 using audio::PlayerState;
+
+static charm::system::ClockTick now_us(void*) noexcept {
+    return platform::win::SteadyClock::now();
+}
 
 struct Profile {
     const char* name;
@@ -125,7 +131,8 @@ int main(int argc, char** argv) {
         config.fail_reconfig_step = 1;
     }
 
-    AudioPlayer player(config);
+    charm::system::Clock clock{nullptr, {.now_us = &now_us}};
+    AudioPlayer player(config, clock);
     player.set_stress_ms(stress_ms);
 
     auto play_res = player.play(path.c_str());

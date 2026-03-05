@@ -43,11 +43,11 @@ public:
             auto target = captured_ ? captured_ : hit_test(target_root, e.x, e.y);
             if (target != hovered_) {
                 if (hovered_) {
-                    dispatch_to(hovered_, Event::mouse(Event::Type::HoverLeave, e.x, e.y, e.button));
+                    dispatch_to(hovered_, Event::mouse(Event::Type::HoverLeave, e.x, e.y, e.button, e.ms));
                 }
                 set_state(hovered_, ObjectBase::State::Hovered, false);
                 if (target) {
-                    dispatch_to(target, Event::mouse(Event::Type::HoverEnter, e.x, e.y, e.button));
+                    dispatch_to(target, Event::mouse(Event::Type::HoverEnter, e.x, e.y, e.button, e.ms));
                 }
                 set_state(target, ObjectBase::State::Hovered, true);
                 hovered_ = target;
@@ -63,12 +63,12 @@ public:
                     if ((total_dx * total_dx + total_dy * total_dy) >= drag_threshold_sq_) {
                         dragging_ = true;
                         gesture_target_ = captured_ ? captured_ : pressed_;
-                        dispatch_to(gesture_target_, Event::drag(Event::Type::DragStart, e.x, e.y, 0, 0, e.button));
+                        dispatch_to(gesture_target_, Event::drag(Event::Type::DragStart, e.x, e.y, 0, 0, e.button, e.ms));
                         begin_swipe(e.x, e.y);
                     }
                 }
                 if (dragging_) {
-                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragMove, e.x, e.y, dx, dy, e.button));
+                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragMove, e.x, e.y, dx, dy, e.button, e.ms));
                     update_swipe(e.x, e.y);
                 } else {
                     dispatch_to(pressed_, e);
@@ -113,14 +113,14 @@ public:
             if (pressed_) {
                 const bool was_dragging = dragging_;
                 if (dragging_) {
-                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragEnd, e.x, e.y, 0, 0, e.button));
+                    dispatch_to(gesture_target_, Event::drag(Event::Type::DragEnd, e.x, e.y, 0, 0, e.button, e.ms));
                     dragging_ = false;
                 }
                 end_swipe(e.x, e.y);
                 set_state(pressed_, ObjectBase::State::Pressed, false);
                 dispatch_to(pressed_, e);
                 if (!was_dragging && pressed_ == target) {
-                    dispatch_to(pressed_, Event::mouse(Event::Type::Click, e.x, e.y, e.button));
+                    dispatch_to(pressed_, Event::mouse(Event::Type::Click, e.x, e.y, e.button, e.ms));
                 }
                 pressed_ = {};
                 captured_ = {};
@@ -151,7 +151,7 @@ public:
                     if (next) set_focus(next);
                 }
                 if (nav.activated && focused_) {
-                    dispatch_to(focused_, Event::mouse(Event::Type::Click, 0, 0, 0));
+                    dispatch_to(focused_, Event::mouse(Event::Type::Click, 0, 0, 0, e.ms));
                 }
             }
             if (focused_) dispatch_to(focused_, e);

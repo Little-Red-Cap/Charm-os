@@ -7,22 +7,25 @@ export module input.service.node;
 
 import init.node;
 import input.service;
+import charm.system.clock;
 import util.core;
 import util.error;
 
 export namespace input {
     struct ServiceBinding {
         InputService* service{nullptr};
+        charm::system::Clock* clock{nullptr};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
 
         explicit ServiceBinding(InputService& svc,
+                                charm::system::Clock& clock_in,
                                 const char* cap_name = "input.service",
                                 const char* clock_cap_name = "system.clock",
                                 init::Phase phase = init::Phase::core,
                                 util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : service(&svc) {
+            : service(&svc), clock(&clock_in) {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id(clock_cap_name);
             node = init::Node{
@@ -39,13 +42,10 @@ export namespace input {
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {
             auto* self = static_cast<ServiceBinding*>(ctx);
-            if (!self || !self->service) {
+            if (!self || !self->service || !self->clock) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            if (g_service && g_service != self->service) {
-                return util::unexpected(util::Errc::exist);
-            }
-            set_service(*self->service);
+            self->service->set_clock(*self->clock);
             return {};
         }
     };

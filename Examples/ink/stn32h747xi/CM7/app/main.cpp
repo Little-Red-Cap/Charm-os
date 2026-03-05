@@ -97,6 +97,9 @@ int main() {
     charm::system::BringupMinimal<8, 16, 8, kRxCap, kTxCap> bringup{
         caps.uart1,
         caps.clock,
+        caps.input,
+        caps.spi1,
+        caps.i2c1,
         pump,
         post_fn,
         &running,

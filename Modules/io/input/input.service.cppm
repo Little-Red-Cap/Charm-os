@@ -14,7 +14,6 @@ import charm.system.clock;
 import hal_input;
 import input.raw_event;
 import input.raw_sampler;
-import input.sampler;
 import util.core;
 
 namespace input::detail {
@@ -30,17 +29,25 @@ export namespace input {
     public:
         InputService() noexcept = default;
         explicit InputService(const hal::RawInputSource& source,
+                              charm::system::Clock& clock,
                               ServiceCfg cfg = {}) noexcept
-            : source_(source), sampler_(cfg.sampler) {}
+            : source_(source), sampler_(cfg.sampler), clock_(clock) {}
 
         void set_source(const hal::RawInputSource& source) noexcept {
             source_ = source;
         }
 
+        void set_clock(charm::system::Clock& clock) noexcept {
+            clock_.reset(clock);
+        }
+
         RawSampler& sampler() noexcept { return sampler_; }
 
         std::optional<RawInputEvent> poll_raw() noexcept {
-            const auto now = static_cast<std::uint32_t>(charm::system::clock().now_ms());
+            if (!clock_.valid()) {
+                return std::nullopt;
+            }
+            const auto now = static_cast<std::uint32_t>(clock_.now_ms());
             return poll_raw_at(now);
         }
 
@@ -63,16 +70,7 @@ export namespace input {
     private:
         hal::RawInputSource source_{detail::g_null_driver};
         RawSampler sampler_{};
+        charm::system::ClockRef clock_{};
     };
 
-    inline InputService* g_service = nullptr;
-
-    inline void set_service(InputService& service) noexcept {
-        g_service = &service;
-    }
-
-    [[nodiscard]] inline InputService& service() noexcept {
-        static InputService fallback{};
-        return g_service ? *g_service : fallback;
-    }
 } // namespace input

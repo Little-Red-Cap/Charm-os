@@ -6,7 +6,7 @@
 import charm.system.clock;
 import hal_input;
 import hal_win;
-import input.sampler;
+import input.raw_sampler;
 import input.raw_event;
 import out.api;
 import platform.win.time_source;
@@ -65,7 +65,7 @@ namespace {
 
 int main() {
     charm::system::Clock clock{nullptr, {.now_us = &now_us}};
-    charm::system::set_clock(clock);
+    charm::system::ClockRef clock_ref{clock};
 
     ScriptedInput state{};
     hal::RawInputDriver drv{
@@ -79,9 +79,9 @@ int main() {
     input::RawSampler sampler{};
 
     (void)out::println<"[raw_input_demo] start">();
-    const auto start = charm::system::clock().now_ms();
-    while (charm::system::clock().now_ms() - start < 2000) {
-        state.now_ms = static_cast<std::uint32_t>(charm::system::clock().now_ms());
+    const auto start = clock_ref.now_ms();
+    while (clock_ref.now_ms() - start < 2000) {
+        state.now_ms = static_cast<std::uint32_t>(clock_ref.now_ms());
         if (auto ev = sampler.poll(source, state.now_ms)) {
             (void)out::println<"[raw] t={} type={}">(
                 ev->ms,

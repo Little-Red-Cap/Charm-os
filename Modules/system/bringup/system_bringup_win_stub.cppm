@@ -46,18 +46,19 @@ export namespace charm::system {
         const auto input_pump_id = Registry::id_of<InputPumpTask>();
         auto& pump = registry.get<PumpTask>();
         auto& input_pump = registry.get<InputPumpTask>();
-        const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::InputBringupDesc{
-            &caps.input,
-            &input_pump,
+        const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
+            caps.input,
+            input_pump,
             &input::scheduler_schedule_at<decltype(running)>,
             &running,
-            input_pump_id
-        };
+            input_pump_id);
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
             caps.clock,
             caps.input,
+            caps.spi1,
+            caps.i2c1,
             pump,
             &charm::system::scheduler_post<decltype(running)>,
             &running,

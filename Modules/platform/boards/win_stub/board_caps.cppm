@@ -5,6 +5,7 @@ export module platform.board.win_stub;
 import platform.board;
 import platform.win.time_source;
 import hal_core;
+import hal_input;
 import hal_uart;
 import hal_win;
 import util.core;
@@ -72,12 +73,14 @@ export namespace platform::board::win_stub {
             &detail::win_uart_disable_irq,
             &detail::win_uart_clear_irq
         };
+        static const hal::RawInputDriver kWinRawInput = hal::win::RawInput::driver();
         BoardCaps caps{};
         caps.uart1.handle = hal::UartIoHandle{&uart1_ctx, &kWinUartOps};
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
         caps.clock = ClockDesc{nullptr, nullptr, &detail::win_now_us};
+        caps.input.driver = &kWinRawInput;
         return caps;
     }
 }

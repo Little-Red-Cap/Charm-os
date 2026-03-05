@@ -10,6 +10,7 @@ module;
 export module player.stm32.audio_player_demo;
 
 import audio.player;
+import charm.system.clock;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -69,6 +70,10 @@ namespace {
         return c0 == '.' && c1 == 'w' && c2 == 'a' && c3 == 'v';
     }
 
+    charm::system::ClockTick now_ms(void*) noexcept {
+        return HAL_GetTick();
+    }
+
     struct FindAudioCtx {
         char path[128]{};
         bool found{false};
@@ -99,7 +104,8 @@ namespace {
 } // namespace
 
 export void audio_player_demo_start() noexcept {
-    static audio::AudioPlayer player{audio::PlayerConfig{}};
+    static charm::system::Clock clock{nullptr, {.now_ms = &now_ms}};
+    static audio::AudioPlayer player{audio::PlayerConfig{}, clock};
     g_player = &player;
 
     FindAudioCtx ctx{};

@@ -204,7 +204,10 @@ export namespace soa_detail {
     struct TextListPayload {
         std::array<TextId, kMaxTextListItems> items{};
         std::uint16_t count{0};
+        std::uint16_t start{0};
         std::int16_t selected{-1};
+        std::uint8_t follow_tail{0};
+        std::uint8_t reserved{0};
         int scroll_y{0};
         int row_height{28};
         int wheel_step{1};

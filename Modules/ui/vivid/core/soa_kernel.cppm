@@ -1097,6 +1097,7 @@ public:
         auto* payload = payload_get<soa_detail::TextListPayload>(idx);
         if (!payload) return;
         payload->count = count;
+        payload->start = 0;
         if (payload->selected >= static_cast<int>(count)) {
             payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
         }
@@ -1115,7 +1116,9 @@ public:
         auto* payload = payload_get<soa_detail::TextListPayload>(idx);
         if (!payload) return;
         const auto id = payloads_.store_text(text);
-        payload->items[index] = id;
+        const std::uint16_t slot =
+            static_cast<std::uint16_t>((payload->start + index) % soa_detail::kMaxTextListItems);
+        payload->items[slot] = id;
         if (index >= payload->count) {
             payload->count = static_cast<std::uint16_t>(index + 1);
         }
@@ -1187,7 +1190,99 @@ public:
         const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
         if (!payload) return "";
         if (index >= payload->count) return "";
-        return payloads_.text_c_str(payload->items[index]);
+        const std::uint16_t slot =
+            static_cast<std::uint16_t>((payload->start + index) % soa_detail::kMaxTextListItems);
+        return payloads_.text_c_str(payload->items[slot]);
+    }
+
+    void console_clear(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+        payload->count = 0;
+        payload->start = 0;
+        payload->selected = -1;
+        payload->scroll_y = 0;
+        mark_paint_dirty();
+    }
+
+    void set_console_follow_tail(WidgetHandle h, bool follow) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+        payload->follow_tail = follow ? 1u : 0u;
+    }
+
+    void console_append(WidgetHandle h, const char* text) noexcept {
+        if (!text) return;
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+
+        static constexpr std::size_t kMaxLine = 96;
+        char line[kMaxLine + 1]{};
+        std::size_t len = 0;
+        bool added = false;
+
+        auto push_line = [&](const char* text_line) {
+            const auto id = payloads_.store_text(text_line);
+            const std::uint16_t cap = soa_detail::kMaxTextListItems;
+            std::uint16_t slot = 0;
+            if (payload->count < cap) {
+                slot = static_cast<std::uint16_t>((payload->start + payload->count) % cap);
+                payload->count = static_cast<std::uint16_t>(payload->count + 1);
+            } else {
+                slot = payload->start;
+                payload->start = static_cast<std::uint16_t>((payload->start + 1) % cap);
+            }
+            payload->items[slot] = id;
+            added = true;
+        };
+
+        for (const char* p = text; *p; ++p) {
+            const char ch = *p;
+            if (ch == '\r') continue;
+            if (ch == '\n') {
+                line[len] = '\0';
+                push_line(line);
+                len = 0;
+                continue;
+            }
+            if (len >= kMaxLine) {
+                line[len] = '\0';
+                push_line(line);
+                len = 0;
+            }
+            line[len++] = ch;
+        }
+        if (len > 0) {
+            line[len] = '\0';
+            push_line(line);
+        }
+
+        if (!added) return;
+        mark_paint_dirty();
+        if (payload->follow_tail != 0) {
+            set_scroll_y_clamped(h, max_scroll(h));
+        }
     }
 
     void set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
@@ -2666,6 +2761,7 @@ struct SoaBehavior {
             behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
             break;
         case WidgetKind::TextList:
+        case WidgetKind::ConsoleBox:
             behavior.scrollable = true;
             behavior.capture_on_press = true;
             behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
@@ -2827,6 +2923,8 @@ struct SoaBehavior {
         case WidgetKind::ListItem:
             return make_desc(true, PayloadKind::ListItem);
         case WidgetKind::TextList:
+            return make_desc(true, PayloadKind::TextList);
+        case WidgetKind::ConsoleBox:
             return make_desc(true, PayloadKind::TextList);
         case WidgetKind::Radio:
             return make_desc(true, PayloadKind::Radio);
@@ -3979,13 +4077,22 @@ export
         kernel_.set_focusable(h, true);
         return h;
     }
-      WidgetHandle create_text_list() noexcept {
-          auto h = kernel_.create(WidgetKind::TextList);
-          kernel_.set_clip_children(h, true);
-          kernel_.set_focusable(h, true);
-          kernel_.set_scroll_step(h, 1);
-          return h;
-      }
+    WidgetHandle create_text_list() noexcept {
+        auto h = kernel_.create(WidgetKind::TextList);
+        kernel_.set_clip_children(h, true);
+        kernel_.set_focusable(h, true);
+        kernel_.set_scroll_step(h, 1);
+        return h;
+    }
+    WidgetHandle create_console_box() noexcept {
+        auto h = kernel_.create(WidgetKind::ConsoleBox);
+        kernel_.set_clip_children(h, true);
+        kernel_.set_focusable(h, false);
+        kernel_.set_scroll_step(h, 24);
+        kernel_.set_list_row_height(h, 18);
+        kernel_.set_console_follow_tail(h, true);
+        return h;
+    }
     WidgetHandle create_scroll_container() noexcept {
         auto h = kernel_.create(WidgetKind::ScrollContainer);
         kernel_.set_clip_children(h, true);
@@ -4022,6 +4129,15 @@ export
         }
         void set_text_list_selected(WidgetHandle h, int index) noexcept {
             kernel_.set_text_list_selected(h, index);
+        }
+        void console_clear(WidgetHandle h) noexcept {
+            kernel_.console_clear(h);
+        }
+        void console_append(WidgetHandle h, const char* text) noexcept {
+            kernel_.console_append(h, text);
+        }
+        void set_console_follow_tail(WidgetHandle h, bool follow) noexcept {
+            kernel_.set_console_follow_tail(h, follow);
         }
         void set_list_view_source(WidgetHandle h,
                                   std::uint16_t count,

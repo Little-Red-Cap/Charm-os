@@ -430,6 +430,19 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                              kernel_.scroll_y(h), kernel_.list_row_height(h));
         }
         break;
+    case WidgetKind::ConsoleBox:
+        {
+            const std::uint16_t count = kernel_.text_list_count(h);
+            constexpr std::size_t kMaxTextListItems = soa_detail::kMaxTextListItems;
+            std::array<const char*, kMaxTextListItems> items{};
+            for (std::uint16_t i = 0; i < count && i < items.size(); ++i) {
+                items[i] = kernel_.text_list_item(h, i);
+            }
+            record_text_list(out, world_rect, colors, metrics, state,
+                             items.data(), count, -1,
+                             kernel_.scroll_y(h), kernel_.list_row_height(h));
+        }
+        break;
     case WidgetKind::ModalDialog:
         unsupported_kind(kind);
         break;
@@ -614,9 +627,6 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::BusyWheel:
-        unsupported_kind(kind);
-        break;
-    case WidgetKind::ConsoleBox:
         unsupported_kind(kind);
         break;
     case WidgetKind::BatteryGasGauge:

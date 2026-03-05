@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 
 import canopen.types;
@@ -8,6 +9,7 @@ import canopen.od;
 import canopen.sdo;
 import canopen.transport;
 import canopen.transport_channel;
+import canopen.transport_channel.node;
 import canopen.sdo_service;
 import canopen.nmt;
 import canopen.nmt_service;
@@ -125,7 +127,7 @@ namespace {
         io::Registry<4> registry{};
         LoopbackChannel bus{};
         io::Channel channel{};
-        canopen::ChannelTransport<64> adapter{};
+        std::optional<canopen::ChannelTransportBinding<io::Registry<4>, 64>> binding{};
 
         bool init() noexcept {
             registry.init();
@@ -141,13 +143,14 @@ namespace {
             };
             auto r = registry.register_channel(desc, channel, nullptr);
             if (!r) return false;
-            auto* ch = registry.open_channel("io.can0");
-            if (!ch) return false;
-            adapter.bind(*ch);
+            binding.emplace(registry);
+            auto bind_r = canopen::ChannelTransportBinding<io::Registry<4>, 64>::init_trampoline(
+                binding.operator->());
+            if (!bind_r) return false;
             return true;
         }
 
-        canopen::Transport& transport() noexcept { return adapter.transport(); }
+        canopen::Transport& transport() noexcept { return binding->transport; }
     };
 
     canopen::CanFrame make_download(canopen::NodeId node,

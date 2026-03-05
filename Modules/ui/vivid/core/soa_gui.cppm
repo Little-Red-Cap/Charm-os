@@ -401,10 +401,6 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         record_progress(out, world_rect, colors, metrics, state,
                         kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
-    case WidgetKind::Bar:
-        record_progress_bar_simple(out, world_rect, colors, metrics,
-                                   kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
-        break;
     case WidgetKind::List:
         record_list(out, world_rect, colors, metrics, state,
                     kernel_.scroll_y(h), kernel_.max_scroll(h));
@@ -525,6 +521,9 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         break;
     case WidgetKind::Spinner:
         record_spinner(out, world_rect, colors, kernel_.spinner_phase(h));
+        break;
+    case WidgetKind::Bar:
+        unsupported_kind(kind);
         break;
     case WidgetKind::PopupLayer:
         unsupported_kind(kind);

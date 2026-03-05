@@ -2906,8 +2906,6 @@ struct SoaBehavior {
             return make_desc(true, PayloadKind::Progress);
         case WidgetKind::ProgressBarSimple:
             return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::Bar:
-            return make_desc(true, PayloadKind::Progress);
         case WidgetKind::Spinner:
             return make_desc(true, PayloadKind::Spinner);
         case WidgetKind::List:
@@ -3997,11 +3995,6 @@ export
     }
       WidgetHandle create_progress() noexcept {
           auto h = kernel_.create(WidgetKind::Progress);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_bar() noexcept {
-          auto h = kernel_.create(WidgetKind::Bar);
           kernel_.set_hit_testable(h, false);
           return h;
       }

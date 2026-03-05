@@ -976,6 +976,44 @@ int main() {
         }
     }
 
+    // SYNC: tolerate tx would_block and retry later.
+    {
+        LoopbackContext sync_ctx{};
+        ck.expect(sync_ctx.init(), "loopback init");
+        canopen::SyncNode sync_node{{
+            .period_ms = 1,
+            .send_counter = true,
+            .counter_max = 0,
+        }};
+        canopen::SyncService sync_service{sync_node, sync_ctx.transport(), {.rx_budget = 1}};
+
+        std::array<util::u8, 128> fill{};
+        bool filled = false;
+        for (int i = 0; i < 8; ++i) {
+            auto wr = sync_ctx.channel.write(io::ByteView{fill.data(), fill.size()});
+            if (!wr) {
+                ck.expect_eq("sync fill err", wr.error(), util::Errc::would_block);
+                filled = true;
+                break;
+            }
+        }
+        ck.expect(filled, "sync fill tx ring");
+
+        util::u32 now_ms = 1;
+        (void)sync_service.poll_time(now_ms);
+        now_ms += 1;
+        const auto before_count = sync_ctx.bus.tx.count;
+        (void)sync_service.poll_time(now_ms);
+        ck.expect_eq("sync pending count", sync_ctx.bus.tx.count, before_count);
+
+        while (sync_ctx.bus.tx.count > 0) {
+            std::array<util::u8, 32> drain{};
+            (void)sync_ctx.bus.tx.pop(drain);
+        }
+        (void)sync_service.poll();
+        ck.expect(pop_tx_frame(sync_ctx.bus, tx), "sync retry after unblock");
+    }
+
     // EMCY: producer send + consumer decode.
     {
         LoopbackContext emcy_ctx{};
@@ -1056,6 +1094,39 @@ int main() {
         ck.expect(!bad_prod.build(msg, bad_tx), "emcy build invalid node");
     }
 
+    // EMCY: rx_budget=1 should process frames one by one.
+    {
+        LoopbackContext emcy_ctx{};
+        ck.expect(emcy_ctx.init(), "loopback init");
+        canopen::EmcyProducer emcy_prod{{.node_id = 2}};
+        canopen::EmcyConsumer emcy_cons{};
+        canopen::EmcyService emcy_service{emcy_prod, emcy_cons, emcy_ctx.transport(), {.rx_budget = 1}};
+
+        canopen::CanFrame emcy_rx0{};
+        emcy_rx0.id = canopen::emcy_id(2);
+        emcy_rx0.dlc = 8;
+        emcy_rx0.data.fill(0);
+        emcy_rx0.data[0] = 0x11u;
+        emcy_rx0.data[1] = 0x22u;
+        emcy_rx0.data[2] = 0x33u;
+        canopen::CanFrame emcy_rx1 = emcy_rx0;
+        emcy_rx1.data[0] = 0x44u;
+        emcy_rx1.data[1] = 0x55u;
+
+        push_rx_frame(emcy_ctx.bus, emcy_rx0);
+        push_rx_frame(emcy_ctx.bus, emcy_rx1);
+        (void)emcy_service.poll();
+
+        canopen::EmcyMessage got{};
+        canopen::NodeId got_node{};
+        ck.expect(emcy_service.take_last(got, got_node), "emcy rx0 missing");
+        ck.expect_eq("emcy rx0 code", got.error_code, static_cast<util::u16>(0x2211u));
+
+        (void)emcy_service.poll();
+        ck.expect(emcy_service.take_last(got, got_node), "emcy rx1 missing");
+        ck.expect_eq("emcy rx1 code", got.error_code, static_cast<util::u16>(0x5544u));
+    }
+
     // PDO: build + handle.
     {
         std::array<std::byte, 3> pdo_tx{
@@ -1123,6 +1194,24 @@ int main() {
         rx.dlc = 2;
         ck.expect(!cons.handle(rx), "pdo rx short dlc");
         ck.expect_eq("pdo rx last len stay", cons.last_len(), static_cast<util::u8>(0u));
+    }
+
+    // PDO: tolerate drop and accept later valid frame.
+    {
+        std::array<std::byte, 2> out{};
+        canopen::PdoConsumer cons{{canopen::rpdo_id(2, 1), 2u}, out};
+        canopen::CanFrame rx{};
+        rx.id = canopen::rpdo_id(2, 1);
+        rx.dlc = 1; // drop
+        rx.data.fill(0);
+        ck.expect(!cons.handle(rx), "pdo drop short dlc");
+        ck.expect_eq("pdo drop len", cons.last_len(), static_cast<util::u8>(0u));
+
+        rx.dlc = 2;
+        rx.data[0] = 0xAB;
+        rx.data[1] = 0xCD;
+        ck.expect(cons.handle(rx), "pdo accept later");
+        ck.expect_eq("pdo accept len", cons.last_len(), static_cast<util::u8>(2u));
     }
 
     if (ck.failures == 0) {

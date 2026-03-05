@@ -326,6 +326,73 @@ int main() {
         expect_abort(ck, "missing abort code", tx, 0x2003, 0x00, 0x06020000u);
     }
 
+    // SDO expedited: size indicated bit missing -> CmdSpec.
+    {
+        canopen::CanFrame f{};
+        f.id = canopen::sdo_request_id(1);
+        f.dlc = 8;
+        f.data.fill(0);
+        f.data[0] = 0x22u; // expedited=1, size_indicated=0
+        f.data[1] = 0x00;
+        f.data[2] = 0x20;
+        f.data[3] = 0x00;
+        f.data[4] = 0x11;
+        push_rx_frame(transport_ctx.bus, f);
+        (void)service.poll();
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
+            dump_frame("exp_no_size", tx);
+            expect_abort(ck, "exp no size", tx, 0x2000, 0x00, 0x05040001u);
+        }
+    }
+
+    // SDO expedited: size too short for fixed entry -> DataShort.
+    {
+        canopen::CanFrame f{};
+        f.id = canopen::sdo_request_id(1);
+        f.dlc = 8;
+        f.data.fill(0);
+        f.data[0] = 0x27u; // size=3 (n=1)
+        f.data[1] = 0x00;
+        f.data[2] = 0x20;
+        f.data[3] = 0x00;
+        f.data[4] = 0x11;
+        f.data[5] = 0x22;
+        f.data[6] = 0x33;
+        push_rx_frame(transport_ctx.bus, f);
+        (void)service.poll();
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
+            dump_frame("exp_short", tx);
+            expect_abort(ck, "exp short", tx, 0x2000, 0x00, 0x06070013u);
+        }
+    }
+
+    // SDO segmented init: size shorter/longer than fixed entry.
+    {
+        canopen::CanFrame f{};
+        f.id = canopen::sdo_request_id(1);
+        f.dlc = 8;
+        f.data.fill(0);
+        f.data[0] = 0x21u; // segmented, size indicated
+        f.data[1] = 0x00;
+        f.data[2] = 0x20;
+        f.data[3] = 0x00;
+        f.data[4] = 3; // too short for u32
+        push_rx_frame(transport_ctx.bus, f);
+        (void)service.poll();
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
+            dump_frame("seg_short", tx);
+            expect_abort(ck, "seg short", tx, 0x2000, 0x00, 0x06070013u);
+        }
+
+        f.data[4] = 5; // too long for u32
+        push_rx_frame(transport_ctx.bus, f);
+        (void)service.poll();
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
+            dump_frame("seg_long", tx);
+            expect_abort(ck, "seg long", tx, 0x2000, 0x00, 0x06070012u);
+        }
+    }
+
     // Block download (10 bytes) into 0x3000.
     {
         canopen::CanFrame init{};

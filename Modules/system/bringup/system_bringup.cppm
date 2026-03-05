@@ -18,6 +18,7 @@ import init.graph;
 import init.node;
 import io.registry;
 import io.reactor;
+import io.channel.node;
 import input.pump;
 import kernel.eda;
 import platform.board;
@@ -68,6 +69,7 @@ export namespace charm::system {
                        const platform::board::InputDesc& input_desc,
                        const platform::board::SpiDesc& spi_desc,
                        const platform::board::I2cDesc& i2c_desc,
+                       const platform::board::CanDesc& can_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
                        void* post_ctx,
@@ -82,7 +84,8 @@ export namespace charm::system {
                      uart.handle, uart.config, uart.io_cap, uart.hal_cap),
               input_desc_(input_desc),
               spi_desc_(spi_desc),
-              i2c_desc_(i2c_desc) {
+              i2c_desc_(i2c_desc),
+              can_desc_(can_desc) {
             if (!input.desc) {
                 input.desc = &input_desc_;
             }
@@ -136,6 +139,16 @@ export namespace charm::system {
                 for (util::usize i = 0; i < input_nodes.size(); ++i) {
                     board_nodes_[board_count++] = input_nodes[i];
                 }
+            }
+            if (can_desc_.channel) {
+                io::EndpointDesc desc{
+                    can_desc_.io_cap,
+                    io::cap_id(can_desc_.io_cap),
+                    io::EndpointKind::channel,
+                    io::EndpointCaps::duplex
+                };
+                can_channel_.emplace(core_.registry, *can_desc_.channel, desc);
+                board_nodes_[board_count++] = &can_channel_->node;
             }
             board_nodes_span_ = std::span<const init::Node* const>(board_nodes_.data(), board_count);
         }
@@ -199,12 +212,14 @@ export namespace charm::system {
         platform::board::InputDesc input_desc_{};
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
-        std::array<const init::Node*, 12> board_nodes_{};
+        std::array<const init::Node*, 16> board_nodes_{};
         std::span<const init::Node* const> board_nodes_span_{};
         bool input_required_{false};
         platform::board::SpiDesc spi_desc_{};
         platform::board::I2cDesc i2c_desc_{};
         std::optional<SpiInitChain> spi_{};
         std::optional<I2cInitChain> i2c_{};
+        platform::board::CanDesc can_desc_{};
+        std::optional<io::ChannelBinding<io::Registry<MaxEndpoints>>> can_channel_{};
     };
 }

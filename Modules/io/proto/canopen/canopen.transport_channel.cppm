@@ -20,6 +20,17 @@ import canopen.transport;
 export namespace canopen {
     constexpr util::usize kCanFrameWireSize = 11;
 
+    struct ChannelTransportStats {
+        util::u32 rx_bytes{0};
+        util::u32 rx_frames{0};
+        util::u32 rx_overflow{0};
+        util::u32 rx_decode_error{0};
+        util::u32 tx_bytes{0};
+        util::u32 tx_frames{0};
+        util::u32 tx_partial{0};
+        util::u32 tx_would_block{0};
+    };
+
     [[nodiscard]] inline bool encode_frame(const CanFrame& src,
                                            std::span<util::u8> out) noexcept {
         if (out.size() < kCanFrameWireSize) return false;
@@ -60,9 +71,12 @@ export namespace canopen {
             rx_len_ = 0;
             tx_pending_ = false;
             tx_off_ = 0;
+            stats_ = {};
         }
 
         [[nodiscard]] Transport& transport() noexcept { return transport_; }
+        [[nodiscard]] const ChannelTransportStats& stats() const noexcept { return stats_; }
+        void clear_stats() noexcept { stats_ = {}; }
 
     private:
         static util::Result<util::usize> recv_trampoline(void* ctx,
@@ -79,6 +93,7 @@ export namespace canopen {
                 CanFrame f{};
                 if (!decode_frame(std::span<const util::u8>(self->rx_buf_.data(), kCanFrameWireSize), f)) {
                     self->rx_len_ = 0;
+                    ++self->stats_.rx_decode_error;
                     return util::unexpected(util::Errc::decode_error);
                 }
                 out[produced++] = f;
@@ -94,6 +109,7 @@ export namespace canopen {
             if (produced == 0) {
                 return util::unexpected(util::Errc::would_block);
             }
+            self->stats_.rx_frames += static_cast<util::u32>(produced);
             return util::Result<util::usize>{produced};
         }
 
@@ -122,6 +138,7 @@ export namespace canopen {
                 });
                 if (!wr) {
                     if (wr.error() == util::Errc::would_block) {
+                        ++self->stats_.tx_would_block;
                         if (sent == 0) {
                             return util::unexpected(util::Errc::would_block);
                         }
@@ -130,9 +147,11 @@ export namespace canopen {
                     return util::unexpected(wr.error());
                 }
                 const auto n = wr.value();
+                self->stats_.tx_bytes += static_cast<util::u32>(n);
                 if (n < kCanFrameWireSize) {
                     self->tx_pending_ = true;
                     self->tx_off_ = n;
+                    ++self->stats_.tx_partial;
                     if (sent == 0) {
                         return util::unexpected(util::Errc::would_block);
                     }
@@ -141,12 +160,16 @@ export namespace canopen {
                 ++sent;
             }
 
+            if (sent > 0) {
+                self->stats_.tx_frames += static_cast<util::u32>(sent);
+            }
             return util::Result<util::usize>{sent};
         }
 
         util::Result<void> fill_rx() noexcept {
             if (!channel_) return util::unexpected(util::Errc::bad_state);
             if (rx_len_ >= rx_buf_.size()) {
+                ++stats_.rx_overflow;
                 return util::unexpected(util::Errc::buffer_overflow);
             }
             auto space = rx_buf_.size() - rx_len_;
@@ -156,6 +179,7 @@ export namespace canopen {
                 return util::unexpected(r.error());
             }
             rx_len_ += r.value();
+            stats_.rx_bytes += static_cast<util::u32>(r.value());
             return {};
         }
 
@@ -168,9 +192,14 @@ export namespace canopen {
                 return util::unexpected(r.error());
             }
             tx_off_ = static_cast<util::usize>(tx_off_ + r.value());
+            stats_.tx_bytes += static_cast<util::u32>(r.value());
+            if (r.value() < remaining) {
+                ++stats_.tx_partial;
+            }
             if (tx_off_ >= kCanFrameWireSize) {
                 tx_pending_ = false;
                 tx_off_ = 0;
+                ++stats_.tx_frames;
             }
             return {};
         }
@@ -182,5 +211,6 @@ export namespace canopen {
         util::usize tx_off_{0};
         bool tx_pending_{false};
         Transport transport_{};
+        ChannelTransportStats stats_{};
     };
 } // namespace canopen

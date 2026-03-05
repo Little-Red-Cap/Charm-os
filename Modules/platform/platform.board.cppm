@@ -6,6 +6,7 @@ import hal_input;
 import hal_i2c;
 import hal_spi;
 import hal_uart;
+import io.channel;
 import util.core;
 
 export namespace platform::board {
@@ -41,11 +42,17 @@ export namespace platform::board {
         const char* hal_cap{"hal.i2c1"};
     };
 
+    struct CanDesc {
+        io::Channel* channel{nullptr};
+        const char* io_cap{"io.can0"};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
         InputDesc input{};
         SpiDesc spi1{};
         I2cDesc i2c1{};
+        CanDesc can0{};
     };
 }

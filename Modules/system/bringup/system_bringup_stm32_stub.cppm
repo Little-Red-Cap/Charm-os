@@ -56,6 +56,7 @@ export namespace charm::system {
             caps.input,
             caps.spi1,
             caps.i2c1,
+            caps.can0,
             pump,
             &charm::system::scheduler_post<decltype(running)>,
             &running,

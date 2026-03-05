@@ -7,9 +7,11 @@ export module charm.system.init_canopen;
 
 import init.node;
 import init.graph;
-import canopen.transport.node;
+import canopen.transport_channel.node;
 import canopen.sdo.node;
+import canopen.sdo_service;
 import canopen.nmt.node;
+import canopen.nmt_service;
 import canopen.pump;
 import charm.system.clock;
 import util.core;
@@ -17,6 +19,8 @@ import util.error;
 
 export namespace charm::system {
     struct CanopenInitCaps {
+        const char* can_io_cap{"io.can0"};
+        const char* registry_cap{"io.registry"};
         const char* transport_cap{"canopen.transport"};
         const char* sdo_cap{"canopen.sdo"};
         const char* nmt_cap{"canopen.nmt"};
@@ -29,26 +33,32 @@ export namespace charm::system {
         charm::system::ClockTick period_ms{10};
     };
 
-    template <typename Scheduler>
+    template <typename RegistryT, typename Scheduler, util::usize RxBufSize = 44>
     struct CanopenInitChain {
-        canopen::TransportBinding transport_binding;
+        canopen::ChannelTransportBinding<RegistryT, RxBufSize> transport_binding;
+        canopen::SdoService sdo_service;
+        canopen::NmtService nmt_service;
         canopen::SdoBinding sdo_binding;
         canopen::NmtBinding nmt_binding;
         canopen::CanopenPumpTask pump_task;
         canopen::CanopenPumpBinding pump_binding;
         std::array<const init::Node*, 4> nodes{};
 
-        CanopenInitChain(canopen::Transport& transport,
-                         canopen::SdoService& sdo_service,
-                         canopen::NmtService& nmt_service,
+        CanopenInitChain(RegistryT& registry,
+                         canopen::SdoServer& sdo_server,
+                         canopen::NmtNode& nmt_node,
                          charm::system::Clock& clock,
                          Scheduler& scheduler,
                          kernel::TaskId pump_id,
+                         canopen::SdoServiceConfig sdo_cfg = {},
+                         canopen::NmtServiceConfig nmt_cfg = {},
                          CanopenInitCfg cfg = {},
                          CanopenInitCaps caps = {},
                          init::Phase phase = init::Phase::service,
                          util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : transport_binding(transport, caps.transport_cap, phase, runlevel_mask),
+            : transport_binding(registry, caps.can_io_cap, caps.transport_cap, caps.registry_cap, phase, runlevel_mask),
+              sdo_service(sdo_server, transport_binding.transport, sdo_cfg),
+              nmt_service(nmt_node, transport_binding.transport, nmt_cfg),
               sdo_binding(sdo_service, caps.sdo_cap, caps.transport_cap, phase, runlevel_mask),
               nmt_binding(nmt_service, caps.nmt_cap, caps.transport_cap, phase, runlevel_mask),
               pump_task(),

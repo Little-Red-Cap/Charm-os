@@ -173,6 +173,19 @@ namespace {
         std::uint8_t col_count{0};
     };
 
+    struct TableViewColWidthSource {
+        const int* widths{nullptr};
+        std::uint8_t count{0};
+    };
+
+    const std::array<int, 8> kTableColWidths{
+        64, 96, 72, 120, 80, 88, 68, 104
+    };
+    const TableViewColWidthSource kTableColWidthSource{
+        kTableColWidths.data(),
+        static_cast<std::uint8_t>(kTableColWidths.size())
+    };
+
     const char* table_view_text_at(const void* ctx, std::uint16_t row, std::uint8_t col) noexcept {
         const auto* src = static_cast<const TableViewTextSource*>(ctx);
         if (!src || !src->rows || src->row_count == 0) return "";
@@ -183,6 +196,12 @@ namespace {
             return src->cols[col];
         }
         return src->rows[row % src->row_count];
+    }
+
+    int table_view_col_width_at(const void* ctx, std::uint8_t col) noexcept {
+        const auto* src = static_cast<const TableViewColWidthSource*>(ctx);
+        if (!src || !src->widths || src->count == 0) return 0;
+        return src->widths[col % src->count];
     }
 
     struct TreeViewTextSource {
@@ -1261,8 +1280,8 @@ namespace {
             table_cols,
             static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
         };
-        factory.set_table_view_source(table_view, 1000, 8, &table_source, &table_view_text_at);
-        factory.set_table_view_col_width(table_view, 96);
+        factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
+        factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {
             "Root", "Alpha", "Beta", "Gamma",

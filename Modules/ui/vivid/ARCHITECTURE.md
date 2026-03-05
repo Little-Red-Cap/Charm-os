@@ -101,6 +101,7 @@ flowchart LR
 
 - `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
 - `vivid-soa-demo --soa-stats`：输出命令数、tile flush、dirty 命中率与 tile hit 率。
+- 默认构建为 **SoA-only**，legacy UI 仅在 `CHARM_VIVID_SOA_ONLY=OFF` 时参与构建/导出。
 
 **可移植模板：**
 
@@ -235,7 +236,8 @@ flowchart LR
 
 ## 4. 输入与事件
 
-- 输入链路由 InputRouter 中心化处理（hit-test/capture/gesture），支持双指 pinch 识别，控件只关注语义事件。
+- 输入链路由 SoaKernel 内核化处理（hit-test/capture/drag/cancel），控件不再自行维护 hover/pressed。
+- SoA 输入采用 **Action 列表**：输入阶段只记录动作，统一在 dispatch 末尾由内核执行（含焦点状态落地），保证状态写入权唯一。
 - 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
 - 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
 
@@ -267,6 +269,7 @@ flowchart TB
 - 支持 UTF-8 解码、测量、换行与截断，渲染与排版逻辑集中在 text 组件。
 - 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
 - RichText/CodeBlock 走独立控件，避免复杂样式侵入基础文本。
+- SoA 路径使用 `TextArena + TextId` 存储文本，payload 不再保存指针；溢出时置位 `text_overflowed` 并回退到空文本或占位串。
 
 ## 6. 主题与样式
 

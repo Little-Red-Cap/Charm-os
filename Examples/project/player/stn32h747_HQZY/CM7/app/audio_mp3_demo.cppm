@@ -15,6 +15,7 @@ module;
 export module player.stm32h7.audio_mp3_demo;
 
 import audio.decoder.mp3;
+import boot_core;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -378,40 +379,88 @@ namespace {
     }
 } // namespace
 
-static volatile bool g_half_ready = false;
-static volatile bool g_full_ready = false;
-static volatile std::uint32_t g_underruns = 0;
+  static volatile bool g_half_ready = false;
+  static volatile bool g_full_ready = false;
+  static volatile std::uint32_t g_underruns = 0;
+  static volatile std::uint32_t g_i2s_half_count = 0;
+  static volatile std::uint32_t g_i2s_full_count = 0;
     static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
     static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer CHARM_DMA_BUFFER{};
 
-    extern "C" void charm_audio_i2s_half_notify() {
-        g_half_ready = true;
-    }
+      extern "C" void charm_audio_i2s_half_notify() {
+          g_half_ready = true;
+          g_i2s_half_count = g_i2s_half_count + 1;
+      }
 
-    extern "C" void charm_audio_i2s_full_notify() {
-        g_full_ready = true;
-    }
+      extern "C" void charm_audio_i2s_full_notify() {
+          g_full_ready = true;
+          g_i2s_full_count = g_i2s_full_count + 1;
+      }
 
-    extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
-        if (hi2s == &hi2s1) {
-            charm_audio_i2s_half_notify();
-        }
-    }
+      extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
+          if (hi2s == &hi2s1) {
+              charm_audio_i2s_half_notify();
+          }
+      }
 
-    extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
-        if (hi2s == &hi2s1) {
-            charm_audio_i2s_full_notify();
-        }
-    }
+      extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
+          if (hi2s == &hi2s1) {
+              charm_audio_i2s_full_notify();
+          }
+      }
 
-export void audio_mp3_demo_run() noexcept {
+  export void audio_i2s_selftest(util::u32 duration_ms) noexcept {
+      constexpr util::u32 kToneHz = 1000;
+      constexpr util::u32 kSampleRate = 44100;
+      constexpr std::int16_t kAmp = 12000;
+
+      const util::u32 half_period = kSampleRate / (kToneHz * 2);
+      const std::size_t total_frames = kI2sBufFrames * 2;
+      for (std::size_t i = 0; i < total_frames; ++i) {
+          const bool high = ((i / half_period) % 2) == 0;
+          const std::int16_t v = high ? kAmp : static_cast<std::int16_t>(-kAmp);
+          const std::size_t o = i * kI2sWordsPerFrame;
+          g_i2s_buffer[o + 0] = static_cast<std::uint16_t>(v);
+          g_i2s_buffer[o + 1] = static_cast<std::uint16_t>(v);
+      }
+
+      HAL_I2S_DMAStop(&hi2s1);
+      g_half_ready = false;
+      g_full_ready = false;
+      g_i2s_half_count = 0;
+      g_i2s_full_count = 0;
+
+      if (HAL_I2S_Transmit_DMA(&hi2s1,
+              g_i2s_buffer.data(),
+              static_cast<uint16_t>(g_i2s_buffer.size())) != HAL_OK) {
+          log<"i2s test: dma start failed state={} err={}">(
+              static_cast<int>(hi2s1.State),
+              static_cast<int>(HAL_I2S_GetError(&hi2s1)));
+          return;
+      }
+
+      const util::u32 start = HAL_GetTick();
+      while ((HAL_GetTick() - start) < duration_ms) {
+          HAL_Delay(10);
+      }
+      HAL_I2S_DMAStop(&hi2s1);
+      log<"i2s test: ms={} half={} full={} state={} err={}">(
+          duration_ms,
+          g_i2s_half_count,
+          g_i2s_full_count,
+          static_cast<int>(hi2s1.State),
+          static_cast<int>(HAL_I2S_GetError(&hi2s1)));
+  }
+
+  export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s1);
     std::string_view open_path{};
     if constexpr (kUseFixedPath) {
         open_path = kFixedPath;
         if constexpr (kStartupLog) {
             log<"mp3 demo: fixed path {}">(open_path);
-        }
+  }
+
     } else {
         FindAudioCtx ctx{};
         ctx.prefix = "/MUSIC/";
@@ -658,7 +707,112 @@ export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s1);
     session.filter.close();
     (void)fs::vfs_close(f);
-}
+  }
+
+  export bool audio_mp3_decode_selftest() noexcept {
+      std::string_view open_path{};
+      if constexpr (kUseFixedPath) {
+          open_path = kFixedPath;
+          if constexpr (kStartupLog) {
+              log<"mp3 test: fixed path {}">(open_path);
+          }
+      } else {
+          FindAudioCtx ctx{};
+          ctx.prefix = "/MUSIC/";
+          auto st = fs::vfs_list("/MUSIC", &ctx, &find_first_mp3);
+          if (!st || !ctx.found) {
+              if constexpr (kStartupLog) {
+                  log<"mp3 test: /MUSIC scan failed {}">(static_cast<int>(st.err));
+              }
+              FindAudioCtx root_ctx{};
+              root_ctx.prefix = "/";
+              st = fs::vfs_list("/", &root_ctx, &find_first_mp3);
+              if (!st || !root_ctx.found) {
+                  log<"mp3 test: no mp3 found">();
+                  return false;
+              }
+              ctx = root_ctx;
+          }
+          open_path = ctx.path;
+          if constexpr (kStartupLog) {
+              log<"mp3 test: open {}">(open_path);
+          }
+      }
+      fs::File f{};
+      auto st = fs::vfs_open(open_path, f);
+      if (!st) {
+          log<"mp3 test: open failed {}">(static_cast<int>(st.err));
+          return false;
+      }
+      if constexpr (kStartupLog) {
+          log<"mp3 test: file size={}">(f.node.size);
+      }
+      (void)fs::vfs_seek(f, 0);
+
+      Mp3Session session{};
+      session.source = FileSource{&f};
+      {
+          std::array<util::u8, 10> id3{};
+          (void)fs::vfs_seek(f, 0);
+          (void)fs::vfs_read(f, id3);
+          util::i64 base = 0;
+          if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3') {
+              const std::uint32_t sz =
+                  (static_cast<std::uint32_t>(id3[6] & 0x7f) << 21) |
+                  (static_cast<std::uint32_t>(id3[7] & 0x7f) << 14) |
+                  (static_cast<std::uint32_t>(id3[8] & 0x7f) << 7) |
+                  (static_cast<std::uint32_t>(id3[9] & 0x7f));
+              base = static_cast<util::i64>(10 + sz);
+          }
+          session.source.base_offset = base;
+          if constexpr (kStartupLog) {
+              log<"mp3 test: base={}">(base);
+          }
+          (void)fs::vfs_seek(f, base);
+      }
+
+      auto ref = media::make_stream_source_ref(session.source);
+      auto rst = session.filter.open(ref);
+      if (!rst) {
+          log<"mp3 test: decoder open failed">();
+          (void)fs::vfs_close(f);
+          return false;
+      }
+      const auto fmt = session.filter.format();
+      if constexpr (kStartupLog) {
+          log<"mp3 test: rate={} ch={}">(fmt.rate, fmt.channels);
+      }
+      const std::size_t frame_bytes = static_cast<std::size_t>(fmt.channels) * sizeof(std::int16_t);
+      util::u64 frames = 0;
+      util::u32 crc = 0;
+      const util::u32 t0 = HAL_GetTick();
+      while (true) {
+          auto dst = std::span<std::byte>(
+              reinterpret_cast<std::byte*>(g_pcm_buffer.data()),
+              g_pcm_buffer.size() * sizeof(std::int16_t));
+          auto res = session.filter.process({}, dst);
+          if (!res) {
+              log<"mp3 test: decode error">();
+              break;
+          }
+          if (res->produced > 0) {
+              crc = boot::crc32_update(
+                  crc,
+                  reinterpret_cast<const util::u8*>(dst.data()),
+                  static_cast<util::usize>(res->produced));
+              frames += static_cast<util::u64>(res->produced / frame_bytes);
+          }
+          if (res->produced == 0 && res->end_of_stream) {
+              break;
+          }
+      }
+      const util::u32 ms = HAL_GetTick() - t0;
+      log<"mp3 test: frames={} crc=0x{:08X} ms={}">(
+          frames, crc, ms);
+      session.filter.close();
+      (void)fs::vfs_close(f);
+      return true;
+  }
 
 export void audio_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;

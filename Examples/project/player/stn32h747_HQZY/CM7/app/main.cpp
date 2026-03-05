@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <new>
@@ -79,6 +80,7 @@ extern "C" {
     void MX_SDMMC1_SD_Init(void);
     void MX_USART1_UART_Init(void);
     void Error_Handler(void);
+    extern UART_HandleTypeDef huart1;
 }
 
 namespace {
@@ -90,6 +92,182 @@ namespace {
     struct PumpConfig : kernel::KernelConfig {
         static constexpr std::size_t priority_levels = 1;
         static constexpr std::size_t evtq_capacity = 8;
+    };
+
+    struct DmaUartTx {
+        static constexpr std::size_t kBufSize = 2048;
+        static constexpr util::u32 kDmaTimeoutMs = 20;
+
+        std::array<util::u8, kBufSize> buf{};
+        volatile std::uint16_t head{0};
+        volatile std::uint16_t tail{0};
+        volatile std::uint16_t dma_len{0};
+        volatile bool dma_busy{false};
+        volatile bool dma_failed{false};
+        volatile util::u32 dma_start_ms{0};
+
+        bool push(util::u8 byte) noexcept {
+            __disable_irq();
+            const std::uint16_t next = static_cast<std::uint16_t>((head + 1u) % kBufSize);
+            if (next == tail) {
+                __enable_irq();
+                return false;
+            }
+            buf[head] = byte;
+            head = next;
+            const bool need_kick = !dma_busy;
+            __enable_irq();
+            if (need_kick) {
+                kick();
+            }
+            return true;
+        }
+
+        bool idle() const noexcept {
+            return !dma_busy && (head == tail);
+        }
+
+        void check_timeout() noexcept {
+            if (dma_failed || !dma_busy) return;
+            const util::u32 now = HAL_GetTick();
+            if ((now - dma_start_ms) <= kDmaTimeoutMs) return;
+            __disable_irq();
+            dma_failed = true;
+            dma_busy = false;
+            dma_len = 0;
+            __enable_irq();
+            (void)HAL_UART_AbortTransmit(&huart1);
+            flush_blocking();
+        }
+
+        void kick() noexcept {
+            __disable_irq();
+            if (dma_failed) {
+                __enable_irq();
+                return;
+            }
+            if (dma_busy || head == tail) {
+                __enable_irq();
+                return;
+            }
+            std::uint16_t len = 0;
+            if (head > tail) {
+                len = static_cast<std::uint16_t>(head - tail);
+            } else {
+                len = static_cast<std::uint16_t>(kBufSize - tail);
+            }
+            if (len == 0) {
+                __enable_irq();
+                return;
+            }
+            dma_len = len;
+            dma_busy = true;
+            __enable_irq();
+            if (HAL_UART_Transmit_DMA(&huart1, &buf[tail], len) != HAL_OK) {
+                if (HAL_UART_Transmit(&huart1, &buf[tail], len, 100) == HAL_OK) {
+                    __disable_irq();
+                    tail = static_cast<std::uint16_t>((tail + len) % kBufSize);
+                    dma_len = 0;
+                    dma_busy = false;
+                    __enable_irq();
+                    return;
+                }
+                __disable_irq();
+                dma_busy = false;
+                dma_len = 0;
+                dma_failed = true;
+                __enable_irq();
+            }
+            dma_start_ms = HAL_GetTick();
+        }
+
+        void on_complete() noexcept {
+            __disable_irq();
+            if (dma_len > 0) {
+                tail = static_cast<std::uint16_t>((tail + dma_len) % kBufSize);
+            }
+            dma_len = 0;
+            dma_busy = false;
+            __enable_irq();
+            kick();
+        }
+
+        void flush_blocking() noexcept {
+            while (true) {
+                __disable_irq();
+                if (head == tail) {
+                    __enable_irq();
+                    return;
+                }
+                const std::uint16_t start = tail;
+                const std::uint16_t len = (head > tail)
+                    ? static_cast<std::uint16_t>(head - tail)
+                    : static_cast<std::uint16_t>(kBufSize - tail);
+                __enable_irq();
+                if (HAL_UART_Transmit(&huart1, &buf[start], len, 100) != HAL_OK) {
+                    __disable_irq();
+                    tail = head;
+                    __enable_irq();
+                    return;
+                }
+                __disable_irq();
+                tail = static_cast<std::uint16_t>((start + len) % kBufSize);
+                __enable_irq();
+            }
+        }
+    };
+
+    struct DmaConsoleCtx {
+        io::Channel* rx_channel{nullptr};
+        DmaUartTx* tx{nullptr};
+    };
+
+    static DmaUartTx g_uart1_dma_tx{};
+    static io::Channel g_dma_console{};
+    static DmaConsoleCtx g_dma_ctx{};
+
+    io::result dma_read_trampoline(void* ctx, io::MutByteView buf) noexcept {
+        auto* self = static_cast<DmaConsoleCtx*>(ctx);
+        if (!self || !self->rx_channel) return io::fail(io::errc::invalid_arg);
+        return self->rx_channel->read(buf);
+    }
+
+    io::result dma_write_trampoline(void* ctx, io::ByteView buf) noexcept {
+        auto* self = static_cast<DmaConsoleCtx*>(ctx);
+        if (!self || !self->tx) return io::fail(io::errc::invalid_arg);
+        if (buf.empty()) return io::fail(io::errc::invalid_arg);
+        self->tx->check_timeout();
+        if (self->tx->dma_failed) {
+            if (HAL_UART_Transmit(&huart1,
+                    const_cast<util::u8*>(buf.data()),
+                    static_cast<uint16_t>(buf.size()),
+                    100) != HAL_OK) {
+                return io::fail(io::errc::io_error);
+            }
+            return io::ok(buf.size());
+        }
+        util::usize pushed = 0;
+        for (util::usize i = 0; i < buf.size(); ++i) {
+            if (!self->tx->push(buf.data()[i])) {
+                break;
+            }
+            ++pushed;
+        }
+        if (pushed == 0) return io::fail(io::errc::would_block);
+        return io::ok(pushed);
+    }
+
+    io::result dma_flush_trampoline(void* ctx) noexcept {
+        auto* self = static_cast<DmaConsoleCtx*>(ctx);
+        if (!self || !self->tx) return io::fail(io::errc::invalid_arg);
+        if (!self->tx->idle()) return io::fail(io::errc::would_block);
+        return io::ok(0);
+    }
+
+    const io::ChannelOps kDmaConsoleOps{
+        .read = &dma_read_trampoline,
+        .write = &dma_write_trampoline,
+        .flush = &dma_flush_trampoline,
     };
 
     void hqzy_gpio_init() noexcept {
@@ -134,6 +312,12 @@ extern "C" void USART1_IRQHandler(void) {
     }
 }
 
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
+    if (huart == &huart1) {
+        g_uart1_dma_tx.on_complete();
+    }
+}
+
 int main() {
     HAL_Init();
     SystemClock_Config();
@@ -142,7 +326,7 @@ int main() {
     MX_DMA_Init();
     MX_USART1_UART_Init();
     // MX_SDMMC1_SD_Init();
-    // MX_I2S1_Init();
+    MX_I2S1_Init();
 
     hqzy_gpio_init();
 
@@ -190,6 +374,17 @@ int main() {
     }
     g_uart_adapter = static_cast<driver::usart::ChannelAdapter<kRxCap, kTxCap>*>(ch->ctx);
 
+    g_dma_ctx.rx_channel = ch;
+    g_dma_ctx.tx = &g_uart1_dma_tx;
+    g_dma_console.ctx = &g_dma_ctx;
+    g_dma_console.ops = kDmaConsoleOps;
+
+    io::EndpointDesc uart_desc{
+        "io.uart1",
+        io::cap_id("io.uart1"),
+        io::EndpointKind::channel,
+        io::EndpointCaps::duplex
+    };
     io::EndpointDesc console_desc{
         "io.console0",
         io::cap_id("io.console0"),
@@ -197,19 +392,26 @@ int main() {
         io::EndpointCaps::duplex
     };
     auto& reg = bringup.registry();
+    auto* uart_ep = reg.find_channel("io.uart1");
+    auto r_uart = uart_ep
+        ? reg.replace_channel(uart_desc, g_dma_console, &bringup.reactor())
+        : reg.register_channel(uart_desc, g_dma_console, &bringup.reactor());
+    if (!r_uart) {
+        Error_Handler();
+    }
     auto* console_ep = reg.find_channel("io.console0");
     auto r_console = console_ep
-        ? reg.replace_channel(console_desc, *ch, &bringup.reactor())
-        : reg.register_channel(console_desc, *ch, &bringup.reactor());
+        ? reg.replace_channel(console_desc, g_dma_console, &bringup.reactor())
+        : reg.register_channel(console_desc, g_dma_console, &bringup.reactor());
     if (!r_console) {
         Error_Handler();
     }
-    static out::channel_sink console_sink = out::make_channel_sink(*ch);
+    static out::channel_sink console_sink = out::make_channel_sink(g_dma_console);
     fs_set_console_sink(console_sink);
     audio_set_console_sink(console_sink);
 
     const char msg[] = "bringup ok\n";
-    auto wr = ch->write(io::ByteView{
+    auto wr = g_dma_console.write(io::ByteView{
         reinterpret_cast<const util::u8*>(msg),
         sizeof(msg) - 1
     });
@@ -219,7 +421,7 @@ int main() {
 
     if (!fs_boot_init()) {
         const char fail_msg[] = "fs init failed\n";
-        (void)ch->write(io::ByteView{
+        (void)g_dma_console.write(io::ByteView{
             reinterpret_cast<const util::u8*>(fail_msg),
             sizeof(fail_msg) - 1
         });
@@ -228,7 +430,7 @@ int main() {
 
     {
         const char wait_msg[] = "boot: wait key\n";
-        (void)ch->write(io::ByteView{
+        (void)g_dma_console.write(io::ByteView{
             reinterpret_cast<const util::u8*>(wait_msg),
             sizeof(wait_msg) - 1
         });

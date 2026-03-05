@@ -14,6 +14,17 @@ import audio.result;
 import media.stream.source;
 import media.stream.filter;
 import media.stream.types;
+import out.api;
+import out.channel;
+
+namespace audio::mp3_debug {
+    inline out::channel_sink* sink = nullptr;
+    template <out::fixed_string Fmt, typename... Args>
+    inline void log(Args&&... args) noexcept {
+        if (!sink) return;
+        (void)out::try_println<Fmt>(*sink, std::forward<Args>(args)...);
+    }
+}
 
 export namespace audio {
     struct Mp3Info {
@@ -21,13 +32,25 @@ export namespace audio {
         std::uint16_t channels{0};
     };
 
+    inline void mp3_set_debug_sink(out::channel_sink& sink) noexcept {
+        mp3_debug::sink = &sink;
+    }
+
     namespace mp3_detail {
         template <typename Source>
         struct SourceOps {
             static std::size_t on_read(void* user, void* buffer_out, std::size_t bytes_to_read) {
                 auto* src = static_cast<Source*>(user);
+                static std::uint32_t calls = 0;
+                if (calls < 4 || (calls % 256) == 0) {
+                    mp3_debug::log<"mp3 dec: on_read#{} req={}">(calls, bytes_to_read);
+                }
                 auto res = src->read(std::span<std::byte>(reinterpret_cast<std::byte*>(buffer_out), bytes_to_read));
                 if (!res) return 0;
+                if (calls < 4 || (calls % 256) == 0) {
+                    mp3_debug::log<"mp3 dec: on_read#{} got={}">(calls, *res);
+                }
+                ++calls;
                 return *res;
             }
 
@@ -36,17 +59,33 @@ export namespace audio {
                 int whence = SEEK_SET;
                 if (origin == DRMP3_SEEK_CUR) whence = SEEK_CUR;
                 if (origin == DRMP3_SEEK_END) whence = SEEK_END;
+                static std::uint32_t calls = 0;
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_seek#{} off={} whence={}">(
+                        calls, offset, whence);
+                }
                 auto res = src->seek(static_cast<std::int64_t>(offset), whence);
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_seek#{} ok={}">(
+                        calls, res.has_value() ? 1 : 0);
+                }
+                ++calls;
                 return res.has_value() ? DRMP3_TRUE : DRMP3_FALSE;
             }
 
             static drmp3_bool32 on_tell(void* user, drmp3_int64* cursor) {
                 auto* src = static_cast<Source*>(user);
+                static std::uint32_t calls = 0;
                 auto res = src->tell();
                 if (!res) return DRMP3_FALSE;
                 if (cursor) {
                     *cursor = static_cast<drmp3_int64>(*res);
                 }
+                if (calls < 6) {
+                    mp3_debug::log<"mp3 dec: on_tell#{} pos={}">(
+                        calls, static_cast<std::int64_t>(*res));
+                }
+                ++calls;
                 return DRMP3_TRUE;
             }
         };
@@ -64,16 +103,20 @@ export namespace audio {
         Result<Mp3Info> open(Source& src) {
             close();
             src_ = &src;
+            mp3_debug::log<"mp3 dec: open begin">();
             if (!drmp3_init(&mp3_,
                 mp3_detail::SourceOps<Source>::on_read,
                 mp3_detail::SourceOps<Source>::on_seek,
                 mp3_detail::SourceOps<Source>::on_tell,
                 nullptr, src_, nullptr)) {
+                mp3_debug::log<"mp3 dec: open failed">();
                 return unexpected(Errc::invalid_arg);
             }
             Mp3Info info{};
             info.sample_rate = mp3_.sampleRate;
             info.channels = static_cast<std::uint16_t>(mp3_.channels);
+            mp3_debug::log<"mp3 dec: open ok rate={} ch={}">(
+                info.sample_rate, static_cast<std::uint32_t>(info.channels));
             return info;
         }
 

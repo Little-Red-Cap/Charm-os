@@ -998,9 +998,11 @@ namespace {
         auto menu_item_a = factory.create_menu_item("New");
         auto menu_item_b = factory.create_menu_item("Open");
         auto menu_item_c = factory.create_menu_item("Save");
+        auto console_box = factory.create_console_box();
         factory.link(root, tab_root);
         factory.link(tab_root, tab_bar);
         factory.link(tab_root, menu);
+        factory.link(root, console_box);
         factory.link(menu, menu_item_a);
         factory.link(menu, menu_item_b);
         factory.link(menu, menu_item_c);
@@ -1011,6 +1013,7 @@ namespace {
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
         kernel.set_rect(menu_item_b, {0, 28, 180, 24});
         kernel.set_rect(menu_item_c, {0, 56, 180, 24});
+        kernel.set_rect(console_box, {10, 420, 180, 56});
         factory.set_tab_bar_label(tab_bar, 0, "Home");
         factory.set_tab_bar_label(tab_bar, 1, "Stats");
         factory.set_tab_bar_label(tab_bar, 2, "Setup");
@@ -1116,9 +1119,20 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: progress simple pass", fails);
         expect_true(simple_paint_after > simple_paint_before, "ui: progress simple missing paint", fails);
 
+        kernel.layout_trace_reset();
+        const std::uint32_t log_paint_before = kernel.paint_invalidated_count();
+        factory.console_append(console_box, "log: one");
+        factory.console_append(console_box, "log: two");
+        gui.render();
+        const std::uint32_t log_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: log append invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: log append pass", fails);
+        expect_true(log_paint_after > log_paint_before, "ui: log append missing paint", fails);
+
         kernel.destroy(progress_simple);
         kernel.destroy(progress_wheel);
         kernel.destroy(progress);
+        kernel.destroy(console_box);
         kernel.destroy(menu_item_c);
         kernel.destroy(menu_item_b);
         kernel.destroy(menu_item_a);
@@ -1691,6 +1705,7 @@ int main(int argc, char** argv) {
     auto scroll_scroll = factory.create_scrollbar_for(scroll);
     auto table_view = factory.create_table_view();
     auto tree_view = factory.create_tree_view();
+    auto console_box = factory.create_console_box();
     auto menu = factory.create_menu();
     auto menu_item_a = factory.create_menu_item("New");
     auto menu_item_b = factory.create_menu_item("Open");
@@ -1723,6 +1738,7 @@ int main(int argc, char** argv) {
     factory.link(root, scroll_scroll);
     factory.link(root, table_view);
     factory.link(root, tree_view);
+    factory.link(root, console_box);
     factory.link(root, menu);
     factory.link(toggle_group, tg_a);
     factory.link(toggle_group, tg_b);
@@ -1756,6 +1772,7 @@ int main(int argc, char** argv) {
     kernel.set_rect(tg_c, {0, 80, 200, 32});
     kernel.set_rect(table_view, {480, 60, 280, 160});
     kernel.set_rect(tree_view, {480, 240, 280, 160});
+    kernel.set_rect(console_box, {480, 420, 280, 140});
     kernel.set_rect(menu, {250, 600, 200, 120});
     kernel.set_rect(menu_item_a, {0, 0, 200, 28});
     kernel.set_rect(menu_item_b, {0, 36, 200, 28});
@@ -1827,6 +1844,10 @@ int main(int argc, char** argv) {
     const TreeViewIndentSource tree_indent{3};
     factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
                                  &tree_indent, &tree_view_indent_at);
+
+    factory.console_append(console_box, "[log] SoA kernel ready");
+    factory.console_append(console_box, "[log] ui regression enabled");
+    factory.console_append(console_box, "[log] cmd budget guard OK");
 
     const char* text_list_items[] = {
         "Alpha", "Beta", "Gamma", "Delta",

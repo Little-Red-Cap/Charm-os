@@ -2913,6 +2913,8 @@ struct SoaBehavior {
             return make_desc(true, PayloadKind::Progress);
         case WidgetKind::ProgressBarSimple:
             return make_desc(true, PayloadKind::Progress);
+        case WidgetKind::ProgressBarRound:
+            return make_desc(true, PayloadKind::Progress);
         case WidgetKind::Spinner:
             return make_desc(true, PayloadKind::Spinner);
         case WidgetKind::List:
@@ -2920,6 +2922,8 @@ struct SoaBehavior {
         case WidgetKind::ListView:
             return make_desc(true, PayloadKind::ListView);
         case WidgetKind::ProgressWheel:
+            return make_desc(true, PayloadKind::Progress);
+        case WidgetKind::ProgressFlowing:
             return make_desc(true, PayloadKind::Progress);
         case WidgetKind::IconList:
             return make_desc(true, PayloadKind::ListView);
@@ -4028,6 +4032,16 @@ export
       }
       WidgetHandle create_progress_bar_simple() noexcept {
           auto h = kernel_.create(WidgetKind::ProgressBarSimple);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      WidgetHandle create_progress_bar_round() noexcept {
+          auto h = kernel_.create(WidgetKind::ProgressBarRound);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      WidgetHandle create_progress_flowing() noexcept {
+          auto h = kernel_.create(WidgetKind::ProgressFlowing);
           kernel_.set_hit_testable(h, false);
           return h;
       }

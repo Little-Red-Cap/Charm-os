@@ -158,6 +158,12 @@ private:
     static void record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                            const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                            int value, int min_value, int max_value);
+    static void record_progress_bar_round(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                          const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                          int value, int min_value, int max_value);
+    static void record_progress_flowing(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                        const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                        int value, int min_value, int max_value);
     static void record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                       int value, int min_value, int max_value);
@@ -450,6 +456,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         record_progress_bar_simple(out, world_rect, colors, metrics,
                                    kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
+    case WidgetKind::ProgressBarRound:
+        record_progress_bar_round(out, world_rect, colors, metrics,
+                                  kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        break;
     case WidgetKind::DynamicNebula:
         unsupported_kind(kind);
         break;
@@ -598,15 +608,13 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressFlowing:
-        unsupported_kind(kind);
+        record_progress_flowing(out, world_rect, colors, metrics,
+                                kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::CloudyGlass:
         unsupported_kind(kind);
         break;
     case WidgetKind::NumberList:
-        unsupported_kind(kind);
-        break;
-    case WidgetKind::ProgressBarRound:
         unsupported_kind(kind);
         break;
     case WidgetKind::SpinZoomWidget:
@@ -1225,6 +1233,62 @@ void SoaGui::record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out,
     out.fill_rect(track, colors.border);
     if (fill > 0) {
         out.fill_rect(Rect{track.x, track.y, fill, track.h}, colors.accent);
+    }
+}
+
+void SoaGui::record_progress_bar_round(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                       int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const int range = (max_value > min_value) ? (max_value - min_value) : 1;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int fill = (inner_w * (clamped - min_value)) / range;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    int rad = metrics.corner_radius;
+    const int max_rad = inner_h / 2;
+    if (rad > max_rad) rad = max_rad;
+    if (rad < 0) rad = 0;
+    out.fill_round_rect(track, rad, colors.border);
+    if (fill > 0) {
+        Rect fill_rect{track.x, track.y, fill, track.h};
+        int fill_rad = rad;
+        const int max_fill_rad = fill_rect.w / 2;
+        if (fill_rad > max_fill_rad) fill_rad = max_fill_rad;
+        out.fill_round_rect(fill_rect, fill_rad, colors.accent);
+    }
+}
+
+void SoaGui::record_progress_flowing(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                     const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                     int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    out.fill_rect(track, colors.border);
+    if (max_value <= min_value) return;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int range = max_value - min_value;
+    if (range <= 0) return;
+    const int segment = (inner_w > 0) ? (inner_w / 4) : 0;
+    const int seg_w = (segment > 6) ? segment : 6;
+    const int value_delta = clamped - min_value;
+    const int pos = static_cast<int>((static_cast<std::int64_t>(inner_w + seg_w) * value_delta) / range) - seg_w;
+    int seg_x0 = track.x + pos;
+    int seg_x1 = seg_x0 + seg_w;
+    if (seg_x1 <= track.x || seg_x0 >= track.x + track.w) return;
+    if (seg_x0 < track.x) seg_x0 = track.x;
+    if (seg_x1 > track.x + track.w) seg_x1 = track.x + track.w;
+    if (seg_x1 > seg_x0) {
+        out.fill_rect(Rect{seg_x0, track.y, seg_x1 - seg_x0, track.h}, colors.accent);
     }
 }
 

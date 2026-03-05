@@ -1007,7 +1007,7 @@ namespace {
         factory.link(menu, menu_item_b);
         factory.link(menu, menu_item_c);
 
-        kernel.set_rect(tab_root, {240, 420, 200, 140});
+        kernel.set_rect(tab_root, {240, 420, 200, 160});
         kernel.set_rect(nav_bar, {10, 10, 180, 28});
         kernel.set_rect(menu, {10, 48, 180, 80});
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
@@ -1022,18 +1022,28 @@ namespace {
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
+        auto progress_round = factory.create_progress_bar_round();
+        auto progress_flowing = factory.create_progress_flowing();
         factory.link(tab_root, progress);
         factory.link(tab_root, progress_wheel);
         factory.link(tab_root, progress_simple);
+        factory.link(tab_root, progress_round);
+        factory.link(tab_root, progress_flowing);
         kernel.set_rect(progress, {10, 110, 180, 12});
         kernel.set_rect(progress_wheel, {150, 78, 32, 32});
         kernel.set_rect(progress_simple, {10, 130, 180, 8});
+        kernel.set_rect(progress_round, {10, 142, 180, 8});
+        kernel.set_rect(progress_flowing, {10, 152, 180, 6});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
         kernel.set_range(progress_wheel, 0, 100);
         kernel.set_value(progress_wheel, 20);
         kernel.set_range(progress_simple, 0, 100);
         kernel.set_value(progress_simple, 30);
+        kernel.set_range(progress_round, 0, 100);
+        kernel.set_value(progress_round, 35);
+        kernel.set_range(progress_flowing, 0, 100);
+        kernel.set_value(progress_flowing, 45);
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
@@ -1120,6 +1130,24 @@ namespace {
         expect_true(simple_paint_after > simple_paint_before, "ui: progress simple missing paint", fails);
 
         kernel.layout_trace_reset();
+        const std::uint32_t round_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_round, 60);
+        gui.render();
+        const std::uint32_t round_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress round invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress round pass", fails);
+        expect_true(round_paint_after > round_paint_before, "ui: progress round missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t flow_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_flowing, 80);
+        gui.render();
+        const std::uint32_t flow_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress flowing invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress flowing pass", fails);
+        expect_true(flow_paint_after > flow_paint_before, "ui: progress flowing missing paint", fails);
+
+        kernel.layout_trace_reset();
         const std::uint32_t log_paint_before = kernel.paint_invalidated_count();
         factory.console_append(console_box, "log: one");
         factory.console_append(console_box, "log: two");
@@ -1129,6 +1157,8 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: log append pass", fails);
         expect_true(log_paint_after > log_paint_before, "ui: log append missing paint", fails);
 
+        kernel.destroy(progress_flowing);
+        kernel.destroy(progress_round);
         kernel.destroy(progress_simple);
         kernel.destroy(progress_wheel);
         kernel.destroy(progress);
@@ -1694,6 +1724,8 @@ int main(int argc, char** argv) {
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
+        auto progress_round = factory.create_progress_bar_round();
+        auto progress_flowing = factory.create_progress_flowing();
     auto toggle_group = factory.create_toggle_group();
     auto tg_a = factory.create_checkbox("Option A");
     auto tg_b = factory.create_checkbox("Option B");
@@ -1732,6 +1764,8 @@ int main(int argc, char** argv) {
     factory.link(root, progress);
     factory.link(root, progress_wheel);
     factory.link(root, progress_simple);
+    factory.link(root, progress_round);
+    factory.link(root, progress_flowing);
     factory.link(root, list_view);
     factory.link(root, list_scroll);
     factory.link(root, text_list);
@@ -1763,6 +1797,8 @@ int main(int argc, char** argv) {
     kernel.set_rect(progress, {24, 330, 280, 18});
     kernel.set_rect(progress_wheel, {320, 300, 48, 48});
     kernel.set_rect(progress_simple, {24, 356, 280, 10});
+    kernel.set_rect(progress_round, {320, 360, 160, 10});
+    kernel.set_rect(progress_flowing, {320, 374, 160, 8});
     kernel.set_rect(list_view, {24, 380, 200, 200});
     kernel.set_rect(list_scroll, {230, 380, 12, 200});
     kernel.set_rect(text_list, {250, 200, 200, 160});
@@ -1785,6 +1821,8 @@ int main(int argc, char** argv) {
     kernel.set_range(progress, 0, 100);
     kernel.set_range(progress_wheel, 0, 100);
     kernel.set_range(progress_simple, 0, 100);
+    kernel.set_range(progress_round, 0, 100);
+    kernel.set_range(progress_flowing, 0, 100);
     kernel.set_list_row_height(list_view, 28);
     kernel.set_list_row_height(text_list, 24);
     kernel.set_scroll_step(text_list, 24);
@@ -1804,6 +1842,8 @@ int main(int argc, char** argv) {
     factory.set_tab_bar_label(tab_bar, 2, "Setup");
     factory.set_tab_bar_selected(tab_bar, 0);
     kernel.set_checked(menu_item_b, true);
+    kernel.set_value(progress_round, 40);
+    kernel.set_value(progress_flowing, 70);
 
     const char* list_view_items[] = {
         "Alpha", "Beta", "Gamma", "Delta",

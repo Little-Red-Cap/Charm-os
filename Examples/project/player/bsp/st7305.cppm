@@ -8,10 +8,10 @@ module;
 export module bsp.st7305;
 
 export namespace bsp::st7305 {
-    export constexpr int kDefaultWidth = 168;
-    export constexpr int kDefaultHeight = 384;
+    constexpr int kDefaultWidth = 168;
+    constexpr int kDefaultHeight = 384;
 
-    export enum class Status : std::uint8_t { ok, invalid, timeout };
+    enum class Status : std::uint8_t { ok, invalid, timeout };
 
     using TransmitFn = void (*)(std::uint8_t* data, std::uint16_t len, bool data_or_cmd);
     using ResetFn = void (*)(bool level);
@@ -26,19 +26,19 @@ export namespace bsp::st7305 {
         std::uint8_t raset_base{0x00};
     };
 
-    export constexpr Geometry kDefaultGeometry{};
+    constexpr Geometry kDefaultGeometry{};
 
-    export constexpr int native_unit_width_pixels() noexcept { return 12; }
-    export constexpr int native_unit_height_pixels() noexcept { return 2; }
-    export constexpr int native_unit_bytes() noexcept { return 3; }
+    constexpr int native_unit_width_pixels() noexcept { return 12; }
+    constexpr int native_unit_height_pixels() noexcept { return 2; }
+    constexpr int native_unit_bytes() noexcept { return 3; }
 
-    export constexpr int native_stride_bytes_for(const Geometry& g) noexcept {
+    constexpr int native_stride_bytes_for(const Geometry& g) noexcept {
         const int x_units = (g.width + g.x_offset_pixels + native_unit_width_pixels() - 1)
             / native_unit_width_pixels();
         return x_units * native_unit_bytes();
     }
 
-    export constexpr std::size_t native_size_for(const Geometry& g) noexcept {
+    constexpr std::size_t native_size_for(const Geometry& g) noexcept {
         const int x_units = (g.width + g.x_offset_pixels + native_unit_width_pixels() - 1)
             / native_unit_width_pixels();
         const int y_units = (g.height + native_unit_height_pixels() - 1)
@@ -46,7 +46,7 @@ export namespace bsp::st7305 {
         return static_cast<std::size_t>(x_units * native_unit_bytes() * y_units);
     }
 
-    export constexpr std::size_t linear_size_for(const Geometry& g) noexcept {
+    constexpr std::size_t linear_size_for(const Geometry& g) noexcept {
         const int stride = g.width / 8;
         return static_cast<std::size_t>(stride * g.height);
     }

@@ -41,7 +41,7 @@ public:
     int wheel_y = 0;
     GesturePhase gesture_phase = GesturePhase::Begin;
     float scale = 1.0f;
-    int ch = 0; // UTF-32 codepoint when available
+    int ch = 0;
 
     enum class Key {
         Unknown,
@@ -79,7 +79,8 @@ public:
         return e;
     }
 
-    static Event drag(Type t, int px, int py, int ddx, int ddy, int btn = 0, std::uint32_t ms = 0) noexcept {
+    static Event drag(Type t, int px, int py, int ddx, int ddy, int btn = 0,
+                      std::uint32_t ms = 0) noexcept {
         return Event(t, px, py, ddx, ddy, btn, ms);
     }
 

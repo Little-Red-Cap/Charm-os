@@ -47,6 +47,10 @@ namespace {
     constexpr std::uint16_t kDcPin = GPIO_PIN_6;
     GPIO_TypeDef* const kCsPort = GPIOK;
     constexpr std::uint16_t kCsPin = GPIO_PIN_1;
+    constexpr auto kPanelGeom = bsp::st7305::kDefaultGeometry;
+    constexpr std::size_t kPanelNativeSize = bsp::st7305::native_size_for(kPanelGeom);
+    constexpr int kPanelWidth = kPanelGeom.width;
+    constexpr int kPanelHeight = kPanelGeom.height;
 
     void st7305_delay(std::uint32_t ms) noexcept {
         HAL_Delay(ms);
@@ -61,13 +65,6 @@ namespace {
         HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_RESET);
         if (!data || len == 0) return;
         (void)HAL_SPI_Transmit(&hspi5, data, len, 1000);
-        HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_SET);
-    }
-
-    void st7305_send_cmd(std::uint8_t cmd) noexcept {
-        HAL_GPIO_WritePin(kDcPort, kDcPin, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_RESET);
-        (void)HAL_SPI_Transmit(&hspi5, &cmd, 1, 1000);
         HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_SET);
     }
 
@@ -90,20 +87,20 @@ export void display_set_console_sink(out::channel_sink& sink) noexcept {
 export bool display_st7305_init() noexcept {
     hspi5.Init.NSS = SPI_NSS_SOFT;
     hspi5.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-    hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+    hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
     if (HAL_SPI_Init(&hspi5) != HAL_OK) {
         log<"display: spi init failed">();
         return false;
     }
-    const auto st = panel().init();
+    bsp::st7305::InitOptions options{};
+    options.high_power = true;
+    options.mirror_y = false;
+    options.mirror_x = true;
+    const auto st = panel().init(options);
     if (st != bsp::st7305::Status::ok) {
         log<"display: init failed">();
         return false;
     }
-    st7305_send_cmd(0x39);
-    HAL_Delay(20);
-    st7305_send_cmd(0x38);
-    HAL_Delay(20);
     (void)panel().invert(true);
     HAL_Delay(60);
     (void)panel().invert(false);
@@ -112,29 +109,15 @@ export bool display_st7305_init() noexcept {
 }
 
 export void display_st7305_selftest() noexcept {
-    static std::array<std::uint8_t, bsp::st7305::kNativeSize> frame{};
-    bsp::st7305::Panel::clear_native(frame, true);
+    static std::array<std::uint8_t, kPanelNativeSize> frame{};
+    panel().clear_native(frame, false);
+    panel().set_native_pixel(frame, 0, 0, true);
+    panel().set_native_pixel(frame, 0, 1, true);
+    panel().set_native_pixel(frame, 1, 0, true);
     (void)panel().flush_native(frame);
-    HAL_Delay(60);
-    bsp::st7305::Panel::clear_native(frame, false);
-    (void)panel().flush_native(frame);
-    HAL_Delay(60);
-    bsp::st7305::Panel::clear_native(frame, false);
-    const int w = bsp::st7305::kWidth;
-    const int h = bsp::st7305::kHeight;
-    for (int x = 0; x < w; ++x) {
-        bsp::st7305::Panel::set_native_pixel(frame, x, 0, true);
-        bsp::st7305::Panel::set_native_pixel(frame, x, h - 1, true);
-    }
-    for (int y = 0; y < h; ++y) {
-        bsp::st7305::Panel::set_native_pixel(frame, 0, y, true);
-        bsp::st7305::Panel::set_native_pixel(frame, w - 1, y, true);
-    }
-    const int diag = (w < h) ? w : h;
-    for (int i = 0; i < diag; ++i) {
-        bsp::st7305::Panel::set_native_pixel(frame, i, i, true);
-        bsp::st7305::Panel::set_native_pixel(frame, w - 1 - i, i, true);
-    }
-    (void)panel().flush_native(frame);
-    log<"display: selftest pattern">();
+    log<"display: selftest origin mark">();
+}
+
+export bsp::st7305::Panel& display_st7305_panel() noexcept {
+    return panel();
 }

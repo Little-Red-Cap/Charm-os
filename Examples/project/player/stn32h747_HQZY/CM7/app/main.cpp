@@ -70,6 +70,7 @@ import out.channel;
 import player.stm32h7.audio_mp3_demo;
 import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
+import player.stm32h7.ink_demo;
 import platform.board.stn32h747xi;
 import util.core;
 import util.error;
@@ -489,6 +490,7 @@ int main() {
     fs_set_console_sink(console_sink);
     audio_set_console_sink(console_sink);
     display_set_console_sink(console_sink);
+    ink_set_console_sink(console_sink);
 
     const char msg[] = "bringup ok\n";
     auto wr = g_dma_console.write(io::ByteView{
@@ -526,6 +528,12 @@ int main() {
         }
         if (display_st7305_init()) {
             display_st7305_selftest();
+            if (ink_demo_render_once()) {
+                (void)out::try_println<"display: ink demo done">(console_sink);
+            } else {
+                (void)out::try_println<"display: ink demo failed">(console_sink);
+            }
+            ink_demo_run();
         } else {
             (void)out::try_println<"display: init failed">(console_sink);
         }

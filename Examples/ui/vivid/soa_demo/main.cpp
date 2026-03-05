@@ -1001,10 +1001,15 @@ namespace {
         factory.set_tab_bar_selected(tab_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
+        auto progress_wheel = factory.create_progress_wheel();
         factory.link(tab_root, progress);
+        factory.link(tab_root, progress_wheel);
         kernel.set_rect(progress, {10, 110, 180, 12});
+        kernel.set_rect(progress_wheel, {150, 78, 32, 32});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
+        kernel.set_range(progress_wheel, 0, 100);
+        kernel.set_value(progress_wheel, 20);
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
@@ -1072,6 +1077,16 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: progress pass", fails);
         expect_true(paint_after > paint_before, "ui: progress missing paint", fails);
 
+        kernel.layout_trace_reset();
+        const std::uint32_t wheel_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_wheel, 80);
+        gui.render();
+        const std::uint32_t wheel_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress wheel pass", fails);
+        expect_true(wheel_paint_after > wheel_paint_before, "ui: progress wheel missing paint", fails);
+
+        kernel.destroy(progress_wheel);
         kernel.destroy(progress);
         kernel.destroy(menu_item_c);
         kernel.destroy(menu_item_b);
@@ -1631,6 +1646,7 @@ int main(int argc, char** argv) {
     auto tab_bar = factory.create_tab_bar();
     auto slider = factory.create_slider();
     auto progress = factory.create_progress();
+    auto progress_wheel = factory.create_progress_wheel();
     auto toggle_group = factory.create_toggle_group();
     auto tg_a = factory.create_checkbox("Option A");
     auto tg_b = factory.create_checkbox("Option B");
@@ -1665,6 +1681,7 @@ int main(int argc, char** argv) {
     factory.link(root, toggle_group);
     factory.link(root, slider);
     factory.link(root, progress);
+    factory.link(root, progress_wheel);
     factory.link(root, list_view);
     factory.link(root, list_scroll);
     factory.link(root, text_list);
@@ -1692,6 +1709,7 @@ int main(int argc, char** argv) {
     kernel.set_rect(tab_bar, {24, 352, 280, 24});
     kernel.set_rect(slider, {24, 290, 280, 24});
     kernel.set_rect(progress, {24, 330, 280, 18});
+    kernel.set_rect(progress_wheel, {320, 300, 48, 48});
     kernel.set_rect(list_view, {24, 380, 200, 200});
     kernel.set_rect(list_scroll, {230, 380, 12, 200});
     kernel.set_rect(text_list, {250, 200, 200, 160});
@@ -1711,6 +1729,7 @@ int main(int argc, char** argv) {
 
     kernel.set_range(slider, 0, 100);
     kernel.set_range(progress, 0, 100);
+    kernel.set_range(progress_wheel, 0, 100);
     kernel.set_list_row_height(list_view, 28);
     kernel.set_list_row_height(text_list, 24);
     kernel.set_scroll_step(text_list, 24);
@@ -2302,6 +2321,7 @@ int main(int argc, char** argv) {
 
         value = (value + 1) % 101;
         kernel.set_value(progress, value);
+        kernel.set_value(progress_wheel, value);
         spinner_phase = static_cast<std::uint8_t>((spinner_phase + 1u) % 8u);
         kernel.set_spinner_phase(spinner, spinner_phase);
         if (!kernel.pressed(slider)) {

@@ -35,6 +35,8 @@ export import driver.usart_channel;
 export import block.device;
 export import block.device.node;
 export import block.registry;
+export import block.sdmmc;
+export import block.spi_flash;
 
 export import fs_block;
 export import fs_block_file;

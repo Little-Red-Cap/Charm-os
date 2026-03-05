@@ -7,6 +7,7 @@ import canopen.types;
 import canopen.od;
 import canopen.sdo;
 import canopen.transport;
+import canopen.transport_channel;
 import canopen.sdo_service;
 import canopen.nmt;
 import canopen.nmt_service;
@@ -15,6 +16,8 @@ import canopen.sync_service;
 import canopen.emcy;
 import canopen.emcy_service;
 import canopen.pdo;
+import io.channel;
+import io.registry;
 import util.core;
 import util.error;
 import out.api;
@@ -52,47 +55,100 @@ namespace {
         }
     };
 
-    struct FrameQueue {
-        std::array<canopen::CanFrame, 8> buf{};
-        std::uint8_t head{0};
-        std::uint8_t tail{0};
-        std::uint8_t count{0};
+    struct ByteRing {
+        std::array<util::u8, 512> buf{};
+        util::usize head{0};
+        util::usize tail{0};
+        util::usize count{0};
 
-        bool push(const canopen::CanFrame& f) noexcept {
-            if (count >= buf.size()) return false;
-            buf[tail] = f;
-            tail = static_cast<std::uint8_t>((tail + 1) % buf.size());
-            ++count;
-            return true;
+        util::usize push(std::span<const util::u8> in) noexcept {
+            util::usize n = 0;
+            while (n < in.size() && count < buf.size()) {
+                buf[tail] = in[n++];
+                tail = (tail + 1) % buf.size();
+                ++count;
+            }
+            return n;
         }
 
-        bool pop(canopen::CanFrame& f) noexcept {
-            if (count == 0) return false;
-            f = buf[head];
-            head = static_cast<std::uint8_t>((head + 1) % buf.size());
-            --count;
-            return true;
+        util::usize pop(std::span<util::u8> out) noexcept {
+            util::usize n = 0;
+            while (n < out.size() && count > 0) {
+                out[n++] = buf[head];
+                head = (head + 1) % buf.size();
+                --count;
+            }
+            return n;
         }
     };
 
-    struct FakeTransport {
-        FrameQueue rx{};
-        FrameQueue tx{};
+    struct LoopbackChannel {
+        ByteRing rx{};
+        ByteRing tx{};
     };
 
-    util::Result<util::usize> transport_recv(void* ctx, std::span<canopen::CanFrame> out) noexcept {
-        if (!ctx || out.empty()) return util::unexpected(util::Errc::invalid_arg);
-        auto* t = static_cast<FakeTransport*>(ctx);
-        if (!t->rx.pop(out[0])) return util::unexpected(util::Errc::would_block);
-        return util::Result<util::usize>{1};
+    io::result channel_read(void* ctx, io::MutByteView buf) noexcept {
+        if (!ctx || buf.empty()) return io::fail(io::errc::invalid_arg);
+        auto* ch = static_cast<LoopbackChannel*>(ctx);
+        const auto n = ch->rx.pop(buf);
+        if (n == 0) return io::fail(io::errc::would_block);
+        return io::ok(n);
     }
 
-    util::Result<util::usize> transport_send(void* ctx, std::span<const canopen::CanFrame> in) noexcept {
-        if (!ctx || in.empty()) return util::unexpected(util::Errc::invalid_arg);
-        auto* t = static_cast<FakeTransport*>(ctx);
-        if (!t->tx.push(in[0])) return util::unexpected(util::Errc::would_block);
-        return util::Result<util::usize>{1};
+    io::result channel_write(void* ctx, io::ByteView buf) noexcept {
+        if (!ctx || buf.empty()) return io::fail(io::errc::invalid_arg);
+        auto* ch = static_cast<LoopbackChannel*>(ctx);
+        const auto n = ch->tx.push(buf);
+        if (n == 0) return io::fail(io::errc::would_block);
+        return io::ok(n);
     }
+
+    io::result channel_flush(void* ctx) noexcept {
+        if (!ctx) return io::fail(io::errc::invalid_arg);
+        return io::ok(0);
+    }
+
+    bool push_rx_frame(LoopbackChannel& ch, const canopen::CanFrame& f) noexcept {
+        std::array<util::u8, canopen::kCanFrameWireSize> raw{};
+        if (!canopen::encode_frame(f, raw)) return false;
+        return ch.rx.push(raw) == raw.size();
+    }
+
+    bool pop_tx_frame(LoopbackChannel& ch, canopen::CanFrame& f) noexcept {
+        if (ch.tx.count < canopen::kCanFrameWireSize) return false;
+        std::array<util::u8, canopen::kCanFrameWireSize> raw{};
+        if (ch.tx.pop(raw) != raw.size()) return false;
+        return canopen::decode_frame(raw, f);
+    }
+
+    struct LoopbackContext {
+        io::Registry<4> registry{};
+        LoopbackChannel bus{};
+        io::Channel channel{};
+        canopen::ChannelTransport<64> adapter{};
+
+        bool init() noexcept {
+            registry.init();
+            channel = io::Channel{
+                &bus,
+                io::ChannelOps{&channel_read, &channel_write, &channel_flush}
+            };
+            io::EndpointDesc desc{
+                "io.can0",
+                io::cap_id("io.can0"),
+                io::EndpointKind::channel,
+                io::EndpointCaps::duplex
+            };
+            auto r = registry.register_channel(desc, channel, nullptr);
+            if (!r) return false;
+            auto* ch = registry.open_channel("io.can0");
+            if (!ch) return false;
+            adapter.bind(*ch);
+            return true;
+        }
+
+        canopen::Transport& transport() noexcept { return adapter.transport(); }
+    };
 
     canopen::CanFrame make_download(canopen::NodeId node,
                                     canopen::Index index,
@@ -207,27 +263,25 @@ int main() {
     canopen::ObjectDictionary od{entries};
     canopen::SdoServer sdo{od, {.node_id = 1}};
 
-    FakeTransport transport_ctx{};
-    canopen::Transport transport{
-        &transport_ctx,
-        {.recv = &transport_recv, .send = &transport_send},
-    };
+    LoopbackContext transport_ctx{};
+    ck.expect(transport_ctx.init(), "loopback init");
+    auto& transport = transport_ctx.transport();
 
     canopen::SdoService service{sdo, transport, {.rx_budget = 2}};
 
-    transport_ctx.rx.push(make_download(1, 0x2000, 0x00, 0xAABBCCDDu));
+    push_rx_frame(transport_ctx.bus, make_download(1, 0x2000, 0x00, 0xAABBCCDDu));
     (void)service.poll();
 
     canopen::CanFrame tx{};
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("download_rsp", tx);
         ck.expect_eq("download rsp id", tx.id, canopen::sdo_response_id(1));
         ck.expect_eq("download rsp cmd", tx.data[0], static_cast<util::u8>(0x60u));
     }
 
-    transport_ctx.rx.push(make_upload(1, 0x2000, 0x00));
+    push_rx_frame(transport_ctx.bus, make_upload(1, 0x2000, 0x00));
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("upload_rsp", tx);
         ck.expect_eq("upload rsp id", tx.id, canopen::sdo_response_id(1));
         ck.expect_eq("upload rsp cmd", tx.data[0], static_cast<util::u8>(0x43u));
@@ -245,26 +299,26 @@ int main() {
         f.data[3] = 0x00;
         f.data[4] = 0xFE;
         f.data[5] = 0xED;
-        transport_ctx.rx.push(f);
+        push_rx_frame(transport_ctx.bus, f);
         (void)service.poll();
-        if (transport_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
             dump_frame("bytes_rsp", tx);
             ck.expect_eq("bytes rsp cmd", tx.data[0], static_cast<util::u8>(0x60u));
         }
     }
 
     // Read-only entry: download should abort with ReadOnly.
-    transport_ctx.rx.push(make_download(1, 0x2002, 0x00, 0x11223344u));
+    push_rx_frame(transport_ctx.bus, make_download(1, 0x2002, 0x00, 0x11223344u));
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("ro_abort", tx);
         expect_abort(ck, "ro abort code", tx, 0x2002, 0x00, 0x06010002u);
     }
 
     // Missing entry: upload should abort.
-    transport_ctx.rx.push(make_upload(1, 0x2003, 0x00));
+    push_rx_frame(transport_ctx.bus, make_upload(1, 0x2003, 0x00));
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("abort_rsp", tx);
         expect_abort(ck, "missing abort code", tx, 0x2003, 0x00, 0x06020000u);
     }
@@ -280,9 +334,9 @@ int main() {
         init.data[2] = 0x30;
         init.data[3] = 0x00;
         init.data[4] = 10;
-        transport_ctx.rx.push(init);
+        push_rx_frame(transport_ctx.bus, init);
         (void)service.poll();
-        if (transport_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
             dump_frame("seg_init_rsp", tx);
             ck.expect_eq("seg init cmd", tx.data[0], static_cast<util::u8>(0xA4u));
         }
@@ -295,9 +349,9 @@ int main() {
         for (int i = 0; i < 7; ++i) {
             seg0.data[1 + i] = static_cast<util::u8>(0xA0u + i);
         }
-        transport_ctx.rx.push(seg0);
+        push_rx_frame(transport_ctx.bus, seg0);
         (void)service.poll();
-        ck.expect(!transport_ctx.tx.pop(tx), "seg0 no ack");
+        ck.expect(!pop_tx_frame(transport_ctx.bus, tx), "seg0 no ack");
 
         canopen::CanFrame seg1{};
         seg1.id = canopen::sdo_request_id(1);
@@ -307,9 +361,9 @@ int main() {
         seg1.data[1] = 0xA7;
         seg1.data[2] = 0xA8;
         seg1.data[3] = 0xA9;
-        transport_ctx.rx.push(seg1);
+        push_rx_frame(transport_ctx.bus, seg1);
         (void)service.poll();
-        if (transport_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
             dump_frame("seg1_rsp", tx);
             ck.expect_eq("seg1 cmd", tx.data[0], static_cast<util::u8>(0xA2u));
         }
@@ -328,9 +382,9 @@ int main() {
         const auto crc = crc16_ccitt(payload);
         end.data[2] = static_cast<util::u8>(crc & 0xFFu);
         end.data[3] = static_cast<util::u8>((crc >> 8) & 0xFFu);
-        transport_ctx.rx.push(end);
+        push_rx_frame(transport_ctx.bus, end);
         (void)service.poll();
-        if (transport_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(transport_ctx.bus, tx)) {
             dump_frame("seg_end_rsp", tx);
             ck.expect_eq("seg end cmd", tx.data[0], static_cast<util::u8>(0xA1u));
             ck.expect_eq("seg end layout b1", tx.data[1], static_cast<util::u8>(0u));
@@ -341,13 +395,10 @@ int main() {
 
     // Block download end: n mismatch should abort.
     {
-        FakeTransport neg_ctx{};
+        LoopbackContext neg_ctx{};
+        ck.expect(neg_ctx.init(), "loopback init");
         canopen::SdoServer neg_sdo{od, {.node_id = 1}};
-        canopen::Transport neg_transport{
-            &neg_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SdoService neg_service{neg_sdo, neg_transport, {.rx_budget = 2}};
+        canopen::SdoService neg_service{neg_sdo, neg_ctx.transport(), {.rx_budget = 2}};
 
         canopen::CanFrame init{};
         init.id = canopen::sdo_request_id(1);
@@ -358,9 +409,9 @@ int main() {
         init.data[2] = 0x30;
         init.data[3] = 0x00;
         init.data[4] = 10;
-        neg_ctx.rx.push(init);
+        push_rx_frame(neg_ctx.bus, init);
         (void)neg_service.poll();
-        (void)neg_ctx.tx.pop(tx);
+        (void)pop_tx_frame(neg_ctx.bus, tx);
 
         canopen::CanFrame seg0{};
         seg0.id = canopen::sdo_request_id(1);
@@ -370,7 +421,7 @@ int main() {
         for (int i = 0; i < 7; ++i) {
             seg0.data[1 + i] = static_cast<util::u8>(0xA0u + i);
         }
-        neg_ctx.rx.push(seg0);
+        push_rx_frame(neg_ctx.bus, seg0);
         (void)neg_service.poll();
 
         canopen::CanFrame seg1{};
@@ -381,9 +432,9 @@ int main() {
         seg1.data[1] = 0xA7;
         seg1.data[2] = 0xA8;
         seg1.data[3] = 0xA9;
-        neg_ctx.rx.push(seg1);
+        push_rx_frame(neg_ctx.bus, seg1);
         (void)neg_service.poll();
-        (void)neg_ctx.tx.pop(tx);
+        (void)pop_tx_frame(neg_ctx.bus, tx);
 
         canopen::CanFrame end{};
         end.id = canopen::sdo_request_id(1);
@@ -399,9 +450,9 @@ int main() {
         const auto crc = crc16_ccitt(payload);
         end.data[2] = static_cast<util::u8>(crc & 0xFFu);
         end.data[3] = static_cast<util::u8>((crc >> 8) & 0xFFu);
-        neg_ctx.rx.push(end);
+        push_rx_frame(neg_ctx.bus, end);
         (void)neg_service.poll();
-        if (neg_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(neg_ctx.bus, tx)) {
             dump_frame("seg_end_bad_n", tx);
             expect_abort(ck, "seg end bad n", tx, 0x3000, 0x00, 0x05040001u);
         } else {
@@ -411,13 +462,10 @@ int main() {
 
     // Block download end: CRC error should abort.
     {
-        FakeTransport neg_ctx{};
+        LoopbackContext neg_ctx{};
+        ck.expect(neg_ctx.init(), "loopback init");
         canopen::SdoServer neg_sdo{od, {.node_id = 1}};
-        canopen::Transport neg_transport{
-            &neg_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SdoService neg_service{neg_sdo, neg_transport, {.rx_budget = 2}};
+        canopen::SdoService neg_service{neg_sdo, neg_ctx.transport(), {.rx_budget = 2}};
 
         canopen::CanFrame init{};
         init.id = canopen::sdo_request_id(1);
@@ -428,9 +476,9 @@ int main() {
         init.data[2] = 0x30;
         init.data[3] = 0x00;
         init.data[4] = 10;
-        neg_ctx.rx.push(init);
+        push_rx_frame(neg_ctx.bus, init);
         (void)neg_service.poll();
-        (void)neg_ctx.tx.pop(tx);
+        (void)pop_tx_frame(neg_ctx.bus, tx);
 
         canopen::CanFrame seg0{};
         seg0.id = canopen::sdo_request_id(1);
@@ -440,7 +488,7 @@ int main() {
         for (int i = 0; i < 7; ++i) {
             seg0.data[1 + i] = static_cast<util::u8>(0xA0u + i);
         }
-        neg_ctx.rx.push(seg0);
+        push_rx_frame(neg_ctx.bus, seg0);
         (void)neg_service.poll();
 
         canopen::CanFrame seg1{};
@@ -451,9 +499,9 @@ int main() {
         seg1.data[1] = 0xA7;
         seg1.data[2] = 0xA8;
         seg1.data[3] = 0xA9;
-        neg_ctx.rx.push(seg1);
+        push_rx_frame(neg_ctx.bus, seg1);
         (void)neg_service.poll();
-        (void)neg_ctx.tx.pop(tx);
+        (void)pop_tx_frame(neg_ctx.bus, tx);
 
         canopen::CanFrame end{};
         end.id = canopen::sdo_request_id(1);
@@ -463,9 +511,9 @@ int main() {
         end.data[1] = 4u;
         end.data[2] = 0x00u; // wrong CRC
         end.data[3] = 0x00u;
-        neg_ctx.rx.push(end);
+        push_rx_frame(neg_ctx.bus, end);
         (void)neg_service.poll();
-        if (neg_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(neg_ctx.bus, tx)) {
             dump_frame("seg_end_bad_crc", tx);
             expect_abort(ck, "seg end bad crc", tx, 0x3000, 0x00, 0x05040004u);
         } else {
@@ -483,10 +531,10 @@ int main() {
         req.data[1] = 0x00;
         req.data[2] = 0x30;
         req.data[3] = 0x00;
-        transport_ctx.rx.push(req);
+        push_rx_frame(transport_ctx.bus, req);
     }
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("seg_up_init", tx);
         ck.expect_eq("seg up init cmd", tx.data[0], static_cast<util::u8>(0xC4u));
         ck.expect_eq("seg up size", tx.data[4], static_cast<util::u8>(10u));
@@ -499,21 +547,21 @@ int main() {
     up_req0.data[0] = 0xA2u; // block upload ack
     up_req0.data[1] = 0x00u; // ack seq
     up_req0.data[2] = 0x02u; // block size
-    transport_ctx.rx.push(up_req0);
+    push_rx_frame(transport_ctx.bus, up_req0);
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("seg_up0", tx);
         ck.expect_eq("seg up0 cmd", tx.data[0], static_cast<util::u8>(0x01u));
     }
 
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("seg_up1", tx);
         ck.expect_eq("seg up1 cmd", tx.data[0], static_cast<util::u8>(0x82u));
     }
 
     (void)service.poll();
-    if (transport_ctx.tx.pop(tx)) {
+    if (pop_tx_frame(transport_ctx.bus, tx)) {
         dump_frame("seg_up_end", tx);
         ck.expect_eq("seg up end cmd", tx.data[0], static_cast<util::u8>(0xC1u));
         ck.expect_eq("seg up end n", tx.data[1], static_cast<util::u8>(4u));
@@ -525,19 +573,16 @@ int main() {
     up_end.data.fill(0);
     up_end.data[0] = 0xA1u; // block upload end ack
     up_end.data[1] = 4u;    // unused bytes in last segment
-    transport_ctx.rx.push(up_end);
+    push_rx_frame(transport_ctx.bus, up_end);
     (void)service.poll();
-    ck.expect(!transport_ctx.tx.pop(tx), "seg up end ack no tx");
+    ck.expect(!pop_tx_frame(transport_ctx.bus, tx), "seg up end ack no tx");
 
     // Block upload ack sequence mismatch should abort.
     {
-        FakeTransport neg_ctx{};
+        LoopbackContext neg_ctx{};
+        ck.expect(neg_ctx.init(), "loopback init");
         canopen::SdoServer neg_sdo{od, {.node_id = 1}};
-        canopen::Transport neg_transport{
-            &neg_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SdoService neg_service{neg_sdo, neg_transport, {.rx_budget = 1}};
+        canopen::SdoService neg_service{neg_sdo, neg_ctx.transport(), {.rx_budget = 1}};
 
         canopen::CanFrame req{};
         req.id = canopen::sdo_request_id(1);
@@ -547,9 +592,9 @@ int main() {
         req.data[1] = 0x00;
         req.data[2] = 0x30;
         req.data[3] = 0x00;
-        neg_ctx.rx.push(req);
+        push_rx_frame(neg_ctx.bus, req);
         (void)neg_service.poll();
-        (void)neg_ctx.tx.pop(tx);
+        (void)pop_tx_frame(neg_ctx.bus, tx);
 
         canopen::CanFrame ack{};
         ack.id = canopen::sdo_request_id(1);
@@ -558,9 +603,9 @@ int main() {
         ack.data[0] = 0xA2u;
         ack.data[1] = 0x01u; // wrong ack seq
         ack.data[2] = 0x02u;
-        neg_ctx.rx.push(ack);
+        push_rx_frame(neg_ctx.bus, ack);
         (void)neg_service.poll();
-        if (neg_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(neg_ctx.bus, tx)) {
             dump_frame("seg_up_bad_ack", tx);
             expect_abort(ck, "seg up bad ack", tx, 0x3000, 0x00, 0x05030000u);
         } else {
@@ -570,22 +615,19 @@ int main() {
 
     // Timeout: start segmented upload then advance time past timeout.
     {
-        FakeTransport timeout_ctx{};
+        LoopbackContext timeout_ctx{};
+        ck.expect(timeout_ctx.init(), "loopback init");
         canopen::SdoServer timeout_sdo{od, {.node_id = 1, .timeout_ms = 5}};
-        canopen::Transport timeout_transport{
-            &timeout_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SdoService timeout_service{timeout_sdo, timeout_transport, {.rx_budget = 1}};
+        canopen::SdoService timeout_service{timeout_sdo, timeout_ctx.transport(), {.rx_budget = 1}};
 
         util::u32 now_ms = 100u;
-        timeout_ctx.rx.push(make_upload(1, 0x3000, 0x00));
+        push_rx_frame(timeout_ctx.bus, make_upload(1, 0x3000, 0x00));
         (void)timeout_service.poll_time(now_ms);
-        (void)timeout_ctx.tx.pop(tx); // segmented upload init
+        (void)pop_tx_frame(timeout_ctx.bus, tx); // segmented upload init
 
         now_ms += 10u;
         (void)timeout_service.poll_time(now_ms);
-        if (timeout_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(timeout_ctx.bus, tx)) {
             dump_frame("timeout_abort", tx);
             expect_abort(ck, "timeout abort code", tx, 0x3000, 0x00, 0x05040000u);
         } else {
@@ -595,41 +637,35 @@ int main() {
 
     // Timeout boundary: within timeout should not abort.
     {
-        FakeTransport timeout_ctx{};
+        LoopbackContext timeout_ctx{};
+        ck.expect(timeout_ctx.init(), "loopback init");
         canopen::SdoServer timeout_sdo{od, {.node_id = 1, .timeout_ms = 5}};
-        canopen::Transport timeout_transport{
-            &timeout_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SdoService timeout_service{timeout_sdo, timeout_transport, {.rx_budget = 1}};
+        canopen::SdoService timeout_service{timeout_sdo, timeout_ctx.transport(), {.rx_budget = 1}};
 
         util::u32 now_ms = 200u;
-        timeout_ctx.rx.push(make_upload(1, 0x3000, 0x00));
+        push_rx_frame(timeout_ctx.bus, make_upload(1, 0x3000, 0x00));
         (void)timeout_service.poll_time(now_ms);
-        (void)timeout_ctx.tx.pop(tx); // segmented upload init
+        (void)pop_tx_frame(timeout_ctx.bus, tx); // segmented upload init
 
         now_ms += 4u; // within timeout
         (void)timeout_service.poll_time(now_ms);
-        ck.expect(!timeout_ctx.tx.pop(tx), "timeout boundary should not abort");
+        ck.expect(!pop_tx_frame(timeout_ctx.bus, tx), "timeout boundary should not abort");
     }
 
     // NMT: boot-up, heartbeat, and reset handling.
     {
-        FakeTransport nmt_ctx{};
+        LoopbackContext nmt_ctx{};
+        ck.expect(nmt_ctx.init(), "loopback init");
         canopen::NmtNode node{{
             .node_id = 3,
             .heartbeat_ms = 10,
             .send_bootup = true,
         }};
-        canopen::Transport nmt_transport{
-            &nmt_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::NmtService nmt_service{node, nmt_transport, {.rx_budget = 1}};
+        canopen::NmtService nmt_service{node, nmt_ctx.transport(), {.rx_budget = 1}};
 
         util::u32 now_ms = 100;
         (void)nmt_service.poll_time(now_ms);
-        if (nmt_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(nmt_ctx.bus, tx)) {
             dump_frame("nmt_bootup", tx);
             ck.expect_eq("nmt bootup id", tx.id, canopen::heartbeat_id(3));
             ck.expect_eq("nmt bootup state", tx.data[0], static_cast<util::u8>(canopen::NodeState::initializing));
@@ -639,11 +675,11 @@ int main() {
 
         now_ms += 5;
         (void)nmt_service.poll_time(now_ms);
-        ck.expect(!nmt_ctx.tx.pop(tx), "nmt heartbeat too early");
+        ck.expect(!pop_tx_frame(nmt_ctx.bus, tx), "nmt heartbeat too early");
 
         now_ms += 5;
         (void)nmt_service.poll_time(now_ms);
-        if (nmt_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(nmt_ctx.bus, tx)) {
             dump_frame("nmt_hb0", tx);
             ck.expect_eq("nmt hb id", tx.id, canopen::heartbeat_id(3));
             ck.expect_eq("nmt hb state", tx.data[0], static_cast<util::u8>(canopen::NodeState::pre_operational));
@@ -651,20 +687,20 @@ int main() {
             ck.expect(false, "nmt heartbeat missing");
         }
 
-        nmt_ctx.rx.push(make_nmt(canopen::NmtCommand::start, 3));
+        push_rx_frame(nmt_ctx.bus, make_nmt(canopen::NmtCommand::start, 3));
         (void)nmt_service.poll();
         ck.expect_eq("nmt start state", node.state(), canopen::NodeState::operational);
 
         now_ms += 10;
         (void)nmt_service.poll_time(now_ms);
-        if (nmt_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(nmt_ctx.bus, tx)) {
             dump_frame("nmt_hb1", tx);
             ck.expect_eq("nmt hb1 state", tx.data[0], static_cast<util::u8>(canopen::NodeState::operational));
         } else {
             ck.expect(false, "nmt heartbeat op missing");
         }
 
-        nmt_ctx.rx.push(make_nmt(canopen::NmtCommand::reset_node, 3));
+        push_rx_frame(nmt_ctx.bus, make_nmt(canopen::NmtCommand::reset_node, 3));
         (void)nmt_service.poll();
         ck.expect(node.reset_node_pending(), "nmt reset flag");
         node.clear_reset_flags();
@@ -672,7 +708,7 @@ int main() {
 
         now_ms += 1;
         (void)nmt_service.poll_time(now_ms);
-        if (nmt_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(nmt_ctx.bus, tx)) {
             dump_frame("nmt_bootup2", tx);
             ck.expect_eq("nmt bootup2 state", tx.data[0], static_cast<util::u8>(canopen::NodeState::initializing));
         } else {
@@ -682,25 +718,22 @@ int main() {
 
     // SYNC: periodic producer with counter + rx accounting.
     {
-        FakeTransport sync_ctx{};
+        LoopbackContext sync_ctx{};
+        ck.expect(sync_ctx.init(), "loopback init");
         canopen::SyncNode sync_node{{
             .period_ms = 10,
             .send_counter = true,
             .counter_max = 3,
         }};
-        canopen::Transport sync_transport{
-            &sync_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::SyncService sync_service{sync_node, sync_transport, {.rx_budget = 1}};
+        canopen::SyncService sync_service{sync_node, sync_ctx.transport(), {.rx_budget = 1}};
 
         util::u32 now_ms = 100;
         (void)sync_service.poll_time(now_ms);
-        ck.expect(!sync_ctx.tx.pop(tx), "sync early");
+        ck.expect(!pop_tx_frame(sync_ctx.bus, tx), "sync early");
 
         now_ms += 10;
         (void)sync_service.poll_time(now_ms);
-        if (sync_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(sync_ctx.bus, tx)) {
             dump_frame("sync_tx", tx);
             ck.expect_eq("sync id", tx.id, canopen::sync_id());
             ck.expect_eq("sync dlc", tx.dlc, static_cast<util::u8>(1u));
@@ -714,7 +747,7 @@ int main() {
         sync_rx.dlc = 1;
         sync_rx.data.fill(0);
         sync_rx.data[0] = 0x22;
-        sync_ctx.rx.push(sync_rx);
+        push_rx_frame(sync_ctx.bus, sync_rx);
         (void)sync_service.poll();
         ck.expect_eq("sync rx count", sync_node.rx_count(), static_cast<util::u32>(1u));
         ck.expect_eq("sync rx counter", sync_node.last_rx_counter(), static_cast<util::u8>(0x22u));
@@ -722,14 +755,11 @@ int main() {
 
     // EMCY: producer send + consumer decode.
     {
-        FakeTransport emcy_ctx{};
+        LoopbackContext emcy_ctx{};
+        ck.expect(emcy_ctx.init(), "loopback init");
         canopen::EmcyProducer emcy_prod{{.node_id = 5}};
         canopen::EmcyConsumer emcy_cons{};
-        canopen::Transport emcy_transport{
-            &emcy_ctx,
-            {.recv = &transport_recv, .send = &transport_send},
-        };
-        canopen::EmcyService emcy_service{emcy_prod, emcy_cons, emcy_transport, {.rx_budget = 1}};
+        canopen::EmcyService emcy_service{emcy_prod, emcy_cons, emcy_ctx.transport(), {.rx_budget = 1}};
 
         canopen::EmcyMessage msg{};
         msg.error_code = 0x1234u;
@@ -737,7 +767,7 @@ int main() {
         msg.data = {0x01u, 0x02u, 0x03u, 0x04u, 0x05u};
         (void)emcy_service.send(msg);
 
-        if (emcy_ctx.tx.pop(tx)) {
+        if (pop_tx_frame(emcy_ctx.bus, tx)) {
             dump_frame("emcy_tx", tx);
             ck.expect_eq("emcy tx id", tx.id, canopen::emcy_id(5));
             ck.expect_eq("emcy tx code", tx.data[0], static_cast<util::u8>(0x34u));
@@ -759,7 +789,7 @@ int main() {
         emcy_rx.data[5] = 0x30u;
         emcy_rx.data[6] = 0x40u;
         emcy_rx.data[7] = 0x50u;
-        emcy_ctx.rx.push(emcy_rx);
+        push_rx_frame(emcy_ctx.bus, emcy_rx);
         (void)emcy_service.poll();
 
         canopen::EmcyMessage got{};

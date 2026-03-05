@@ -1291,9 +1291,12 @@ namespace {
             tree_items,
             static_cast<std::uint16_t>(sizeof(tree_items) / sizeof(tree_items[0]))
         };
-        static const TreeViewIndentSource tree_indent{3};
+        static const TreeViewIndentSource tree_indent{20};
         factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
                                      &tree_indent, &tree_view_indent_at);
+        factory.set_tree_view_indent_px(tree_view, 12);
+        factory.set_tree_view_max_indent_px(tree_view, 140);
+        factory.set_tree_view_min_text_avail_px(tree_view, 64);
 
         gui.render();
         expect_true(gui.last_exec_stats().failed_cmds == 0, "tabletree: failed_cmds", fails);

@@ -8,17 +8,17 @@ module;
 export module bsp.st7305;
 
 export namespace bsp::st7305 {
-    export constexpr int kWidth = 168;
-    export constexpr int kHeight = 384;
-    export constexpr int kNativeStride = kWidth / 4;
-    export constexpr int kNativeHeight = kHeight / 2;
-    export constexpr std::size_t kNativeSize =
+    constexpr int kWidth = 168;
+    constexpr int kHeight = 384;
+    constexpr int kNativeStride = kWidth / 4;
+    constexpr int kNativeHeight = kHeight / 2;
+    constexpr std::size_t kNativeSize =
         static_cast<std::size_t>(kNativeStride) * static_cast<std::size_t>(kNativeHeight);
-    export constexpr int kLinearStride = kWidth / 8;
-    export constexpr std::size_t kLinearSize =
+    constexpr int kLinearStride = kWidth / 8;
+    constexpr std::size_t kLinearSize =
         static_cast<std::size_t>(kLinearStride) * static_cast<std::size_t>(kHeight);
 
-    export enum class Status : std::uint8_t { ok, invalid };
+    enum class Status : std::uint8_t { ok, invalid };
 
     using TransmitFn = void (*)(std::uint8_t* data, std::uint16_t len, bool data_or_cmd);
     using ResetFn = void (*)(bool level);
@@ -150,9 +150,9 @@ namespace bsp::st7305 {
         if (!io_.reset) return Status::ok;
         const bool active = io_.reset_active_high;
         io_.reset(active);
-        delay_ms(10);
+        delay_ms(20);
         io_.reset(!active);
-        delay_ms(10);
+        delay_ms(20);
         return Status::ok;
     }
 

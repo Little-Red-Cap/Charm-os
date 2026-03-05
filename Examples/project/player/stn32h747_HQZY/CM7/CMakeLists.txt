@@ -71,12 +71,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/*.cppm"
 )
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
     BASE_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../.."
     FILES
         ${MODULE_INTERFACE_UNITS}
 )
@@ -117,9 +118,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 if(CMAKE_C_STANDARD LESS 11)
     message(ERROR "Generated code requires C11 or higher")
 endif()
-
-
-
 
 
 

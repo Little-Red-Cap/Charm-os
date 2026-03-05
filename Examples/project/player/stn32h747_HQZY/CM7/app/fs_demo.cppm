@@ -17,6 +17,7 @@ module;
 export module player.stm32h7.fs_demo;
 
 import util.core;
+import boot_core;
 import fs_block;
 import fs_core;
 import fs_errno;
@@ -391,6 +392,9 @@ namespace {
         }
 
         [[nodiscard]] fs::BlockDevice& device() noexcept { return device_; }
+        [[nodiscard]] fs::Status read_blocks(util::u64 lba, std::span<util::u8> data) noexcept {
+            return read_impl(this, lba, data);
+        }
 
     private:
         static bool can_dma(const void* data, std::size_t size) noexcept {
@@ -467,16 +471,17 @@ namespace {
         util::u32 block_size_{512};
         util::u32 block_count_{0};
     };
+
+    static SdBlockDevice g_sd{};
 } // namespace
 
 export bool fs_boot_init() noexcept {
-    static SdBlockDevice sd{};
-    if (!sd.init()) {
+    if (!g_sd.init()) {
         log<"fs boot: sd init failed">();
         return false;
     }
     static fs::FatFsMount mount{};
-    auto st = mount.mount(sd.device(), false);
+    auto st = mount.mount(g_sd.device(), false);
     if (!st) {
         log<"fs boot: mount failed {}">(static_cast<int>(st.err));
         return false;
@@ -485,6 +490,33 @@ export bool fs_boot_init() noexcept {
     (void)fs::add_mount("/", mount.mount_point());
     log<"fs boot: mount ok">();
     return true;
+}
+
+export bool fs_sd_selftest(util::u32 start_lba, util::u32 blocks, util::u32 stride) noexcept {
+    if (!g_sd.init()) {
+        log<"fs sdmmc: selftest init failed">();
+        return false;
+    }
+    std::array<util::u8, 512> buf{};
+    util::u32 crc = 0;
+    util::u32 ok_blocks = 0;
+    const util::u32 t0 = HAL_GetTick();
+    for (util::u32 i = 0; i < blocks; ++i) {
+        const util::u32 lba = start_lba + (i * stride);
+        auto st = g_sd.read_blocks(lba, std::span<util::u8>(buf.data(), buf.size()));
+        if (!st) {
+            log<"fs sdmmc: selftest read fail lba={} err={}">(
+                lba, static_cast<int>(st.err));
+            break;
+        }
+        crc = boot::crc32_update(crc, buf.data(), buf.size());
+        ++ok_blocks;
+    }
+    const util::u32 ms = HAL_GetTick() - t0;
+    const util::u32 bytes = ok_blocks * static_cast<util::u32>(buf.size());
+    log<"fs sdmmc: selftest blocks={} stride={} crc=0x{:08X} ms={} bytes={}">(
+        ok_blocks, stride, crc, ms, bytes);
+    return ok_blocks == blocks;
 }
 
 export void fs_demo_run() noexcept {

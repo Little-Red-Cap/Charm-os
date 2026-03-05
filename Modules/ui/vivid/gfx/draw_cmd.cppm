@@ -147,6 +147,30 @@ export namespace ui::draw_cmd {
 
     constexpr std::size_t kMaxImageResources = 64;
 
+    enum class ImageRegisterReason : std::uint8_t {
+        Unknown = 0,
+        Init = 1,
+        DumpReplay = 2,
+        FrameRecord = 3,
+        SelfTest = 4
+    };
+
+    inline const char* image_register_reason_name(ImageRegisterReason reason) noexcept {
+        switch (reason) {
+        case ImageRegisterReason::Init:
+            return "init";
+        case ImageRegisterReason::DumpReplay:
+            return "dump_replay";
+        case ImageRegisterReason::FrameRecord:
+            return "frame_record";
+        case ImageRegisterReason::SelfTest:
+            return "selftest";
+        case ImageRegisterReason::Unknown:
+        default:
+            return "unknown";
+        }
+    }
+
     struct ImageRegistryStats {
         std::uint16_t count{0};
         std::uint64_t bytes_total{0};
@@ -170,6 +194,11 @@ export namespace ui::draw_cmd {
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
         std::uint16_t lock_count{0};
+#if defined(VIVID_SOA_TRACE_INPUT)
+        bool first_after_lock_set{false};
+        ImageRegisterReason first_after_lock_reason{ImageRegisterReason::Unknown};
+        const char* first_after_lock_tag{nullptr};
+#endif
 
         static std::uint64_t hash_bytes(std::uint64_t hash, const void* data, std::size_t len) noexcept {
             const auto* bytes = static_cast<const std::uint8_t*>(data);
@@ -230,9 +259,23 @@ export namespace ui::draw_cmd {
             }
         }
 
-        bool allow_register() noexcept {
+        void note_after_lock(ImageRegisterReason reason, const char* tag) noexcept {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            if (!first_after_lock_set) {
+                first_after_lock_set = true;
+                first_after_lock_reason = reason;
+                first_after_lock_tag = tag;
+            }
+#else
+            (void)reason;
+            (void)tag;
+#endif
+        }
+
+        bool allow_register(ImageRegisterReason reason, const char* tag) noexcept {
             if (!locked()) return true;
             register_after_lock++;
+            note_after_lock(reason, tag);
 #ifndef NDEBUG
             assert(false && "ImageRegistry is locked");
 #endif
@@ -240,9 +283,11 @@ export namespace ui::draw_cmd {
             return false;
         }
 
-        ImageId register_image(const ImageView& view) noexcept {
+        ImageId register_image(const ImageView& view,
+                               ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                               const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register()) return invalid_image_id();
+            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
@@ -263,9 +308,12 @@ export namespace ui::draw_cmd {
             return invalid_image_id();
         }
 
-        ImageId register_image_key(std::uint32_t key, const ImageView& view) noexcept {
+        ImageId register_image_key(std::uint32_t key,
+                                   const ImageView& view,
+                                   ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                   const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register()) return invalid_image_id();
+            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
             if (key != 0) {
                 for (std::size_t i = 0; i < views.size(); ++i) {
@@ -295,9 +343,11 @@ export namespace ui::draw_cmd {
             return invalid_image_id();
         }
 
-        ImageId register_image_dedup(const ImageView& view) noexcept {
+        ImageId register_image_dedup(const ImageView& view,
+                                     ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                     const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register()) return invalid_image_id();
+            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
@@ -376,6 +426,25 @@ export namespace ui::draw_cmd {
         return image_registry().register_image_dedup(view);
     }
 
+    inline ImageId register_image(const ImageView& view,
+                                  ImageRegisterReason reason,
+                                  const char* tag) noexcept {
+        return image_registry().register_image(view, reason, tag);
+    }
+
+    inline ImageId register_image_key(std::uint32_t key,
+                                      const ImageView& view,
+                                      ImageRegisterReason reason,
+                                      const char* tag) noexcept {
+        return image_registry().register_image_key(key, view, reason, tag);
+    }
+
+    inline ImageId register_image_dedup(const ImageView& view,
+                                        ImageRegisterReason reason,
+                                        const char* tag) noexcept {
+        return image_registry().register_image_dedup(view, reason, tag);
+    }
+
     inline void unregister_image(ImageId id) noexcept {
         image_registry().unregister_image(id);
     }
@@ -399,13 +468,21 @@ export namespace ui::draw_cmd {
         registry.dedup_hits = 0;
         registry.overflowed = false;
         registry.lock_count = 0;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        registry.first_after_lock_set = false;
+        registry.first_after_lock_reason = ImageRegisterReason::Unknown;
+        registry.first_after_lock_tag = nullptr;
+#endif
     }
 
-    inline bool register_image_with_id(ImageId id, const ImageView& view) noexcept {
+    inline bool register_image_with_id(ImageId id,
+                                       const ImageView& view,
+                                       ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                       const char* tag = nullptr) noexcept {
         if (!image_id_valid(id) || !view) return false;
         auto& registry = image_registry();
         registry.register_calls++;
-        if (!registry.allow_register()) return false;
+        if (!registry.allow_register(reason, tag)) return false;
         if (id.slot >= registry.views.size()) {
             registry.overflowed = true;
             return false;
@@ -461,6 +538,22 @@ export namespace ui::draw_cmd {
         out.id = ImageId{static_cast<std::uint16_t>(index), registry.generations[index]};
         out.view = registry.views[index];
         return true;
+    }
+
+    inline ImageRegisterReason image_registry_first_after_lock_reason() noexcept {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        return image_registry().first_after_lock_reason;
+#else
+        return ImageRegisterReason::Unknown;
+#endif
+    }
+
+    inline const char* image_registry_first_after_lock_tag() noexcept {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        return image_registry().first_after_lock_tag;
+#else
+        return nullptr;
+#endif
     }
 
     constexpr std::size_t align_up(std::size_t value, std::size_t alignment) noexcept {

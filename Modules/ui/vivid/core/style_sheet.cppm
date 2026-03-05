@@ -212,7 +212,6 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::ListView:
         case WidgetKind::IconList:
         case WidgetKind::TextTrackingList:
-        case WidgetKind::TextList:
         case WidgetKind::TableView:
         case WidgetKind::TreeView:
         case WidgetKind::ScrollContainer:
@@ -238,6 +237,7 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::Menu:
         case WidgetKind::MenuItem:
         case WidgetKind::ToggleGroup:
+        case WidgetKind::TextList:
         case WidgetKind::ListItem:
         case WidgetKind::FoldablePanel:
             return interactive;

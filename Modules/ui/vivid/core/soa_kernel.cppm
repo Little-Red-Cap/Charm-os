@@ -4,7 +4,6 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-
 #include "features.hpp"
 
 export module charm.core.soa_kernel;
@@ -17,6 +16,8 @@ export import charm.core.widget_registry;
 
 import charm.core.style;
 import charm.core.style_sheet;
+import charm.core.soa_payload;
+import alg_list_scroll;
 
 namespace {
     constexpr std::uint16_t kInvalidIndex = 0xFFFF;
@@ -29,21 +30,6 @@ export constexpr std::size_t soa_max_nodes = 256;
 #endif
 
 namespace soa_detail {
-    constexpr std::uint16_t kInvalidPayloadSlot = 0xFFFF;
-
-    struct PayloadHandle {
-        std::uint16_t slot{kInvalidPayloadSlot};
-        std::uint16_t generation{0};
-    };
-
-    constexpr PayloadHandle invalid_payload_handle() noexcept {
-        return PayloadHandle{kInvalidPayloadSlot, 0};
-    }
-
-    constexpr bool payload_valid(PayloadHandle h) noexcept {
-        return h.slot != kInvalidPayloadSlot;
-    }
-
     template <std::size_t N>
     struct CommonSoA {
         std::array<WidgetKind, N> kind{};
@@ -64,80 +50,6 @@ namespace soa_detail {
         std::array<PayloadHandle, N> payload{};
     };
 
-    struct LabelPayload {
-        const char* text{nullptr};
-    };
-
-    struct ButtonPayload {
-        const char* text{nullptr};
-    };
-
-    struct CheckboxPayload {
-        const char* text{nullptr};
-        std::uint8_t checked{0};
-    };
-
-    struct RadioPayload {
-        const char* text{nullptr};
-        std::uint8_t checked{0};
-    };
-
-    struct ListItemPayload {
-        const char* text{nullptr};
-        std::uint8_t checked{0};
-    };
-
-    struct SwitchPayload {
-        std::uint8_t checked{0};
-    };
-
-    struct SliderPayload {
-        int value{0};
-        int min_value{0};
-        int max_value{100};
-    };
-
-    struct ProgressPayload {
-        int value{0};
-        int min_value{0};
-        int max_value{100};
-    };
-
-    struct ScrollBarPayload {
-        int value{0};
-        int min_value{0};
-        int max_value{100};
-        std::uint8_t orientation{0};
-        int page_size{0};
-        WidgetHandle target{};
-    };
-
-    struct ListPayload {
-        int scroll_y{0};
-        int scroll_step{24};
-        int row_height{28};
-    };
-
-    struct ScrollContainerPayload {
-        int scroll_y{0};
-        int scroll_step{24};
-    };
-
-    enum class PayloadKind : std::uint8_t {
-        None,
-        Label,
-        Button,
-        Checkbox,
-        Radio,
-        ListItem,
-        Switch,
-        Slider,
-        ScrollBar,
-        Progress,
-        List,
-        ScrollContainer
-    };
-
     struct PayloadDescriptor {
         bool supported{false};
         PayloadKind payload{PayloadKind::None};
@@ -148,91 +60,6 @@ namespace soa_detail {
         return PayloadDescriptor{supported, payload};
     }
 
-    template <typename T, std::size_t N>
-    struct PayloadPool {
-        std::array<T, N> items{};
-        std::array<std::uint16_t, N> generation{};
-        std::array<std::uint16_t, N> free_next{};
-        std::uint16_t free_head{kInvalidPayloadSlot};
-#ifndef NDEBUG
-        std::array<std::uint16_t, N> owner{};
-#endif
-
-        void reset() noexcept {
-            free_head = 0;
-            for (std::uint16_t i = 0; i < N; ++i) {
-                generation[i] = 1;
-                free_next[i] = (i + 1 < N) ? static_cast<std::uint16_t>(i + 1) : kInvalidPayloadSlot;
-                items[i] = T{};
-#ifndef NDEBUG
-                owner[i] = kInvalidIndex;
-#endif
-            }
-        }
-
-        PayloadHandle alloc(std::uint16_t owner_idx) noexcept {
-            if (free_head == kInvalidPayloadSlot) {
-                return invalid_payload_handle();
-            }
-            const std::uint16_t slot = free_head;
-            free_head = free_next[slot];
-            items[slot] = T{};
-#ifndef NDEBUG
-            owner[slot] = owner_idx;
-#else
-            (void)owner_idx;
-#endif
-            return PayloadHandle{slot, generation[slot]};
-        }
-
-        void free(PayloadHandle h, std::uint16_t owner_idx) noexcept {
-            if (!payload_valid(h) || h.slot >= N) return;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return;
-#ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-            }
-            owner[slot] = kInvalidIndex;
-#else
-            (void)owner_idx;
-#endif
-            generation[slot] = static_cast<std::uint16_t>(generation[slot] + 1u);
-            free_next[slot] = free_head;
-            free_head = slot;
-            items[slot] = T{};
-        }
-
-        T* get(PayloadHandle h, std::uint16_t owner_idx) noexcept {
-            if (!payload_valid(h) || h.slot >= N) return nullptr;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return nullptr;
-#ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-                return nullptr;
-            }
-#else
-            (void)owner_idx;
-#endif
-            return &items[slot];
-        }
-
-        const T* get(PayloadHandle h, std::uint16_t owner_idx) const noexcept {
-            if (!payload_valid(h) || h.slot >= N) return nullptr;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return nullptr;
-#ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-                return nullptr;
-            }
-#else
-            (void)owner_idx;
-#endif
-            return &items[slot];
-        }
-    };
 }
 
 export
@@ -295,16 +122,57 @@ struct SoaInputEvent {
 };
 
 export
+    enum class SoaInputActionType : std::uint8_t {
+        SetFocused,
+        SetHovered,
+        SetPressed,
+        ToggleChecked,
+        SetChecked,
+        ClearSiblingChecks,
+        ScrollBy,
+        SetScrollYClamped,
+        SetValue,
+        UpdateSliderFromPos,
+        SetSegmentedIndex,
+        SetTextListSelected,
+        SetListViewSelected
+    };
+
+export
+struct SoaInputAction {
+    SoaInputActionType type{SoaInputActionType::ToggleChecked};
+    WidgetHandle target{};
+    int a{0};
+    int b{0};
+};
+
+export
 enum class SoaLayoutKind : std::uint8_t {
     None = 0,
     List = 1
 };
 
-enum class SoaClickBehavior : std::uint8_t {
+    enum class SoaClickBehavior : std::uint8_t {
+        None,
+        Toggle,
+        RadioGroup,
+        ListItemGroup,
+        SegmentedControl,
+        TextList,
+        ListView
+    };
+
+enum class SoaWheelTargetPolicy : std::uint8_t {
     None,
-    Toggle,
-    RadioGroup,
-    ListItemGroup
+    SelfIfScrollableElseAncestor,
+    NearestAncestor,
+    BoundTarget
+};
+
+enum class SoaDragBehavior : std::uint8_t {
+    None,
+    UpdateValueFromPos,
+    ScrollDrag
 };
 
 struct SoaDefaults {
@@ -339,17 +207,7 @@ public:
                 common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
                 common_.payload[i] = soa_detail::invalid_payload_handle();
             }
-            label_pool_.reset();
-            button_pool_.reset();
-            checkbox_pool_.reset();
-            radio_pool_.reset();
-            list_item_pool_.reset();
-            switch_pool_.reset();
-            slider_pool_.reset();
-            progress_pool_.reset();
-            scrollbar_pool_.reset();
-            list_pool_.reset();
-            scroll_container_pool_.reset();
+            payloads_.reset();
         }
 
         WidgetHandle create(WidgetKind kind) noexcept {
@@ -714,6 +572,7 @@ public:
     void input_dispatch(const Event& e) noexcept {
         if (!input_root_) return;
         input_events_.clear();
+        input_actions_.clear();
         switch (e.type) {
         case Event::Type::HoverEnter:
             break;
@@ -726,8 +585,11 @@ public:
             if (input_pressed_ || input_captured_) {
                 input_handle_drag(e.x, e.y, input_button_);
                 const WidgetHandle drag_target = input_drag_target();
-                if (drag_target && press_updates_slider(kind(drag_target))) {
-                    input_update_slider_value(drag_target, e.x, e.y);
+                if (drag_target) {
+                    const SoaBehavior behavior = behavior_for_kind(kind(drag_target));
+                    if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos) {
+                        input_queue_update_slider_value(drag_target, e.x, e.y);
+                    }
                 }
             } else if (input_hovered_) {
                 input_emit_event(input_hovered_, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button));
@@ -776,7 +638,14 @@ public:
         }
         if (input_events_.overflowed) {
             input_handle_overflow();
+            input_actions_.clear();
+            return;
         }
+        if (input_actions_.overflowed) {
+            input_handle_action_overflow();
+            return;
+        }
+        input_apply_actions();
     }
 
     WidgetHandle input_hit_test(int x, int y) noexcept {
@@ -860,38 +729,79 @@ public:
     void set_text(WidgetHandle h, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
+        const auto id = payloads_.store_text(text);
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Label: {
-            auto* payload = payload_get(label_pool_, idx);
+            auto* payload = payload_get<soa_detail::LabelPayload>(idx);
             if (!payload) return;
-            payload->text = text;
+            payload->text = id;
             break;
         }
         case soa_detail::PayloadKind::Button: {
-            auto* payload = payload_get(button_pool_, idx);
+            auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
             if (!payload) return;
-            payload->text = text;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextInput: {
+            auto* payload = payload_get<soa_detail::TextInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextArea: {
+            auto* payload = payload_get<soa_detail::TextAreaPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::NumberInput: {
+            auto* payload = payload_get<soa_detail::NumberInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
             break;
         }
         case soa_detail::PayloadKind::Checkbox: {
-            auto* payload = payload_get(checkbox_pool_, idx);
+            auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
             if (!payload) return;
-            payload->text = text;
+            payload->text = id;
             break;
         }
         case soa_detail::PayloadKind::Radio: {
-            auto* payload = payload_get(radio_pool_, idx);
+            auto* payload = payload_get<soa_detail::RadioPayload>(idx);
             if (!payload) return;
-            payload->text = text;
+            payload->text = id;
             break;
         }
         case soa_detail::PayloadKind::ListItem: {
-            auto* payload = payload_get(list_item_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
             if (!payload) return;
-            payload->text = text;
+            payload->text = id;
             break;
         }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (payload->count == 0) {
+                payload->count = 1;
+            }
+            payload->items[0] = id;
+            break;
+        }
+        case soa_detail::PayloadKind::None:
+        case soa_detail::PayloadKind::Image:
+        case soa_detail::PayloadKind::SegmentedControl:
+        case soa_detail::PayloadKind::ToggleGroup:
+        case soa_detail::PayloadKind::Switch:
+        case soa_detail::PayloadKind::Slider:
+        case soa_detail::PayloadKind::ScrollBar:
+        case soa_detail::PayloadKind::Progress:
+        case soa_detail::PayloadKind::List:
+        case soa_detail::PayloadKind::ScrollContainer:
+        case soa_detail::PayloadKind::Spinner:
+            unsupported_kind(common_.kind[idx]);
+            break;
         default:
             unsupported_kind(common_.kind[idx]);
             break;
@@ -901,34 +811,799 @@ public:
 
     const char* text(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return nullptr;
+        if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Label: {
-            const auto* payload = payload_get(label_pool_, idx);
-            return payload ? payload->text : nullptr;
+            const auto* payload = payload_get<soa_detail::LabelPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
         }
         case soa_detail::PayloadKind::Button: {
-            const auto* payload = payload_get(button_pool_, idx);
-            return payload ? payload->text : nullptr;
+            const auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
+        }
+        case soa_detail::PayloadKind::TextInput: {
+            const auto* payload = payload_get<soa_detail::TextInputPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
+        }
+        case soa_detail::PayloadKind::TextArea: {
+            const auto* payload = payload_get<soa_detail::TextAreaPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
+        }
+        case soa_detail::PayloadKind::NumberInput: {
+            const auto* payload = payload_get<soa_detail::NumberInputPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
         }
         case soa_detail::PayloadKind::Checkbox: {
-            const auto* payload = payload_get(checkbox_pool_, idx);
-            return payload ? payload->text : nullptr;
+            const auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
         }
         case soa_detail::PayloadKind::Radio: {
-            const auto* payload = payload_get(radio_pool_, idx);
-            return payload ? payload->text : nullptr;
+            const auto* payload = payload_get<soa_detail::RadioPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
         }
         case soa_detail::PayloadKind::ListItem: {
-            const auto* payload = payload_get(list_item_pool_, idx);
-            return payload ? payload->text : nullptr;
+            const auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
+            return payload ? payloads_.text_c_str(payload->text) : "";
         }
+        case soa_detail::PayloadKind::TextList: {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload || payload->count == 0) return "";
+            return payloads_.text_c_str(payload->items[0]);
+        }
+        case soa_detail::PayloadKind::None:
+        case soa_detail::PayloadKind::Image:
+        case soa_detail::PayloadKind::SegmentedControl:
+        case soa_detail::PayloadKind::ToggleGroup:
+        case soa_detail::PayloadKind::Switch:
+        case soa_detail::PayloadKind::Slider:
+        case soa_detail::PayloadKind::ScrollBar:
+        case soa_detail::PayloadKind::Progress:
+        case soa_detail::PayloadKind::List:
+        case soa_detail::PayloadKind::ScrollContainer:
+        case soa_detail::PayloadKind::Spinner:
+            unsupported_kind(common_.kind[idx]);
+            return "";
         default:
             unsupported_kind(common_.kind[idx]);
-            return nullptr;
+            return "";
         }
-        return nullptr;
+        return "";
+    }
+
+    void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        if (!payload) return;
+        if (payload->image != image) {
+            payload->image = image;
+            mark_paint_dirty();
+        }
+    }
+
+    soa_detail::ImageId image(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Image) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::invalid_image_id();
+        }
+        const auto* payload = payload_get<soa_detail::ImagePayload>(idx);
+        return payload ? payload->image : soa_detail::invalid_image_id();
+    }
+
+    void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Button) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+        if (!payload) return;
+        if (payload->icon != icon) {
+            payload->icon = icon;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Button) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+        if (!payload) return;
+        if (payload->icon_size != size) {
+            payload->icon_size = size;
+            mark_paint_dirty();
+        }
+    }
+
+    soa_detail::ImageId button_icon(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Button) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::invalid_image_id();
+        }
+        const auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+        return payload ? payload->icon : soa_detail::invalid_image_id();
+    }
+
+    std::uint8_t button_icon_size(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Button) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+        return payload ? payload->icon_size : 0;
+    }
+
+    void set_spinner_phase(WidgetHandle h, std::uint8_t phase) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Spinner) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::SpinnerPayload>(idx);
+        if (!payload) return;
+        if (payload->phase != phase) {
+            payload->phase = phase;
+            mark_paint_dirty();
+        }
+    }
+
+    std::uint8_t spinner_phase(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Spinner) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::SpinnerPayload>(idx);
+        return payload ? payload->phase : 0;
+    }
+
+    void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (count > soa_detail::kMaxSegments) count = soa_detail::kMaxSegments;
+        auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload) return;
+        if (payload->count != count) {
+            payload->count = count;
+            if (payload->selected >= count && count > 0) {
+                payload->selected = static_cast<std::uint8_t>(count - 1);
+            }
+            mark_layout_dirty();
+            mark_paint_dirty();
+        }
+    }
+
+    void set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload) return;
+        if (index >= soa_detail::kMaxSegments) return;
+        const auto id = payloads_.store_text(text);
+        payload->labels[index] = id;
+        if (index >= payload->count) {
+            payload->count = static_cast<std::uint8_t>(index + 1);
+            if (payload->selected >= payload->count && payload->count > 0) {
+                payload->selected = static_cast<std::uint8_t>(payload->count - 1);
+            }
+        }
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    void set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload) return;
+        if (payload->count == 0) return;
+        if (index >= payload->count) index = static_cast<std::uint8_t>(payload->count - 1);
+        if (payload->selected != index) {
+            payload->selected = index;
+            mark_paint_dirty();
+        }
+    }
+
+    std::uint8_t segmented_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    std::uint8_t segmented_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        return payload ? payload->selected : 0;
+    }
+
+    const char* segmented_label(WidgetHandle h, std::uint8_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        return payloads_.text_c_str(payload->labels[index]);
+    }
+
+    void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (count > soa_detail::kMaxTextListItems) {
+            count = soa_detail::kMaxTextListItems;
+        }
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
+        }
+        mark_layout_dirty();
+    }
+
+    void set_text_list_item(WidgetHandle h, std::uint16_t index, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (index >= soa_detail::kMaxTextListItems) return;
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+        const auto id = payloads_.store_text(text);
+        payload->items[index] = id;
+        if (index >= payload->count) {
+            payload->count = static_cast<std::uint16_t>(index + 1);
+        }
+        if (payload->selected >= static_cast<int>(payload->count)) {
+            payload->selected = payload->count ? static_cast<int>(payload->count - 1) : -1;
+        }
+        mark_layout_dirty();
+    }
+
+    std::uint16_t text_list_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int text_list_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return -1;
+        }
+        const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        return payload ? payload->selected : -1;
+    }
+
+    void set_text_list_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return;
+        if (payload->count == 0) return;
+        if (index < 0) index = 0;
+        if (index >= payload->count) index = payload->count - 1;
+        if (payload->selected == index) return;
+        payload->selected = index;
+        const Rect r = rect(h);
+        const int max_scroll_value = max_scroll(h);
+        payload->scroll_y = alg::list_scroll::ensure_visible(
+            index,
+            payload->row_height,
+            r.h,
+            0,
+            payload->scroll_y,
+            max_scroll_value);
+        mark_paint_dirty();
+    }
+
+    const char* text_list_item(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        return payloads_.text_c_str(payload->items[index]);
+    }
+
+    void set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
+                              soa_detail::ListViewTextFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->text_ctx = ctx;
+        payload->text_fn = fn;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
+        }
+        mark_layout_dirty();
+    }
+
+    void set_list_view_icon_source(WidgetHandle h,
+                                   const void* ctx,
+                                   soa_detail::ListViewIconFn fn,
+                                   std::uint8_t icon_size) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->icon_ctx = ctx;
+        payload->icon_fn = fn;
+        payload->icon_size = icon_size;
+        mark_paint_dirty();
+    }
+
+    void set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : -1;
+        }
+        mark_layout_dirty();
+    }
+
+    std::uint16_t list_view_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int list_view_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return -1;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->selected : -1;
+    }
+
+    void set_list_view_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        if (payload->count == 0) return;
+        if (index < 0) index = 0;
+        if (index >= payload->count) index = payload->count - 1;
+        if (payload->selected == index) return;
+        payload->selected = index;
+        const Rect r = rect(h);
+        const int max_scroll_value = max_scroll(h);
+        payload->scroll_y = alg::list_scroll::ensure_visible(
+            index,
+            payload->row_height,
+            r.h,
+            0,
+            payload->scroll_y,
+            max_scroll_value);
+        mark_paint_dirty();
+    }
+
+    const char* list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        if (!payload->text_fn) return "";
+        const char* text = payload->text_fn(payload->text_ctx, index);
+        return text ? text : "";
+    }
+
+    soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return soa_detail::invalid_image_id();
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return soa_detail::invalid_image_id();
+        if (index >= payload->count) return soa_detail::invalid_image_id();
+        if (!payload->icon_fn) return soa_detail::invalid_image_id();
+        return payload->icon_fn(payload->icon_ctx, index);
+    }
+
+    std::uint8_t list_view_icon_size(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->icon_size : 0;
+    }
+
+    std::uint8_t list_view_overscan(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->overscan : 0;
+    }
+
+    void set_table_view_source(WidgetHandle h, std::uint16_t rows, std::uint8_t cols,
+                               const void* ctx, soa_detail::TableViewTextFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        payload->text_ctx = ctx;
+        payload->text_fn = fn;
+        payload->row_count = rows;
+        payload->col_count = cols;
+        mark_layout_dirty();
+    }
+
+    void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        payload->row_count = rows;
+        mark_layout_dirty();
+    }
+
+    std::uint16_t table_view_row_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->row_count : 0;
+    }
+
+    std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->col_count : 0;
+    }
+
+    int table_view_col_width(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->col_width : 0;
+    }
+
+    void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (col_width < 0) col_width = 0;
+        if (payload->col_width != col_width) {
+            payload->col_width = col_width;
+            mark_paint_dirty();
+        }
+    }
+
+    std::uint8_t table_view_overscan(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->overscan : 0;
+    }
+
+    const char* table_view_cell_text(WidgetHandle h, std::uint16_t row, std::uint8_t col) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return "";
+        if (row >= payload->row_count) return "";
+        if (col >= payload->col_count) return "";
+        if (!payload->text_fn) return "";
+        const char* text = payload->text_fn(payload->text_ctx, row, col);
+        return text ? text : "";
+    }
+
+    void set_tree_view_source(WidgetHandle h, std::uint16_t count,
+                              const void* text_ctx, soa_detail::TreeViewTextFn text_fn,
+                              const void* indent_ctx, soa_detail::TreeViewIndentFn indent_fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return;
+        payload->text_ctx = text_ctx;
+        payload->text_fn = text_fn;
+        payload->indent_ctx = indent_ctx;
+        payload->indent_fn = indent_fn;
+        payload->count = count;
+        mark_layout_dirty();
+    }
+
+    void set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        mark_layout_dirty();
+    }
+
+    std::uint16_t tree_view_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    std::uint8_t tree_view_overscan(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        return payload ? payload->overscan : 0;
+    }
+
+    std::uint8_t tree_view_indent_px(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        return payload ? payload->indent_px : 0;
+    }
+
+    void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return;
+        payload->indent_px = px;
+        mark_paint_dirty();
+    }
+
+    const char* tree_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        if (!payload->text_fn) return "";
+        const char* text = payload->text_fn(payload->text_ctx, index);
+        return text ? text : "";
+    }
+
+    std::uint8_t tree_view_item_indent(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return 0;
+        if (index >= payload->count) return 0;
+        if (!payload->indent_fn) return 0;
+        return payload->indent_fn(payload->indent_ctx, index);
+    }
+
+    void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ToggleGroup) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ToggleGroupPayload>(idx);
+        if (!payload) return;
+        payload->group_kind = group_kind;
+    }
+
+    WidgetKind toggle_group_kind(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return WidgetKind::None;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ToggleGroup) {
+            unsupported_kind(common_.kind[idx]);
+            return WidgetKind::None;
+        }
+        const auto* payload = payload_get<soa_detail::ToggleGroupPayload>(idx);
+        return payload ? payload->group_kind : WidgetKind::None;
     }
 
     void set_value(WidgetHandle h, int value) noexcept {
@@ -937,7 +1612,7 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Slider: {
-            auto* payload = payload_get(slider_pool_, idx);
+            auto* payload = payload_get<soa_detail::SliderPayload>(idx);
             if (!payload) return;
             if (payload->value != value) {
                 payload->value = value;
@@ -946,7 +1621,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::ScrollBar: {
-            auto* payload = payload_get(scrollbar_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
             if (!payload) return;
             if (payload->value != value) {
                 payload->value = value;
@@ -955,7 +1630,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::Progress: {
-            auto* payload = payload_get(progress_pool_, idx);
+            auto* payload = payload_get<soa_detail::ProgressPayload>(idx);
             if (!payload) return;
             if (payload->value != value) {
                 payload->value = value;
@@ -975,15 +1650,15 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Slider: {
-            const auto* payload = payload_get(slider_pool_, idx);
+            const auto* payload = payload_get<soa_detail::SliderPayload>(idx);
             return payload ? payload->value : 0;
         }
         case soa_detail::PayloadKind::ScrollBar: {
-            const auto* payload = payload_get(scrollbar_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
             return payload ? payload->value : 0;
         }
         case soa_detail::PayloadKind::Progress: {
-            const auto* payload = payload_get(progress_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ProgressPayload>(idx);
             return payload ? payload->value : 0;
         }
         default:
@@ -999,7 +1674,7 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Slider: {
-            auto* payload = payload_get(slider_pool_, idx);
+            auto* payload = payload_get<soa_detail::SliderPayload>(idx);
             if (!payload) return;
             payload->min_value = min_value;
             payload->max_value = max_value;
@@ -1009,7 +1684,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::ScrollBar: {
-            auto* payload = payload_get(scrollbar_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
             if (!payload) return;
             payload->min_value = min_value;
             payload->max_value = max_value;
@@ -1019,7 +1694,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::Progress: {
-            auto* payload = payload_get(progress_pool_, idx);
+            auto* payload = payload_get<soa_detail::ProgressPayload>(idx);
             if (!payload) return;
             payload->min_value = min_value;
             payload->max_value = max_value;
@@ -1040,15 +1715,15 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Slider: {
-            const auto* payload = payload_get(slider_pool_, idx);
+            const auto* payload = payload_get<soa_detail::SliderPayload>(idx);
             return payload ? payload->min_value : 0;
         }
         case soa_detail::PayloadKind::ScrollBar: {
-            const auto* payload = payload_get(scrollbar_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
             return payload ? payload->min_value : 0;
         }
         case soa_detail::PayloadKind::Progress: {
-            const auto* payload = payload_get(progress_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ProgressPayload>(idx);
             return payload ? payload->min_value : 0;
         }
         default:
@@ -1064,15 +1739,15 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Slider: {
-            const auto* payload = payload_get(slider_pool_, idx);
+            const auto* payload = payload_get<soa_detail::SliderPayload>(idx);
             return payload ? payload->max_value : 0;
         }
         case soa_detail::PayloadKind::ScrollBar: {
-            const auto* payload = payload_get(scrollbar_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
             return payload ? payload->max_value : 0;
         }
         case soa_detail::PayloadKind::Progress: {
-            const auto* payload = payload_get(progress_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ProgressPayload>(idx);
             return payload ? payload->max_value : 0;
         }
         default:
@@ -1090,7 +1765,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        auto* payload = payload_get(scrollbar_pool_, idx);
+        auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         if (!payload) return;
         payload->orientation = static_cast<std::uint8_t>(orient);
         mark_paint_dirty();
@@ -1104,7 +1779,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return ScrollBarOrientation::Horizontal;
         }
-        const auto* payload = payload_get(scrollbar_pool_, idx);
+        const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         if (!payload) return ScrollBarOrientation::Horizontal;
         return static_cast<ScrollBarOrientation>(payload->orientation);
     }
@@ -1117,7 +1792,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        auto* payload = payload_get(scrollbar_pool_, idx);
+        auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         if (!payload) return;
         payload->page_size = (page_size > 0) ? page_size : 0;
         mark_paint_dirty();
@@ -1131,7 +1806,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return 0;
         }
-        const auto* payload = payload_get(scrollbar_pool_, idx);
+        const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         return payload ? payload->page_size : 0;
     }
 
@@ -1150,7 +1825,7 @@ public:
         if (next && !input_is_scrollable_kind(kind(next))) {
             next = {};
         }
-        auto* payload = payload_get(scrollbar_pool_, idx);
+        auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         if (!payload) return;
         payload->target = next;
         mark_paint_dirty();
@@ -1164,7 +1839,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return {};
         }
-        const auto* payload = payload_get(scrollbar_pool_, idx);
+        const auto* payload = payload_get<soa_detail::ScrollBarPayload>(idx);
         const WidgetHandle target = payload ? payload->target : WidgetHandle{};
         if (!target) return {};
         return valid(target) ? target : WidgetHandle{};
@@ -1177,27 +1852,39 @@ public:
         const std::uint8_t value = static_cast<std::uint8_t>(on ? 1 : 0);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Switch: {
-            auto* payload = payload_get(switch_pool_, idx);
+            auto* payload = payload_get<soa_detail::SwitchPayload>(idx);
             if (!payload) return;
             payload->checked = value;
             break;
         }
         case soa_detail::PayloadKind::Checkbox: {
-            auto* payload = payload_get(checkbox_pool_, idx);
+            auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
             if (!payload) return;
             payload->checked = value;
             break;
         }
         case soa_detail::PayloadKind::Radio: {
-            auto* payload = payload_get(radio_pool_, idx);
+            auto* payload = payload_get<soa_detail::RadioPayload>(idx);
             if (!payload) return;
             payload->checked = value;
             break;
         }
         case soa_detail::PayloadKind::ListItem: {
-            auto* payload = payload_get(list_item_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
             if (!payload) return;
             payload->checked = value;
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (on) {
+                if (payload->count > 0 && payload->selected < 0) {
+                    payload->selected = 0;
+                }
+            } else {
+                payload->selected = -1;
+            }
             break;
         }
         default:
@@ -1213,20 +1900,24 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Switch: {
-            const auto* payload = payload_get(switch_pool_, idx);
+            const auto* payload = payload_get<soa_detail::SwitchPayload>(idx);
             return payload ? payload->checked != 0 : false;
         }
         case soa_detail::PayloadKind::Checkbox: {
-            const auto* payload = payload_get(checkbox_pool_, idx);
+            const auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
             return payload ? payload->checked != 0 : false;
         }
         case soa_detail::PayloadKind::Radio: {
-            const auto* payload = payload_get(radio_pool_, idx);
+            const auto* payload = payload_get<soa_detail::RadioPayload>(idx);
             return payload ? payload->checked != 0 : false;
         }
         case soa_detail::PayloadKind::ListItem: {
-            const auto* payload = payload_get(list_item_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
             return payload ? payload->checked != 0 : false;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            return payload ? payload->selected >= 0 : false;
         }
         default:
             unsupported_kind(common_.kind[idx]);
@@ -1241,7 +1932,43 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            auto* payload = payload_get(list_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
             if (!payload) return;
             if (payload->scroll_y != y) {
                 payload->scroll_y = y;
@@ -1250,7 +1977,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
-            auto* payload = payload_get(scroll_container_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
             if (payload->scroll_y != y) {
                 payload->scroll_y = y;
@@ -1270,13 +1997,37 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            auto* payload = payload_get(list_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
             if (!payload) return;
             payload->scroll_y += dy;
             break;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
-            auto* payload = payload_get(scroll_container_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
             payload->scroll_y += dy;
             break;
@@ -1293,11 +2044,27 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            const auto* payload = payload_get(list_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
             return payload ? payload->scroll_y : 0;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
-            const auto* payload = payload_get(scroll_container_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             return payload ? payload->scroll_y : 0;
         }
         default:
@@ -1314,13 +2081,37 @@ public:
         const int value = (step > 0) ? step : 1;
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            auto* payload = payload_get(list_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListPayload>(idx);
             if (!payload) return;
             payload->scroll_step = value;
             break;
         }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
-            auto* payload = payload_get(scroll_container_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
             payload->scroll_step = value;
             break;
@@ -1337,11 +2128,27 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            const auto* payload = payload_get(list_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ListPayload>(idx);
             return payload ? payload->scroll_step : 24;
         }
+        case soa_detail::PayloadKind::TextList: {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
-            const auto* payload = payload_get(scroll_container_pool_, idx);
+            const auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             return payload ? payload->scroll_step : 24;
         }
         default:
@@ -1355,26 +2162,70 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.payload != soa_detail::PayloadKind::List) {
-            unsupported_kind(common_.kind[idx]);
+        if (desc.payload == soa_detail::PayloadKind::List) {
+            auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            if (!payload) return;
+            payload->row_height = (row_h > 0) ? row_h : 1;
+            mark_layout_dirty();
             return;
         }
-        auto* payload = payload_get(list_pool_, idx);
-        if (!payload) return;
-        payload->row_height = (row_h > 0) ? row_h : 1;
-        mark_layout_dirty();
+        if (desc.payload == soa_detail::PayloadKind::TextList) {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            payload->row_height = (row_h > 0) ? row_h : 1;
+            mark_layout_dirty();
+            return;
+        }
+        if (desc.payload == soa_detail::PayloadKind::ListView) {
+            auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return;
+            payload->row_height = (row_h > 0) ? row_h : 1;
+            mark_layout_dirty();
+            return;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TableView) {
+            auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return;
+            payload->row_height = (row_h > 0) ? row_h : 1;
+            mark_layout_dirty();
+            return;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TreeView) {
+            auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            if (!payload) return;
+            payload->row_height = (row_h > 0) ? row_h : 1;
+            mark_layout_dirty();
+            return;
+        }
+        unsupported_kind(common_.kind[idx]);
     }
 
     int list_row_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 28;
         const auto desc = payload_descriptor(common_.kind[idx]);
-        if (desc.payload != soa_detail::PayloadKind::List) {
-            unsupported_kind(common_.kind[idx]);
-            return 28;
+        if (desc.payload == soa_detail::PayloadKind::List) {
+            const auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            return payload ? payload->row_height : 28;
         }
-        const auto* payload = payload_get(list_pool_, idx);
-        return payload ? payload->row_height : 28;
+        if (desc.payload == soa_detail::PayloadKind::TextList) {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            return payload ? payload->row_height : 28;
+        }
+        if (desc.payload == soa_detail::PayloadKind::ListView) {
+            const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            return payload ? payload->row_height : 28;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TableView) {
+            const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            return payload ? payload->row_height : 28;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TreeView) {
+            const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->row_height : 28;
+        }
+        unsupported_kind(common_.kind[idx]);
+        return 28;
     }
 
     void apply_list_layout(WidgetHandle h, int padding) noexcept {
@@ -1385,7 +2236,7 @@ public:
             unsupported_kind(common_.kind[idx]);
             return;
         }
-        const auto* payload = payload_get(list_pool_, idx);
+        const auto* payload = payload_get<soa_detail::ListPayload>(idx);
         if (!payload) return;
         const int row_h = payload->row_height;
         Rect r = common_.rects[idx];
@@ -1435,6 +2286,20 @@ public:
         return paint_dirty_version_;
     }
 
+    bool payload_overflowed() const noexcept {
+        return payloads_.overflowed();
+    }
+
+    bool text_overflowed() const noexcept {
+        return payloads_.text_overflowed();
+    }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    soa_detail::PayloadStats payload_stats() const noexcept {
+        return payloads_.stats();
+    }
+#endif
+
     std::uint32_t layout_applied_version() const noexcept {
         return layout_applied_version_;
     }
@@ -1470,6 +2335,39 @@ public:
     int compute_content_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload == soa_detail::PayloadKind::TextList) {
+            const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::ListView) {
+            const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TableView) {
+            const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->row_count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::TreeView) {
+            const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
         int max_bottom = 0;
         std::uint16_t child = common_.first_child[idx];
         while (child != kInvalidIndex) {
@@ -1507,7 +2405,43 @@ public:
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::List: {
-            auto* payload = payload_get(list_pool_, idx);
+            auto* payload = payload_get<soa_detail::ListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::ListView: {
+            auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TableView: {
+            auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != clamped) {
+                payload->scroll_y = clamped;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::TreeView: {
+            auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
             if (!payload) return;
             if (payload->scroll_y != clamped) {
                 payload->scroll_y = clamped;
@@ -1516,7 +2450,7 @@ public:
             break;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
-            auto* payload = payload_get(scroll_container_pool_, idx);
+            auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
             if (payload->scroll_y != clamped) {
                 payload->scroll_y = clamped;
@@ -1531,17 +2465,7 @@ public:
     }
 
     soa_detail::CommonSoA<kMaxNodes> common_{};
-    soa_detail::PayloadPool<soa_detail::LabelPayload, kMaxNodes> label_pool_{};
-    soa_detail::PayloadPool<soa_detail::ButtonPayload, kMaxNodes> button_pool_{};
-    soa_detail::PayloadPool<soa_detail::CheckboxPayload, kMaxNodes> checkbox_pool_{};
-    soa_detail::PayloadPool<soa_detail::RadioPayload, kMaxNodes> radio_pool_{};
-    soa_detail::PayloadPool<soa_detail::ListItemPayload, kMaxNodes> list_item_pool_{};
-    soa_detail::PayloadPool<soa_detail::SwitchPayload, kMaxNodes> switch_pool_{};
-    soa_detail::PayloadPool<soa_detail::SliderPayload, kMaxNodes> slider_pool_{};
-    soa_detail::PayloadPool<soa_detail::ProgressPayload, kMaxNodes> progress_pool_{};
-    soa_detail::PayloadPool<soa_detail::ScrollBarPayload, kMaxNodes> scrollbar_pool_{};
-    soa_detail::PayloadPool<soa_detail::ListPayload, kMaxNodes> list_pool_{};
-    soa_detail::PayloadPool<soa_detail::ScrollContainerPayload, kMaxNodes> scroll_container_pool_{};
+    soa_detail::PayloadManager payloads_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};
     std::uint32_t paint_dirty_version_{0};
@@ -1562,40 +2486,149 @@ public:
 #endif
     }
 
-    static constexpr SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
+struct SoaBehavior {
+    SoaClickBehavior click{SoaClickBehavior::None};
+    WidgetKind group_kind{WidgetKind::None};
+    SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
+    bool scrollable{false};
+    bool capture_on_press{false};
+    SoaDragBehavior drag_behavior{SoaDragBehavior::None};
+};
+
+    static constexpr SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
+        SoaBehavior behavior{};
         switch (kind) {
         case WidgetKind::Switch:
         case WidgetKind::Checkbox:
-            return SoaClickBehavior::Toggle;
+            behavior.click = SoaClickBehavior::Toggle;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::SegmentedControl:
+        case WidgetKind::TabView:
+            behavior.click = SoaClickBehavior::SegmentedControl;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::TextList:
+            behavior.click = SoaClickBehavior::TextList;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::ListView:
+            behavior.click = SoaClickBehavior::ListView;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::IconList:
+            behavior.click = SoaClickBehavior::ListView;
+            behavior.capture_on_press = true;
+            break;
         case WidgetKind::Radio:
-            return SoaClickBehavior::RadioGroup;
+            behavior.click = SoaClickBehavior::RadioGroup;
+            behavior.group_kind = WidgetKind::Radio;
+            behavior.capture_on_press = true;
+            break;
         case WidgetKind::ListItem:
-            return SoaClickBehavior::ListItemGroup;
+            behavior.click = SoaClickBehavior::ListItemGroup;
+            behavior.group_kind = WidgetKind::ListItem;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::MenuItem:
+            behavior.click = SoaClickBehavior::ListItemGroup;
+            behavior.group_kind = WidgetKind::MenuItem;
+            behavior.capture_on_press = true;
+            break;
         default:
-            return SoaClickBehavior::None;
+            break;
         }
+        switch (kind) {
+        case WidgetKind::List:
+        case WidgetKind::ScrollContainer:
+            behavior.scrollable = true;
+            behavior.capture_on_press = true;
+            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
+            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
+            break;
+        case WidgetKind::TextList:
+            behavior.scrollable = true;
+            behavior.capture_on_press = true;
+            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
+            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
+            break;
+        case WidgetKind::ListView:
+            behavior.scrollable = true;
+            behavior.capture_on_press = true;
+            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
+            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
+            break;
+        case WidgetKind::IconList:
+            behavior.scrollable = true;
+            behavior.capture_on_press = true;
+            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
+            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
+            break;
+        case WidgetKind::TableView:
+        case WidgetKind::TreeView:
+            behavior.scrollable = true;
+            behavior.capture_on_press = true;
+            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
+            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
+            break;
+        case WidgetKind::ScrollBar:
+            behavior.wheel_target = SoaWheelTargetPolicy::BoundTarget;
+            break;
+        default:
+            break;
+        }
+        switch (kind) {
+        case WidgetKind::Slider:
+        case WidgetKind::ScrollBar:
+            behavior.drag_behavior = SoaDragBehavior::UpdateValueFromPos;
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::Button:
+            behavior.capture_on_press = true;
+            break;
+        case WidgetKind::Switch:
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::ListItem:
+        case WidgetKind::TextList:
+            break;
+        default:
+            break;
+        }
+        return behavior;
     }
 
-    static constexpr bool press_updates_slider(WidgetKind kind) noexcept {
-        return kind == WidgetKind::Slider || kind == WidgetKind::ScrollBar;
-    }
-
-    static constexpr bool drag_blocks_scroll(WidgetKind kind) noexcept {
-        return kind == WidgetKind::Slider || kind == WidgetKind::ScrollBar;
+    static constexpr SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
+        return behavior_for_kind(kind).click;
     }
 
     static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
         SoaDefaults defaults{};
         switch (kind) {
         case WidgetKind::Label:
+        case WidgetKind::TextInput:
+        case WidgetKind::TextArea:
+        case WidgetKind::NumberInput:
+        case WidgetKind::ToggleGroup:
+        case WidgetKind::Image:
             defaults.hit_test = false;
             break;
         case WidgetKind::Progress:
+        case WidgetKind::Spinner:
             defaults.hit_test = false;
             break;
         case WidgetKind::Checkbox:
         case WidgetKind::Radio:
         case WidgetKind::ListItem:
+        case WidgetKind::MenuItem:
+            defaults.focusable = true;
+            break;
+        case WidgetKind::TextList:
+            defaults.focusable = true;
+            defaults.clip_children = true;
+            break;
+        case WidgetKind::SegmentedControl:
+        case WidgetKind::TabView:
             defaults.focusable = true;
             break;
         case WidgetKind::ScrollBar:
@@ -1604,6 +2637,9 @@ public:
         case WidgetKind::List:
             defaults.clip_children = true;
             defaults.layout_kind = SoaLayoutKind::List;
+            break;
+        case WidgetKind::Menu:
+            defaults.clip_children = true;
             break;
         case WidgetKind::ScrollContainer:
             defaults.clip_children = true;
@@ -1627,10 +2663,22 @@ public:
             return make_desc(true);
         case WidgetKind::ScrollContainer:
             return make_desc(true, PayloadKind::ScrollContainer);
+        case WidgetKind::Image:
+            return make_desc(true, PayloadKind::Image);
         case WidgetKind::Label:
             return make_desc(true, PayloadKind::Label);
         case WidgetKind::Button:
             return make_desc(true, PayloadKind::Button);
+        case WidgetKind::TextInput:
+            return make_desc(true, PayloadKind::TextInput);
+        case WidgetKind::TextArea:
+            return make_desc(true, PayloadKind::TextArea);
+        case WidgetKind::NumberInput:
+            return make_desc(true, PayloadKind::NumberInput);
+        case WidgetKind::SegmentedControl:
+            return make_desc(true, PayloadKind::SegmentedControl);
+        case WidgetKind::ToggleGroup:
+            return make_desc(true, PayloadKind::ToggleGroup);
         case WidgetKind::Checkbox:
             return make_desc(true, PayloadKind::Checkbox);
         case WidgetKind::Slider:
@@ -1641,12 +2689,30 @@ public:
             return make_desc(true, PayloadKind::Switch);
         case WidgetKind::Progress:
             return make_desc(true, PayloadKind::Progress);
+        case WidgetKind::Spinner:
+            return make_desc(true, PayloadKind::Spinner);
         case WidgetKind::List:
             return make_desc(true, PayloadKind::List);
+        case WidgetKind::ListView:
+            return make_desc(true, PayloadKind::ListView);
+        case WidgetKind::IconList:
+            return make_desc(true, PayloadKind::ListView);
+        case WidgetKind::TableView:
+            return make_desc(true, PayloadKind::TableView);
+        case WidgetKind::TreeView:
+            return make_desc(true, PayloadKind::TreeView);
         case WidgetKind::ListItem:
             return make_desc(true, PayloadKind::ListItem);
+        case WidgetKind::TextList:
+            return make_desc(true, PayloadKind::TextList);
         case WidgetKind::Radio:
             return make_desc(true, PayloadKind::Radio);
+        case WidgetKind::TabView:
+            return make_desc(true, PayloadKind::SegmentedControl);
+        case WidgetKind::Menu:
+            return make_desc(true);
+        case WidgetKind::MenuItem:
+            return make_desc(true, PayloadKind::ListItem);
         default:
             return make_desc(true);
         }
@@ -1657,82 +2723,20 @@ public:
         if (!desc.supported) {
             return soa_detail::invalid_payload_handle();
         }
-        switch (desc.payload) {
-        case soa_detail::PayloadKind::None:
-            return soa_detail::invalid_payload_handle();
-        case soa_detail::PayloadKind::Label:
-            return label_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Button:
-            return button_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Checkbox:
-            return checkbox_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Radio:
-            return radio_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::ListItem:
-            return list_item_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Switch:
-            return switch_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Slider:
-            return slider_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::ScrollBar:
-            return scrollbar_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::Progress:
-            return progress_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::List:
-            return list_pool_.alloc(owner_idx);
-        case soa_detail::PayloadKind::ScrollContainer:
-            return scroll_container_pool_.alloc(owner_idx);
-        }
-        return soa_detail::invalid_payload_handle();
+        return payloads_.alloc(desc.payload, kind, owner_idx);
     }
 
     void payload_free(WidgetKind kind, soa_detail::PayloadHandle handle, std::uint16_t owner_idx) noexcept {
         if (!soa_detail::payload_valid(handle)) return;
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) return;
-        switch (desc.payload) {
-        case soa_detail::PayloadKind::None:
-            return;
-        case soa_detail::PayloadKind::Label:
-            label_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Button:
-            button_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Checkbox:
-            checkbox_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Radio:
-            radio_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::ListItem:
-            list_item_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Switch:
-            switch_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Slider:
-            slider_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::ScrollBar:
-            scrollbar_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::Progress:
-            progress_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::List:
-            list_pool_.free(handle, owner_idx);
-            break;
-        case soa_detail::PayloadKind::ScrollContainer:
-            scroll_container_pool_.free(handle, owner_idx);
-            break;
-        }
+        payloads_.free(desc.payload, kind, handle, owner_idx);
     }
 
     template <typename T>
-    T* payload_get(soa_detail::PayloadPool<T, kMaxNodes>& pool, std::uint16_t idx) noexcept {
+    T* payload_get(std::uint16_t idx) noexcept {
         const auto handle = common_.payload[idx];
-        T* payload = pool.get(handle, idx);
+        T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
         if (!payload) {
             unsupported_kind(common_.kind[idx]);
         }
@@ -1740,9 +2744,9 @@ public:
     }
 
     template <typename T>
-    const T* payload_get(const soa_detail::PayloadPool<T, kMaxNodes>& pool, std::uint16_t idx) const noexcept {
+    const T* payload_get(std::uint16_t idx) const noexcept {
         const auto handle = common_.payload[idx];
-        const T* payload = pool.get(handle, idx);
+        const T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
         if (!payload) {
             unsupported_kind(common_.kind[idx]);
         }
@@ -1809,7 +2813,21 @@ private:
         }
     };
 
+    static constexpr std::size_t kMaxInputActions = 32;
+
+    struct InputActionQueue {
+        std::array<SoaInputAction, kMaxInputActions> actions{};
+        std::size_t count{0};
+        bool overflowed{false};
+
+        void clear() noexcept {
+            count = 0;
+            overflowed = false;
+        }
+    };
+
     InputEventQueue input_events_{};
+    InputActionQueue input_actions_{};
     WidgetHandle input_root_{};
     WidgetHandle input_hovered_{};
     WidgetHandle input_pressed_{};
@@ -1832,7 +2850,20 @@ private:
     }
 
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept {
-        return kind == WidgetKind::List || kind == WidgetKind::ScrollContainer;
+        return behavior_for_kind(kind).scrollable;
+    }
+
+    static bool input_is_checkable_kind(WidgetKind kind) noexcept {
+        switch (kind) {
+        case WidgetKind::Switch:
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::ListItem:
+        case WidgetKind::MenuItem:
+            return true;
+        default:
+            return false;
+        }
     }
 
     static int clamp_int(int v, int lo, int hi) noexcept {
@@ -1849,40 +2880,110 @@ private:
         input_events_.events[input_events_.count++] = SoaInputEvent{target, e};
     }
 
+    void input_emit_action(const SoaInputAction& action) noexcept {
+        if (!action.target) return;
+        if (input_actions_.overflowed) return;
+        if (input_actions_.count >= input_actions_.actions.size()) {
+            input_actions_.overflowed = true;
+            return;
+        }
+        input_actions_.actions[input_actions_.count++] = action;
+    }
+
+    int input_text_list_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) return -1;
+        const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        const int count = payload->count;
+        if (row_h <= 0) return -1;
+        const int local = y - r.y + payload->scroll_y;
+        if (local < 0) return -1;
+        const int idx_from_y = local / row_h;
+        if (idx_from_y < 0 || idx_from_y >= count) return -1;
+        return idx_from_y;
+    }
+
+    int input_list_view_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) return -1;
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        const int count = payload->count;
+        if (row_h <= 0) return -1;
+        const int local = y - r.y + payload->scroll_y;
+        if (local < 0) return -1;
+        const int idx_from_y = local / row_h;
+        if (idx_from_y < 0 || idx_from_y >= count) return -1;
+        return idx_from_y;
+    }
+
+    void input_handle_action_overflow() noexcept {
+#ifndef NDEBUG
+        assert(false && "SoA input actions overflowed");
+#endif
+        input_actions_.clear();
+    }
+
     void input_handle_hover(int x, int y, int button) {
         WidgetHandle hit = input_hit_test(x, y);
         if (hit == input_hovered_) return;
         if (input_hovered_) {
             input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button));
-            set_hovered(input_hovered_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 0, 0});
         }
         input_hovered_ = hit;
         if (input_hovered_) {
-            set_hovered(input_hovered_, true);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 1, 0});
             input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverEnter, x, y, button));
         }
     }
 
     void input_handle_press(int x, int y, int button) {
         WidgetHandle hit = input_hit_test(x, y);
+        const SoaBehavior behavior = hit ? behavior_for_kind(kind(hit)) : SoaBehavior{};
         if (input_pressed_) {
-            set_pressed(input_pressed_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
         }
         input_pressed_ = hit;
-        input_set_capture(hit, x, y, button, true);
+        if (behavior.capture_on_press) {
+            input_set_capture(hit, x, y, button, true);
+        } else if (input_captured_) {
+            input_set_capture({}, x, y, button, true);
+        }
+        input_button_ = hit ? button : 0;
         input_dragging_ = false;
-        input_scroll_target_ = input_find_scroll_ancestor(hit);
+        input_scroll_target_ = {};
+        if (behavior.drag_behavior == SoaDragBehavior::ScrollDrag) {
+            input_scroll_target_ = input_find_scroll_ancestor(hit);
+        } else if (behavior.drag_behavior == SoaDragBehavior::None) {
+            WidgetHandle scroll_ancestor = input_find_scroll_ancestor(hit);
+            if (scroll_ancestor) {
+                const SoaBehavior scroll_behavior = behavior_for_kind(kind(scroll_ancestor));
+                if (scroll_behavior.drag_behavior == SoaDragBehavior::ScrollDrag) {
+                    input_scroll_target_ = scroll_ancestor;
+                }
+            }
+        }
         input_drag_start_x_ = x;
         input_drag_start_y_ = y;
         input_drag_last_x_ = x;
         input_drag_last_y_ = y;
         if (input_pressed_) {
-            set_pressed(input_pressed_, true);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 1, 0});
             if (focusable(input_pressed_)) {
                 input_set_focus(input_pressed_);
             }
             input_emit_event(input_pressed_, Event::mouse(Event::Type::MouseDown, x, y, button));
-            if (press_updates_slider(kind(input_pressed_))) {
+            if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos) {
                 const WidgetKind k = kind(input_pressed_);
                 if (k == WidgetKind::ScrollBar) {
                     const StyleState state = input_make_state(*this, input_pressed_);
@@ -1891,7 +2992,7 @@ private:
                         return;
                     }
                 }
-                input_update_slider_value(input_pressed_, x, y);
+                input_queue_update_slider_value(input_pressed_, x, y);
             }
         }
     }
@@ -1904,13 +3005,13 @@ private:
             input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button));
         }
         if (input_pressed_) {
-            set_pressed(input_pressed_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
         }
         WidgetHandle hit = input_hit_test(x, y);
         input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button));
         if (!was_dragging && hit == input_pressed_ && input_pressed_) {
             input_emit_event(input_pressed_, Event::mouse(Event::Type::Click, x, y, button));
-            input_handle_click(input_pressed_);
+            input_handle_click(input_pressed_, x, y);
         }
         input_pressed_ = {};
         input_captured_ = {};
@@ -1936,7 +3037,7 @@ private:
         }
         if (input_dragging_) {
             input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button));
-            if (input_scroll_target_ && !drag_blocks_scroll(kind(target))) {
+            if (input_scroll_target_) {
                 input_scroll_by(input_scroll_target_, -dy);
             }
         } else {
@@ -1961,11 +3062,11 @@ private:
             input_emit_event(target, Event::mouse(Event::Type::Cancel, x, y, button));
         }
         if (input_pressed_) {
-            set_pressed(input_pressed_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
         }
         if (input_hovered_) {
             input_emit_event(input_hovered_, Event::mouse(Event::Type::HoverLeave, x, y, button));
-            set_hovered(input_hovered_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_hovered_, 0, 0});
         }
         input_hovered_ = {};
         input_pressed_ = {};
@@ -2000,6 +3101,59 @@ private:
         input_button_ = 0;
     }
 
+    void input_apply_action(const SoaInputAction& action) noexcept {
+        switch (action.type) {
+        case SoaInputActionType::SetFocused:
+            set_focused(action.target, action.a != 0);
+            break;
+        case SoaInputActionType::SetHovered:
+            set_hovered(action.target, action.a != 0);
+            break;
+        case SoaInputActionType::SetPressed:
+            set_pressed(action.target, action.a != 0);
+            break;
+        case SoaInputActionType::ToggleChecked:
+            set_checked(action.target, !checked(action.target));
+            break;
+        case SoaInputActionType::SetChecked:
+            set_checked(action.target, action.a != 0);
+            break;
+        case SoaInputActionType::ClearSiblingChecks:
+            input_clear_sibling_checks(action.target, static_cast<WidgetKind>(action.a));
+            break;
+        case SoaInputActionType::ScrollBy:
+            input_apply_scroll_by(action.target, action.a);
+            break;
+        case SoaInputActionType::SetScrollYClamped:
+            set_scroll_y_clamped(action.target, action.a);
+            break;
+        case SoaInputActionType::SetValue:
+            set_value(action.target, action.a);
+            break;
+        case SoaInputActionType::UpdateSliderFromPos:
+            input_apply_update_slider_value(action.target, action.a, action.b);
+            break;
+        case SoaInputActionType::SetSegmentedIndex:
+            set_segmented_selected(action.target, static_cast<std::uint8_t>(action.a));
+            break;
+        case SoaInputActionType::SetTextListSelected:
+            set_text_list_selected(action.target, action.a);
+            break;
+        case SoaInputActionType::SetListViewSelected:
+            set_list_view_selected(action.target, action.a);
+            break;
+        }
+    }
+
+    void input_apply_actions() noexcept {
+        if (input_actions_.count == 0) return;
+        const std::size_t count = input_actions_.count;
+        for (std::size_t i = 0; i < count; ++i) {
+            input_apply_action(input_actions_.actions[i]);
+        }
+        input_actions_.clear();
+    }
+
     bool input_is_invalid(WidgetHandle node) const noexcept {
         if (!node) return false;
         return index_of(node) == kInvalidIndex;
@@ -2024,11 +3178,11 @@ private:
         for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
             if (!flag_raw(i, SoaNodeFlag::Used)) continue;
             if (common_.kind[i] != WidgetKind::ScrollBar) continue;
-            const auto* payload = payload_get(scrollbar_pool_, i);
+            const auto* payload = payload_get<soa_detail::ScrollBarPayload>(i);
             WidgetHandle target = payload ? payload->target : WidgetHandle{};
             if (!target) continue;
             if (input_is_invalid(target) || input_is_descendant(target, h)) {
-                auto* mutable_payload = payload_get(scrollbar_pool_, i);
+                auto* mutable_payload = payload_get<soa_detail::ScrollBarPayload>(i);
                 if (mutable_payload) {
                     mutable_payload->target = {};
                 }
@@ -2046,7 +3200,7 @@ private:
             }
             input_emit_event(old, Event::mouse(Event::Type::Cancel, x, y, button));
             if (input_pressed_ == old) {
-                set_pressed(input_pressed_, false);
+                input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_pressed_, 0, 0});
                 input_pressed_ = {};
             }
             if (input_scroll_target_ == old) {
@@ -2116,21 +3270,56 @@ private:
         }
     }
 
-    void input_handle_click(WidgetHandle h) {
-        switch (click_behavior_for_kind(kind(h))) {
+    void input_handle_click(WidgetHandle h, int x, int y) {
+        const WidgetKind k = kind(h);
+        const SoaBehavior behavior = behavior_for_kind(k);
+        const WidgetHandle toggle_group = input_find_toggle_group_ancestor(h);
+        const WidgetKind group_kind = toggle_group ? toggle_group_kind(toggle_group) : WidgetKind::None;
+        const bool in_toggle_group = toggle_group && input_is_checkable_kind(k);
+        switch (behavior.click) {
         case SoaClickBehavior::None:
             break;
         case SoaClickBehavior::Toggle:
-            set_checked(h, !checked(h));
+            if (in_toggle_group) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetChecked, h, 1, 0});
+                input_emit_action(SoaInputAction{SoaInputActionType::ClearSiblingChecks, h, static_cast<int>(group_kind), 0});
+            } else {
+                input_emit_action(SoaInputAction{SoaInputActionType::ToggleChecked, h, 0, 0});
+            }
             break;
         case SoaClickBehavior::RadioGroup:
-            set_checked(h, true);
-            input_clear_sibling_checks(h, WidgetKind::Radio);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetChecked, h, 1, 0});
+            if (behavior.group_kind != WidgetKind::None) {
+                input_emit_action(SoaInputAction{SoaInputActionType::ClearSiblingChecks, h, static_cast<int>(behavior.group_kind), 0});
+            }
             break;
         case SoaClickBehavior::ListItemGroup:
-            set_checked(h, true);
-            input_clear_sibling_checks(h, WidgetKind::ListItem);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetChecked, h, 1, 0});
+            if (behavior.group_kind != WidgetKind::None) {
+                input_emit_action(SoaInputAction{SoaInputActionType::ClearSiblingChecks, h, static_cast<int>(behavior.group_kind), 0});
+            }
             break;
+        case SoaClickBehavior::SegmentedControl: {
+            const int idx = input_segmented_index_from_pos(h, x);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetSegmentedIndex, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::TextList: {
+            const int idx = input_text_list_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetTextListSelected, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::ListView: {
+            const int idx = input_list_view_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, idx, 0});
+            }
+            break;
+        }
         }
     }
 
@@ -2223,9 +3412,9 @@ private:
         if (next < 0) next = 0;
         if (next > info.max_scroll) next = info.max_scroll;
         if (info.target) {
-            set_scroll_y_clamped(info.target, next);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetScrollYClamped, info.target, next, 0});
         } else {
-            set_value(h, info.min_value + next);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetValue, h, info.min_value + next, 0});
         }
         return true;
     }
@@ -2235,13 +3424,40 @@ private:
         if (!p) return;
         for (auto child = first_child(p); child; child = next_sibling(child)) {
             if (child == h) continue;
-            if (this->kind(child) == kind) {
+            const WidgetKind child_kind = this->kind(child);
+            if (kind == WidgetKind::None) {
+                if (input_is_checkable_kind(child_kind)) {
+                    set_checked(child, false);
+                }
+            } else if (child_kind == kind) {
                 set_checked(child, false);
             }
         }
     }
 
-    void input_update_slider_value(WidgetHandle h, int x, int y) {
+    int input_segmented_index_from_pos(WidgetHandle h, int x) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::SegmentedControl) return -1;
+        const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        if (r.w <= 0) return -1;
+        const int count = payload->count;
+        const int seg_w = (count > 0) ? (r.w / count) : 0;
+        if (seg_w <= 0) return 0;
+        int idx_raw = (x - r.x) / seg_w;
+        if (idx_raw < 0) idx_raw = 0;
+        if (idx_raw >= count) idx_raw = count - 1;
+        return idx_raw;
+    }
+
+    void input_queue_update_slider_value(WidgetHandle h, int x, int y) {
+        input_emit_action(SoaInputAction{SoaInputActionType::UpdateSliderFromPos, h, x, y});
+    }
+
+    void input_apply_update_slider_value(WidgetHandle h, int x, int y) {
         const WidgetKind k = kind(h);
         const StyleState state = input_make_state(*this, h);
         const ResolvedStyleView view = StyleSheet::instance().lookup(k, state);
@@ -2302,7 +3518,24 @@ private:
 
     WidgetHandle input_find_scroll_target(int x, int y) noexcept {
         WidgetHandle hit = input_hit_test(x, y);
-        return input_find_scroll_ancestor(hit);
+        if (!hit) return {};
+        const SoaBehavior behavior = behavior_for_kind(kind(hit));
+        switch (behavior.wheel_target) {
+        case SoaWheelTargetPolicy::None:
+            return {};
+        case SoaWheelTargetPolicy::SelfIfScrollableElseAncestor:
+            if (behavior.scrollable) {
+                return hit;
+            }
+            return input_find_scroll_ancestor(hit);
+        case SoaWheelTargetPolicy::NearestAncestor:
+            return input_find_scroll_ancestor(hit);
+        case SoaWheelTargetPolicy::BoundTarget: {
+            const WidgetHandle target = scrollbar_target(hit);
+            return target ? target : WidgetHandle{};
+        }
+        }
+        return {};
     }
 
     WidgetHandle input_find_scroll_ancestor(WidgetHandle h) const noexcept {
@@ -2316,7 +3549,22 @@ private:
         return {};
     }
 
+    WidgetHandle input_find_toggle_group_ancestor(WidgetHandle h) const noexcept {
+        WidgetHandle cur = parent(h);
+        while (cur) {
+            if (kind(cur) == WidgetKind::ToggleGroup) {
+                return cur;
+            }
+            cur = parent(cur);
+        }
+        return {};
+    }
+
     void input_scroll_by(WidgetHandle h, int dy) {
+        input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, 0});
+    }
+
+    void input_apply_scroll_by(WidgetHandle h, int dy) {
         const int next = scroll_y(h) + dy;
         set_scroll_y_clamped(h, next);
     }
@@ -2325,11 +3573,11 @@ private:
         if (input_focused_ == h) return;
         if (input_focused_) {
             input_emit_event(input_focused_, Event::key(Event::Type::FocusOut, Event::Key::Unknown));
-            set_focused(input_focused_, false);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_focused_, 0, 0});
         }
         input_focused_ = h;
         if (input_focused_) {
-            set_focused(input_focused_, true);
+            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_focused_, 1, 0});
             input_emit_event(input_focused_, Event::key(Event::Type::FocusIn, Event::Key::Unknown));
         }
     }
@@ -2439,26 +3687,77 @@ private:
 };
 
 export
-class SoaFactory {
-public:
-    explicit SoaFactory(SoaKernel& kernel) noexcept : kernel_(kernel) {}
+    class SoaFactory {
+    public:
+        explicit SoaFactory(SoaKernel& kernel) noexcept : kernel_(kernel) {}
 
     WidgetHandle create_container() noexcept { return kernel_.create(WidgetKind::Container); }
-    WidgetHandle create_label(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::Label);
+      WidgetHandle create_label(const char* text) noexcept {
+          auto h = kernel_.create(WidgetKind::Label);
+          kernel_.set_text(h, text);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      WidgetHandle create_image() noexcept {
+          auto h = kernel_.create(WidgetKind::Image);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      WidgetHandle create_text_input(const char* text) noexcept {
+          auto h = kernel_.create(WidgetKind::TextInput);
+          kernel_.set_text(h, text);
+          kernel_.set_hit_testable(h, false);
+          return h;
+    }
+    WidgetHandle create_text_area(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextArea);
         kernel_.set_text(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }
-    WidgetHandle create_button(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::Button);
+    WidgetHandle create_number_input(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::NumberInput);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
         return h;
     }
-    WidgetHandle create_switch() noexcept {
-        auto h = kernel_.create(WidgetKind::Switch);
+    WidgetHandle create_segmented_control() noexcept {
+        auto h = kernel_.create(WidgetKind::SegmentedControl);
+        kernel_.set_focusable(h, true);
         return h;
     }
+    WidgetHandle create_tab_view() noexcept {
+        auto h = kernel_.create(WidgetKind::TabView);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
+    WidgetHandle create_tab_bar() noexcept {
+        return create_tab_view();
+    }
+    WidgetHandle create_toggle_group(WidgetKind group_kind = WidgetKind::None) noexcept {
+        auto h = kernel_.create(WidgetKind::ToggleGroup);
+        kernel_.set_hit_testable(h, false);
+        kernel_.set_toggle_group_kind(h, group_kind);
+        return h;
+    }
+      WidgetHandle create_button(const char* text) noexcept {
+          auto h = kernel_.create(WidgetKind::Button);
+          kernel_.set_text(h, text);
+          return h;
+      }
+      void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
+          kernel_.set_button_icon(h, icon);
+      }
+      void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
+          kernel_.set_button_icon_size(h, size);
+      }
+      void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept {
+          kernel_.set_image(h, image);
+      }
+      WidgetHandle create_switch() noexcept {
+          auto h = kernel_.create(WidgetKind::Switch);
+          return h;
+      }
     WidgetHandle create_slider() noexcept {
         auto h = kernel_.create(WidgetKind::Slider);
         return h;
@@ -2473,11 +3772,19 @@ public:
         kernel_.set_scrollbar_target(h, target);
         return h;
     }
-    WidgetHandle create_progress() noexcept {
-        auto h = kernel_.create(WidgetKind::Progress);
-        kernel_.set_hit_testable(h, false);
-        return h;
-    }
+      WidgetHandle create_progress() noexcept {
+          auto h = kernel_.create(WidgetKind::Progress);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      WidgetHandle create_spinner() noexcept {
+          auto h = kernel_.create(WidgetKind::Spinner);
+          kernel_.set_hit_testable(h, false);
+          return h;
+      }
+      void set_spinner_phase(WidgetHandle h, std::uint8_t phase) noexcept {
+          kernel_.set_spinner_phase(h, phase);
+      }
     WidgetHandle create_checkbox(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::Checkbox);
         kernel_.set_text(h, text);
@@ -2496,18 +3803,143 @@ public:
         kernel_.set_layout_kind(h, SoaLayoutKind::List);
         return h;
     }
+    WidgetHandle create_list_view() noexcept {
+        auto h = kernel_.create(WidgetKind::ListView);
+        kernel_.set_clip_children(h, true);
+        kernel_.set_focusable(h, true);
+        kernel_.set_scroll_step(h, 24);
+        return h;
+    }
+    WidgetHandle create_icon_list() noexcept {
+        auto h = kernel_.create(WidgetKind::IconList);
+        kernel_.set_clip_children(h, true);
+        kernel_.set_focusable(h, true);
+        kernel_.set_scroll_step(h, 24);
+        return h;
+    }
+    WidgetHandle create_table_view() noexcept {
+        auto h = kernel_.create(WidgetKind::TableView);
+        kernel_.set_focusable(h, true);
+        kernel_.set_scroll_step(h, 24);
+        return h;
+    }
+    WidgetHandle create_tree_view() noexcept {
+        auto h = kernel_.create(WidgetKind::TreeView);
+        kernel_.set_focusable(h, true);
+        kernel_.set_scroll_step(h, 24);
+        return h;
+    }
     WidgetHandle create_list_item(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::ListItem);
         kernel_.set_text(h, text);
         kernel_.set_focusable(h, true);
         return h;
+        }
+    WidgetHandle create_menu() noexcept {
+        auto h = kernel_.create(WidgetKind::Menu);
+        kernel_.set_clip_children(h, true);
+        return h;
     }
+    WidgetHandle create_menu_item(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::MenuItem);
+        kernel_.set_text(h, text);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
+      WidgetHandle create_text_list() noexcept {
+          auto h = kernel_.create(WidgetKind::TextList);
+          kernel_.set_clip_children(h, true);
+          kernel_.set_focusable(h, true);
+          kernel_.set_scroll_step(h, 1);
+          return h;
+      }
     WidgetHandle create_scroll_container() noexcept {
         auto h = kernel_.create(WidgetKind::ScrollContainer);
         kernel_.set_clip_children(h, true);
         kernel_.set_focusable(h, true);
         return h;
     }
+
+    void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
+        kernel_.set_segmented_count(h, count);
+    }
+    void set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        kernel_.set_segmented_label(h, index, text);
+    }
+    void set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept {
+        kernel_.set_segmented_selected(h, index);
+    }
+    void set_tab_bar_count(WidgetHandle h, std::uint8_t count) noexcept {
+        set_segmented_count(h, count);
+    }
+    void set_tab_bar_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        set_segmented_label(h, index, text);
+    }
+    void set_tab_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
+        set_segmented_selected(h, index);
+    }
+        void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
+            kernel_.set_toggle_group_kind(h, group_kind);
+        }
+        void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+            kernel_.set_text_list_count(h, count);
+        }
+        void set_text_list_item(WidgetHandle h, std::uint16_t index, const char* text) noexcept {
+            kernel_.set_text_list_item(h, index, text);
+        }
+        void set_text_list_selected(WidgetHandle h, int index) noexcept {
+            kernel_.set_text_list_selected(h, index);
+        }
+        void set_list_view_source(WidgetHandle h,
+                                  std::uint16_t count,
+                                  const void* ctx,
+                                  soa_detail::ListViewTextFn fn) noexcept {
+            kernel_.set_list_view_source(h, count, ctx, fn);
+        }
+        void set_list_view_icon_source(WidgetHandle h,
+                                       const void* ctx,
+                                       soa_detail::ListViewIconFn fn,
+                                       std::uint8_t icon_size = 0) noexcept {
+            kernel_.set_list_view_icon_source(h, ctx, fn, icon_size);
+        }
+        void set_list_view_items(WidgetHandle h,
+                                 const char* const* items,
+                                 std::uint16_t count) noexcept {
+            kernel_.set_list_view_source(h, count, items, &SoaFactory::list_view_text_from_array);
+        }
+        void set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+            kernel_.set_list_view_count(h, count);
+        }
+        void set_list_view_selected(WidgetHandle h, int index) noexcept {
+            kernel_.set_list_view_selected(h, index);
+        }
+        void set_table_view_source(WidgetHandle h,
+                                   std::uint16_t rows,
+                                   std::uint8_t cols,
+                                   const void* ctx,
+                                   soa_detail::TableViewTextFn fn) noexcept {
+            kernel_.set_table_view_source(h, rows, cols, ctx, fn);
+        }
+        void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
+            kernel_.set_table_view_count(h, rows);
+        }
+        void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
+            kernel_.set_table_view_col_width(h, col_width);
+        }
+        void set_tree_view_source(WidgetHandle h,
+                                  std::uint16_t count,
+                                  const void* text_ctx,
+                                  soa_detail::TreeViewTextFn text_fn,
+                                  const void* indent_ctx,
+                                  soa_detail::TreeViewIndentFn indent_fn) noexcept {
+            kernel_.set_tree_view_source(h, count, text_ctx, text_fn, indent_ctx, indent_fn);
+        }
+        void set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+            kernel_.set_tree_view_count(h, count);
+        }
+        void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
+            kernel_.set_tree_view_indent_px(h, px);
+        }
 
     bool link(WidgetHandle parent, WidgetHandle child) noexcept {
         return kernel_.link(parent, child);
@@ -2516,6 +3948,13 @@ public:
     SoaKernel& kernel() noexcept { return kernel_; }
     const SoaKernel& kernel() const noexcept { return kernel_; }
 
-private:
+  private:
+    static const char* list_view_text_from_array(const void* ctx, std::uint16_t index) noexcept {
+        const auto* items = static_cast<const char* const*>(ctx);
+        if (!items) return "";
+        const char* text = items[index];
+        return text ? text : "";
+    }
+
     SoaKernel& kernel_;
 };

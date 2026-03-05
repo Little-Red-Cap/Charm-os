@@ -13,6 +13,20 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
+#if defined(VIVID_SOA_TRACE_INPUT)
+static std::uint32_t g_font_ptr_map_count = 0;
+
+export
+inline void reset_font_ptr_map_count() noexcept {
+    g_font_ptr_map_count = 0;
+}
+
+export
+inline std::uint32_t font_ptr_map_count() noexcept {
+    return g_font_ptr_map_count;
+}
+#endif
+
 inline const Font* fallback_for(const Font& font) noexcept {
     if (font.fallback_font) {
         return font.fallback_font;
@@ -33,6 +47,18 @@ const Font& get_font(const FontId id) noexcept {
     case FontId::Mono: return font_noto_ascii_12;
     }
     return font_noto_ascii_12;
+}
+
+export
+inline FontId font_id_from_ptr(const Font* font) noexcept {
+#if defined(VIVID_SOA_TRACE_INPUT)
+    ++g_font_ptr_map_count;
+#endif
+    if (!font) return FontId::Normal;
+    if (font == &get_font(FontId::Mono)) return FontId::Mono;
+    if (font == &get_font(FontId::Small)) return FontId::Small;
+    if (font == &get_font(FontId::Large)) return FontId::Large;
+    return FontId::Normal;
 }
 
 export

@@ -33,6 +33,7 @@ export import io.reactor;
 export import driver.usart_channel;
 
 export import block.device;
+export import block.device.node;
 export import block.registry;
 
 export import fs_block;

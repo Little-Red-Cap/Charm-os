@@ -1,7 +1,6 @@
 module;
 #include <array>
 #include <cassert>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -33,6 +32,26 @@ namespace {
     }
 
     constexpr std::size_t kMaxSegments = 8;
+    constexpr int kWheelQ15 = 32767;
+    constexpr int kWheelLutSize = 72;
+    struct WheelQ15Point {
+        std::int16_t x{};
+        std::int16_t y{};
+    };
+    constexpr std::array<WheelQ15Point, kWheelLutSize> kWheelLut{{
+        {0, -32767},{2856, -32642},{5690, -32269},{8481, -31650},{11207, -30791},{13848, -29697},
+        {16383, -28377},{18794, -26841},{21062, -25101},{23170, -23170},{25101, -21062},{26841, -18794},
+        {28377, -16384},{29697, -13848},{30791, -11207},{31650, -8481},{32269, -5690},{32642, -2856},
+        {32767, 0},{32642, 2856},{32269, 5690},{31650, 8481},{30791, 11207},{29697, 13848},
+        {28377, 16383},{26841, 18794},{25101, 21062},{23170, 23170},{21062, 25101},{18794, 26841},
+        {16384, 28377},{13848, 29697},{11207, 30791},{8481, 31650},{5690, 32269},{2856, 32642},
+        {0, 32767},{-2856, 32642},{-5690, 32269},{-8481, 31650},{-11207, 30791},{-13848, 29697},
+        {-16384, 28377},{-18794, 26841},{-21062, 25101},{-23170, 23170},{-25101, 21062},{-26841, 18794},
+        {-28377, 16384},{-29697, 13848},{-30791, 11207},{-31650, 8481},{-32269, 5690},{-32642, 2856},
+        {-32767, 0},{-32642, -2856},{-32269, -5690},{-31650, -8481},{-30791, -11207},{-29697, -13848},
+        {-28377, -16383},{-26841, -18794},{-25101, -21062},{-23170, -23170},{-21062, -25101},{-18794, -26841},
+        {-16383, -28377},{-13848, -29697},{-11207, -30791},{-8481, -31650},{-5690, -32269},{-2856, -32642},
+    }};
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
         return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
@@ -136,6 +155,9 @@ private:
     static void record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                 const ResolvedMetrics& metrics, const StyleState& state,
                                 int value, int min_value, int max_value);
+    static void record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                           const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                           int value, int min_value, int max_value);
     static void record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                       int value, int min_value, int max_value);
@@ -412,7 +434,8 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressBarSimple:
-        unsupported_kind(kind);
+        record_progress_bar_simple(out, world_rect, colors, metrics,
+                                   kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::DynamicNebula:
         unsupported_kind(kind);
@@ -1156,6 +1179,25 @@ void SoaGui::record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect
     out.fill_rect(Rect{r.x + pad, r.y + pad, fill, inner_h}, colors.accent);
 }
 
+void SoaGui::record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                        const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                        int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const int range = (max_value > min_value) ? (max_value - min_value) : 1;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int fill = (inner_w * (clamped - min_value)) / range;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    out.fill_rect(track, colors.border);
+    if (fill > 0) {
+        out.fill_rect(Rect{track.x, track.y, fill, track.h}, colors.accent);
+    }
+}
+
 void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                    const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                    int value, int min_value, int max_value) {
@@ -1173,27 +1215,21 @@ void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, cons
     if (clamped > max_value) clamped = max_value;
     const int range = max_value - min_value;
     if (range <= 0) return;
-    const float t = static_cast<float>(clamped - min_value) / static_cast<float>(range);
-    if (t <= 0.0f) return;
-
-    int segments = radius / 2;
-    if (segments < 12) segments = 12;
-    if (segments > 48) segments = 48;
-    int point_count = static_cast<int>(t * static_cast<float>(segments)) + 1;
-    if (point_count < 2) point_count = 2;
-    const int max_points = segments + 1;
-    if (point_count > max_points) point_count = max_points;
-
-    std::array<Point, 49> points{};
-    constexpr float kPi = 3.1415926535f;
-    const float start = -0.5f * kPi;
-    const float sweep = t * 2.0f * kPi;
-    const float denom = static_cast<float>(point_count - 1);
+    if (clamped <= min_value) return;
+    if (clamped >= max_value) {
+        out.stroke_circle(cx, cy, radius, colors.accent);
+        return;
+    }
+    const int value_delta = clamped - min_value;
+    int idx = static_cast<int>((static_cast<std::int64_t>(value_delta) * kWheelLutSize) / range);
+    if (idx <= 0) return;
+    if (idx >= kWheelLutSize) idx = kWheelLutSize - 1;
+    const int point_count = idx + 1;
+    std::array<Point, kWheelLutSize> points{};
     for (int i = 0; i < point_count; ++i) {
-        const float u = (denom > 0.0f) ? (static_cast<float>(i) / denom) : 0.0f;
-        const float ang = start + sweep * u;
-        const int px = cx + static_cast<int>(std::lround(std::cos(ang) * radius));
-        const int py = cy + static_cast<int>(std::lround(std::sin(ang) * radius));
+        const auto q = kWheelLut[static_cast<std::size_t>(i)];
+        const int px = cx + (static_cast<int>(q.x) * radius) / kWheelQ15;
+        const int py = cy + (static_cast<int>(q.y) * radius) / kWheelQ15;
         points[static_cast<std::size_t>(i)] = Point{px, py};
     }
     out.draw_path(points.data(), point_count, false, colors.accent);

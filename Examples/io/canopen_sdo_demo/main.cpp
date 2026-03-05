@@ -843,6 +843,69 @@ int main() {
         ck.expect_eq("sync rx counter", sync_node.last_rx_counter(), static_cast<util::u8>(0x22u));
     }
 
+    // SYNC: counter wrap and dlc=0 handling.
+    {
+        LoopbackContext sync_ctx{};
+        ck.expect(sync_ctx.init(), "loopback init");
+        canopen::SyncNode sync_node{{
+            .period_ms = 1,
+            .send_counter = true,
+            .counter_max = 3,
+        }};
+        canopen::SyncService sync_service{sync_node, sync_ctx.transport(), {.rx_budget = 1}};
+
+        util::u32 now_ms = 1;
+        (void)sync_service.poll_time(now_ms);
+        for (util::u8 expected : {1u, 2u, 3u, 1u}) {
+            now_ms += 1;
+            (void)sync_service.poll_time(now_ms);
+            if (pop_tx_frame(sync_ctx.bus, tx)) {
+                ck.expect_eq("sync wrap cnt", tx.data[0], expected);
+            } else {
+                ck.expect(false, "sync wrap tx missing");
+            }
+        }
+
+        canopen::CanFrame rx1{};
+        rx1.id = canopen::sync_id();
+        rx1.dlc = 1;
+        rx1.data.fill(0);
+        rx1.data[0] = 0xAA;
+        push_rx_frame(sync_ctx.bus, rx1);
+        (void)sync_service.poll();
+        ck.expect_eq("sync rx counter set", sync_node.last_rx_counter(), static_cast<util::u8>(0xAAu));
+
+        canopen::CanFrame rx0{};
+        rx0.id = canopen::sync_id();
+        rx0.dlc = 0;
+        rx0.data.fill(0);
+        push_rx_frame(sync_ctx.bus, rx0);
+        (void)sync_service.poll();
+        ck.expect_eq("sync rx counter keep", sync_node.last_rx_counter(), static_cast<util::u8>(0xAAu));
+    }
+
+    // SYNC: send_counter disabled -> dlc=0.
+    {
+        LoopbackContext sync_ctx{};
+        ck.expect(sync_ctx.init(), "loopback init");
+        canopen::SyncNode sync_node{{
+            .period_ms = 1,
+            .send_counter = false,
+            .counter_max = 0,
+        }};
+        canopen::SyncService sync_service{sync_node, sync_ctx.transport(), {.rx_budget = 1}};
+
+        util::u32 now_ms = 10;
+        (void)sync_service.poll_time(now_ms);
+        now_ms += 1;
+        (void)sync_service.poll_time(now_ms);
+        if (pop_tx_frame(sync_ctx.bus, tx)) {
+            ck.expect_eq("sync dlc zero", tx.dlc, static_cast<util::u8>(0u));
+        } else {
+            ck.expect(false, "sync dlc0 tx missing");
+        }
+    }
+
     // EMCY: producer send + consumer decode.
     {
         LoopbackContext emcy_ctx{};
@@ -891,6 +954,38 @@ int main() {
         ck.expect_eq("emcy rx data0", got.data[0], static_cast<util::u8>(0x10u));
     }
 
+    // EMCY: reject invalid id/dlc, producer with node_id=0.
+    {
+        LoopbackContext emcy_ctx{};
+        ck.expect(emcy_ctx.init(), "loopback init");
+        canopen::EmcyProducer emcy_prod{{.node_id = 2}};
+        canopen::EmcyConsumer emcy_cons{};
+        canopen::EmcyService emcy_service{emcy_prod, emcy_cons, emcy_ctx.transport(), {.rx_budget = 1}};
+
+        canopen::CanFrame bad_id{};
+        bad_id.id = 0x080;
+        bad_id.dlc = 8;
+        bad_id.data.fill(0x11);
+        push_rx_frame(emcy_ctx.bus, bad_id);
+        (void)emcy_service.poll();
+        canopen::EmcyMessage got{};
+        canopen::NodeId got_node{};
+        ck.expect(!emcy_service.take_last(got, got_node), "emcy reject id");
+
+        canopen::CanFrame bad_dlc{};
+        bad_dlc.id = canopen::emcy_id(2);
+        bad_dlc.dlc = 7;
+        bad_dlc.data.fill(0x22);
+        push_rx_frame(emcy_ctx.bus, bad_dlc);
+        (void)emcy_service.poll();
+        ck.expect(!emcy_service.take_last(got, got_node), "emcy reject dlc");
+
+        canopen::EmcyProducer bad_prod{{.node_id = 0}};
+        canopen::EmcyMessage msg{};
+        canopen::CanFrame bad_tx{};
+        ck.expect(!bad_prod.build(msg, bad_tx), "emcy build invalid node");
+    }
+
     // PDO: build + handle.
     {
         std::array<std::byte, 3> pdo_tx{
@@ -923,6 +1018,41 @@ int main() {
         ck.expect_eq("pdo rx b0", static_cast<util::u8>(pdo_rx[0]), static_cast<util::u8>(0xDEu));
         ck.expect_eq("pdo rx b1", static_cast<util::u8>(pdo_rx[1]), static_cast<util::u8>(0xADu));
         ck.expect_eq("pdo rx b2", static_cast<util::u8>(pdo_rx[2]), static_cast<util::u8>(0xBEu));
+    }
+
+    // PDO: invalid configs and rx rejection.
+    {
+        canopen::PdoProducer prod{};
+        canopen::CanFrame tx_pdo{};
+        std::array<std::byte, 3> data{
+            std::byte{0x11},
+            std::byte{0x22},
+            std::byte{0x33},
+        };
+        prod.reset({0u, 3u}, data);
+        ck.expect(!prod.build(tx_pdo), "pdo build no cob");
+        prod.reset({canopen::tpdo_id(1, 1), 0u}, data);
+        ck.expect(!prod.build(tx_pdo), "pdo build len0");
+        prod.reset({canopen::tpdo_id(1, 1), 9u}, data);
+        ck.expect(!prod.build(tx_pdo), "pdo build len>8");
+        std::array<std::byte, 2> short_data{
+            std::byte{0x11},
+            std::byte{0x22},
+        };
+        prod.reset({canopen::tpdo_id(1, 1), 3u}, short_data);
+        ck.expect(!prod.build(tx_pdo), "pdo build short data");
+
+        std::array<std::byte, 3> out{};
+        canopen::PdoConsumer cons{{canopen::rpdo_id(1, 1), 3u}, out};
+        canopen::CanFrame rx{};
+        rx.id = canopen::rpdo_id(1, 2);
+        rx.dlc = 3;
+        rx.data.fill(0x10);
+        ck.expect(!cons.handle(rx), "pdo rx wrong cob");
+        rx.id = canopen::rpdo_id(1, 1);
+        rx.dlc = 2;
+        ck.expect(!cons.handle(rx), "pdo rx short dlc");
+        ck.expect_eq("pdo rx last len stay", cons.last_len(), static_cast<util::u8>(0u));
     }
 
     if (ck.failures == 0) {

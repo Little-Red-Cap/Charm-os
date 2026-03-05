@@ -151,6 +151,7 @@ export namespace ui::draw_cmd {
         std::uint16_t count{0};
         std::uint64_t bytes_total{0};
         std::uint32_t register_calls{0};
+        std::uint32_t register_after_lock{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
     };
@@ -165,6 +166,7 @@ export namespace ui::draw_cmd {
         std::uint16_t count{0};
         std::uint64_t bytes_total{0};
         std::uint32_t register_calls{0};
+        std::uint32_t register_after_lock{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
         std::uint16_t lock_count{0};
@@ -230,6 +232,7 @@ export namespace ui::draw_cmd {
 
         bool allow_register() noexcept {
             if (!locked()) return true;
+            register_after_lock++;
 #ifndef NDEBUG
             assert(false && "ImageRegistry is locked");
 #endif
@@ -392,6 +395,7 @@ export namespace ui::draw_cmd {
         registry.count = 0;
         registry.bytes_total = 0;
         registry.register_calls = 0;
+        registry.register_after_lock = 0;
         registry.dedup_hits = 0;
         registry.overflowed = false;
         registry.lock_count = 0;
@@ -400,6 +404,8 @@ export namespace ui::draw_cmd {
     inline bool register_image_with_id(ImageId id, const ImageView& view) noexcept {
         if (!image_id_valid(id) || !view) return false;
         auto& registry = image_registry();
+        registry.register_calls++;
+        if (!registry.allow_register()) return false;
         if (id.slot >= registry.views.size()) {
             registry.overflowed = true;
             return false;
@@ -430,6 +436,7 @@ export namespace ui::draw_cmd {
             registry.count,
             registry.bytes_total,
             registry.register_calls,
+            registry.register_after_lock,
             registry.dedup_hits,
             registry.overflowed
         };

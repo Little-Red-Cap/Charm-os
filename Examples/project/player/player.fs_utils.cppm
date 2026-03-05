@@ -173,7 +173,6 @@ export namespace player::fs_utils {
         if (!path || !*path) return fs::Status{fs::Errc::inval};
         static fs::MalFile file_dev;
         static detail::OffsetDevice part_dev;
-        static fs::MalBlock mal_part;
         static fs::FatFsMount fat;
 
         auto st = file_dev.open(path, 512);
@@ -186,9 +185,7 @@ export namespace player::fs_utils {
 
         const auto lba = detail::find_fat_partition_lba(sector0);
         part_dev.init(base, lba);
-        (void)mal_part.bind(part_dev.device);
-
-        st = fat.mount(mal_part.device(), false);
+        st = fat.mount(part_dev.device, false);
         if (!st) return st;
 
         fs::clear_mounts();

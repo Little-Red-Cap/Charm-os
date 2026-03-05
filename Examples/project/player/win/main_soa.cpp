@@ -9,15 +9,19 @@
 #endif
 
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <string_view>
+#include <system_error>
 
 import charm.core.config;
 import charm.core.event;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
+import charm.core.soa_payload;
 import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.core.geometry;
@@ -30,6 +34,21 @@ import charm.font.typography;
 import out.api;
 
 namespace {
+    struct StdioSink {
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (b.size() == 0) return out::ok<std::size_t>(0u);
+            (void)std::fwrite(b.data(), 1, b.size(), stdout);
+            return out::ok(b.size());
+        }
+
+        out::result<std::size_t> flush() noexcept {
+            std::fflush(stdout);
+            return out::ok<std::size_t>(0u);
+        }
+    };
+
+    StdioSink g_console{};
+
     struct Viewport {
         int x{0};
         int y{0};
@@ -95,6 +114,60 @@ namespace {
         }
         return hash;
     }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    bool parse_u32(std::string_view s, std::uint32_t& out) noexcept {
+        if (s.empty()) return false;
+        std::uint32_t value = 0;
+        const char* begin = s.data();
+        const char* end = s.data() + s.size();
+        const auto result = std::from_chars(begin, end, value);
+        if (result.ec != std::errc{} || result.ptr != end) return false;
+        out = value;
+        return true;
+    }
+
+    void dump_payload_stats(const soa_detail::PayloadStats& stats) {
+        (void)out::println<"[player] payload Label cap={} peak={} fail={}">(
+            g_console, stats.label.cap, stats.label.peak, stats.label.alloc_fail);
+    (void)out::println<"[player] payload Button cap={} peak={} fail={}">(
+        g_console, stats.button.cap, stats.button.peak, stats.button.alloc_fail);
+    (void)out::println<"[player] payload TextInput cap={} peak={} fail={}">(
+        g_console, stats.text_input.cap, stats.text_input.peak, stats.text_input.alloc_fail);
+    (void)out::println<"[player] payload TextArea cap={} peak={} fail={}">(
+        g_console, stats.text_area.cap, stats.text_area.peak, stats.text_area.alloc_fail);
+    (void)out::println<"[player] payload NumberInput cap={} peak={} fail={}">(
+        g_console, stats.number_input.cap, stats.number_input.peak, stats.number_input.alloc_fail);
+    (void)out::println<"[player] payload SegmentedControl cap={} peak={} fail={}">(
+        g_console, stats.segmented.cap, stats.segmented.peak, stats.segmented.alloc_fail);
+    (void)out::println<"[player] payload ToggleGroup cap={} peak={} fail={}">(
+        g_console, stats.toggle_group.cap, stats.toggle_group.peak, stats.toggle_group.alloc_fail);
+        (void)out::println<"[player] payload Checkbox cap={} peak={} fail={}">(
+            g_console, stats.checkbox.cap, stats.checkbox.peak, stats.checkbox.alloc_fail);
+    (void)out::println<"[player] payload Radio cap={} peak={} fail={}">(
+        g_console, stats.radio.cap, stats.radio.peak, stats.radio.alloc_fail);
+    (void)out::println<"[player] payload ListItem cap={} peak={} fail={}">(
+        g_console, stats.list_item.cap, stats.list_item.peak, stats.list_item.alloc_fail);
+    (void)out::println<"[player] payload TextList cap={} peak={} fail={}">(
+        g_console, stats.text_list.cap, stats.text_list.peak, stats.text_list.alloc_fail);
+    (void)out::println<"[player] payload ListView cap={} peak={} fail={}">(
+        g_console, stats.list_view.cap, stats.list_view.peak, stats.list_view.alloc_fail);
+    (void)out::println<"[player] payload Switch cap={} peak={} fail={}">(
+        g_console, stats.switcher.cap, stats.switcher.peak, stats.switcher.alloc_fail);
+        (void)out::println<"[player] payload Slider cap={} peak={} fail={}">(
+            g_console, stats.slider.cap, stats.slider.peak, stats.slider.alloc_fail);
+        (void)out::println<"[player] payload Progress cap={} peak={} fail={}">(
+            g_console, stats.progress.cap, stats.progress.peak, stats.progress.alloc_fail);
+        (void)out::println<"[player] payload ScrollBar cap={} peak={} fail={}">(
+            g_console, stats.scrollbar.cap, stats.scrollbar.peak, stats.scrollbar.alloc_fail);
+        (void)out::println<"[player] payload List cap={} peak={} fail={}">(
+            g_console, stats.list.cap, stats.list.peak, stats.list.alloc_fail);
+        (void)out::println<"[player] payload ScrollContainer cap={} peak={} fail={}">(
+            g_console, stats.scroll_container.cap, stats.scroll_container.peak, stats.scroll_container.alloc_fail);
+        (void)out::println<"[player] payload overflow={} text_overflow={}">(
+            g_console, stats.overflowed ? 1 : 0, stats.text_overflowed ? 1 : 0);
+    }
+#endif
 
     struct SdlTileBackend {
         DefaultFrameBuffer& fb;
@@ -226,17 +299,28 @@ namespace {
 int main(int argc, char** argv) {
     bool use_tiles = false;
     bool run_compare = false;
+    bool run_peak = false;
+    std::uint32_t peak_duration_ms = 10000;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
         if (arg == "--soa-tile") {
             use_tiles = true;
         } else if (arg == "--soa-compare") {
             run_compare = true;
+        } else if (arg == "--soa-peak") {
+            run_peak = true;
+        } else if (arg.starts_with("--soa-peak=")) {
+            std::uint32_t parsed = 0;
+            const std::string_view value = arg.substr(11);
+            if (parse_u32(value, parsed) && parsed > 0) {
+                run_peak = true;
+                peak_duration_ms = (parsed < 1000u) ? (parsed * 1000u) : parsed;
+            }
         }
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_Init failed: {}">(g_console, SDL_GetError());
         return 1;
     }
 
@@ -347,6 +431,7 @@ int main(int argc, char** argv) {
             hash_bytes(g_framebuffer.data(), DefaultFrameBuffer::buffer_bytes);
 
         (void)out::println<"[player] cmd count={} bytes={} text={}/{} overflow={} text_overflow={}">(
+            g_console,
             static_cast<std::uint32_t>(cmd_stats.cmd_count),
             static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
             static_cast<std::uint32_t>(cmd_stats.text_used),
@@ -354,18 +439,21 @@ int main(int argc, char** argv) {
             cmd_stats.cmd_overflowed ? 1 : 0,
             cmd_stats.text_overflowed ? 1 : 0);
         (void)out::println<"[player] exec count={} bytes={} clip_push={} clip_pop={} overflow={}">(
+            g_console,
             static_cast<std::uint32_t>(exec_stats.cmd_count),
             static_cast<std::uint32_t>(exec_stats.cmd_bytes),
             static_cast<std::uint32_t>(exec_stats.clip_pushes),
             static_cast<std::uint32_t>(exec_stats.clip_pops),
             exec_stats.overflowed ? 1 : 0);
         (void)out::println<"[player] tile total={} drawn={} flushes={} cmd={} bytes={}">(
+            g_console,
             tile_stats.tiles_total,
             tile_stats.tiles_drawn,
             tile_stats.tile_flush_count,
             static_cast<std::uint32_t>(tile_stats.cmd_count),
             static_cast<std::uint32_t>(tile_stats.cmd_bytes));
         (void)out::println<"[player] compare full=0x{:08X} tile=0x{:08X}">(
+            g_console,
             static_cast<unsigned>(hash_full),
             static_cast<unsigned>(hash_tile));
         if (hash_full != hash_tile) {
@@ -378,7 +466,15 @@ int main(int argc, char** argv) {
     }
 #else
     if (run_compare) {
-        (void)out::println<"[player] --soa-compare requires VIVID_SOA_TRACE_INPUT">();
+        (void)out::println<"[player] --soa-compare requires VIVID_SOA_TRACE_INPUT">(g_console);
+    }
+#endif
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    const std::uint32_t peak_end_ms = run_peak ? (SDL_GetTicks() + peak_duration_ms) : 0;
+#else
+    if (run_peak) {
+        (void)out::println<"[player] --soa-peak requires VIVID_SOA_TRACE_INPUT">(g_console);
     }
 #endif
 
@@ -428,6 +524,12 @@ int main(int argc, char** argv) {
         }
 
         const std::uint32_t now_ms = SDL_GetTicks();
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (run_peak && now_ms >= peak_end_ms) {
+            dump_payload_stats(kernel.payload_stats());
+            running = false;
+        }
+#endif
         if (now_ms - last_anim_tick >= 50) {
             last_anim_tick = now_ms;
             progress_value = (progress_value + 1) % 101;

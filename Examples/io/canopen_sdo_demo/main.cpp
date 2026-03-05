@@ -10,6 +10,11 @@ import canopen.transport;
 import canopen.sdo_service;
 import canopen.nmt;
 import canopen.nmt_service;
+import canopen.sync;
+import canopen.sync_service;
+import canopen.emcy;
+import canopen.emcy_service;
+import canopen.pdo;
 import util.core;
 import util.error;
 import out.api;
@@ -673,6 +678,131 @@ int main() {
         } else {
             ck.expect(false, "nmt bootup2 missing");
         }
+    }
+
+    // SYNC: periodic producer with counter + rx accounting.
+    {
+        FakeTransport sync_ctx{};
+        canopen::SyncNode sync_node{{
+            .period_ms = 10,
+            .send_counter = true,
+            .counter_max = 3,
+        }};
+        canopen::Transport sync_transport{
+            &sync_ctx,
+            {.recv = &transport_recv, .send = &transport_send},
+        };
+        canopen::SyncService sync_service{sync_node, sync_transport, {.rx_budget = 1}};
+
+        util::u32 now_ms = 100;
+        (void)sync_service.poll_time(now_ms);
+        ck.expect(!sync_ctx.tx.pop(tx), "sync early");
+
+        now_ms += 10;
+        (void)sync_service.poll_time(now_ms);
+        if (sync_ctx.tx.pop(tx)) {
+            dump_frame("sync_tx", tx);
+            ck.expect_eq("sync id", tx.id, canopen::sync_id());
+            ck.expect_eq("sync dlc", tx.dlc, static_cast<util::u8>(1u));
+            ck.expect_eq("sync cnt", tx.data[0], static_cast<util::u8>(1u));
+        } else {
+            ck.expect(false, "sync tx missing");
+        }
+
+        canopen::CanFrame sync_rx{};
+        sync_rx.id = canopen::sync_id();
+        sync_rx.dlc = 1;
+        sync_rx.data.fill(0);
+        sync_rx.data[0] = 0x22;
+        sync_ctx.rx.push(sync_rx);
+        (void)sync_service.poll();
+        ck.expect_eq("sync rx count", sync_node.rx_count(), static_cast<util::u32>(1u));
+        ck.expect_eq("sync rx counter", sync_node.last_rx_counter(), static_cast<util::u8>(0x22u));
+    }
+
+    // EMCY: producer send + consumer decode.
+    {
+        FakeTransport emcy_ctx{};
+        canopen::EmcyProducer emcy_prod{{.node_id = 5}};
+        canopen::EmcyConsumer emcy_cons{};
+        canopen::Transport emcy_transport{
+            &emcy_ctx,
+            {.recv = &transport_recv, .send = &transport_send},
+        };
+        canopen::EmcyService emcy_service{emcy_prod, emcy_cons, emcy_transport, {.rx_budget = 1}};
+
+        canopen::EmcyMessage msg{};
+        msg.error_code = 0x1234u;
+        msg.error_reg = 0x55u;
+        msg.data = {0x01u, 0x02u, 0x03u, 0x04u, 0x05u};
+        (void)emcy_service.send(msg);
+
+        if (emcy_ctx.tx.pop(tx)) {
+            dump_frame("emcy_tx", tx);
+            ck.expect_eq("emcy tx id", tx.id, canopen::emcy_id(5));
+            ck.expect_eq("emcy tx code", tx.data[0], static_cast<util::u8>(0x34u));
+            ck.expect_eq("emcy tx code2", tx.data[1], static_cast<util::u8>(0x12u));
+            ck.expect_eq("emcy tx reg", tx.data[2], static_cast<util::u8>(0x55u));
+        } else {
+            ck.expect(false, "emcy tx missing");
+        }
+
+        canopen::CanFrame emcy_rx{};
+        emcy_rx.id = canopen::emcy_id(2);
+        emcy_rx.dlc = 8;
+        emcy_rx.data.fill(0);
+        emcy_rx.data[0] = 0x78u;
+        emcy_rx.data[1] = 0x56u;
+        emcy_rx.data[2] = 0xAAu;
+        emcy_rx.data[3] = 0x10u;
+        emcy_rx.data[4] = 0x20u;
+        emcy_rx.data[5] = 0x30u;
+        emcy_rx.data[6] = 0x40u;
+        emcy_rx.data[7] = 0x50u;
+        emcy_ctx.rx.push(emcy_rx);
+        (void)emcy_service.poll();
+
+        canopen::EmcyMessage got{};
+        canopen::NodeId got_node{};
+        ck.expect(emcy_service.take_last(got, got_node), "emcy rx missing");
+        ck.expect_eq("emcy rx node", got_node, static_cast<canopen::NodeId>(2));
+        ck.expect_eq("emcy rx code", got.error_code, static_cast<util::u16>(0x5678u));
+        ck.expect_eq("emcy rx reg", got.error_reg, static_cast<util::u8>(0xAAu));
+        ck.expect_eq("emcy rx data0", got.data[0], static_cast<util::u8>(0x10u));
+    }
+
+    // PDO: build + handle.
+    {
+        std::array<std::byte, 3> pdo_tx{
+            std::byte{0x11},
+            std::byte{0x22},
+            std::byte{0x33},
+        };
+        canopen::PdoProducer pdo_prod{
+            {canopen::tpdo_id(1, 1), 3},
+            std::span<const std::byte>(pdo_tx),
+        };
+        canopen::CanFrame pdo_frame{};
+        ck.expect(pdo_prod.build(pdo_frame), "pdo build");
+        ck.expect_eq("pdo tx id", pdo_frame.id, canopen::tpdo_id(1, 1));
+        ck.expect_eq("pdo tx dlc", pdo_frame.dlc, static_cast<util::u8>(3u));
+
+        std::array<std::byte, 3> pdo_rx{};
+        canopen::PdoConsumer pdo_cons{
+            {canopen::rpdo_id(1, 1), 3},
+            std::span<std::byte>(pdo_rx),
+        };
+        canopen::CanFrame rx{};
+        rx.id = canopen::rpdo_id(1, 1);
+        rx.dlc = 3;
+        rx.data.fill(0);
+        rx.data[0] = 0xDEu;
+        rx.data[1] = 0xADu;
+        rx.data[2] = 0xBEu;
+        ck.expect(pdo_cons.handle(rx), "pdo rx handle");
+        ck.expect_eq("pdo rx b0", static_cast<util::u8>(pdo_rx[0]), static_cast<util::u8>(0xDEu));
+        ck.expect_eq("pdo rx b1", static_cast<util::u8>(pdo_rx[1]), static_cast<util::u8>(0xADu));
+        ck.expect_eq("pdo rx b2", static_cast<util::u8>(pdo_rx[2]), static_cast<util::u8>(0xBEu));
     }
 
     if (ck.failures == 0) {

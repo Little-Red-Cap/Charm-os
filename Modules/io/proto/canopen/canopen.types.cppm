@@ -33,7 +33,35 @@ export namespace canopen {
         return static_cast<CobId>(0x000u);
     }
 
+    [[nodiscard]] constexpr CobId sync_id() noexcept {
+        return static_cast<CobId>(0x080u);
+    }
+
+    [[nodiscard]] constexpr CobId emcy_id(NodeId node) noexcept {
+        return static_cast<CobId>(0x080u + static_cast<CobId>(node));
+    }
+
     [[nodiscard]] constexpr CobId heartbeat_id(NodeId node) noexcept {
         return static_cast<CobId>(0x700u + static_cast<CobId>(node));
+    }
+
+    [[nodiscard]] constexpr CobId tpdo_id(NodeId node, util::u8 pdo_no) noexcept {
+        switch (pdo_no) {
+            case 1: return static_cast<CobId>(0x180u + static_cast<CobId>(node));
+            case 2: return static_cast<CobId>(0x280u + static_cast<CobId>(node));
+            case 3: return static_cast<CobId>(0x380u + static_cast<CobId>(node));
+            case 4: return static_cast<CobId>(0x480u + static_cast<CobId>(node));
+            default: return 0;
+        }
+    }
+
+    [[nodiscard]] constexpr CobId rpdo_id(NodeId node, util::u8 pdo_no) noexcept {
+        switch (pdo_no) {
+            case 1: return static_cast<CobId>(0x200u + static_cast<CobId>(node));
+            case 2: return static_cast<CobId>(0x300u + static_cast<CobId>(node));
+            case 3: return static_cast<CobId>(0x400u + static_cast<CobId>(node));
+            case 4: return static_cast<CobId>(0x500u + static_cast<CobId>(node));
+            default: return 0;
+        }
     }
 } // namespace canopen

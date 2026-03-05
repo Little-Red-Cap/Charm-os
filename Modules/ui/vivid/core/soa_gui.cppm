@@ -939,17 +939,39 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     const int scroll_y = kernel.scroll_y(h);
     const std::uint8_t overscan = kernel.table_view_overscan(h);
     int col_w = kernel.table_view_col_width(h);
-    const bool fixed_cols = (col_w > 0);
-    if (!fixed_cols) {
+    const bool has_col_fn = kernel.table_view_has_col_width_fn(h);
+    const bool fixed_cols = (!has_col_fn && col_w > 0);
+    const bool equal_cols = (!has_col_fn && col_w <= 0);
+    if (equal_cols) {
         col_w = (cols > 0) ? (clip_rect.w / cols) : clip_rect.w;
     }
     if (col_w <= 0) col_w = 1;
     int col_start = 0;
     int col_end = static_cast<int>(cols);
-    if (fixed_cols && cols > 0 && clip_rect.w > 0) {
-        const int visible_cols = (clip_rect.w + col_w - 1) / col_w;
-        col_end = col_start + visible_cols + 1;
-        if (col_end > static_cast<int>(cols)) col_end = static_cast<int>(cols);
+    if (cols > 0 && clip_rect.w > 0) {
+        if (fixed_cols || equal_cols) {
+            const int visible_cols = (clip_rect.w + col_w - 1) / col_w;
+            col_end = col_start + visible_cols + 1;
+            if (col_end > static_cast<int>(cols)) col_end = static_cast<int>(cols);
+        } else if (has_col_fn) {
+            int x_accum = 0;
+            for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
+                int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
+                if (w <= 0) w = 1;
+                x_accum += w;
+            }
+            int x_cursor = x_accum;
+            col_end = col_start;
+            while (col_end < static_cast<int>(cols) && x_cursor < clip_rect.w) {
+                int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col_end));
+                if (w <= 0) w = 1;
+                x_cursor += w;
+                ++col_end;
+            }
+            if (col_end < static_cast<int>(cols)) {
+                ++col_end;
+            }
+        }
     }
 
     const int base_start = (row_h > 0) ? (scroll_y / row_h) : 0;
@@ -960,17 +982,28 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     int end = start + visible;
     if (end > static_cast<int>(rows)) end = static_cast<int>(rows);
 
+    int x_start = clip_rect.x;
+    if (has_col_fn && col_start > 0) {
+        for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
+            int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
+            if (w <= 0) w = 1;
+            x_start += w;
+        }
+    } else if (!has_col_fn && col_start > 0) {
+        x_start = clip_rect.x + col_start * col_w;
+    }
+
     for (int row = start; row < end; ++row) {
-        int x = clip_rect.x + col_start * col_w;
+        int x = x_start;
         for (int col = col_start; col < col_end; ++col) {
-            int w = col_w;
-            if (!fixed_cols && cols > 0) {
+            int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
+            if (!has_col_fn && equal_cols && cols > 0) {
                 if (static_cast<std::uint8_t>(col + 1) == cols) {
                     w = clip_rect.x + clip_rect.w - x;
                 }
             }
             if (w <= 0) {
-                x += col_w;
+                x += has_col_fn ? 1 : col_w;
                 continue;
             }
             Rect cell{x, y, w, row_h};
@@ -988,10 +1021,20 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         const int line_h = (end - start) * row_h;
         if (line_h > 0) {
             const int line_y = clip_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
-            if (fixed_cols) {
+            if (fixed_cols || equal_cols) {
                 for (int col = col_start + 1; col < col_end; ++col) {
                     const int x = clip_rect.x + col * col_w;
                     out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
+                }
+            } else if (has_col_fn) {
+                int x = x_start;
+                for (int col = col_start; col < col_end; ++col) {
+                    int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
+                    if (w <= 0) w = 1;
+                    if (col > col_start) {
+                        out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
+                    }
+                    x += w;
                 }
             } else {
                 int x = clip_rect.x;

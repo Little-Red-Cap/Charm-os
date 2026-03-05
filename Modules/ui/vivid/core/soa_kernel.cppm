@@ -1408,6 +1408,18 @@ public:
         return payload ? payload->col_count : 0;
     }
 
+    bool table_view_has_col_width_fn(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return false;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? (payload->col_width_fn != nullptr) : false;
+    }
+
     int table_view_col_width(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
@@ -1418,6 +1430,24 @@ public:
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         return payload ? payload->col_width : 0;
+    }
+
+    int table_view_col_width_at(WidgetHandle h, std::uint8_t col) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return 0;
+        if (payload->col_width_fn) {
+            int w = payload->col_width_fn(payload->col_width_ctx, col);
+            if (w < 0) w = 0;
+            return w;
+        }
+        return payload->col_width;
     }
 
     void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
@@ -1433,6 +1463,31 @@ public:
         if (col_width < 0) col_width = 0;
         if (payload->col_width != col_width) {
             payload->col_width = col_width;
+            if (col_width > 0) {
+                payload->col_width_ctx = nullptr;
+                payload->col_width_fn = nullptr;
+            }
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_col_width_fn(WidgetHandle h, const void* ctx,
+                                     soa_detail::TableViewColWidthFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (payload->col_width_ctx != ctx || payload->col_width_fn != fn) {
+            payload->col_width_ctx = ctx;
+            payload->col_width_fn = fn;
+            if (fn) {
+                payload->col_width = 0;
+            }
             mark_paint_dirty();
         }
     }
@@ -3925,6 +3980,11 @@ export
         }
         void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
             kernel_.set_table_view_col_width(h, col_width);
+        }
+        void set_table_view_col_width_fn(WidgetHandle h,
+                                         const void* ctx,
+                                         soa_detail::TableViewColWidthFn fn) noexcept {
+            kernel_.set_table_view_col_width_fn(h, ctx, fn);
         }
         void set_tree_view_source(WidgetHandle h,
                                   std::uint16_t count,

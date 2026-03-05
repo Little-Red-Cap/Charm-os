@@ -27,10 +27,17 @@ TF Card (hardware pulled up)
     PC9     ------> SDMMC1_D1
 
 Audio
-    PB5     ------> I2S1_SDO
-    PG10     ------> I2S1_WS
+    PA7     ------> I2S1_SDO
     PA5     ------> I2S1_CK
     PC4     ------> I2S1_MCK
+    PA4     ------> I2S1_WS
+
+Mono TFT
+    PK0     ------> SPI5_SCK
+    PK1     ------> SPI5_NSS
+    PJ10     ------> SPI5_MOSI
+    PJ5     ------> GPIO RST
+    PJ6     ------> GPIO DATA/CMD
 
 Debug
     PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK

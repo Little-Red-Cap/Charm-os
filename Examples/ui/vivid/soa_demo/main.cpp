@@ -1979,6 +1979,7 @@ int main(int argc, char** argv) {
     ui::draw_cmd::ImageRegistryStats img_stats_after_record{};
     bool img_stats_valid = false;
     bool img_growth_ok = true;
+    std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -1997,8 +1998,13 @@ int main(int argc, char** argv) {
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
-        img_growth_ok = (img_stats_after_record.count == img_stats_before_record.count)
-            && (img_stats_after_record.bytes_total == img_stats_before_record.bytes_total);
+        if (img_stats_after_record.register_after_lock >= img_stats_before_record.register_after_lock) {
+            img_growth_count = img_stats_after_record.register_after_lock
+                - img_stats_before_record.register_after_lock;
+        } else {
+            img_growth_count = img_stats_after_record.register_after_lock;
+        }
+        img_growth_ok = (img_growth_count == 0);
 #if defined(VIVID_SOA_TRACE_INPUT)
         const auto font_ptr_maps = static_cast<unsigned>(font_ptr_map_count());
         (void)out::println<"[soa] font ptr map count={}">(g_console, font_ptr_maps);
@@ -2213,7 +2219,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(img_stats.count),
             static_cast<unsigned>(img_stats.bytes_total),
             static_cast<unsigned>(img_stats.dedup_hits),
-            img_growth_ok ? 1u : 0u,
+            static_cast<unsigned>(img_growth_count),
             img_overflow_ok ? 0u : 1u,
             img_dedup_ok ? 1u : 0u,
             ci_reason ? ci_reason : "none");

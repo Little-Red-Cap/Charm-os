@@ -1,0 +1,186 @@
+module;
+
+#include <array>
+#include <cstdint>
+#include <span>
+
+export module canopen.pump;
+
+import charm.system.clock;
+import init.node;
+import canopen.sdo_service;
+import canopen.nmt_service;
+import kernel.eda;
+import kernel.evt;
+import util.core;
+import util.error;
+
+export namespace canopen {
+    using ScheduleFn = bool (*)(void* ctx,
+                                kernel::TaskId task,
+                                kernel::Event evt,
+                                charm::system::ClockTick due) noexcept;
+
+    struct CanopenPumpTask {
+        static constexpr kernel::Priority priority{0};
+        static constexpr kernel::EventMask mask =
+            kernel::event_mask(kernel::EventId::init) |
+            kernel::event_mask(kernel::EventId::canopen_pump);
+
+        SdoService* sdo{nullptr};
+        NmtService* nmt{nullptr};
+        charm::system::ClockRef clock{};
+        ScheduleFn schedule{nullptr};
+        void* schedule_ctx{nullptr};
+        kernel::TaskId self{};
+        charm::system::ClockTick period_ms{10};
+        bool started{false};
+
+        void bind(SdoService* sdo_in,
+                  NmtService* nmt_in,
+                  charm::system::Clock& clock_in,
+                  ScheduleFn schedule_fn,
+                  void* schedule_ctx_in,
+                  kernel::TaskId task_id,
+                  charm::system::ClockTick period_ms_in = 10) noexcept {
+            sdo = sdo_in;
+            nmt = nmt_in;
+            clock.reset(clock_in);
+            schedule = schedule_fn;
+            schedule_ctx = schedule_ctx_in;
+            self = task_id;
+            period_ms = (period_ms_in == 0) ? 1 : period_ms_in;
+            started = false;
+        }
+
+        void start() noexcept {
+            if (started) return;
+            started = true;
+            if (!clock.valid()) return;
+            const auto now = clock.now_ms();
+            schedule_next(now);
+        }
+
+        void on_event(kernel::Event evt) noexcept {
+            if (evt.id == kernel::EventId::init) {
+                start();
+                return;
+            }
+            if (evt.id != kernel::EventId::canopen_pump) {
+                return;
+            }
+            if (!clock.valid()) {
+                return;
+            }
+            const auto now_tick = clock.now_ms();
+            const auto now_ms = static_cast<std::uint32_t>(now_tick);
+            if (nmt) {
+                (void)nmt->poll_time(now_ms);
+            }
+            if (sdo) {
+                (void)sdo->poll_time(now_ms);
+            }
+            schedule_next(now_tick);
+        }
+
+    private:
+        void schedule_next(charm::system::ClockTick now_ms) noexcept {
+            if (!schedule) {
+                return;
+            }
+            const auto due = now_ms + period_ms;
+            (void)schedule(schedule_ctx, self, kernel::make_event(kernel::EventId::canopen_pump), due);
+        }
+    };
+
+    template <typename Scheduler>
+    inline bool scheduler_schedule_at(void* ctx,
+                                      kernel::TaskId task,
+                                      kernel::Event evt,
+                                      charm::system::ClockTick due) noexcept {
+        auto* scheduler = static_cast<Scheduler*>(ctx);
+        if (!scheduler) {
+            return false;
+        }
+        return scheduler->schedule_at(due, task, evt);
+    }
+
+    struct CanopenPumpBinding {
+        CanopenPumpTask* pump{nullptr};
+        SdoService* sdo{nullptr};
+        NmtService* nmt{nullptr};
+        charm::system::Clock* clock{nullptr};
+        ScheduleFn schedule{nullptr};
+        void* schedule_ctx{nullptr};
+        kernel::TaskId self{};
+        charm::system::ClockTick period_ms{10};
+        std::array<init::CapId, 1> provides{};
+        std::array<init::CapId, 4> requires_caps{};
+        util::usize requires_count{0};
+        init::Node node{};
+
+        CanopenPumpBinding(CanopenPumpTask& task,
+                           charm::system::Clock& clock_in,
+                           ScheduleFn schedule_fn,
+                           void* schedule_ctx_in,
+                           kernel::TaskId task_id,
+                           SdoService* sdo_in = nullptr,
+                           NmtService* nmt_in = nullptr,
+                           charm::system::ClockTick period_ms_in = 10,
+                           const char* cap_name = "canopen.pump",
+                           const char* eda_cap_name = "kernel.eda",
+                           const char* sdo_cap_name = "canopen.sdo",
+                           const char* nmt_cap_name = "canopen.nmt",
+                           const char* clock_cap_name = "system.clock",
+                           init::Phase phase = init::Phase::service,
+                           util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
+            : pump(&task),
+              sdo(sdo_in),
+              nmt(nmt_in),
+              clock(&clock_in),
+              schedule(schedule_fn),
+              schedule_ctx(schedule_ctx_in),
+              self(task_id),
+              period_ms((period_ms_in == 0) ? 1 : period_ms_in) {
+            provides[0] = init::cap_id(cap_name);
+            requires_caps[0] = init::cap_id(eda_cap_name);
+            requires_caps[1] = init::cap_id(clock_cap_name);
+            requires_count = 2;
+            if (sdo) {
+                requires_caps[requires_count++] = init::cap_id(sdo_cap_name);
+            }
+            if (nmt) {
+                requires_caps[requires_count++] = init::cap_id(nmt_cap_name);
+            }
+            node = init::Node{
+                cap_name,
+                phase,
+                runlevel_mask,
+                std::span<const init::CapId>(provides.data(), provides.size()),
+                std::span<const init::CapId>(requires_caps.data(), requires_count),
+                &CanopenPumpBinding::init_trampoline,
+                nullptr,
+                this
+            };
+        }
+
+        static util::Result<void> init_trampoline(void* ctx) noexcept {
+            auto* self = static_cast<CanopenPumpBinding*>(ctx);
+            if (!self || !self->pump || !self->clock) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (!self->sdo && !self->nmt) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            self->pump->bind(self->sdo,
+                             self->nmt,
+                             *self->clock,
+                             self->schedule,
+                             self->schedule_ctx,
+                             self->self,
+                             self->period_ms);
+            self->pump->start();
+            return {};
+        }
+    };
+}

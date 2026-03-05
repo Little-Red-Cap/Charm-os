@@ -8,6 +8,8 @@ import canopen.od;
 import canopen.sdo;
 import canopen.transport;
 import canopen.sdo_service;
+import canopen.nmt;
+import canopen.nmt_service;
 import util.core;
 import util.error;
 import out.api;
@@ -161,6 +163,16 @@ namespace {
                               (static_cast<util::u32>(f.data[6]) << 16) |
                               (static_cast<util::u32>(f.data[7]) << 24);
         ck.expect_eq(label, got, code);
+    }
+
+    canopen::CanFrame make_nmt(canopen::NmtCommand cmd, canopen::NodeId node) noexcept {
+        canopen::CanFrame f{};
+        f.id = canopen::nmt_id();
+        f.dlc = 2;
+        f.data.fill(0);
+        f.data[0] = static_cast<util::u8>(cmd);
+        f.data[1] = node;
+        return f;
     }
 }
 
@@ -594,6 +606,73 @@ int main() {
         now_ms += 4u; // within timeout
         (void)timeout_service.poll_time(now_ms);
         ck.expect(!timeout_ctx.tx.pop(tx), "timeout boundary should not abort");
+    }
+
+    // NMT: boot-up, heartbeat, and reset handling.
+    {
+        FakeTransport nmt_ctx{};
+        canopen::NmtNode node{{
+            .node_id = 3,
+            .heartbeat_ms = 10,
+            .send_bootup = true,
+        }};
+        canopen::Transport nmt_transport{
+            &nmt_ctx,
+            {.recv = &transport_recv, .send = &transport_send},
+        };
+        canopen::NmtService nmt_service{node, nmt_transport, {.rx_budget = 1}};
+
+        util::u32 now_ms = 100;
+        (void)nmt_service.poll_time(now_ms);
+        if (nmt_ctx.tx.pop(tx)) {
+            dump_frame("nmt_bootup", tx);
+            ck.expect_eq("nmt bootup id", tx.id, canopen::heartbeat_id(3));
+            ck.expect_eq("nmt bootup state", tx.data[0], static_cast<util::u8>(canopen::NodeState::initializing));
+        } else {
+            ck.expect(false, "nmt bootup missing");
+        }
+
+        now_ms += 5;
+        (void)nmt_service.poll_time(now_ms);
+        ck.expect(!nmt_ctx.tx.pop(tx), "nmt heartbeat too early");
+
+        now_ms += 5;
+        (void)nmt_service.poll_time(now_ms);
+        if (nmt_ctx.tx.pop(tx)) {
+            dump_frame("nmt_hb0", tx);
+            ck.expect_eq("nmt hb id", tx.id, canopen::heartbeat_id(3));
+            ck.expect_eq("nmt hb state", tx.data[0], static_cast<util::u8>(canopen::NodeState::pre_operational));
+        } else {
+            ck.expect(false, "nmt heartbeat missing");
+        }
+
+        nmt_ctx.rx.push(make_nmt(canopen::NmtCommand::start, 3));
+        (void)nmt_service.poll();
+        ck.expect_eq("nmt start state", node.state(), canopen::NodeState::operational);
+
+        now_ms += 10;
+        (void)nmt_service.poll_time(now_ms);
+        if (nmt_ctx.tx.pop(tx)) {
+            dump_frame("nmt_hb1", tx);
+            ck.expect_eq("nmt hb1 state", tx.data[0], static_cast<util::u8>(canopen::NodeState::operational));
+        } else {
+            ck.expect(false, "nmt heartbeat op missing");
+        }
+
+        nmt_ctx.rx.push(make_nmt(canopen::NmtCommand::reset_node, 3));
+        (void)nmt_service.poll();
+        ck.expect(node.reset_node_pending(), "nmt reset flag");
+        node.clear_reset_flags();
+        node.set_state(canopen::NodeState::pre_operational);
+
+        now_ms += 1;
+        (void)nmt_service.poll_time(now_ms);
+        if (nmt_ctx.tx.pop(tx)) {
+            dump_frame("nmt_bootup2", tx);
+            ck.expect_eq("nmt bootup2 state", tx.data[0], static_cast<util::u8>(canopen::NodeState::initializing));
+        } else {
+            ck.expect(false, "nmt bootup2 missing");
+        }
     }
 
     if (ck.failures == 0) {

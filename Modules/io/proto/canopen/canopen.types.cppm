@@ -28,4 +28,12 @@ export namespace canopen {
     [[nodiscard]] constexpr CobId sdo_response_id(NodeId node) noexcept {
         return static_cast<CobId>(0x580u + static_cast<CobId>(node));
     }
+
+    [[nodiscard]] constexpr CobId nmt_id() noexcept {
+        return static_cast<CobId>(0x000u);
+    }
+
+    [[nodiscard]] constexpr CobId heartbeat_id(NodeId node) noexcept {
+        return static_cast<CobId>(0x700u + static_cast<CobId>(node));
+    }
 } // namespace canopen

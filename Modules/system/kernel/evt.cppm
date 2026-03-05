@@ -21,6 +21,7 @@ export namespace kernel {
         user0,
         user1,
         input_pump,
+        canopen_pump,
         count
     };
 

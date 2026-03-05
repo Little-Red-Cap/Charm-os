@@ -1,6 +1,7 @@
 module;
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -135,6 +136,9 @@ private:
     static void record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                 const ResolvedMetrics& metrics, const StyleState& state,
                                 int value, int min_value, int max_value);
+    static void record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                      const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                      int value, int min_value, int max_value);
     static void record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                const ResolvedColors& colors, std::uint8_t phase);
     static void record_scrollbar(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
@@ -535,7 +539,8 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressWheel:
-        unsupported_kind(kind);
+        record_progress_wheel(out, world_rect, colors, metrics,
+                              kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::WaveformView:
         unsupported_kind(kind);
@@ -1149,6 +1154,49 @@ void SoaGui::record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect
     const int fill = (inner_w * (value - min_value)) / range;
     out.stroke_rect(Rect{r.x + pad, r.y + pad, inner_w, inner_h}, colors.border);
     out.fill_rect(Rect{r.x + pad, r.y + pad, fill, inner_h}, colors.accent);
+}
+
+void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                   const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                   int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int size = (r.w < r.h) ? r.w : r.h;
+    int radius = size / 2 - pad;
+    if (radius <= 0) return;
+    const int cx = r.x + r.w / 2;
+    const int cy = r.y + r.h / 2;
+    out.stroke_circle(cx, cy, radius, colors.border);
+
+    if (max_value <= min_value) return;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int range = max_value - min_value;
+    if (range <= 0) return;
+    const float t = static_cast<float>(clamped - min_value) / static_cast<float>(range);
+    if (t <= 0.0f) return;
+
+    int segments = radius / 2;
+    if (segments < 12) segments = 12;
+    if (segments > 48) segments = 48;
+    int point_count = static_cast<int>(t * static_cast<float>(segments)) + 1;
+    if (point_count < 2) point_count = 2;
+    const int max_points = segments + 1;
+    if (point_count > max_points) point_count = max_points;
+
+    std::array<Point, 49> points{};
+    constexpr float kPi = 3.1415926535f;
+    const float start = -0.5f * kPi;
+    const float sweep = t * 2.0f * kPi;
+    const float denom = static_cast<float>(point_count - 1);
+    for (int i = 0; i < point_count; ++i) {
+        const float u = (denom > 0.0f) ? (static_cast<float>(i) / denom) : 0.0f;
+        const float ang = start + sweep * u;
+        const int px = cx + static_cast<int>(std::lround(std::cos(ang) * radius));
+        const int py = cy + static_cast<int>(std::lround(std::sin(ang) * radius));
+        points[static_cast<std::size_t>(i)] = Point{px, py};
+    }
+    out.draw_path(points.data(), point_count, false, colors.accent);
 }
 
 void SoaGui::record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,

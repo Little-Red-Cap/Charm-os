@@ -32,7 +32,6 @@ namespace {
     }
 
     constexpr std::size_t kMaxSegments = 8;
-    constexpr int kWheelQ15 = 32767;
     constexpr int kWheelLutSize = 72;
     struct WheelQ15Point {
         std::int16_t x{};
@@ -52,6 +51,11 @@ namespace {
         {-28377, -16383},{-26841, -18794},{-25101, -21062},{-23170, -23170},{-21062, -25101},{-18794, -26841},
         {-16383, -28377},{-13848, -29697},{-11207, -30791},{-8481, -31650},{-5690, -32269},{-2856, -32642},
     }};
+
+    constexpr int scale_q15(std::int16_t q, int radius) noexcept {
+        const int v = static_cast<int>(q) * radius;
+        return (v >= 0) ? ((v + (1 << 14)) >> 15) : ((v - (1 << 14)) >> 15);
+    }
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
         return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
@@ -124,7 +128,7 @@ private:
                              const char* text, bool checked);
     static void record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                          const ResolvedColors& colors, const ResolvedMetrics& metrics,
-                                         const StyleState& state,
+                                         const StyleState& state, std::uint8_t variant,
                                          const char* const* labels, std::uint8_t count, std::uint8_t selected);
     static void record_text_list(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                  const ResolvedColors& colors, const ResolvedMetrics& metrics,
@@ -158,6 +162,12 @@ private:
     static void record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                            const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                            int value, int min_value, int max_value);
+    static void record_progress_bar_round(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                          const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                          int value, int min_value, int max_value);
+    static void record_progress_flowing(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                        const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                        int value, int min_value, int max_value);
     static void record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                       int value, int min_value, int max_value);
@@ -380,10 +390,11 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::Label:
         record_label(out, world_rect, colors, metrics, state, kernel_.text(h));
         break;
-    case WidgetKind::Button:
-        record_button(out, world_rect, colors, metrics, state, kernel_.text(h),
-                      kernel_.button_icon(h), kernel_.button_icon_size(h));
-        break;
+        case WidgetKind::Button:
+        case WidgetKind::IconButton:
+            record_button(out, world_rect, colors, metrics, state, kernel_.text(h),
+                          kernel_.button_icon(h), kernel_.button_icon_size(h));
+            break;
     case WidgetKind::Checkbox:
         record_checkbox(out, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
@@ -450,6 +461,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         record_progress_bar_simple(out, world_rect, colors, metrics,
                                    kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
+    case WidgetKind::ProgressBarRound:
+        record_progress_bar_round(out, world_rect, colors, metrics,
+                                  kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
+        break;
     case WidgetKind::DynamicNebula:
         unsupported_kind(kind);
         break;
@@ -488,7 +503,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint8_t i = 0; i < count && i < labels.size(); ++i) {
                 labels[i] = kernel_.segmented_label(h, i);
             }
-            record_segmented_control(out, world_rect, colors, metrics, state,
+            record_segmented_control(out, world_rect, colors, metrics, state, state.variant,
                                      labels.data(), count, kernel_.segmented_selected(h));
         }
         break;
@@ -503,6 +518,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::NumberInput:
         record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
                         TextAlignV::Center, TextWrap::None);
+        break;
+    case WidgetKind::TextBox:
+        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+                        TextAlignV::Top, TextWrap::Word);
         break;
     case WidgetKind::ToggleGroup:
         break;
@@ -590,22 +609,17 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::RingIndication:
         unsupported_kind(kind);
         break;
-    case WidgetKind::TextBox:
-        unsupported_kind(kind);
-        break;
     case WidgetKind::FoldablePanel:
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressFlowing:
-        unsupported_kind(kind);
+        record_progress_flowing(out, world_rect, colors, metrics,
+                                kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::CloudyGlass:
         unsupported_kind(kind);
         break;
     case WidgetKind::NumberList:
-        unsupported_kind(kind);
-        break;
-    case WidgetKind::ProgressBarRound:
         unsupported_kind(kind);
         break;
     case WidgetKind::SpinZoomWidget:
@@ -813,21 +827,27 @@ void SoaGui::record_scroll_container(ui::draw_cmd::DefaultDrawCmdBuffer& out, co
 
 void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
-                                      const StyleState& state,
+                                      const StyleState& state, std::uint8_t variant,
                                       const char* const* labels, std::uint8_t count, std::uint8_t selected) {
     const int rad = metrics.corner_radius;
-    out.fill_round_rect(r, rad, colors.bg);
-    out.stroke_round_rect(r, rad, colors.border);
+    const bool underline_mode = (variant != 0);
+    if (underline_mode) {
+        out.fill_rect(r, colors.bg);
+        out.stroke_rect(r, colors.border);
+    } else {
+        out.fill_round_rect(r, rad, colors.bg);
+        out.stroke_round_rect(r, rad, colors.border);
+    }
     if (count == 0 || r.w <= 0) {
         if (state.focused) {
-            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
         }
         return;
     }
     const int seg_w = (count > 0) ? (r.w / count) : 0;
     if (seg_w <= 0) {
         if (state.focused) {
-            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+            out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
         }
         return;
     }
@@ -836,9 +856,20 @@ void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, c
         const int w = (i + 1u == count) ? (r.w - static_cast<int>(i) * seg_w) : seg_w;
         Rect seg{x, r.y, w, r.h};
         if (i == selected) {
-            out.fill_rect(seg, colors.accent);
+            if (underline_mode) {
+                Rect underline{
+                    seg.x + metrics.padding,
+                    seg.y + seg.h - 3,
+                    seg.w - metrics.padding * 2,
+                    2
+                };
+                if (underline.w < 0) underline.w = 0;
+                out.fill_rect(underline, colors.accent);
+            } else {
+                out.fill_rect(seg, colors.accent);
+            }
         }
-        if (i > 0) {
+        if (!underline_mode && i > 0) {
             out.fill_rect(Rect{x, r.y + 2, 1, r.h - 4}, colors.border);
         }
         Rect text_r{
@@ -848,13 +879,15 @@ void SoaGui::record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, c
             seg.h
         };
         if (text_r.w < 0) text_r.w = 0;
-        const rgba text_color = (i == selected) ? colors.on_accent : colors.font;
+        const rgba text_color = (i == selected)
+            ? (underline_mode ? colors.accent : colors.on_accent)
+            : colors.font;
         const char* label = labels ? labels[i] : "";
         out.draw_text_box(text_r, label ? label : "", text_color, font_from_metrics(metrics),
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     }
     if (state.focused) {
-        out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
+        out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, underline_mode ? -1 : rad);
     }
 }
 
@@ -968,13 +1001,13 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     Rect clip_rect{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
     if (clip_rect.w < 0) clip_rect.w = 0;
     if (clip_rect.h < 0) clip_rect.h = 0;
-    out.push_clip(clip_rect);
 
     const std::uint16_t rows = kernel.table_view_row_count(h);
     const std::uint8_t cols = kernel.table_view_col_count(h);
     int row_h = kernel.list_row_height(h);
     if (row_h <= 0) row_h = 1;
     const int scroll_y = kernel.scroll_y(h);
+    const int scroll_x = kernel.table_view_scroll_x(h);
     const std::uint8_t overscan = kernel.table_view_overscan(h);
     int col_w = kernel.table_view_col_width(h);
     const bool has_col_fn = kernel.table_view_has_col_width_fn(h);
@@ -984,23 +1017,45 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         col_w = (cols > 0) ? (clip_rect.w / cols) : clip_rect.w;
     }
     if (col_w <= 0) col_w = 1;
+    const bool has_header = kernel.table_view_has_header(h);
+    int header_h = kernel.table_view_header_height(h);
+    if (header_h < 0) header_h = 0;
+    if (header_h > clip_rect.h) header_h = clip_rect.h;
+    Rect body_rect{clip_rect.x, clip_rect.y + header_h, clip_rect.w, clip_rect.h - header_h};
+    if (body_rect.h < 0) body_rect.h = 0;
+
     int col_start = 0;
     int col_end = static_cast<int>(cols);
+    int x_start = clip_rect.x;
     if (cols > 0 && clip_rect.w > 0) {
-        if (fixed_cols || equal_cols) {
+        if (fixed_cols) {
+            if (scroll_x > 0 && col_w > 0) {
+                col_start = scroll_x / col_w;
+                const int offset = scroll_x - col_start * col_w;
+                x_start = clip_rect.x - offset;
+            }
             const int visible_cols = (clip_rect.w + col_w - 1) / col_w;
             col_end = col_start + visible_cols + 1;
             if (col_end > static_cast<int>(cols)) col_end = static_cast<int>(cols);
+        } else if (equal_cols) {
+            col_start = 0;
+            col_end = static_cast<int>(cols);
+            x_start = clip_rect.x;
         } else if (has_col_fn) {
-            int x_accum = 0;
-            for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
-                int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-                if (w <= 0) w = 1;
-                x_accum += w;
+            if (scroll_x > 0) {
+                int x_accum = 0;
+                while (col_start < static_cast<int>(cols)) {
+                    int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col_start));
+                    if (w <= 0) w = 1;
+                    if (x_accum + w > scroll_x) break;
+                    x_accum += w;
+                    ++col_start;
+                }
+                x_start = clip_rect.x - (scroll_x - x_accum);
             }
-            int x_cursor = x_accum;
+            int x_cursor = x_start;
             col_end = col_start;
-            while (col_end < static_cast<int>(cols) && x_cursor < clip_rect.w) {
+            while (col_end < static_cast<int>(cols) && x_cursor < clip_rect.x + clip_rect.w) {
                 int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col_end));
                 if (w <= 0) w = 1;
                 x_cursor += w;
@@ -1012,24 +1067,45 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         }
     }
 
+    const int header_pad = (metrics.header_padding > 0) ? metrics.header_padding : pad;
+    if (has_header && header_h > 0 && cols > 0) {
+        const Rect header_rect{clip_rect.x, clip_rect.y, clip_rect.w, header_h};
+        out.fill_rect(header_rect, colors.bg);
+        out.fill_rect(Rect{header_rect.x, header_rect.y + header_rect.h - 1, header_rect.w, 1}, colors.border);
+        int x = x_start;
+        for (int col = col_start; col < col_end; ++col) {
+            int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
+            if (!has_col_fn && equal_cols && cols > 0) {
+                if (static_cast<std::uint8_t>(col + 1) == cols) {
+                    w = clip_rect.x + clip_rect.w - x;
+                }
+            }
+            if (w <= 0) {
+                x += has_col_fn ? 1 : col_w;
+                continue;
+            }
+            Rect cell{x, header_rect.y, w, header_h};
+            const char* text = kernel.table_view_header_text(h, static_cast<std::uint8_t>(col));
+            Rect text_rect{cell.x + header_pad, cell.y, cell.w - header_pad * 2, cell.h};
+            if (text_rect.w < 0) text_rect.w = 0;
+            out.draw_text_box(text_rect, text ? text : "", colors.font, font_from_metrics(metrics),
+                              TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            x += w;
+        }
+    }
+
+    out.push_clip(body_rect);
+
     const int base_start = (row_h > 0) ? (scroll_y / row_h) : 0;
     int start = base_start - static_cast<int>(overscan);
     if (start < 0) start = 0;
-    int y = clip_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
-    const int visible = (row_h > 0) ? (clip_rect.h / row_h + 1 + overscan * 2) : 0;
+    int y = body_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
+    int visible = 0;
+    if (row_h > 0 && body_rect.h > 0) {
+        visible = body_rect.h / row_h + 1 + overscan * 2;
+    }
     int end = start + visible;
     if (end > static_cast<int>(rows)) end = static_cast<int>(rows);
-
-    int x_start = clip_rect.x;
-    if (has_col_fn && col_start > 0) {
-        for (int col = 0; col < col_start && col < static_cast<int>(cols); ++col) {
-            int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-            if (w <= 0) w = 1;
-            x_start += w;
-        }
-    } else if (!has_col_fn && col_start > 0) {
-        x_start = clip_rect.x + col_start * col_w;
-    }
 
     for (int row = start; row < end; ++row) {
         int x = x_start;
@@ -1051,46 +1127,36 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             x += w;
         }
-        out.fill_rect(Rect{clip_rect.x, y + row_h - 1, clip_rect.w, 1}, colors.border);
+        out.fill_rect(Rect{body_rect.x, y + row_h - 1, body_rect.w, 1}, colors.border);
         y += row_h;
     }
 
-    if (end > start) {
-        const int line_h = (end - start) * row_h;
+    out.pop_clip();
+
+    if ((end > start || header_h > 0) && cols > 0) {
+        const int line_h_body = (end > start) ? (end - start) * row_h : 0;
+        const int line_y_body = body_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
+        const int line_y = header_h > 0 ? clip_rect.y : line_y_body;
+        const int line_h = line_h_body + ((header_h > 0) ? header_h : 0);
         if (line_h > 0) {
-            const int line_y = clip_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
-            if (fixed_cols || equal_cols) {
-                for (int col = col_start + 1; col < col_end; ++col) {
-                    const int x = clip_rect.x + col * col_w;
-                    out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                }
-            } else if (has_col_fn) {
-                int x = x_start;
-                for (int col = col_start; col < col_end; ++col) {
-                    int w = kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col));
-                    if (w <= 0) w = 1;
-                    if (col > col_start) {
-                        out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                    }
-                    x += w;
-                }
-            } else {
-                int x = clip_rect.x;
-                for (std::uint8_t col = 0; col < cols; ++col) {
-                    int w = col_w;
-                    if (col + 1u == cols) {
+            int x = x_start;
+            for (int col = col_start; col < col_end; ++col) {
+                int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
+                if (!has_col_fn && equal_cols && cols > 0) {
+                    if (static_cast<std::uint8_t>(col + 1) == cols) {
                         w = clip_rect.x + clip_rect.w - x;
                     }
-                    if (col > 0) {
-                        out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
-                    }
-                    x += w;
                 }
+                if (col > col_start) {
+                    out.fill_rect(Rect{x, line_y, 1, line_h}, colors.border);
+                }
+                if (w <= 0) {
+                    w = has_col_fn ? 1 : col_w;
+                }
+                x += w;
             }
         }
     }
-
-    out.pop_clip();
     if (state.focused) {
         out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, -1);
     }
@@ -1208,6 +1274,62 @@ void SoaGui::record_progress_bar_simple(ui::draw_cmd::DefaultDrawCmdBuffer& out,
     }
 }
 
+void SoaGui::record_progress_bar_round(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                       const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                       int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const int range = (max_value > min_value) ? (max_value - min_value) : 1;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int fill = (inner_w * (clamped - min_value)) / range;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    int rad = metrics.corner_radius;
+    const int max_rad = inner_h / 2;
+    if (rad > max_rad) rad = max_rad;
+    if (rad < 0) rad = 0;
+    out.fill_round_rect(track, rad, colors.border);
+    if (fill > 0) {
+        Rect fill_rect{track.x, track.y, fill, track.h};
+        int fill_rad = rad;
+        const int max_fill_rad = fill_rect.w / 2;
+        if (fill_rad > max_fill_rad) fill_rad = max_fill_rad;
+        out.fill_round_rect(fill_rect, fill_rad, colors.accent);
+    }
+}
+
+void SoaGui::record_progress_flowing(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                     const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                     int value, int min_value, int max_value) {
+    const int pad = metrics.padding;
+    const int inner_w = r.w - pad * 2;
+    const int inner_h = r.h - pad * 2;
+    if (inner_w <= 0 || inner_h <= 0) return;
+    const Rect track{r.x + pad, r.y + pad, inner_w, inner_h};
+    out.fill_rect(track, colors.border);
+    if (max_value <= min_value) return;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int range = max_value - min_value;
+    if (range <= 0) return;
+    const int segment = (inner_w > 0) ? (inner_w / 4) : 0;
+    const int seg_w = (segment > 6) ? segment : 6;
+    const int value_delta = clamped - min_value;
+    const int pos = static_cast<int>((static_cast<std::int64_t>(inner_w + seg_w) * value_delta) / range) - seg_w;
+    int seg_x0 = track.x + pos;
+    int seg_x1 = seg_x0 + seg_w;
+    if (seg_x1 <= track.x || seg_x0 >= track.x + track.w) return;
+    if (seg_x0 < track.x) seg_x0 = track.x;
+    if (seg_x1 > track.x + track.w) seg_x1 = track.x + track.w;
+    if (seg_x1 > seg_x0) {
+        out.fill_rect(Rect{seg_x0, track.y, seg_x1 - seg_x0, track.h}, colors.accent);
+    }
+}
+
 void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                    const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                    int value, int min_value, int max_value) {
@@ -1238,8 +1360,8 @@ void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, cons
     std::array<Point, kWheelLutSize> points{};
     for (int i = 0; i < point_count; ++i) {
         const auto q = kWheelLut[static_cast<std::size_t>(i)];
-        const int px = cx + (static_cast<int>(q.x) * radius) / kWheelQ15;
-        const int py = cy + (static_cast<int>(q.y) * radius) / kWheelQ15;
+        const int px = cx + scale_q15(q.x, radius);
+        const int py = cy + scale_q15(q.y, radius);
         points[static_cast<std::size_t>(i)] = Point{px, py};
     }
     out.draw_path(points.data(), point_count, false, colors.accent);

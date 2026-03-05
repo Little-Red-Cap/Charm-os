@@ -235,6 +235,9 @@ inline void sync_style_sheet_bases() noexcept {
 #if CHARM_VIVID_ENABLE_WIDGET_Button
         set_base(static_cast<Button*>(nullptr), WidgetKind::Button);
 #endif
+#if CHARM_VIVID_ENABLE_WIDGET_IconButton
+        set_base(static_cast<Button*>(nullptr), WidgetKind::IconButton);
+#endif
 #if CHARM_VIVID_ENABLE_WIDGET_Checkbox
         set_base(static_cast<Checkbox*>(nullptr), WidgetKind::Checkbox);
 #endif

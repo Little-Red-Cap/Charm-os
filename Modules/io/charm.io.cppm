@@ -32,6 +32,9 @@ export import io.registry;
 export import io.reactor;
 export import driver.usart_channel;
 
+export import block.device;
+export import block.registry;
+
 export import fs_block;
 export import fs_block_file;
 export import fs_blockfs;

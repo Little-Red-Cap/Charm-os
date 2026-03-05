@@ -5,10 +5,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <string_view>
+#include <vector>
 
 import charm.core.soa_kernel;
 import charm.core.soa_gui;
+import charm.core.soa_payload;
 import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
@@ -17,9 +20,25 @@ import charm.core.widget_registry;
 import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
 import charm.gfx.image;
+import charm.font.typography;
 import out.api;
 
 namespace {
+    struct StdioSink {
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (b.size() == 0) return out::ok<std::size_t>(0u);
+            (void)std::fwrite(b.data(), 1, b.size(), stdout);
+            return out::ok(b.size());
+        }
+
+        out::result<std::size_t> flush() noexcept {
+            std::fflush(stdout);
+            return out::ok<std::size_t>(0u);
+        }
+    };
+
+    StdioSink g_console{};
+
     struct Viewport {
         int x{0};
         int y{0};
@@ -108,15 +127,87 @@ namespace {
                                                  false,
                                                  false);
 
-    const ImageView& get_test_icon() noexcept {
-        return kTestIconView;
+    ui::draw_cmd::ImageId g_test_icon_id{};
+    ui::draw_cmd::ImageId g_slice_id{};
+    bool g_demo_images_ready{false};
+    bool g_selftest_dedup{false};
+
+    void ensure_demo_images() noexcept {
+        if (g_demo_images_ready) return;
+        g_test_icon_id = ui::draw_cmd::register_image_dedup(kTestIconView);
+        g_slice_id = ui::draw_cmd::register_image_dedup(kSliceView);
+        if (g_selftest_dedup) {
+            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
+            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+        }
+        g_demo_images_ready = true;
     }
 
-    const ImageView& get_slice_image() noexcept {
-        return kSliceView;
+    struct ListViewTextSource {
+        const char* const* items{nullptr};
+        std::uint16_t count{0};
+    };
+
+    const char* list_view_text_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const ListViewTextSource*>(ctx);
+        if (!src || !src->items || src->count == 0) return "";
+        return src->items[index % src->count];
+    }
+
+    struct ListViewIconSource {
+        ui::draw_cmd::ImageId icon{};
+        ui::draw_cmd::ImageId alt{};
+    };
+
+    ui::draw_cmd::ImageId list_view_icon_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const ListViewIconSource*>(ctx);
+        if (!src) return ui::draw_cmd::invalid_image_id();
+        if (index & 1u) return src->alt;
+        return src->icon;
+    }
+
+    struct TableViewTextSource {
+        const char* const* rows{nullptr};
+        std::uint16_t row_count{0};
+        const char* const* cols{nullptr};
+        std::uint8_t col_count{0};
+    };
+
+    const char* table_view_text_at(const void* ctx, std::uint16_t row, std::uint8_t col) noexcept {
+        const auto* src = static_cast<const TableViewTextSource*>(ctx);
+        if (!src || !src->rows || src->row_count == 0) return "";
+        if (col == 0) {
+            return src->rows[row % src->row_count];
+        }
+        if (src->cols && col < src->col_count) {
+            return src->cols[col];
+        }
+        return src->rows[row % src->row_count];
+    }
+
+    struct TreeViewTextSource {
+        const char* const* items{nullptr};
+        std::uint16_t count{0};
+    };
+
+    const char* tree_view_text_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const TreeViewTextSource*>(ctx);
+        if (!src || !src->items || src->count == 0) return "";
+        return src->items[index % src->count];
+    }
+
+    struct TreeViewIndentSource {
+        std::uint8_t mod{0};
+    };
+
+    std::uint8_t tree_view_indent_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const TreeViewIndentSource*>(ctx);
+        if (!src || src->mod == 0) return 0;
+        return static_cast<std::uint8_t>(index % src->mod);
     }
 
     void append_path_icon(ui::draw_cmd::DefaultDrawCmdBuffer& buf, int screen_width) noexcept {
+        ensure_demo_images();
         const int path_y = 24;
         const int path_w = 120;
         const int path_h = 60;
@@ -130,8 +221,8 @@ namespace {
         g_demo_path_points[2] = Point{path_x + path_w, path_y + path_h};
         g_demo_path_points[3] = Point{path_x, path_y + path_h};
         buf.draw_path(g_demo_path_points.data(), 4, false, kDemoPath);
-        buf.draw_icon(Rect{path_x + 44, path_y + 16, 24, 24}, get_test_icon());
-        buf.draw_image_nine_slice(slice_rect, get_slice_image(), 2, 2, 2, 2);
+        buf.draw_icon(Rect{path_x + 44, path_y + 16, 24, 24}, g_test_icon_id);
+        buf.draw_image_nine_slice(slice_rect, g_slice_id, 2, 2, 2, 2);
     }
 
     struct SdlTileBackend {
@@ -187,9 +278,271 @@ namespace {
         }
     };
 
+    constexpr std::uint32_t vcmd_magic() noexcept {
+        return static_cast<std::uint32_t>('V')
+            | (static_cast<std::uint32_t>('C') << 8)
+            | (static_cast<std::uint32_t>('M') << 16)
+            | (static_cast<std::uint32_t>('D') << 24);
+    }
+
+    constexpr std::uint32_t kVcmdVersion = 1;
+    constexpr std::uint32_t kVcmdEndian = 0x01020304u;
+    constexpr std::uint32_t kVcmdFlagHasImages = 1u << 0;
+
+    struct VcmdHeader {
+        std::uint32_t magic{vcmd_magic()};
+        std::uint32_t version{kVcmdVersion};
+        std::uint32_t flags{0};
+        std::uint32_t endian{kVcmdEndian};
+        std::uint32_t screen_w{0};
+        std::uint32_t screen_h{0};
+        std::uint32_t pixel_format{0};
+        std::uint32_t cmd_struct_size{0};
+        std::uint32_t cmd_struct_version{0};
+        std::uint32_t cmd_count{0};
+        std::uint32_t cmd_bytes{0};
+        std::uint32_t text_bytes{0};
+        std::uint32_t blob_bytes{0};
+        std::uint32_t image_count{0};
+        std::uint32_t font_count{0};
+    };
+
+    struct VcmdImageHeader {
+        std::uint16_t slot{0xFFFF};
+        std::uint16_t generation{0};
+        std::uint16_t w{0};
+        std::uint16_t h{0};
+        std::uint32_t stride_bytes{0};
+        std::uint32_t format{0};
+        std::uint8_t premultiplied{0};
+        std::uint8_t force_opaque{0};
+        std::uint16_t reserved{0};
+        std::uint32_t data_bytes{0};
+    };
+
+    bool write_block(std::FILE* file, const void* data, std::size_t bytes) noexcept {
+        if (!file) return false;
+        if (bytes == 0) return true;
+        return std::fwrite(data, 1, bytes, file) == bytes;
+    }
+
+    bool read_block(std::FILE* file, void* data, std::size_t bytes) noexcept {
+        if (!file) return false;
+        if (bytes == 0) return true;
+        return std::fread(data, 1, bytes, file) == bytes;
+    }
+
+    bool dump_cmd_file(const char* path, const ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept {
+        if (!path || !path[0]) return false;
+        std::FILE* file = std::fopen(path, "wb");
+        if (!file) return false;
+        const auto stats = buf.stats();
+
+        std::vector<VcmdImageHeader> image_headers;
+        std::vector<std::vector<std::byte>> image_bytes;
+        const std::size_t cap = ui::draw_cmd::image_registry_capacity();
+        for (std::size_t i = 0; i < cap; ++i) {
+            ui::draw_cmd::ImageRegistryEntry entry{};
+            if (!ui::draw_cmd::image_registry_entry(i, entry)) continue;
+            const ImageView& view = entry.view;
+            if (!view) continue;
+            const std::uint32_t data_bytes =
+                static_cast<std::uint32_t>(view.stride_bytes * view.h);
+            VcmdImageHeader header{};
+            header.slot = entry.id.slot;
+            header.generation = entry.id.generation;
+            header.w = static_cast<std::uint16_t>(view.w);
+            header.h = static_cast<std::uint16_t>(view.h);
+            header.stride_bytes = static_cast<std::uint32_t>(view.stride_bytes);
+            header.format = static_cast<std::uint32_t>(view.format);
+            header.premultiplied = view.premultiplied_alpha ? 1u : 0u;
+            header.force_opaque = view.force_opaque ? 1u : 0u;
+            header.data_bytes = data_bytes;
+            image_headers.push_back(header);
+            image_bytes.emplace_back(view.data, view.data + data_bytes);
+        }
+
+        VcmdHeader header{};
+        header.flags = image_headers.empty() ? 0u : kVcmdFlagHasImages;
+        header.screen_w = static_cast<std::uint32_t>(screen_width);
+        header.screen_h = static_cast<std::uint32_t>(screen_height);
+        header.pixel_format = static_cast<std::uint32_t>(screen_pixel_format);
+        header.cmd_struct_size = ui::draw_cmd::draw_cmd_binary_size();
+        header.cmd_struct_version = ui::draw_cmd::kDrawCmdBinaryVersion;
+        header.cmd_count = static_cast<std::uint32_t>(stats.cmd_count);
+        header.cmd_bytes = static_cast<std::uint32_t>(stats.cmd_bytes);
+        header.text_bytes = static_cast<std::uint32_t>(stats.text_used);
+        header.blob_bytes = static_cast<std::uint32_t>(stats.blob_used);
+        header.image_count = static_cast<std::uint32_t>(image_headers.size());
+        header.font_count = 0;
+
+        bool ok = write_block(file, &header, sizeof(header));
+        ok = ok && write_block(file, buf.data(), header.cmd_bytes);
+        ok = ok && write_block(file, buf.text_data(), header.text_bytes);
+        ok = ok && write_block(file, buf.blob_data(), header.blob_bytes);
+        for (std::size_t i = 0; ok && i < image_headers.size(); ++i) {
+            ok = ok && write_block(file, &image_headers[i], sizeof(VcmdImageHeader));
+            ok = ok && write_block(file, image_bytes[i].data(), image_bytes[i].size());
+        }
+
+        std::fclose(file);
+        return ok;
+    }
+
+    bool replay_cmd_file(const char* path,
+                         DefaultFrameBuffer& fb,
+                         DefaultCanvas& canvas,
+                         SdlTileBackend& tile_backend,
+                         const FrameBufferView& tile_view,
+                         const ui::draw_cmd::DrawCmdTileConfig& tile_config,
+                         bool use_tiles,
+                         std::uint32_t* out_hash = nullptr) noexcept {
+        if (!path || !path[0]) return false;
+        std::FILE* file = std::fopen(path, "rb");
+        if (!file) return false;
+
+        VcmdHeader header{};
+        if (!read_block(file, &header, sizeof(header))) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.magic != vcmd_magic() || header.version != kVcmdVersion) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.endian != kVcmdEndian) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.screen_w != static_cast<std::uint32_t>(screen_width)
+            || header.screen_h != static_cast<std::uint32_t>(screen_height)) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.pixel_format != static_cast<std::uint32_t>(screen_pixel_format)) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.cmd_struct_size != ui::draw_cmd::draw_cmd_binary_size()
+            || header.cmd_struct_version != ui::draw_cmd::kDrawCmdBinaryVersion) {
+            std::fclose(file);
+            return false;
+        }
+        if (header.cmd_bytes != header.cmd_count * sizeof(ui::draw_cmd::DrawCmd)) {
+            std::fclose(file);
+            return false;
+        }
+
+        std::vector<ui::draw_cmd::DrawCmd> cmds(header.cmd_count);
+        std::vector<char> text(header.text_bytes);
+        std::vector<std::byte> blob(header.blob_bytes);
+
+        if (!read_block(file, cmds.data(), header.cmd_bytes)) {
+            std::fclose(file);
+            return false;
+        }
+        if (!read_block(file, text.data(), header.text_bytes)) {
+            std::fclose(file);
+            return false;
+        }
+        if (!read_block(file, blob.data(), header.blob_bytes)) {
+            std::fclose(file);
+            return false;
+        }
+
+        ui::draw_cmd::clear_image_registry();
+        static std::vector<std::vector<std::byte>> g_image_store;
+        g_image_store.clear();
+        for (std::uint32_t i = 0; i < header.image_count; ++i) {
+            VcmdImageHeader img{};
+            if (!read_block(file, &img, sizeof(img))) {
+                std::fclose(file);
+                return false;
+            }
+            std::vector<std::byte> pixels(img.data_bytes);
+            if (!read_block(file, pixels.data(), pixels.size())) {
+                std::fclose(file);
+                return false;
+            }
+            g_image_store.emplace_back(std::move(pixels));
+            const auto& stored = g_image_store.back();
+            ImageView view = make_image_view(
+                static_cast<PixelFormat>(img.format),
+                img.w,
+                img.h,
+                static_cast<int>(img.stride_bytes),
+                stored.data(),
+                img.premultiplied != 0,
+                img.force_opaque != 0);
+            ui::draw_cmd::ImageId id{img.slot, img.generation};
+            if (!ui::draw_cmd::register_image_with_id(id, view)) {
+                std::fclose(file);
+                return false;
+            }
+        }
+
+        for (const auto& cmd : cmds) {
+            if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
+                const std::size_t end = static_cast<std::size_t>(cmd.text.offset) + cmd.text.length;
+                if (end > text.size()) {
+                    return false;
+                }
+            }
+            if (cmd.type == ui::draw_cmd::CmdType::DrawPath) {
+                const std::size_t end = static_cast<std::size_t>(cmd.blob.offset) + cmd.blob.length;
+                if (end > blob.size()) {
+                    return false;
+                }
+            }
+            if ((cmd.type == ui::draw_cmd::CmdType::DrawImage
+                || cmd.type == ui::draw_cmd::CmdType::DrawImageNineSlice)
+                && !ui::draw_cmd::image_id_valid(cmd.image)) {
+                return false;
+            }
+        }
+
+        std::fclose(file);
+
+        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
+        if (!buf.load(cmds.data(),
+                      cmds.size(),
+                      text.data(),
+                      text.size(),
+                      blob.data(),
+                      blob.size())) {
+            return false;
+        }
+
+        ui::draw_cmd::DrawCmdExecutor exec{};
+        fb.clear(kDemoBg);
+        ui::draw_cmd::DrawCmdExecStats exec_stats{};
+        if (use_tiles) {
+            canvas.begin_frame();
+            exec_stats = exec.execute(canvas, buf);
+            canvas.end_frame();
+            fb.clear(kDemoBg);
+            (void)exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
+        } else {
+            canvas.begin_frame();
+            exec_stats = exec.execute(canvas, buf);
+            canvas.end_frame();
+        }
+        if (exec_stats.failed_cmds != 0) return false;
+        const std::uint32_t hash = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+        if (out_hash) {
+            *out_hash = hash;
+        }
+        (void)out::println<"[soa] replay hash=0x{:08X} backend={}">(
+            g_console,
+            static_cast<unsigned>(hash),
+            use_tiles ? "tile" : "full");
+        return true;
+    }
+
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 5670;
+    constexpr std::size_t kMaxStyleTableBytes = 5850;
     std::FILE* g_regress_log = nullptr;
+    bool g_payload_stats_dumped = false;
 
     const char* event_type_name(Event::Type type) noexcept {
         switch (type) {
@@ -218,6 +571,8 @@ namespace {
         return a.kind == b.kind && a.index == b.index && a.generation == b.generation;
     }
 
+    void dump_payload_stats(const soa_detail::PayloadStats& stats);
+
     int find_event_index(const SoaKernel& kernel, Event::Type type, WidgetHandle target = {}) noexcept {
         const std::size_t count = kernel.input_event_count();
         for (std::size_t i = 0; i < count; ++i) {
@@ -243,7 +598,7 @@ namespace {
 
     bool expect_true(bool cond, const char* label, int& fails) noexcept {
         if (cond) return true;
-        (void)out::println<"[soa][fail] {}">(label);
+        (void)out::println<"[soa][fail] {}">(g_console, label);
         if (g_regress_log) {
             std::fprintf(g_regress_log, "[soa][fail] %s\n", label);
         }
@@ -255,11 +610,12 @@ namespace {
         const std::size_t count = kernel.input_event_count();
         if (count == 0 && !kernel.input_events_overflowed()) return;
         if (kernel.input_events_overflowed()) {
-            (void)out::println<"[soa] input overflow">();
+            (void)out::println<"[soa] input overflow">(g_console);
         }
         for (std::size_t i = 0; i < count; ++i) {
             const auto& item = kernel.input_event(i);
             (void)out::println<"[soa] ev: kind={} idx={} gen={} type={} x={} y={} dx={} dy={}">(
+                g_console,
                 widget_kind_name(item.target.kind),
                 static_cast<int>(item.target.index),
                 static_cast<int>(item.target.generation),
@@ -367,8 +723,60 @@ namespace {
         kernel.destroy(c);
         kernel.destroy(test_root3);
 
+        expect_true(!kernel.payload_overflowed(), "regress: payload pool overflowed", fails);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log, "[soa] payload_overflowed=%u\n",
+                         kernel.payload_overflowed() ? 1u : 0u);
+        }
+        expect_true(!kernel.text_overflowed(), "regress: text arena overflowed", fails);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log, "[soa] text_overflowed=%u\n",
+                         kernel.text_overflowed() ? 1u : 0u);
+        }
+
+        const auto payload_stats = kernel.payload_stats();
+        const std::uint32_t total_peak =
+            payload_stats.label.peak
+            + payload_stats.button.peak
+            + payload_stats.image.peak
+            + payload_stats.checkbox.peak
+            + payload_stats.radio.peak
+            + payload_stats.list_item.peak
+            + payload_stats.text_list.peak
+            + payload_stats.list_view.peak
+            + payload_stats.table_view.peak
+            + payload_stats.tree_view.peak
+            + payload_stats.switcher.peak
+            + payload_stats.slider.peak
+            + payload_stats.progress.peak
+            + payload_stats.scrollbar.peak
+            + payload_stats.list.peak
+            + payload_stats.scroll_container.peak
+            + payload_stats.spinner.peak;
+        const std::uint32_t total_fail =
+            payload_stats.label.alloc_fail
+            + payload_stats.button.alloc_fail
+            + payload_stats.image.alloc_fail
+            + payload_stats.checkbox.alloc_fail
+            + payload_stats.radio.alloc_fail
+            + payload_stats.list_item.alloc_fail
+            + payload_stats.text_list.alloc_fail
+            + payload_stats.list_view.alloc_fail
+            + payload_stats.table_view.alloc_fail
+            + payload_stats.tree_view.alloc_fail
+            + payload_stats.switcher.alloc_fail
+            + payload_stats.slider.alloc_fail
+            + payload_stats.progress.alloc_fail
+            + payload_stats.scrollbar.alloc_fail
+            + payload_stats.list.alloc_fail
+            + payload_stats.scroll_container.alloc_fail
+            + payload_stats.spinner.alloc_fail;
+        expect_true(total_peak > 0, "regress: payload peak all zero", fails);
+        expect_true(total_fail == 0, "regress: payload alloc failed", fails);
+        dump_payload_stats(payload_stats);
+
         if (fails == 0) {
-            (void)out::println<"[soa] input regression OK">();
+            (void)out::println<"[soa] input regression OK">(g_console);
         }
         return fails == 0;
     }
@@ -542,7 +950,403 @@ namespace {
         kernel.destroy(layout_root);
 
         if (fails == 0) {
-            (void)out::println<"[soa] layout regression OK">();
+            (void)out::println<"[soa] layout regression OK">(g_console);
+        }
+        return fails == 0;
+    }
+
+    bool run_ui_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
+        int fails = 0;
+        auto tab_root = factory.create_container();
+        auto tab_bar = factory.create_tab_bar();
+        auto menu = factory.create_menu();
+        auto menu_item_a = factory.create_menu_item("New");
+        auto menu_item_b = factory.create_menu_item("Open");
+        auto menu_item_c = factory.create_menu_item("Save");
+        factory.link(root, tab_root);
+        factory.link(tab_root, tab_bar);
+        factory.link(tab_root, menu);
+        factory.link(menu, menu_item_a);
+        factory.link(menu, menu_item_b);
+        factory.link(menu, menu_item_c);
+
+        kernel.set_rect(tab_root, {240, 420, 200, 140});
+        kernel.set_rect(tab_bar, {10, 10, 180, 28});
+        kernel.set_rect(menu, {10, 48, 180, 80});
+        kernel.set_rect(menu_item_a, {0, 0, 180, 24});
+        kernel.set_rect(menu_item_b, {0, 28, 180, 24});
+        kernel.set_rect(menu_item_c, {0, 56, 180, 24});
+        factory.set_tab_bar_label(tab_bar, 0, "Home");
+        factory.set_tab_bar_label(tab_bar, 1, "Stats");
+        factory.set_tab_bar_label(tab_bar, 2, "Setup");
+        factory.set_tab_bar_selected(tab_bar, 0);
+        kernel.set_checked(menu_item_a, true);
+        auto progress = factory.create_progress();
+        factory.link(tab_root, progress);
+        kernel.set_rect(progress, {10, 110, 180, 12});
+        kernel.set_range(progress, 0, 100);
+        kernel.set_value(progress, 10);
+        gui.render();
+
+        const Rect tab_root_r = kernel.rect(tab_root);
+        const Rect tab_r = kernel.rect(tab_bar);
+        const int tab_abs_x = tab_root_r.x + tab_r.x;
+        const int tab_abs_y = tab_root_r.y + tab_r.y;
+        const int seg_w = (tab_r.w > 0) ? (tab_r.w / 3) : 0;
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, tab_abs_x + seg_w + 6, tab_abs_y + 8, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, tab_abs_x + seg_w + 6, tab_abs_y + 8, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, tab_abs_x + seg_w + 6, tab_abs_y + 8, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: tab select invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: tab select pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "ui: tab select missing paint", fails);
+        expect_true(kernel.segmented_selected(tab_bar) == 1, "ui: tab select not applied", fails);
+
+        const Rect menu_r = kernel.rect(menu);
+        const Rect item_b_r = kernel.rect(menu_item_b);
+        const Rect item_c_r = kernel.rect(menu_item_c);
+        const int menu_abs_x = tab_root_r.x + menu_r.x;
+        const int menu_abs_y = tab_root_r.y + menu_r.y;
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove,
+                                        menu_abs_x + item_b_r.x + 6,
+                                        menu_abs_y + item_b_r.y + 8,
+                                        0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown,
+                                        menu_abs_x + item_b_r.x + 6,
+                                        menu_abs_y + item_b_r.y + 8,
+                                        1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp,
+                                        menu_abs_x + item_b_r.x + 6,
+                                        menu_abs_y + item_b_r.y + 8,
+                                        1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: menu select invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: menu select pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "ui: menu select missing paint", fails);
+        expect_true(kernel.checked(menu_item_b), "ui: menu select not applied", fails);
+        expect_true(!kernel.checked(menu_item_a), "ui: menu select not exclusive", fails);
+
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown,
+                                        menu_abs_x + item_c_r.x + 6,
+                                        menu_abs_y + item_c_r.y + 8,
+                                        1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp,
+                                        menu_abs_x + item_c_r.x + 6,
+                                        menu_abs_y + item_c_r.y + 8,
+                                        1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: menu switch invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: menu switch pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "ui: menu switch missing paint", fails);
+        expect_true(kernel.checked(menu_item_c), "ui: menu switch not applied", fails);
+        expect_true(!kernel.checked(menu_item_b), "ui: menu switch not exclusive", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress, 60);
+        gui.render();
+        const std::uint32_t paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress pass", fails);
+        expect_true(paint_after > paint_before, "ui: progress missing paint", fails);
+
+        kernel.destroy(progress);
+        kernel.destroy(menu_item_c);
+        kernel.destroy(menu_item_b);
+        kernel.destroy(menu_item_a);
+        kernel.destroy(menu);
+        kernel.destroy(tab_bar);
+        kernel.destroy(tab_root);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] ui regression OK">(g_console);
+        }
+        return fails == 0;
+    }
+
+    bool run_list_view_regression(SoaGui& gui,
+                                  SoaKernel& kernel,
+                                  SoaFactory& factory,
+                                  WidgetHandle root,
+                                  DefaultFrameBuffer& fb,
+                                  DefaultCanvas& canvas,
+                                  SdlTileBackend& tile_backend,
+                                  const FrameBufferView& tile_view,
+                                  const ui::draw_cmd::DrawCmdTileConfig& tile_config) noexcept {
+        int fails = 0;
+        const auto stats_before = kernel.payload_stats();
+        const std::uint16_t list_item_peak_before = stats_before.list_item.peak;
+        const std::uint32_t list_item_fail_before = stats_before.list_item.alloc_fail;
+        const std::uint32_t list_view_fail_before = stats_before.list_view.alloc_fail;
+
+        ensure_demo_images();
+        auto list_root = factory.create_container();
+        auto list_view = factory.create_list_view();
+        factory.link(root, list_root);
+        factory.link(list_root, list_view);
+
+        kernel.set_rect(list_root, {screen_width - 260, 60, 220, 200});
+        kernel.set_rect(list_view, {0, 0, 200, 200});
+        kernel.set_list_row_height(list_view, 24);
+        kernel.set_scroll_step(list_view, 24);
+
+        static const char* list_items[] = {
+            "Alpha", "Beta", "Gamma", "Delta",
+            "Epsilon", "Zeta", "Eta", "Theta"
+        };
+        static const ListViewTextSource list_source{
+            list_items,
+            static_cast<std::uint16_t>(sizeof(list_items) / sizeof(list_items[0]))
+        };
+        static const ListViewIconSource icon_source{
+            g_test_icon_id,
+            g_slice_id
+        };
+        factory.set_list_view_source(list_view, 1000, &list_source, &list_view_text_at);
+        factory.set_list_view_icon_source(list_view, &icon_source, &list_view_icon_at, 18);
+        gui.render();
+        expect_true(gui.last_exec_stats().failed_cmds == 0, "listview: failed_cmds", fails);
+
+        const auto stats_after_create = kernel.payload_stats();
+        const std::uint16_t expected_peak =
+            static_cast<std::uint16_t>(stats_before.list_view.peak + 1u);
+        expect_true(stats_after_create.list_view.peak == expected_peak,
+            "listview: peak count mismatch", fails);
+        expect_true(stats_after_create.list_item.peak == list_item_peak_before,
+            "listview: list_item peak changed", fails);
+        expect_true(stats_after_create.list_item.alloc_fail == list_item_fail_before,
+            "listview: list_item alloc failed", fails);
+        expect_true(stats_after_create.list_view.alloc_fail == list_view_fail_before,
+            "listview: list_view alloc failed", fails);
+        expect_true(!stats_after_create.overflowed, "listview: payload overflowed", fails);
+        expect_true(!stats_after_create.text_overflowed, "listview: text overflowed", fails);
+
+        const Rect root_rect = kernel.rect(list_root);
+        const Rect view_rect = kernel.rect(list_view);
+        const int hit_x = root_rect.x + view_rect.x + 8;
+        const int hit_y = root_rect.y + view_rect.y + 8;
+        const int row_h = kernel.list_row_height(list_view);
+
+        const int before_scroll = kernel.scroll_y(list_view);
+        kernel.layout_trace_reset();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hit_x, hit_y, 0));
+        gui.dispatch_event(Event::wheel(hit_x, hit_y, -6));
+        gui.render();
+        const int after_scroll = kernel.scroll_y(list_view);
+        expect_true(after_scroll != before_scroll, "listview: wheel did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: wheel missing paint", fails);
+
+        const auto cmd_stats = gui.last_cmd_stats();
+        expect_true(!cmd_stats.cmd_overflowed, "listview: cmd overflowed", fails);
+        expect_true(!cmd_stats.text_overflowed, "listview: text overflowed", fails);
+        expect_true(!cmd_stats.blob_overflowed, "listview: blob overflowed", fails);
+
+        kernel.layout_trace_reset();
+        const int drag_before = kernel.scroll_y(list_view);
+        const int drag_y = hit_y + row_h;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hit_x, drag_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hit_x, drag_y - row_h * 4, 0));
+        gui.render();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hit_x, drag_y - row_h * 4, 1));
+        const int drag_after = kernel.scroll_y(list_view);
+        expect_true(drag_after != drag_before, "listview: drag did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: drag invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: drag pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: drag missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const int select_y = hit_y + row_h * 2;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hit_x, select_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hit_x, select_y, 1));
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: select invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: select pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: select missing paint", fails);
+        expect_true(kernel.list_view_selected(list_view) >= 0, "listview: select not applied", fails);
+
+        kernel.layout_trace_reset();
+        const int far_scroll = row_h * 200;
+        kernel.set_scroll_y_clamped(list_view, far_scroll);
+        gui.render();
+        expect_true(kernel.layout_invalidated_count() == 0, "listview: far scroll invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "listview: far scroll pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "listview: far scroll missing paint", fails);
+
+        const auto stats_after_scroll = kernel.payload_stats();
+        expect_true(stats_after_scroll.list_view.peak == expected_peak,
+            "listview: peak changed on scroll", fails);
+        expect_true(stats_after_scroll.list_item.peak == list_item_peak_before,
+            "listview: list_item peak changed on scroll", fails);
+        expect_true(stats_after_scroll.list_item.alloc_fail == list_item_fail_before,
+            "listview: list_item alloc failed on scroll", fails);
+        expect_true(stats_after_scroll.list_view.alloc_fail == list_view_fail_before,
+            "listview: list_view alloc failed on scroll", fails);
+        expect_true(!stats_after_scroll.overflowed, "listview: payload overflowed on scroll", fails);
+        expect_true(!stats_after_scroll.text_overflowed, "listview: text overflowed on scroll", fails);
+
+        kernel.destroy(list_view);
+        kernel.destroy(list_root);
+
+        if (fails == 0) {
+            ui::draw_cmd::DefaultDrawCmdBuffer dump_buf{};
+            gui.record_commands(dump_buf);
+            const char* temp_dir = std::getenv("TEMP");
+            char dump_path[512]{};
+            if (temp_dir && temp_dir[0]) {
+                std::snprintf(dump_path, sizeof(dump_path), "%s\\soa_iconlist.vcmd", temp_dir);
+            } else {
+                std::snprintf(dump_path, sizeof(dump_path), "soa_iconlist.vcmd");
+            }
+            if (!dump_cmd_file(dump_path, dump_buf)) {
+                expect_true(false, "listview: dump_cmd_file failed", fails);
+            } else if (!replay_cmd_file(dump_path, fb, canvas, tile_backend, tile_view, tile_config, false, nullptr)) {
+                expect_true(false, "listview: replay full failed", fails);
+            } else if (!replay_cmd_file(dump_path, fb, canvas, tile_backend, tile_view, tile_config, true, nullptr)) {
+                expect_true(false, "listview: replay tile failed", fails);
+            }
+        }
+
+        if (fails == 0) {
+            (void)out::println<"[soa] listview regression OK">(g_console);
+        }
+        return fails == 0;
+    }
+
+    bool run_table_tree_regression(SoaGui& gui,
+                                   SoaKernel& kernel,
+                                   SoaFactory& factory,
+                                   WidgetHandle root) noexcept {
+        int fails = 0;
+        const auto stats_before = kernel.payload_stats();
+        const std::uint16_t table_peak_before = stats_before.table_view.peak;
+        const std::uint16_t tree_peak_before = stats_before.tree_view.peak;
+        const std::uint16_t list_item_peak_before = stats_before.list_item.peak;
+        const std::uint32_t table_fail_before = stats_before.table_view.alloc_fail;
+        const std::uint32_t tree_fail_before = stats_before.tree_view.alloc_fail;
+        const std::uint32_t list_item_fail_before = stats_before.list_item.alloc_fail;
+
+        auto table_root = factory.create_container();
+        auto table_view = factory.create_table_view();
+        auto tree_root = factory.create_container();
+        auto tree_view = factory.create_tree_view();
+        factory.link(root, table_root);
+        factory.link(table_root, table_view);
+        factory.link(root, tree_root);
+        factory.link(tree_root, tree_view);
+
+        kernel.set_rect(table_root, {screen_width - 260, 280, 220, 200});
+        kernel.set_rect(table_view, {0, 0, 200, 200});
+        kernel.set_rect(tree_root, {screen_width - 260, 500, 220, 200});
+        kernel.set_rect(tree_view, {0, 0, 200, 200});
+        kernel.set_list_row_height(table_view, 24);
+        kernel.set_list_row_height(tree_view, 24);
+        kernel.set_scroll_step(table_view, 24);
+        kernel.set_scroll_step(tree_view, 24);
+
+        static const char* table_rows[] = {
+            "Alpha", "Beta", "Gamma", "Delta",
+            "Epsilon", "Zeta", "Eta", "Theta"
+        };
+        static const char* table_cols[] = {
+            "ID", "Name", "State", "Value"
+        };
+        static const TableViewTextSource table_source{
+            table_rows,
+            static_cast<std::uint16_t>(sizeof(table_rows) / sizeof(table_rows[0])),
+            table_cols,
+            static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
+        };
+        factory.set_table_view_source(table_view, 1000, 8, &table_source, &table_view_text_at);
+        factory.set_table_view_col_width(table_view, 96);
+
+        static const char* tree_items[] = {
+            "Root", "Alpha", "Beta", "Gamma",
+            "Delta", "Epsilon", "Zeta", "Eta"
+        };
+        static const TreeViewTextSource tree_source{
+            tree_items,
+            static_cast<std::uint16_t>(sizeof(tree_items) / sizeof(tree_items[0]))
+        };
+        static const TreeViewIndentSource tree_indent{3};
+        factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
+                                     &tree_indent, &tree_view_indent_at);
+
+        gui.render();
+        expect_true(gui.last_exec_stats().failed_cmds == 0, "tabletree: failed_cmds", fails);
+
+        const auto stats_after_create = kernel.payload_stats();
+        expect_true(stats_after_create.table_view.peak == static_cast<std::uint16_t>(table_peak_before + 1u),
+            "tableview: peak count mismatch", fails);
+        expect_true(stats_after_create.tree_view.peak == static_cast<std::uint16_t>(tree_peak_before + 1u),
+            "treeview: peak count mismatch", fails);
+        expect_true(stats_after_create.list_item.peak == list_item_peak_before,
+            "tabletree: list_item peak changed", fails);
+        expect_true(stats_after_create.table_view.alloc_fail == table_fail_before,
+            "tableview: alloc failed", fails);
+        expect_true(stats_after_create.tree_view.alloc_fail == tree_fail_before,
+            "treeview: alloc failed", fails);
+        expect_true(stats_after_create.list_item.alloc_fail == list_item_fail_before,
+            "tabletree: list_item alloc failed", fails);
+        expect_true(!stats_after_create.overflowed, "tabletree: payload overflowed", fails);
+        expect_true(!stats_after_create.text_overflowed, "tabletree: text overflowed", fails);
+
+        const Rect table_root_r = kernel.rect(table_root);
+        const Rect table_r = kernel.rect(table_view);
+        const int table_hit_x = table_root_r.x + table_r.x + 8;
+        const int table_hit_y = table_root_r.y + table_r.y + 8;
+
+        kernel.layout_trace_reset();
+        const int table_before = kernel.scroll_y(table_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, table_hit_x, table_hit_y, 0));
+        gui.dispatch_event(Event::wheel(table_hit_x, table_hit_y, -6));
+        gui.render();
+        const int table_after = kernel.scroll_y(table_view);
+        expect_true(table_after != table_before, "tableview: wheel did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const Rect tree_root_r = kernel.rect(tree_root);
+        const Rect tree_r = kernel.rect(tree_view);
+        const int tree_hit_x = tree_root_r.x + tree_r.x + 8;
+        const int tree_hit_y = tree_root_r.y + tree_r.y + 8;
+        const int tree_before = kernel.scroll_y(tree_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, tree_hit_x, tree_hit_y, 0));
+        gui.dispatch_event(Event::wheel(tree_hit_x, tree_hit_y, -6));
+        gui.render();
+        const int tree_after = kernel.scroll_y(tree_view);
+        expect_true(tree_after != tree_before, "treeview: wheel did not scroll", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "treeview: wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "treeview: wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "treeview: wheel missing paint", fails);
+
+        const auto stats_after_scroll = kernel.payload_stats();
+        expect_true(stats_after_scroll.table_view.peak == stats_after_create.table_view.peak,
+            "tableview: peak changed on scroll", fails);
+        expect_true(stats_after_scroll.tree_view.peak == stats_after_create.tree_view.peak,
+            "treeview: peak changed on scroll", fails);
+        expect_true(stats_after_scroll.list_item.peak == list_item_peak_before,
+            "tabletree: list_item peak changed on scroll", fails);
+        expect_true(stats_after_scroll.table_view.alloc_fail == table_fail_before,
+            "tableview: alloc failed on scroll", fails);
+        expect_true(stats_after_scroll.tree_view.alloc_fail == tree_fail_before,
+            "treeview: alloc failed on scroll", fails);
+        expect_true(!stats_after_scroll.overflowed, "tabletree: payload overflowed on scroll", fails);
+        expect_true(!stats_after_scroll.text_overflowed, "tabletree: text overflowed on scroll", fails);
+
+        kernel.destroy(table_view);
+        kernel.destroy(table_root);
+        kernel.destroy(tree_view);
+        kernel.destroy(tree_root);
+
+        if (fails == 0) {
+            (void)out::println<"[soa] table/tree regression OK">(g_console);
         }
         return fails == 0;
     }
@@ -569,6 +1373,7 @@ namespace {
 
         const StyleStats stats = sheet.style_stats();
         (void)out::println<"[soa] style bytes: colors={} metrics_id={} pool={} total={} pool_size={}">(
+            g_console,
             static_cast<std::uint32_t>(stats.style_colors_bytes),
             static_cast<std::uint32_t>(stats.style_metrics_id_bytes),
             static_cast<std::uint32_t>(stats.metrics_pool_bytes),
@@ -592,6 +1397,7 @@ namespace {
         for (WidgetKind kind : enabled_widget_kinds) {
             const StyleKindStateInfo info = sheet.style_kind_state_info(kind);
             (void)out::println<"[soa] style kind={} mask=0x{:02X} states={} offset={} variants={} v_offset={}">(
+                g_console,
                 widget_kind_name(kind),
                 static_cast<int>(info.mask),
                 static_cast<int>(info.state_count),
@@ -611,9 +1417,50 @@ namespace {
         }
 
         if (fails == 0) {
-            (void)out::println<"[soa] style regression OK">();
+            (void)out::println<"[soa] style regression OK">(g_console);
         }
         return fails == 0;
+    }
+
+    void dump_payload_stats(const soa_detail::PayloadStats& stats) {
+        if (g_payload_stats_dumped) return;
+        g_payload_stats_dumped = true;
+        auto dump = [&](const char* name, const soa_detail::PayloadPoolStats& s) {
+            (void)out::println<"[soa] payload {} cap={} peak={} fail={}">(
+                g_console,
+                name,
+                static_cast<std::uint32_t>(s.cap),
+                static_cast<std::uint32_t>(s.peak),
+                static_cast<std::uint32_t>(s.alloc_fail));
+        };
+        dump("Label", stats.label);
+        dump("Button", stats.button);
+        dump("Image", stats.image);
+        dump("TextInput", stats.text_input);
+        dump("TextArea", stats.text_area);
+        dump("NumberInput", stats.number_input);
+        dump("SegmentedControl", stats.segmented);
+        dump("ToggleGroup", stats.toggle_group);
+        dump("Checkbox", stats.checkbox);
+        dump("Radio", stats.radio);
+        dump("ListItem", stats.list_item);
+        dump("TextList", stats.text_list);
+        dump("ListView", stats.list_view);
+        dump("TableView", stats.table_view);
+        dump("TreeView", stats.tree_view);
+        dump("Switch", stats.switcher);
+        dump("Slider", stats.slider);
+        dump("Progress", stats.progress);
+        dump("ScrollBar", stats.scrollbar);
+        dump("List", stats.list);
+        dump("ScrollContainer", stats.scroll_container);
+        dump("Spinner", stats.spinner);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log,
+                         "[soa] payload_overflowed=%u text_overflowed=%u\n",
+                         stats.overflowed ? 1u : 0u,
+                         stats.text_overflowed ? 1u : 0u);
+        }
     }
 #endif
 }
@@ -621,9 +1468,18 @@ namespace {
 int main(int argc, char** argv) {
     bool run_regress = false;
     bool run_regress_layout = false;
+    bool run_regress_ui = false;
     bool use_tiles = false;
     bool print_stats = false;
     bool run_compare = false;
+    bool run_dump = false;
+    bool run_replay = false;
+    bool run_ci = false;
+    bool selftest_dedup = false;
+    bool replay_use_tiles = false;
+    bool replay_backend_set = false;
+    std::string dump_cmd_path{};
+    std::string replay_cmd_path{};
 #if defined(VIVID_SOA_TRACE_INPUT)
     char log_path[512]{};
     const char* temp_dir = std::getenv("TEMP");
@@ -642,6 +1498,30 @@ int main(int argc, char** argv) {
             print_stats = true;
         } else if (arg == "--soa-compare") {
             run_compare = true;
+        } else if (arg == "--soa-ci") {
+            run_ci = true;
+            run_compare = true;
+            run_dump = true;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            run_regress = true;
+            run_regress_layout = true;
+#endif
+        } else if (arg == "--regress-ui") {
+            run_regress_ui = true;
+        } else if (arg == "--selftest-dedup") {
+            selftest_dedup = true;
+        } else if (arg.rfind("--dump-cmd=", 0) == 0) {
+            run_dump = true;
+            dump_cmd_path = std::string(arg.substr(11));
+        } else if (arg.rfind("--replay-cmd=", 0) == 0) {
+            run_replay = true;
+            replay_cmd_path = std::string(arg.substr(13));
+        } else if (arg == "--backend=tile") {
+            replay_use_tiles = true;
+            replay_backend_set = true;
+        } else if (arg == "--backend=full") {
+            replay_use_tiles = false;
+            replay_backend_set = true;
         }
 #if defined(VIVID_SOA_TRACE_INPUT)
         else if (arg == "--soa-regress") {
@@ -652,16 +1532,35 @@ int main(int argc, char** argv) {
         }
 #endif
     }
+    if (run_ci && dump_cmd_path.empty()) {
+        const char* temp_dir = std::getenv("TEMP");
+        if (temp_dir && temp_dir[0]) {
+            dump_cmd_path = std::string(temp_dir) + "\\soa_ci.vcmd";
+        } else {
+            dump_cmd_path = "soa_ci.vcmd";
+        }
+    }
+    if (run_replay && !replay_backend_set) {
+        replay_use_tiles = use_tiles;
+    }
+#if !defined(VIVID_SOA_TRACE_INPUT)
+    if (run_ci) {
+        (void)out::println<"[soa-ci] ok=0 reason=trace_disabled">(g_console);
+        return 1;
+    }
+#endif
 #if defined(VIVID_SOA_TRACE_INPUT)
-    if (run_regress || run_regress_layout) {
+    if (run_regress || run_regress_layout || run_regress_ui) {
         run_compare = true;
     }
 #endif
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (g_regress_log) {
         std::fprintf(g_regress_log, "[soa] log_path=%s\n", log_path);
-        std::fprintf(g_regress_log, "[soa] regress=%u layout=%u\n",
-                     run_regress ? 1u : 0u, run_regress_layout ? 1u : 0u);
+        std::fprintf(g_regress_log, "[soa] regress=%u layout=%u ui=%u\n",
+                     run_regress ? 1u : 0u,
+                     run_regress_layout ? 1u : 0u,
+                     run_regress_ui ? 1u : 0u);
     }
     auto close_regress_log = []() noexcept {
         if (g_regress_log) {
@@ -670,8 +1569,10 @@ int main(int argc, char** argv) {
         }
     };
 #endif
+    g_selftest_dedup = selftest_dedup;
     apply_ios_light_preset();
-    const bool run_headless = run_regress || run_regress_layout || run_compare;
+    const bool run_headless =
+        run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay;
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -699,54 +1600,170 @@ int main(int argc, char** argv) {
 
     auto title = factory.create_label("SoA Kernel Demo");
     auto btn = factory.create_button("Press");
+    auto image_view = factory.create_image();
+    auto spinner = factory.create_spinner();
     auto sw = factory.create_switch();
     auto checkbox = factory.create_checkbox("Checkbox");
     auto radio = factory.create_radio("Radio");
+    auto segmented = factory.create_segmented_control();
+    auto tab_bar = factory.create_tab_bar();
     auto slider = factory.create_slider();
     auto progress = factory.create_progress();
-    auto list = factory.create_list();
-    auto list_scroll = factory.create_scrollbar_for(list);
+    auto toggle_group = factory.create_toggle_group();
+    auto tg_a = factory.create_checkbox("Option A");
+    auto tg_b = factory.create_checkbox("Option B");
+    auto tg_c = factory.create_checkbox("Option C");
+    auto list_view = factory.create_icon_list();
+    auto list_scroll = factory.create_scrollbar_for(list_view);
+    auto text_list = factory.create_text_list();
+    auto text_list_scroll = factory.create_scrollbar_for(text_list);
     auto scroll = factory.create_scroll_container();
     auto scroll_scroll = factory.create_scrollbar_for(scroll);
+    auto table_view = factory.create_table_view();
+    auto tree_view = factory.create_tree_view();
+    auto menu = factory.create_menu();
+    auto menu_item_a = factory.create_menu_item("New");
+    auto menu_item_b = factory.create_menu_item("Open");
+    auto menu_item_c = factory.create_menu_item("Save");
+
+    ensure_demo_images();
+    factory.set_button_icon(btn, g_test_icon_id);
+    factory.set_button_icon_size(btn, 18);
+    factory.set_image(image_view, g_slice_id);
 
     factory.link(root, title);
     factory.link(root, btn);
+    factory.link(root, image_view);
+    factory.link(root, spinner);
     factory.link(root, sw);
     factory.link(root, checkbox);
     factory.link(root, radio);
+    factory.link(root, segmented);
+    factory.link(root, tab_bar);
+    factory.link(root, toggle_group);
     factory.link(root, slider);
     factory.link(root, progress);
-    factory.link(root, list);
+    factory.link(root, list_view);
     factory.link(root, list_scroll);
+    factory.link(root, text_list);
+    factory.link(root, text_list_scroll);
     factory.link(root, scroll);
     factory.link(root, scroll_scroll);
+    factory.link(root, table_view);
+    factory.link(root, tree_view);
+    factory.link(root, menu);
+    factory.link(toggle_group, tg_a);
+    factory.link(toggle_group, tg_b);
+    factory.link(toggle_group, tg_c);
+    factory.link(menu, menu_item_a);
+    factory.link(menu, menu_item_b);
+    factory.link(menu, menu_item_c);
 
     kernel.set_rect(title, {24, 16, screen_width - 48, 24});
     kernel.set_rect(btn, {24, 60, 160, 40});
+    kernel.set_rect(image_view, {200, 60, 32, 32});
+    kernel.set_rect(spinner, {200, 104, 24, 24});
     kernel.set_rect(sw, {24, 112, 96, 32});
     kernel.set_rect(checkbox, {24, 160, 200, 32});
     kernel.set_rect(radio, {24, 200, 200, 32});
-    kernel.set_rect(slider, {24, 250, 280, 24});
-    kernel.set_rect(progress, {24, 290, 280, 18});
-    kernel.set_rect(list, {24, 340, 200, 200});
-    kernel.set_rect(list_scroll, {230, 340, 12, 200});
-    kernel.set_rect(scroll, {250, 340, 200, 200});
-    kernel.set_rect(scroll_scroll, {456, 340, 12, 200});
+    kernel.set_rect(segmented, {24, 240, 280, 32});
+    kernel.set_rect(tab_bar, {24, 352, 280, 24});
+    kernel.set_rect(slider, {24, 290, 280, 24});
+    kernel.set_rect(progress, {24, 330, 280, 18});
+    kernel.set_rect(list_view, {24, 380, 200, 200});
+    kernel.set_rect(list_scroll, {230, 380, 12, 200});
+    kernel.set_rect(text_list, {250, 200, 200, 160});
+    kernel.set_rect(text_list_scroll, {456, 200, 12, 160});
+    kernel.set_rect(scroll, {250, 380, 200, 200});
+    kernel.set_rect(scroll_scroll, {456, 380, 12, 200});
+    kernel.set_rect(toggle_group, {250, 60, 200, 120});
+    kernel.set_rect(tg_a, {0, 0, 200, 32});
+    kernel.set_rect(tg_b, {0, 40, 200, 32});
+    kernel.set_rect(tg_c, {0, 80, 200, 32});
+    kernel.set_rect(table_view, {480, 60, 280, 160});
+    kernel.set_rect(tree_view, {480, 240, 280, 160});
+    kernel.set_rect(menu, {250, 600, 200, 120});
+    kernel.set_rect(menu_item_a, {0, 0, 200, 28});
+    kernel.set_rect(menu_item_b, {0, 36, 200, 28});
+    kernel.set_rect(menu_item_c, {0, 72, 200, 28});
 
     kernel.set_range(slider, 0, 100);
     kernel.set_range(progress, 0, 100);
-    kernel.set_list_row_height(list, 28);
+    kernel.set_list_row_height(list_view, 28);
+    kernel.set_list_row_height(text_list, 24);
+    kernel.set_scroll_step(text_list, 24);
+    kernel.set_list_row_height(table_view, 24);
+    kernel.set_list_row_height(tree_view, 24);
+    kernel.set_scroll_step(table_view, 24);
+    kernel.set_scroll_step(tree_view, 24);
     kernel.set_scrollbar_orientation(list_scroll, ScrollBarOrientation::Vertical);
+    kernel.set_scrollbar_orientation(text_list_scroll, ScrollBarOrientation::Vertical);
     kernel.set_scrollbar_orientation(scroll_scroll, ScrollBarOrientation::Vertical);
+    factory.set_segmented_label(segmented, 0, "One");
+    factory.set_segmented_label(segmented, 1, "Two");
+    factory.set_segmented_label(segmented, 2, "Three");
+    factory.set_segmented_selected(segmented, 1);
+    factory.set_tab_bar_label(tab_bar, 0, "Home");
+    factory.set_tab_bar_label(tab_bar, 1, "Stats");
+    factory.set_tab_bar_label(tab_bar, 2, "Setup");
+    factory.set_tab_bar_selected(tab_bar, 0);
+    kernel.set_checked(menu_item_b, true);
 
-    const char* list_items[] = {
-        "Item 1", "Item 2", "Item 3", "Item 4", "Item 5",
-        "Item 6", "Item 7", "Item 8", "Item 9", "Item 10"
+    const char* list_view_items[] = {
+        "Alpha", "Beta", "Gamma", "Delta",
+        "Epsilon", "Zeta", "Eta", "Theta"
     };
-    for (const char* item_text : list_items) {
-        auto item = factory.create_list_item(item_text);
-        factory.link(list, item);
+    const ListViewTextSource list_view_source{
+        list_view_items,
+        static_cast<std::uint16_t>(sizeof(list_view_items) / sizeof(list_view_items[0]))
+    };
+    static const ListViewIconSource list_view_icons{
+        g_test_icon_id,
+        g_slice_id
+    };
+    factory.set_list_view_source(list_view, 1000, &list_view_source, &list_view_text_at);
+    factory.set_list_view_icon_source(list_view, &list_view_icons, &list_view_icon_at, 18);
+    factory.set_list_view_selected(list_view, 3);
+
+    const char* table_rows[] = {
+        "Alpha", "Beta", "Gamma", "Delta",
+        "Epsilon", "Zeta", "Eta", "Theta"
+    };
+    const char* table_cols[] = {
+        "ID", "Name", "State", "Value"
+    };
+    const TableViewTextSource table_source{
+        table_rows,
+        static_cast<std::uint16_t>(sizeof(table_rows) / sizeof(table_rows[0])),
+        table_cols,
+        static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
+    };
+    factory.set_table_view_source(table_view, 1000, 4, &table_source, &table_view_text_at);
+
+    const char* tree_items[] = {
+        "Root", "Alpha", "Beta", "Gamma",
+        "Delta", "Epsilon", "Zeta", "Eta"
+    };
+    const TreeViewTextSource tree_source{
+        tree_items,
+        static_cast<std::uint16_t>(sizeof(tree_items) / sizeof(tree_items[0]))
+    };
+    const TreeViewIndentSource tree_indent{3};
+    factory.set_tree_view_source(tree_view, 1000, &tree_source, &tree_view_text_at,
+                                 &tree_indent, &tree_view_indent_at);
+
+    const char* text_list_items[] = {
+        "Alpha", "Beta", "Gamma", "Delta",
+        "Epsilon", "Zeta", "Eta", "Theta",
+        "Iota", "Kappa", "Lambda", "Mu"
+    };
+    const std::uint16_t text_list_count =
+        static_cast<std::uint16_t>(sizeof(text_list_items) / sizeof(text_list_items[0]));
+    factory.set_text_list_count(text_list, text_list_count);
+    for (std::uint16_t i = 0; i < text_list_count; ++i) {
+        factory.set_text_list_item(text_list, i, text_list_items[i]);
     }
+    factory.set_text_list_selected(text_list, 2);
 
     const char* scroll_rows[] = {
         "Row 1", "Row 2", "Row 3", "Row 4", "Row 5", "Row 6",
@@ -763,62 +1780,387 @@ int main(int argc, char** argv) {
     SoaGui gui(canvas, kernel, root);
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_replay) {
+        const bool ok = replay_cmd_file(replay_cmd_path.c_str(),
+                                        fb,
+                                        canvas,
+                                        tile_backend,
+                                        tile_view,
+                                        tile_config,
+                                        replay_use_tiles,
+                                        nullptr);
+        close_regress_log();
+        return ok ? 0 : 1;
+    }
+#else
+    if (run_replay) {
+        const bool ok = replay_cmd_file(replay_cmd_path.c_str(),
+                                        fb,
+                                        canvas,
+                                        tile_backend,
+                                        tile_view,
+                                        tile_config,
+                                        replay_use_tiles,
+                                        nullptr);
+        return ok ? 0 : 1;
+    }
+#endif
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    bool ci_ok = true;
+    const char* ci_reason = nullptr;
+    auto ci_mark_fail = [&](const char* reason) noexcept {
+        if (!ci_ok) return;
+        ci_ok = false;
+        ci_reason = reason;
+    };
+    bool list_peak_ok = true;
+    bool table_tree_ok = true;
+    bool table_tree_ran = false;
+    bool ui_ok = true;
+#endif
+
+#if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress) {
+        bool regress_ok = true;
         if (!run_input_regression(gui, kernel, factory, root)) {
-            close_regress_log();
-            return 1;
+            regress_ok = false;
         }
         if (!run_style_regression(gui)) {
+            regress_ok = false;
+        }
+        if (!run_list_view_regression(gui, kernel, factory, root, fb, canvas, tile_backend, tile_view, tile_config)) {
+            regress_ok = false;
+            list_peak_ok = false;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            if (run_ci) {
+                ci_mark_fail("listview");
+            }
+#endif
+        }
+        if (!run_table_tree_regression(gui, kernel, factory, root)) {
+            regress_ok = false;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            table_tree_ok = false;
+            if (run_ci) {
+                ci_mark_fail("table_tree");
+            }
+#endif
+        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        table_tree_ran = true;
+#endif
+        if (!regress_ok) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            if (run_ci) {
+                ci_mark_fail("regress");
+            } else {
+                close_regress_log();
+                return 1;
+            }
+#else
             close_regress_log();
             return 1;
+#endif
         }
     }
     if (run_regress_layout) {
-        if (!run_layout_regression(gui, kernel, factory, root)) {
+        const bool ok = run_layout_regression(gui, kernel, factory, root);
+        if (!ok) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            if (run_ci) {
+                ci_mark_fail("layout");
+            } else {
+                close_regress_log();
+                return 1;
+            }
+#else
             close_regress_log();
             return 1;
+#endif
         }
     }
+    if (run_regress_ui) {
+        const bool ok = run_ui_regression(gui, kernel, factory, root);
+        if (!ok) {
+            ui_ok = false;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            if (run_ci) {
+                ci_mark_fail("ui");
+            } else {
+                close_regress_log();
+                return 1;
+            }
+#else
+            close_regress_log();
+            return 1;
 #endif
+        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (!table_tree_ran) {
+            const bool table_ok = run_table_tree_regression(gui, kernel, factory, root);
+            table_tree_ran = true;
+            if (!table_ok) {
+                table_tree_ok = false;
+                if (run_ci) {
+                    ci_mark_fail("table_tree");
+                } else {
+                    close_regress_log();
+                    return 1;
+                }
+            }
+        }
+#endif
+    }
+#endif
+    ui::draw_cmd::DefaultDrawCmdBuffer compare_buf{};
+    bool has_recorded = false;
+    ui::draw_cmd::ImageRegistryStats img_stats_before_record{};
+    ui::draw_cmd::ImageRegistryStats img_stats_after_record{};
+    bool img_stats_valid = false;
+    bool img_growth_ok = true;
+    bool img_dedup_ok = true;
+    if (run_compare || run_dump) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        reset_font_ptr_map_count();
+#endif
+        if (selftest_dedup) {
+            ensure_demo_images();
+            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
+            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
+            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+        }
+        img_stats_before_record = ui::draw_cmd::image_registry_stats();
+        gui.record_commands(compare_buf);
+        append_path_icon(compare_buf, screen_width);
+        has_recorded = true;
+        img_stats_after_record = ui::draw_cmd::image_registry_stats();
+        img_stats_valid = true;
+        img_growth_ok = (img_stats_after_record.count == img_stats_before_record.count)
+            && (img_stats_after_record.bytes_total == img_stats_before_record.bytes_total);
+#if defined(VIVID_SOA_TRACE_INPUT)
+        const auto font_ptr_maps = static_cast<unsigned>(font_ptr_map_count());
+        (void)out::println<"[soa] font ptr map count={}">(g_console, font_ptr_maps);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log, "[soa] font_ptr_map_count=%u\n", font_ptr_maps);
+        }
+#endif
+    }
+
+    std::uint32_t compare_hash_full = 0;
+    std::uint32_t compare_hash_tile = 0;
+    std::size_t compare_failed_cmds = 0;
+    std::size_t compare_cmd_count = 0;
+    std::size_t compare_cmd_capacity = 0;
+    std::size_t compare_cmd_bytes = 0;
+    int compare_tile_flushes = 0;
+    std::uint8_t compare_tile_hit_pct = 0;
+    bool compare_ok = true;
+
     if (run_compare) {
-        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
         ui::draw_cmd::DrawCmdExecutor exec{};
-        gui.record_commands(buf);
-        append_path_icon(buf, screen_width);
-        const auto cmp_stats = buf.stats();
+        const auto cmp_stats = compare_buf.stats();
+        compare_cmd_count = cmp_stats.cmd_count;
+        compare_cmd_capacity = cmp_stats.cmd_capacity;
+        compare_cmd_bytes = cmp_stats.cmd_bytes;
 
         fb.clear(kDemoBg);
         canvas.begin_frame();
-        exec.execute(canvas, buf);
+        const auto exec_stats = exec.execute(canvas, compare_buf);
         canvas.end_frame();
-        const std::uint32_t hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+        compare_hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
         fb.clear(kDemoBg);
-        const auto tile_stats = exec.execute_tiles(tile_backend, tile_view, buf, tile_config);
-        const std::uint32_t hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+        const auto tile_stats = exec.execute_tiles(tile_backend, tile_view, compare_buf, tile_config);
+        compare_hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
+        compare_failed_cmds = exec_stats.failed_cmds;
+        compare_tile_flushes = tile_stats.tile_flush_count;
+        if (tile_stats.tiles_total > 0) {
+            compare_tile_hit_pct = static_cast<std::uint8_t>(
+                (static_cast<std::uint32_t>(tile_stats.tiles_drawn) * 100u)
+                / static_cast<std::uint32_t>(tile_stats.tiles_total));
+        }
 
         (void)out::println<"[soa] compare full=0x{:08X} tile=0x{:08X}">(
-            static_cast<unsigned>(hash_full),
-            static_cast<unsigned>(hash_tile));
-        if (cmp_stats.cmd_overflowed || cmp_stats.text_overflowed || cmp_stats.cmd_count == 0) {
-#if defined(VIVID_SOA_TRACE_INPUT)
-            close_regress_log();
-#endif
-            return 1;
+            g_console,
+            static_cast<unsigned>(compare_hash_full),
+            static_cast<unsigned>(compare_hash_tile));
+        if (exec_stats.failed_cmds != 0) {
+            (void)out::println<"[soa][fail] compare failed_cmds={}">(g_console,
+                                                                  static_cast<unsigned>(exec_stats.failed_cmds));
+            compare_ok = false;
+        }
+        if (cmp_stats.cmd_overflowed || cmp_stats.text_overflowed || cmp_stats.blob_overflowed || cmp_stats.cmd_count == 0) {
+            compare_ok = false;
         }
         if (tile_stats.tiles_total == 0 || tile_stats.tiles_drawn == 0) {
-#if defined(VIVID_SOA_TRACE_INPUT)
-            close_regress_log();
-#endif
-            return 1;
+            compare_ok = false;
         }
-        if (hash_full != hash_tile) {
+        if (compare_hash_full != compare_hash_tile) {
+            compare_ok = false;
+        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (!compare_ok && run_ci) {
+            ci_mark_fail("compare");
+        }
+#endif
+        if (!compare_ok && !run_ci) {
 #if defined(VIVID_SOA_TRACE_INPUT)
             close_regress_log();
 #endif
             return 1;
         }
     }
+
+    bool dump_ok = true;
+    if (run_dump) {
+        if (!has_recorded) {
+            gui.record_commands(compare_buf);
+            append_path_icon(compare_buf, screen_width);
+        }
+        const auto dump_stats = compare_buf.stats();
+        if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
+            dump_ok = false;
+        }
+        if (dump_ok && !dump_cmd_file(dump_cmd_path.c_str(), compare_buf)) {
+            dump_ok = false;
+        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (!dump_ok && run_ci) {
+            ci_mark_fail("dump");
+        }
+#endif
+        if (!dump_ok && !run_ci) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            close_regress_log();
+#endif
+            return 1;
+        }
+    }
+#if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_ci) {
+        std::uint32_t replay_full = 0;
+        std::uint32_t replay_tile = 0;
+        bool replay_ok = false;
+        if (dump_ok) {
+            replay_ok = replay_cmd_file(dump_cmd_path.c_str(),
+                                        fb,
+                                        canvas,
+                                        tile_backend,
+                                        tile_view,
+                                        tile_config,
+                                        false,
+                                        &replay_full);
+            if (replay_ok) {
+                replay_ok = replay_cmd_file(dump_cmd_path.c_str(),
+                                            fb,
+                                            canvas,
+                                            tile_backend,
+                                            tile_view,
+                                            tile_config,
+                                            true,
+                                            &replay_tile);
+            }
+        }
+        if (!replay_ok) {
+            ci_mark_fail("replay");
+        }
+
+        const bool payload_ok = !kernel.payload_overflowed();
+        const bool text_ok = !kernel.text_overflowed();
+        const bool blob_ok = !compare_buf.stats().blob_overflowed;
+        const std::size_t cmd_budget = (compare_cmd_capacity > 0)
+            ? (compare_cmd_capacity * 9u) / 10u
+            : 0u;
+        const bool cmd_budget_ok = compare_cmd_count <= cmd_budget;
+    const auto payload_stats = kernel.payload_stats();
+    const std::uint32_t total_fail =
+        payload_stats.label.alloc_fail
+        + payload_stats.button.alloc_fail
+        + payload_stats.image.alloc_fail
+        + payload_stats.checkbox.alloc_fail
+        + payload_stats.radio.alloc_fail
+        + payload_stats.list_item.alloc_fail
+        + payload_stats.text_list.alloc_fail
+        + payload_stats.list_view.alloc_fail
+        + payload_stats.table_view.alloc_fail
+        + payload_stats.tree_view.alloc_fail
+        + payload_stats.switcher.alloc_fail
+        + payload_stats.slider.alloc_fail
+        + payload_stats.progress.alloc_fail
+        + payload_stats.scrollbar.alloc_fail
+        + payload_stats.list.alloc_fail
+            + payload_stats.scroll_container.alloc_fail
+            + payload_stats.spinner.alloc_fail;
+
+        const auto img_stats = img_stats_valid ? img_stats_after_record
+                                               : ui::draw_cmd::image_registry_stats();
+        const bool img_overflow_ok = !img_stats.overflowed;
+        if (selftest_dedup) {
+            img_dedup_ok = img_stats.dedup_hits > 0;
+            if (!img_dedup_ok) {
+                ci_mark_fail("img_dedup");
+            }
+        }
+        if (!img_growth_ok) {
+            ci_mark_fail("img_growth");
+        }
+        if (!img_overflow_ok) {
+            ci_mark_fail("img_overflow");
+        }
+        if (!cmd_budget_ok) {
+            ci_mark_fail("cmd_budget");
+        }
+        const bool ok = ci_ok
+            && compare_ok
+            && dump_ok
+            && replay_ok
+            && payload_ok
+            && text_ok
+            && blob_ok
+            && (compare_failed_cmds == 0)
+            && (compare_hash_full == compare_hash_tile)
+            && (replay_full == compare_hash_full)
+            && (replay_tile == compare_hash_tile)
+            && (total_fail == 0)
+            && list_peak_ok
+            && table_tree_ok
+            && ui_ok
+            && img_growth_ok
+            && img_overflow_ok
+            && img_dedup_ok
+            && cmd_budget_ok;
+
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_count={} cmd_budget={} tile_flushes={} tile_hit_pct={} img_new={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+            g_console,
+            ok ? 1u : 0u,
+            static_cast<unsigned>(compare_hash_full),
+            static_cast<unsigned>(replay_full),
+            static_cast<unsigned>(replay_tile),
+            static_cast<unsigned>(compare_failed_cmds),
+            payload_ok ? 0u : 1u,
+            text_ok ? 0u : 1u,
+            blob_ok ? 0u : 1u,
+            static_cast<unsigned>(total_fail),
+            list_peak_ok ? 1u : 0u,
+            table_tree_ok ? 1u : 0u,
+            ui_ok ? 1u : 0u,
+            static_cast<unsigned>(compare_cmd_count),
+            static_cast<unsigned>(cmd_budget),
+            static_cast<unsigned>(compare_tile_flushes),
+            static_cast<unsigned>(compare_tile_hit_pct),
+            static_cast<unsigned>(img_stats.count),
+            static_cast<unsigned>(img_stats.bytes_total),
+            static_cast<unsigned>(img_stats.dedup_hits),
+            img_growth_ok ? 1u : 0u,
+            img_overflow_ok ? 0u : 1u,
+            img_dedup_ok ? 1u : 0u,
+            ci_reason ? ci_reason : "none");
+        close_regress_log();
+        return ok ? 0 : 1;
+    }
+#endif
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_headless) {
         close_regress_log();
@@ -831,7 +2173,7 @@ int main(int argc, char** argv) {
 #endif
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_Init failed: {}">(g_console, SDL_GetError());
 #if defined(VIVID_SOA_TRACE_INPUT)
         close_regress_log();
 #endif
@@ -840,7 +2182,7 @@ int main(int argc, char** argv) {
 
     SDL_Window* window = SDL_CreateWindow("Vivid SoA Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
-        (void)out::error<"SDL_CreateWindow failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateWindow failed: {}">(g_console, SDL_GetError());
         SDL_Quit();
 #if defined(VIVID_SOA_TRACE_INPUT)
         close_regress_log();
@@ -850,7 +2192,7 @@ int main(int argc, char** argv) {
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        (void)out::error<"SDL_CreateRenderer failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateRenderer failed: {}">(g_console, SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -870,7 +2212,7 @@ int main(int argc, char** argv) {
     SDL_Texture* texture = SDL_CreateTexture(renderer, to_sdl_format(), SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
-        (void)out::error<"SDL_CreateTexture failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateTexture failed: {}">(g_console, SDL_GetError());
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -889,6 +2231,7 @@ int main(int argc, char** argv) {
     int mouse_y = 0;
     bool running = true;
     int value = 0;
+    std::uint8_t spinner_phase = 0;
     int stat_frame = 0;
     const int stat_interval = 60;
 
@@ -937,6 +2280,8 @@ int main(int argc, char** argv) {
 
         value = (value + 1) % 101;
         kernel.set_value(progress, value);
+        spinner_phase = static_cast<std::uint8_t>((spinner_phase + 1u) % 8u);
+        kernel.set_spinner_phase(spinner, spinner_phase);
         if (!kernel.pressed(slider)) {
             kernel.set_value(slider, value);
         }
@@ -987,11 +2332,13 @@ int main(int argc, char** argv) {
             if (stat_frame >= stat_interval) {
                 stat_frame = 0;
                 if (use_tiles) {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={} tile_hit_pct={}">(
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={} tile_hit_pct={}">(
+                        g_console,
                         static_cast<std::uint32_t>(cmd_stats.cmd_count),
                         static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
                         cmd_stats.cmd_overflowed ? 1 : 0,
                         cmd_stats.text_overflowed ? 1 : 0,
+                        cmd_stats.blob_overflowed ? 1 : 0,
                         tile_stats.tiles_drawn,
                         tile_stats.tiles_total,
                         tile_stats.tile_flush_count,
@@ -999,12 +2346,17 @@ int main(int argc, char** argv) {
                         static_cast<std::uint32_t>(dirty_pct),
                         static_cast<std::uint32_t>(tile_hit_pct));
                 } else {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={}">(
+                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={}">(
+                        g_console,
                         static_cast<std::uint32_t>(cmd_stats.cmd_count),
                         static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
                         cmd_stats.cmd_overflowed ? 1 : 0,
-                        cmd_stats.text_overflowed ? 1 : 0);
+                        cmd_stats.text_overflowed ? 1 : 0,
+                        cmd_stats.blob_overflowed ? 1 : 0);
                 }
+#if defined(VIVID_SOA_TRACE_INPUT)
+                dump_payload_stats(kernel.payload_stats());
+#endif
             }
         }
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);

@@ -8,6 +8,8 @@ export module charm.system.bringup;
 
 import charm.system.init_core;
 import charm.system.init_input;
+import charm.system.init_i2c;
+import charm.system.init_spi;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
 import charm.system.clock;
@@ -64,6 +66,8 @@ export namespace charm::system {
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
                        const platform::board::InputDesc& input_desc,
+                       const platform::board::SpiDesc& spi_desc,
+                       const platform::board::I2cDesc& i2c_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
                        void* post_ctx,
@@ -76,7 +80,9 @@ export namespace charm::system {
                     pump_task, post_fn, post_ctx, pump_id, budget),
               board_(core_.registry, core_.reactor,
                      uart.handle, uart.config, uart.io_cap, uart.hal_cap),
-              input_desc_(input_desc) {
+              input_desc_(input_desc),
+              spi_desc_(spi_desc),
+              i2c_desc_(i2c_desc) {
             if (!input.desc) {
                 input.desc = &input_desc_;
             }
@@ -102,10 +108,28 @@ export namespace charm::system {
                                input.cfg,
                                caps);
             }
+            if (spi_desc_.handle.ops) {
+                spi_.emplace(spi_desc_.handle, spi_desc_.config, spi_desc_.hal_cap);
+            }
+            if (i2c_desc_.handle.ops) {
+                i2c_.emplace(i2c_desc_.handle, i2c_desc_.config, i2c_desc_.hal_cap);
+            }
             util::usize board_count = 0;
             const auto board_nodes = board_.node_span();
             for (util::usize i = 0; i < board_nodes.size(); ++i) {
                 board_nodes_[board_count++] = board_nodes[i];
+            }
+            if (spi_) {
+                const auto spi_nodes = spi_->node_span();
+                for (util::usize i = 0; i < spi_nodes.size(); ++i) {
+                    board_nodes_[board_count++] = spi_nodes[i];
+                }
+            }
+            if (i2c_) {
+                const auto i2c_nodes = i2c_->node_span();
+                for (util::usize i = 0; i < i2c_nodes.size(); ++i) {
+                    board_nodes_[board_count++] = i2c_nodes[i];
+                }
             }
             if (input_) {
                 const auto input_nodes = input_->node_span();
@@ -175,8 +199,12 @@ export namespace charm::system {
         platform::board::InputDesc input_desc_{};
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
-        std::array<const init::Node*, 6> board_nodes_{};
+        std::array<const init::Node*, 12> board_nodes_{};
         std::span<const init::Node* const> board_nodes_span_{};
         bool input_required_{false};
+        platform::board::SpiDesc spi_desc_{};
+        platform::board::I2cDesc i2c_desc_{};
+        std::optional<SpiInitChain> spi_{};
+        std::optional<I2cInitChain> i2c_{};
     };
 }

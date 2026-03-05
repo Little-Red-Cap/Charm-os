@@ -3,6 +3,8 @@ module;
 export module platform.board;
 
 import hal_input;
+import hal_i2c;
+import hal_spi;
 import hal_uart;
 import util.core;
 
@@ -27,9 +29,23 @@ export namespace platform::board {
         const char* pump_cap{"input.pump"};
     };
 
+    struct SpiDesc {
+        hal::SpiIoHandle handle{};
+        hal::SpiConfig config{};
+        const char* hal_cap{"hal.spi1"};
+    };
+
+    struct I2cDesc {
+        hal::I2cIoHandle handle{};
+        hal::I2cConfig config{};
+        const char* hal_cap{"hal.i2c1"};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
         InputDesc input{};
+        SpiDesc spi1{};
+        I2cDesc i2c1{};
     };
 }

@@ -2895,6 +2895,8 @@ struct SoaBehavior {
             return make_desc(true, PayloadKind::TextArea);
         case WidgetKind::NumberInput:
             return make_desc(true, PayloadKind::NumberInput);
+        case WidgetKind::TextBox:
+            return make_desc(true, PayloadKind::TextArea);
         case WidgetKind::SegmentedControl:
             return make_desc(true, PayloadKind::SegmentedControl);
         case WidgetKind::ToggleGroup:
@@ -3948,6 +3950,12 @@ export
     }
     WidgetHandle create_number_input(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::NumberInput);
+        kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_text_box(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextBox);
         kernel_.set_text(h, text);
         kernel_.set_hit_testable(h, false);
         return h;

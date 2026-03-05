@@ -1687,6 +1687,7 @@ int main(int argc, char** argv) {
     auto sw = factory.create_switch();
     auto checkbox = factory.create_checkbox("Checkbox");
     auto radio = factory.create_radio("Radio");
+    auto text_box = factory.create_text_box("Read-only text box");
     auto segmented = factory.create_segmented_control();
     auto tab_bar = factory.create_tab_bar();
         auto slider = factory.create_slider();
@@ -1723,6 +1724,7 @@ int main(int argc, char** argv) {
     factory.link(root, sw);
     factory.link(root, checkbox);
     factory.link(root, radio);
+    factory.link(root, text_box);
     factory.link(root, segmented);
     factory.link(root, tab_bar);
     factory.link(root, toggle_group);
@@ -1754,6 +1756,7 @@ int main(int argc, char** argv) {
     kernel.set_rect(sw, {24, 112, 96, 32});
     kernel.set_rect(checkbox, {24, 160, 200, 32});
     kernel.set_rect(radio, {24, 200, 200, 32});
+    kernel.set_rect(text_box, {320, 120, 160, 80});
     kernel.set_rect(segmented, {24, 240, 280, 32});
     kernel.set_rect(tab_bar, {24, 352, 280, 24});
     kernel.set_rect(slider, {24, 290, 280, 24});

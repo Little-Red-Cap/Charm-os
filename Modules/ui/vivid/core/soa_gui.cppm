@@ -504,6 +504,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
                         TextAlignV::Center, TextWrap::None);
         break;
+    case WidgetKind::TextBox:
+        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+                        TextAlignV::Top, TextWrap::Word);
+        break;
     case WidgetKind::ToggleGroup:
         break;
         break;
@@ -588,9 +592,6 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::RingIndication:
-        unsupported_kind(kind);
-        break;
-    case WidgetKind::TextBox:
         unsupported_kind(kind);
         break;
     case WidgetKind::FoldablePanel:

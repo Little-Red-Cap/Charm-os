@@ -210,6 +210,13 @@ namespace {
         return src->rows[row % src->row_count];
     }
 
+    const char* table_view_header_at(const void* ctx, std::uint8_t col) noexcept {
+        const auto* src = static_cast<const TableViewTextSource*>(ctx);
+        if (!src || !src->cols || src->col_count == 0) return "";
+        if (col >= src->col_count) return "";
+        return src->cols[col];
+    }
+
     int table_view_col_width_at(const void* ctx, std::uint8_t col) noexcept {
         const auto* src = static_cast<const TableViewColWidthSource*>(ctx);
         if (!src || !src->widths || src->count == 0) return 0;
@@ -575,7 +582,7 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 5850;
+    constexpr std::size_t kMaxStyleTableBytes = 6200;
     std::FILE* g_regress_log = nullptr;
     bool g_payload_stats_dumped = false;
 
@@ -992,52 +999,69 @@ namespace {
 
     bool run_ui_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
         int fails = 0;
-        auto tab_root = factory.create_container();
-        auto tab_bar = factory.create_tab_bar();
-        auto menu = factory.create_menu();
+    auto tab_root = factory.create_container();
+    auto nav_bar = factory.create_navigation_bar();
+    auto tab_bar = factory.create_tab_bar();
+    auto menu = factory.create_menu();
         auto menu_item_a = factory.create_menu_item("New");
         auto menu_item_b = factory.create_menu_item("Open");
         auto menu_item_c = factory.create_menu_item("Save");
         auto console_box = factory.create_console_box();
-        factory.link(root, tab_root);
-        factory.link(tab_root, tab_bar);
-        factory.link(tab_root, menu);
-        factory.link(root, console_box);
+    factory.link(root, tab_root);
+    factory.link(tab_root, nav_bar);
+    factory.link(tab_root, menu);
+    factory.link(root, console_box);
+    factory.link(root, tab_bar);
         factory.link(menu, menu_item_a);
         factory.link(menu, menu_item_b);
         factory.link(menu, menu_item_c);
 
-        kernel.set_rect(tab_root, {240, 420, 200, 140});
-        kernel.set_rect(tab_bar, {10, 10, 180, 28});
-        kernel.set_rect(menu, {10, 48, 180, 80});
+    kernel.set_rect(tab_root, {240, 420, 200, 160});
+    kernel.set_rect(nav_bar, {10, 10, 180, 28});
+    kernel.set_rect(menu, {10, 48, 180, 80});
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
-        kernel.set_rect(menu_item_b, {0, 28, 180, 24});
-        kernel.set_rect(menu_item_c, {0, 56, 180, 24});
-        kernel.set_rect(console_box, {10, 420, 180, 56});
-        factory.set_tab_bar_label(tab_bar, 0, "Home");
-        factory.set_tab_bar_label(tab_bar, 1, "Stats");
-        factory.set_tab_bar_label(tab_bar, 2, "Setup");
-        factory.set_tab_bar_selected(tab_bar, 0);
+    kernel.set_rect(menu_item_b, {0, 28, 180, 24});
+    kernel.set_rect(menu_item_c, {0, 56, 180, 24});
+    kernel.set_rect(console_box, {10, 420, 180, 56});
+    kernel.set_rect(tab_bar, {240, 600, 200, 24});
+    factory.set_navigation_bar_label(nav_bar, 0, "Home");
+    factory.set_navigation_bar_label(nav_bar, 1, "Stats");
+    factory.set_navigation_bar_label(nav_bar, 2, "Setup");
+    factory.set_navigation_bar_selected(nav_bar, 0);
+    factory.set_tab_bar_label(tab_bar, 0, "Home");
+    factory.set_tab_bar_label(tab_bar, 1, "Stats");
+    factory.set_tab_bar_label(tab_bar, 2, "Setup");
+    factory.set_tab_bar_selected(tab_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
+        auto progress_round = factory.create_progress_bar_round();
+        auto progress_flowing = factory.create_progress_flowing();
         factory.link(tab_root, progress);
         factory.link(tab_root, progress_wheel);
         factory.link(tab_root, progress_simple);
+        factory.link(tab_root, progress_round);
+        factory.link(tab_root, progress_flowing);
         kernel.set_rect(progress, {10, 110, 180, 12});
         kernel.set_rect(progress_wheel, {150, 78, 32, 32});
         kernel.set_rect(progress_simple, {10, 130, 180, 8});
+        kernel.set_rect(progress_round, {10, 142, 180, 8});
+        kernel.set_rect(progress_flowing, {10, 152, 180, 6});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
         kernel.set_range(progress_wheel, 0, 100);
         kernel.set_value(progress_wheel, 20);
         kernel.set_range(progress_simple, 0, 100);
         kernel.set_value(progress_simple, 30);
+        kernel.set_range(progress_round, 0, 100);
+        kernel.set_value(progress_round, 35);
+        kernel.set_range(progress_flowing, 0, 100);
+        kernel.set_value(progress_flowing, 45);
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
-        const Rect tab_r = kernel.rect(tab_bar);
+        const Rect tab_r = kernel.rect(nav_bar);
         const int tab_abs_x = tab_root_r.x + tab_r.x;
         const int tab_abs_y = tab_root_r.y + tab_r.y;
         const int seg_w = (tab_r.w > 0) ? (tab_r.w / 3) : 0;
@@ -1049,7 +1073,21 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "ui: tab select invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "ui: tab select pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "ui: tab select missing paint", fails);
-        expect_true(kernel.segmented_selected(tab_bar) == 1, "ui: tab select not applied", fails);
+    expect_true(kernel.segmented_selected(nav_bar) == 1, "ui: tab select not applied", fails);
+
+    const Rect tab2_r = kernel.rect(tab_bar);
+    const int tab2_abs_x = tab2_r.x;
+    const int tab2_abs_y = tab2_r.y;
+    const int tab2_seg_w = (tab2_r.w > 0) ? (tab2_r.w / 3) : 0;
+    kernel.layout_trace_reset();
+    gui.dispatch_event(Event::mouse(Event::Type::MouseMove, tab2_abs_x + tab2_seg_w * 2 + 4, tab2_abs_y + 6, 0));
+    gui.dispatch_event(Event::mouse(Event::Type::MouseDown, tab2_abs_x + tab2_seg_w * 2 + 4, tab2_abs_y + 6, 1));
+    gui.dispatch_event(Event::mouse(Event::Type::MouseUp, tab2_abs_x + tab2_seg_w * 2 + 4, tab2_abs_y + 6, 1));
+    gui.render();
+    expect_true(kernel.layout_invalidated_count() == 0, "ui: tab bar invalidated layout", fails);
+    expect_true(kernel.layout_pass_count() == 0, "ui: tab bar pass", fails);
+    expect_true(kernel.paint_invalidated_count() > 0, "ui: tab bar missing paint", fails);
+    expect_true(kernel.segmented_selected(tab_bar) == 2, "ui: tab bar not applied", fails);
 
         const Rect menu_r = kernel.rect(menu);
         const Rect item_b_r = kernel.rect(menu_item_b);
@@ -1120,6 +1158,24 @@ namespace {
         expect_true(simple_paint_after > simple_paint_before, "ui: progress simple missing paint", fails);
 
         kernel.layout_trace_reset();
+        const std::uint32_t round_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_round, 60);
+        gui.render();
+        const std::uint32_t round_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress round invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress round pass", fails);
+        expect_true(round_paint_after > round_paint_before, "ui: progress round missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t flow_paint_before = kernel.paint_invalidated_count();
+        kernel.set_value(progress_flowing, 80);
+        gui.render();
+        const std::uint32_t flow_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: progress flowing invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: progress flowing pass", fails);
+        expect_true(flow_paint_after > flow_paint_before, "ui: progress flowing missing paint", fails);
+
+        kernel.layout_trace_reset();
         const std::uint32_t log_paint_before = kernel.paint_invalidated_count();
         factory.console_append(console_box, "log: one");
         factory.console_append(console_box, "log: two");
@@ -1129,15 +1185,18 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: log append pass", fails);
         expect_true(log_paint_after > log_paint_before, "ui: log append missing paint", fails);
 
-        kernel.destroy(progress_simple);
-        kernel.destroy(progress_wheel);
-        kernel.destroy(progress);
-        kernel.destroy(console_box);
+    kernel.destroy(progress_flowing);
+    kernel.destroy(progress_round);
+    kernel.destroy(progress_simple);
+    kernel.destroy(progress_wheel);
+    kernel.destroy(progress);
+    kernel.destroy(console_box);
+    kernel.destroy(tab_bar);
         kernel.destroy(menu_item_c);
         kernel.destroy(menu_item_b);
         kernel.destroy(menu_item_a);
         kernel.destroy(menu);
-        kernel.destroy(tab_bar);
+        kernel.destroy(nav_bar);
         kernel.destroy(tab_root);
 
         if (fails == 0) {
@@ -1341,6 +1400,7 @@ namespace {
             static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
         };
         factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
+        factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
         factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {
@@ -1392,6 +1452,16 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const int table_x_before = kernel.table_view_scroll_x(table_view);
+        kernel.set_table_view_scroll_x(table_view, table_x_before + 120);
+        gui.render();
+        const int table_x_after = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after != table_x_before, "tableview: horiz scroll did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: horiz invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: horiz pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: horiz missing paint", fails);
 
         kernel.layout_trace_reset();
         const Rect tree_root_r = kernel.rect(tree_root);
@@ -1682,17 +1752,21 @@ int main(int argc, char** argv) {
 
     auto title = factory.create_label("SoA Kernel Demo");
     auto btn = factory.create_button("Press");
+    auto icon_btn = factory.create_icon_button();
     auto image_view = factory.create_image();
     auto spinner = factory.create_spinner();
     auto sw = factory.create_switch();
     auto checkbox = factory.create_checkbox("Checkbox");
     auto radio = factory.create_radio("Radio");
+    auto text_box = factory.create_text_box("Read-only text box");
     auto segmented = factory.create_segmented_control();
     auto tab_bar = factory.create_tab_bar();
         auto slider = factory.create_slider();
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
         auto progress_simple = factory.create_progress_bar_simple();
+        auto progress_round = factory.create_progress_bar_round();
+        auto progress_flowing = factory.create_progress_flowing();
     auto toggle_group = factory.create_toggle_group();
     auto tg_a = factory.create_checkbox("Option A");
     auto tg_b = factory.create_checkbox("Option B");
@@ -1714,6 +1788,8 @@ int main(int argc, char** argv) {
     ensure_demo_images();
     factory.set_button_icon(btn, g_test_icon_id);
     factory.set_button_icon_size(btn, 18);
+    factory.set_button_icon(icon_btn, g_test_icon_id);
+    factory.set_button_icon_size(icon_btn, 20);
     factory.set_image(image_view, g_slice_id);
 
     factory.link(root, title);
@@ -1723,6 +1799,7 @@ int main(int argc, char** argv) {
     factory.link(root, sw);
     factory.link(root, checkbox);
     factory.link(root, radio);
+    factory.link(root, text_box);
     factory.link(root, segmented);
     factory.link(root, tab_bar);
     factory.link(root, toggle_group);
@@ -1730,6 +1807,8 @@ int main(int argc, char** argv) {
     factory.link(root, progress);
     factory.link(root, progress_wheel);
     factory.link(root, progress_simple);
+    factory.link(root, progress_round);
+    factory.link(root, progress_flowing);
     factory.link(root, list_view);
     factory.link(root, list_scroll);
     factory.link(root, text_list);
@@ -1749,17 +1828,21 @@ int main(int argc, char** argv) {
 
     kernel.set_rect(title, {24, 16, screen_width - 48, 24});
     kernel.set_rect(btn, {24, 60, 160, 40});
+    kernel.set_rect(icon_btn, {240, 60, 40, 40});
     kernel.set_rect(image_view, {200, 60, 32, 32});
     kernel.set_rect(spinner, {200, 104, 24, 24});
     kernel.set_rect(sw, {24, 112, 96, 32});
     kernel.set_rect(checkbox, {24, 160, 200, 32});
     kernel.set_rect(radio, {24, 200, 200, 32});
+    kernel.set_rect(text_box, {320, 120, 160, 80});
     kernel.set_rect(segmented, {24, 240, 280, 32});
     kernel.set_rect(tab_bar, {24, 352, 280, 24});
     kernel.set_rect(slider, {24, 290, 280, 24});
     kernel.set_rect(progress, {24, 330, 280, 18});
     kernel.set_rect(progress_wheel, {320, 300, 48, 48});
     kernel.set_rect(progress_simple, {24, 356, 280, 10});
+    kernel.set_rect(progress_round, {320, 360, 160, 10});
+    kernel.set_rect(progress_flowing, {320, 374, 160, 8});
     kernel.set_rect(list_view, {24, 380, 200, 200});
     kernel.set_rect(list_scroll, {230, 380, 12, 200});
     kernel.set_rect(text_list, {250, 200, 200, 160});
@@ -1782,6 +1865,8 @@ int main(int argc, char** argv) {
     kernel.set_range(progress, 0, 100);
     kernel.set_range(progress_wheel, 0, 100);
     kernel.set_range(progress_simple, 0, 100);
+    kernel.set_range(progress_round, 0, 100);
+    kernel.set_range(progress_flowing, 0, 100);
     kernel.set_list_row_height(list_view, 28);
     kernel.set_list_row_height(text_list, 24);
     kernel.set_scroll_step(text_list, 24);
@@ -1801,6 +1886,8 @@ int main(int argc, char** argv) {
     factory.set_tab_bar_label(tab_bar, 2, "Setup");
     factory.set_tab_bar_selected(tab_bar, 0);
     kernel.set_checked(menu_item_b, true);
+    kernel.set_value(progress_round, 40);
+    kernel.set_value(progress_flowing, 70);
 
     const char* list_view_items[] = {
         "Alpha", "Beta", "Gamma", "Delta",
@@ -1832,6 +1919,7 @@ int main(int argc, char** argv) {
         static_cast<std::uint8_t>(sizeof(table_cols) / sizeof(table_cols[0]))
     };
     factory.set_table_view_source(table_view, 1000, 4, &table_source, &table_view_text_at);
+    factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
 
     const char* tree_items[] = {
         "Root", "Alpha", "Beta", "Gamma",

@@ -21,6 +21,7 @@
 #include "dma.h"
 #include "i2s.h"
 #include "sdmmc.h"
+#include "spi.h"
 #include "usart.h"
 #include "usb_otg.h"
 #include "gpio.h"

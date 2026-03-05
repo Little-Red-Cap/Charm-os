@@ -1,6 +1,7 @@
 module;
 
 #include <cstddef>
+#include <new>
 #include <utility>
 
 export module charm.system.bringup.win_stub;

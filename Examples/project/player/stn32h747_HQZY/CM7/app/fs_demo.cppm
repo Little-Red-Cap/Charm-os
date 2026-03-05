@@ -28,16 +28,82 @@ import out.channel;
 
 namespace {
     static out::channel_sink* g_sink = nullptr;
+    constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
         if (!g_sink) return;
-        (void)out::println<Fmt>(*g_sink, std::forward<Args>(args)...);
+        const util::u32 start = HAL_GetTick();
+        while (true) {
+            auto r = out::try_println<Fmt>(*g_sink, std::forward<Args>(args)...);
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
+        const util::u32 flush_start = HAL_GetTick();
+        while (true) {
+            auto r = g_sink->flush();
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - flush_start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
     }
 
     constexpr util::u32 kTimeoutMs = 1000;
     constexpr bool kSdmmcVerbose = true;
+    constexpr bool kSdmmcVerboseGpio = true;
     constexpr util::u32 kSdmmcInitClockDiv = 480; // ~400kHz when SDMMC clock is 192MHz
+    constexpr util::u32 kSdmmcXferClockDiv = 4; // 64MHz / (2 * 4) = 8MHz
     constexpr bool kSdmmcTry4Bit = false;
+    constexpr bool kSdmmcAllowDma = false;
+    constexpr bool kSdmmcProbeRead = true;
+
+    void sdmmc_log_read_fail(util::u32 lba, util::u32 count, bool use_dma) noexcept {
+        const auto err = static_cast<util::u32>(HAL_SD_GetError(&hsd1));
+        const auto state = static_cast<util::u32>(HAL_SD_GetCardState(&hsd1));
+        const auto sta = static_cast<util::u32>(hsd1.Instance->STA);
+        const auto cmd = static_cast<util::u32>(hsd1.Instance->CMD);
+        const auto arg = static_cast<util::u32>(hsd1.Instance->ARG);
+        const auto resp1 = static_cast<util::u32>(hsd1.Instance->RESP1);
+        log<"fs sdmmc: read fail lba={} cnt={} dma={} err=0x{:08X} state=0x{:08X} sta=0x{:08X} cmd=0x{:08X} arg=0x{:08X} resp1=0x{:08X}">(
+            lba, count, static_cast<int>(use_dma), err, state, sta, cmd, arg, resp1);
+    }
+
+    void sdmmc_log_read_timeout(util::u32 lba, util::u32 count) noexcept {
+        const auto state = static_cast<util::u32>(HAL_SD_GetCardState(&hsd1));
+        const auto sta = static_cast<util::u32>(hsd1.Instance->STA);
+        const auto cmd = static_cast<util::u32>(hsd1.Instance->CMD);
+        const auto resp1 = static_cast<util::u32>(hsd1.Instance->RESP1);
+        log<"fs sdmmc: read timeout lba={} cnt={} state=0x{:08X} sta=0x{:08X} cmd=0x{:08X} resp1=0x{:08X}">(
+            lba, count, state, sta, cmd, resp1);
+    }
+
+    void sdmmc_probe_read(util::u32 lba) noexcept {
+        alignas(4) std::array<util::u8, 512> buf{};
+        if (HAL_SD_ReadBlocks(&hsd1, buf.data(), lba, 1, kTimeoutMs) != HAL_OK) {
+            sdmmc_log_read_fail(lba, 1, false);
+            return;
+        }
+        const util::u32 start = HAL_GetTick();
+        while (HAL_SD_GetCardState(&hsd1) != HAL_SD_CARD_TRANSFER) {
+            if ((HAL_GetTick() - start) > kTimeoutMs) {
+                sdmmc_log_read_timeout(lba, 1);
+                return;
+            }
+        }
+        util::u32 non_ff = 0;
+        for (const auto v : buf) {
+            if (v != 0xFFu) ++non_ff;
+        }
+        log<"fs sdmmc: probe lba{} non_ff={} head {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}">(
+            lba,
+            non_ff,
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+            buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
+        log<"fs sdmmc: probe lba{} tail {:02X} {:02X}">(
+            lba, buf[510], buf[511]);
+    }
 
     void sdmmc_diag_after_fail() noexcept {
         SDMMC_InitTypeDef init = {};
@@ -190,23 +256,6 @@ namespace {
             MX_SDMMC1_SD_Init();
             hsd1.Init.ClockDiv = kSdmmcInitClockDiv;
             hsd1.Init.BusWide = SDMMC_BUS_WIDE_1B;
-            if constexpr (kSdmmcVerbose) {
-                GPIO_InitTypeDef gpio_init = {};
-                gpio_init.Pin = GPIO_PIN_0;
-                gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
-                gpio_init.Pull = GPIO_NOPULL;
-                gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-                HAL_GPIO_Init(GPIOA, &gpio_init);
-                for (int i = 0; i < 10; ++i) {
-                    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
-                    HAL_Delay(100);
-                }
-                gpio_init.Mode = GPIO_MODE_AF_PP;
-                gpio_init.Pull = GPIO_PULLUP;
-                gpio_init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-                gpio_init.Alternate = GPIO_AF9_SDIO2;
-                HAL_GPIO_Init(GPIOA, &gpio_init);
-            }
             hsd1.State = HAL_SD_STATE_RESET;
             const auto init_status = HAL_SD_Init(&hsd1);
             if constexpr (kSdmmcVerbose) {
@@ -214,42 +263,47 @@ namespace {
                 const auto ahb2enr = static_cast<util::u32>(RCC->AHB2ENR);
                 const auto ahb3enr = static_cast<util::u32>(RCC->AHB3ENR);
                 const auto SDMMC1_en = (__HAL_RCC_SDMMC1_IS_CLK_ENABLED() != 0u) ? 1 : 0;
-                log<"fs sdmmc: rcc sdmmc_src=0x{:08X} ahb2enr=0x{:08X} ahb3enr=0x{:08X} SDMMC1_en={}">(
+                log<"fs sdmmc: rcc src=0x{:08X} SDMMC1_en={}">(
                     sdmmc_src,
-                    ahb2enr,
-                    ahb3enr,
                     SDMMC1_en);
-                log<"fs sdmmc: gpioa moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOA->MODER),
-                    static_cast<util::u32>(GPIOA->PUPDR),
-                    static_cast<util::u32>(GPIOA->AFR[0]),
-                    static_cast<util::u32>(GPIOA->AFR[1]));
-                log<"fs sdmmc: gpiob moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOB->MODER),
-                    static_cast<util::u32>(GPIOB->PUPDR),
-                    static_cast<util::u32>(GPIOB->AFR[0]),
-                    static_cast<util::u32>(GPIOB->AFR[1]));
-                log<"fs sdmmc: gpiod moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOD->MODER),
-                    static_cast<util::u32>(GPIOD->PUPDR),
-                    static_cast<util::u32>(GPIOD->AFR[0]),
-                    static_cast<util::u32>(GPIOD->AFR[1]));
-                log<"fs sdmmc: gpiog moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
-                    static_cast<util::u32>(GPIOG->MODER),
-                    static_cast<util::u32>(GPIOG->PUPDR),
-                    static_cast<util::u32>(GPIOG->AFR[0]),
-                    static_cast<util::u32>(GPIOG->AFR[1]));
-                const auto cmd = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
-                const auto d0 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_14);
-                const auto d1 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_15);
-                const auto d2 = HAL_GPIO_ReadPin(GPIOG, GPIO_PIN_11);
-                const auto d3 = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
-                log<"fs sdmmc: pins cmd={} d0={} d1={} d2={} d3={}">(
+                log<"fs sdmmc: rcc ahb2=0x{:08X} ahb3=0x{:08X}">(
+                    ahb2enr,
+                    ahb3enr);
+                if constexpr (kSdmmcVerboseGpio) {
+                    log<"fs sdmmc: gpioa moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOA->MODER),
+                        static_cast<util::u32>(GPIOA->PUPDR),
+                        static_cast<util::u32>(GPIOA->AFR[0]),
+                        static_cast<util::u32>(GPIOA->AFR[1]));
+                    log<"fs sdmmc: gpioc moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOC->MODER),
+                        static_cast<util::u32>(GPIOC->PUPDR),
+                        static_cast<util::u32>(GPIOC->AFR[0]),
+                        static_cast<util::u32>(GPIOC->AFR[1]));
+                    log<"fs sdmmc: gpiod moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOD->MODER),
+                        static_cast<util::u32>(GPIOD->PUPDR),
+                        static_cast<util::u32>(GPIOD->AFR[0]),
+                        static_cast<util::u32>(GPIOD->AFR[1]));
+                    log<"fs sdmmc: gpioe moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
+                        static_cast<util::u32>(GPIOE->MODER),
+                        static_cast<util::u32>(GPIOE->PUPDR),
+                        static_cast<util::u32>(GPIOE->AFR[0]),
+                        static_cast<util::u32>(GPIOE->AFR[1]));
+                }
+                const auto cmd = HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_2);
+                const auto d0 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8);
+                const auto d1 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9);
+                const auto d2 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_10);
+                const auto d3 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_11);
+                const auto ck = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_12);
+                log<"fs sdmmc: pins cmd={} d0={} d1={} d2={} d3={} ck={}">(
                     static_cast<int>(cmd),
                     static_cast<int>(d0),
                     static_cast<int>(d1),
                     static_cast<int>(d2),
-                    static_cast<int>(d3));
+                    static_cast<int>(d3),
+                    static_cast<int>(ck));
             }
             if (init_status != HAL_OK) {
                 if constexpr (kSdmmcVerbose) {
@@ -299,6 +353,14 @@ namespace {
                     return false;
                 }
             }
+            MODIFY_REG(hsd1.Instance->CLKCR, SDMMC_CLKCR_CLKDIV, kSdmmcXferClockDiv);
+            hsd1.Init.ClockDiv = kSdmmcXferClockDiv;
+            if constexpr (kSdmmcVerbose) {
+                const auto clk = static_cast<util::u32>(HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC));
+                const auto clkcr = static_cast<util::u32>(hsd1.Instance->CLKCR);
+                log<"fs sdmmc: xfer ker_ck={}Hz clkcr=0x{:08X}">(
+                    clk, clkcr);
+            }
 
             if (HAL_SD_GetCardInfo(&hsd1, &info_) != HAL_OK) {
                 if constexpr (kSdmmcVerbose) {
@@ -308,6 +370,16 @@ namespace {
             }
             block_size_ = info_.LogBlockSize;
             block_count_ = info_.LogBlockNbr;
+            if constexpr (kSdmmcVerbose) {
+                log<"fs sdmmc: block_size={} block_count={}">(
+                    block_size_, block_count_);
+                log<"fs sdmmc: dma enabled={}">(
+                    kSdmmcAllowDma ? 1 : 0);
+            }
+            if constexpr (kSdmmcProbeRead) {
+                sdmmc_probe_read(0);
+                sdmmc_probe_read(2048);
+            }
             device_.ctx = this;
             device_.read = &SdBlockDevice::read_impl;
             device_.write = &SdBlockDevice::write_impl;
@@ -331,19 +403,28 @@ namespace {
                 return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
-            if (use_dma) {
-                if (HAL_SD_ReadBlocks_DMA(&hsd1, data.data(), static_cast<uint32_t>(lba), count) != HAL_OK) {
-                    return fs::Status{fs::Errc::io};
+            for (util::u32 i = 0; i < count; ++i) {
+                auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
+                const util::u32 lba_i = static_cast<util::u32>(lba + i);
+                const bool use_dma = kSdmmcAllowDma && can_dma(dst, self->block_size_);
+                if (use_dma) {
+                    if (HAL_SD_ReadBlocks_DMA(&hsd1, dst, lba_i, 1) != HAL_OK) {
+                        sdmmc_log_read_fail(lba_i, 1, true);
+                        return fs::Status{fs::Errc::io};
+                    }
+                } else {
+                    if (HAL_SD_ReadBlocks(&hsd1, dst, lba_i, 1, kTimeoutMs) != HAL_OK) {
+                        sdmmc_log_read_fail(lba_i, 1, false);
+                        return fs::Status{fs::Errc::io};
+                    }
                 }
-            } else {
-                if (HAL_SD_ReadBlocks(&hsd1, data.data(), static_cast<uint32_t>(lba), count, kTimeoutMs) != HAL_OK) {
-                    return fs::Status{fs::Errc::io};
+                const util::u32 start = HAL_GetTick();
+                while (HAL_SD_GetCardState(&hsd1) != HAL_SD_CARD_TRANSFER) {
+                    if ((HAL_GetTick() - start) > kTimeoutMs) {
+                        sdmmc_log_read_timeout(lba_i, 1);
+                        return fs::Status{fs::Errc::timeout};
+                    }
                 }
-            }
-            const util::u32 start = HAL_GetTick();
-            while (HAL_SD_GetCardState(&hsd1) != HAL_SD_CARD_TRANSFER) {
-                if ((HAL_GetTick() - start) > kTimeoutMs) return fs::Status{fs::Errc::timeout};
             }
             return fs::Status{fs::Errc::ok};
         }
@@ -354,7 +435,7 @@ namespace {
                 return fs::Status{fs::Errc::inval};
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
-            const bool use_dma = can_dma(data.data(), data.size());
+            const bool use_dma = kSdmmcAllowDma && can_dma(data.data(), data.size());
             if (use_dma) {
                 if (HAL_SD_WriteBlocks_DMA(&hsd1, const_cast<uint8_t*>(data.data()),
                         static_cast<uint32_t>(lba), count) != HAL_OK) {

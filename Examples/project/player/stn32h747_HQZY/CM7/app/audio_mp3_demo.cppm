@@ -27,22 +27,65 @@ import util.core;
 import util.expected;
 
 extern "C" I2S_HandleTypeDef hi2s1;
+extern "C" DMA_HandleTypeDef hdma_spi1_tx;
 
 namespace {
+#if defined(__GNUC__)
+#define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
+#else
+#define CHARM_DMA_BUFFER
+#endif
+
     static out::channel_sink* g_sink = nullptr;
+    constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
         if (!g_sink) return;
-        (void)out::println<Fmt>(*g_sink, std::forward<Args>(args)...);
+        const util::u32 start = HAL_GetTick();
+        while (true) {
+            auto r = out::try_println<Fmt>(*g_sink, std::forward<Args>(args)...);
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
+        const util::u32 flush_start = HAL_GetTick();
+        while (true) {
+            auto r = g_sink->flush();
+            if (r) break;
+            if (r.error() != out::errc::would_block) break;
+            if ((HAL_GetTick() - flush_start) > kLogRetryMs) break;
+            HAL_Delay(1);
+        }
     }
 
     constexpr std::uint32_t kTimeoutMs = 1000;
     constexpr std::size_t kI2sBufFrames = 1024;
     constexpr int kGainShift = 0;
-    constexpr std::size_t kI2sWordsPerFrame = 4; // 32-bit stereo: 2 words per channel
+    constexpr std::size_t kI2sWordsPerFrame = 2; // 16-bit stereo: 1 word per channel
     constexpr bool kVerbose = false;
     constexpr bool kRuntimeLog = false;
     constexpr bool kStartupLog = true;
+    constexpr bool kOpenTrace = true;
+    constexpr bool kStatLog = true;
+    constexpr util::u32 kOpenReadLogEvery = 64;
+    constexpr util::u32 kRunReadLogEvery = 512;
+    constexpr util::u32 kReadLogMinMs = 200;
+    constexpr std::size_t kMaxRead = 4096;
+    constexpr bool kUseFixedPath = true;
+    constexpr const char kFixedPath[] = "/jtwayne-pianos-by-jtwayne-7-174717.mp3";
+
+    static bool g_opening = false;
+    static util::u32 g_read_calls = 0;
+    static util::u32 g_read_zero = 0;
+    static util::u32 g_read_err = 0;
+    static util::u32 g_read_enter = 0;
+    static util::u32 g_read_slow = 0;
+    static util::u32 g_seek_calls = 0;
+    static util::u32 g_tell_calls = 0;
+    static util::u32 g_size_calls = 0;
+    static util::u32 g_read_clamp = 0;
+    static util::u32 g_last_read_log_ms = 0;
 
     char ascii_lower(char c) noexcept {
         if (c >= 'A' && c <= 'Z') return static_cast<char>(c + ('a' - 'A'));
@@ -66,6 +109,7 @@ namespace {
     }
 
     struct FindAudioCtx {
+        const char* prefix{nullptr};
         char path[128]{};
         bool found{false};
     };
@@ -76,9 +120,9 @@ namespace {
         if (out->found || entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
         if (!is_mp3_name(entry.name)) return fs::Status{fs::Errc::ok};
         const auto len = name_len(entry.name);
-        const char prefix[] = "/MUSIC/";
+        const char* prefix = out->prefix ? out->prefix : "/";
         std::size_t pos = 0;
-        for (std::size_t i = 0; i < sizeof(prefix) - 1 && pos + 1 < sizeof(out->path); ++i) {
+        for (std::size_t i = 0; prefix[i] != '\0' && pos + 1 < sizeof(out->path); ++i) {
             out->path[pos++] = prefix[i];
         }
         for (std::size_t i = 0; i < len && pos + 1 < sizeof(out->path); ++i) {
@@ -106,11 +150,38 @@ namespace {
                 to_read = static_cast<std::size_t>(
                     std::min<util::i64>(remaining, static_cast<util::i64>(out.size())));
             }
+            if (to_read > kMaxRead) {
+                const auto req = to_read;
+                to_read = kMaxRead;
+                if constexpr (kOpenTrace) {
+                    if (g_opening && g_read_clamp < 4) {
+                        log<"mp3 demo: read clamp req={} -> {}">(req, to_read);
+                        ++g_read_clamp;
+                    }
+                }
+            }
             const auto before = file->node.offset;
+            if constexpr (kOpenTrace) {
+                if (g_opening && g_read_enter < 6) {
+                    log<"mp3 demo: read enter#{} off={} req={} size={} base={}">(
+                        g_read_enter, before, to_read, file->node.size, base_offset);
+                    ++g_read_enter;
+                }
+            }
+            const util::u32 t0 = HAL_GetTick();
             auto st = fs::vfs_read(*file, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(out.data()), to_read));
-            if (!st) return util::unexpected(media::Errc::io_error);
+            const util::u32 dt = HAL_GetTick() - t0;
+            if (!st) {
+                ++g_read_err;
+                if constexpr (kOpenTrace) {
+                    log<"mp3 demo: read err={} off={} req={} errc={} ms={}">(
+                        g_read_err, before, to_read, static_cast<int>(st.err), dt);
+                }
+                return util::unexpected(media::Errc::io_error);
+            }
             const auto after = file->node.offset;
+            const util::usize got = static_cast<util::usize>(after > before ? (after - before) : 0);
             if constexpr (kVerbose) {
                 if (debug_read < 4) {
                     log<"mp3 demo: read before={} after={} req={}">(before, after, to_read);
@@ -121,8 +192,32 @@ namespace {
                     ++debug_read;
                 }
             }
-            if (after <= before) return static_cast<util::usize>(0);
-            return static_cast<util::usize>(after - before);
+            ++g_read_calls;
+            if constexpr (kOpenTrace) {
+                if (g_opening && dt > 50 && g_read_slow < 4) {
+                    log<"mp3 demo: read slow#{} ms={} off={} req={} got={}">(
+                        g_read_slow, dt, before, to_read, got);
+                    ++g_read_slow;
+                }
+            }
+            if (got == 0) {
+                ++g_read_zero;
+                if constexpr (kOpenTrace) {
+                    log<"mp3 demo: read zero count={} off={} size={} base={}">(
+                        g_read_zero, before, file->node.size, base_offset);
+                }
+                return static_cast<util::usize>(0);
+            }
+            if constexpr (kOpenTrace) {
+                const auto now = static_cast<util::u32>(HAL_GetTick());
+                const auto interval = g_opening ? kOpenReadLogEvery : kRunReadLogEvery;
+                if ((g_read_calls % interval) == 0 && (now - g_last_read_log_ms) > kReadLogMinMs) {
+                    g_last_read_log_ms = now;
+                    log<"mp3 demo: read#{} off {}->{} req {} got {} open={}">(
+                        g_read_calls, before, after, to_read, got, static_cast<int>(g_opening));
+                }
+            }
+            return got;
         }
 
         media::Result<util::i64> seek(util::i64 offset, media::SeekWhence whence) noexcept {
@@ -143,18 +238,45 @@ namespace {
                 }
             }
             auto st = fs::vfs_seek(*file, target);
-            if (!st) return util::unexpected(media::Errc::io_error);
+            if (!st) {
+                if constexpr (kOpenTrace) {
+                    log<"mp3 demo: seek err={} whence={} off={} -> {}">(
+                        static_cast<int>(st.err), static_cast<int>(whence), offset, target);
+                }
+                return util::unexpected(media::Errc::io_error);
+            }
+            if constexpr (kOpenTrace) {
+                if (g_opening && g_seek_calls < 6) {
+                    log<"mp3 demo: seek#{} whence={} off={} -> {}">(
+                        g_seek_calls, static_cast<int>(whence), offset, target);
+                    ++g_seek_calls;
+                }
+            }
             return target;
         }
 
         media::Result<util::i64> tell() noexcept {
             if (!file) return util::unexpected(media::Errc::bad_state);
-            return file->node.offset - base_offset;
+            const auto pos = file->node.offset - base_offset;
+            if constexpr (kOpenTrace) {
+                if (g_opening && g_tell_calls < 4) {
+                    log<"mp3 demo: tell#{} -> {}">(g_tell_calls, pos);
+                    ++g_tell_calls;
+                }
+            }
+            return pos;
         }
 
         media::Result<util::i64> size() noexcept {
             if (!file) return util::unexpected(media::Errc::bad_state);
-            return file->node.size - base_offset;
+            const auto size = file->node.size - base_offset;
+            if constexpr (kOpenTrace) {
+                if (g_opening && g_size_calls < 4) {
+                    log<"mp3 demo: size#{} -> {}">(g_size_calls, size);
+                    ++g_size_calls;
+                }
+            }
+            return size;
         }
     };
 
@@ -219,15 +341,13 @@ namespace {
             pcm[i] = static_cast<std::int16_t>(v);
         }
         const auto frames = static_cast<std::size_t>(samples / channels);
-        for (std::size_t i = 0; i < frames; ++i) {
-            const std::int16_t l = pcm[i * channels];
-            const std::int16_t r = (channels > 1) ? pcm[i * channels + 1] : l;
-            const std::size_t o = i * kI2sWordsPerFrame;
-            out_words[o + 0] = static_cast<std::uint16_t>(l);
-            out_words[o + 1] = 0;
-            out_words[o + 2] = static_cast<std::uint16_t>(r);
-            out_words[o + 3] = 0;
-        }
+          for (std::size_t i = 0; i < frames; ++i) {
+              const std::int16_t l = pcm[i * channels];
+              const std::int16_t r = (channels > 1) ? pcm[i * channels + 1] : l;
+              const std::size_t o = i * kI2sWordsPerFrame;
+              out_words[o + 0] = static_cast<std::uint16_t>(l);
+              out_words[o + 1] = static_cast<std::uint16_t>(r);
+          }
         if constexpr (kVerbose) {
             if (energy_blocks < 3) {
             log<"mp3 demo: energy nonzero={} sum={}">(nonzero, abs_sum);
@@ -261,34 +381,68 @@ namespace {
 static volatile bool g_half_ready = false;
 static volatile bool g_full_ready = false;
 static volatile std::uint32_t g_underruns = 0;
-static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
-static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer{};
+    static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
+    static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer CHARM_DMA_BUFFER{};
 
-extern "C" void charm_audio_i2s_half_notify() {
-    g_half_ready = true;
-}
+    extern "C" void charm_audio_i2s_half_notify() {
+        g_half_ready = true;
+    }
 
-extern "C" void charm_audio_i2s_full_notify() {
-    g_full_ready = true;
-}
+    extern "C" void charm_audio_i2s_full_notify() {
+        g_full_ready = true;
+    }
+
+    extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
+        if (hi2s == &hi2s1) {
+            charm_audio_i2s_half_notify();
+        }
+    }
+
+    extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
+        if (hi2s == &hi2s1) {
+            charm_audio_i2s_full_notify();
+        }
+    }
 
 export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s1);
-    FindAudioCtx ctx{};
-    auto st = fs::vfs_list("/MUSIC", &ctx, &find_first_mp3);
-    if (!st || !ctx.found) {
-        log<"mp3 demo: no mp3 found">();
-        return;
-    }
-
-    if constexpr (kStartupLog) {
-        log<"mp3 demo: open {}">(ctx.path);
+    std::string_view open_path{};
+    if constexpr (kUseFixedPath) {
+        open_path = kFixedPath;
+        if constexpr (kStartupLog) {
+            log<"mp3 demo: fixed path {}">(open_path);
+        }
+    } else {
+        FindAudioCtx ctx{};
+        ctx.prefix = "/MUSIC/";
+        auto st = fs::vfs_list("/MUSIC", &ctx, &find_first_mp3);
+        if (!st || !ctx.found) {
+            if constexpr (kStartupLog) {
+                log<"mp3 demo: /MUSIC scan failed {}">(static_cast<int>(st.err));
+            }
+            FindAudioCtx root_ctx{};
+            root_ctx.prefix = "/";
+            st = fs::vfs_list("/", &root_ctx, &find_first_mp3);
+            if (!st || !root_ctx.found) {
+                log<"mp3 demo: no mp3 found">();
+                return;
+            }
+            ctx = root_ctx;
+        }
+        open_path = ctx.path;
+        if constexpr (kStartupLog) {
+            log<"mp3 demo: open {}">(open_path);
+        }
     }
     fs::File f{};
-    st = fs::vfs_open(ctx.path, f);
+    auto st = fs::vfs_open(open_path, f);
     if (!st) {
         log<"mp3 demo: open failed {}">(static_cast<int>(st.err));
         return;
+    }
+    if constexpr (kStartupLog) {
+        log<"mp3 demo: file size={}">(
+            f.node.size);
     }
     {
         std::array<util::u8, 16> head{};
@@ -346,13 +500,28 @@ export void audio_mp3_demo_run() noexcept {
         }
         (void)fs::vfs_seek(f, base);
     }
+    g_read_calls = 0;
+    g_read_zero = 0;
+    g_read_err = 0;
+    g_read_enter = 0;
+    g_read_slow = 0;
+    g_seek_calls = 0;
+    g_tell_calls = 0;
+    g_size_calls = 0;
+    g_last_read_log_ms = 0;
     if constexpr (kStartupLog) {
-        log<"mp3 demo: filter open begin">();
+        log<"mp3 demo: filter open begin off={} size={} base={}">(
+            f.node.offset, f.node.size, session.source.base_offset);
     }
+    g_opening = true;
+    const util::u32 open_start = HAL_GetTick();
     auto ref = media::make_stream_source_ref(session.source);
     auto rst = session.filter.open(ref);
+    const util::u32 open_ms = HAL_GetTick() - open_start;
+    g_opening = false;
     if constexpr (kStartupLog) {
-        log<"mp3 demo: filter open end">();
+        log<"mp3 demo: filter open end ok={} ms={}">(
+            static_cast<int>(static_cast<bool>(rst)), open_ms);
     }
     if (!rst) {
         log<"mp3 demo: decoder open failed">();
@@ -400,6 +569,19 @@ export void audio_mp3_demo_run() noexcept {
         }
     }
 
+    const auto dma_state = HAL_DMA_GetState(&hdma_spi1_tx);
+    if (dma_state != HAL_DMA_STATE_READY) {
+        log<"mp3 demo: i2s dma not ready state={} err={}">(
+            static_cast<int>(dma_state),
+            static_cast<int>(hdma_spi1_tx.ErrorCode));
+        (void)HAL_DMA_Abort(&hdma_spi1_tx);
+        (void)HAL_DMA_DeInit(&hdma_spi1_tx);
+        if (HAL_DMA_Init(&hdma_spi1_tx) != HAL_OK) {
+            log<"mp3 demo: i2s dma reinit failed err={}">(
+                static_cast<int>(hdma_spi1_tx.ErrorCode));
+        }
+    }
+
     if (HAL_I2S_Transmit_DMA(&hi2s1,
             g_i2s_buffer.data(),
             static_cast<uint16_t>(g_i2s_buffer.size())) != HAL_OK) {
@@ -417,6 +599,7 @@ export void audio_mp3_demo_run() noexcept {
 
     std::size_t idle_ticks = 0;
     std::size_t tick = 0;
+    util::u32 last_stat_ms = HAL_GetTick();
     bool half_filled = true;
     bool full_filled = true;
     while (true) {
@@ -439,15 +622,35 @@ export void audio_mp3_demo_run() noexcept {
             }
         }
         if (session.ended) {
+            if (idle_ticks == 0) {
+                log<"mp3 demo: eos read_calls={} zero={} err={}">(
+                    g_read_calls, g_read_zero, g_read_err);
+            }
             if (++idle_ticks > 50) break;
         }
-        if constexpr (kRuntimeLog) {
+        if constexpr (kRuntimeLog || kStatLog) {
             if ((++tick % 50000) == 0) {
-                const auto ndtr = -1;
-                const auto dstate = -1;
-                log<"mp3 demo: playing... ndtr={} dma_state={} i2s_state={} underrun={} half_ok={} full_ok={}">(
-                    ndtr, dstate, static_cast<int>(hi2s1.State), g_underruns,
+                const auto* dma_inst = static_cast<DMA_Stream_TypeDef*>(hdma_spi1_tx.Instance);
+                const auto ndtr = dma_inst ? static_cast<int>(dma_inst->NDTR) : -1;
+                const auto dstate = static_cast<int>(hdma_spi1_tx.State);
+                const auto derr = static_cast<int>(hdma_spi1_tx.ErrorCode);
+                log<"mp3 demo: playing... ndtr={} dma_state={} dma_err={} i2s_state={} underrun={} half_ok={} full_ok={}">(
+                    ndtr, dstate, derr, static_cast<int>(hi2s1.State), g_underruns,
                     static_cast<int>(half_filled), static_cast<int>(full_filled));
+            }
+        }
+        if constexpr (kStatLog) {
+            const auto now = HAL_GetTick();
+            if ((now - last_stat_ms) >= 1000) {
+                last_stat_ms = now;
+                auto pos = session.source.tell();
+                auto size = session.source.size();
+                const auto pos_v = pos ? pos.value() : -1;
+                const auto size_v = size ? size.value() : -1;
+                log<"mp3 demo: stat ms={} pos={} size={} ended={} i2s_state={} i2s_err={}">(
+                    now, pos_v, size_v, static_cast<int>(session.ended),
+                    static_cast<int>(hi2s1.State),
+                    static_cast<int>(HAL_I2S_GetError(&hi2s1)));
             }
         }
     }
@@ -459,5 +662,6 @@ export void audio_mp3_demo_run() noexcept {
 
 export void audio_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;
+    audio::mp3_set_debug_sink(sink);
 }
 

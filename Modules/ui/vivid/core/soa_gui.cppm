@@ -32,7 +32,6 @@ namespace {
     }
 
     constexpr std::size_t kMaxSegments = 8;
-    constexpr int kWheelQ15 = 32767;
     constexpr int kWheelLutSize = 72;
     struct WheelQ15Point {
         std::int16_t x{};
@@ -52,6 +51,11 @@ namespace {
         {-28377, -16383},{-26841, -18794},{-25101, -21062},{-23170, -23170},{-21062, -25101},{-18794, -26841},
         {-16383, -28377},{-13848, -29697},{-11207, -30791},{-8481, -31650},{-5690, -32269},{-2856, -32642},
     }};
+
+    constexpr int scale_q15(std::int16_t q, int radius) noexcept {
+        const int v = static_cast<int>(q) * radius;
+        return (v >= 0) ? ((v + (1 << 14)) >> 15) : ((v - (1 << 14)) >> 15);
+    }
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
         return kind == WidgetKind::ScrollContainer || kind == WidgetKind::List;
@@ -1323,8 +1327,8 @@ void SoaGui::record_progress_wheel(ui::draw_cmd::DefaultDrawCmdBuffer& out, cons
     std::array<Point, kWheelLutSize> points{};
     for (int i = 0; i < point_count; ++i) {
         const auto q = kWheelLut[static_cast<std::size_t>(i)];
-        const int px = cx + (static_cast<int>(q.x) * radius) / kWheelQ15;
-        const int py = cy + (static_cast<int>(q.y) * radius) / kWheelQ15;
+        const int px = cx + scale_q15(q.x, radius);
+        const int py = cy + scale_q15(q.y, radius);
         points[static_cast<std::size_t>(i)] = Point{px, py};
     }
     out.draw_path(points.data(), point_count, false, colors.accent);

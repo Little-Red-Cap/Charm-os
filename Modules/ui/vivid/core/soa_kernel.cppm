@@ -2889,6 +2889,8 @@ struct SoaBehavior {
             return make_desc(true, PayloadKind::Label);
         case WidgetKind::Button:
             return make_desc(true, PayloadKind::Button);
+        case WidgetKind::IconButton:
+            return make_desc(true, PayloadKind::Button);
         case WidgetKind::TextInput:
             return make_desc(true, PayloadKind::TextInput);
         case WidgetKind::TextArea:
@@ -3988,11 +3990,15 @@ export
         kernel_.set_toggle_group_kind(h, group_kind);
         return h;
     }
-      WidgetHandle create_button(const char* text) noexcept {
-          auto h = kernel_.create(WidgetKind::Button);
-          kernel_.set_text(h, text);
-          return h;
-      }
+    WidgetHandle create_button(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::Button);
+        kernel_.set_text(h, text);
+        return h;
+    }
+    WidgetHandle create_icon_button() noexcept {
+        auto h = kernel_.create(WidgetKind::IconButton);
+        return h;
+    }
       void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
           kernel_.set_button_icon(h, icon);
       }

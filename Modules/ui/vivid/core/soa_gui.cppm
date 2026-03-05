@@ -386,10 +386,11 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::Label:
         record_label(out, world_rect, colors, metrics, state, kernel_.text(h));
         break;
-    case WidgetKind::Button:
-        record_button(out, world_rect, colors, metrics, state, kernel_.text(h),
-                      kernel_.button_icon(h), kernel_.button_icon_size(h));
-        break;
+        case WidgetKind::Button:
+        case WidgetKind::IconButton:
+            record_button(out, world_rect, colors, metrics, state, kernel_.text(h),
+                          kernel_.button_icon(h), kernel_.button_icon_size(h));
+            break;
     case WidgetKind::Checkbox:
         record_checkbox(out, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
         break;

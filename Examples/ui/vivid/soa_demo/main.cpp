@@ -575,7 +575,7 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 5850;
+    constexpr std::size_t kMaxStyleTableBytes = 6200;
     std::FILE* g_regress_log = nullptr;
     bool g_payload_stats_dumped = false;
 
@@ -1712,6 +1712,7 @@ int main(int argc, char** argv) {
 
     auto title = factory.create_label("SoA Kernel Demo");
     auto btn = factory.create_button("Press");
+    auto icon_btn = factory.create_icon_button();
     auto image_view = factory.create_image();
     auto spinner = factory.create_spinner();
     auto sw = factory.create_switch();
@@ -1747,6 +1748,8 @@ int main(int argc, char** argv) {
     ensure_demo_images();
     factory.set_button_icon(btn, g_test_icon_id);
     factory.set_button_icon_size(btn, 18);
+    factory.set_button_icon(icon_btn, g_test_icon_id);
+    factory.set_button_icon_size(icon_btn, 20);
     factory.set_image(image_view, g_slice_id);
 
     factory.link(root, title);
@@ -1785,6 +1788,7 @@ int main(int argc, char** argv) {
 
     kernel.set_rect(title, {24, 16, screen_width - 48, 24});
     kernel.set_rect(btn, {24, 60, 160, 40});
+    kernel.set_rect(icon_btn, {240, 60, 40, 40});
     kernel.set_rect(image_view, {200, 60, 32, 32});
     kernel.set_rect(spinner, {200, 104, 24, 24});
     kernel.set_rect(sw, {24, 112, 96, 32});

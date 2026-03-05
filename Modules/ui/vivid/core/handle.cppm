@@ -12,6 +12,7 @@ enum class WidgetKind : std::uint8_t {
     Image,
     Label,
     Button,
+    IconButton,
     Checkbox,
     Led,
     Slider,
@@ -98,6 +99,7 @@ inline const char* widget_kind_name(WidgetKind kind) noexcept {
         case WidgetKind::Image: return "Image";
         case WidgetKind::Label: return "Label";
         case WidgetKind::Button: return "Button";
+        case WidgetKind::IconButton: return "IconButton";
         case WidgetKind::Checkbox: return "Checkbox";
         case WidgetKind::Led: return "Led";
         case WidgetKind::Slider: return "Slider";

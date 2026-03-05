@@ -227,6 +227,7 @@ constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
         case WidgetKind::SpinZoomWidget:
             return press_only;
         case WidgetKind::Button:
+        case WidgetKind::IconButton:
         case WidgetKind::Checkbox:
         case WidgetKind::Radio:
         case WidgetKind::Switch:

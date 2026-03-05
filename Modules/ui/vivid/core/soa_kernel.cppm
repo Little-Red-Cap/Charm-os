@@ -1591,6 +1591,30 @@ public:
         return payload ? payload->indent_px : 0;
     }
 
+    int tree_view_max_indent_px(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        return payload ? static_cast<int>(payload->max_indent_px) : 0;
+    }
+
+    int tree_view_min_text_avail_px(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        return payload ? static_cast<int>(payload->min_text_avail_px) : 0;
+    }
+
     void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1601,8 +1625,48 @@ public:
         }
         auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
         if (!payload) return;
-        payload->indent_px = px;
-        mark_paint_dirty();
+        if (payload->indent_px != px) {
+            payload->indent_px = px;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_tree_view_max_indent_px(WidgetHandle h, int px) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (px < 0) px = 0;
+        if (px > 0xFFFF) px = 0xFFFF;
+        auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return;
+        const auto next = static_cast<std::uint16_t>(px);
+        if (payload->max_indent_px != next) {
+            payload->max_indent_px = next;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TreeView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (px < 0) px = 0;
+        if (px > 0xFFFF) px = 0xFFFF;
+        auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+        if (!payload) return;
+        const auto next = static_cast<std::uint16_t>(px);
+        if (payload->min_text_avail_px != next) {
+            payload->min_text_avail_px = next;
+            mark_paint_dirty();
+        }
     }
 
     const char* tree_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
@@ -3999,6 +4063,12 @@ export
         }
         void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
             kernel_.set_tree_view_indent_px(h, px);
+        }
+        void set_tree_view_max_indent_px(WidgetHandle h, int px) noexcept {
+            kernel_.set_tree_view_max_indent_px(h, px);
+        }
+        void set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept {
+            kernel_.set_tree_view_min_text_avail_px(h, px);
         }
 
     bool link(WidgetHandle parent, WidgetHandle child) noexcept {

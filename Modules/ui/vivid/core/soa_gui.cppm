@@ -1075,6 +1075,8 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
     const int scroll_y = kernel.scroll_y(h);
     const std::uint8_t overscan = kernel.tree_view_overscan(h);
     const int indent_px = static_cast<int>(kernel.tree_view_indent_px(h));
+    const int max_indent_px = kernel.tree_view_max_indent_px(h);
+    const int min_text_avail_px = kernel.tree_view_min_text_avail_px(h);
 
     const int base_start = (row_h > 0) ? (scroll_y / row_h) : 0;
     int start = base_start - static_cast<int>(overscan);
@@ -1086,7 +1088,10 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
 
     for (int row = start; row < end; ++row) {
         const std::uint8_t indent = kernel.tree_view_item_indent(h, static_cast<std::uint16_t>(row));
-        const int indent_x = indent_px * static_cast<int>(indent);
+        int indent_x = indent_px * static_cast<int>(indent);
+        if (max_indent_px > 0 && indent_x > max_indent_px) {
+            indent_x = max_indent_px;
+        }
         Rect text_r{
             clip_rect.x + pad + indent_x,
             y,
@@ -1095,8 +1100,15 @@ void SoaGui::record_tree_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         };
         if (text_r.w < 0) text_r.w = 0;
         const char* text = kernel.tree_view_item_text(h, static_cast<std::uint16_t>(row));
-        out.draw_text_box(text_r, text ? text : "", colors.font, font_from_metrics(metrics),
-                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        const bool too_narrow = (min_text_avail_px > 0 && text_r.w < min_text_avail_px);
+        const char* draw_text = text ? text : "";
+        TextEllipsis ellipsis = TextEllipsis::End;
+        if (too_narrow) {
+            draw_text = "...";
+            ellipsis = TextEllipsis::None;
+        }
+        out.draw_text_box(text_r, draw_text, colors.font, font_from_metrics(metrics),
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, ellipsis);
         out.fill_rect(Rect{clip_rect.x, y + row_h - 1, clip_rect.w, 1}, colors.border);
         y += row_h;
     }

@@ -134,11 +134,23 @@ namespace {
 
     void ensure_demo_images() noexcept {
         if (g_demo_images_ready) return;
-        g_test_icon_id = ui::draw_cmd::register_image_dedup(kTestIconView);
-        g_slice_id = ui::draw_cmd::register_image_dedup(kSliceView);
+        g_test_icon_id = ui::draw_cmd::register_image_dedup(
+            kTestIconView,
+            ui::draw_cmd::ImageRegisterReason::Init,
+            "demo_images");
+        g_slice_id = ui::draw_cmd::register_image_dedup(
+            kSliceView,
+            ui::draw_cmd::ImageRegisterReason::Init,
+            "demo_images");
         if (g_selftest_dedup) {
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
         }
         g_demo_images_ready = true;
     }
@@ -494,7 +506,11 @@ namespace {
                 img.premultiplied != 0,
                 img.force_opaque != 0);
             ui::draw_cmd::ImageId id{img.slot, img.generation};
-            if (!ui::draw_cmd::register_image_with_id(id, view)) {
+            if (!ui::draw_cmd::register_image_with_id(
+                    id,
+                    view,
+                    ui::draw_cmd::ImageRegisterReason::DumpReplay,
+                    "vcmd_replay")) {
                 std::fclose(file);
                 return false;
             }
@@ -1987,10 +2003,22 @@ int main(int argc, char** argv) {
 #endif
         if (selftest_dedup) {
             ensure_demo_images();
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kTestIconView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
-            (void)ui::draw_cmd::register_image_dedup(kSliceView);
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kTestIconView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
+            (void)ui::draw_cmd::register_image_dedup(
+                kSliceView,
+                ui::draw_cmd::ImageRegisterReason::SelfTest,
+                "selftest_dedup");
         }
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
@@ -2170,6 +2198,15 @@ int main(int argc, char** argv) {
             }
         }
         if (!img_growth_ok) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+            const auto reason = ui::draw_cmd::image_registry_first_after_lock_reason();
+            const char* tag = ui::draw_cmd::image_registry_first_after_lock_tag();
+            (void)out::println<"[soa][fail] img_growth_after_lock count={} reason={} tag={}">(
+                g_console,
+                static_cast<unsigned>(img_growth_count),
+                ui::draw_cmd::image_register_reason_name(reason),
+                tag ? tag : "-");
+#endif
             ci_mark_fail("img_growth");
         }
         if (!img_overflow_ok) {

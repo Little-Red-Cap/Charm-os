@@ -1405,6 +1405,7 @@ namespace {
         };
         factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
         factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
+        factory.set_table_view_header_height(table_view, 20);
         factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {

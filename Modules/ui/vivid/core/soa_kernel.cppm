@@ -56,60 +56,6 @@ namespace soa_detail {
 
 }
 
-// ---- Node/state flags ----
-export
-enum class SoaNodeFlag : std::uint8_t {
-    Used = 1 << 0,
-    Visible = 1 << 1,
-    Enabled = 1 << 2,
-    Focusable = 1 << 3,
-    HitTest = 1 << 4,
-    ClipChildren = 1 << 5
-};
-
-export
-enum class SoaStateFlag : std::uint8_t {
-    Hovered = 1 << 0,
-    Pressed = 1 << 1,
-    Focused = 1 << 2
-};
-
-export
-enum class SoaStateMask : std::uint8_t {
-    Enabled = 1 << 0,
-    Hovered = 1 << 1,
-    Pressed = 1 << 2,
-    Focused = 1 << 3
-};
-
-export
-enum class ScrollBarOrientation : std::uint8_t {
-    Horizontal = 0,
-    Vertical = 1
-};
-
-export
-struct StateCompact {
-    std::uint8_t bits{0};
-    std::uint8_t variant{0};
-
-    bool enabled() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Enabled)) != 0;
-    }
-
-    bool hovered() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Hovered)) != 0;
-    }
-
-    bool pressed() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Pressed)) != 0;
-    }
-
-    bool focused() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Focused)) != 0;
-    }
-};
-
 // ---- Kernel ----
 export
 class SoaKernel {
@@ -1420,6 +1366,26 @@ public:
         }
     }
 
+    void set_table_view_header_height(WidgetHandle h, int height) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (height < 0) height = 0;
+        if (payload->header_height != height) {
+            payload->header_height = height;
+            if (payload->scroll_y != 0) {
+                set_scroll_y_clamped(h, payload->scroll_y);
+            }
+            mark_layout_dirty();
+        }
+    }
+
     void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1468,7 +1434,9 @@ public:
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload || !payload->header_fn) return 0;
-        return payload->row_height > 0 ? payload->row_height : 0;
+        int height = payload->header_height;
+        if (height <= 0) height = payload->row_height;
+        return height > 0 ? height : 0;
     }
 
     std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
@@ -1563,12 +1531,10 @@ public:
         auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload) return;
         if (col_width < 0) col_width = 0;
-        if (payload->col_width != col_width) {
+        if (payload->col_width != col_width || payload->col_width_fn || payload->col_width_ctx) {
             payload->col_width = col_width;
-            if (col_width > 0) {
-                payload->col_width_ctx = nullptr;
-                payload->col_width_fn = nullptr;
-            }
+            payload->col_width_ctx = nullptr;
+            payload->col_width_fn = nullptr;
             if (payload->scroll_x != 0) {
                 payload->scroll_x = clamp_scroll_x(h, payload->scroll_x);
             }
@@ -1588,7 +1554,7 @@ public:
         auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload) return;
         if (payload->col_width_ctx != ctx || payload->col_width_fn != fn) {
-            payload->col_width_ctx = ctx;
+            payload->col_width_ctx = fn ? ctx : nullptr;
             payload->col_width_fn = fn;
             if (fn) {
                 payload->col_width = 0;
@@ -2591,7 +2557,9 @@ public:
             if (row_h <= 0) return 0;
             int total = count * row_h;
             if (payload->header_fn) {
-                total += row_h;
+                int header_h = payload->header_height;
+                if (header_h <= 0) header_h = row_h;
+                if (header_h > 0) total += header_h;
             }
             return total;
         }
@@ -4081,6 +4049,9 @@ export
                                    const void* ctx,
                                    soa_detail::TableViewHeaderFn fn) noexcept {
             kernel_.set_table_view_header(h, ctx, fn);
+        }
+        void set_table_view_header_height(WidgetHandle h, int height) noexcept {
+            kernel_.set_table_view_header_height(h, height);
         }
         void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
             kernel_.set_table_view_count(h, rows);

@@ -1067,7 +1067,10 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
         }
     }
 
-    const int header_pad = (metrics.header_padding > 0) ? metrics.header_padding : pad;
+    int header_pad = kernel.table_view_header_padding(h);
+    if (header_pad <= 0) {
+        header_pad = (metrics.header_padding > 0) ? metrics.header_padding : pad;
+    }
     if (has_header && header_h > 0 && cols > 0) {
         const Rect header_rect{clip_rect.x, clip_rect.y, clip_rect.w, header_h};
         out.fill_rect(header_rect, colors.bg);

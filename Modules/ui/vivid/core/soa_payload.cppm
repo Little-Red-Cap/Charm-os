@@ -248,6 +248,9 @@ export namespace soa_detail {
         int col_width{0};
         int header_height{0};
         int header_padding{0};
+        std::uint8_t header_style{0};
+        std::uint8_t header_divider{1};
+        std::uint8_t col_dividers{1};
         int scroll_x{0};
         int scroll_y{0};
         int row_height{28};

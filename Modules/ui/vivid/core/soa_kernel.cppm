@@ -1399,7 +1399,58 @@ public:
         if (padding < 0) padding = 0;
         if (payload->header_padding != padding) {
             payload->header_padding = padding;
-            mark_layout_dirty();
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = static_cast<std::uint8_t>(style);
+        if (payload->header_style != next) {
+            payload->header_style = next;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_header_divider(WidgetHandle h, bool enabled) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = enabled ? 1 : 0;
+        if (payload->header_divider != next) {
+            payload->header_divider = next;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = enabled ? 1 : 0;
+        if (payload->col_dividers != next) {
+            payload->col_dividers = next;
+            mark_paint_dirty();
         }
     }
 
@@ -1466,6 +1517,43 @@ public:
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         return payload ? payload->header_padding : 0;
+    }
+
+    TableViewHeaderStyle table_view_header_style(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return TableViewHeaderStyle::Default;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return TableViewHeaderStyle::Default;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? static_cast<TableViewHeaderStyle>(payload->header_style)
+                       : TableViewHeaderStyle::Default;
+    }
+
+    bool table_view_header_divider(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return false;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? (payload->header_divider != 0) : false;
+    }
+
+    bool table_view_col_dividers(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return false;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? (payload->col_dividers != 0) : false;
     }
 
     std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
@@ -3100,7 +3188,7 @@ private:
         if (input_.dragging) {
             input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button, input_.last_ms));
             if (input_.scroll_target) {
-                input_scroll_by(input_.scroll_target, -dy);
+                input_scroll_by(input_.scroll_target, -dy, -dx);
             }
         } else {
             input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button, input_.last_ms));
@@ -3111,7 +3199,20 @@ private:
         WidgetHandle target = input_find_scroll_target(x, y);
         if (!target) return;
         const int step = scroll_step(target);
-        input_scroll_by(target, -wheel_y * step);
+        const SoaBehavior behavior = behavior_for_kind(kind(target));
+        const int delta = -wheel_y * step;
+        const bool allow_h = (behavior.scroll_axis == SoaScrollAxis::Horizontal
+                              || behavior.scroll_axis == SoaScrollAxis::Both)
+                             && kind(target) == WidgetKind::TableView
+                             && max_scroll_x(target) > 0;
+        const bool allow_v = (behavior.scroll_axis == SoaScrollAxis::Vertical
+                              || behavior.scroll_axis == SoaScrollAxis::Both)
+                             && max_scroll(target) > 0;
+        if (!allow_v && allow_h) {
+            input_scroll_by(target, 0, delta);
+        } else {
+            input_scroll_by(target, delta, 0);
+        }
         input_emit_event(target, Event::wheel(x, y, wheel_y, input_.last_ms));
     }
 
@@ -3184,7 +3285,7 @@ private:
             input_clear_sibling_checks(action.target, static_cast<WidgetKind>(action.a));
             break;
         case SoaInputActionType::ScrollBy:
-            input_apply_scroll_by(action.target, action.a);
+            input_apply_scroll_by(action.target, action.a, action.b);
             break;
         case SoaInputActionType::SetScrollYClamped:
             set_scroll_y_clamped(action.target, action.a);
@@ -3599,7 +3700,14 @@ private:
             ox += pr.x;
             oy += pr.y;
             if (input_is_scrollable_kind(kind(p))) {
-                oy -= scroll_y(p);
+                const SoaBehavior behavior = behavior_for_kind(kind(p));
+                if (behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Vertical) {
+                    oy -= scroll_y(p);
+                }
+                if ((behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Horizontal)
+                    && kind(p) == WidgetKind::TableView) {
+                    ox -= table_view_scroll_x(p);
+                }
             }
             cur = p;
         }
@@ -3652,13 +3760,21 @@ private:
         return {};
     }
 
-    void input_scroll_by(WidgetHandle h, int dy) {
-        input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, 0});
+    void input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
+        input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
     }
 
-    void input_apply_scroll_by(WidgetHandle h, int dy) {
-        const int next = scroll_y(h) + dy;
-        set_scroll_y_clamped(h, next);
+    void input_apply_scroll_by(WidgetHandle h, int dy, int dx) {
+        const SoaBehavior behavior = behavior_for_kind(kind(h));
+        if (behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Vertical) {
+            const int next = scroll_y(h) + dy;
+            set_scroll_y_clamped(h, next);
+        }
+        if ((behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Horizontal)
+            && kind(h) == WidgetKind::TableView) {
+            const int next = table_view_scroll_x(h) + dx;
+            set_table_view_scroll_x_clamped(h, next);
+        }
     }
 
     void input_set_focus(WidgetHandle h) {

@@ -1021,6 +1021,9 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     int header_h = kernel.table_view_header_height(h);
     if (header_h < 0) header_h = 0;
     if (header_h > clip_rect.h) header_h = clip_rect.h;
+    const TableViewHeaderStyle header_style = kernel.table_view_header_style(h);
+    const bool header_divider = kernel.table_view_header_divider(h);
+    const bool col_dividers = kernel.table_view_col_dividers(h);
     Rect body_rect{clip_rect.x, clip_rect.y + header_h, clip_rect.w, clip_rect.h - header_h};
     if (body_rect.h < 0) body_rect.h = 0;
 
@@ -1073,8 +1076,12 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
     }
     if (has_header && header_h > 0 && cols > 0) {
         const Rect header_rect{clip_rect.x, clip_rect.y, clip_rect.w, header_h};
-        out.fill_rect(header_rect, colors.bg);
-        out.fill_rect(Rect{header_rect.x, header_rect.y + header_rect.h - 1, header_rect.w, 1}, colors.border);
+        const rgba header_bg = (header_style == TableViewHeaderStyle::Accent) ? colors.accent : colors.bg;
+        const rgba header_font = (header_style == TableViewHeaderStyle::Accent) ? colors.on_accent : colors.font;
+        out.fill_rect(header_rect, header_bg);
+        if (header_divider) {
+            out.fill_rect(Rect{header_rect.x, header_rect.y + header_rect.h - 1, header_rect.w, 1}, colors.border);
+        }
         int x = x_start;
         for (int col = col_start; col < col_end; ++col) {
             int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
@@ -1091,7 +1098,7 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
             const char* text = kernel.table_view_header_text(h, static_cast<std::uint8_t>(col));
             Rect text_rect{cell.x + header_pad, cell.y, cell.w - header_pad * 2, cell.h};
             if (text_rect.w < 0) text_rect.w = 0;
-            out.draw_text_box(text_rect, text ? text : "", colors.font, font_from_metrics(metrics),
+            out.draw_text_box(text_rect, text ? text : "", header_font, font_from_metrics(metrics),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
             x += w;
         }
@@ -1136,7 +1143,7 @@ void SoaGui::record_table_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Re
 
     out.pop_clip();
 
-    if ((end > start || header_h > 0) && cols > 0) {
+    if (col_dividers && (end > start || header_h > 0) && cols > 0) {
         const int line_h_body = (end > start) ? (end - start) * row_h : 0;
         const int line_y_body = body_rect.y - (scroll_y % row_h) - (base_start - start) * row_h;
         const int line_y = header_h > 0 ? clip_rect.y : line_y_body;

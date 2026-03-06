@@ -36,6 +36,13 @@ enum class SoaWheelTargetPolicy : std::uint8_t {
 };
 
 export
+enum class SoaScrollAxis : std::uint8_t {
+    Vertical = 0,
+    Horizontal = 1,
+    Both = 2
+};
+
+export
 enum class SoaDragBehavior : std::uint8_t {
     None,
     UpdateValueFromPos,
@@ -57,6 +64,7 @@ struct SoaBehavior {
     WidgetKind group_kind{WidgetKind::None};
     SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
     bool scrollable{false};
+    SoaScrollAxis scroll_axis{SoaScrollAxis::Vertical};
     bool capture_on_press{false};
     bool checkable{false};
     SoaDragBehavior drag_behavior{SoaDragBehavior::None};
@@ -100,6 +108,7 @@ namespace {
         } while (0);
 #include "widgets.behavior.scroll.def"
 #undef VIVID_WIDGET_BEHAVIOR_SCROLL
+        table[static_cast<std::size_t>(WidgetKind::TableView)].scroll_axis = SoaScrollAxis::Both;
 #define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \

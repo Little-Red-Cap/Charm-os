@@ -1407,6 +1407,10 @@ namespace {
         factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
         factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
         factory.set_table_view_header_height(table_view, 20);
+        factory.set_table_view_header_padding(table_view, 6);
+        factory.set_table_view_header_style(table_view, TableViewHeaderStyle::Accent);
+        factory.set_table_view_header_divider(table_view, true);
+        factory.set_table_view_col_dividers(table_view, true);
         factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {
@@ -1953,6 +1957,11 @@ int main(int argc, char** argv) {
     };
     factory.set_table_view_source(table_view, 1000, 4, &table_source, &table_view_text_at);
     factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
+    factory.set_table_view_header_height(table_view, 20);
+    factory.set_table_view_header_padding(table_view, 6);
+    factory.set_table_view_header_style(table_view, TableViewHeaderStyle::Accent);
+    factory.set_table_view_header_divider(table_view, true);
+    factory.set_table_view_col_dividers(table_view, true);
 
     const char* tree_items[] = {
         "Root", "Alpha", "Beta", "Gamma",

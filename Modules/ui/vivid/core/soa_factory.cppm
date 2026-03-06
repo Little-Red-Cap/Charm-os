@@ -313,6 +313,15 @@ public:
     void set_table_view_header_padding(WidgetHandle h, int padding) noexcept {
         kernel_.set_table_view_header_padding(h, padding);
     }
+    void set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept {
+        kernel_.set_table_view_header_style(h, style);
+    }
+    void set_table_view_header_divider(WidgetHandle h, bool enabled) noexcept {
+        kernel_.set_table_view_header_divider(h, enabled);
+    }
+    void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
+        kernel_.set_table_view_col_dividers(h, enabled);
+    }
     void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
         kernel_.set_table_view_count(h, rows);
     }

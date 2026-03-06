@@ -35,6 +35,12 @@ enum class ScrollBarOrientation : std::uint8_t {
 };
 
 export
+enum class TableViewHeaderStyle : std::uint8_t {
+    Default = 0,
+    Accent = 1
+};
+
+export
 struct StateCompact {
     std::uint8_t bits{0};
     std::uint8_t variant{0};

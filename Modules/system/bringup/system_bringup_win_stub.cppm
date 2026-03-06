@@ -15,6 +15,7 @@ import canopen.od;
 import canopen.pump;
 import canopen.sdo;
 import io.channel;
+import io.registry;
 import input.pump;
 import init.node;
 import kernel.capabilities;

@@ -110,7 +110,7 @@ namespace {
     constexpr bool kSdramSelftestInBringup = false;
     constexpr bool kUseOutLoggerEarly = false;
     constexpr bool kUseDmaConsole = false;
-    constexpr bool kEncoderTestOnBoot = true;
+    constexpr bool kEncoderTestOnBoot = false;
     constexpr util::u32 kEncoderTestMs = 5000;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
 
@@ -300,6 +300,7 @@ namespace {
         __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOD_CLK_ENABLE();
         __HAL_RCC_GPIOE_CLK_ENABLE();
+        __HAL_RCC_GPIOI_CLK_ENABLE();
         __HAL_RCC_GPIOJ_CLK_ENABLE();
         __HAL_RCC_GPIOK_CLK_ENABLE();
 
@@ -330,6 +331,14 @@ namespace {
 
         gpio_init.Pin = GPIO_PIN_8;
         HAL_GPIO_Init(GPIOA, &gpio_init);
+
+        /* Encoder key: PI8, active low (pull-up). */
+        gpio_init.Pin = GPIO_PIN_8;
+        gpio_init.Mode = GPIO_MODE_INPUT;
+        gpio_init.Pull = GPIO_PULLUP;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio_init.Alternate = 0;
+        HAL_GPIO_Init(GPIOI, &gpio_init);
 
         /* Display control: PJ5 reset, PJ6 data/cmd. */
         gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_6;
@@ -639,6 +648,7 @@ int main() {
         caps.input,
         caps.spi1,
         caps.i2c1,
+        caps.can0,
         pump,
         post_fn,
         &running,

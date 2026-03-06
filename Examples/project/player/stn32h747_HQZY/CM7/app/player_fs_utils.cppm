@@ -24,6 +24,23 @@ namespace {
         dst[n] = '\0';
     }
 
+    bool join_path(char* dst, std::size_t cap,
+                   std::string_view dir,
+                   std::string_view name) noexcept {
+        if (!dst || cap == 0) return false;
+        if (name.empty()) return false;
+        if (dir.empty()) dir = "/";
+        const bool root = (dir == "/");
+        const std::size_t need = dir.size() + (root ? 0 : 1) + name.size();
+        if (need >= cap) return false;
+        std::size_t pos = 0;
+        for (char c : dir) dst[pos++] = c;
+        if (!root) dst[pos++] = '/';
+        for (char c : name) dst[pos++] = c;
+        dst[pos] = '\0';
+        return true;
+    }
+
     struct ListCtx {
         player::hqzy::AppState* state{nullptr};
         unsigned char count{0};
@@ -60,5 +77,28 @@ export namespace player::hqzy {
         state.list_ready = static_cast<bool>(st);
         state.list_error = !static_cast<bool>(st);
         return st;
+    }
+
+    fs::Status open_selected(AppState& state) noexcept {
+        if (!state.list_ready) return fs::Status{fs::Errc::busy};
+        if (state.entry_selected >= state.entry_count) {
+            return fs::Status{fs::Errc::noent};
+        }
+        const auto& e = state.entries[state.entry_selected];
+        char next[sizeof(state.list_dir)]{};
+        if (!join_path(next, sizeof(next), state.list_dir, e.name)) {
+            state.list_error = true;
+            return fs::Status{fs::Errc::nametoolong};
+        }
+        if (e.is_dir) {
+            return scan_dir(state, next);
+        }
+        copy_name(state.play_path, sizeof(state.play_path), next);
+        state.track.title = state.entries[state.entry_selected].name;
+        state.playing = true;
+        state.paused = false;
+        state.play_request = true;
+        state.page = Page::now_playing;
+        return fs::Status{fs::Errc::ok};
     }
 }

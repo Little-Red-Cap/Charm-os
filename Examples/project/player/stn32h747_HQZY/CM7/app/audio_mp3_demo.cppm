@@ -30,6 +30,8 @@ import util.expected;
 extern "C" I2S_HandleTypeDef hi2s1;
 extern "C" DMA_HandleTypeDef hdma_spi1_tx;
 
+export bool audio_mp3_play_path(std::string_view open_path) noexcept;
+
 namespace {
 #if defined(__GNUC__)
 #define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
@@ -483,72 +485,85 @@ namespace {
             log<"mp3 demo: open {}">(open_path);
         }
     }
-    fs::File f{};
-    auto st = fs::vfs_open(open_path, f);
-    if (!st) {
-        log<"mp3 demo: open failed {}">(static_cast<int>(st.err));
-        return;
-    }
-    if constexpr (kStartupLog) {
-        log<"mp3 demo: file size={}">(
-            f.node.size);
-    }
-    {
-        std::array<util::u8, 16> head{};
-        (void)fs::vfs_seek(f, 0);
-        auto st_read = fs::vfs_read(f, head);
-        (void)st_read;
-        if constexpr (kStartupLog) {
-            log<"mp3 demo: head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7],
-                head[8], head[9], head[10], head[11], head[12], head[13], head[14], head[15]);
-        }
-        (void)fs::vfs_seek(f, 0);
-    }
-    (void)fs::vfs_seek(f, 0);
+    (void)audio_mp3_play_path(open_path);
+  }
 
-    Mp3Session session{};
-    session.source = FileSource{&f};
-    {
-        std::array<util::u8, 10> id3{};
-        (void)fs::vfs_seek(f, 0);
-        (void)fs::vfs_read(f, id3);
-        util::i64 base = 0;
-        if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3') {
-            const std::uint32_t sz =
-                (static_cast<std::uint32_t>(id3[6] & 0x7f) << 21) |
-                (static_cast<std::uint32_t>(id3[7] & 0x7f) << 14) |
-                (static_cast<std::uint32_t>(id3[8] & 0x7f) << 7) |
-                (static_cast<std::uint32_t>(id3[9] & 0x7f));
-            base = static_cast<util::i64>(10 + sz);
+  namespace {
+      bool play_mp3_path(std::string_view open_path) noexcept {
+        if (open_path.empty()) {
+            log<"mp3 demo: empty path">();
+            return false;
         }
-        session.source.base_offset = base;
+        if (!is_mp3_name(open_path)) {
+            log<"mp3 demo: not mp3 {}">(open_path);
+            return false;
+        }
+        fs::File f{};
+        auto st = fs::vfs_open(open_path, f);
+        if (!st) {
+            log<"mp3 demo: open failed {}">(static_cast<int>(st.err));
+            return false;
+        }
         if constexpr (kStartupLog) {
-            log<"mp3 demo: base={}">(base);
+            log<"mp3 demo: file size={}">(
+                f.node.size);
         }
-        if constexpr (kVerbose) {
-            std::array<util::u8, 512> peek{};
-            (void)fs::vfs_seek(f, base);
-            const auto before = f.node.offset;
-            (void)fs::vfs_read(f, peek);
-            const auto after = f.node.offset;
-            const auto read_bytes = static_cast<util::usize>(after > before ? (after - before) : 0);
-            std::size_t nonzero = 0;
-            std::size_t zeros = 0;
-            std::size_t ff = 0;
-            for (auto b : peek) {
-                if (b == 0) ++zeros;
-                if (b == 0xFF) ++ff;
-                if (b != 0) ++nonzero;
+        {
+            std::array<util::u8, 16> head{};
+            (void)fs::vfs_seek(f, 0);
+            auto st_read = fs::vfs_read(f, head);
+            (void)st_read;
+            if constexpr (kStartupLog) {
+                log<"mp3 demo: head {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+                    head[0], head[1], head[2], head[3], head[4], head[5], head[6], head[7],
+                    head[8], head[9], head[10], head[11], head[12], head[13], head[14], head[15]);
             }
-            log<"mp3 demo: data nonzero {} zeros {} ff {} read {}">(
-                nonzero, zeros, ff, read_bytes);
-            log<"mp3 demo: data16 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
-                peek[0], peek[1], peek[2], peek[3], peek[4], peek[5], peek[6], peek[7],
-                peek[8], peek[9], peek[10], peek[11], peek[12], peek[13], peek[14], peek[15]);
+            (void)fs::vfs_seek(f, 0);
         }
-        (void)fs::vfs_seek(f, base);
-    }
+        (void)fs::vfs_seek(f, 0);
+
+        Mp3Session session{};
+        session.source = FileSource{&f};
+        {
+            std::array<util::u8, 10> id3{};
+            (void)fs::vfs_seek(f, 0);
+            (void)fs::vfs_read(f, id3);
+            util::i64 base = 0;
+            if (id3[0] == 'I' && id3[1] == 'D' && id3[2] == '3') {
+                const std::uint32_t sz =
+                    (static_cast<std::uint32_t>(id3[6] & 0x7f) << 21) |
+                    (static_cast<std::uint32_t>(id3[7] & 0x7f) << 14) |
+                    (static_cast<std::uint32_t>(id3[8] & 0x7f) << 7) |
+                    (static_cast<std::uint32_t>(id3[9] & 0x7f));
+                base = static_cast<util::i64>(10 + sz);
+            }
+            session.source.base_offset = base;
+            if constexpr (kStartupLog) {
+                log<"mp3 demo: base={}">(base);
+            }
+            if constexpr (kVerbose) {
+                std::array<util::u8, 512> peek{};
+                (void)fs::vfs_seek(f, base);
+                const auto before = f.node.offset;
+                (void)fs::vfs_read(f, peek);
+                const auto after = f.node.offset;
+                const auto read_bytes = static_cast<util::usize>(after > before ? (after - before) : 0);
+                std::size_t nonzero = 0;
+                std::size_t zeros = 0;
+                std::size_t ff = 0;
+                for (auto b : peek) {
+                    if (b == 0) ++zeros;
+                    if (b == 0xFF) ++ff;
+                    if (b != 0) ++nonzero;
+                }
+                log<"mp3 demo: data nonzero {} zeros {} ff {} read {}">(
+                    nonzero, zeros, ff, read_bytes);
+                log<"mp3 demo: data16 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
+                    peek[0], peek[1], peek[2], peek[3], peek[4], peek[5], peek[6], peek[7],
+                    peek[8], peek[9], peek[10], peek[11], peek[12], peek[13], peek[14], peek[15]);
+            }
+            (void)fs::vfs_seek(f, base);
+        }
     g_read_calls = 0;
     g_read_zero = 0;
     g_read_err = 0;
@@ -575,14 +590,14 @@ namespace {
     if (!rst) {
         log<"mp3 demo: decoder open failed">();
         (void)fs::vfs_close(f);
-        return;
+        return false;
     }
     const auto fmt = session.filter.format();
     if (fmt.channels != 1 && fmt.channels != 2) {
         log<"mp3 demo: channels {} not supported">(fmt.channels);
         session.filter.close();
         (void)fs::vfs_close(f);
-        return;
+        return false;
     }
     if constexpr (kStartupLog) {
         log<"mp3 demo: rate={} ch={}">(fmt.rate, fmt.channels);
@@ -594,7 +609,7 @@ namespace {
         log<"mp3 demo: invalid period">();
         session.filter.close();
         (void)fs::vfs_close(f);
-        return;
+        return false;
     }
 
     auto pcm_first = std::span<std::int16_t>(g_pcm_buffer.data(), kI2sBufFrames * 2);
@@ -639,7 +654,7 @@ namespace {
             static_cast<int>(HAL_I2S_GetError(&hi2s1)));
         session.filter.close();
         (void)fs::vfs_close(f);
-        return;
+        return false;
     }
     if constexpr (kStartupLog) {
         log<"mp3 demo: i2s state={} err={}">(static_cast<int>(hi2s1.State),
@@ -703,10 +718,16 @@ namespace {
             }
         }
     }
-    log<"mp3 demo: end">();
-    HAL_I2S_DMAStop(&hi2s1);
-    session.filter.close();
-    (void)fs::vfs_close(f);
+        log<"mp3 demo: end">();
+        HAL_I2S_DMAStop(&hi2s1);
+        session.filter.close();
+        (void)fs::vfs_close(f);
+        return true;
+      }
+  }
+
+  export bool audio_mp3_play_path(std::string_view open_path) noexcept {
+      return play_mp3_path(open_path);
   }
 
   export bool audio_mp3_decode_selftest() noexcept {

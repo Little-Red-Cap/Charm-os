@@ -17,6 +17,7 @@
 ---
 
 ## 文档入口（先看这里）
+- `docs/overview.md`
 - `docs/README.md`
 - `docs/architecture_overview.md`
 
@@ -234,6 +235,7 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 
 ## ?? ���
 MIT���� LICENSE����
+
 
 
 

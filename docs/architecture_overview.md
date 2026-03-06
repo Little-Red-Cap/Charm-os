@@ -1,5 +1,4 @@
-﻿# Charm 架构全景（收敛版）
-
+﻿# Charm 架构全景（收敛版）\n\n> 新同学先读 docs/overview.md。\n
 ## 1. 架构分层
 
 ```
@@ -458,4 +457,5 @@ sequenceDiagram
 - Shell 管道为“输出作为参数”语义，非真实流式 stdin/stdout
 - ModuleX 内部入口执行需 `xip_text` 且入口在 text 段内，尚未做签名校验
 - VFS dirty 为内存标记，暂无崩溃恢复
+
 

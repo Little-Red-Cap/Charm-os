@@ -2,8 +2,7 @@
 
 本目录按主题分组。第一次阅读建议按“入门路径”，再按需深入各专题。
 
-## 入门路径（第一次看这里）
-- 架构总览：`docs/architecture_overview.md`
+## 入门路径（第一次看这里）\n- 入门指南：docs/overview.md\n- 架构总览：`docs/architecture_overview.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
@@ -80,3 +79,4 @@
 
 ## UI
 - `docs/ui/player_ui.md`
+

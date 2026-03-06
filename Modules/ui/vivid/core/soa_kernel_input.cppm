@@ -27,7 +27,10 @@ enum class SoaInputActionType : std::uint8_t {
     UpdateSliderFromPos,
     SetSegmentedIndex,
     SetTextListSelected,
-    SetListViewSelected
+    SetListViewSelected,
+    SetStepperIndex,
+    SetNumberListSelected,
+    SetRollerSelected
 };
 
 export

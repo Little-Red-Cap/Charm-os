@@ -24,7 +24,10 @@ enum class SoaClickBehavior : std::uint8_t {
     ListItemGroup,
     SegmentedControl,
     TextList,
-    ListView
+    ListView,
+    Stepper,
+    NumberList,
+    Roller
 };
 
 export
@@ -40,6 +43,13 @@ enum class SoaScrollAxis : std::uint8_t {
     Vertical = 0,
     Horizontal = 1,
     Both = 2
+};
+
+export
+enum class SoaWheelAxisPolicy : std::uint8_t {
+    PreferVertical = 0,
+    PreferHorizontal = 1,
+    HorizontalIfNoVertical = 2
 };
 
 export
@@ -65,6 +75,7 @@ struct SoaBehavior {
     SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
     bool scrollable{false};
     SoaScrollAxis scroll_axis{SoaScrollAxis::Vertical};
+    SoaWheelAxisPolicy wheel_axis{SoaWheelAxisPolicy::PreferVertical};
     bool capture_on_press{false};
     bool checkable{false};
     SoaDragBehavior drag_behavior{SoaDragBehavior::None};
@@ -108,7 +119,9 @@ namespace {
         } while (0);
 #include "widgets.behavior.scroll.def"
 #undef VIVID_WIDGET_BEHAVIOR_SCROLL
-        table[static_cast<std::size_t>(WidgetKind::TableView)].scroll_axis = SoaScrollAxis::Both;
+        auto& table_view = table[static_cast<std::size_t>(WidgetKind::TableView)];
+        table_view.scroll_axis = SoaScrollAxis::Both;
+        table_view.wheel_axis = SoaWheelAxisPolicy::HorizontalIfNoVertical;
 #define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \

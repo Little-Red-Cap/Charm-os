@@ -960,6 +960,97 @@ public:
         return payloads_.text_c_str(payload->labels[index]);
     }
 
+    void set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (count < 1) count = 1;
+        if (count > soa_detail::kMaxStepperSteps) count = soa_detail::kMaxStepperSteps;
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->current >= count) {
+            payload->current = static_cast<std::uint8_t>(count - 1u);
+        }
+        mark_paint_dirty();
+    }
+
+    void set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        if (index >= payload->count) index = static_cast<std::uint8_t>(payload->count - 1u);
+        if (payload->current == index) return;
+        payload->current = index;
+        mark_paint_dirty();
+    }
+
+    void set_stepper_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (index >= soa_detail::kMaxStepperSteps) return;
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return;
+        payload->labels[index] = payloads_.store_text(text);
+        if (index >= payload->count) {
+            payload->count = static_cast<std::uint8_t>(index + 1u);
+        }
+        mark_paint_dirty();
+    }
+
+    std::uint8_t stepper_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    std::uint8_t stepper_current(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        return payload ? payload->current : 0;
+    }
+
+    const char* stepper_label(WidgetHandle h, std::uint8_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        return payloads_.text_c_str(payload->labels[index]);
+    }
+
     void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1070,6 +1161,275 @@ public:
         const std::uint16_t slot =
             static_cast<std::uint16_t>((payload->start + index) % soa_detail::kMaxTextListItems);
         return payloads_.text_c_str(payload->items[slot]);
+    }
+
+    void set_number_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : 0;
+        }
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    void set_number_list_range(WidgetHandle h, int start, int delta) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->start = start;
+        payload->delta = (delta != 0) ? delta : 1;
+        mark_paint_dirty();
+    }
+
+    void set_number_list_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        if (index < 0) index = 0;
+        if (index >= payload->count) index = payload->count - 1;
+        if (payload->selected == index) return;
+        payload->selected = index;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    std::uint16_t number_list_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int number_list_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->selected : 0;
+    }
+
+    int number_list_value(WidgetHandle h, int index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return 0;
+        return payload->start + index * payload->delta;
+    }
+
+    void set_number_list_row_height(WidgetHandle h, int row_h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->row_height = (row_h > 0) ? row_h : 1;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    int number_list_row_height(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->row_height : 24;
+    }
+
+    void set_number_list_wheel_step(WidgetHandle h, int step) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->wheel_step = (step > 0) ? step : 1;
+    }
+
+    int number_list_wheel_step(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->wheel_step : 24;
+    }
+
+    void set_roller_source(WidgetHandle h, std::uint16_t count,
+                           const void* ctx, soa_detail::RollerTextFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->text_ctx = ctx;
+        payload->text_fn = fn;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : 0;
+        }
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    void set_roller_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        const int count = payload->count;
+        int wrapped = index % count;
+        if (wrapped < 0) wrapped += count;
+        if (payload->selected == wrapped) return;
+        payload->selected = wrapped;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    std::uint16_t roller_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int roller_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->selected : 0;
+    }
+
+    const char* roller_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || !payload->text_fn) return "";
+        return payload->text_fn(payload->text_ctx, index);
+    }
+
+    void set_roller_row_height(WidgetHandle h, int row_h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->row_height = (row_h > 0) ? row_h : 1;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    int roller_row_height(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->row_height : 24;
+    }
+
+    void set_roller_wheel_step(WidgetHandle h, int step) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->wheel_step = (step > 0) ? step : 1;
+    }
+
+    int roller_wheel_step(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->wheel_step : 24;
     }
 
     void console_clear(WidgetHandle h) noexcept {
@@ -1438,6 +1798,12 @@ public:
     }
 
     void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
+        set_table_view_col_divider_style(
+            h,
+            enabled ? TableViewColDividerStyle::Full : TableViewColDividerStyle::None);
+    }
+
+    void set_table_view_col_divider_style(WidgetHandle h, TableViewColDividerStyle style) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1447,7 +1813,7 @@ public:
         }
         auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload) return;
-        const std::uint8_t next = enabled ? 1 : 0;
+        const std::uint8_t next = static_cast<std::uint8_t>(style);
         if (payload->col_dividers != next) {
             payload->col_dividers = next;
             mark_paint_dirty();
@@ -1545,15 +1911,20 @@ public:
     }
 
     bool table_view_col_dividers(WidgetHandle h) const noexcept {
+        return table_view_col_divider_style(h) != TableViewColDividerStyle::None;
+    }
+
+    TableViewColDividerStyle table_view_col_divider_style(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return false;
+        if (idx == kInvalidIndex) return TableViewColDividerStyle::None;
         const auto desc = payload_descriptor(common_.kind[idx]);
         if (desc.payload != soa_detail::PayloadKind::TableView) {
             unsupported_kind(common_.kind[idx]);
-            return false;
+            return TableViewColDividerStyle::None;
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
-        return payload ? (payload->col_dividers != 0) : false;
+        if (!payload) return TableViewColDividerStyle::None;
+        return static_cast<TableViewColDividerStyle>(payload->col_dividers);
     }
 
     std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
@@ -2290,6 +2661,36 @@ public:
             }
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                if (payload->row_height > 0 && payload->count > 0) {
+                    int next = (y + payload->row_height / 2) / payload->row_height;
+                    if (next < 0) next = 0;
+                    if (next >= payload->count) next = payload->count - 1;
+                    payload->selected = next;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                if (payload->row_height > 0 && payload->count > 0) {
+                    int next = (y + payload->row_height / 2) / payload->row_height;
+                    next %= payload->count;
+                    if (next < 0) next += payload->count;
+                    payload->selected = next;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2340,6 +2741,18 @@ public:
             payload->scroll_y += dy;
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2375,6 +2788,14 @@ public:
         }
         case soa_detail::PayloadKind::TreeView: {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::NumberList: {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
             return payload ? payload->scroll_y : 0;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
@@ -2424,6 +2845,18 @@ public:
             payload->wheel_step = value;
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2459,6 +2892,14 @@ public:
         }
         case soa_detail::PayloadKind::TreeView: {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::NumberList: {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
             return payload ? payload->wheel_step : 24;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
@@ -2688,6 +3129,22 @@ public:
             if (count <= 0 || row_h <= 0) return 0;
             return count * row_h;
         }
+        if (desc.payload == soa_detail::PayloadKind::NumberList) {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::Roller) {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
         int max_bottom = 0;
         std::uint16_t child = common_.first_child[idx];
         while (child != kInvalidIndex) {
@@ -2704,6 +3161,23 @@ public:
     int max_scroll(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload == soa_detail::PayloadKind::NumberList) {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 1 || row_h <= 0) return 0;
+            return (count - 1) * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::Roller) {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 1 || row_h <= 0) return 0;
+            return (count - 1) * row_h;
+        }
         const Rect r = common_.rects[idx];
         const int content_h = compute_content_height(h);
         int max_scroll = content_h - r.h;
@@ -2832,6 +3306,52 @@ public:
             if (!payload) return;
             if (payload->scroll_y != clamped) {
                 payload->scroll_y = clamped;
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            int max_scroll_value = (count > 1 && row_h > 0) ? (count - 1) * row_h : 0;
+            int next = y;
+            if (next < 0) next = 0;
+            if (next > max_scroll_value) next = max_scroll_value;
+            if (payload->scroll_y != next) {
+                payload->scroll_y = next;
+                if (row_h > 0 && count > 0) {
+                    int idx_from_scroll = (next + row_h / 2) / row_h;
+                    if (idx_from_scroll < 0) idx_from_scroll = 0;
+                    if (idx_from_scroll >= count) idx_from_scroll = count - 1;
+                    payload->selected = idx_from_scroll;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            int total = (count > 0 && row_h > 0) ? (count * row_h) : 0;
+            int next = y;
+            if (total > 0) {
+                next %= total;
+                if (next < 0) next += total;
+            } else {
+                next = 0;
+            }
+            if (payload->scroll_y != next) {
+                payload->scroll_y = next;
+                if (row_h > 0 && count > 0) {
+                    int idx_from_scroll = (next + row_h / 2) / row_h;
+                    idx_from_scroll %= count;
+                    if (idx_from_scroll < 0) idx_from_scroll += count;
+                    payload->selected = idx_from_scroll;
+                }
                 mark_paint_dirty();
             }
             break;
@@ -3021,6 +3541,15 @@ private:
         return (v < lo) ? lo : (v > hi ? hi : v);
     }
 
+    static int div_floor(int num, int den) noexcept {
+        if (den == 0) return 0;
+        int q = num / den;
+        if ((num < 0) != (den < 0) && (num % den) != 0) {
+            q -= 1;
+        }
+        return q;
+    }
+
     void input_emit_event(WidgetHandle target, const Event& e) noexcept {
         if (!target) return;
         if (input_events_.overflowed) return;
@@ -3074,6 +3603,61 @@ private:
         if (local < 0) return -1;
         const int idx_from_y = local / row_h;
         if (idx_from_y < 0 || idx_from_y >= count) return -1;
+        return idx_from_y;
+    }
+
+    int input_stepper_index_from_pos(WidgetHandle h, int x) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) return -1;
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int count = payload->count;
+        if (count == 1) return 0;
+        const int span = r.w;
+        if (span <= 0) return 0;
+        const int local = x - r.x;
+        int idx_from_x = (local * (count - 1) + span / 2) / span;
+        if (idx_from_x < 0) idx_from_x = 0;
+        if (idx_from_x >= count) idx_from_x = count - 1;
+        return idx_from_x;
+    }
+
+    int input_number_list_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) return -1;
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        if (row_h <= 0) return -1;
+        const int center_y = r.y + r.h / 2;
+        const int pos = payload->scroll_y + (y - center_y);
+        int idx_from_y = (pos + row_h / 2) / row_h;
+        if (idx_from_y < 0) idx_from_y = 0;
+        if (idx_from_y >= payload->count) idx_from_y = payload->count - 1;
+        return idx_from_y;
+    }
+
+    int input_roller_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) return -1;
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        if (row_h <= 0) return -1;
+        const int center_y = r.y + r.h / 2;
+        const int pos = payload->scroll_y + (y - center_y);
+        int idx_from_y = div_floor(pos + row_h / 2, row_h);
+        idx_from_y %= payload->count;
+        if (idx_from_y < 0) idx_from_y += payload->count;
         return idx_from_y;
     }
 
@@ -3203,15 +3787,35 @@ private:
         const int delta = -wheel_y * step;
         const bool allow_h = (behavior.scroll_axis == SoaScrollAxis::Horizontal
                               || behavior.scroll_axis == SoaScrollAxis::Both)
-                             && kind(target) == WidgetKind::TableView
                              && max_scroll_x(target) > 0;
         const bool allow_v = (behavior.scroll_axis == SoaScrollAxis::Vertical
                               || behavior.scroll_axis == SoaScrollAxis::Both)
                              && max_scroll(target) > 0;
-        if (!allow_v && allow_h) {
-            input_scroll_by(target, 0, delta);
-        } else {
-            input_scroll_by(target, delta, 0);
+        switch (behavior.wheel_axis) {
+        case SoaWheelAxisPolicy::PreferHorizontal:
+            if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            } else if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            }
+            break;
+        case SoaWheelAxisPolicy::HorizontalIfNoVertical:
+            if (!allow_v && allow_h) {
+                input_scroll_by(target, 0, delta);
+            } else if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            } else if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            }
+            break;
+        case SoaWheelAxisPolicy::PreferVertical:
+        default:
+            if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            } else if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            }
+            break;
         }
         input_emit_event(target, Event::wheel(x, y, wheel_y, input_.last_ms));
     }
@@ -3307,6 +3911,15 @@ private:
             break;
         case SoaInputActionType::SetListViewSelected:
             set_list_view_selected(action.target, action.a);
+            break;
+        case SoaInputActionType::SetStepperIndex:
+            set_stepper_current(action.target, static_cast<std::uint8_t>(action.a));
+            break;
+        case SoaInputActionType::SetNumberListSelected:
+            set_number_list_selected(action.target, action.a);
+            break;
+        case SoaInputActionType::SetRollerSelected:
+            set_roller_selected(action.target, action.a);
             break;
         }
     }
@@ -3483,6 +4096,27 @@ private:
             const int idx = input_list_view_index_from_pos(h, y);
             if (idx >= 0) {
                 input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::Stepper: {
+            const int idx = input_stepper_index_from_pos(h, x);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetStepperIndex, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::NumberList: {
+            const int idx = input_number_list_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetNumberListSelected, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::Roller: {
+            const int idx = input_roller_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetRollerSelected, h, idx, 0});
             }
             break;
         }

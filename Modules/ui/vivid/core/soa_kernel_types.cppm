@@ -37,7 +37,16 @@ enum class ScrollBarOrientation : std::uint8_t {
 export
 enum class TableViewHeaderStyle : std::uint8_t {
     Default = 0,
-    Accent = 1
+    Accent = 1,
+    Muted = 2
+};
+
+export
+enum class TableViewColDividerStyle : std::uint8_t {
+    None = 0,
+    HeaderOnly = 1,
+    BodyOnly = 2,
+    Full = 3
 };
 
 export

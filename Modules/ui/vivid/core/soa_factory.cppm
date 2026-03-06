@@ -223,6 +223,29 @@ public:
         kernel_.set_focusable(h, true);
         return h;
     }
+    WidgetHandle create_stepper() noexcept {
+        auto h = kernel_.create(WidgetKind::Stepper);
+        kernel_.set_stepper_count(h, 3);
+        kernel_.set_stepper_current(h, 0);
+        return h;
+    }
+    WidgetHandle create_number_list() noexcept {
+        auto h = kernel_.create(WidgetKind::NumberList);
+        kernel_.set_focusable(h, true);
+        kernel_.set_number_list_row_height(h, 28);
+        kernel_.set_number_list_wheel_step(h, 28);
+        kernel_.set_number_list_count(h, 10);
+        kernel_.set_number_list_range(h, 0, 1);
+        kernel_.set_number_list_selected(h, 0);
+        return h;
+    }
+    WidgetHandle create_roller() noexcept {
+        auto h = kernel_.create(WidgetKind::Roller);
+        kernel_.set_focusable(h, true);
+        kernel_.set_roller_row_height(h, 24);
+        kernel_.set_roller_wheel_step(h, 24);
+        return h;
+    }
 
     void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
         kernel_.set_segmented_count(h, count);
@@ -238,6 +261,44 @@ public:
     }
     void set_tab_bar_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
         set_segmented_label(h, index, text);
+    }
+
+    void set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept {
+        kernel_.set_stepper_count(h, count);
+    }
+    void set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept {
+        kernel_.set_stepper_current(h, index);
+    }
+    void set_stepper_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        kernel_.set_stepper_label(h, index, text);
+    }
+    void set_number_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+        kernel_.set_number_list_count(h, count);
+    }
+    void set_number_list_range(WidgetHandle h, int start, int delta) noexcept {
+        kernel_.set_number_list_range(h, start, delta);
+    }
+    void set_number_list_selected(WidgetHandle h, int index) noexcept {
+        kernel_.set_number_list_selected(h, index);
+    }
+    void set_number_list_row_height(WidgetHandle h, int row_h) noexcept {
+        kernel_.set_number_list_row_height(h, row_h);
+    }
+    void set_number_list_wheel_step(WidgetHandle h, int step) noexcept {
+        kernel_.set_number_list_wheel_step(h, step);
+    }
+    void set_roller_source(WidgetHandle h, std::uint16_t count,
+                           const void* ctx, soa_detail::RollerTextFn fn) noexcept {
+        kernel_.set_roller_source(h, count, ctx, fn);
+    }
+    void set_roller_selected(WidgetHandle h, int index) noexcept {
+        kernel_.set_roller_selected(h, index);
+    }
+    void set_roller_row_height(WidgetHandle h, int row_h) noexcept {
+        kernel_.set_roller_row_height(h, row_h);
+    }
+    void set_roller_wheel_step(WidgetHandle h, int step) noexcept {
+        kernel_.set_roller_wheel_step(h, step);
     }
     void set_tab_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
         set_segmented_selected(h, index);
@@ -321,6 +382,9 @@ public:
     }
     void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
         kernel_.set_table_view_col_dividers(h, enabled);
+    }
+    void set_table_view_col_divider_style(WidgetHandle h, TableViewColDividerStyle style) noexcept {
+        kernel_.set_table_view_col_divider_style(h, style);
     }
     void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
         kernel_.set_table_view_count(h, rows);

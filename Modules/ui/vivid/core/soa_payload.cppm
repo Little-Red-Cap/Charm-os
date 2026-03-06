@@ -134,6 +134,9 @@ export namespace soa_detail {
         PayloadPoolStats list_view{};
         PayloadPoolStats table_view{};
         PayloadPoolStats tree_view{};
+        PayloadPoolStats stepper{};
+        PayloadPoolStats number_list{};
+        PayloadPoolStats roller{};
         PayloadPoolStats switcher{};
         PayloadPoolStats slider{};
         PayloadPoolStats progress{};
@@ -173,11 +176,18 @@ export namespace soa_detail {
     };
 
     constexpr std::uint8_t kMaxSegments = 8;
+    constexpr std::uint8_t kMaxStepperSteps = 8;
 
     struct SegmentedControlPayload {
         std::array<TextId, kMaxSegments> labels{};
         std::uint8_t count{0};
         std::uint8_t selected{0};
+    };
+
+    struct StepperPayload {
+        std::array<TextId, kMaxStepperSteps> labels{};
+        std::uint8_t count{0};
+        std::uint8_t current{0};
     };
 
     struct ToggleGroupPayload {
@@ -220,6 +230,7 @@ export namespace soa_detail {
     using TableViewColWidthFn = int (*)(const void*, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TreeViewIndentFn = std::uint8_t (*)(const void*, std::uint16_t) noexcept;
+    using RollerTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
 
     struct ListViewPayload {
         const void* text_ctx{nullptr};
@@ -250,7 +261,7 @@ export namespace soa_detail {
         int header_padding{0};
         std::uint8_t header_style{0};
         std::uint8_t header_divider{1};
-        std::uint8_t col_dividers{1};
+        std::uint8_t col_dividers{3};
         int scroll_x{0};
         int scroll_y{0};
         int row_height{28};
@@ -269,6 +280,26 @@ export namespace soa_detail {
         std::uint16_t min_text_avail_px{24};
         int scroll_y{0};
         int row_height{28};
+        int wheel_step{24};
+    };
+
+    struct NumberListPayload {
+        std::uint16_t count{0};
+        std::int16_t selected{0};
+        int start{0};
+        int delta{1};
+        int scroll_y{0};
+        int row_height{28};
+        int wheel_step{24};
+    };
+
+    struct RollerPayload {
+        const void* text_ctx{nullptr};
+        RollerTextFn text_fn{nullptr};
+        std::uint16_t count{0};
+        std::int16_t selected{0};
+        int scroll_y{0};
+        int row_height{24};
         int wheel_step{24};
     };
 
@@ -330,6 +361,9 @@ export namespace soa_detail {
         ListView,
         TableView,
         TreeView,
+        Stepper,
+        NumberList,
+        Roller,
         Switch,
         Slider,
         ScrollBar,
@@ -487,6 +521,7 @@ export namespace soa_detail {
             text_area_.reset();
             number_input_.reset();
             segmented_.reset();
+            stepper_.reset();
             toggle_group_.reset();
             checkbox_.reset();
             radio_.reset();
@@ -495,6 +530,8 @@ export namespace soa_detail {
             list_view_.reset();
             table_view_.reset();
             tree_view_.reset();
+            number_list_.reset();
+            roller_.reset();
             switch_.reset();
             slider_.reset();
             progress_.reset();
@@ -526,6 +563,8 @@ export namespace soa_detail {
                     return handle_or_overflow(number_input_.alloc(owner_idx, kind), payload);
                 case PayloadKind::SegmentedControl:
                     return handle_or_overflow(segmented_.alloc(owner_idx, kind), payload);
+                case PayloadKind::Stepper:
+                    return handle_or_overflow(stepper_.alloc(owner_idx, kind), payload);
                 case PayloadKind::ToggleGroup:
                     return handle_or_overflow(toggle_group_.alloc(owner_idx, kind), payload);
                 case PayloadKind::Checkbox:
@@ -542,6 +581,10 @@ export namespace soa_detail {
                     return handle_or_overflow(table_view_.alloc(owner_idx, kind), payload);
                 case PayloadKind::TreeView:
                     return handle_or_overflow(tree_view_.alloc(owner_idx, kind), payload);
+                case PayloadKind::NumberList:
+                    return handle_or_overflow(number_list_.alloc(owner_idx, kind), payload);
+                case PayloadKind::Roller:
+                    return handle_or_overflow(roller_.alloc(owner_idx, kind), payload);
                 case PayloadKind::Switch:
                     return handle_or_overflow(switch_.alloc(owner_idx, kind), payload);
                 case PayloadKind::Slider:
@@ -588,6 +631,9 @@ export namespace soa_detail {
                 case PayloadKind::SegmentedControl:
                     segmented_.free(handle, owner_idx, kind);
                     break;
+                case PayloadKind::Stepper:
+                    stepper_.free(handle, owner_idx, kind);
+                    break;
                 case PayloadKind::ToggleGroup:
                     toggle_group_.free(handle, owner_idx, kind);
                     break;
@@ -611,6 +657,12 @@ export namespace soa_detail {
                     break;
                 case PayloadKind::TreeView:
                     tree_view_.free(handle, owner_idx, kind);
+                    break;
+                case PayloadKind::NumberList:
+                    number_list_.free(handle, owner_idx, kind);
+                    break;
+                case PayloadKind::Roller:
+                    roller_.free(handle, owner_idx, kind);
                     break;
                 case PayloadKind::Switch:
                     switch_.free(handle, owner_idx, kind);
@@ -683,6 +735,9 @@ export namespace soa_detail {
             out.list_view = list_view_.stats();
             out.table_view = table_view_.stats();
             out.tree_view = tree_view_.stats();
+            out.stepper = stepper_.stats();
+            out.number_list = number_list_.stats();
+            out.roller = roller_.stats();
             out.switcher = switch_.stats();
             out.slider = slider_.stats();
             out.progress = progress_.stats();
@@ -716,6 +771,7 @@ export namespace soa_detail {
         using TextAreaPool = PayloadPool<TextAreaPayload, pool_cap(WidgetKind::TextArea)>;
         using NumberInputPool = PayloadPool<NumberInputPayload, pool_cap(WidgetKind::NumberInput)>;
         using SegmentedPool = PayloadPool<SegmentedControlPayload, pool_cap(WidgetKind::SegmentedControl)>;
+        using StepperPool = PayloadPool<StepperPayload, pool_cap(WidgetKind::Stepper)>;
         using ToggleGroupPool = PayloadPool<ToggleGroupPayload, pool_cap(WidgetKind::ToggleGroup)>;
         using CheckboxPool = PayloadPool<CheckboxPayload, pool_cap(WidgetKind::Checkbox)>;
         using RadioPool = PayloadPool<RadioPayload, pool_cap(WidgetKind::Radio)>;
@@ -724,6 +780,8 @@ export namespace soa_detail {
         using ListViewPool = PayloadPool<ListViewPayload, pool_cap(WidgetKind::ListView)>;
         using TableViewPool = PayloadPool<TableViewPayload, pool_cap(WidgetKind::TableView)>;
         using TreeViewPool = PayloadPool<TreeViewPayload, pool_cap(WidgetKind::TreeView)>;
+        using NumberListPool = PayloadPool<NumberListPayload, pool_cap(WidgetKind::NumberList)>;
+        using RollerPool = PayloadPool<RollerPayload, pool_cap(WidgetKind::Roller)>;
         using SwitchPool = PayloadPool<SwitchPayload, pool_cap(WidgetKind::Switch)>;
         using SliderPool = PayloadPool<SliderPayload, pool_cap(WidgetKind::Slider)>;
         using ProgressPool = PayloadPool<ProgressPayload, pool_cap(WidgetKind::Progress)>;
@@ -748,6 +806,8 @@ export namespace soa_detail {
                 return number_input_;
             } else if constexpr (std::is_same_v<T, SegmentedControlPayload>) {
                 return segmented_;
+            } else if constexpr (std::is_same_v<T, StepperPayload>) {
+                return stepper_;
             } else if constexpr (std::is_same_v<T, ToggleGroupPayload>) {
                 return toggle_group_;
             } else if constexpr (std::is_same_v<T, CheckboxPayload>) {
@@ -764,6 +824,10 @@ export namespace soa_detail {
                 return table_view_;
             } else if constexpr (std::is_same_v<T, TreeViewPayload>) {
                 return tree_view_;
+            } else if constexpr (std::is_same_v<T, NumberListPayload>) {
+                return number_list_;
+            } else if constexpr (std::is_same_v<T, RollerPayload>) {
+                return roller_;
             } else if constexpr (std::is_same_v<T, SwitchPayload>) {
                 return switch_;
             } else if constexpr (std::is_same_v<T, SliderPayload>) {
@@ -799,6 +863,8 @@ export namespace soa_detail {
                 return number_input_;
             } else if constexpr (std::is_same_v<T, SegmentedControlPayload>) {
                 return segmented_;
+            } else if constexpr (std::is_same_v<T, StepperPayload>) {
+                return stepper_;
             } else if constexpr (std::is_same_v<T, ToggleGroupPayload>) {
                 return toggle_group_;
             } else if constexpr (std::is_same_v<T, CheckboxPayload>) {
@@ -815,6 +881,10 @@ export namespace soa_detail {
                 return table_view_;
             } else if constexpr (std::is_same_v<T, TreeViewPayload>) {
                 return tree_view_;
+            } else if constexpr (std::is_same_v<T, NumberListPayload>) {
+                return number_list_;
+            } else if constexpr (std::is_same_v<T, RollerPayload>) {
+                return roller_;
             } else if constexpr (std::is_same_v<T, SwitchPayload>) {
                 return switch_;
             } else if constexpr (std::is_same_v<T, SliderPayload>) {
@@ -841,6 +911,7 @@ export namespace soa_detail {
         TextAreaPool text_area_{};
         NumberInputPool number_input_{};
         SegmentedPool segmented_{};
+        StepperPool stepper_{};
         ToggleGroupPool toggle_group_{};
         CheckboxPool checkbox_{};
         RadioPool radio_{};
@@ -849,6 +920,8 @@ export namespace soa_detail {
         ListViewPool list_view_{};
         TableViewPool table_view_{};
         TreeViewPool tree_view_{};
+        NumberListPool number_list_{};
+        RollerPool roller_{};
         SwitchPool switch_{};
         SliderPool slider_{};
         ProgressPool progress_{};

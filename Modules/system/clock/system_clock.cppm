@@ -55,9 +55,6 @@ export namespace charm::system {
     struct ClockRef {
         Clock* clock{nullptr};
 
-        constexpr ClockRef() noexcept = default;
-        constexpr explicit ClockRef(Clock& clock_in) noexcept : clock(&clock_in) {}
-
         void reset(Clock& clock_in) noexcept { clock = &clock_in; }
 
         [[nodiscard]] bool valid() const noexcept { return clock != nullptr; }

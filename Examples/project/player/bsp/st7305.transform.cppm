@@ -16,7 +16,7 @@ export namespace bsp::st7305 {
         bool swap_xy{false};
     };
 
-    export inline bool apply_transform(int& x, int& y, int width, int height,
+    inline bool apply_transform(int& x, int& y, int width, int height,
                                        const Transform& t) noexcept {
         int w = width;
         int h = height;
@@ -29,7 +29,7 @@ export namespace bsp::st7305 {
         return (x >= 0 && y >= 0 && x < w && y < h);
     }
 
-    export inline bool linear_1bpp_get(std::span<const std::uint8_t> buf,
+    inline bool linear_1bpp_get(std::span<const std::uint8_t> buf,
                                        int width, int height, int x, int y) noexcept {
         if (x < 0 || y < 0 || x >= width || y >= height) return false;
         const int stride = width / 8;
@@ -39,7 +39,7 @@ export namespace bsp::st7305 {
         return (byte & mask) != 0;
     }
 
-    export inline void pack_linear_1bpp_to_native(const Geometry& geom,
+    inline void pack_linear_1bpp_to_native(const Geometry& geom,
                                                   std::span<const std::uint8_t> src,
                                                   std::span<std::uint8_t> dst,
                                                   const Transform& t) noexcept {

@@ -1,0 +1,2 @@
+VIVID_WIDGET_BEHAVIOR_DRAG(Slider, UpdateValueFromPos)
+VIVID_WIDGET_BEHAVIOR_DRAG(ScrollBar, ScrollBarTrack)

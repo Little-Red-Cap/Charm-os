@@ -159,99 +159,33 @@ inline constexpr auto kKindVariantCounts = build_kind_variant_counts();
 inline constexpr auto kKindVariantOffsets = build_kind_variant_offsets(kKindVariantCounts);
 inline constexpr std::size_t kTotalVariantSlots = count_total_variant_slots(kKindVariantCounts);
 
-constexpr std::uint8_t style_state_mask_for_kind(WidgetKind kind) noexcept {
+constexpr void set_kind_mask(std::array<std::uint8_t, kWidgetKindCount>& masks,
+    WidgetKind kind,
+    std::uint8_t mask) noexcept {
+    const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+    if (idx != kInvalidKindIndex) {
+        masks[idx] = mask;
+    }
+}
+
+constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_masks() noexcept {
+    std::array<std::uint8_t, kWidgetKindCount> masks{};
     const std::uint8_t interactive = kStyleStateMaskDefault;
     const std::uint8_t press_only =
         static_cast<std::uint8_t>(StyleStateFlag::Pressed)
         | static_cast<std::uint8_t>(StyleStateFlag::Disabled);
     const std::uint8_t readonly = static_cast<std::uint8_t>(StyleStateFlag::Disabled);
-    switch (kind) {
-        case WidgetKind::None:
-        case WidgetKind::Container:
-        case WidgetKind::Dial:
-        case WidgetKind::Arc:
-        case WidgetKind::Image:
-        case WidgetKind::Label:
-        case WidgetKind::Led:
-        case WidgetKind::Progress:
-        case WidgetKind::ModalDialog:
-        case WidgetKind::ProgressBarSimple:
-        case WidgetKind::DynamicNebula:
-        case WidgetKind::CrtScreen:
-        case WidgetKind::Bar:
-        case WidgetKind::PopupLayer:
-        case WidgetKind::MessageBox:
-        case WidgetKind::RadioGroup:
-        case WidgetKind::Chart:
-        case WidgetKind::Waveform:
-        case WidgetKind::Gauge:
-        case WidgetKind::PrimitivesCanvas:
-        case WidgetKind::PerfOverlay:
-        case WidgetKind::Timeline:
-        case WidgetKind::RichText:
-        case WidgetKind::CodeBlock:
-        case WidgetKind::ProgressWheel:
-        case WidgetKind::WaveformView:
-        case WidgetKind::BatteryGauge:
-        case WidgetKind::HistogramView:
-        case WidgetKind::RingIndication:
-        case WidgetKind::TextBox:
-        case WidgetKind::ProgressFlowing:
-        case WidgetKind::CloudyGlass:
-        case WidgetKind::ProgressBarRound:
-        case WidgetKind::SpinningWheel:
-        case WidgetKind::ImageBox:
-        case WidgetKind::MeterPointer:
-        case WidgetKind::ProgressBarDrill:
-        case WidgetKind::SpectrumView:
-        case WidgetKind::BusyWheel:
-        case WidgetKind::ConsoleBox:
-        case WidgetKind::BatteryGasGauge:
-        case WidgetKind::Histogram:
-        case WidgetKind::List:
-        case WidgetKind::ListView:
-        case WidgetKind::IconList:
-        case WidgetKind::TextTrackingList:
-        case WidgetKind::TableView:
-        case WidgetKind::TreeView:
-        case WidgetKind::ScrollContainer:
-        case WidgetKind::TextInput:
-        case WidgetKind::TextArea:
-        case WidgetKind::NumberInput:
-            return readonly;
-        case WidgetKind::Slider:
-        case WidgetKind::ScrollBar:
-        case WidgetKind::Roller:
-        case WidgetKind::Spinner:
-        case WidgetKind::NumberList:
-        case WidgetKind::SpinZoomWidget:
-            return press_only;
-        case WidgetKind::Button:
-        case WidgetKind::IconButton:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::Switch:
-        case WidgetKind::SegmentedControl:
-        case WidgetKind::Dropdown:
-        case WidgetKind::TabView:
-        case WidgetKind::Stepper:
-        case WidgetKind::Menu:
-        case WidgetKind::MenuItem:
-        case WidgetKind::ToggleGroup:
-        case WidgetKind::TextList:
-        case WidgetKind::ListItem:
-        case WidgetKind::FoldablePanel:
-            return interactive;
-    }
-    return readonly;
-}
-
-constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_masks() noexcept {
-    std::array<std::uint8_t, kWidgetKindCount> masks{};
     for (std::size_t i = 0; i < kWidgetKindCount; ++i) {
-        const std::uint8_t mask = style_state_mask_for_kind(enabled_widget_kinds[i]) & kStyleStateMaskAll;
-        masks[i] = mask;
+        masks[i] = readonly;
     }
+#define VIVID_WIDGET_STYLE_INTERACTIVE(name) \
+    set_kind_mask(masks, WidgetKind::name, interactive);
+#include "widgets.style.interactive.def"
+#undef VIVID_WIDGET_STYLE_INTERACTIVE
+#define VIVID_WIDGET_STYLE_PRESS_ONLY(name) \
+    set_kind_mask(masks, WidgetKind::name, press_only);
+#include "widgets.style.press_only.def"
+#undef VIVID_WIDGET_STYLE_PRESS_ONLY
     return masks;
 }
 

@@ -2875,250 +2875,142 @@ struct SoaBehavior {
     SoaDragBehavior drag_behavior{SoaDragBehavior::None};
 };
 
-    static constexpr SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
-        SoaBehavior behavior{};
-    switch (kind) {
-    case WidgetKind::Switch:
-    case WidgetKind::Checkbox:
-        behavior.click = SoaClickBehavior::Toggle;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-        case WidgetKind::SegmentedControl:
-        case WidgetKind::TabView:
-            behavior.click = SoaClickBehavior::SegmentedControl;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::TextList:
-            behavior.click = SoaClickBehavior::TextList;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::ListView:
-            behavior.click = SoaClickBehavior::ListView;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::IconList:
-            behavior.click = SoaClickBehavior::ListView;
-            behavior.capture_on_press = true;
-            break;
-    case WidgetKind::Radio:
-        behavior.click = SoaClickBehavior::RadioGroup;
-        behavior.group_kind = WidgetKind::Radio;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-    case WidgetKind::ListItem:
-        behavior.click = SoaClickBehavior::ListItemGroup;
-        behavior.group_kind = WidgetKind::ListItem;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-    case WidgetKind::MenuItem:
-        behavior.click = SoaClickBehavior::ListItemGroup;
-        behavior.group_kind = WidgetKind::MenuItem;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-        default:
-            break;
+    static std::array<SoaBehavior, widget_kind_count> build_behavior_table() noexcept {
+        std::array<SoaBehavior, widget_kind_count> table{};
+        for (auto& entry : table) {
+            entry = SoaBehavior{};
         }
-        switch (kind) {
-        case WidgetKind::List:
-        case WidgetKind::ScrollContainer:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::TextList:
-        case WidgetKind::ConsoleBox:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::ListView:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::IconList:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::TableView:
-        case WidgetKind::TreeView:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::ScrollBar:
-            behavior.wheel_target = SoaWheelTargetPolicy::BoundTarget;
-            break;
-        default:
-            break;
-        }
-    switch (kind) {
-    case WidgetKind::Slider:
-        behavior.drag_behavior = SoaDragBehavior::UpdateValueFromPos;
-        behavior.capture_on_press = true;
-        break;
-    case WidgetKind::ScrollBar:
-        behavior.drag_behavior = SoaDragBehavior::ScrollBarTrack;
-        behavior.capture_on_press = true;
-        break;
-    case WidgetKind::Button:
-    case WidgetKind::IconButton:
-        behavior.capture_on_press = true;
-        break;
-        case WidgetKind::Switch:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::ListItem:
-        case WidgetKind::TextList:
-            break;
-        default:
-            break;
-        }
-        return behavior;
+#define VIVID_WIDGET_BEHAVIOR_CLICK(name, click_kind, group_kind_value, checkable_value) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.click = SoaClickBehavior::click_kind; \
+            entry.group_kind = WidgetKind::group_kind_value; \
+            entry.checkable = checkable_value; \
+            entry.capture_on_press = true; \
+        } while (0);
+#include "widgets.behavior.click.def"
+#undef VIVID_WIDGET_BEHAVIOR_CLICK
+#define VIVID_WIDGET_BEHAVIOR_SCROLL(name, wheel_target_value, drag_behavior_value) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.scrollable = true; \
+            entry.capture_on_press = true; \
+            entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
+            entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
+        } while (0);
+#include "widgets.behavior.scroll.def"
+#undef VIVID_WIDGET_BEHAVIOR_SCROLL
+#define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
+        } while (0);
+#include "widgets.behavior.wheel.def"
+#undef VIVID_WIDGET_BEHAVIOR_WHEEL
+#define VIVID_WIDGET_BEHAVIOR_DRAG(name, drag_behavior_value) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
+            entry.capture_on_press = true; \
+        } while (0);
+#include "widgets.behavior.drag.def"
+#undef VIVID_WIDGET_BEHAVIOR_DRAG
+#define VIVID_WIDGET_BEHAVIOR_CAPTURE(name) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.capture_on_press = true; \
+        } while (0);
+#include "widgets.behavior.capture.def"
+#undef VIVID_WIDGET_BEHAVIOR_CAPTURE
+        return table;
     }
 
-    static constexpr SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
+    static inline const auto kBehaviorTable = build_behavior_table();
+
+    static SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
+        const auto idx = static_cast<std::size_t>(kind);
+        if (idx >= widget_kind_count) return SoaBehavior{};
+        return kBehaviorTable[idx];
+    }
+
+    static SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
         return behavior_for_kind(kind).click;
     }
 
-    static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
-        SoaDefaults defaults{};
-        switch (kind) {
-        case WidgetKind::Label:
-        case WidgetKind::TextInput:
-        case WidgetKind::TextArea:
-        case WidgetKind::NumberInput:
-        case WidgetKind::ToggleGroup:
-        case WidgetKind::Image:
-            defaults.hit_test = false;
-            break;
-        case WidgetKind::Progress:
-        case WidgetKind::Spinner:
-            defaults.hit_test = false;
-            break;
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::ListItem:
-        case WidgetKind::MenuItem:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::TextList:
-            defaults.focusable = true;
-            defaults.clip_children = true;
-            break;
-        case WidgetKind::SegmentedControl:
-        case WidgetKind::TabView:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::ScrollBar:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::List:
-            defaults.clip_children = true;
-            defaults.layout_kind = SoaLayoutKind::List;
-            break;
-        case WidgetKind::Menu:
-            defaults.clip_children = true;
-            break;
-        case WidgetKind::ScrollContainer:
-            defaults.clip_children = true;
-            defaults.focusable = true;
-            break;
-        default:
-            break;
+    static std::array<SoaDefaults, widget_kind_count> build_default_table() noexcept {
+        std::array<SoaDefaults, widget_kind_count> table{};
+        for (auto& entry : table) {
+            entry = SoaDefaults{};
         }
-        return defaults;
+#define VIVID_WIDGET_DEFAULT_HIT_TEST_FALSE(name) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.hit_test = false; \
+        } while (0);
+#include "widgets.defaults.hit_test_false.def"
+#undef VIVID_WIDGET_DEFAULT_HIT_TEST_FALSE
+#define VIVID_WIDGET_DEFAULT_FOCUSABLE(name) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.focusable = true; \
+        } while (0);
+#include "widgets.defaults.focusable.def"
+#undef VIVID_WIDGET_DEFAULT_FOCUSABLE
+#define VIVID_WIDGET_DEFAULT_CLIP_CHILDREN(name) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.clip_children = true; \
+        } while (0);
+#include "widgets.defaults.clip_children.def"
+#undef VIVID_WIDGET_DEFAULT_CLIP_CHILDREN
+#define VIVID_WIDGET_DEFAULT_LAYOUT_LIST(name) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.layout_kind = SoaLayoutKind::List; \
+        } while (0);
+#include "widgets.defaults.layout_list.def"
+#undef VIVID_WIDGET_DEFAULT_LAYOUT_LIST
+        return table;
     }
 
-    static constexpr soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
+    static inline const auto kDefaultTable = build_default_table();
+
+    static SoaDefaults default_for_kind(WidgetKind kind) noexcept {
+        const auto idx = static_cast<std::size_t>(kind);
+        if (idx >= widget_kind_count) return SoaDefaults{};
+        return kDefaultTable[idx];
+    }
+
+    static std::array<soa_detail::PayloadKind, widget_kind_count> build_payload_table() noexcept {
+        std::array<soa_detail::PayloadKind, widget_kind_count> table{};
+        for (auto& entry : table) {
+            entry = soa_detail::PayloadKind::None;
+        }
+#define VIVID_WIDGET_PAYLOAD(name, payload) \
+        do { \
+            table[static_cast<std::size_t>(WidgetKind::name)] = soa_detail::PayloadKind::payload; \
+        } while (0);
+#include "widgets.payload.def"
+#undef VIVID_WIDGET_PAYLOAD
+        return table;
+    }
+
+    static inline const auto kPayloadTable = build_payload_table();
+
+    static soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
         using namespace soa_detail;
-        if (!widget_kind_enabled(kind)) {
+        if (!widget_kind_enabled(kind) || kind == WidgetKind::None) {
             return make_desc(false);
         }
-        switch (kind) {
-        case WidgetKind::None:
+        const auto idx = static_cast<std::size_t>(kind);
+        if (idx >= widget_kind_count) {
             return make_desc(false);
-        case WidgetKind::Container:
-            return make_desc(true);
-        case WidgetKind::ScrollContainer:
-            return make_desc(true, PayloadKind::ScrollContainer);
-        case WidgetKind::Image:
-            return make_desc(true, PayloadKind::Image);
-        case WidgetKind::Label:
-            return make_desc(true, PayloadKind::Label);
-        case WidgetKind::Button:
-            return make_desc(true, PayloadKind::Button);
-        case WidgetKind::IconButton:
-            return make_desc(true, PayloadKind::Button);
-        case WidgetKind::TextInput:
-            return make_desc(true, PayloadKind::TextInput);
-        case WidgetKind::TextArea:
-            return make_desc(true, PayloadKind::TextArea);
-        case WidgetKind::NumberInput:
-            return make_desc(true, PayloadKind::NumberInput);
-        case WidgetKind::TextBox:
-            return make_desc(true, PayloadKind::TextArea);
-        case WidgetKind::SegmentedControl:
-            return make_desc(true, PayloadKind::SegmentedControl);
-        case WidgetKind::ToggleGroup:
-            return make_desc(true, PayloadKind::ToggleGroup);
-        case WidgetKind::Checkbox:
-            return make_desc(true, PayloadKind::Checkbox);
-        case WidgetKind::Slider:
-            return make_desc(true, PayloadKind::Slider);
-        case WidgetKind::ScrollBar:
-            return make_desc(true, PayloadKind::ScrollBar);
-        case WidgetKind::Switch:
-            return make_desc(true, PayloadKind::Switch);
-        case WidgetKind::Progress:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressBarSimple:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressBarRound:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::Spinner:
-            return make_desc(true, PayloadKind::Spinner);
-        case WidgetKind::List:
-            return make_desc(true, PayloadKind::List);
-        case WidgetKind::ListView:
-            return make_desc(true, PayloadKind::ListView);
-        case WidgetKind::ProgressWheel:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressFlowing:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::IconList:
-            return make_desc(true, PayloadKind::ListView);
-        case WidgetKind::TableView:
-            return make_desc(true, PayloadKind::TableView);
-        case WidgetKind::TreeView:
-            return make_desc(true, PayloadKind::TreeView);
-        case WidgetKind::ListItem:
-            return make_desc(true, PayloadKind::ListItem);
-        case WidgetKind::TextList:
-            return make_desc(true, PayloadKind::TextList);
-        case WidgetKind::ConsoleBox:
-            return make_desc(true, PayloadKind::TextList);
-        case WidgetKind::Radio:
-            return make_desc(true, PayloadKind::Radio);
-        case WidgetKind::TabView:
-            return make_desc(true, PayloadKind::SegmentedControl);
-        case WidgetKind::Menu:
-            return make_desc(true);
-        case WidgetKind::MenuItem:
-            return make_desc(true, PayloadKind::ListItem);
-        default:
+        }
+        const auto payload = kPayloadTable[idx];
+        if (payload == PayloadKind::None) {
             return make_desc(true);
         }
+        return make_desc(true, payload);
     }
 
     soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {

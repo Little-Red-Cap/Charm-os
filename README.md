@@ -16,6 +16,10 @@
 
 ---
 
+## 文档入口（先看这里）
+- `docs/README.md`
+- `docs/architecture_overview.md`
+
 ## ?? Ϊʲô�� Charm��
 - **ģ�黯����**��ȫ�� C++ Modules���߽�����������ϡ��ɲü��
 - **����ڴ�**��std::array/std::span + �����ڹ滮��Ƕ��ʽ�Ѻá�
@@ -72,7 +76,7 @@
 3. ��ʾ����`Examples/kernel/windows`
 
 ### FS/VFS
-1. ���ĵ���`docs/fs_vfs_mount_rules.md`
+1. ���ĵ���`docs/storage/fs_vfs_mount_rules.md`
 2. ��ʵ�֣�`Modules/io/fs/`
 3. ��ʾ����`Examples/fs/`
 
@@ -87,7 +91,7 @@
 3. ��ʾ����`Examples/shell/service_shell`
 
 ### USB
-1. ���ĵ���`docs/usb_arch_plan.md`
+1. ���ĵ���`docs/usb/usb_arch_plan.md`
 2. ��ʵ�֣�`Modules/io/usb/`
 3. ��ʾ����`Examples/usb/usb_cdc_minimal`
 
@@ -201,11 +205,11 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 
 ## ?? �ĵ�
 - �ܹ�������`docs/architecture_overview.md`
-- ����ֲ㣺`docs/input_layering_decision.md`
-- Э���淶��`docs/��Э���ڴ���淶��.md`
-- Э����֪��`docs/���ִ� C++ ��Ƭ������Э����֪��.md`
-- �ƽ���ֹ���`docs/�ƽ�TODO��ֹ�.md`��`docs/refactor_todo_ownership.md`
-- ����ĵ���Audio=`Modules/media/audio/audio_design.md`��HAL=`Modules/io/hal/charm_hal_design.md`��FS=`docs/fs_vfs_mount_rules.md`��Shell=`Modules/io/shell/`��Service=`Modules/core/service/`��ModuleX=`Modules/system/modulex/ModuleX_��ʽ�ݰ�.md`��Kernel=`Modules/system/kernel/docs/`
+- ����ֲ㣺`docs/input/input_layering_decision.md`
+- Э���淶��`docs/project/《协作期待与规范》.md`
+- Э����֪��`docs/project/《现代 C++ 单片机代码协作认知》.md`
+- �ƽ���ֹ���`docs/project/推进TODO与分工.md`��`docs/project/refactor_todo_ownership.md`
+- ����ĵ���Audio=`Modules/media/audio/audio_design.md`��HAL=`Modules/io/hal/charm_hal_design.md`��FS=`docs/storage/fs_vfs_mount_rules.md`��Shell=`Modules/io/shell/`��Service=`Modules/core/service/`��ModuleX=`Modules/system/modulex/ModuleX_��ʽ�ݰ�.md`��Kernel=`Modules/system/kernel/docs/`
 
 ## ?? ��ʾ��ģ�壨CMake��
 
@@ -230,5 +234,6 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
 
 ## ?? ���
 MIT���� LICENSE����
+
 
 

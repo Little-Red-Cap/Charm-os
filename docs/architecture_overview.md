@@ -75,37 +75,37 @@ Draft/        # 计划/草案（可变动）
 
 - Audio：`Modules/media/audio/audio_design.md`
 - HAL：`Modules/io/hal/charm_hal_design.md`
-- FS/VFS：`docs/fs_vfs_mount_rules.md`
-- Block cache：`docs/fs_block_cache_strategy.md`
-- FatFs 示例：`docs/fs_fatfs_demo.md`
+- FS/VFS：`docs/storage/fs_vfs_mount_rules.md`
+- Block cache：`docs/storage/fs_block_cache_strategy.md`
+- FatFs 示例：`docs/storage/fs_fatfs_demo.md`
 - IO Channel：`Modules/io/channel/io.channel.cppm`
-- IO Channel 契约：`docs/io_channel_contract.md`
+- IO Channel 契约：`docs/io/io_channel_contract.md`
 - IO Reactor：`Modules/io/reactor/io.reactor.cppm`
-- IO Reactor 契约：`docs/io_reactor_contract.md`
+- IO Reactor 契约：`docs/io/io_reactor_contract.md`
 - IO Registry：`Modules/io/registry/io.registry.cppm`
-- IO Registry 契约：`docs/io_registry_contract.md`
+- IO Registry 契约：`docs/io/io_registry_contract.md`
 - ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
 - Kernel：`Modules/system/kernel/docs/`
 - Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
-- IO 分层总览：`docs/io_layering_overview.md`
-- 输入分层决策：`docs/input_layering_decision.md`
-- 输入协议映射：`docs/input_protocol_map.md`
-- 能力回收规则：`docs/capability_recovery_rules.md`
-- VSF USB 映射：`docs/vsf_usb_map.md`
-- VSF TCPIP 映射：`docs/vsf_tcpip_map.md`
-- USB 体系规划：`docs/usb_arch_plan.md`
-- USB DSL 概览：`docs/usb_dsl_overview.md`
-- USB CDC 回调契约：`docs/usb_cdc_contract.md`
-- USB String/Lang 装配：`docs/usb_strings_overview.md`
-- 设备模型草案：`docs/device_model_overview.md`
-- trace_core 统一入口：`docs/trace_core_entry.md`
-- trace_core ID 清单：`docs/trace_core_ids.md`
-- VFS 挂载规则：`docs/fs_vfs_mount_rules.md`
-- MAL 概览：`docs/mal_overview.md`
-- MAL + FatFs 示例：`docs/mal_fatfs_demo.md`
-- VSF 对照与可借鉴清单：`docs/vsf_comparison.md`
-- Service/Component 初始化顺序：`docs/service_component_init.md`
-- InitGraph 契约：`docs/init_graph_contract.md`
+- IO 分层总览：`docs/io/io_layering_overview.md`
+- 输入分层决策：`docs/input/input_layering_decision.md`
+- 输入协议映射：`docs/input/input_protocol_map.md`
+- 能力回收规则：`docs/architecture/capability_recovery_rules.md`
+- VSF USB 映射：`docs/vsf/vsf_usb_map.md`
+- VSF TCPIP 映射：`docs/vsf/vsf_tcpip_map.md`
+- USB 体系规划：`docs/usb/usb_arch_plan.md`
+- USB DSL 概览：`docs/usb/usb_dsl_overview.md`
+- USB CDC 回调契约：`docs/usb/usb_cdc_contract.md`
+- USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
+- 设备模型草案：`docs/architecture/device_model_overview.md`
+- trace_core 统一入口：`docs/trace/trace_core_entry.md`
+- trace_core ID 清单：`docs/trace/trace_core_ids.md`
+- VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`
+- MAL 概览：`docs/storage/mal_overview.md`
+- MAL + FatFs 示例：`docs/storage/mal_fatfs_demo.md`
+- VSF 对照与可借鉴清单：`docs/vsf/vsf_comparison.md`
+- Service/Component 初始化顺序：`docs/system/service_component_init.md`
+- InitGraph 契约：`docs/system/init_graph_contract.md`
 
 ## 1.2 依赖红线（单向依赖）
 
@@ -458,3 +458,4 @@ sequenceDiagram
 - Shell 管道为“输出作为参数”语义，非真实流式 stdin/stdout
 - ModuleX 内部入口执行需 `xip_text` 且入口在 text 段内，尚未做签名校验
 - VFS dirty 为内存标记，暂无崩溃恢复
+

@@ -1370,15 +1370,19 @@ namespace {
 
         auto table_root = factory.create_container();
         auto table_view = factory.create_table_view();
+        auto table_scroll_x = factory.create_scrollbar_for(table_view);
         auto tree_root = factory.create_container();
         auto tree_view = factory.create_tree_view();
         factory.link(root, table_root);
         factory.link(table_root, table_view);
+        factory.link(table_root, table_scroll_x);
         factory.link(root, tree_root);
         factory.link(tree_root, tree_view);
 
         kernel.set_rect(table_root, {screen_width - 260, 280, 220, 200});
-        kernel.set_rect(table_view, {0, 0, 200, 200});
+        kernel.set_rect(table_view, {0, 0, 200, 184});
+        kernel.set_rect(table_scroll_x, {0, 184, 200, 16});
+        kernel.set_scrollbar_orientation(table_scroll_x, ScrollBarOrientation::Horizontal);
         kernel.set_rect(tree_root, {screen_width - 260, 500, 220, 200});
         kernel.set_rect(tree_view, {0, 0, 200, 200});
         kernel.set_list_row_height(table_view, 24);
@@ -1462,6 +1466,33 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: horiz invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: horiz pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: horiz missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const Rect hscroll_r = kernel.rect(table_scroll_x);
+        const int hscroll_x = table_root_r.x + hscroll_r.x + hscroll_r.w - 2;
+        const int hscroll_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
+        const int table_x_before_bar = kernel.table_view_scroll_x(table_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hscroll_x, hscroll_y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hscroll_x, hscroll_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hscroll_x, hscroll_y, 1));
+        gui.render();
+        const int table_x_after_bar = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after_bar != table_x_before_bar, "tableview: scrollbar horiz did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: scrollbar invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: scrollbar pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: scrollbar missing paint", fails);
+
+        kernel.set_table_view_col_width(table_view, 72);
+        expect_true(!kernel.table_view_has_col_width_fn(table_view), "tableview: fixed width still has fn", fails);
+        kernel.layout_trace_reset();
+        const int table_x_before_fixed = kernel.table_view_scroll_x(table_view);
+        kernel.set_table_view_scroll_x(table_view, table_x_before_fixed + 64);
+        gui.render();
+        const int table_x_after_fixed = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after_fixed != table_x_before_fixed, "tableview: fixed width scroll did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: fixed width invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: fixed width pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: fixed width missing paint", fails);
 
         kernel.layout_trace_reset();
         const Rect tree_root_r = kernel.rect(tree_root);

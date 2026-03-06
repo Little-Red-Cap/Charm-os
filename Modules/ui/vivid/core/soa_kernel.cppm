@@ -13,6 +13,7 @@ export import charm.core.geometry;
 export import charm.core.config;
 export import charm.core.event;
 export import charm.core.widget_registry;
+export import charm.core.soa_registry;
 
 import charm.core.style;
 import charm.core.style_sheet;
@@ -50,16 +51,6 @@ namespace soa_detail {
         std::array<std::uint8_t, N> layout_kind{};
         std::array<PayloadHandle, N> payload{};
     };
-
-    struct PayloadDescriptor {
-        bool supported{false};
-        PayloadKind payload{PayloadKind::None};
-    };
-
-    constexpr PayloadDescriptor make_desc(bool supported,
-        PayloadKind payload = PayloadKind::None) noexcept {
-        return PayloadDescriptor{supported, payload};
-    }
 
 }
 
@@ -147,44 +138,6 @@ struct SoaInputAction {
     WidgetHandle target{};
     int a{0};
     int b{0};
-};
-
-export
-enum class SoaLayoutKind : std::uint8_t {
-    None = 0,
-    List = 1
-};
-
-// ---- Behavior routing ----
-enum class SoaClickBehavior : std::uint8_t {
-    None,
-    Toggle,
-    RadioGroup,
-    ListItemGroup,
-    SegmentedControl,
-    TextList,
-    ListView
-};
-
-enum class SoaWheelTargetPolicy : std::uint8_t {
-    None,
-    SelfIfScrollableElseAncestor,
-    NearestAncestor,
-    BoundTarget
-};
-
-enum class SoaDragBehavior : std::uint8_t {
-    None,
-    UpdateValueFromPos,
-    ScrollBarTrack,
-    ScrollDrag
-};
-
-struct SoaDefaults {
-    bool hit_test{true};
-    bool focusable{false};
-    bool clip_children{false};
-    SoaLayoutKind layout_kind{SoaLayoutKind::None};
 };
 
 // ---- Kernel ----
@@ -2863,154 +2816,6 @@ public:
 #else
         (void)kind;
 #endif
-    }
-
-struct SoaBehavior {
-    SoaClickBehavior click{SoaClickBehavior::None};
-    WidgetKind group_kind{WidgetKind::None};
-    SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
-    bool scrollable{false};
-    bool capture_on_press{false};
-    bool checkable{false};
-    SoaDragBehavior drag_behavior{SoaDragBehavior::None};
-};
-
-    static std::array<SoaBehavior, widget_kind_count> build_behavior_table() noexcept {
-        std::array<SoaBehavior, widget_kind_count> table{};
-        for (auto& entry : table) {
-            entry = SoaBehavior{};
-        }
-#define VIVID_WIDGET_BEHAVIOR_CLICK(name, click_kind, group_kind_value, checkable_value) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.click = SoaClickBehavior::click_kind; \
-            entry.group_kind = WidgetKind::group_kind_value; \
-            entry.checkable = checkable_value; \
-            entry.capture_on_press = true; \
-        } while (0);
-#include "widgets.behavior.click.def"
-#undef VIVID_WIDGET_BEHAVIOR_CLICK
-#define VIVID_WIDGET_BEHAVIOR_SCROLL(name, wheel_target_value, drag_behavior_value) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.scrollable = true; \
-            entry.capture_on_press = true; \
-            entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
-            entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
-        } while (0);
-#include "widgets.behavior.scroll.def"
-#undef VIVID_WIDGET_BEHAVIOR_SCROLL
-#define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
-        } while (0);
-#include "widgets.behavior.wheel.def"
-#undef VIVID_WIDGET_BEHAVIOR_WHEEL
-#define VIVID_WIDGET_BEHAVIOR_DRAG(name, drag_behavior_value) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
-            entry.capture_on_press = true; \
-        } while (0);
-#include "widgets.behavior.drag.def"
-#undef VIVID_WIDGET_BEHAVIOR_DRAG
-#define VIVID_WIDGET_BEHAVIOR_CAPTURE(name) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.capture_on_press = true; \
-        } while (0);
-#include "widgets.behavior.capture.def"
-#undef VIVID_WIDGET_BEHAVIOR_CAPTURE
-        return table;
-    }
-
-    static inline const auto kBehaviorTable = build_behavior_table();
-
-    static SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= widget_kind_count) return SoaBehavior{};
-        return kBehaviorTable[idx];
-    }
-
-    static SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
-        return behavior_for_kind(kind).click;
-    }
-
-    static std::array<SoaDefaults, widget_kind_count> build_default_table() noexcept {
-        std::array<SoaDefaults, widget_kind_count> table{};
-        for (auto& entry : table) {
-            entry = SoaDefaults{};
-        }
-#define VIVID_WIDGET_DEFAULT_HIT_TEST_FALSE(name) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.hit_test = false; \
-        } while (0);
-#include "widgets.defaults.hit_test_false.def"
-#undef VIVID_WIDGET_DEFAULT_HIT_TEST_FALSE
-#define VIVID_WIDGET_DEFAULT_FOCUSABLE(name) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.focusable = true; \
-        } while (0);
-#include "widgets.defaults.focusable.def"
-#undef VIVID_WIDGET_DEFAULT_FOCUSABLE
-#define VIVID_WIDGET_DEFAULT_CLIP_CHILDREN(name) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.clip_children = true; \
-        } while (0);
-#include "widgets.defaults.clip_children.def"
-#undef VIVID_WIDGET_DEFAULT_CLIP_CHILDREN
-#define VIVID_WIDGET_DEFAULT_LAYOUT_LIST(name) \
-        do { \
-            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
-            entry.layout_kind = SoaLayoutKind::List; \
-        } while (0);
-#include "widgets.defaults.layout_list.def"
-#undef VIVID_WIDGET_DEFAULT_LAYOUT_LIST
-        return table;
-    }
-
-    static inline const auto kDefaultTable = build_default_table();
-
-    static SoaDefaults default_for_kind(WidgetKind kind) noexcept {
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= widget_kind_count) return SoaDefaults{};
-        return kDefaultTable[idx];
-    }
-
-    static std::array<soa_detail::PayloadKind, widget_kind_count> build_payload_table() noexcept {
-        std::array<soa_detail::PayloadKind, widget_kind_count> table{};
-        for (auto& entry : table) {
-            entry = soa_detail::PayloadKind::None;
-        }
-#define VIVID_WIDGET_PAYLOAD(name, payload) \
-        do { \
-            table[static_cast<std::size_t>(WidgetKind::name)] = soa_detail::PayloadKind::payload; \
-        } while (0);
-#include "widgets.payload.def"
-#undef VIVID_WIDGET_PAYLOAD
-        return table;
-    }
-
-    static inline const auto kPayloadTable = build_payload_table();
-
-    static soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
-        using namespace soa_detail;
-        if (!widget_kind_enabled(kind) || kind == WidgetKind::None) {
-            return make_desc(false);
-        }
-        const auto idx = static_cast<std::size_t>(kind);
-        if (idx >= widget_kind_count) {
-            return make_desc(false);
-        }
-        const auto payload = kPayloadTable[idx];
-        if (payload == PayloadKind::None) {
-            return make_desc(true);
-        }
-        return make_desc(true, payload);
     }
 
     soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {

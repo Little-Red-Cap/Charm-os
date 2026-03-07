@@ -1,241 +1,73 @@
-﻿<div align="center">
+<div align="center">
 
-# ? Charm ?
+# Charm
 
-**C++26 Modules �� Zero-alloc �� constexpr config �� Type-level FSM**
+**C++26 Modules · Zero-alloc · constexpr config · Type-level FSM**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
 <br>
-[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
-[![CLang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![Clang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![ARM Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
-> ͳһ��ģ�黯�ܹ�ƴͼ������/ϵͳ/IO/ý��/UI һ�廯��֯����ȡ��塣
+> 面向 MCU/PC 的统一能力图系统：IO/系统/媒体/UI 可装配、可裁剪、可验证。
 
 </div>
 
 ---
 
+## 这是什么
+Charm 是一个面向嵌入式与桌面环境的系统框架，核心是“能力图 + 非阻塞 IO + 统一装配”。  
+它希望把分散的子系统变成可复用、可组合、可验证的模块集合。
+
+## 设计关键词
+- **能力图装配**：所有底层能力通过 `init.graph` 注册与启动
+- **非阻塞 IO**：`Channel + Reactor + Registry` 三件套统一入口
+- **单入口模块**：`charm.foundation / charm.runtime / charm.domain` 约束依赖边界
+- **零动态内存**：默认固定容量与零分配策略
+- **可观测**：统一 trace/诊断入口
+
 ## 文档入口（先看这里）
-- `docs/overview.md`
-- `docs/README.md`
-- `docs/architecture_overview.md`
+- 入门指南：`docs/overview.md`
+- 文档索引：`docs/README.md`
+- 架构总览：`docs/architecture_overview.md`
 
-## ?? Ϊʲô�� Charm��
-- **ģ�黯����**��ȫ�� C++ Modules���߽�����������ϡ��ɲü��
-- **����ڴ�**��std::array/std::span + �����ڹ滮��Ƕ��ʽ�Ѻá�
-- **��������**��constexpr/consteval + concepts�����ü�У�飬������Լ����
-- **��ѡ��ǿ**���¼�ȥ��/����/�ϲ������ȼ�������trace/alert/stats�����������
+## 目录速览
+- `Modules/core/` util/trace/service/alg/init
+- `Modules/system/` kernel/modulex/boot/init/bringup
+- `Modules/io/` channel/reactor/registry/hal/fs/shell/out/usb
+- `Modules/media/` audio
+- `Modules/ui/ink/` Ink UI
+- `Modules/ui/vivid/` Vivid UI
+- `Modules/platform/` board_caps/irq/clock
+- `Examples/` 示例工程
+- `docs/` 架构与协作
+- `Draft/` 草案/实验
 
-## ?? Ŀ¼����
-- `Modules/core/` ���� util/trace/service/alg
-- `Modules/system/` ���� kernel/modulex/boot
-- `Modules/io/` ���� hal/port/fs/shell/out
-- `Modules/media/` ���� audio
-- `Modules/ui/ink/` ���� Charm-ink UI
-- `Modules/ui/vivid/` ���� Charm-vivid UI
-- `Modules/platform/` ���� ƽ̨���䣨win/δ�� MCU��
-- `Modules/io/usb/` ���� USB �豸�˹Ǽ�����ݰ�
-- `Examples/` ���� ʾ�����̣��ں�/boot/audio/fs/shell/service/alg/hal��
-- `docs/` ���� �ܹ���Э���ĵ�
-- `Draft/` ���� �ƻ�/�ݰ����ɱ䶯��
+## 新功能接入三步
+1) **板级描述**：在 `platform/board` 提供 UART/I2C/SPI 等能力描述  
+2) **能力适配**：在 driver 层把外设暴露为 `Channel` 或 `block.device`  
+3) **图中装配**：在 `init.graph` 注册 `provides/requires`，通过 registry 打开能力
 
-## ?? ����ƴͼ�����㼶��
+## 硬约束（必须遵守）
+- `Channel` 禁止 `Ok(0)`，无数据必须返回 `would_block`
+- 协议层禁止 busy-spin/自带超时循环
+- 禁止隐式全局入口，必须通过 Context 注入
+- 未注册能力禁止直接 init
 
-**Foundation**
-- util/expected/units
-- service��ring_buffer/pool/trace/stream/json
-- out����ʽ������־ͳһͨ·
-
-**IO / HAL**
-- hal��UART/SPI/I2C/GPIO/IRQ/Timer/Clock
-- input��RawInputEvent/Sampler/Intent/����
-- fs��VFS + RamFs + BlockFs + FatFs + MAL
-- usb��common/device/driver + CDC/UAC/MSC �Ǽ�
-- proto��X/YModem������С demo��
-
-**Kernel / System**
-- EDA �¼���������ȹǼ�
-- �豸ģ��/registry/driver ��������
-- Power/Low-Power �������
-
-**Domains**
-- Audio��sink/pipeline/player + SDL3 ��֤��·
-- UI��Ink/Vivid ����Ǩ����ͳһ������/trace/�㷨���ã�
-- Bootloader���ֲ�/�׶��ĵ� + ����Э�����
-
-## ?? ������ڣ�������������֣�
-
-### Audio
-1. ���ĵ���`Modules/media/audio/audio_design.md`
-2. ��ʵ�֣�`Modules/media/audio/`��player/sink/decoder/fifo/src/convert��
-3. ��ʾ����`Examples/audio/sdl3_wav_demo`
-
-### Kernel
-1. ���ĵ���`Modules/system/kernel/docs/`
-2. ��ʵ�֣�`Modules/system/kernel/`
-3. ��ʾ����`Examples/kernel/windows`
-
-### FS/VFS
-1. ���ĵ���`docs/storage/fs_vfs_mount_rules.md`
-2. ��ʵ�֣�`Modules/io/fs/`
-3. ��ʾ����`Examples/fs/`
-
-### Shell/Service
-1. ���ĵ���`docs/architecture_overview.md`
-2. ��ʵ�֣�`Modules/io/shell/`��`Modules/core/service/`
-3. ��ʾ����`Examples/shell/`��`Examples/service/`
-
-### ModuleX
-1. ���ĵ���`Modules/system/modulex/ModuleX_��ʽ�ݰ�.md`
-2. ��ʵ�֣�`Modules/system/modulex/`
-3. ��ʾ����`Examples/shell/service_shell`
-
-### USB
-1. ���ĵ���`docs/usb/usb_arch_plan.md`
-2. ��ʵ�֣�`Modules/io/usb/`
-3. ��ʾ����`Examples/usb/usb_cdc_minimal`
-
-### UI/Vivid
-1. ���ĵ���`Modules/ui/vivid/ARCHITECTURE.md`��`Modules/ui/vivid/FEATURES.md`
-2. ��ʵ�֣�`Modules/ui/vivid/`
-3. ��ʾ����`Examples/project/scope`
-
-## ?? ���� Demos��Windows��
-- **M0** `Examples/kernel/windows/main.cpp` ��kernel + timer + event queue
-- **M1** `Examples/kernel/windows/main_m1.cpp` ��sync + IPC
-- **M2** `Examples/kernel/windows/main_m2.cpp` ��thread + blocking
-- **M3** `Examples/kernel/windows/main_m3.cpp` ��trace + stats
-> ʵ���� demo ���ⲻ�����ߣ����ֺ��Ĵ�����
-
-### ? ���ٹ�����Windows��
+## 快速构建（Windows）
 ```bash
 cmake -S Examples/kernel/windows -B Examples/kernel/windows/build -G Ninja
 cmake --build Examples/kernel/windows/build
 Examples/kernel/windows/build/os-example-win.exe
 ```
 
-## ?? ��ѡģ�飨Ĭ�Ϲرգ�
-- ��̬ע�᣺`kernel.dynamic_registry` / `kernel.task_pool` / `kernel.task_auto`
-- ��̬���ȶ��У�`kernel.event_queue_list`
-- �ɹ۲��ԣ�`kernel.trace`��alert/replay��JSON ���
-- �¼����ԣ�dedup / debounce / coalesce / boost����������
+## 示例工程入口
+- Kernel：`Examples/kernel/windows`
+- USB CDC：`Examples/usb/usb_cdc_minimal`
+- FS：`Examples/fs/`
+- Audio：`Examples/audio/sdl3_wav_demo`
+- Shell/Service：`Examples/shell/`、`Examples/service/`
 
-## ?? MCU Demo
-- λ�ã�`Draft/Examples/stm32f103c8`����Ǩ�ƣ�
-- ���أ�`-DCHARM_MCU_KERNEL_DEMO=ON`��preset Ĭ�Ͽ����
-- ��ڣ�`main_mcu_stub.cpp`��`application()` -> `run_auto`��
-- ƽ̨�󶨣�`Core/Src/kernel.port.stm32.cpp`
-
-### ?? MCU ����ʾ��
-```bash
-cmake --preset Release -S Draft/Examples/stm32f103c8 -B Draft/Examples/stm32f103c8/build
-cmake --build Draft/Examples/stm32f103c8/build --target vivid-example-stm32
-```
-> ��¼���弶����������ִ�С�
-
-## ?? ģ���嵥���ܹ��ࣩ
-- HAL��`Modules/io/hal/*`
-- Service��`Modules/core/service/*`
-- Shell��`Modules/io/shell/*`
-- Module/XIP��`Modules/system/modulex/*`
-- FS��`Modules/io/fs/*`
-
-����ʾ����Examples����
-- `Examples/hal/hal_demo`��HAL �ӿ���Сʾ��
-- `Examples/shell/service_shell`��Service + Shell + Module ʾ��
-- `Examples/service/service_core`��Service ����ʾ��
-- `Examples/service/service_ds_demo`��Service DS ʾ��
-- `Examples/fs/fs_demo`��VFS + RAMFS ����
-- `Examples/fs/fs_vfs_demo`��VFS ���ʾ��
-- `Examples/alg/alg_demo`���㷨/ѹ��ʾ��
-- `Examples/boot/bootloader_demo`��bootloader ʾ��
-- `Examples/audio/sdl3_wav_demo`��SDL3 ��Ƶʾ��
-- `Examples/usb/usb_cdc_minimal`��CDC ��Сö��ʾ��
-
-### ʾ������
-```bash
-# HAL demo
-cmake -S Examples/hal/hal_demo -B Examples/hal/hal_demo/build -G Ninja
-cmake --build Examples/hal/hal_demo/build
-Examples/hal/hal_demo/build/hal-demo
-
-# Service/Shell/Module demo
-cmake -S Examples/shell/service_shell -B Examples/shell/service_shell/build -G Ninja
-cmake --build Examples/shell/service_shell/build
-Examples/shell/service_shell/build/service-shell-demo
-
-# Service core demo
-cmake -S Examples/service/service_core -B Examples/service/service_core/build -G Ninja
-cmake --build Examples/service/service_core/build
-Examples/service/service_core/build/service-core-demo
-
-# FS demo
-cmake -S Examples/fs/fs_demo -B Examples/fs/fs_demo/build -G Ninja
-cmake --build Examples/fs/fs_demo/build
-Examples/fs/fs_demo/build/fs-demo
-
-# Alg demo
-cmake -S Examples/alg/alg_demo -B Examples/alg/alg_demo/build -G Ninja
-cmake --build Examples/alg/alg_demo/build
-Examples/alg/alg_demo/build/alg-demo
-
-# Service DS demo
-cmake -S Examples/service/service_ds_demo -B Examples/service/service_ds_demo/build -G Ninja
-cmake --build Examples/service/service_ds_demo/build
-Examples/service/service_ds_demo/build/service-ds-demo
-
-# Bootloader demo
-cmake -S Examples/boot/bootloader_demo -B Examples/boot/bootloader_demo/build -G Ninja
-cmake --build Examples/boot/bootloader_demo/build
-Examples/boot/bootloader_demo/build/bootloader-demo
-
-# SDL3 WAV demo
-cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
-cmake --build Examples/audio/sdl3_wav_demo/build
-Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo <file.wav>
-```
-
-## ? ����״̬
-- Windows ���� M0�CM3����ͨ��
-- HAL demo����ͨ����[hal_demo] ok��
-- Service/Shell/Module demo����ͨ����[shell] / [shell_time] / [module_demo]��
-- Service core demo����ͨ����[distbus] / [service_core] ok��
-- FS demo���ѹ�������������֤��
-- STM32������ͨ��������¼��֤��
-
-## ?? �ĵ�
-- �ܹ�������`docs/architecture_overview.md`
-- ����ֲ㣺`docs/input/input_layering_decision.md`
-- Э���淶��`docs/project/《协作期待与规范》.md`
-- Э����֪��`docs/project/《现代 C++ 单片机代码协作认知》.md`
-- �ƽ���ֹ���`docs/project/推进TODO与分工.md`��`docs/project/refactor_todo_ownership.md`
-- ����ĵ���Audio=`Modules/media/audio/audio_design.md`��HAL=`Modules/io/hal/charm_hal_design.md`��FS=`docs/storage/fs_vfs_mount_rules.md`��Shell=`Modules/io/shell/`��Service=`Modules/core/service/`��ModuleX=`Modules/system/modulex/ModuleX_��ʽ�ݰ�.md`��Kernel=`Modules/system/kernel/docs/`
-
-## ?? ��ʾ��ģ�壨CMake��
-
-���ٴ�����ʾ�����̣�
-- ģ�壺`Examples/cmake/ExampleTemplate.cmake`
-- �Ƽ��÷�������ʾ�� `CMakeLists.txt` �� `include(...)`��Ȼ����� `charm_example_*` ϵ�к���
-- SDL3 ͳһ��ڣ�`cmake/SDL3.cmake`������ `find_package`�����˵� `Examples/ThirdParty/SDL3`��
-
-## ?? ·��ͼ��ժҪ��
-- **����**��MCU ������֤��HAL MVP��GPIO/UART/Timer����time/sleep facade ��Сʵ��
-- **����**��module loader/XIP �ݰ���RT facade���߳� API ��װ����VFS ���ƣ�Ŀ¼/��飩
-- **Զ��**��Facade/Arduino ���ḻ��ģ���Ȳ��/ǩ����USB/TCPIP/FS ����������롢FatFS/FlashFS ����
-
-## ? δ�� TODO�����߱ջ���
-- **�����ջ�**���̼�ǩ��/��Կ������汾������ع����ԡ�A/B �������ԡ�OTA/����ͨ��
-- **ƽ̨�ջ�**��ͳһ����ģ�͡�BSP ��֯�ṹ���弶ģ�塢��ֲָ�ϡ���С�����嵥
-- **���бջ�**�����/���/�쳣�ָ�������ת����������ָ������Ϲ���
-- **�洢�ջ�**��VFS ���ز��ԡ�����/һ���ԡ�������־������
-- **ͨ�űջ�**��ͳһ IO/transport ����RPC/��ϢЭ�顢����ͨ��
-- **��ȫ�ջ�**��ֻ������֤����С����������Կ��װ�ӿ�
-- **���̻�**�����ּ�/ģ�幤�̡�����ͼ�������ĵ���PC/MCU smoke ����
-
-## ?? ���
-MIT���� LICENSE����
-
-
-
-
+## 状态
+该仓库持续重构中，文档以 `docs/overview.md` 与 `docs/README.md` 为准。

@@ -8,6 +8,16 @@
    - Windows 示例：`C:\Users\<你>\.codex\skills\`（skills）
    - 其他规则/模板可按团队约定放入 `.codex` 对应位置
 
+## 同步示例（Windows）
+```powershell
+# 同步 skills
+Copy-Item -Recurse -Force docs\agent\skills\* $env:USERPROFILE\.codex\skills\
+
+# 同步 prompts/rules（如有固定目录约定）
+Copy-Item -Force docs\agent\prompts.md $env:USERPROFILE\.codex\prompts.md
+Copy-Item -Force docs\agent\rules.md $env:USERPROFILE\.codex\rules.md
+```
+
 ## 文件说明
 - `prompts.md`：统一提示模板（协作对齐用）
 - `rules.md`：硬规则/禁区（不可违反）

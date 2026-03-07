@@ -57,6 +57,15 @@ export namespace usb::class_driver {
         csw,
     };
 
+    enum class ScsiCmd : u8 {
+        test_unit_ready = 0x00,
+        request_sense = 0x03,
+        inquiry = 0x12,
+        read_capacity_10 = 0x25,
+        read_10 = 0x28,
+        write_10 = 0x2A,
+    };
+
     class MscBot;
 
     struct MscOps {

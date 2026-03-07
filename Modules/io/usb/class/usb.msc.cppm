@@ -572,7 +572,7 @@ export namespace usb::class_driver {
         MscStatus csw_status_{MscStatus::passed};
         u32 csw_residue_{0};
         Phase phase_{Phase::cbw};
-        MscStorage* active_storage_{nullptr};
+        const MscStorage* active_storage_{nullptr};
         std::array<u8, 64> resp_{};
         std::size_t resp_len_{0};
         std::size_t resp_pos_{0};

@@ -16,6 +16,7 @@ import charm.core.soa_payload;
 import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
+import charm.core.style;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
@@ -658,6 +659,94 @@ namespace {
         }
         ++fails;
         return false;
+    }
+
+    struct ScrollbarTestInfo {
+        ScrollBarOrientation orient{ScrollBarOrientation::Vertical};
+        Rect world{};
+        int track_start{0};
+        int track_len{0};
+        int thumb_start{0};
+        int thumb_len{0};
+        int max_thumb{0};
+        int max_scroll{0};
+        int page{0};
+    };
+
+    int clamp_int(int v, int lo, int hi) noexcept {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return v;
+    }
+
+    bool build_scrollbar_info(SoaKernel& kernel, WidgetHandle bar, const Rect& root_r,
+        ScrollbarTestInfo& info) noexcept {
+        const WidgetHandle target = kernel.scrollbar_target(bar);
+        const ScrollBarOrientation orient = kernel.scrollbar_orientation(bar);
+        const Rect r = kernel.rect(bar);
+        Rect world{root_r.x + r.x, root_r.y + r.y, r.w, r.h};
+
+        const StyleState state = make_style_state(true, false, false, false);
+        const ResolvedStyleView view = StyleSheet::instance().lookup(WidgetKind::ScrollBar, state);
+        const ResolvedMetrics* metrics = view.metrics;
+        int margin = metrics ? metrics->scrollbar_margin : 0;
+        if (margin < 0) margin = 0;
+        int track_len = (orient == ScrollBarOrientation::Vertical)
+            ? (world.h - margin * 2)
+            : (world.w - margin * 2);
+        if (track_len <= 0) return false;
+
+        int max_scroll = 0;
+        if (target) {
+            max_scroll = (orient == ScrollBarOrientation::Vertical)
+                ? kernel.max_scroll(target)
+                : kernel.max_scroll_x(target);
+        }
+        if (max_scroll < 0) max_scroll = 0;
+
+        int page = kernel.scrollbar_page_size(bar);
+        if (page <= 0) {
+            if (target) {
+                const Rect tr = kernel.rect(target);
+                page = (orient == ScrollBarOrientation::Vertical) ? tr.h : tr.w;
+            } else {
+                page = (orient == ScrollBarOrientation::Vertical) ? world.h : world.w;
+            }
+        }
+        if (page <= 0) page = 1;
+
+        int thumb_min = metrics ? metrics->scrollbar_thumb_min : 0;
+        if (thumb_min <= 0) thumb_min = 12;
+        int content_len = page + max_scroll;
+        if (content_len <= 0) content_len = track_len;
+        int thumb_len = (track_len * page) / content_len;
+        if (thumb_len < thumb_min) thumb_len = thumb_min;
+        if (thumb_len > track_len) thumb_len = track_len;
+        int max_thumb = track_len - thumb_len;
+
+        int scroll = 0;
+        if (target) {
+            scroll = (orient == ScrollBarOrientation::Vertical)
+                ? kernel.scroll_y(target)
+                : kernel.table_view_scroll_x(target);
+        }
+        scroll = clamp_int(scroll, 0, max_scroll);
+        const int track_start = (orient == ScrollBarOrientation::Vertical)
+            ? (world.y + margin)
+            : (world.x + margin);
+        const int thumb_start = track_start
+            + ((max_scroll > 0 && max_thumb > 0) ? (max_thumb * scroll) / max_scroll : 0);
+
+        info.orient = orient;
+        info.world = world;
+        info.track_start = track_start;
+        info.track_len = track_len;
+        info.thumb_start = thumb_start;
+        info.thumb_len = thumb_len;
+        info.max_thumb = max_thumb;
+        info.max_scroll = max_scroll;
+        info.page = page;
+        return true;
     }
 
     void trace_input_events(SoaKernel& kernel) noexcept {
@@ -1582,6 +1671,61 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel x invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
+
+        ScrollbarTestInfo hinfo{};
+        const bool hinfo_ok = build_scrollbar_info(kernel, table_scroll_x, table_root_r, hinfo);
+        expect_true(hinfo_ok, "tableview: hscroll info", fails);
+        if (hinfo_ok && hinfo.max_scroll > 0) {
+            kernel.layout_trace_reset();
+            kernel.set_table_view_scroll_x(table_view, 0);
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 0));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 1));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 1));
+            gui.render();
+            const int table_x_page = kernel.table_view_scroll_x(table_view);
+            expect_true(table_x_page > 0, "tableview: hscroll page click", fails);
+            expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll page invalidated layout", fails);
+
+            kernel.layout_trace_reset();
+            kernel.set_table_view_scroll_x(table_view, hinfo.max_scroll);
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + 1, hscroll_hit_y, 0));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + 1, hscroll_hit_y, 1));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hinfo.track_start + 1, hscroll_hit_y, 1));
+            gui.render();
+            const int table_x_back = kernel.table_view_scroll_x(table_view);
+            expect_true(table_x_back < hinfo.max_scroll, "tableview: hscroll page back", fails);
+            expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll back invalidated layout", fails);
+
+            kernel.layout_trace_reset();
+            kernel.set_table_view_scroll_x(table_view, hinfo.max_scroll);
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 0));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 1));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hinfo.track_start + hinfo.track_len - 1,
+                                            hscroll_hit_y, 1));
+            gui.render();
+            const int table_x_clamp = kernel.table_view_scroll_x(table_view);
+            expect_true(table_x_clamp == hinfo.max_scroll, "tableview: hscroll clamp max", fails);
+            expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll clamp invalidated layout", fails);
+
+            kernel.layout_trace_reset();
+            const int mid_scroll = hinfo.max_scroll / 2;
+            kernel.set_table_view_scroll_x(table_view, mid_scroll);
+            build_scrollbar_info(kernel, table_scroll_x, table_root_r, hinfo);
+            const int thumb_center = hinfo.thumb_start + hinfo.thumb_len / 2;
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, thumb_center, hscroll_hit_y, 0));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseDown, thumb_center, hscroll_hit_y, 1));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseMove, thumb_center + 20, hscroll_hit_y, 1));
+            gui.dispatch_event(Event::mouse(Event::Type::MouseUp, thumb_center + 20, hscroll_hit_y, 1));
+            gui.render();
+            const int table_x_drag = kernel.table_view_scroll_x(table_view);
+            expect_true(table_x_drag != mid_scroll, "tableview: hscroll drag", fails);
+            expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll drag invalidated layout", fails);
+        }
         const int hscroll_x = table_root_r.x + hscroll_r.x + hscroll_r.w - 2;
         const int hscroll_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
         const int table_x_before_bar = kernel.table_view_scroll_x(table_view);

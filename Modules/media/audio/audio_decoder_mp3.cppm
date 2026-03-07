@@ -27,6 +27,73 @@ namespace audio::mp3_debug {
 }
 
 export namespace audio {
+    namespace mp3_detail {
+        struct Arena {
+            std::uint8_t* base{nullptr};
+            std::size_t size{0};
+            void* block{nullptr};
+            std::size_t block_size{0};
+        };
+
+        constexpr std::size_t kArenaAlign = 32;
+
+        inline std::uintptr_t align_up(std::uintptr_t value, std::size_t align) noexcept {
+            return (value + (align - 1)) & ~(align - 1);
+        }
+
+        inline bool arena_get_aligned(Arena* arena, void** out_ptr, std::size_t* out_size) noexcept {
+            if (!arena || !arena->base || arena->size == 0) return false;
+            const auto base = reinterpret_cast<std::uintptr_t>(arena->base);
+            const auto aligned = align_up(base, kArenaAlign);
+            const auto padding = static_cast<std::size_t>(aligned - base);
+            if (padding >= arena->size) return false;
+            if (out_ptr) *out_ptr = reinterpret_cast<void*>(aligned);
+            if (out_size) *out_size = arena->size - padding;
+            return true;
+        }
+
+        inline Arena g_arena{};
+
+        inline void* arena_malloc(std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (arena->block) return nullptr;
+            void* aligned = nullptr;
+            std::size_t avail = 0;
+            if (!arena_get_aligned(arena, &aligned, &avail)) return nullptr;
+            if (sz > avail) return nullptr;
+            arena->block = aligned;
+            arena->block_size = sz;
+            return arena->block;
+        }
+
+        inline void* arena_realloc(void* p, std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!p) return arena_malloc(sz, user);
+            void* aligned = nullptr;
+            std::size_t avail = 0;
+            if (!arena_get_aligned(arena, &aligned, &avail)) return nullptr;
+            if (p != arena->block || p != aligned) return nullptr;
+            if (sz > avail) return nullptr;
+            arena->block_size = sz;
+            return p;
+        }
+
+        inline void arena_free(void* p, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base) return;
+            if (p != arena->block) return;
+            arena->block = nullptr;
+            arena->block_size = 0;
+        }
+
+        inline drmp3_allocation_callbacks g_alloc{
+            &g_arena,
+            arena_malloc,
+            arena_realloc,
+            arena_free
+        };
+    }
+
     struct Mp3Info {
         std::uint32_t sample_rate{0};
         std::uint16_t channels{0};
@@ -34,6 +101,13 @@ export namespace audio {
 
     inline void mp3_set_debug_sink(out::channel_sink& sink) noexcept {
         mp3_debug::sink = &sink;
+    }
+
+    inline void mp3_set_arena(void* buffer, std::size_t size) noexcept {
+        mp3_detail::g_arena.base = static_cast<std::uint8_t*>(buffer);
+        mp3_detail::g_arena.size = size;
+        mp3_detail::g_arena.block = nullptr;
+        mp3_detail::g_arena.block_size = 0;
     }
 
     namespace mp3_detail {
@@ -104,11 +178,15 @@ export namespace audio {
             close();
             src_ = &src;
             mp3_debug::log<"mp3 dec: open begin">();
+            const drmp3_allocation_callbacks* alloc = nullptr;
+            if (mp3_detail::g_arena.base && mp3_detail::g_arena.size) {
+                alloc = &mp3_detail::g_alloc;
+            }
             if (!drmp3_init(&mp3_,
                 mp3_detail::SourceOps<Source>::on_read,
                 mp3_detail::SourceOps<Source>::on_seek,
                 mp3_detail::SourceOps<Source>::on_tell,
-                nullptr, src_, nullptr)) {
+                nullptr, src_, alloc)) {
                 mp3_debug::log<"mp3 dec: open failed">();
                 return unexpected(Errc::invalid_arg);
             }

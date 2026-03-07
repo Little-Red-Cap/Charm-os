@@ -1,6 +1,7 @@
 module;
 
 #include <cstddef>
+#include <cstring>
 #include <string_view>
 
 export module player.hqzy.fs_utils;
@@ -19,8 +20,14 @@ namespace {
 
     void copy_name(char* dst, std::size_t cap, std::string_view src) noexcept {
         if (!dst || cap == 0) return;
-        const std::size_t n = (src.size() < (cap - 1)) ? src.size() : (cap - 1);
-        for (std::size_t i = 0; i < n; ++i) dst[i] = src[i];
+        const char* ptr = src.data();
+        if (!ptr) {
+            dst[0] = '\0';
+            return;
+        }
+        const std::size_t src_len = src.size() > 0 ? src.size() : std::strlen(ptr);
+        const std::size_t n = (src_len < (cap - 1)) ? src_len : (cap - 1);
+        for (std::size_t i = 0; i < n; ++i) dst[i] = ptr[i];
         dst[n] = '\0';
     }
 
@@ -85,7 +92,7 @@ export namespace player::hqzy {
             return fs::Status{fs::Errc::noent};
         }
         const auto& e = state.entries[state.entry_selected];
-        char next[sizeof(state.list_dir)]{};
+        char next[sizeof(state.play_path)]{};
         if (!join_path(next, sizeof(next), state.list_dir, e.name)) {
             state.list_error = true;
             return fs::Status{fs::Errc::nametoolong};
@@ -98,6 +105,7 @@ export namespace player::hqzy {
         state.playing = true;
         state.paused = false;
         state.play_request = true;
+        state.stop_request = false;
         state.page = Page::now_playing;
         return fs::Status{fs::Errc::ok};
     }

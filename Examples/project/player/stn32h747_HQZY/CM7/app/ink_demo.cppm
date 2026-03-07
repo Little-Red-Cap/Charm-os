@@ -113,6 +113,12 @@ namespace {
         }
         return steps;
     }
+
+    void display_yield() noexcept {
+        if (audio_mp3_is_active()) {
+            (void)audio_mp3_update();
+        }
+    }
 }
 
 export void ink_set_console_sink(out::channel_sink& sink) noexcept {
@@ -140,6 +146,7 @@ export bool ink_demo_render_once() noexcept {
 
 export void ink_demo_run() noexcept {
     gui::theme::set_current(true);
+    display_st7305_set_yield(&display_yield);
     Renderer renderer(g_canvas);
     player::hqzy::AppState state{};
     player::hqzy::Controller controller{};
@@ -162,19 +169,41 @@ export void ink_demo_run() noexcept {
         const int enc_steps = encoder_steps(encoder);
         controller.on_keys(key0, wkup2);
         controller.on_encoder(enc_steps, enc_key);
-        if (state.play_request && state.play_path[0] != '\0') {
-            state.play_request = false;
-            log<"ink: play {}">(state.play_path);
-            const bool ok = audio_mp3_play_path(std::string_view{state.play_path});
-            state.audio_ready = ok;
+        if (state.stop_request) {
+            state.stop_request = false;
+            audio_mp3_stop();
             state.playing = false;
             state.paused = true;
             state.progress = 0;
             state.buffer = 0;
         }
+        if (state.play_request && state.play_path[0] != '\0') {
+            state.play_request = false;
+            log<"ink: play {}">(state.play_path);
+            const bool ok = audio_mp3_start(std::string_view{state.play_path});
+            state.audio_ready = ok;
+            state.playing = ok;
+            state.paused = !ok;
+            state.progress = 0;
+            state.buffer = 0;
+        }
+        if (audio_mp3_is_active()) {
+            (void)audio_mp3_update();
+        } else if (state.playing) {
+            state.playing = false;
+            state.paused = true;
+        }
+
+        if (state.playing && audio_mp3_is_active()) {
+            HAL_Delay(2);
+            continue;
+        }
 
         if ((now - last_frame) < player::hqzy::kFrameMs) {
-            HAL_Delay(2);
+            if (audio_mp3_is_active()) {
+                (void)audio_mp3_update();
+            }
+            HAL_Delay(1);
             continue;
         }
         last_frame = now;

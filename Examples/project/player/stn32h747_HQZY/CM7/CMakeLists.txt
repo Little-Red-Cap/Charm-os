@@ -28,7 +28,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 set(STM32_MCU_FLAGS  "-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard " )
 
 #Linker options
-set(STM32_LINKER_SCRIPT stm32h747xx_flash_CM7.ld)
+#set(STM32_LINKER_SCRIPT stm32h747xx_flash_CM7.ld)
+set(STM32_LINKER_SCRIPT STM32H747XIHX_FLASH.ld)
+#set(STM32_LINKER_SCRIPT STM32H747XIHX_RAM.ld)
 set(STM32_LINKER_OPTION  )
 
 # Include toolchain file

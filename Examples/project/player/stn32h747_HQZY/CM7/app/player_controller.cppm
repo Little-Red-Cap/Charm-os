@@ -33,9 +33,14 @@ export namespace player::hqzy {
                     if (!state->playing) {
                         if (state->play_path[0] != '\0') {
                             state->play_request = true;
+                            state->stop_request = false;
                             state->playing = true;
                             state->paused = false;
                         }
+                    } else {
+                        state->stop_request = true;
+                        state->playing = false;
+                        state->paused = true;
                     }
                 }
             }
@@ -56,9 +61,14 @@ export namespace player::hqzy {
                     if (!state->playing) {
                         if (state->play_path[0] != '\0') {
                             state->play_request = true;
+                            state->stop_request = false;
                             state->playing = true;
                             state->paused = false;
                         }
+                    } else {
+                        state->stop_request = true;
+                        state->playing = false;
+                        state->paused = true;
                     }
                 }
             }

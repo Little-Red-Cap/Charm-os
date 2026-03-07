@@ -468,6 +468,11 @@ sequenceDiagram
 - HAL/Service/Shell/FS/ModuleX demos：已通过
 - STM32：编译通过（待烧录验证）
 
+## 10.1 当前关注点（Current Focus）
+
+- UI/Vivid：Action 化收敛 + TableView 结构性 API 第二阶段
+- 验收命令：`vivid-soa-demo --soa-ci --regress-ui`
+
 ## 11. 风险与限制
 
 - Shell 管道为“输出作为参数”语义，非真实流式 stdin/stdout

@@ -1,0 +1,1 @@
+VIVID_WIDGET_BEHAVIOR_EXTRA(TableView, Both, HorizontalIfNoVertical)

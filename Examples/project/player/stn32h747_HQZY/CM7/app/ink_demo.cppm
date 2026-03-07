@@ -158,6 +158,9 @@ export void ink_demo_run() noexcept {
     util::u32 last_frame = 0;
     util::u32 fps_last = HAL_GetTick();
     util::u32 fps_frames = 0;
+    util::u32 last_render_ms = 0;
+    util::u32 last_flush_ms = 0;
+    util::u32 last_total_ms = 0;
 
     log<"ink: demo run (ENC: move/vol, ENC key: enter, KEY0: play, WKUP2: page)">();
 
@@ -209,20 +212,25 @@ export void ink_demo_run() noexcept {
         last_frame = now;
         controller.tick(now);
 
+        const util::u32 frame_start = HAL_GetTick();
         renderer.clear(false);
         player::hqzy::render_ui(renderer, state);
-
         display_st7305_panel().pack_from_linear_1bpp(g_canvas.bytes(), g_native);
+        last_render_ms = HAL_GetTick() - frame_start;
+        const util::u32 flush_start = HAL_GetTick();
         const auto st = display_st7305_panel().flush_native(g_native);
         if (st != bsp::st7305::Status::ok) {
             log<"ink: flush failed">();
             break;
         }
+        last_flush_ms = HAL_GetTick() - flush_start;
+        last_total_ms = HAL_GetTick() - frame_start;
         fps_frames += 1;
         if ((now - fps_last) >= 1000u) {
             const util::u32 elapsed = now - fps_last;
             const util::u32 fps = (fps_frames * 1000u) / (elapsed ? elapsed : 1u);
-            log<"ink: fps={}">(fps);
+            log<"ink: fps={} render={}ms flush={}ms total={}ms">(
+                fps, last_render_ms, last_flush_ms, last_total_ms);
             fps_last = now;
             fps_frames = 0;
         }

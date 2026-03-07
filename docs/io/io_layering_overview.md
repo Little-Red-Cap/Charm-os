@@ -1,7 +1,7 @@
 ﻿# IO 分层总览（HAL/Platform/Input/FS/USB/Net）
 
 相关决策文档：
-- `docs/input_layering_decision.md`（UI/Ink 输入层分层决策）
+- `docs/input/input_layering_decision.md`（UI/Ink 输入层分层决策）
 
 
 ## 目标
@@ -104,6 +104,7 @@ VSF 在 `Draft/vsf/source/hal` 中采用：
 ---
 
 备注：本文件是架构边界定义，不替代各模块设计文档。
+
 
 
 

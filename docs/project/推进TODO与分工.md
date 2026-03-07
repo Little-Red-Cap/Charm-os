@@ -41,7 +41,7 @@
 
 - [AI] 输入分层落地检查（HAL/IO/UI 依赖边界）
   - 状态：Done
-  - 产出：`docs/input_layering_decision.md`
+  - 产出：`docs/input/input_layering_decision.md`
 
 ### 能力回收（UI/Ink & UI/Vivid）
 
@@ -166,4 +166,5 @@ QRCode优化：
 3. 显示质量（添加quiet zone /可选缩放 /边缘更干净)
 4. API 易用性(输入 text、输出 Image1bpp 或直接 draw)
 5. 纠错等级/版本控制 (可配置 L/M/Q/H)
+
 

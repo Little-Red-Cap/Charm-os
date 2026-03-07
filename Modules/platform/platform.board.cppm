@@ -2,6 +2,8 @@ module;
 
 export module platform.board;
 
+import block.sdmmc;
+import block.spi_flash;
 import hal_input;
 import hal_i2c;
 import hal_spi;
@@ -47,6 +49,20 @@ export namespace platform::board {
         const char* io_cap{"io.can0"};
     };
 
+    struct SdmmcDesc {
+        block::SdmmcHandle handle{};
+        block::SdmmcConfig config{};
+        const char* block_cap{"block.sd0"};
+        const char* hal_cap{nullptr};
+    };
+
+    struct SpiFlashDesc {
+        block::SpiFlashHandle handle{};
+        block::SpiFlashConfig config{};
+        const char* block_cap{"block.flash0"};
+        const char* hal_cap{nullptr};
+    };
+
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
@@ -54,5 +70,7 @@ export namespace platform::board {
         SpiDesc spi1{};
         I2cDesc i2c1{};
         CanDesc can0{};
+        SdmmcDesc sdmmc0{};
+        SpiFlashDesc flash0{};
     };
 }

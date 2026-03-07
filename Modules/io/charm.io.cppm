@@ -34,6 +34,7 @@ export import driver.usart_channel;
 
 export import block.device;
 export import block.device.node;
+export import block.cache;
 export import block.registry;
 export import block.sdmmc;
 export import block.spi_flash;
@@ -81,6 +82,7 @@ export import usb.ep0_driver;
 export import usb.class_cdc;
 export import usb.class_uac;
 export import usb.class_msc;
+export import usb.class_msc_block;
 export import usb.driver;
 export import usb.dsl;
 export import usb.host.core;

@@ -99,6 +99,7 @@ export namespace block {
             self->device.flush = &SdmmcBinding::flush_impl;
             self->device.block_size = info.block_size;
             self->device.block_count = info.block_count;
+            self->device.caps = caps_from_ops(self->device);
             return self->registry->register_device(self->desc, self->device);
         }
 

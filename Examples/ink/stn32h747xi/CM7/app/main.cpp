@@ -40,12 +40,17 @@ import util.core;
 import util.error;
 
 extern "C" {
+#include "i2c.h"
+}
+
+extern "C" {
     void HAL_Init(void);
     void SystemClock_Config(void);
     void MX_GPIO_Init(void);
     void MX_DMA_Init(void);
     void MX_I2C2_Init(void);
     void MX_TIM8_Init(void);
+    void HAL_Delay(uint32_t);
     void Error_Handler(void);
 }
 
@@ -58,6 +63,42 @@ namespace {
         static constexpr std::size_t priority_levels = 1;
         static constexpr std::size_t evtq_capacity = 8;
     };
+
+    bool write_all(io::Channel& ch, const char* data, std::size_t len) noexcept {
+        std::size_t offset = 0;
+        for (int tries = 0; tries < 64 && offset < len; ++tries) {
+            auto r = ch.write(io::ByteView{
+                reinterpret_cast<const util::u8*>(data + offset),
+                len - offset
+            });
+            if (r) {
+                offset += r.value();
+                continue;
+            }
+            if (r.error() != util::Errc::would_block) return false;
+            HAL_Delay(1);
+        }
+        return offset == len;
+    }
+
+    void write_hex2(io::Channel& ch, util::u8 v) noexcept {
+        static constexpr char kHex[] = "0123456789ABCDEF";
+        char buf[2]{kHex[(v >> 4) & 0x0F], kHex[v & 0x0F]};
+        (void)write_all(ch, buf, sizeof(buf));
+    }
+
+    void i2c_scan(io::Channel& ch, I2C_HandleTypeDef& hi2c) noexcept {
+        (void)write_all(ch, "i2c scan: begin\n", 16);
+        for (util::u8 addr = 0x08; addr <= 0x77; ++addr) {
+            const auto dev = static_cast<util::u16>(addr << 1);
+            if (HAL_I2C_IsDeviceReady(&hi2c, dev, 1, 10) == HAL_OK) {
+                (void)write_all(ch, "i2c: 0x", 8);
+                write_hex2(ch, addr);
+                (void)write_all(ch, "\n", 1);
+            }
+        }
+        (void)write_all(ch, "i2c scan: end\n", 14);
+    }
 }
 
 extern "C" void USART1_IRQHandler(void) {
@@ -141,6 +182,8 @@ int main() {
     if (!wr && wr.error() != util::Errc::would_block) {
         Error_Handler();
     }
+
+    i2c_scan(*ch, hi2c2);
 
     while (true) {
         (void)running.run_once();

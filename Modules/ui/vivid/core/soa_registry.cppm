@@ -31,6 +31,17 @@ enum class SoaClickBehavior : std::uint8_t {
 };
 
 export
+enum class SoaClickIndexPolicy : std::uint8_t {
+    None,
+    SegmentedX,
+    TextListY,
+    ListViewY,
+    StepperX,
+    NumberListY,
+    RollerY
+};
+
+export
 enum class SoaWheelTargetPolicy : std::uint8_t {
     None,
     SelfIfScrollableElseAncestor,
@@ -71,6 +82,7 @@ struct SoaDefaults {
 export
 struct SoaBehavior {
     SoaClickBehavior click{SoaClickBehavior::None};
+    SoaClickIndexPolicy click_index{SoaClickIndexPolicy::None};
     WidgetKind group_kind{WidgetKind::None};
     SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
     bool scrollable{false};
@@ -99,10 +111,11 @@ namespace {
         for (auto& entry : table) {
             entry = SoaBehavior{};
         }
-#define VIVID_WIDGET_BEHAVIOR_CLICK(name, click_kind, group_kind_value, checkable_value) \
+#define VIVID_WIDGET_BEHAVIOR_CLICK(name, click_kind, index_policy_value, group_kind_value, checkable_value) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.click = SoaClickBehavior::click_kind; \
+            entry.click_index = SoaClickIndexPolicy::index_policy_value; \
             entry.group_kind = WidgetKind::group_kind_value; \
             entry.checkable = checkable_value; \
             entry.capture_on_press = true; \

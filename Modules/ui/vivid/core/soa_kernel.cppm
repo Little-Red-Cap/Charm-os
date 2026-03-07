@@ -4055,6 +4055,29 @@ private:
         const WidgetHandle toggle_group = input_find_toggle_group_ancestor(h);
         const WidgetKind group_kind = toggle_group ? toggle_group_kind(toggle_group) : WidgetKind::None;
         const bool in_toggle_group = toggle_group && behavior.checkable;
+        int click_index = -1;
+        switch (behavior.click_index) {
+        case SoaClickIndexPolicy::None:
+            break;
+        case SoaClickIndexPolicy::SegmentedX:
+            click_index = input_segmented_index_from_pos(h, x);
+            break;
+        case SoaClickIndexPolicy::TextListY:
+            click_index = input_text_list_index_from_pos(h, y);
+            break;
+        case SoaClickIndexPolicy::ListViewY:
+            click_index = input_list_view_index_from_pos(h, y);
+            break;
+        case SoaClickIndexPolicy::StepperX:
+            click_index = input_stepper_index_from_pos(h, x);
+            break;
+        case SoaClickIndexPolicy::NumberListY:
+            click_index = input_number_list_index_from_pos(h, y);
+            break;
+        case SoaClickIndexPolicy::RollerY:
+            click_index = input_roller_index_from_pos(h, y);
+            break;
+        }
         switch (behavior.click) {
         case SoaClickBehavior::None:
             break;
@@ -4079,44 +4102,38 @@ private:
             }
             break;
         case SoaClickBehavior::SegmentedControl: {
-            const int idx = input_segmented_index_from_pos(h, x);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetSegmentedIndex, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetSegmentedIndex, h, click_index, 0});
             }
             break;
         }
         case SoaClickBehavior::TextList: {
-            const int idx = input_text_list_index_from_pos(h, y);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetTextListSelected, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetTextListSelected, h, click_index, 0});
             }
             break;
         }
         case SoaClickBehavior::ListView: {
-            const int idx = input_list_view_index_from_pos(h, y);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, click_index, 0});
             }
             break;
         }
         case SoaClickBehavior::Stepper: {
-            const int idx = input_stepper_index_from_pos(h, x);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetStepperIndex, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetStepperIndex, h, click_index, 0});
             }
             break;
         }
         case SoaClickBehavior::NumberList: {
-            const int idx = input_number_list_index_from_pos(h, y);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetNumberListSelected, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetNumberListSelected, h, click_index, 0});
             }
             break;
         }
         case SoaClickBehavior::Roller: {
-            const int idx = input_roller_index_from_pos(h, y);
-            if (idx >= 0) {
-                input_emit_action(SoaInputAction{SoaInputActionType::SetRollerSelected, h, idx, 0});
+            if (click_index >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetRollerSelected, h, click_index, 0});
             }
             break;
         }

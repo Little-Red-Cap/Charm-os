@@ -21,6 +21,7 @@ import charm.core.config;
 import charm.core.event;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
+import charm.core.soa_factory;
 import charm.core.soa_payload;
 import charm.core.style_sheet;
 import charm.core.theme_preset;

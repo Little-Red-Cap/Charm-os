@@ -8,12 +8,15 @@ export module charm.system.init_canopen;
 import init.node;
 import init.graph;
 import canopen.transport_channel.node;
+import canopen.sdo;
 import canopen.sdo.node;
 import canopen.sdo_service;
+import canopen.nmt;
 import canopen.nmt.node;
 import canopen.nmt_service;
 import canopen.pump;
 import charm.system.clock;
+import kernel.eda;
 import util.core;
 import util.error;
 

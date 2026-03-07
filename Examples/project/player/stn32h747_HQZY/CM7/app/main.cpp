@@ -110,9 +110,37 @@ namespace {
     constexpr bool kSdramSelftestInBringup = false;
     constexpr bool kUseOutLoggerEarly = false;
     constexpr bool kUseDmaConsole = false;
-    constexpr bool kEncoderTestOnBoot = true;
+    constexpr bool kEncoderTestOnBoot = false;
     constexpr util::u32 kEncoderTestMs = 5000;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
+
+#if defined(__GNUC__)
+#define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
+#else
+#define CHARM_DMA_BUFFER
+#endif
+
+    inline void clean_dcache(const void* addr, std::size_t size) noexcept {
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+        if (!addr || size == 0) return;
+        if ((SCB->CCR & SCB_CCR_DC_Msk) == 0U) return;
+        std::uintptr_t start = reinterpret_cast<std::uintptr_t>(addr);
+        std::uintptr_t end = start + size;
+        start &= ~static_cast<std::uintptr_t>(31);
+        end = (end + 31u) & ~static_cast<std::uintptr_t>(31);
+        SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t*>(start),
+            static_cast<int32_t>(end - start));
+#else
+        (void)addr;
+        (void)size;
+#endif
+    }
+
+    inline void allow_unaligned_access() noexcept {
+#if defined(SCB_CCR_UNALIGN_TRP_Msk)
+        SCB->CCR &= ~SCB_CCR_UNALIGN_TRP_Msk;
+#endif
+    }
 
     struct PumpConfig : kernel::KernelConfig {
         static constexpr std::size_t priority_levels = 1;
@@ -188,6 +216,7 @@ namespace {
             dma_len = len;
             dma_busy = true;
             __enable_irq();
+            clean_dcache(&buf[tail], len);
             if (HAL_UART_Transmit_DMA(&huart1, &buf[tail], len) != HAL_OK) {
                 if (HAL_UART_Transmit(&huart1, &buf[tail], len, 100) == HAL_OK) {
                     __disable_irq();
@@ -247,7 +276,7 @@ namespace {
         DmaUartTx* tx{nullptr};
     };
 
-    static DmaUartTx g_uart1_dma_tx{};
+    static CHARM_DMA_BUFFER DmaUartTx g_uart1_dma_tx{};
     static io::Channel g_dma_console{};
     static DmaConsoleCtx g_dma_ctx{};
 
@@ -300,6 +329,7 @@ namespace {
         __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOD_CLK_ENABLE();
         __HAL_RCC_GPIOE_CLK_ENABLE();
+        __HAL_RCC_GPIOI_CLK_ENABLE();
         __HAL_RCC_GPIOJ_CLK_ENABLE();
         __HAL_RCC_GPIOK_CLK_ENABLE();
 
@@ -330,6 +360,14 @@ namespace {
 
         gpio_init.Pin = GPIO_PIN_8;
         HAL_GPIO_Init(GPIOA, &gpio_init);
+
+        /* Encoder key: PI8, active low (pull-up). */
+        gpio_init.Pin = GPIO_PIN_8;
+        gpio_init.Mode = GPIO_MODE_INPUT;
+        gpio_init.Pull = GPIO_PULLUP;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        gpio_init.Alternate = 0;
+        HAL_GPIO_Init(GPIOI, &gpio_init);
 
         /* Display control: PJ5 reset, PJ6 data/cmd. */
         gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_6;
@@ -583,6 +621,7 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
 
 int main() {
     HAL_Init();
+    allow_unaligned_access();
     SystemClock_Config();
 
     MX_GPIO_Init();
@@ -593,6 +632,17 @@ int main() {
         reinterpret_cast<uint8_t*>(const_cast<char*>(early_msg)),
         static_cast<uint16_t>(sizeof(early_msg) - 1),
         100);
+    {
+        char buf[64]{};
+        const int n = std::snprintf(buf, sizeof(buf), "boot: ccr=0x%08lX\n",
+            static_cast<unsigned long>(SCB->CCR));
+        if (n > 0) {
+            (void)HAL_UART_Transmit(&huart1,
+                reinterpret_cast<uint8_t*>(buf),
+                static_cast<uint16_t>(n),
+                100);
+        }
+    }
     early_uart_print("boot: fmc init begin\n");
     if (kFmcInitOnBoot) {
         MX_FMC_Init();
@@ -639,6 +689,7 @@ int main() {
         caps.input,
         caps.spi1,
         caps.i2c1,
+        caps.can0,
         pump,
         post_fn,
         &running,

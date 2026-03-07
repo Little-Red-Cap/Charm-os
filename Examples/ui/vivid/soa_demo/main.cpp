@@ -10,6 +10,7 @@
 #include <vector>
 
 import charm.core.soa_kernel;
+import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_payload;
 import charm.core.event;
@@ -242,6 +243,17 @@ namespace {
         const auto* src = static_cast<const TreeViewIndentSource*>(ctx);
         if (!src || src->mod == 0) return 0;
         return static_cast<std::uint8_t>(index % src->mod);
+    }
+
+    struct RollerTextSource {
+        const char* const* items{nullptr};
+        std::uint16_t count{0};
+    };
+
+    const char* roller_text_at(const void* ctx, std::uint16_t index) noexcept {
+        const auto* src = static_cast<const RollerTextSource*>(ctx);
+        if (!src || !src->items || src->count == 0) return "";
+        return src->items[index % src->count];
     }
 
     void append_path_icon(ui::draw_cmd::DefaultDrawCmdBuffer& buf, int screen_width) noexcept {
@@ -788,6 +800,9 @@ namespace {
             + payload_stats.list_view.peak
             + payload_stats.table_view.peak
             + payload_stats.tree_view.peak
+            + payload_stats.stepper.peak
+            + payload_stats.number_list.peak
+            + payload_stats.roller.peak
             + payload_stats.switcher.peak
             + payload_stats.slider.peak
             + payload_stats.progress.peak
@@ -806,6 +821,9 @@ namespace {
             + payload_stats.list_view.alloc_fail
             + payload_stats.table_view.alloc_fail
             + payload_stats.tree_view.alloc_fail
+            + payload_stats.stepper.alloc_fail
+            + payload_stats.number_list.alloc_fail
+            + payload_stats.roller.alloc_fail
             + payload_stats.switcher.alloc_fail
             + payload_stats.slider.alloc_fail
             + payload_stats.progress.alloc_fail
@@ -1038,16 +1056,25 @@ namespace {
         auto progress_simple = factory.create_progress_bar_simple();
         auto progress_round = factory.create_progress_bar_round();
         auto progress_flowing = factory.create_progress_flowing();
+        auto stepper = factory.create_stepper();
+        auto number_list = factory.create_number_list();
+        auto roller = factory.create_roller();
         factory.link(tab_root, progress);
         factory.link(tab_root, progress_wheel);
         factory.link(tab_root, progress_simple);
         factory.link(tab_root, progress_round);
         factory.link(tab_root, progress_flowing);
+        factory.link(root, stepper);
+        factory.link(root, number_list);
+        factory.link(root, roller);
         kernel.set_rect(progress, {10, 110, 180, 12});
         kernel.set_rect(progress_wheel, {150, 78, 32, 32});
         kernel.set_rect(progress_simple, {10, 130, 180, 8});
         kernel.set_rect(progress_round, {10, 142, 180, 8});
         kernel.set_rect(progress_flowing, {10, 152, 180, 6});
+        kernel.set_rect(stepper, {20, 480, 200, 44});
+        kernel.set_rect(number_list, {20, 532, 90, 92});
+        kernel.set_rect(roller, {120, 532, 90, 92});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
         kernel.set_range(progress_wheel, 0, 100);
@@ -1058,6 +1085,29 @@ namespace {
         kernel.set_value(progress_round, 35);
         kernel.set_range(progress_flowing, 0, 100);
         kernel.set_value(progress_flowing, 45);
+        factory.set_stepper_count(stepper, 4);
+        factory.set_stepper_label(stepper, 0, "Low");
+        factory.set_stepper_label(stepper, 1, "Med");
+        factory.set_stepper_label(stepper, 2, "High");
+        factory.set_stepper_label(stepper, 3, "Max");
+        factory.set_stepper_current(stepper, 0);
+        factory.set_number_list_count(number_list, 10);
+        factory.set_number_list_range(number_list, 0, 1);
+        factory.set_number_list_selected(number_list, 0);
+        factory.set_number_list_row_height(number_list, 22);
+        factory.set_number_list_wheel_step(number_list, 22);
+        static const char* roller_items[] = {
+            "One", "Two", "Three", "Four",
+            "Five", "Six"
+        };
+        static const RollerTextSource roller_source{
+            roller_items,
+            static_cast<std::uint16_t>(sizeof(roller_items) / sizeof(roller_items[0]))
+        };
+        factory.set_roller_source(roller, roller_source.count, &roller_source, &roller_text_at);
+        factory.set_roller_selected(roller, 0);
+        factory.set_roller_row_height(roller, 22);
+        factory.set_roller_wheel_step(roller, 22);
         gui.render();
 
         const Rect tab_root_r = kernel.rect(tab_root);
@@ -1185,11 +1235,59 @@ namespace {
         expect_true(kernel.layout_pass_count() == 0, "ui: log append pass", fails);
         expect_true(log_paint_after > log_paint_before, "ui: log append missing paint", fails);
 
+        kernel.layout_trace_reset();
+        const std::uint32_t step_paint_before = kernel.paint_invalidated_count();
+        const Rect step_r = kernel.rect(stepper);
+        const int step_x = step_r.x + (step_r.w * 2) / 3;
+        const int step_y = step_r.y + step_r.h / 2;
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, step_x, step_y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, step_x, step_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, step_x, step_y, 1));
+        gui.render();
+        const std::uint32_t step_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: stepper invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: stepper pass", fails);
+        expect_true(step_paint_after > step_paint_before, "ui: stepper missing paint", fails);
+        expect_true(kernel.stepper_current(stepper) == 2, "ui: stepper not applied", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t number_paint_before = kernel.paint_invalidated_count();
+        const Rect number_r = kernel.rect(number_list);
+        const int number_x = number_r.x + number_r.w / 2;
+        const int number_y = number_r.y + number_r.h / 2 + kernel.number_list_row_height(number_list);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, number_x, number_y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, number_x, number_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, number_x, number_y, 1));
+        gui.render();
+        const std::uint32_t number_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: number list invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: number list pass", fails);
+        expect_true(number_paint_after > number_paint_before, "ui: number list missing paint", fails);
+        expect_true(kernel.number_list_selected(number_list) == 1, "ui: number list not applied", fails);
+
+        kernel.layout_trace_reset();
+        const std::uint32_t roller_paint_before = kernel.paint_invalidated_count();
+        const Rect roller_r = kernel.rect(roller);
+        const int roller_x = roller_r.x + roller_r.w / 2;
+        const int roller_y = roller_r.y + roller_r.h / 2 + kernel.roller_row_height(roller);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, roller_x, roller_y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, roller_x, roller_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, roller_x, roller_y, 1));
+        gui.render();
+        const std::uint32_t roller_paint_after = kernel.paint_invalidated_count();
+        expect_true(kernel.layout_invalidated_count() == 0, "ui: roller invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "ui: roller pass", fails);
+        expect_true(roller_paint_after > roller_paint_before, "ui: roller missing paint", fails);
+        expect_true(kernel.roller_selected(roller) == 1, "ui: roller not applied", fails);
+
     kernel.destroy(progress_flowing);
     kernel.destroy(progress_round);
     kernel.destroy(progress_simple);
     kernel.destroy(progress_wheel);
     kernel.destroy(progress);
+    kernel.destroy(roller);
+    kernel.destroy(number_list);
+    kernel.destroy(stepper);
     kernel.destroy(console_box);
     kernel.destroy(tab_bar);
         kernel.destroy(menu_item_c);
@@ -1370,15 +1468,20 @@ namespace {
 
         auto table_root = factory.create_container();
         auto table_view = factory.create_table_view();
+        auto table_scroll_x = factory.create_scrollbar_for(table_view);
         auto tree_root = factory.create_container();
         auto tree_view = factory.create_tree_view();
         factory.link(root, table_root);
         factory.link(table_root, table_view);
+        factory.link(table_root, table_scroll_x);
         factory.link(root, tree_root);
         factory.link(tree_root, tree_view);
 
         kernel.set_rect(table_root, {screen_width - 260, 280, 220, 200});
-        kernel.set_rect(table_view, {0, 0, 200, 200});
+        kernel.set_rect(table_view, {0, 0, 200, 184});
+        kernel.set_rect(table_scroll_x, {0, 184, 200, 16});
+        kernel.set_scrollbar_orientation(table_scroll_x, ScrollBarOrientation::Horizontal);
+        kernel.set_scrollbar_page_size(table_scroll_x, 200);
         kernel.set_rect(tree_root, {screen_width - 260, 500, 220, 200});
         kernel.set_rect(tree_view, {0, 0, 200, 200});
         kernel.set_list_row_height(table_view, 24);
@@ -1401,6 +1504,11 @@ namespace {
         };
         factory.set_table_view_source(table_view, 1000, 32, &table_source, &table_view_text_at);
         factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
+        factory.set_table_view_header_height(table_view, 20);
+        factory.set_table_view_header_padding(table_view, 6);
+        factory.set_table_view_header_style(table_view, TableViewHeaderStyle::Accent);
+        factory.set_table_view_header_divider(table_view, true);
+        factory.set_table_view_col_divider_style(table_view, TableViewColDividerStyle::HeaderOnly);
         factory.set_table_view_col_width_fn(table_view, &kTableColWidthSource, &table_view_col_width_at);
 
         static const char* tree_items[] = {
@@ -1462,6 +1570,33 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: horiz invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: horiz pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: horiz missing paint", fails);
+
+        kernel.layout_trace_reset();
+        const Rect hscroll_r = kernel.rect(table_scroll_x);
+        const int hscroll_x = table_root_r.x + hscroll_r.x + hscroll_r.w - 2;
+        const int hscroll_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
+        const int table_x_before_bar = kernel.table_view_scroll_x(table_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hscroll_x, hscroll_y, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hscroll_x, hscroll_y, 1));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hscroll_x, hscroll_y, 1));
+        gui.render();
+        const int table_x_after_bar = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after_bar != table_x_before_bar, "tableview: scrollbar horiz did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: scrollbar invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: scrollbar pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: scrollbar missing paint", fails);
+
+        kernel.set_table_view_col_width(table_view, 72);
+        expect_true(!kernel.table_view_has_col_width_fn(table_view), "tableview: fixed width still has fn", fails);
+        kernel.layout_trace_reset();
+        const int table_x_before_fixed = kernel.table_view_scroll_x(table_view);
+        kernel.set_table_view_scroll_x(table_view, table_x_before_fixed + 64);
+        gui.render();
+        const int table_x_after_fixed = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after_fixed != table_x_before_fixed, "tableview: fixed width scroll did not move", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: fixed width invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: fixed width pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: fixed width missing paint", fails);
 
         kernel.layout_trace_reset();
         const Rect tree_root_r = kernel.rect(tree_root);
@@ -1600,6 +1735,9 @@ namespace {
         dump("ListView", stats.list_view);
         dump("TableView", stats.table_view);
         dump("TreeView", stats.tree_view);
+        dump("Stepper", stats.stepper);
+        dump("NumberList", stats.number_list);
+        dump("Roller", stats.roller);
         dump("Switch", stats.switcher);
         dump("Slider", stats.slider);
         dump("Progress", stats.progress);
@@ -1768,6 +1906,9 @@ int main(int argc, char** argv) {
         auto progress_round = factory.create_progress_bar_round();
         auto progress_flowing = factory.create_progress_flowing();
     auto toggle_group = factory.create_toggle_group();
+    auto stepper = factory.create_stepper();
+    auto number_list = factory.create_number_list();
+    auto roller = factory.create_roller();
     auto tg_a = factory.create_checkbox("Option A");
     auto tg_b = factory.create_checkbox("Option B");
     auto tg_c = factory.create_checkbox("Option C");
@@ -1778,6 +1919,7 @@ int main(int argc, char** argv) {
     auto scroll = factory.create_scroll_container();
     auto scroll_scroll = factory.create_scrollbar_for(scroll);
     auto table_view = factory.create_table_view();
+    auto table_scroll_x = factory.create_scrollbar_for(table_view);
     auto tree_view = factory.create_tree_view();
     auto console_box = factory.create_console_box();
     auto menu = factory.create_menu();
@@ -1803,6 +1945,9 @@ int main(int argc, char** argv) {
     factory.link(root, segmented);
     factory.link(root, tab_bar);
     factory.link(root, toggle_group);
+    factory.link(root, stepper);
+    factory.link(root, number_list);
+    factory.link(root, roller);
     factory.link(root, slider);
     factory.link(root, progress);
     factory.link(root, progress_wheel);
@@ -1816,6 +1961,7 @@ int main(int argc, char** argv) {
     factory.link(root, scroll);
     factory.link(root, scroll_scroll);
     factory.link(root, table_view);
+    factory.link(root, table_scroll_x);
     factory.link(root, tree_view);
     factory.link(root, console_box);
     factory.link(root, menu);
@@ -1853,7 +1999,11 @@ int main(int argc, char** argv) {
     kernel.set_rect(tg_a, {0, 0, 200, 32});
     kernel.set_rect(tg_b, {0, 40, 200, 32});
     kernel.set_rect(tg_c, {0, 80, 200, 32});
-    kernel.set_rect(table_view, {480, 60, 280, 160});
+    kernel.set_rect(stepper, {24, 600, 200, 48});
+    kernel.set_rect(number_list, {24, 660, 120, 120});
+    kernel.set_rect(roller, {160, 660, 120, 120});
+    kernel.set_rect(table_view, {480, 60, 280, 144});
+    kernel.set_rect(table_scroll_x, {480, 208, 280, 12});
     kernel.set_rect(tree_view, {480, 240, 280, 160});
     kernel.set_rect(console_box, {480, 420, 280, 140});
     kernel.set_rect(menu, {250, 600, 200, 120});
@@ -1877,6 +2027,8 @@ int main(int argc, char** argv) {
     kernel.set_scrollbar_orientation(list_scroll, ScrollBarOrientation::Vertical);
     kernel.set_scrollbar_orientation(text_list_scroll, ScrollBarOrientation::Vertical);
     kernel.set_scrollbar_orientation(scroll_scroll, ScrollBarOrientation::Vertical);
+    kernel.set_scrollbar_orientation(table_scroll_x, ScrollBarOrientation::Horizontal);
+    kernel.set_scrollbar_page_size(table_scroll_x, 280);
     factory.set_segmented_label(segmented, 0, "One");
     factory.set_segmented_label(segmented, 1, "Two");
     factory.set_segmented_label(segmented, 2, "Three");
@@ -1888,6 +2040,29 @@ int main(int argc, char** argv) {
     kernel.set_checked(menu_item_b, true);
     kernel.set_value(progress_round, 40);
     kernel.set_value(progress_flowing, 70);
+    factory.set_stepper_count(stepper, 4);
+    factory.set_stepper_label(stepper, 0, "Low");
+    factory.set_stepper_label(stepper, 1, "Med");
+    factory.set_stepper_label(stepper, 2, "High");
+    factory.set_stepper_label(stepper, 3, "Max");
+    factory.set_stepper_current(stepper, 1);
+    factory.set_number_list_count(number_list, 24);
+    factory.set_number_list_range(number_list, 0, 5);
+    factory.set_number_list_selected(number_list, 3);
+    factory.set_number_list_row_height(number_list, 24);
+    factory.set_number_list_wheel_step(number_list, 24);
+    const char* roller_items[] = {
+        "One", "Two", "Three", "Four",
+        "Five", "Six", "Seven", "Eight"
+    };
+    const RollerTextSource roller_source{
+        roller_items,
+        static_cast<std::uint16_t>(sizeof(roller_items) / sizeof(roller_items[0]))
+    };
+    factory.set_roller_source(roller, roller_source.count, &roller_source, &roller_text_at);
+    factory.set_roller_selected(roller, 1);
+    factory.set_roller_row_height(roller, 24);
+    factory.set_roller_wheel_step(roller, 24);
 
     const char* list_view_items[] = {
         "Alpha", "Beta", "Gamma", "Delta",
@@ -1920,6 +2095,11 @@ int main(int argc, char** argv) {
     };
     factory.set_table_view_source(table_view, 1000, 4, &table_source, &table_view_text_at);
     factory.set_table_view_header(table_view, &table_source, &table_view_header_at);
+    factory.set_table_view_header_height(table_view, 20);
+    factory.set_table_view_header_padding(table_view, 6);
+    factory.set_table_view_header_style(table_view, TableViewHeaderStyle::Muted);
+    factory.set_table_view_header_divider(table_view, true);
+    factory.set_table_view_col_divider_style(table_view, TableViewColDividerStyle::Full);
 
     const char* tree_items[] = {
         "Root", "Alpha", "Beta", "Gamma",
@@ -2289,6 +2469,9 @@ int main(int argc, char** argv) {
         + payload_stats.list_view.alloc_fail
         + payload_stats.table_view.alloc_fail
         + payload_stats.tree_view.alloc_fail
+        + payload_stats.stepper.alloc_fail
+        + payload_stats.number_list.alloc_fail
+        + payload_stats.roller.alloc_fail
         + payload_stats.switcher.alloc_fail
         + payload_stats.slider.alloc_fail
         + payload_stats.progress.alloc_fail

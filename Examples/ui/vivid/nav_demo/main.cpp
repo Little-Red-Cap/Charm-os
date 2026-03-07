@@ -2,6 +2,7 @@
 #include <cstdio>
 
 import charm.core.soa_kernel;
+import charm.core.soa_factory;
 import charm.core.soa_router;
 import charm.core.handle;
 import charm.core.style;

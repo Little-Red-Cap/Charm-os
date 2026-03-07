@@ -16,10 +16,63 @@ import media.stream.filter;
 import media.stream.types;
 
 export namespace audio {
+    namespace flac_detail {
+        struct Arena {
+            std::uint8_t* base{nullptr};
+            std::size_t size{0};
+            void* block{nullptr};
+            std::size_t block_size{0};
+        };
+
+        inline Arena g_arena{};
+
+        inline void* arena_malloc(std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base || arena->size == 0) return nullptr;
+            if (arena->block) return nullptr;
+            if (sz > arena->size) return nullptr;
+            arena->block = arena->base;
+            arena->block_size = sz;
+            return arena->block;
+        }
+
+        inline void* arena_realloc(void* p, std::size_t sz, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base || arena->size == 0) return nullptr;
+            if (!p) return arena_malloc(sz, user);
+            if (p != arena->block) return nullptr;
+            if (sz > arena->size) return nullptr;
+            arena->block_size = sz;
+            return p;
+        }
+
+        inline void arena_free(void* p, void* user) {
+            auto* arena = static_cast<Arena*>(user);
+            if (!arena || !arena->base) return;
+            if (p != arena->block) return;
+            arena->block = nullptr;
+            arena->block_size = 0;
+        }
+
+        inline drflac_allocation_callbacks g_alloc{
+            &g_arena,
+            arena_malloc,
+            arena_realloc,
+            arena_free
+        };
+    }
+
     struct FlacInfo {
         std::uint32_t sample_rate{0};
         std::uint16_t channels{0};
     };
+
+    inline void flac_set_arena(void* buffer, std::size_t size) noexcept {
+        flac_detail::g_arena.base = static_cast<std::uint8_t*>(buffer);
+        flac_detail::g_arena.size = size;
+        flac_detail::g_arena.block = nullptr;
+        flac_detail::g_arena.block_size = 0;
+    }
 
     namespace detail {
         template <typename Source>
@@ -64,11 +117,15 @@ export namespace audio {
         Result<FlacInfo> open(Source& src) {
             close();
             src_ = &src;
+            const drflac_allocation_callbacks* alloc = nullptr;
+            if (flac_detail::g_arena.base && flac_detail::g_arena.size) {
+                alloc = &flac_detail::g_alloc;
+            }
             flac_ = drflac_open(
                 detail::SourceOps<Source>::on_read,
                 detail::SourceOps<Source>::on_seek,
                 detail::SourceOps<Source>::on_tell,
-                src_, nullptr);
+                src_, alloc);
             if (!flac_) {
                 return unexpected(Errc::invalid_arg);
             }

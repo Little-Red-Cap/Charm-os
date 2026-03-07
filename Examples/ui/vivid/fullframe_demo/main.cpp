@@ -4,6 +4,7 @@
 
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
+import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.config;
 import charm.gfx.canvas;

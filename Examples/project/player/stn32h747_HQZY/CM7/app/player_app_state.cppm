@@ -9,7 +9,7 @@ export namespace player::hqzy {
     };
 
     struct FileEntry {
-        char name[40]{};
+        char name[160]{};
         bool is_dir{false};
     };
 
@@ -31,12 +31,15 @@ export namespace player::hqzy {
         unsigned long uptime_ms{0};
         unsigned long frames{0};
         TrackInfo track{};
-        char list_dir[16]{};
+        char list_dir[256]{};
         FileEntry entries[24]{};
         unsigned char entry_count{0};
         unsigned char entry_selected{0};
         bool list_ready{false};
         bool list_error{false};
+        char play_path[256]{};
+        bool play_request{false};
+        bool stop_request{false};
     };
 
     inline void init(AppState& s) noexcept {
@@ -56,5 +59,8 @@ export namespace player::hqzy {
         s.entry_selected = 0;
         s.list_ready = false;
         s.list_error = false;
+        s.play_path[0] = '\0';
+        s.play_request = false;
+        s.stop_request = false;
     }
 }

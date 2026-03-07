@@ -12,12 +12,14 @@ export module player.stm32h7.display_st7305;
 import bsp.st7305;
 import out.api;
 import out.channel;
+import player.stm32h7.audio_mp3_demo;
 import util.core;
 
 extern "C" SPI_HandleTypeDef hspi5;
 
 namespace {
     static out::channel_sink* g_sink = nullptr;
+    static void (*g_yield)() noexcept = nullptr;
     constexpr util::u32 kLogRetryMs = 20;
 
     template <out::fixed_string Fmt, typename... Args>
@@ -61,10 +63,23 @@ namespace {
     }
 
     void st7305_transmit(std::uint8_t* data, std::uint16_t len, bool data_or_cmd) noexcept {
+        constexpr std::uint16_t kChunk = 1024;
         HAL_GPIO_WritePin(kDcPort, kDcPin, data_or_cmd ? GPIO_PIN_SET : GPIO_PIN_RESET);
         HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_RESET);
-        if (!data || len == 0) return;
-        (void)HAL_SPI_Transmit(&hspi5, data, len, 1000);
+        if (!data || len == 0) {
+            HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_SET);
+            return;
+        }
+        audio_mp3_set_log_suppressed(true);
+        std::uint16_t offset = 0;
+        while (offset < len) {
+            const std::uint16_t remaining = static_cast<std::uint16_t>(len - offset);
+            const std::uint16_t chunk = (remaining > kChunk) ? kChunk : remaining;
+            (void)HAL_SPI_Transmit(&hspi5, data + offset, chunk, 1000);
+            offset = static_cast<std::uint16_t>(offset + chunk);
+            if (g_yield) g_yield();
+        }
+        audio_mp3_set_log_suppressed(false);
         HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_SET);
     }
 
@@ -82,6 +97,10 @@ namespace {
 
 export void display_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;
+}
+
+export void display_st7305_set_yield(void (*fn)() noexcept) noexcept {
+    g_yield = fn;
 }
 
 export bool display_st7305_init() noexcept {

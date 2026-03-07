@@ -8,11 +8,14 @@ module;
 
 export module charm.core.soa_kernel;
 
+export import :types;
+export import :input;
 export import charm.core.handle;
 export import charm.core.geometry;
 export import charm.core.config;
 export import charm.core.event;
 export import charm.core.widget_registry;
+export import charm.core.soa_registry;
 
 import charm.core.style;
 import charm.core.style_sheet;
@@ -51,141 +54,7 @@ namespace soa_detail {
         std::array<PayloadHandle, N> payload{};
     };
 
-    struct PayloadDescriptor {
-        bool supported{false};
-        PayloadKind payload{PayloadKind::None};
-    };
-
-    constexpr PayloadDescriptor make_desc(bool supported,
-        PayloadKind payload = PayloadKind::None) noexcept {
-        return PayloadDescriptor{supported, payload};
-    }
-
 }
-
-// ---- Node/state flags ----
-export
-enum class SoaNodeFlag : std::uint8_t {
-    Used = 1 << 0,
-    Visible = 1 << 1,
-    Enabled = 1 << 2,
-    Focusable = 1 << 3,
-    HitTest = 1 << 4,
-    ClipChildren = 1 << 5
-};
-
-export
-enum class SoaStateFlag : std::uint8_t {
-    Hovered = 1 << 0,
-    Pressed = 1 << 1,
-    Focused = 1 << 2
-};
-
-export
-enum class SoaStateMask : std::uint8_t {
-    Enabled = 1 << 0,
-    Hovered = 1 << 1,
-    Pressed = 1 << 2,
-    Focused = 1 << 3
-};
-
-export
-enum class ScrollBarOrientation : std::uint8_t {
-    Horizontal = 0,
-    Vertical = 1
-};
-
-export
-struct StateCompact {
-    std::uint8_t bits{0};
-    std::uint8_t variant{0};
-
-    bool enabled() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Enabled)) != 0;
-    }
-
-    bool hovered() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Hovered)) != 0;
-    }
-
-    bool pressed() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Pressed)) != 0;
-    }
-
-    bool focused() const noexcept {
-        return (bits & static_cast<std::uint8_t>(SoaStateMask::Focused)) != 0;
-    }
-};
-
-export
-struct SoaInputEvent {
-    WidgetHandle target{};
-    Event event{Event::Type::MouseMove};
-};
-
-export
-enum class SoaInputActionType : std::uint8_t {
-    SetFocused,
-    SetHovered,
-    SetPressed,
-    ToggleChecked,
-    SetChecked,
-    ClearSiblingChecks,
-    ScrollBy,
-    SetScrollYClamped,
-    SetScrollXClamped,
-    SetValue,
-    UpdateSliderFromPos,
-    SetSegmentedIndex,
-    SetTextListSelected,
-    SetListViewSelected
-};
-
-export
-struct SoaInputAction {
-    SoaInputActionType type{SoaInputActionType::ToggleChecked};
-    WidgetHandle target{};
-    int a{0};
-    int b{0};
-};
-
-export
-enum class SoaLayoutKind : std::uint8_t {
-    None = 0,
-    List = 1
-};
-
-// ---- Behavior routing ----
-enum class SoaClickBehavior : std::uint8_t {
-    None,
-    Toggle,
-    RadioGroup,
-    ListItemGroup,
-    SegmentedControl,
-    TextList,
-    ListView
-};
-
-enum class SoaWheelTargetPolicy : std::uint8_t {
-    None,
-    SelfIfScrollableElseAncestor,
-    NearestAncestor,
-    BoundTarget
-};
-
-enum class SoaDragBehavior : std::uint8_t {
-    None,
-    UpdateValueFromPos,
-    ScrollBarTrack,
-    ScrollDrag
-};
-
-struct SoaDefaults {
-    bool hit_test{true};
-    bool focusable{false};
-    bool clip_children{false};
-    SoaLayoutKind layout_kind{SoaLayoutKind::None};
-};
 
 // ---- Kernel ----
 export
@@ -1091,6 +960,97 @@ public:
         return payloads_.text_c_str(payload->labels[index]);
     }
 
+    void set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (count < 1) count = 1;
+        if (count > soa_detail::kMaxStepperSteps) count = soa_detail::kMaxStepperSteps;
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->current >= count) {
+            payload->current = static_cast<std::uint8_t>(count - 1u);
+        }
+        mark_paint_dirty();
+    }
+
+    void set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        if (index >= payload->count) index = static_cast<std::uint8_t>(payload->count - 1u);
+        if (payload->current == index) return;
+        payload->current = index;
+        mark_paint_dirty();
+    }
+
+    void set_stepper_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        if (index >= soa_detail::kMaxStepperSteps) return;
+        auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return;
+        payload->labels[index] = payloads_.store_text(text);
+        if (index >= payload->count) {
+            payload->count = static_cast<std::uint8_t>(index + 1u);
+        }
+        mark_paint_dirty();
+    }
+
+    std::uint8_t stepper_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    std::uint8_t stepper_current(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        return payload ? payload->current : 0;
+    }
+
+    const char* stepper_label(WidgetHandle h, std::uint8_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload) return "";
+        if (index >= payload->count) return "";
+        return payloads_.text_c_str(payload->labels[index]);
+    }
+
     void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1201,6 +1161,275 @@ public:
         const std::uint16_t slot =
             static_cast<std::uint16_t>((payload->start + index) % soa_detail::kMaxTextListItems);
         return payloads_.text_c_str(payload->items[slot]);
+    }
+
+    void set_number_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : 0;
+        }
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    void set_number_list_range(WidgetHandle h, int start, int delta) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->start = start;
+        payload->delta = (delta != 0) ? delta : 1;
+        mark_paint_dirty();
+    }
+
+    void set_number_list_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        if (index < 0) index = 0;
+        if (index >= payload->count) index = payload->count - 1;
+        if (payload->selected == index) return;
+        payload->selected = index;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    std::uint16_t number_list_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int number_list_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->selected : 0;
+    }
+
+    int number_list_value(WidgetHandle h, int index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return 0;
+        return payload->start + index * payload->delta;
+    }
+
+    void set_number_list_row_height(WidgetHandle h, int row_h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->row_height = (row_h > 0) ? row_h : 1;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    int number_list_row_height(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->row_height : 24;
+    }
+
+    void set_number_list_wheel_step(WidgetHandle h, int step) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload) return;
+        payload->wheel_step = (step > 0) ? step : 1;
+    }
+
+    int number_list_wheel_step(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        return payload ? payload->wheel_step : 24;
+    }
+
+    void set_roller_source(WidgetHandle h, std::uint16_t count,
+                           const void* ctx, soa_detail::RollerTextFn fn) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->text_ctx = ctx;
+        payload->text_fn = fn;
+        payload->count = count;
+        if (payload->selected >= static_cast<int>(count)) {
+            payload->selected = (count > 0) ? static_cast<int>(count - 1) : 0;
+        }
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    void set_roller_selected(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || payload->count == 0) return;
+        const int count = payload->count;
+        int wrapped = index % count;
+        if (wrapped < 0) wrapped += count;
+        if (payload->selected == wrapped) return;
+        payload->selected = wrapped;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    std::uint16_t roller_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->count : 0;
+    }
+
+    int roller_selected(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->selected : 0;
+    }
+
+    const char* roller_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return "";
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return "";
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || !payload->text_fn) return "";
+        return payload->text_fn(payload->text_ctx, index);
+    }
+
+    void set_roller_row_height(WidgetHandle h, int row_h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->row_height = (row_h > 0) ? row_h : 1;
+        payload->scroll_y = payload->selected * payload->row_height;
+        mark_paint_dirty();
+    }
+
+    int roller_row_height(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->row_height : 24;
+    }
+
+    void set_roller_wheel_step(WidgetHandle h, int step) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload) return;
+        payload->wheel_step = (step > 0) ? step : 1;
+    }
+
+    int roller_wheel_step(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 24;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) {
+            unsupported_kind(common_.kind[idx]);
+            return 24;
+        }
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        return payload ? payload->wheel_step : 24;
     }
 
     void console_clear(WidgetHandle h) noexcept {
@@ -1497,6 +1726,100 @@ public:
         }
     }
 
+    void set_table_view_header_height(WidgetHandle h, int height) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (height < 0) height = 0;
+        if (payload->header_height != height) {
+            payload->header_height = height;
+            if (payload->scroll_y != 0) {
+                set_scroll_y_clamped(h, payload->scroll_y);
+            }
+            mark_layout_dirty();
+        }
+    }
+
+    void set_table_view_header_padding(WidgetHandle h, int padding) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        if (padding < 0) padding = 0;
+        if (payload->header_padding != padding) {
+            payload->header_padding = padding;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = static_cast<std::uint8_t>(style);
+        if (payload->header_style != next) {
+            payload->header_style = next;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_header_divider(WidgetHandle h, bool enabled) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = enabled ? 1 : 0;
+        if (payload->header_divider != next) {
+            payload->header_divider = next;
+            mark_paint_dirty();
+        }
+    }
+
+    void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
+        set_table_view_col_divider_style(
+            h,
+            enabled ? TableViewColDividerStyle::Full : TableViewColDividerStyle::None);
+    }
+
+    void set_table_view_col_divider_style(WidgetHandle h, TableViewColDividerStyle style) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return;
+        const std::uint8_t next = static_cast<std::uint8_t>(style);
+        if (payload->col_dividers != next) {
+            payload->col_dividers = next;
+            mark_paint_dirty();
+        }
+    }
+
     void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1545,7 +1868,63 @@ public:
         }
         const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload || !payload->header_fn) return 0;
-        return payload->row_height > 0 ? payload->row_height : 0;
+        int height = payload->header_height;
+        if (height <= 0) height = payload->row_height;
+        return height > 0 ? height : 0;
+    }
+
+    int table_view_header_padding(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? payload->header_padding : 0;
+    }
+
+    TableViewHeaderStyle table_view_header_style(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return TableViewHeaderStyle::Default;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return TableViewHeaderStyle::Default;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? static_cast<TableViewHeaderStyle>(payload->header_style)
+                       : TableViewHeaderStyle::Default;
+    }
+
+    bool table_view_header_divider(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return false;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        return payload ? (payload->header_divider != 0) : false;
+    }
+
+    bool table_view_col_dividers(WidgetHandle h) const noexcept {
+        return table_view_col_divider_style(h) != TableViewColDividerStyle::None;
+    }
+
+    TableViewColDividerStyle table_view_col_divider_style(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return TableViewColDividerStyle::None;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TableView) {
+            unsupported_kind(common_.kind[idx]);
+            return TableViewColDividerStyle::None;
+        }
+        const auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
+        if (!payload) return TableViewColDividerStyle::None;
+        return static_cast<TableViewColDividerStyle>(payload->col_dividers);
     }
 
     std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
@@ -1640,12 +2019,10 @@ public:
         auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload) return;
         if (col_width < 0) col_width = 0;
-        if (payload->col_width != col_width) {
+        if (payload->col_width != col_width || payload->col_width_fn || payload->col_width_ctx) {
             payload->col_width = col_width;
-            if (col_width > 0) {
-                payload->col_width_ctx = nullptr;
-                payload->col_width_fn = nullptr;
-            }
+            payload->col_width_ctx = nullptr;
+            payload->col_width_fn = nullptr;
             if (payload->scroll_x != 0) {
                 payload->scroll_x = clamp_scroll_x(h, payload->scroll_x);
             }
@@ -1665,7 +2042,7 @@ public:
         auto* payload = payload_get<soa_detail::TableViewPayload>(idx);
         if (!payload) return;
         if (payload->col_width_ctx != ctx || payload->col_width_fn != fn) {
-            payload->col_width_ctx = ctx;
+            payload->col_width_ctx = fn ? ctx : nullptr;
             payload->col_width_fn = fn;
             if (fn) {
                 payload->col_width = 0;
@@ -2284,6 +2661,36 @@ public:
             }
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                if (payload->row_height > 0 && payload->count > 0) {
+                    int next = (y + payload->row_height / 2) / payload->row_height;
+                    if (next < 0) next = 0;
+                    if (next >= payload->count) next = payload->count - 1;
+                    payload->selected = next;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            if (payload->scroll_y != y) {
+                payload->scroll_y = y;
+                if (payload->row_height > 0 && payload->count > 0) {
+                    int next = (y + payload->row_height / 2) / payload->row_height;
+                    next %= payload->count;
+                    if (next < 0) next += payload->count;
+                    payload->selected = next;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2334,6 +2741,18 @@ public:
             payload->scroll_y += dy;
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            payload->scroll_y += dy;
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2369,6 +2788,14 @@ public:
         }
         case soa_detail::PayloadKind::TreeView: {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::NumberList: {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            return payload ? payload->scroll_y : 0;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
             return payload ? payload->scroll_y : 0;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
@@ -2418,6 +2845,18 @@ public:
             payload->wheel_step = value;
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            payload->wheel_step = value;
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2453,6 +2892,14 @@ public:
         }
         case soa_detail::PayloadKind::TreeView: {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::NumberList: {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            return payload ? payload->wheel_step : 24;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
             return payload ? payload->wheel_step : 24;
         }
         case soa_detail::PayloadKind::ScrollContainer: {
@@ -2668,12 +3115,30 @@ public:
             if (row_h <= 0) return 0;
             int total = count * row_h;
             if (payload->header_fn) {
-                total += row_h;
+                int header_h = payload->header_height;
+                if (header_h <= 0) header_h = row_h;
+                if (header_h > 0) total += header_h;
             }
             return total;
         }
         if (desc.payload == soa_detail::PayloadKind::TreeView) {
             const auto* payload = payload_get<soa_detail::TreeViewPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::NumberList) {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 0 || row_h <= 0) return 0;
+            return count * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::Roller) {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
             if (!payload) return 0;
             const int count = payload->count;
             const int row_h = payload->row_height;
@@ -2696,6 +3161,23 @@ public:
     int max_scroll(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload == soa_detail::PayloadKind::NumberList) {
+            const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 1 || row_h <= 0) return 0;
+            return (count - 1) * row_h;
+        }
+        if (desc.payload == soa_detail::PayloadKind::Roller) {
+            const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return 0;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            if (count <= 1 || row_h <= 0) return 0;
+            return (count - 1) * row_h;
+        }
         const Rect r = common_.rects[idx];
         const int content_h = compute_content_height(h);
         int max_scroll = content_h - r.h;
@@ -2828,6 +3310,52 @@ public:
             }
             break;
         }
+        case soa_detail::PayloadKind::NumberList: {
+            auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+            if (!payload) return;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            int max_scroll_value = (count > 1 && row_h > 0) ? (count - 1) * row_h : 0;
+            int next = y;
+            if (next < 0) next = 0;
+            if (next > max_scroll_value) next = max_scroll_value;
+            if (payload->scroll_y != next) {
+                payload->scroll_y = next;
+                if (row_h > 0 && count > 0) {
+                    int idx_from_scroll = (next + row_h / 2) / row_h;
+                    if (idx_from_scroll < 0) idx_from_scroll = 0;
+                    if (idx_from_scroll >= count) idx_from_scroll = count - 1;
+                    payload->selected = idx_from_scroll;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
+        case soa_detail::PayloadKind::Roller: {
+            auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+            if (!payload) return;
+            const int count = payload->count;
+            const int row_h = payload->row_height;
+            int total = (count > 0 && row_h > 0) ? (count * row_h) : 0;
+            int next = y;
+            if (total > 0) {
+                next %= total;
+                if (next < 0) next += total;
+            } else {
+                next = 0;
+            }
+            if (payload->scroll_y != next) {
+                payload->scroll_y = next;
+                if (row_h > 0 && count > 0) {
+                    int idx_from_scroll = (next + row_h / 2) / row_h;
+                    idx_from_scroll %= count;
+                    if (idx_from_scroll < 0) idx_from_scroll += count;
+                    payload->selected = idx_from_scroll;
+                }
+                mark_paint_dirty();
+            }
+            break;
+        }
         case soa_detail::PayloadKind::ScrollContainer: {
             auto* payload = payload_get<soa_detail::ScrollContainerPayload>(idx);
             if (!payload) return;
@@ -2863,262 +3391,6 @@ public:
 #else
         (void)kind;
 #endif
-    }
-
-struct SoaBehavior {
-    SoaClickBehavior click{SoaClickBehavior::None};
-    WidgetKind group_kind{WidgetKind::None};
-    SoaWheelTargetPolicy wheel_target{SoaWheelTargetPolicy::NearestAncestor};
-    bool scrollable{false};
-    bool capture_on_press{false};
-    bool checkable{false};
-    SoaDragBehavior drag_behavior{SoaDragBehavior::None};
-};
-
-    static constexpr SoaBehavior behavior_for_kind(WidgetKind kind) noexcept {
-        SoaBehavior behavior{};
-    switch (kind) {
-    case WidgetKind::Switch:
-    case WidgetKind::Checkbox:
-        behavior.click = SoaClickBehavior::Toggle;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-        case WidgetKind::SegmentedControl:
-        case WidgetKind::TabView:
-            behavior.click = SoaClickBehavior::SegmentedControl;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::TextList:
-            behavior.click = SoaClickBehavior::TextList;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::ListView:
-            behavior.click = SoaClickBehavior::ListView;
-            behavior.capture_on_press = true;
-            break;
-        case WidgetKind::IconList:
-            behavior.click = SoaClickBehavior::ListView;
-            behavior.capture_on_press = true;
-            break;
-    case WidgetKind::Radio:
-        behavior.click = SoaClickBehavior::RadioGroup;
-        behavior.group_kind = WidgetKind::Radio;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-    case WidgetKind::ListItem:
-        behavior.click = SoaClickBehavior::ListItemGroup;
-        behavior.group_kind = WidgetKind::ListItem;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-    case WidgetKind::MenuItem:
-        behavior.click = SoaClickBehavior::ListItemGroup;
-        behavior.group_kind = WidgetKind::MenuItem;
-        behavior.capture_on_press = true;
-        behavior.checkable = true;
-        break;
-        default:
-            break;
-        }
-        switch (kind) {
-        case WidgetKind::List:
-        case WidgetKind::ScrollContainer:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::TextList:
-        case WidgetKind::ConsoleBox:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::ListView:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::IconList:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::TableView:
-        case WidgetKind::TreeView:
-            behavior.scrollable = true;
-            behavior.capture_on_press = true;
-            behavior.wheel_target = SoaWheelTargetPolicy::SelfIfScrollableElseAncestor;
-            behavior.drag_behavior = SoaDragBehavior::ScrollDrag;
-            break;
-        case WidgetKind::ScrollBar:
-            behavior.wheel_target = SoaWheelTargetPolicy::BoundTarget;
-            break;
-        default:
-            break;
-        }
-    switch (kind) {
-    case WidgetKind::Slider:
-        behavior.drag_behavior = SoaDragBehavior::UpdateValueFromPos;
-        behavior.capture_on_press = true;
-        break;
-    case WidgetKind::ScrollBar:
-        behavior.drag_behavior = SoaDragBehavior::ScrollBarTrack;
-        behavior.capture_on_press = true;
-        break;
-    case WidgetKind::Button:
-    case WidgetKind::IconButton:
-        behavior.capture_on_press = true;
-        break;
-        case WidgetKind::Switch:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::ListItem:
-        case WidgetKind::TextList:
-            break;
-        default:
-            break;
-        }
-        return behavior;
-    }
-
-    static constexpr SoaClickBehavior click_behavior_for_kind(WidgetKind kind) noexcept {
-        return behavior_for_kind(kind).click;
-    }
-
-    static constexpr SoaDefaults default_for_kind(WidgetKind kind) noexcept {
-        SoaDefaults defaults{};
-        switch (kind) {
-        case WidgetKind::Label:
-        case WidgetKind::TextInput:
-        case WidgetKind::TextArea:
-        case WidgetKind::NumberInput:
-        case WidgetKind::ToggleGroup:
-        case WidgetKind::Image:
-            defaults.hit_test = false;
-            break;
-        case WidgetKind::Progress:
-        case WidgetKind::Spinner:
-            defaults.hit_test = false;
-            break;
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::ListItem:
-        case WidgetKind::MenuItem:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::TextList:
-            defaults.focusable = true;
-            defaults.clip_children = true;
-            break;
-        case WidgetKind::SegmentedControl:
-        case WidgetKind::TabView:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::ScrollBar:
-            defaults.focusable = true;
-            break;
-        case WidgetKind::List:
-            defaults.clip_children = true;
-            defaults.layout_kind = SoaLayoutKind::List;
-            break;
-        case WidgetKind::Menu:
-            defaults.clip_children = true;
-            break;
-        case WidgetKind::ScrollContainer:
-            defaults.clip_children = true;
-            defaults.focusable = true;
-            break;
-        default:
-            break;
-        }
-        return defaults;
-    }
-
-    static constexpr soa_detail::PayloadDescriptor payload_descriptor(WidgetKind kind) noexcept {
-        using namespace soa_detail;
-        if (!widget_kind_enabled(kind)) {
-            return make_desc(false);
-        }
-        switch (kind) {
-        case WidgetKind::None:
-            return make_desc(false);
-        case WidgetKind::Container:
-            return make_desc(true);
-        case WidgetKind::ScrollContainer:
-            return make_desc(true, PayloadKind::ScrollContainer);
-        case WidgetKind::Image:
-            return make_desc(true, PayloadKind::Image);
-        case WidgetKind::Label:
-            return make_desc(true, PayloadKind::Label);
-        case WidgetKind::Button:
-            return make_desc(true, PayloadKind::Button);
-        case WidgetKind::IconButton:
-            return make_desc(true, PayloadKind::Button);
-        case WidgetKind::TextInput:
-            return make_desc(true, PayloadKind::TextInput);
-        case WidgetKind::TextArea:
-            return make_desc(true, PayloadKind::TextArea);
-        case WidgetKind::NumberInput:
-            return make_desc(true, PayloadKind::NumberInput);
-        case WidgetKind::TextBox:
-            return make_desc(true, PayloadKind::TextArea);
-        case WidgetKind::SegmentedControl:
-            return make_desc(true, PayloadKind::SegmentedControl);
-        case WidgetKind::ToggleGroup:
-            return make_desc(true, PayloadKind::ToggleGroup);
-        case WidgetKind::Checkbox:
-            return make_desc(true, PayloadKind::Checkbox);
-        case WidgetKind::Slider:
-            return make_desc(true, PayloadKind::Slider);
-        case WidgetKind::ScrollBar:
-            return make_desc(true, PayloadKind::ScrollBar);
-        case WidgetKind::Switch:
-            return make_desc(true, PayloadKind::Switch);
-        case WidgetKind::Progress:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressBarSimple:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressBarRound:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::Spinner:
-            return make_desc(true, PayloadKind::Spinner);
-        case WidgetKind::List:
-            return make_desc(true, PayloadKind::List);
-        case WidgetKind::ListView:
-            return make_desc(true, PayloadKind::ListView);
-        case WidgetKind::ProgressWheel:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::ProgressFlowing:
-            return make_desc(true, PayloadKind::Progress);
-        case WidgetKind::IconList:
-            return make_desc(true, PayloadKind::ListView);
-        case WidgetKind::TableView:
-            return make_desc(true, PayloadKind::TableView);
-        case WidgetKind::TreeView:
-            return make_desc(true, PayloadKind::TreeView);
-        case WidgetKind::ListItem:
-            return make_desc(true, PayloadKind::ListItem);
-        case WidgetKind::TextList:
-            return make_desc(true, PayloadKind::TextList);
-        case WidgetKind::ConsoleBox:
-            return make_desc(true, PayloadKind::TextList);
-        case WidgetKind::Radio:
-            return make_desc(true, PayloadKind::Radio);
-        case WidgetKind::TabView:
-            return make_desc(true, PayloadKind::SegmentedControl);
-        case WidgetKind::Menu:
-            return make_desc(true);
-        case WidgetKind::MenuItem:
-            return make_desc(true, PayloadKind::ListItem);
-        default:
-            return make_desc(true);
-        }
     }
 
     soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {
@@ -3269,6 +3541,15 @@ private:
         return (v < lo) ? lo : (v > hi ? hi : v);
     }
 
+    static int div_floor(int num, int den) noexcept {
+        if (den == 0) return 0;
+        int q = num / den;
+        if ((num < 0) != (den < 0) && (num % den) != 0) {
+            q -= 1;
+        }
+        return q;
+    }
+
     void input_emit_event(WidgetHandle target, const Event& e) noexcept {
         if (!target) return;
         if (input_events_.overflowed) return;
@@ -3322,6 +3603,61 @@ private:
         if (local < 0) return -1;
         const int idx_from_y = local / row_h;
         if (idx_from_y < 0 || idx_from_y >= count) return -1;
+        return idx_from_y;
+    }
+
+    int input_stepper_index_from_pos(WidgetHandle h, int x) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) return -1;
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int count = payload->count;
+        if (count == 1) return 0;
+        const int span = r.w;
+        if (span <= 0) return 0;
+        const int local = x - r.x;
+        int idx_from_x = (local * (count - 1) + span / 2) / span;
+        if (idx_from_x < 0) idx_from_x = 0;
+        if (idx_from_x >= count) idx_from_x = count - 1;
+        return idx_from_x;
+    }
+
+    int input_number_list_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) return -1;
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        if (row_h <= 0) return -1;
+        const int center_y = r.y + r.h / 2;
+        const int pos = payload->scroll_y + (y - center_y);
+        int idx_from_y = (pos + row_h / 2) / row_h;
+        if (idx_from_y < 0) idx_from_y = 0;
+        if (idx_from_y >= payload->count) idx_from_y = payload->count - 1;
+        return idx_from_y;
+    }
+
+    int input_roller_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) return -1;
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        const Rect r = input_world_rect(h);
+        const int row_h = payload->row_height;
+        if (row_h <= 0) return -1;
+        const int center_y = r.y + r.h / 2;
+        const int pos = payload->scroll_y + (y - center_y);
+        int idx_from_y = div_floor(pos + row_h / 2, row_h);
+        idx_from_y %= payload->count;
+        if (idx_from_y < 0) idx_from_y += payload->count;
         return idx_from_y;
     }
 
@@ -3436,7 +3772,7 @@ private:
         if (input_.dragging) {
             input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, dx, dy, button, input_.last_ms));
             if (input_.scroll_target) {
-                input_scroll_by(input_.scroll_target, -dy);
+                input_scroll_by(input_.scroll_target, -dy, -dx);
             }
         } else {
             input_emit_event(target, Event::mouse(Event::Type::MouseMove, x, y, button, input_.last_ms));
@@ -3447,7 +3783,40 @@ private:
         WidgetHandle target = input_find_scroll_target(x, y);
         if (!target) return;
         const int step = scroll_step(target);
-        input_scroll_by(target, -wheel_y * step);
+        const SoaBehavior behavior = behavior_for_kind(kind(target));
+        const int delta = -wheel_y * step;
+        const bool allow_h = (behavior.scroll_axis == SoaScrollAxis::Horizontal
+                              || behavior.scroll_axis == SoaScrollAxis::Both)
+                             && max_scroll_x(target) > 0;
+        const bool allow_v = (behavior.scroll_axis == SoaScrollAxis::Vertical
+                              || behavior.scroll_axis == SoaScrollAxis::Both)
+                             && max_scroll(target) > 0;
+        switch (behavior.wheel_axis) {
+        case SoaWheelAxisPolicy::PreferHorizontal:
+            if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            } else if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            }
+            break;
+        case SoaWheelAxisPolicy::HorizontalIfNoVertical:
+            if (!allow_v && allow_h) {
+                input_scroll_by(target, 0, delta);
+            } else if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            } else if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            }
+            break;
+        case SoaWheelAxisPolicy::PreferVertical:
+        default:
+            if (allow_v) {
+                input_scroll_by(target, delta, 0);
+            } else if (allow_h) {
+                input_scroll_by(target, 0, delta);
+            }
+            break;
+        }
         input_emit_event(target, Event::wheel(x, y, wheel_y, input_.last_ms));
     }
 
@@ -3520,7 +3889,7 @@ private:
             input_clear_sibling_checks(action.target, static_cast<WidgetKind>(action.a));
             break;
         case SoaInputActionType::ScrollBy:
-            input_apply_scroll_by(action.target, action.a);
+            input_apply_scroll_by(action.target, action.a, action.b);
             break;
         case SoaInputActionType::SetScrollYClamped:
             set_scroll_y_clamped(action.target, action.a);
@@ -3542,6 +3911,15 @@ private:
             break;
         case SoaInputActionType::SetListViewSelected:
             set_list_view_selected(action.target, action.a);
+            break;
+        case SoaInputActionType::SetStepperIndex:
+            set_stepper_current(action.target, static_cast<std::uint8_t>(action.a));
+            break;
+        case SoaInputActionType::SetNumberListSelected:
+            set_number_list_selected(action.target, action.a);
+            break;
+        case SoaInputActionType::SetRollerSelected:
+            set_roller_selected(action.target, action.a);
             break;
         }
     }
@@ -3718,6 +4096,27 @@ private:
             const int idx = input_list_view_index_from_pos(h, y);
             if (idx >= 0) {
                 input_emit_action(SoaInputAction{SoaInputActionType::SetListViewSelected, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::Stepper: {
+            const int idx = input_stepper_index_from_pos(h, x);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetStepperIndex, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::NumberList: {
+            const int idx = input_number_list_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetNumberListSelected, h, idx, 0});
+            }
+            break;
+        }
+        case SoaClickBehavior::Roller: {
+            const int idx = input_roller_index_from_pos(h, y);
+            if (idx >= 0) {
+                input_emit_action(SoaInputAction{SoaInputActionType::SetRollerSelected, h, idx, 0});
             }
             break;
         }
@@ -3935,7 +4334,14 @@ private:
             ox += pr.x;
             oy += pr.y;
             if (input_is_scrollable_kind(kind(p))) {
-                oy -= scroll_y(p);
+                const SoaBehavior behavior = behavior_for_kind(kind(p));
+                if (behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Vertical) {
+                    oy -= scroll_y(p);
+                }
+                if ((behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Horizontal)
+                    && kind(p) == WidgetKind::TableView) {
+                    ox -= table_view_scroll_x(p);
+                }
             }
             cur = p;
         }
@@ -3988,13 +4394,21 @@ private:
         return {};
     }
 
-    void input_scroll_by(WidgetHandle h, int dy) {
-        input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, 0});
+    void input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
+        input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
     }
 
-    void input_apply_scroll_by(WidgetHandle h, int dy) {
-        const int next = scroll_y(h) + dy;
-        set_scroll_y_clamped(h, next);
+    void input_apply_scroll_by(WidgetHandle h, int dy, int dx) {
+        const SoaBehavior behavior = behavior_for_kind(kind(h));
+        if (behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Vertical) {
+            const int next = scroll_y(h) + dy;
+            set_scroll_y_clamped(h, next);
+        }
+        if ((behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Horizontal)
+            && kind(h) == WidgetKind::TableView) {
+            const int next = table_view_scroll_x(h) + dx;
+            set_table_view_scroll_x_clamped(h, next);
+        }
     }
 
     void input_set_focus(WidgetHandle h) {
@@ -4114,356 +4528,3 @@ private:
     }
 };
 
-export
-    class SoaFactory {
-    public:
-        explicit SoaFactory(SoaKernel& kernel) noexcept : kernel_(kernel) {}
-
-    WidgetHandle create_container() noexcept { return kernel_.create(WidgetKind::Container); }
-      WidgetHandle create_label(const char* text) noexcept {
-          auto h = kernel_.create(WidgetKind::Label);
-          kernel_.set_text(h, text);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_image() noexcept {
-          auto h = kernel_.create(WidgetKind::Image);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_text_input(const char* text) noexcept {
-          auto h = kernel_.create(WidgetKind::TextInput);
-          kernel_.set_text(h, text);
-          kernel_.set_hit_testable(h, false);
-          return h;
-    }
-    WidgetHandle create_text_area(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::TextArea);
-        kernel_.set_text(h, text);
-        kernel_.set_hit_testable(h, false);
-        return h;
-    }
-    WidgetHandle create_number_input(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::NumberInput);
-        kernel_.set_text(h, text);
-        kernel_.set_hit_testable(h, false);
-        return h;
-    }
-    WidgetHandle create_text_box(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::TextBox);
-        kernel_.set_text(h, text);
-        kernel_.set_hit_testable(h, false);
-        return h;
-    }
-    WidgetHandle create_segmented_control() noexcept {
-        auto h = kernel_.create(WidgetKind::SegmentedControl);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_tab_view() noexcept {
-        auto h = kernel_.create(WidgetKind::TabView);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_tab_bar() noexcept {
-        return create_tab_view();
-    }
-    WidgetHandle create_navigation_bar() noexcept {
-        auto h = create_tab_view();
-        kernel_.set_variant(h, 1);
-        return h;
-    }
-    WidgetHandle create_toggle_group(WidgetKind group_kind = WidgetKind::None) noexcept {
-        auto h = kernel_.create(WidgetKind::ToggleGroup);
-        kernel_.set_hit_testable(h, false);
-        kernel_.set_toggle_group_kind(h, group_kind);
-        return h;
-    }
-    WidgetHandle create_button(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::Button);
-        kernel_.set_text(h, text);
-        return h;
-    }
-    WidgetHandle create_icon_button() noexcept {
-        auto h = kernel_.create(WidgetKind::IconButton);
-        return h;
-    }
-      void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
-          kernel_.set_button_icon(h, icon);
-      }
-      void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
-          kernel_.set_button_icon_size(h, size);
-      }
-      void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept {
-          kernel_.set_image(h, image);
-      }
-      WidgetHandle create_switch() noexcept {
-          auto h = kernel_.create(WidgetKind::Switch);
-          return h;
-      }
-    WidgetHandle create_slider() noexcept {
-        auto h = kernel_.create(WidgetKind::Slider);
-        return h;
-    }
-    WidgetHandle create_scrollbar() noexcept {
-        auto h = kernel_.create(WidgetKind::ScrollBar);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_scrollbar_for(WidgetHandle target) noexcept {
-        auto h = create_scrollbar();
-        kernel_.set_scrollbar_target(h, target);
-        return h;
-    }
-      WidgetHandle create_progress() noexcept {
-          auto h = kernel_.create(WidgetKind::Progress);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_progress_wheel() noexcept {
-          auto h = kernel_.create(WidgetKind::ProgressWheel);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_progress_bar_simple() noexcept {
-          auto h = kernel_.create(WidgetKind::ProgressBarSimple);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_progress_bar_round() noexcept {
-          auto h = kernel_.create(WidgetKind::ProgressBarRound);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_progress_flowing() noexcept {
-          auto h = kernel_.create(WidgetKind::ProgressFlowing);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      WidgetHandle create_spinner() noexcept {
-          auto h = kernel_.create(WidgetKind::Spinner);
-          kernel_.set_hit_testable(h, false);
-          return h;
-      }
-      void set_spinner_phase(WidgetHandle h, std::uint8_t phase) noexcept {
-          kernel_.set_spinner_phase(h, phase);
-      }
-    WidgetHandle create_checkbox(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::Checkbox);
-        kernel_.set_text(h, text);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_radio(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::Radio);
-        kernel_.set_text(h, text);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_list() noexcept {
-        auto h = kernel_.create(WidgetKind::List);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_layout_kind(h, SoaLayoutKind::List);
-        return h;
-    }
-    WidgetHandle create_list_view() noexcept {
-        auto h = kernel_.create(WidgetKind::ListView);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_focusable(h, true);
-        kernel_.set_scroll_step(h, 24);
-        return h;
-    }
-    WidgetHandle create_icon_list() noexcept {
-        auto h = kernel_.create(WidgetKind::IconList);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_focusable(h, true);
-        kernel_.set_scroll_step(h, 24);
-        return h;
-    }
-    WidgetHandle create_table_view() noexcept {
-        auto h = kernel_.create(WidgetKind::TableView);
-        kernel_.set_focusable(h, true);
-        kernel_.set_scroll_step(h, 24);
-        return h;
-    }
-    WidgetHandle create_tree_view() noexcept {
-        auto h = kernel_.create(WidgetKind::TreeView);
-        kernel_.set_focusable(h, true);
-        kernel_.set_scroll_step(h, 24);
-        return h;
-    }
-    WidgetHandle create_list_item(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::ListItem);
-        kernel_.set_text(h, text);
-        kernel_.set_focusable(h, true);
-        return h;
-        }
-    WidgetHandle create_menu() noexcept {
-        auto h = kernel_.create(WidgetKind::Menu);
-        kernel_.set_clip_children(h, true);
-        return h;
-    }
-    WidgetHandle create_menu_item(const char* text) noexcept {
-        auto h = kernel_.create(WidgetKind::MenuItem);
-        kernel_.set_text(h, text);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-    WidgetHandle create_text_list() noexcept {
-        auto h = kernel_.create(WidgetKind::TextList);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_focusable(h, true);
-        kernel_.set_scroll_step(h, 1);
-        return h;
-    }
-    WidgetHandle create_console_box() noexcept {
-        auto h = kernel_.create(WidgetKind::ConsoleBox);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_focusable(h, false);
-        kernel_.set_scroll_step(h, 24);
-        kernel_.set_list_row_height(h, 18);
-        kernel_.set_console_follow_tail(h, true);
-        return h;
-    }
-    WidgetHandle create_scroll_container() noexcept {
-        auto h = kernel_.create(WidgetKind::ScrollContainer);
-        kernel_.set_clip_children(h, true);
-        kernel_.set_focusable(h, true);
-        return h;
-    }
-
-    void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
-        kernel_.set_segmented_count(h, count);
-    }
-    void set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
-        kernel_.set_segmented_label(h, index, text);
-    }
-    void set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept {
-        kernel_.set_segmented_selected(h, index);
-    }
-    void set_tab_bar_count(WidgetHandle h, std::uint8_t count) noexcept {
-        set_segmented_count(h, count);
-    }
-    void set_tab_bar_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
-        set_segmented_label(h, index, text);
-    }
-    void set_tab_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
-        set_segmented_selected(h, index);
-    }
-    void set_navigation_bar_count(WidgetHandle h, std::uint8_t count) noexcept {
-        set_segmented_count(h, count);
-    }
-    void set_navigation_bar_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
-        set_segmented_label(h, index, text);
-    }
-    void set_navigation_bar_selected(WidgetHandle h, std::uint8_t index) noexcept {
-        set_segmented_selected(h, index);
-    }
-        void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
-            kernel_.set_toggle_group_kind(h, group_kind);
-        }
-        void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
-            kernel_.set_text_list_count(h, count);
-        }
-        void set_text_list_item(WidgetHandle h, std::uint16_t index, const char* text) noexcept {
-            kernel_.set_text_list_item(h, index, text);
-        }
-        void set_text_list_selected(WidgetHandle h, int index) noexcept {
-            kernel_.set_text_list_selected(h, index);
-        }
-        void console_clear(WidgetHandle h) noexcept {
-            kernel_.console_clear(h);
-        }
-        void console_append(WidgetHandle h, const char* text) noexcept {
-            kernel_.console_append(h, text);
-        }
-        void set_console_follow_tail(WidgetHandle h, bool follow) noexcept {
-            kernel_.set_console_follow_tail(h, follow);
-        }
-        void set_list_view_source(WidgetHandle h,
-                                  std::uint16_t count,
-                                  const void* ctx,
-                                  soa_detail::ListViewTextFn fn) noexcept {
-            kernel_.set_list_view_source(h, count, ctx, fn);
-        }
-        void set_list_view_icon_source(WidgetHandle h,
-                                       const void* ctx,
-                                       soa_detail::ListViewIconFn fn,
-                                       std::uint8_t icon_size = 0) noexcept {
-            kernel_.set_list_view_icon_source(h, ctx, fn, icon_size);
-        }
-        void set_list_view_items(WidgetHandle h,
-                                 const char* const* items,
-                                 std::uint16_t count) noexcept {
-            kernel_.set_list_view_source(h, count, items, &SoaFactory::list_view_text_from_array);
-        }
-        void set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
-            kernel_.set_list_view_count(h, count);
-        }
-        void set_list_view_selected(WidgetHandle h, int index) noexcept {
-            kernel_.set_list_view_selected(h, index);
-        }
-        void set_table_view_source(WidgetHandle h,
-                                   std::uint16_t rows,
-                                   std::uint8_t cols,
-                                   const void* ctx,
-                                   soa_detail::TableViewTextFn fn) noexcept {
-            kernel_.set_table_view_source(h, rows, cols, ctx, fn);
-        }
-        void set_table_view_header(WidgetHandle h,
-                                   const void* ctx,
-                                   soa_detail::TableViewHeaderFn fn) noexcept {
-            kernel_.set_table_view_header(h, ctx, fn);
-        }
-        void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
-            kernel_.set_table_view_count(h, rows);
-        }
-        void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
-            kernel_.set_table_view_col_width(h, col_width);
-        }
-        void set_table_view_col_width_fn(WidgetHandle h,
-                                         const void* ctx,
-                                         soa_detail::TableViewColWidthFn fn) noexcept {
-            kernel_.set_table_view_col_width_fn(h, ctx, fn);
-        }
-        void set_table_view_scroll_x(WidgetHandle h, int x) noexcept {
-            kernel_.set_table_view_scroll_x(h, x);
-        }
-        void set_tree_view_source(WidgetHandle h,
-                                  std::uint16_t count,
-                                  const void* text_ctx,
-                                  soa_detail::TreeViewTextFn text_fn,
-                                  const void* indent_ctx,
-                                  soa_detail::TreeViewIndentFn indent_fn) noexcept {
-            kernel_.set_tree_view_source(h, count, text_ctx, text_fn, indent_ctx, indent_fn);
-        }
-        void set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept {
-            kernel_.set_tree_view_count(h, count);
-        }
-        void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
-            kernel_.set_tree_view_indent_px(h, px);
-        }
-        void set_tree_view_max_indent_px(WidgetHandle h, int px) noexcept {
-            kernel_.set_tree_view_max_indent_px(h, px);
-        }
-        void set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept {
-            kernel_.set_tree_view_min_text_avail_px(h, px);
-        }
-
-    bool link(WidgetHandle parent, WidgetHandle child) noexcept {
-        return kernel_.link(parent, child);
-    }
-
-    SoaKernel& kernel() noexcept { return kernel_; }
-    const SoaKernel& kernel() const noexcept { return kernel_; }
-
-  private:
-    static const char* list_view_text_from_array(const void* ctx, std::uint16_t index) noexcept {
-        const auto* items = static_cast<const char* const*>(ctx);
-        if (!items) return "";
-        const char* text = items[index];
-        return text ? text : "";
-    }
-
-    SoaKernel& kernel_;
-};

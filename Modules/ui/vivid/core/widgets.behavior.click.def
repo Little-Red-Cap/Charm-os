@@ -1,13 +1,15 @@
-VIVID_WIDGET_BEHAVIOR_CLICK(Switch, Toggle, None, None, true)
-VIVID_WIDGET_BEHAVIOR_CLICK(Checkbox, Toggle, None, None, true)
-VIVID_WIDGET_BEHAVIOR_CLICK(SegmentedControl, SegmentedControl, SegmentedX, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(TabView, SegmentedControl, SegmentedX, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(TextList, TextList, TextListY, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(ListView, ListView, ListViewY, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(IconList, ListView, ListViewY, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(Stepper, Stepper, StepperX, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(NumberList, NumberList, NumberListY, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(Roller, Roller, RollerY, None, false)
-VIVID_WIDGET_BEHAVIOR_CLICK(Radio, RadioGroup, None, Radio, true)
-VIVID_WIDGET_BEHAVIOR_CLICK(ListItem, ListItemGroup, None, ListItem, true)
-VIVID_WIDGET_BEHAVIOR_CLICK(MenuItem, ListItemGroup, None, MenuItem, true)
+#ifndef VIVID_WIDGET_BEHAVIOR_CLICK
+#define VIVID_WIDGET_BEHAVIOR_CLICK(name, click_kind, index_policy_value, group_kind_value, checkable_value)
+#endif
+
+#define VIVID_WIDGET_REGISTRY(name, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+    VIVID_WIDGET_REGISTRY_CLICK_##click_on(name, click_behavior, click_index, group_kind, checkable)
+#define VIVID_WIDGET_REGISTRY_CLICK_1(name, click_behavior, click_index, group_kind, checkable) \
+    VIVID_WIDGET_BEHAVIOR_CLICK(name, click_behavior, click_index, group_kind, checkable)
+#define VIVID_WIDGET_REGISTRY_CLICK_0(name, click_behavior, click_index, group_kind, checkable)
+
+#include "widgets.registry.def"
+
+#undef VIVID_WIDGET_REGISTRY_CLICK_1
+#undef VIVID_WIDGET_REGISTRY_CLICK_0
+#undef VIVID_WIDGET_REGISTRY

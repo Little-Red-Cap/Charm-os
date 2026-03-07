@@ -21,8 +21,6 @@ namespace {
     static out::channel_sink* g_sink = nullptr;
     static void (*g_yield)() noexcept = nullptr;
     constexpr util::u32 kLogRetryMs = 20;
-    static volatile bool g_spi5_dma_done = false;
-    static volatile bool g_spi5_dma_error = false;
 
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
@@ -64,24 +62,8 @@ namespace {
         HAL_GPIO_WritePin(kRstPort, kRstPin, level ? GPIO_PIN_SET : GPIO_PIN_RESET);
     }
 
-    void st7305_clean_dcache(const void* addr, std::size_t size) noexcept {
-#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-        if (!addr || size == 0) return;
-        if ((SCB->CCR & SCB_CCR_DC_Msk) == 0U) return;
-        std::uintptr_t start = reinterpret_cast<std::uintptr_t>(addr);
-        std::uintptr_t end = start + size;
-        start &= ~static_cast<std::uintptr_t>(31);
-        end = (end + 31u) & ~static_cast<std::uintptr_t>(31);
-        SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t*>(start),
-            static_cast<int32_t>(end - start));
-#else
-        (void)addr;
-        (void)size;
-#endif
-    }
-
     void st7305_transmit(std::uint8_t* data, std::uint16_t len, bool data_or_cmd) noexcept {
-        constexpr std::uint16_t kChunk = 4096;
+        constexpr std::uint16_t kChunk = 1024;
         HAL_GPIO_WritePin(kDcPort, kDcPin, data_or_cmd ? GPIO_PIN_SET : GPIO_PIN_RESET);
         HAL_GPIO_WritePin(kCsPort, kCsPin, GPIO_PIN_RESET);
         if (!data || len == 0) {
@@ -93,21 +75,7 @@ namespace {
         while (offset < len) {
             const std::uint16_t remaining = static_cast<std::uint16_t>(len - offset);
             const std::uint16_t chunk = (remaining > kChunk) ? kChunk : remaining;
-            st7305_clean_dcache(data + offset, chunk);
-            g_spi5_dma_done = false;
-            g_spi5_dma_error = false;
-            if (HAL_SPI_Transmit_DMA(&hspi5, data + offset, chunk) != HAL_OK) {
-                (void)HAL_SPI_Transmit(&hspi5, data + offset, chunk, 1000);
-            } else {
-                const util::u32 start = HAL_GetTick();
-                while (!g_spi5_dma_done && !g_spi5_dma_error) {
-                    if ((HAL_GetTick() - start) > 1000u) {
-                        (void)HAL_SPI_Abort(&hspi5);
-                        break;
-                    }
-                    if (g_yield) g_yield();
-                }
-            }
+            (void)HAL_SPI_Transmit(&hspi5, data + offset, chunk, 1000);
             offset = static_cast<std::uint16_t>(offset + chunk);
             if (g_yield) g_yield();
         }
@@ -131,19 +99,6 @@ export void display_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;
 }
 
-extern "C" void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef* hspi) {
-    if (hspi == &hspi5) {
-        g_spi5_dma_done = true;
-    }
-}
-
-extern "C" void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi) {
-    if (hspi == &hspi5) {
-        g_spi5_dma_error = true;
-        g_spi5_dma_done = true;
-    }
-}
-
 export void display_st7305_set_yield(void (*fn)() noexcept) noexcept {
     g_yield = fn;
 }
@@ -151,7 +106,7 @@ export void display_st7305_set_yield(void (*fn)() noexcept) noexcept {
 export bool display_st7305_init() noexcept {
     hspi5.Init.NSS = SPI_NSS_SOFT;
     hspi5.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-    hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+    hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
     if (HAL_SPI_Init(&hspi5) != HAL_OK) {
         log<"display: spi init failed">();
         return false;

@@ -7,12 +7,14 @@ module;
 export module charm.system.bringup;
 
 import charm.system.init_core;
+import charm.system.init_block;
 import charm.system.init_input;
 import charm.system.init_i2c;
 import charm.system.init_spi;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
 import charm.system.clock;
+import block.registry;
 import hal_input;
 import init.graph;
 import init.node;
@@ -70,6 +72,8 @@ export namespace charm::system {
                        const platform::board::SpiDesc& spi_desc,
                        const platform::board::I2cDesc& i2c_desc,
                        const platform::board::CanDesc& can_desc,
+                       const platform::board::SdmmcDesc& sdmmc_desc,
+                       const platform::board::SpiFlashDesc& flash_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
                        void* post_ctx,
@@ -85,7 +89,9 @@ export namespace charm::system {
               input_desc_(input_desc),
               spi_desc_(spi_desc),
               i2c_desc_(i2c_desc),
-              can_desc_(can_desc) {
+              can_desc_(can_desc),
+              sdmmc_desc_(sdmmc_desc),
+              flash_desc_(flash_desc) {
             if (!input.desc) {
                 input.desc = &input_desc_;
             }
@@ -134,6 +140,28 @@ export namespace charm::system {
                     board_nodes_[board_count++] = i2c_nodes[i];
                 }
             }
+            if (sdmmc_desc_.handle.ops) {
+                sdmmc_.emplace(core_.block_registry,
+                               sdmmc_desc_.handle,
+                               sdmmc_desc_.config,
+                               sdmmc_desc_.block_cap,
+                               sdmmc_desc_.hal_cap);
+                const auto sdmmc_nodes = sdmmc_->node_span();
+                for (util::usize i = 0; i < sdmmc_nodes.size(); ++i) {
+                    board_nodes_[board_count++] = sdmmc_nodes[i];
+                }
+            }
+            if (flash_desc_.handle.ops) {
+                flash_.emplace(core_.block_registry,
+                               flash_desc_.handle,
+                               flash_desc_.config,
+                               flash_desc_.block_cap,
+                               flash_desc_.hal_cap);
+                const auto flash_nodes = flash_->node_span();
+                for (util::usize i = 0; i < flash_nodes.size(); ++i) {
+                    board_nodes_[board_count++] = flash_nodes[i];
+                }
+            }
             if (input_) {
                 const auto input_nodes = input_->node_span();
                 for (util::usize i = 0; i < input_nodes.size(); ++i) {
@@ -152,6 +180,33 @@ export namespace charm::system {
             }
             board_nodes_span_ = std::span<const init::Node* const>(board_nodes_.data(), board_count);
         }
+
+        BringupMinimal(const platform::board::UartDesc& uart,
+                       const platform::board::ClockDesc& clock_desc,
+                       const platform::board::InputDesc& input_desc,
+                       const platform::board::SpiDesc& spi_desc,
+                       const platform::board::I2cDesc& i2c_desc,
+                       const platform::board::CanDesc& can_desc,
+                       ReactorPumpTask& pump_task,
+                       PostFn post_fn,
+                       void* post_ctx,
+                       kernel::TaskId pump_id,
+                       util::usize budget = 8,
+                       InputBringupDesc input = {}) noexcept
+            : BringupMinimal(uart,
+                             clock_desc,
+                             input_desc,
+                             spi_desc,
+                             i2c_desc,
+                             can_desc,
+                             platform::board::SdmmcDesc{},
+                             platform::board::SpiFlashDesc{},
+                             pump_task,
+                             post_fn,
+                             post_ctx,
+                             pump_id,
+                             budget,
+                             input) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
@@ -203,6 +258,7 @@ export namespace charm::system {
 
         init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }
         io::Registry<MaxEndpoints>& registry() noexcept { return core_.registry; }
+        block::Registry<MaxEndpoints>& block_registry() noexcept { return core_.block_registry; }
         io::Reactor& reactor() noexcept { return core_.reactor; }
         charm::system::Clock& clock() noexcept { return core_.clock; }
 
@@ -213,7 +269,7 @@ export namespace charm::system {
         platform::board::InputDesc input_desc_{};
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
-        std::array<const init::Node*, 16> board_nodes_{};
+        std::array<const init::Node*, 20> board_nodes_{};
         std::span<const init::Node* const> board_nodes_span_{};
         bool input_required_{false};
         platform::board::SpiDesc spi_desc_{};
@@ -222,5 +278,9 @@ export namespace charm::system {
         std::optional<I2cInitChain> i2c_{};
         platform::board::CanDesc can_desc_{};
         std::optional<io::ChannelBinding<io::Registry<MaxEndpoints>>> can_channel_{};
+        platform::board::SdmmcDesc sdmmc_desc_{};
+        platform::board::SpiFlashDesc flash_desc_{};
+        std::optional<SdmmcInitChain<block::Registry<MaxEndpoints>>> sdmmc_{};
+        std::optional<SpiFlashInitChain<block::Registry<MaxEndpoints>>> flash_{};
     };
 }

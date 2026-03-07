@@ -78,4 +78,5 @@ import charm.domain;
 
 ## Reference
 
-- VSF comparison: `docs/vsf_comparison.md`
+- VSF comparison: `docs/vsf/vsf_comparison.md`
+

@@ -1,7 +1,7 @@
 ﻿# UI/Ink 输入层分层决策（初次耦合阶段）
 
 关联总览：
-- `docs/io_layering_overview.md`（IO 分层与依赖边界）
+- `docs/io/io_layering_overview.md`（IO 分层与依赖边界）
 
 
 ## 背景
@@ -134,3 +134,4 @@
 ---
 
 如果你同意，下一步我可以给出“文件级迁移清单”（精确到每个 `.cppm` 的去留与依赖方向），并按你当前整理的 `Modules/ui/ink/platform/input` 先落第一刀。
+

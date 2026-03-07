@@ -61,6 +61,9 @@ export namespace block {
             if (!self->dev->read) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
+            if (self->dev->caps == 0) {
+                self->dev->caps = caps_from_ops(*self->dev);
+            }
             return self->registry->register_device(self->desc, *self->dev);
         }
     };

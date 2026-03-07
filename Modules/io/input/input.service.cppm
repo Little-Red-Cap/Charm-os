@@ -31,7 +31,7 @@ export namespace input {
         explicit InputService(const hal::RawInputSource& source,
                               charm::system::Clock& clock,
                               ServiceCfg cfg = {}) noexcept
-            : source_(source), sampler_(cfg.sampler), clock_(clock) {}
+            : source_(source), sampler_(cfg.sampler), clock_{&clock} {}
 
         void set_source(const hal::RawInputSource& source) noexcept {
             source_ = source;

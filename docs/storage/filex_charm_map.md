@@ -47,7 +47,7 @@ Charm 建议：
 
 ## 4. 关键可借鉴点（建议落地）
 
-1) 单入口驱动规范（见 `docs/mal_overview.md`）
+1) 单入口驱动规范（见 `docs/storage/mal_overview.md`）
 2) 显式 driver_info / ctx 语义
 3) 应用提供缓存内存（可控 footprint）
 4) 统一统计接口（可选）
@@ -63,3 +63,4 @@ Charm 建议：
 - 在 `MAL + FatFs` 示例中补充“driver_entry 规范”说明
 - 给 `FatFsMount` 预留 cache buffer 参数（可选）
 - 把 FileX 的统计字段映射为 `trace_core` 事件或统计结构
+

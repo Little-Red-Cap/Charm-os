@@ -3780,10 +3780,12 @@ private:
     }
 
     void input_handle_wheel(int x, int y, int wheel_y) {
-        WidgetHandle target = input_find_scroll_target(x, y);
+        const WidgetHandle hit = input_hit_test(x, y);
+        WidgetHandle target = input_find_scroll_target(hit);
         if (!target) return;
         const int step = scroll_step(target);
         const SoaBehavior behavior = behavior_for_kind(kind(target));
+        const SoaWheelAxisPolicy wheel_axis = input_wheel_axis_override(hit, target, behavior.wheel_axis);
         const int delta = -wheel_y * step;
         const bool allow_h = (behavior.scroll_axis == SoaScrollAxis::Horizontal
                               || behavior.scroll_axis == SoaScrollAxis::Both)
@@ -3791,7 +3793,7 @@ private:
         const bool allow_v = (behavior.scroll_axis == SoaScrollAxis::Vertical
                               || behavior.scroll_axis == SoaScrollAxis::Both)
                              && max_scroll(target) > 0;
-        switch (behavior.wheel_axis) {
+        switch (wheel_axis) {
         case SoaWheelAxisPolicy::PreferHorizontal:
             if (allow_h) {
                 input_scroll_by(target, 0, delta);
@@ -4367,8 +4369,7 @@ private:
         return r;
     }
 
-    WidgetHandle input_find_scroll_target(int x, int y) noexcept {
-        WidgetHandle hit = input_hit_test(x, y);
+    WidgetHandle input_find_scroll_target(WidgetHandle hit) noexcept {
         if (!hit) return {};
         const SoaBehavior behavior = behavior_for_kind(kind(hit));
         switch (behavior.wheel_target) {
@@ -4413,6 +4414,16 @@ private:
 
     void input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
         input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
+    }
+
+    SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
+        SoaWheelAxisPolicy fallback) const noexcept {
+        if (!hit || !target) return fallback;
+        if (kind(hit) != WidgetKind::ScrollBar) return fallback;
+        const ScrollBarOrientation orient = scrollbar_orientation(hit);
+        return (orient == ScrollBarOrientation::Horizontal)
+            ? SoaWheelAxisPolicy::PreferHorizontal
+            : SoaWheelAxisPolicy::PreferVertical;
     }
 
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) {

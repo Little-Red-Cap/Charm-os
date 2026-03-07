@@ -1558,8 +1558,6 @@ namespace {
         const int table_after = kernel.scroll_y(table_view);
         expect_true(table_after != table_before, "tableview: wheel did not scroll", fails);
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel invalidated layout", fails);
-        expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
-        expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
 
         kernel.layout_trace_reset();
         const int table_x_before = kernel.table_view_scroll_x(table_view);
@@ -1573,6 +1571,17 @@ namespace {
 
         kernel.layout_trace_reset();
         const Rect hscroll_r = kernel.rect(table_scroll_x);
+        const int hscroll_hit_x = table_root_r.x + hscroll_r.x + hscroll_r.w / 2;
+        const int hscroll_hit_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
+        const int table_x_before_wheel = kernel.table_view_scroll_x(table_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hscroll_hit_x, hscroll_hit_y, 0));
+        gui.dispatch_event(Event::wheel(hscroll_hit_x, hscroll_hit_y, -6));
+        gui.render();
+        const int table_x_after_wheel = kernel.table_view_scroll_x(table_view);
+        expect_true(table_x_after_wheel != table_x_before_wheel, "tableview: wheel did not scroll x", fails);
+        expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel x invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
         const int hscroll_x = table_root_r.x + hscroll_r.x + hscroll_r.w - 2;
         const int hscroll_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
         const int table_x_before_bar = kernel.table_view_scroll_x(table_view);

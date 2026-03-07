@@ -2,6 +2,16 @@
 
 本文件用于描述 Vivid 的当前架构、边界与主要模块，便于后续补齐能力与迁移控件。
 
+## 0. Roadmap（Next 3）
+
+1. 行为分支继续 Action 化（收敛输入语义）
+   - 验收：`vivid-soa-demo --soa-ci --regress-ui` 为 `ok=1`
+2. 结构性 API 第二阶段
+   - TableView 表头样式细化 + 横向滚动交互策略
+   - 验收：`table_tree_ok=1` 且 `ui_ok=1`
+3. A2 下一批控件迁移（Stepper/NumberList/Roller 完成）
+   - 验收：`--soa-ci --regress-ui` 通过，且 `failed_cmds=0`
+
 ## 1. 分层结构
 
 - core：数据结构、主题/样式、诊断/trace、配置等基础设施。

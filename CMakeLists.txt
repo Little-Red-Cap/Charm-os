@@ -36,6 +36,12 @@ target_compile_options(${target_name} PRIVATE
         #        -nostdlib
 )
 
+# dr_mp3 must avoid unaligned word loads on Cortex-M7 (stream data is byte-aligned).
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_decoder_mp3.cppm"
+    PROPERTIES COMPILE_OPTIONS "-mno-unaligned-access"
+)
+
 set(CHARM_DR_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/dr_libs")
 if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DRLibs.cmake")

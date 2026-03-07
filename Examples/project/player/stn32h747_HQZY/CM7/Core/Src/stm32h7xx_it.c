@@ -22,6 +22,8 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usart.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,11 +48,94 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
+extern void charm_audio_dma_irq_notify(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void uart_write(const char* s) {
+  if (!s) return;
+  const size_t len = strlen(s);
+  if (len == 0) return;
+  (void)HAL_UART_Transmit(&huart1, (uint8_t*)s, (uint16_t)len, 100);
+}
+
+static void uart_hex(const char* label, uint32_t v) {
+  char buf[64];
+  const char* prefix = (label ? label : "");
+  size_t pos = 0;
+  while (prefix[pos] != '\0' && pos + 1 < sizeof(buf)) {
+    buf[pos] = prefix[pos];
+    ++pos;
+  }
+  if (pos + 10 >= sizeof(buf)) {
+    buf[sizeof(buf) - 2] = '\n';
+    buf[sizeof(buf) - 1] = '\0';
+    uart_write(buf);
+    return;
+  }
+  buf[pos++] = '0';
+  buf[pos++] = 'x';
+  for (int i = 7; i >= 0; --i) {
+    const uint8_t nib = (uint8_t)((v >> (i * 4)) & 0xFu);
+    buf[pos++] = (char)(nib < 10 ? ('0' + nib) : ('A' + (nib - 10)));
+  }
+  buf[pos++] = '\n';
+  buf[pos] = '\0';
+  uart_write(buf);
+}
+
+static void fault_dump(const char* tag) {
+  uart_write(tag);
+  uart_write("\n");
+  uart_hex("CCR=", SCB->CCR);
+  uart_hex("CFSR=", SCB->CFSR);
+  uart_hex("HFSR=", SCB->HFSR);
+  uart_hex("DFSR=", SCB->DFSR);
+  uart_hex("AFSR=", SCB->AFSR);
+  uart_hex("BFAR=", SCB->BFAR);
+  uart_hex("MMFAR=", SCB->MMFAR);
+}
+
+static void fault_dump_stack(const uint32_t* sp) {
+  if (!sp) return;
+  uart_hex("r0=", sp[0]);
+  uart_hex("r1=", sp[1]);
+  uart_hex("r2=", sp[2]);
+  uart_hex("r3=", sp[3]);
+  uart_hex("r12=", sp[4]);
+  uart_hex("lr=", sp[5]);
+  uart_hex("pc=", sp[6]);
+  uart_hex("psr=", sp[7]);
+}
+
+void HardFault_Handler(void)
+{
+  /* USER CODE BEGIN HardFault_IRQn 0 */
+  __disable_irq();
+  __asm volatile(
+    "tst lr, #4\n"
+    "ite eq\n"
+    "mrseq r0, msp\n"
+    "mrsne r0, psp\n"
+    "b hardfault_c\n"
+  );
+  /* USER CODE END HardFault_IRQn 0 */
+  while (1)
+  {
+    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+    /* USER CODE END W1_HardFault_IRQn 0 */
+  }
+}
+
+void hardfault_c(uint32_t* sp)
+{
+  fault_dump("boot: hardfault");
+  fault_dump_stack(sp);
+  while (1) {
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -88,17 +173,7 @@ void NMI_Handler(void)
 /**
   * @brief This function handles Hard fault interrupt.
   */
-void HardFault_Handler(void)
-{
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
-}
+/* HardFault_Handler implemented above with stack dump. */
 
 /**
   * @brief This function handles Memory management fault.
@@ -106,7 +181,8 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  __disable_irq();
+  fault_dump("boot: memfault");
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
@@ -121,7 +197,8 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  __disable_irq();
+  fault_dump("boot: busfault");
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {
@@ -136,7 +213,8 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
-
+  __disable_irq();
+  fault_dump("boot: usagefault");
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
   {
@@ -211,6 +289,7 @@ void SysTick_Handler(void)
 void DMA1_Stream0_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream0_IRQn 0 */
+  charm_audio_dma_irq_notify();
 
   /* USER CODE END DMA1_Stream0_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi1_tx);

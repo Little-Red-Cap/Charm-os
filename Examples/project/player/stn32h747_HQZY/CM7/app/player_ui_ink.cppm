@@ -46,7 +46,7 @@ export namespace player::hqzy {
         r.drawText(10, 146, s.fs_ready ? "SDMMC1 OK" : "SDMMC1 ERR", true);
         r.drawText(10, 160, s.audio_ready ? "I2S1 OK" : "I2S1 ERR", true);
 
-        detail::draw_footer(r, w, h, "WKUP2: Next Page", "KEY0: Play/Pause");
+        detail::draw_footer(r, w, h, "ENC: Move/Vol", "KEY0: Play  WKUP2: Page");
     }
 
     template <typename Renderer>
@@ -64,7 +64,7 @@ export namespace player::hqzy {
         r.drawText(10, 112, "SPI5 Mode0", true);
         r.drawText(10, 126, "ST7305 OK", true);
 
-        detail::draw_footer(r, w, h, "WKUP2: Next Page", "KEY0: Play/Pause");
+        detail::draw_footer(r, w, h, "ENC: Move/Vol", "KEY0: Play  WKUP2: Page");
     }
 
     template <typename Renderer>
@@ -74,7 +74,7 @@ export namespace player::hqzy {
                           "Volume", s.volume, false);
         r.drawRect(gui::Rect{6, 52, static_cast<std::int16_t>(w - 12), 70}, true);
         r.drawText(10, 60, s.playing ? "State: Playing" : "State: Paused", true);
-        r.drawText(10, 74, "Use KEY0 toggle", true);
+        r.drawText(10, 74, "Use ENC/KEY0", true);
         r.drawText(10, 88, "Use WKUP2 page", true);
 
         detail::draw_footer(r, w, h, "Audio chain OK", "Ink UI running");
@@ -85,6 +85,9 @@ export namespace player::hqzy {
         detail::draw_header(r, w, "File List");
         r.drawRect(gui::Rect{6, 28, static_cast<std::int16_t>(w - 12),
                              static_cast<std::int16_t>(h - 68)}, true);
+        if (s.list_dir[0] != '\0') {
+            r.drawText(10, 24, s.list_dir, true);
+        }
         const int list_x = 10;
         const int list_y = 34;
         const int row_h = 14;
@@ -116,7 +119,7 @@ export namespace player::hqzy {
         } else if (s.entry_count == 0) {
             r.drawText(10, static_cast<std::int16_t>(h - 52), "Empty", true);
         }
-        detail::draw_footer(r, w, h, "WKUP2: Next Page", "KEY0: Play/Pause");
+        detail::draw_footer(r, w, h, "ENC: Move  ENC Key: Enter", "KEY0: Play  WKUP2: Page");
     }
 
     template <typename Renderer>

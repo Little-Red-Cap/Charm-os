@@ -1,12 +1,6 @@
 ﻿# Charm 架构全景（收敛版）
 
-> 新同学先读 `docs/overview.md`。
-
-## 快速阅读路径
-1. 分层与入口：本页 1.0 / 1.1
-2. 依赖红线：1.2
-3. 装配规则：init.graph（见 `docs/system/init_graph_contract.md`）
-4. IO 核心契约：`docs/io/*`
+一句话定位：这是 Charm 的全局架构图与装配/依赖红线说明。新同学建议先读 `docs/overview.md`。
 
 ## 设计原则（只记 5 条）
 - 所有能力必须走 init.graph 装配
@@ -14,6 +8,18 @@
 - 协议层禁止 busy-spin/自带超时
 - 默认禁止隐式全局入口
 - 依赖只允许单向向上
+
+## 快速阅读路径
+1. 分层与入口：本页 1.0 / 1.1
+2. 依赖红线：1.2
+3. 装配规则：init.graph（见 `docs/system/init_graph_contract.md`）
+4. IO 核心契约：`docs/io/*`
+
+## 本页不负责什么
+- 具体 IO 契约细节：见 `docs/io/*`
+- 具体系统装配细节：见 `docs/system/*`
+- 协作与 Agent 规则：见 `docs/agent/*`
+
 
 ## 1. 架构分层
 

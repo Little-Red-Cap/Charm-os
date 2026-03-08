@@ -46,4 +46,10 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - IO 分层：`docs/io/io_layering_overview.md`
 - 存储：`docs/storage/*`
 - 系统：`docs/system/*`
-- 协作规范：`docs/agent/*`
+- 协作入口：`docs/agent/README.md`
+- 代码审查：`docs/agent/skills/code-review/`
+- 架构讨论：`docs/agent/skills/architect-review/`
+
+## 下一步读什么
+- 要开始改代码：先读 `docs/project/项目C++编码要求.md`
+- 要和 AI 协作：先读 `docs/agent/README.md`

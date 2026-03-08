@@ -1,4 +1,10 @@
-    void set_text(WidgetHandle h, const char* text) noexcept {
+module;
+
+export module charm.core.soa_kernel:payload;
+
+import :class;
+
+    void SoaKernel::set_text(WidgetHandle h, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto id = payloads_.store_text(text);
@@ -81,7 +87,7 @@
         mark_layout_dirty();
     }
 
-    const char* text(WidgetHandle h) const noexcept {
+    const char* SoaKernel::text(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -143,7 +149,7 @@
         return "";
     }
 
-    void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept {
+    void SoaKernel::set_image(WidgetHandle h, soa_detail::ImageId image) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -159,7 +165,7 @@
         }
     }
 
-    soa_detail::ImageId image(WidgetHandle h) const noexcept {
+    soa_detail::ImageId SoaKernel::image(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -171,7 +177,7 @@
         return payload ? payload->image : soa_detail::invalid_image_id();
     }
 
-    void set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
+    void SoaKernel::set_button_icon(WidgetHandle h, soa_detail::ImageId icon) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -187,7 +193,7 @@
         }
     }
 
-    void set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
+    void SoaKernel::set_button_icon_size(WidgetHandle h, std::uint8_t size) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -203,7 +209,7 @@
         }
     }
 
-    soa_detail::ImageId button_icon(WidgetHandle h) const noexcept {
+    soa_detail::ImageId SoaKernel::button_icon(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -215,7 +221,7 @@
         return payload ? payload->icon : soa_detail::invalid_image_id();
     }
 
-    std::uint8_t button_icon_size(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::button_icon_size(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -227,7 +233,7 @@
         return payload ? payload->icon_size : 0;
     }
 
-    void set_spinner_phase(WidgetHandle h, std::uint8_t phase) noexcept {
+    void SoaKernel::set_spinner_phase(WidgetHandle h, std::uint8_t phase) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -243,7 +249,7 @@
         }
     }
 
-    std::uint8_t spinner_phase(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::spinner_phase(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -255,7 +261,7 @@
         return payload ? payload->phase : 0;
     }
 
-    void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
+    void SoaKernel::set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -276,7 +282,7 @@
         }
     }
 
-    void set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+    void SoaKernel::set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -299,7 +305,7 @@
         mark_paint_dirty();
     }
 
-    void set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept {
+    void SoaKernel::set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -317,7 +323,7 @@
         }
     }
 
-    std::uint8_t segmented_count(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::segmented_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -329,7 +335,7 @@
         return payload ? payload->count : 0;
     }
 
-    std::uint8_t segmented_selected(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::segmented_selected(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -341,7 +347,7 @@
         return payload ? payload->selected : 0;
     }
 
-    const char* segmented_label(WidgetHandle h, std::uint8_t index) const noexcept {
+    const char* SoaKernel::segmented_label(WidgetHandle h, std::uint8_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -355,7 +361,7 @@
         return payloads_.text_c_str(payload->labels[index]);
     }
 
-    void set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept {
+    void SoaKernel::set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -374,7 +380,7 @@
         mark_paint_dirty();
     }
 
-    void set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept {
+    void SoaKernel::set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -390,7 +396,7 @@
         mark_paint_dirty();
     }
 
-    void set_stepper_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
+    void SoaKernel::set_stepper_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -408,7 +414,7 @@
         mark_paint_dirty();
     }
 
-    std::uint8_t stepper_count(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::stepper_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -420,7 +426,7 @@
         return payload ? payload->count : 0;
     }
 
-    std::uint8_t stepper_current(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::stepper_current(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -432,7 +438,7 @@
         return payload ? payload->current : 0;
     }
 
-    const char* stepper_label(WidgetHandle h, std::uint8_t index) const noexcept {
+    const char* SoaKernel::stepper_label(WidgetHandle h, std::uint8_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -446,7 +452,7 @@
         return payloads_.text_c_str(payload->labels[index]);
     }
 
-    void set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+    void SoaKernel::set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -467,7 +473,7 @@
         mark_layout_dirty();
     }
 
-    void set_text_list_item(WidgetHandle h, std::uint16_t index, const char* text) noexcept {
+    void SoaKernel::set_text_list_item(WidgetHandle h, std::uint16_t index, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -491,7 +497,7 @@
         mark_layout_dirty();
     }
 
-    std::uint16_t text_list_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::text_list_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -503,7 +509,7 @@
         return payload ? payload->count : 0;
     }
 
-    int text_list_selected(WidgetHandle h) const noexcept {
+    int SoaKernel::text_list_selected(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return -1;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -515,7 +521,7 @@
         return payload ? payload->selected : -1;
     }
 
-    void set_text_list_selected(WidgetHandle h, int index) noexcept {
+    void SoaKernel::set_text_list_selected(WidgetHandle h, int index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -542,7 +548,7 @@
         mark_paint_dirty();
     }
 
-    const char* text_list_item(WidgetHandle h, std::uint16_t index) const noexcept {
+    const char* SoaKernel::text_list_item(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -558,7 +564,7 @@
         return payloads_.text_c_str(payload->items[slot]);
     }
 
-    void set_number_list_count(WidgetHandle h, std::uint16_t count) noexcept {
+    void SoaKernel::set_number_list_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -576,7 +582,7 @@
         mark_paint_dirty();
     }
 
-    void set_number_list_range(WidgetHandle h, int start, int delta) noexcept {
+    void SoaKernel::set_number_list_range(WidgetHandle h, int start, int delta) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -591,7 +597,7 @@
         mark_paint_dirty();
     }
 
-    void set_number_list_selected(WidgetHandle h, int index) noexcept {
+    void SoaKernel::set_number_list_selected(WidgetHandle h, int index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -609,7 +615,7 @@
         mark_paint_dirty();
     }
 
-    std::uint16_t number_list_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::number_list_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -621,7 +627,7 @@
         return payload ? payload->count : 0;
     }
 
-    int number_list_selected(WidgetHandle h) const noexcept {
+    int SoaKernel::number_list_selected(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -633,7 +639,7 @@
         return payload ? payload->selected : 0;
     }
 
-    int number_list_value(WidgetHandle h, int index) const noexcept {
+    int SoaKernel::number_list_value(WidgetHandle h, int index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -646,7 +652,7 @@
         return payload->start + index * payload->delta;
     }
 
-    void set_number_list_row_height(WidgetHandle h, int row_h) noexcept {
+    void SoaKernel::set_number_list_row_height(WidgetHandle h, int row_h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -661,7 +667,7 @@
         mark_paint_dirty();
     }
 
-    int number_list_row_height(WidgetHandle h) const noexcept {
+    int SoaKernel::number_list_row_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -673,7 +679,7 @@
         return payload ? payload->row_height : 24;
     }
 
-    void set_number_list_wheel_step(WidgetHandle h, int step) noexcept {
+    void SoaKernel::set_number_list_wheel_step(WidgetHandle h, int step) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -686,7 +692,7 @@
         payload->wheel_step = (step > 0) ? step : 1;
     }
 
-    int number_list_wheel_step(WidgetHandle h) const noexcept {
+    int SoaKernel::number_list_wheel_step(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -698,7 +704,7 @@
         return payload ? payload->wheel_step : 24;
     }
 
-    void set_roller_source(WidgetHandle h, std::uint16_t count,
+    void SoaKernel::set_roller_source(WidgetHandle h, std::uint16_t count,
                            const void* ctx, soa_detail::RollerTextFn fn) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -719,7 +725,7 @@
         mark_paint_dirty();
     }
 
-    void set_roller_selected(WidgetHandle h, int index) noexcept {
+    void SoaKernel::set_roller_selected(WidgetHandle h, int index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -738,7 +744,7 @@
         mark_paint_dirty();
     }
 
-    std::uint16_t roller_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::roller_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -750,7 +756,7 @@
         return payload ? payload->count : 0;
     }
 
-    int roller_selected(WidgetHandle h) const noexcept {
+    int SoaKernel::roller_selected(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -762,7 +768,7 @@
         return payload ? payload->selected : 0;
     }
 
-    const char* roller_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+    const char* SoaKernel::roller_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -775,7 +781,7 @@
         return payload->text_fn(payload->text_ctx, index);
     }
 
-    void set_roller_row_height(WidgetHandle h, int row_h) noexcept {
+    void SoaKernel::set_roller_row_height(WidgetHandle h, int row_h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -790,7 +796,7 @@
         mark_paint_dirty();
     }
 
-    int roller_row_height(WidgetHandle h) const noexcept {
+    int SoaKernel::roller_row_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -802,7 +808,7 @@
         return payload ? payload->row_height : 24;
     }
 
-    void set_roller_wheel_step(WidgetHandle h, int step) noexcept {
+    void SoaKernel::set_roller_wheel_step(WidgetHandle h, int step) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -815,7 +821,7 @@
         payload->wheel_step = (step > 0) ? step : 1;
     }
 
-    int roller_wheel_step(WidgetHandle h) const noexcept {
+    int SoaKernel::roller_wheel_step(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -827,7 +833,7 @@
         return payload ? payload->wheel_step : 24;
     }
 
-    void console_clear(WidgetHandle h) noexcept {
+    void SoaKernel::console_clear(WidgetHandle h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -844,7 +850,7 @@
         mark_paint_dirty();
     }
 
-    void set_console_follow_tail(WidgetHandle h, bool follow) noexcept {
+    void SoaKernel::set_console_follow_tail(WidgetHandle h, bool follow) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -857,7 +863,7 @@
         payload->follow_tail = follow ? 1u : 0u;
     }
 
-    void console_append(WidgetHandle h, const char* text) noexcept {
+    void SoaKernel::console_append(WidgetHandle h, const char* text) noexcept {
         if (!text) return;
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -917,7 +923,7 @@
         }
     }
 
-    void set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
+    void SoaKernel::set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
                               soa_detail::ListViewTextFn fn) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -937,7 +943,7 @@
         mark_layout_dirty();
     }
 
-    void set_list_view_icon_source(WidgetHandle h,
+    void SoaKernel::set_list_view_icon_source(WidgetHandle h,
                                    const void* ctx,
                                    soa_detail::ListViewIconFn fn,
                                    std::uint8_t icon_size) noexcept {
@@ -956,7 +962,7 @@
         mark_paint_dirty();
     }
 
-    void set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+    void SoaKernel::set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -973,7 +979,7 @@
         mark_layout_dirty();
     }
 
-    std::uint16_t list_view_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::list_view_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -985,7 +991,7 @@
         return payload ? payload->count : 0;
     }
 
-    int list_view_selected(WidgetHandle h) const noexcept {
+    int SoaKernel::list_view_selected(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return -1;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -997,7 +1003,7 @@
         return payload ? payload->selected : -1;
     }
 
-    void set_list_view_selected(WidgetHandle h, int index) noexcept {
+    void SoaKernel::set_list_view_selected(WidgetHandle h, int index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1024,7 +1030,7 @@
         mark_paint_dirty();
     }
 
-    const char* list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+    const char* SoaKernel::list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1040,7 +1046,7 @@
         return text ? text : "";
     }
 
-    soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept {
+    soa_detail::ImageId SoaKernel::list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return soa_detail::invalid_image_id();
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1055,7 +1061,7 @@
         return payload->icon_fn(payload->icon_ctx, index);
     }
 
-    std::uint8_t list_view_icon_size(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::list_view_icon_size(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1067,7 +1073,7 @@
         return payload ? payload->icon_size : 0;
     }
 
-    std::uint8_t list_view_overscan(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::list_view_overscan(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1079,7 +1085,7 @@
         return payload ? payload->overscan : 0;
     }
 
-    void set_table_view_source(WidgetHandle h, std::uint16_t rows, std::uint8_t cols,
+    void SoaKernel::set_table_view_source(WidgetHandle h, std::uint16_t rows, std::uint8_t cols,
                                const void* ctx, soa_detail::TableViewTextFn fn) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1100,7 +1106,7 @@
         mark_layout_dirty();
     }
 
-    void set_table_view_header(WidgetHandle h, const void* ctx,
+    void SoaKernel::set_table_view_header(WidgetHandle h, const void* ctx,
                                soa_detail::TableViewHeaderFn fn) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1121,7 +1127,7 @@
         }
     }
 
-    void set_table_view_header_height(WidgetHandle h, int height) noexcept {
+    void SoaKernel::set_table_view_header_height(WidgetHandle h, int height) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1141,7 +1147,7 @@
         }
     }
 
-    void set_table_view_header_padding(WidgetHandle h, int padding) noexcept {
+    void SoaKernel::set_table_view_header_padding(WidgetHandle h, int padding) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1158,7 +1164,7 @@
         }
     }
 
-    void set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept {
+    void SoaKernel::set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1175,7 +1181,7 @@
         }
     }
 
-    void set_table_view_header_divider(WidgetHandle h, bool enabled) noexcept {
+    void SoaKernel::set_table_view_header_divider(WidgetHandle h, bool enabled) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1192,13 +1198,13 @@
         }
     }
 
-    void set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
+    void SoaKernel::set_table_view_col_dividers(WidgetHandle h, bool enabled) noexcept {
         set_table_view_col_divider_style(
             h,
             enabled ? TableViewColDividerStyle::Full : TableViewColDividerStyle::None);
     }
 
-    void set_table_view_col_divider_style(WidgetHandle h, TableViewColDividerStyle style) noexcept {
+    void SoaKernel::set_table_view_col_divider_style(WidgetHandle h, TableViewColDividerStyle style) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1215,7 +1221,7 @@
         }
     }
 
-    void set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
+    void SoaKernel::set_table_view_count(WidgetHandle h, std::uint16_t rows) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1229,7 +1235,7 @@
         mark_layout_dirty();
     }
 
-    std::uint16_t table_view_row_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::table_view_row_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1241,7 +1247,7 @@
         return payload ? payload->row_count : 0;
     }
 
-    bool table_view_has_header(WidgetHandle h) const noexcept {
+    bool SoaKernel::table_view_has_header(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1253,7 +1259,7 @@
         return payload ? (payload->header_fn != nullptr) : false;
     }
 
-    int table_view_header_height(WidgetHandle h) const noexcept {
+    int SoaKernel::table_view_header_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1268,7 +1274,7 @@
         return height > 0 ? height : 0;
     }
 
-    int table_view_header_padding(WidgetHandle h) const noexcept {
+    int SoaKernel::table_view_header_padding(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1280,7 +1286,7 @@
         return payload ? payload->header_padding : 0;
     }
 
-    TableViewHeaderStyle table_view_header_style(WidgetHandle h) const noexcept {
+    TableViewHeaderStyle SoaKernel::table_view_header_style(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return TableViewHeaderStyle::Default;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1293,7 +1299,7 @@
                        : TableViewHeaderStyle::Default;
     }
 
-    bool table_view_header_divider(WidgetHandle h) const noexcept {
+    bool SoaKernel::table_view_header_divider(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1305,11 +1311,11 @@
         return payload ? (payload->header_divider != 0) : false;
     }
 
-    bool table_view_col_dividers(WidgetHandle h) const noexcept {
+    bool SoaKernel::table_view_col_dividers(WidgetHandle h) const noexcept {
         return table_view_col_divider_style(h) != TableViewColDividerStyle::None;
     }
 
-    TableViewColDividerStyle table_view_col_divider_style(WidgetHandle h) const noexcept {
+    TableViewColDividerStyle SoaKernel::table_view_col_divider_style(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return TableViewColDividerStyle::None;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1322,7 +1328,7 @@
         return static_cast<TableViewColDividerStyle>(payload->col_dividers);
     }
 
-    std::uint8_t table_view_col_count(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::table_view_col_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1334,7 +1340,7 @@
         return payload ? payload->col_count : 0;
     }
 
-    const char* table_view_header_text(WidgetHandle h, std::uint8_t col) const noexcept {
+    const char* SoaKernel::table_view_header_text(WidgetHandle h, std::uint8_t col) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1349,7 +1355,7 @@
         return text ? text : "";
     }
 
-    bool table_view_has_col_width_fn(WidgetHandle h) const noexcept {
+    bool SoaKernel::table_view_has_col_width_fn(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1361,7 +1367,7 @@
         return payload ? (payload->col_width_fn != nullptr) : false;
     }
 
-    int table_view_col_width(WidgetHandle h) const noexcept {
+    int SoaKernel::table_view_col_width(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1373,7 +1379,7 @@
         return payload ? payload->col_width : 0;
     }
 
-    int table_view_col_width_at(WidgetHandle h, std::uint8_t col) const noexcept {
+    int SoaKernel::table_view_col_width_at(WidgetHandle h, std::uint8_t col) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1391,7 +1397,7 @@
         return payload->col_width;
     }
 
-    int table_view_scroll_x(WidgetHandle h) const noexcept {
+    int SoaKernel::table_view_scroll_x(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1403,7 +1409,7 @@
         return payload ? payload->scroll_x : 0;
     }
 
-    void set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
+    void SoaKernel::set_table_view_col_width(WidgetHandle h, int col_width) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1425,7 +1431,7 @@
         }
     }
 
-    void set_table_view_col_width_fn(WidgetHandle h, const void* ctx,
+    void SoaKernel::set_table_view_col_width_fn(WidgetHandle h, const void* ctx,
                                      soa_detail::TableViewColWidthFn fn) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1449,11 +1455,11 @@
         }
     }
 
-    void set_table_view_scroll_x(WidgetHandle h, int x) noexcept {
+    void SoaKernel::set_table_view_scroll_x(WidgetHandle h, int x) noexcept {
         set_table_view_scroll_x_clamped(h, x);
     }
 
-    std::uint8_t table_view_overscan(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::table_view_overscan(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1465,7 +1471,7 @@
         return payload ? payload->overscan : 0;
     }
 
-    const char* table_view_cell_text(WidgetHandle h, std::uint16_t row, std::uint8_t col) const noexcept {
+    const char* SoaKernel::table_view_cell_text(WidgetHandle h, std::uint16_t row, std::uint8_t col) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1482,7 +1488,7 @@
         return text ? text : "";
     }
 
-    void set_tree_view_source(WidgetHandle h, std::uint16_t count,
+    void SoaKernel::set_tree_view_source(WidgetHandle h, std::uint16_t count,
                               const void* text_ctx, soa_detail::TreeViewTextFn text_fn,
                               const void* indent_ctx, soa_detail::TreeViewIndentFn indent_fn) noexcept {
         const std::uint16_t idx = index_of(h);
@@ -1502,7 +1508,7 @@
         mark_layout_dirty();
     }
 
-    void set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept {
+    void SoaKernel::set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1516,7 +1522,7 @@
         mark_layout_dirty();
     }
 
-    std::uint16_t tree_view_count(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::tree_view_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1528,7 +1534,7 @@
         return payload ? payload->count : 0;
     }
 
-    std::uint8_t tree_view_overscan(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::tree_view_overscan(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1540,7 +1546,7 @@
         return payload ? payload->overscan : 0;
     }
 
-    std::uint8_t tree_view_indent_px(WidgetHandle h) const noexcept {
+    std::uint8_t SoaKernel::tree_view_indent_px(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1552,7 +1558,7 @@
         return payload ? payload->indent_px : 0;
     }
 
-    int tree_view_max_indent_px(WidgetHandle h) const noexcept {
+    int SoaKernel::tree_view_max_indent_px(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1564,7 +1570,7 @@
         return payload ? static_cast<int>(payload->max_indent_px) : 0;
     }
 
-    int tree_view_min_text_avail_px(WidgetHandle h) const noexcept {
+    int SoaKernel::tree_view_min_text_avail_px(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1576,7 +1582,7 @@
         return payload ? static_cast<int>(payload->min_text_avail_px) : 0;
     }
 
-    void set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
+    void SoaKernel::set_tree_view_indent_px(WidgetHandle h, std::uint8_t px) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1592,7 +1598,7 @@
         }
     }
 
-    void set_tree_view_max_indent_px(WidgetHandle h, int px) noexcept {
+    void SoaKernel::set_tree_view_max_indent_px(WidgetHandle h, int px) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1611,7 +1617,7 @@
         }
     }
 
-    void set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept {
+    void SoaKernel::set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1630,7 +1636,7 @@
         }
     }
 
-    const char* tree_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
+    const char* SoaKernel::tree_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return "";
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1646,7 +1652,7 @@
         return text ? text : "";
     }
 
-    std::uint8_t tree_view_item_indent(WidgetHandle h, std::uint16_t index) const noexcept {
+    std::uint8_t SoaKernel::tree_view_item_indent(WidgetHandle h, std::uint16_t index) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1661,7 +1667,7 @@
         return payload->indent_fn(payload->indent_ctx, index);
     }
 
-    void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
+    void SoaKernel::set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1674,7 +1680,7 @@
         payload->group_kind = group_kind;
     }
 
-    WidgetKind toggle_group_kind(WidgetHandle h) const noexcept {
+    WidgetKind SoaKernel::toggle_group_kind(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return WidgetKind::None;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1686,7 +1692,7 @@
         return payload ? payload->group_kind : WidgetKind::None;
     }
 
-    void set_value(WidgetHandle h, int value) noexcept {
+    void SoaKernel::set_value(WidgetHandle h, int value) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1724,7 +1730,7 @@
         }
     }
 
-    int value(WidgetHandle h) const noexcept {
+    int SoaKernel::value(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1748,7 +1754,7 @@
         return 0;
     }
 
-    void set_range(WidgetHandle h, int min_value, int max_value) noexcept {
+    void SoaKernel::set_range(WidgetHandle h, int min_value, int max_value) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1789,7 +1795,7 @@
         }
     }
 
-    int min_value(WidgetHandle h) const noexcept {
+    int SoaKernel::min_value(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1813,7 +1819,7 @@
         return 0;
     }
 
-    int max_value(WidgetHandle h) const noexcept {
+    int SoaKernel::max_value(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1837,7 +1843,7 @@
         return 0;
     }
 
-    void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation orient) noexcept {
+    void SoaKernel::set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation orient) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1851,7 +1857,7 @@
         mark_paint_dirty();
     }
 
-    ScrollBarOrientation scrollbar_orientation(WidgetHandle h) const noexcept {
+    ScrollBarOrientation SoaKernel::scrollbar_orientation(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return ScrollBarOrientation::Horizontal;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1864,7 +1870,7 @@
         return static_cast<ScrollBarOrientation>(payload->orientation);
     }
 
-    void set_scrollbar_page_size(WidgetHandle h, int page_size) noexcept {
+    void SoaKernel::set_scrollbar_page_size(WidgetHandle h, int page_size) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1878,7 +1884,7 @@
         mark_paint_dirty();
     }
 
-    int scrollbar_page_size(WidgetHandle h) const noexcept {
+    int SoaKernel::scrollbar_page_size(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1890,7 +1896,7 @@
         return payload ? payload->page_size : 0;
     }
 
-    void set_scrollbar_target(WidgetHandle h, WidgetHandle target) noexcept {
+    void SoaKernel::set_scrollbar_target(WidgetHandle h, WidgetHandle target) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1911,7 +1917,7 @@
         mark_paint_dirty();
     }
 
-    WidgetHandle scrollbar_target(WidgetHandle h) const noexcept {
+    WidgetHandle SoaKernel::scrollbar_target(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return {};
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1925,7 +1931,7 @@
         return valid(target) ? target : WidgetHandle{};
     }
 
-    void set_checked(WidgetHandle h, bool on) noexcept {
+    void SoaKernel::set_checked(WidgetHandle h, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1974,7 +1980,7 @@
         mark_paint_dirty();
     }
 
-    bool checked(WidgetHandle h) const noexcept {
+    bool SoaKernel::checked(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2006,7 +2012,7 @@
         return false;
     }
 
-    void set_scroll_y(WidgetHandle h, int y) noexcept {
+    void SoaKernel::set_scroll_y(WidgetHandle h, int y) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2101,7 +2107,7 @@
         }
     }
 
-    void add_scroll_y(WidgetHandle h, int dy) noexcept {
+    void SoaKernel::add_scroll_y(WidgetHandle h, int dy) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2160,7 +2166,7 @@
         }
     }
 
-    int scroll_y(WidgetHandle h) const noexcept {
+    int SoaKernel::scroll_y(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2204,7 +2210,7 @@
         return 0;
     }
 
-    void set_scroll_step(WidgetHandle h, int step) noexcept {
+    void SoaKernel::set_scroll_step(WidgetHandle h, int step) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2264,7 +2270,7 @@
         }
     }
 
-    int scroll_step(WidgetHandle h) const noexcept {
+    int SoaKernel::scroll_step(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 24;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2308,7 +2314,7 @@
         return 24;
     }
 
-    void set_list_row_height(WidgetHandle h, int row_h) noexcept {
+    void SoaKernel::set_list_row_height(WidgetHandle h, int row_h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2350,7 +2356,7 @@
         unsupported_kind(common_.kind[idx]);
     }
 
-    int list_row_height(WidgetHandle h) const noexcept {
+    int SoaKernel::list_row_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 28;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2378,7 +2384,7 @@
         return 28;
     }
 
-    void apply_list_layout(WidgetHandle h, int padding) noexcept {
+    void SoaKernel::apply_list_layout(WidgetHandle h, int padding) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2402,87 +2408,87 @@
         }
     }
 
-    void set_layout_kind(WidgetHandle h, SoaLayoutKind kind) noexcept {
+    void SoaKernel::set_layout_kind(WidgetHandle h, SoaLayoutKind kind) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         common_.layout_kind[idx] = static_cast<std::uint8_t>(kind);
         mark_layout_dirty();
     }
 
-    SoaLayoutKind layout_kind(WidgetHandle h) const noexcept {
+    SoaLayoutKind SoaKernel::layout_kind(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return SoaLayoutKind::None;
         return static_cast<SoaLayoutKind>(common_.layout_kind[idx]);
     }
 
-    void set_layout_state_influence(bool on) noexcept {
+    void SoaKernel::set_layout_state_influence(bool on) noexcept {
         layout_state_influence_ = on;
         mark_layout_dirty();
     }
 
-    bool layout_state_influence() const noexcept {
+    bool SoaKernel::layout_state_influence() const noexcept {
         return layout_state_influence_;
     }
 
-    std::uint8_t layout_state_influence_mask(WidgetKind kind) const noexcept {
+    std::uint8_t SoaKernel::layout_state_influence_mask(WidgetKind kind) const noexcept {
         return layout_state_mask_for_kind(kind);
     }
 
-    std::uint32_t layout_dirty_version() const noexcept {
+    std::uint32_t SoaKernel::layout_dirty_version() const noexcept {
         return layout_dirty_version_;
     }
 
-    std::uint32_t paint_dirty_version() const noexcept {
+    std::uint32_t SoaKernel::paint_dirty_version() const noexcept {
         return paint_dirty_version_;
     }
 
-    bool payload_overflowed() const noexcept {
+    bool SoaKernel::payload_overflowed() const noexcept {
         return payloads_.overflowed();
     }
 
-    bool text_overflowed() const noexcept {
+    bool SoaKernel::text_overflowed() const noexcept {
         return payloads_.text_overflowed();
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    soa_detail::PayloadStats payload_stats() const noexcept {
+    soa_detail::PayloadStats SoaKernel::payload_stats() const noexcept {
         return payloads_.stats();
     }
 #endif
 
-    std::uint32_t layout_applied_version() const noexcept {
+    std::uint32_t SoaKernel::layout_applied_version() const noexcept {
         return layout_applied_version_;
     }
 
-    void set_layout_applied_version(std::uint32_t v) noexcept {
+    void SoaKernel::set_layout_applied_version(std::uint32_t v) noexcept {
         layout_applied_version_ = v;
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    void layout_trace_reset() noexcept {
+    void SoaKernel::layout_trace_reset() noexcept {
         layout_invalidated_count_ = 0;
         layout_pass_count_ = 0;
         paint_invalidated_count_ = 0;
     }
 
-    std::uint32_t layout_invalidated_count() const noexcept {
+    std::uint32_t SoaKernel::layout_invalidated_count() const noexcept {
         return layout_invalidated_count_;
     }
 
-    std::uint32_t layout_pass_count() const noexcept {
+    std::uint32_t SoaKernel::layout_pass_count() const noexcept {
         return layout_pass_count_;
     }
 
-    std::uint32_t paint_invalidated_count() const noexcept {
+    std::uint32_t SoaKernel::paint_invalidated_count() const noexcept {
         return paint_invalidated_count_;
     }
 
-    void layout_trace_on_pass() noexcept {
+    void SoaKernel::layout_trace_on_pass() noexcept {
         layout_pass_count_ += 1u;
     }
 #endif
 
-    int compute_content_height(WidgetHandle h) const noexcept {
+    int SoaKernel::compute_content_height(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2553,7 +2559,7 @@
         return max_bottom;
     }
 
-    int max_scroll(WidgetHandle h) const noexcept {
+    int SoaKernel::max_scroll(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2580,14 +2586,14 @@
         return max_scroll;
     }
 
-    int clamp_scroll_y(WidgetHandle h, int y) const noexcept {
+    int SoaKernel::clamp_scroll_y(WidgetHandle h, int y) const noexcept {
         const int max_scroll_value = max_scroll(h);
         if (y < 0) return 0;
         if (y > max_scroll_value) return max_scroll_value;
         return y;
     }
 
-    int table_view_content_width(WidgetHandle h) const noexcept {
+    int SoaKernel::table_view_content_width(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2609,7 +2615,7 @@
         return total;
     }
 
-    int max_scroll_x(WidgetHandle h) const noexcept {
+    int SoaKernel::max_scroll_x(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2630,14 +2636,14 @@
         return max_scroll;
     }
 
-    int clamp_scroll_x(WidgetHandle h, int x) const noexcept {
+    int SoaKernel::clamp_scroll_x(WidgetHandle h, int x) const noexcept {
         const int max_scroll_value = max_scroll_x(h);
         if (x < 0) return 0;
         if (x > max_scroll_value) return max_scroll_value;
         return x;
     }
 
-    void set_table_view_scroll_x_clamped(WidgetHandle h, int x) noexcept {
+    void SoaKernel::set_table_view_scroll_x_clamped(WidgetHandle h, int x) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -2654,7 +2660,7 @@
         }
     }
 
-    void set_scroll_y_clamped(WidgetHandle h, int y) noexcept {
+    void SoaKernel::set_scroll_y_clamped(WidgetHandle h, int y) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const int clamped = clamp_scroll_y(h, y);

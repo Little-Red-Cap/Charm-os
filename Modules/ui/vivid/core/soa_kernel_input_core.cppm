@@ -1,43 +1,15 @@
-    static constexpr std::size_t kMaxInputEvents = 32;
+module;
 
-    struct InputEventQueue {
-        std::array<SoaInputEvent, kMaxInputEvents> events{};
-        std::size_t count{0};
-        bool overflowed{false};
+export module charm.core.soa_kernel:input_core;
 
-        void clear() noexcept {
-            count = 0;
-            overflowed = false;
-        }
-    };
+import :class;
 
-    struct InputState {
-        WidgetHandle root{};
-        WidgetHandle hovered{};
-        WidgetHandle pressed{};
-        WidgetHandle focused{};
-        WidgetHandle captured{};
-        WidgetHandle scroll_target{};
-        int drag_start_x{0};
-        int drag_start_y{0};
-        int drag_last_x{0};
-        int drag_last_y{0};
-        int last_x{0};
-        int last_y{0};
-        std::uint32_t last_ms{0};
-        int button{0};
-        int drag_threshold_sq{25};
-        bool dragging{false};
-    };
 
-    InputEventQueue input_events_{};
-    InputState input_{};
-
-    static int clamp_int(int v, int lo, int hi) noexcept {
+    int SoaKernel::clamp_int(int v, int lo, int hi) noexcept {
         return (v < lo) ? lo : (v > hi ? hi : v);
     }
 
-    static int div_floor(int num, int den) noexcept {
+    int SoaKernel::div_floor(int num, int den) noexcept {
         if (den == 0) return 0;
         int q = num / den;
         if ((num < 0) != (den < 0) && (num % den) != 0) {
@@ -46,7 +18,7 @@
         return q;
     }
 
-    void input_emit_event(WidgetHandle target, const Event& e) noexcept {
+    void SoaKernel::input_emit_event(WidgetHandle target, const Event& e) noexcept {
         if (!target) return;
         if (input_events_.overflowed) return;
         if (input_events_.count >= input_events_.events.size()) {
@@ -56,12 +28,12 @@
         input_events_.events[input_events_.count++] = SoaInputEvent{target, e};
     }
 
-    bool input_is_invalid(WidgetHandle node) const noexcept {
+    bool SoaKernel::input_is_invalid(WidgetHandle node) const noexcept {
         if (!node) return false;
         return index_of(node) == kInvalidIndex;
     }
 
-    bool input_is_descendant(WidgetHandle node, WidgetHandle ancestor) const noexcept {
+    bool SoaKernel::input_is_descendant(WidgetHandle node, WidgetHandle ancestor) const noexcept {
         if (!node) return false;
         const std::uint16_t idx = index_of(node);
         if (idx == kInvalidIndex) return false;
@@ -76,7 +48,7 @@
         return false;
     }
 
-    void clear_scrollbar_targets(WidgetHandle h) noexcept {
+    void SoaKernel::clear_scrollbar_targets(WidgetHandle h) noexcept {
         for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
             if (!flag_raw(i, SoaNodeFlag::Used)) continue;
             if (common_.kind[i] != WidgetKind::ScrollBar) continue;
@@ -92,7 +64,7 @@
         }
     }
 
-    void input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) {
+    void SoaKernel::input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) {
         if (input_.captured == h) return;
         const WidgetHandle old = input_.captured;
         if (emit_cancel && old) {
@@ -113,7 +85,7 @@
         input_.button = h ? button : 0;
     }
 
-    void input_on_destroy(WidgetHandle h) {
+    void SoaKernel::input_on_destroy(WidgetHandle h) {
         if (!h) return;
         const int x = input_.last_x;
         const int y = input_.last_y;
@@ -172,7 +144,7 @@
         }
     }
 
-    void input_handle_click(WidgetHandle h, int x, int y) {
+    void SoaKernel::input_handle_click(WidgetHandle h, int x, int y) {
         const WidgetKind k = kind(h);
         const SoaBehavior behavior = behavior_for_kind(k);
         const WidgetHandle toggle_group = input_find_toggle_group_ancestor(h);
@@ -277,7 +249,7 @@
         WidgetHandle target{};
     };
 
-    bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) {
+    bool SoaKernel::scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) {
         const ScrollBarOrientation orient = scrollbar_orientation(h);
         Rect r = input_world_rect(h);
         int margin = metrics ? metrics->scrollbar_margin : 0;
@@ -349,7 +321,7 @@
         return true;
     }
 
-    bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) {
+    bool SoaKernel::input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) {
         ScrollBarTrackInfo info{};
         if (!scrollbar_track_info(h, metrics, info)) return false;
         const int coord = (info.orient == ScrollBarOrientation::Vertical) ? y : x;
@@ -377,7 +349,7 @@
         return true;
     }
 
-    void input_clear_sibling_checks(WidgetHandle h, WidgetKind kind) {
+    void SoaKernel::input_clear_sibling_checks(WidgetHandle h, WidgetKind kind) {
         const WidgetHandle p = parent(h);
         if (!p) return;
         for (auto child = first_child(p); child; child = next_sibling(child)) {
@@ -393,7 +365,7 @@
         }
     }
 
-    int input_segmented_index_from_pos(WidgetHandle h, int x) const noexcept {
+    int SoaKernel::input_segmented_index_from_pos(WidgetHandle h, int x) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return -1;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -411,11 +383,11 @@
         return idx_raw;
     }
 
-    void input_queue_update_slider_value(WidgetHandle h, int x, int y) {
+    void SoaKernel::input_queue_update_slider_value(WidgetHandle h, int x, int y) {
         input_emit_action(SoaInputAction{SoaInputActionType::UpdateSliderFromPos, h, x, y});
     }
 
-    void input_apply_update_slider_value(WidgetHandle h, int x, int y) {
+    void SoaKernel::input_apply_update_slider_value(WidgetHandle h, int x, int y) {
         const WidgetKind k = kind(h);
         const SoaBehavior behavior = behavior_for_kind(k);
         const StyleState state = input_make_state(*this, h);
@@ -462,7 +434,7 @@
         set_value(h, value);
     }
 
-    Rect input_world_rect(WidgetHandle h) const noexcept {
+    Rect SoaKernel::input_world_rect(WidgetHandle h) const noexcept {
         Rect r = rect(h);
         int ox = 0;
         int oy = 0;
@@ -490,7 +462,7 @@
         return r;
     }
 
-    WidgetHandle input_find_scroll_target(WidgetHandle hit) noexcept {
+    WidgetHandle SoaKernel::input_find_scroll_target(WidgetHandle hit) noexcept {
         if (!hit) return {};
         const SoaBehavior behavior = behavior_for_kind(kind(hit));
         switch (behavior.wheel_target) {
@@ -511,7 +483,7 @@
         return {};
     }
 
-    WidgetHandle input_find_scroll_ancestor(WidgetHandle h) const noexcept {
+    WidgetHandle SoaKernel::input_find_scroll_ancestor(WidgetHandle h) const noexcept {
         WidgetHandle cur = h;
         while (cur) {
             if (input_is_scrollable_kind(kind(cur))) {
@@ -522,7 +494,7 @@
         return {};
     }
 
-    WidgetHandle input_find_toggle_group_ancestor(WidgetHandle h) const noexcept {
+    WidgetHandle SoaKernel::input_find_toggle_group_ancestor(WidgetHandle h) const noexcept {
         WidgetHandle cur = parent(h);
         while (cur) {
             if (kind(cur) == WidgetKind::ToggleGroup) {
@@ -533,11 +505,11 @@
         return {};
     }
 
-    void input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
+    void SoaKernel::input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
         input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
     }
 
-    SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
+    SoaWheelAxisPolicy SoaKernel::input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback) const noexcept {
         if (!hit || !target) return fallback;
         if (kind(hit) != WidgetKind::ScrollBar) return fallback;
@@ -547,7 +519,7 @@
             : SoaWheelAxisPolicy::PreferVertical;
     }
 
-    void input_apply_scroll_by(WidgetHandle h, int dy, int dx) {
+    void SoaKernel::input_apply_scroll_by(WidgetHandle h, int dy, int dx) {
         const SoaBehavior behavior = behavior_for_kind(kind(h));
         if (behavior.scroll_axis == SoaScrollAxis::Both || behavior.scroll_axis == SoaScrollAxis::Vertical) {
             const int next = scroll_y(h) + dy;
@@ -560,7 +532,7 @@
         }
     }
 
-    void input_set_focus(WidgetHandle h) {
+    void SoaKernel::input_set_focus(WidgetHandle h) {
         if (input_.focused == h) return;
         if (input_.focused) {
             input_emit_event(input_.focused, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_.last_ms));
@@ -573,11 +545,11 @@
         }
     }
 
-    WidgetHandle input_drag_target() const noexcept {
+    WidgetHandle SoaKernel::input_drag_target() const noexcept {
         return input_.captured ? input_.captured : input_.pressed;
     }
 
-    std::uint16_t index_of(WidgetHandle h) const noexcept {
+    std::uint16_t SoaKernel::index_of(WidgetHandle h) const noexcept {
         const std::uint16_t idx = h.index;
         if (idx >= kMaxNodes) return kInvalidIndex;
         if (common_.kind[idx] != h.kind) return kInvalidIndex;
@@ -586,13 +558,13 @@
         return idx;
     }
 
-    WidgetHandle handle_from_index(std::uint16_t idx) const noexcept {
+    WidgetHandle SoaKernel::handle_from_index(std::uint16_t idx) const noexcept {
         if (idx == kInvalidIndex || idx >= kMaxNodes) return {};
         if (!flag_raw(idx, SoaNodeFlag::Used)) return {};
         return WidgetHandle{common_.kind[idx], idx, common_.generation[idx]};
     }
 
-    void detach_from_parent(std::uint16_t idx) noexcept {
+    void SoaKernel::detach_from_parent(std::uint16_t idx) noexcept {
         const std::uint16_t p = common_.parent[idx];
         if (p == kInvalidIndex) return;
         const std::uint16_t prev = common_.prev_sibling[idx];
@@ -615,7 +587,7 @@
         }
     }
 
-    void detach_children(std::uint16_t idx) noexcept {
+    void SoaKernel::detach_children(std::uint16_t idx) noexcept {
         std::uint16_t child = common_.first_child[idx];
         while (child != kInvalidIndex) {
             common_.parent[child] = kInvalidIndex;
@@ -629,7 +601,7 @@
         common_.child_count[idx] = 0;
     }
 
-    bool creates_cycle(std::uint16_t parent, std::uint16_t child) const noexcept {
+    bool SoaKernel::creates_cycle(std::uint16_t parent, std::uint16_t child) const noexcept {
         std::uint16_t p = parent;
         while (p != kInvalidIndex) {
             if (p == child) return true;
@@ -638,17 +610,17 @@
         return false;
     }
 
-    bool flag_raw(std::uint16_t idx, SoaNodeFlag flag) const noexcept {
+    bool SoaKernel::flag_raw(std::uint16_t idx, SoaNodeFlag flag) const noexcept {
         return (common_.flags[idx] & static_cast<std::uint8_t>(flag)) != 0;
     }
 
-    bool get_flag(WidgetHandle h, SoaNodeFlag flag) const noexcept {
+    bool SoaKernel::get_flag(WidgetHandle h, SoaNodeFlag flag) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         return flag_raw(idx, flag);
     }
 
-    void set_flag(WidgetHandle h, SoaNodeFlag flag, bool on) noexcept {
+    void SoaKernel::set_flag(WidgetHandle h, SoaNodeFlag flag, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const std::uint8_t mask = static_cast<std::uint8_t>(flag);
@@ -659,13 +631,13 @@
         }
     }
 
-    bool get_state_flag(WidgetHandle h, SoaStateFlag flag) const noexcept {
+    bool SoaKernel::get_state_flag(WidgetHandle h, SoaStateFlag flag) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return false;
         return (common_.state_flags[idx] & static_cast<std::uint8_t>(flag)) != 0;
     }
 
-    void set_state_flag(WidgetHandle h, SoaStateFlag flag, bool on) noexcept {
+    void SoaKernel::set_state_flag(WidgetHandle h, SoaStateFlag flag, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const std::uint8_t mask = static_cast<std::uint8_t>(flag);

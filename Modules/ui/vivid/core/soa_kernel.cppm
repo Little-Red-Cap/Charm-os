@@ -6,4 +6,6 @@ export import :types;
 export import :input;
 export import :actions;
 export import :behavior;
+export import :input_core;
+export import :payload;
 export import :class;

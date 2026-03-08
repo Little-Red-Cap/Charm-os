@@ -1,0 +1,735 @@
+
+module;
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include "features.hpp"
+
+export module charm.core.soa_kernel:class;
+
+export import :types;
+export import :input;
+export import charm.core.handle;
+export import charm.core.geometry;
+export import charm.core.config;
+export import charm.core.event;
+export import charm.core.widget_registry;
+export import charm.core.soa_registry;
+
+import charm.core.style;
+import charm.core.style_sheet;
+import charm.core.soa_payload;
+import alg_list_scroll;
+
+namespace {
+    constexpr std::uint16_t kInvalidIndex = 0xFFFF;
+}
+
+#ifdef CHARM_VIVID_SOA_MAX_NODES
+export constexpr std::size_t soa_max_nodes = CHARM_VIVID_SOA_MAX_NODES;
+#else
+export constexpr std::size_t soa_max_nodes = 256;
+#endif
+
+namespace soa_detail {
+    // ---- Storage / payload descriptor ----
+    template <std::size_t N>
+    struct CommonSoA {
+        std::array<WidgetKind, N> kind{};
+        std::array<std::uint16_t, N> generation{};
+        std::array<std::uint16_t, N> free_next{};
+        std::array<std::uint16_t, N> parent{};
+        std::array<std::uint16_t, N> first_child{};
+        std::array<std::uint16_t, N> last_child{};
+        std::array<std::uint16_t, N> next_sibling{};
+        std::array<std::uint16_t, N> prev_sibling{};
+        std::array<std::uint16_t, N> child_count{};
+        std::array<std::uint8_t, N> flags{};
+        std::array<std::uint8_t, N> state_flags{};
+        std::array<std::uint8_t, N> variant{};
+        std::array<Rect, N> rects{};
+        std::array<Rect, N> paint_bounds{};
+        std::array<std::uint8_t, N> layout_kind{};
+        std::array<PayloadHandle, N> payload{};
+    };
+
+}
+
+// ---- Kernel ----
+export
+class SoaKernel {
+public:
+    static constexpr std::size_t kMaxNodes = soa_max_nodes;
+
+    SoaKernel() noexcept {
+        free_head_ = 0;
+        for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
+            common_.free_next[i] = (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex;
+            common_.kind[i] = WidgetKind::None;
+            common_.generation[i] = 1;
+            common_.flags[i] = 0;
+            common_.state_flags[i] = 0;
+            common_.variant[i] = 0;
+            common_.rects[i] = Rect{};
+            common_.paint_bounds[i] = Rect{};
+            common_.parent[i] = kInvalidIndex;
+            common_.first_child[i] = kInvalidIndex;
+            common_.last_child[i] = kInvalidIndex;
+            common_.next_sibling[i] = kInvalidIndex;
+            common_.prev_sibling[i] = kInvalidIndex;
+            common_.child_count[i] = 0;
+            common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+            common_.payload[i] = soa_detail::invalid_payload_handle();
+        }
+        payloads_.reset();
+    }
+
+    WidgetHandle create(WidgetKind kind) noexcept {
+        if (!widget_kind_enabled(kind)) {
+            unsupported_kind(kind);
+            return {};
+        }
+        const auto desc = payload_descriptor(kind);
+        if (!desc.supported) {
+            unsupported_kind(kind);
+            return {};
+        }
+        if (free_head_ == kInvalidIndex) return {};
+        const std::uint16_t idx = free_head_;
+        free_head_ = common_.free_next[idx];
+        const SoaDefaults defaults = default_for_kind(kind);
+        common_.kind[idx] = kind;
+        common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
+            | static_cast<std::uint8_t>(SoaNodeFlag::Visible)
+            | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
+            | (defaults.hit_test ? static_cast<std::uint8_t>(SoaNodeFlag::HitTest) : std::uint8_t{0})
+            | (defaults.focusable ? static_cast<std::uint8_t>(SoaNodeFlag::Focusable) : std::uint8_t{0})
+            | (defaults.clip_children ? static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren) : std::uint8_t{0});
+        common_.state_flags[idx] = 0;
+        common_.variant[idx] = 0;
+        common_.rects[idx] = Rect{};
+        common_.paint_bounds[idx] = Rect{};
+        common_.parent[idx] = kInvalidIndex;
+        common_.first_child[idx] = kInvalidIndex;
+        common_.last_child[idx] = kInvalidIndex;
+        common_.next_sibling[idx] = kInvalidIndex;
+        common_.prev_sibling[idx] = kInvalidIndex;
+        common_.child_count[idx] = 0;
+        common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
+        const auto payload = payload_alloc(kind, idx);
+        if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
+            common_.kind[idx] = WidgetKind::None;
+            common_.flags[idx] = 0;
+            common_.state_flags[idx] = 0;
+            common_.variant[idx] = 0;
+            common_.rects[idx] = Rect{};
+            common_.paint_bounds[idx] = Rect{};
+            common_.parent[idx] = kInvalidIndex;
+            common_.first_child[idx] = kInvalidIndex;
+            common_.last_child[idx] = kInvalidIndex;
+            common_.next_sibling[idx] = kInvalidIndex;
+            common_.prev_sibling[idx] = kInvalidIndex;
+            common_.child_count[idx] = 0;
+            common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+            common_.payload[idx] = soa_detail::invalid_payload_handle();
+            common_.free_next[idx] = free_head_;
+            free_head_ = idx;
+            return {};
+        }
+        common_.payload[idx] = payload;
+        mark_layout_dirty();
+        return WidgetHandle{kind, idx, common_.generation[idx]};
+    }
+
+    void destroy(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        input_on_destroy(h);
+        clear_scrollbar_targets(h);
+        const WidgetKind old_kind = common_.kind[idx];
+        detach_from_parent(idx);
+        detach_children(idx);
+        common_.kind[idx] = WidgetKind::None;
+        common_.flags[idx] = 0;
+        common_.state_flags[idx] = 0;
+        common_.variant[idx] = 0;
+        common_.rects[idx] = Rect{};
+        common_.paint_bounds[idx] = Rect{};
+        common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+        payload_free(old_kind, common_.payload[idx], idx);
+        common_.payload[idx] = soa_detail::invalid_payload_handle();
+        mark_layout_dirty();
+        common_.generation[idx] = static_cast<std::uint16_t>(common_.generation[idx] + 1);
+        common_.free_next[idx] = free_head_;
+        free_head_ = idx;
+    }
+
+    bool valid(WidgetHandle h) const noexcept {
+        return index_of(h) != kInvalidIndex;
+    }
+
+    WidgetKind kind(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? WidgetKind::None : common_.kind[idx];
+    }
+
+    Rect rect(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? Rect{} : common_.rects[idx];
+    }
+
+    void set_rect(WidgetHandle h, const Rect& r) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.rects[idx] = r;
+        if (!rect_valid(common_.paint_bounds[idx])) {
+            common_.paint_bounds[idx] = r;
+        }
+        mark_layout_dirty();
+    }
+
+    Rect paint_bounds(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? Rect{} : common_.paint_bounds[idx];
+    }
+
+    void set_paint_bounds(WidgetHandle h, const Rect& r) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.paint_bounds[idx] = r;
+    }
+
+    bool link(WidgetHandle parent, WidgetHandle child) noexcept {
+        const std::uint16_t p = index_of(parent);
+        const std::uint16_t c = index_of(child);
+        if (p == kInvalidIndex || c == kInvalidIndex) return false;
+        if (p == c) return false;
+        if (creates_cycle(p, c)) return false;
+        detach_from_parent(c);
+        common_.parent[c] = p;
+        if (common_.last_child[p] != kInvalidIndex) {
+            const std::uint16_t last = common_.last_child[p];
+            common_.next_sibling[last] = c;
+            common_.prev_sibling[c] = last;
+            common_.last_child[p] = c;
+        } else {
+            common_.first_child[p] = c;
+            common_.last_child[p] = c;
+            common_.prev_sibling[c] = kInvalidIndex;
+        }
+        common_.next_sibling[c] = kInvalidIndex;
+        common_.child_count[p] = static_cast<std::uint16_t>(common_.child_count[p] + 1);
+        mark_layout_dirty();
+        return true;
+    }
+
+    bool unlink(WidgetHandle parent, WidgetHandle child) noexcept {
+        const std::uint16_t p = index_of(parent);
+        const std::uint16_t c = index_of(child);
+        if (p == kInvalidIndex || c == kInvalidIndex) return false;
+        if (common_.parent[c] != p) return false;
+        detach_from_parent(c);
+        mark_layout_dirty();
+        return true;
+    }
+
+    WidgetHandle parent(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        return handle_from_index(common_.parent[idx]);
+    }
+
+    WidgetHandle first_child(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        return handle_from_index(common_.first_child[idx]);
+    }
+
+    WidgetHandle last_child(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        return handle_from_index(common_.last_child[idx]);
+    }
+
+    WidgetHandle next_sibling(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        return handle_from_index(common_.next_sibling[idx]);
+    }
+
+    WidgetHandle prev_sibling(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        return handle_from_index(common_.prev_sibling[idx]);
+    }
+
+    std::size_t child_count(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? std::size_t{0} : static_cast<std::size_t>(common_.child_count[idx]);
+    }
+
+    void set_visible(WidgetHandle h, bool on) noexcept {
+        set_flag(h, SoaNodeFlag::Visible, on);
+    }
+
+    bool visible(WidgetHandle h) const noexcept {
+        return get_flag(h, SoaNodeFlag::Visible);
+    }
+
+    void set_enabled(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = flag_raw(idx, SoaNodeFlag::Enabled);
+        if (prev == on) return;
+        const std::uint8_t mask = static_cast<std::uint8_t>(SoaNodeFlag::Enabled);
+        if (on) {
+            common_.flags[idx] |= mask;
+        } else {
+            common_.flags[idx] = static_cast<std::uint8_t>(common_.flags[idx] & ~mask);
+        }
+        on_state_change(idx, SoaStateMask::Enabled);
+    }
+
+    bool enabled(WidgetHandle h) const noexcept {
+        return get_flag(h, SoaNodeFlag::Enabled);
+    }
+
+    void set_focusable(WidgetHandle h, bool on) noexcept {
+        set_flag(h, SoaNodeFlag::Focusable, on);
+    }
+
+    bool focusable(WidgetHandle h) const noexcept {
+        return get_flag(h, SoaNodeFlag::Focusable);
+    }
+
+    void set_hit_testable(WidgetHandle h, bool on) noexcept {
+        set_flag(h, SoaNodeFlag::HitTest, on);
+    }
+
+    bool hit_testable(WidgetHandle h) const noexcept {
+        return get_flag(h, SoaNodeFlag::HitTest);
+    }
+
+    void set_clip_children(WidgetHandle h, bool on) noexcept {
+        set_flag(h, SoaNodeFlag::ClipChildren, on);
+    }
+
+    bool clip_children(WidgetHandle h) const noexcept {
+        return get_flag(h, SoaNodeFlag::ClipChildren);
+    }
+
+    void set_hovered(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0;
+        if (prev == on) return;
+        set_state_flag(h, SoaStateFlag::Hovered, on);
+        on_state_change(idx, SoaStateMask::Hovered);
+    }
+
+    void set_pressed(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0;
+        if (prev == on) return;
+        set_state_flag(h, SoaStateFlag::Pressed, on);
+        on_state_change(idx, SoaStateMask::Pressed);
+    }
+
+    void set_focused(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0;
+        if (prev == on) return;
+        set_state_flag(h, SoaStateFlag::Focused, on);
+        on_state_change(idx, SoaStateMask::Focused);
+    }
+
+    bool hovered(WidgetHandle h) const noexcept {
+        return get_state_flag(h, SoaStateFlag::Hovered);
+    }
+
+    bool pressed(WidgetHandle h) const noexcept {
+        return get_state_flag(h, SoaStateFlag::Pressed);
+    }
+
+    bool focused(WidgetHandle h) const noexcept {
+        return get_state_flag(h, SoaStateFlag::Focused);
+    }
+
+    StateCompact state_compact(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return {};
+        std::uint8_t bits = 0;
+        if (flag_raw(idx, SoaNodeFlag::Enabled)) {
+            bits = static_cast<std::uint8_t>(SoaStateMask::Enabled);
+        }
+        const std::uint8_t flags = common_.state_flags[idx];
+        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0) {
+            bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Hovered));
+        }
+        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0) {
+            bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Pressed));
+        }
+        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0) {
+            bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Focused));
+        }
+        return StateCompact{bits, common_.variant[idx]};
+    }
+
+    void set_input_root(WidgetHandle root) noexcept {
+        input_.root = root;
+    }
+
+    WidgetHandle input_root() const noexcept {
+        return input_.root;
+    }
+
+    WidgetHandle input_hovered() const noexcept {
+        return input_.hovered;
+    }
+
+    WidgetHandle input_pressed() const noexcept {
+        return input_.pressed;
+    }
+
+    WidgetHandle input_focused() const noexcept {
+        return input_.focused;
+    }
+
+    WidgetHandle input_captured() const noexcept {
+        return input_.captured;
+    }
+
+    bool input_dragging() const noexcept {
+        return input_.dragging;
+    }
+
+    void input_clear_events() noexcept {
+        input_events_.clear();
+    }
+
+    std::size_t input_event_count() const noexcept {
+        return input_events_.count;
+    }
+
+    const SoaInputEvent& input_event(std::size_t idx) const noexcept {
+        assert(idx < input_events_.count);
+        return input_events_.events[idx];
+    }
+
+    bool input_events_overflowed() const noexcept {
+        return input_events_.overflowed;
+    }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+    void input_test_request_capture(WidgetHandle h) noexcept {
+        input_set_capture(h, input_.last_x, input_.last_y, input_.button, true);
+    }
+
+    void input_test_force_overflow() noexcept {
+        input_events_.clear();
+        if (!input_.root) return;
+        for (std::size_t i = 0; i < (kMaxInputEvents + 4); ++i) {
+            input_emit_event(input_.root, Event::mouse(Event::Type::MouseMove, input_.last_x, input_.last_y, 0, input_.last_ms));
+        }
+        if (input_events_.overflowed) {
+            input_handle_overflow(false);
+        }
+    }
+#endif
+
+    void set_drag_threshold(int px) noexcept {
+        input_.drag_threshold_sq = px * px;
+    }
+
+    void input_dispatch(const Event& e) noexcept {
+        if (!input_.root) return;
+        input_events_.clear();
+        input_actions_.clear();
+        input_.last_ms = e.ms;
+        switch (e.type) {
+        case Event::Type::HoverEnter:
+            break;
+        case Event::Type::HoverLeave:
+            break;
+        case Event::Type::MouseMove:
+            input_.last_x = e.x;
+            input_.last_y = e.y;
+            input_handle_hover(e.x, e.y, e.button);
+            if (input_.pressed || input_.captured) {
+                input_handle_drag(e.x, e.y, input_.button);
+                const WidgetHandle drag_target = input_drag_target();
+                if (drag_target) {
+                    const SoaBehavior behavior = behavior_for_kind(kind(drag_target));
+                    if (behavior.drag_behavior == SoaDragBehavior::UpdateValueFromPos
+                        || behavior.drag_behavior == SoaDragBehavior::ScrollBarTrack) {
+                        input_queue_update_slider_value(drag_target, e.x, e.y);
+                    }
+                }
+            } else if (input_.hovered) {
+                input_emit_event(input_.hovered, Event::mouse(Event::Type::MouseMove, e.x, e.y, e.button, e.ms));
+            }
+            break;
+        case Event::Type::MouseDown:
+            input_.last_x = e.x;
+            input_.last_y = e.y;
+            input_handle_press(e.x, e.y, e.button);
+            break;
+        case Event::Type::MouseUp:
+            input_.last_x = e.x;
+            input_.last_y = e.y;
+            input_handle_release(e.x, e.y, e.button);
+            break;
+        case Event::Type::MouseWheel:
+            input_.last_x = e.x;
+            input_.last_y = e.y;
+            input_handle_wheel(e.x, e.y, e.wheel_y);
+            break;
+        case Event::Type::Click:
+            break;
+        case Event::Type::DragStart:
+            break;
+        case Event::Type::DragMove:
+            break;
+        case Event::Type::DragEnd:
+            break;
+        case Event::Type::GestureSwipe:
+            break;
+        case Event::Type::GesturePinch:
+            break;
+        case Event::Type::FocusIn:
+            break;
+        case Event::Type::FocusOut:
+            break;
+        case Event::Type::KeyDown:
+            break;
+        case Event::Type::KeyUp:
+            break;
+        case Event::Type::Cancel:
+            input_.last_x = e.x;
+            input_.last_y = e.y;
+            input_handle_cancel(e.x, e.y, e.button);
+            break;
+        }
+        if (input_events_.overflowed) {
+            input_handle_overflow();
+            input_actions_.clear();
+            return;
+        }
+        if (input_actions_.overflowed) {
+            input_handle_action_overflow();
+            return;
+        }
+        input_apply_actions();
+    }
+
+    WidgetHandle input_hit_test(int x, int y) noexcept {
+        if (!input_.root) return {};
+        struct Frame {
+            WidgetHandle h{};
+            int offset_x{0};
+            int offset_y{0};
+            Rect clip{};
+            bool clip_enabled{false};
+        };
+        std::array<Frame, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = Frame{input_.root, 0, 0, Rect{}, false};
+        WidgetHandle result{};
+
+        while (sp > 0) {
+            Frame frame = stack[--sp];
+            if (!valid(frame.h)) continue;
+            if (!visible(frame.h)) continue;
+            if (!enabled(frame.h)) continue;
+
+            const Rect local = rect(frame.h);
+            const Rect world{local.x + frame.offset_x, local.y + frame.offset_y, local.w, local.h};
+            Rect hit_local = paint_bounds(frame.h);
+            if (!rect_valid(hit_local)) {
+                hit_local = local;
+            }
+            const Rect hit_world{
+                hit_local.x + frame.offset_x,
+                hit_local.y + frame.offset_y,
+                hit_local.w,
+                hit_local.h
+            };
+            if (frame.clip_enabled && !frame.clip.contains(x, y)) {
+                continue;
+            }
+            const bool inside = hit_world.contains(x, y);
+
+            if (inside && hit_testable(frame.h)) {
+                result = frame.h;
+            }
+
+            if (clip_children(frame.h) && !inside) {
+                continue;
+            }
+
+            int child_offset_x = frame.offset_x + local.x;
+            int child_offset_y = frame.offset_y + local.y;
+            if (input_is_scrollable_kind(kind(frame.h))) {
+                child_offset_y -= scroll_y(frame.h);
+            }
+            Rect child_clip = frame.clip;
+            bool child_clip_enabled = frame.clip_enabled;
+            if (clip_children(frame.h)) {
+                child_clip = world;
+                child_clip_enabled = true;
+            }
+
+            for (auto child = last_child(frame.h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = Frame{child, child_offset_x, child_offset_y, child_clip, child_clip_enabled};
+            }
+        }
+        return result;
+    }
+
+    void set_variant(WidgetHandle h, std::uint8_t variant) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        if (common_.variant[idx] == variant) return;
+        common_.variant[idx] = variant;
+        mark_layout_dirty();
+    }
+
+    std::uint8_t variant(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? std::uint8_t{0} : common_.variant[idx];
+    }
+
+    #include "soa_kernel_payload.inc"
+    soa_detail::CommonSoA<kMaxNodes> common_{};
+    soa_detail::PayloadManager payloads_{};
+    std::uint16_t free_head_{kInvalidIndex};
+    std::uint32_t layout_dirty_version_{0};
+    std::uint32_t paint_dirty_version_{0};
+    std::uint32_t layout_applied_version_{0};
+    bool layout_state_influence_{true};
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t layout_invalidated_count_{0};
+    std::uint32_t layout_pass_count_{0};
+    std::uint32_t paint_invalidated_count_{0};
+#endif
+
+    static void unsupported_kind(WidgetKind kind) noexcept {
+#ifndef NDEBUG
+        (void)kind;
+        assert(false && "SoaKernel unsupported WidgetKind");
+#else
+        (void)kind;
+#endif
+    }
+
+    soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {
+        const auto desc = payload_descriptor(kind);
+        if (!desc.supported) {
+            return soa_detail::invalid_payload_handle();
+        }
+        return payloads_.alloc(desc.payload, kind, owner_idx);
+    }
+
+    void payload_free(WidgetKind kind, soa_detail::PayloadHandle handle, std::uint16_t owner_idx) noexcept {
+        if (!soa_detail::payload_valid(handle)) return;
+        const auto desc = payload_descriptor(kind);
+        if (!desc.supported) return;
+        payloads_.free(desc.payload, kind, handle, owner_idx);
+    }
+
+    template <typename T>
+    T* payload_get(std::uint16_t idx) noexcept {
+        const auto handle = common_.payload[idx];
+        T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
+        if (!payload) {
+            unsupported_kind(common_.kind[idx]);
+        }
+        return payload;
+    }
+
+    template <typename T>
+    const T* payload_get(std::uint16_t idx) const noexcept {
+        const auto handle = common_.payload[idx];
+        const T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
+        if (!payload) {
+            unsupported_kind(common_.kind[idx]);
+        }
+        return payload;
+    }
+
+private:
+    void mark_layout_dirty() noexcept {
+        layout_dirty_version_ += 1u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        layout_invalidated_count_ += 1u;
+#endif
+    }
+
+    void mark_paint_dirty() noexcept {
+        paint_dirty_version_ += 1u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        paint_invalidated_count_ += 1u;
+#endif
+    }
+
+    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {
+        if (!layout_state_influence_) {
+            mark_paint_dirty();
+            return;
+        }
+        const std::uint8_t mask = layout_state_mask_for_kind(common_.kind[idx]);
+        if ((mask & static_cast<std::uint8_t>(bit)) != 0) {
+            mark_layout_dirty();
+            return;
+        }
+        mark_paint_dirty();
+    }
+
+    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept {
+        switch (kind) {
+        case WidgetKind::Container:
+        case WidgetKind::ScrollContainer:
+        case WidgetKind::Label:
+        case WidgetKind::Button:
+        case WidgetKind::Switch:
+        case WidgetKind::Slider:
+        case WidgetKind::Progress:
+        case WidgetKind::Checkbox:
+        case WidgetKind::Radio:
+        case WidgetKind::List:
+        case WidgetKind::ListItem:
+            return 0;
+        default:
+            return 0;
+        }
+    }
+
+    static StyleState input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept;
+    static bool input_is_scrollable_kind(WidgetKind kind) noexcept;
+    static bool input_is_checkable_kind(WidgetKind kind) noexcept;
+
+    static constexpr std::size_t kMaxInputActions = 32;
+
+    struct InputActionQueue {
+        std::array<SoaInputAction, kMaxInputActions> actions{};
+        std::size_t count{0};
+        bool overflowed{false};
+
+        void clear() noexcept {
+            count = 0;
+            overflowed = false;
+        }
+    };
+
+    InputActionQueue input_actions_{};
+
+    void input_emit_action(const SoaInputAction& action) noexcept;
+    void input_handle_action_overflow() noexcept;
+    void input_apply_action(const SoaInputAction& action) noexcept;
+    void input_apply_actions() noexcept;
+
+    #include "soa_kernel_input.inc"

@@ -346,31 +346,9 @@ export namespace soa_detail {
 
     enum class PayloadKind : std::uint8_t {
         None,
-        Label,
-        Button,
-        Image,
-        TextInput,
-        TextArea,
-        NumberInput,
-        SegmentedControl,
-        ToggleGroup,
-        Checkbox,
-        Radio,
-        ListItem,
-        TextList,
-        ListView,
-        TableView,
-        TreeView,
-        Stepper,
-        NumberList,
-        Roller,
-        Switch,
-        Slider,
-        ScrollBar,
-        Progress,
-        List,
-        ScrollContainer,
-        Spinner
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) name,
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
     };
 
     template <typename T, std::size_t N>
@@ -514,31 +492,9 @@ export namespace soa_detail {
 
     struct PayloadManager {
         void reset() noexcept {
-            label_.reset();
-            button_.reset();
-            image_.reset();
-            text_input_.reset();
-            text_area_.reset();
-            number_input_.reset();
-            segmented_.reset();
-            stepper_.reset();
-            toggle_group_.reset();
-            checkbox_.reset();
-            radio_.reset();
-            list_item_.reset();
-            text_list_.reset();
-            list_view_.reset();
-            table_view_.reset();
-            tree_view_.reset();
-            number_list_.reset();
-            roller_.reset();
-            switch_.reset();
-            slider_.reset();
-            progress_.reset();
-            scrollbar_.reset();
-            list_.reset();
-            scroll_container_.reset();
-            spinner_.reset();
+            #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) member.reset();
+            #include "widgets.payload.kinds.def"
+            #undef VIVID_PAYLOAD_KIND
             text_arena_.reset();
             overflowed_ = false;
         }
@@ -549,56 +505,11 @@ export namespace soa_detail {
             switch (payload) {
                 case PayloadKind::None:
                     return invalid_payload_handle();
-                case PayloadKind::Label:
-                    return handle_or_overflow(label_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Button:
-                    return handle_or_overflow(button_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Image:
-                    return handle_or_overflow(image_.alloc(owner_idx, kind), payload);
-                case PayloadKind::TextInput:
-                    return handle_or_overflow(text_input_.alloc(owner_idx, kind), payload);
-                case PayloadKind::TextArea:
-                    return handle_or_overflow(text_area_.alloc(owner_idx, kind), payload);
-                case PayloadKind::NumberInput:
-                    return handle_or_overflow(number_input_.alloc(owner_idx, kind), payload);
-                case PayloadKind::SegmentedControl:
-                    return handle_or_overflow(segmented_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Stepper:
-                    return handle_or_overflow(stepper_.alloc(owner_idx, kind), payload);
-                case PayloadKind::ToggleGroup:
-                    return handle_or_overflow(toggle_group_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Checkbox:
-                    return handle_or_overflow(checkbox_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Radio:
-                    return handle_or_overflow(radio_.alloc(owner_idx, kind), payload);
-                case PayloadKind::ListItem:
-                    return handle_or_overflow(list_item_.alloc(owner_idx, kind), payload);
-                case PayloadKind::TextList:
-                    return handle_or_overflow(text_list_.alloc(owner_idx, kind), payload);
-                case PayloadKind::ListView:
-                    return handle_or_overflow(list_view_.alloc(owner_idx, kind), payload);
-                case PayloadKind::TableView:
-                    return handle_or_overflow(table_view_.alloc(owner_idx, kind), payload);
-                case PayloadKind::TreeView:
-                    return handle_or_overflow(tree_view_.alloc(owner_idx, kind), payload);
-                case PayloadKind::NumberList:
-                    return handle_or_overflow(number_list_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Roller:
-                    return handle_or_overflow(roller_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Switch:
-                    return handle_or_overflow(switch_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Slider:
-                    return handle_or_overflow(slider_.alloc(owner_idx, kind), payload);
-                case PayloadKind::ScrollBar:
-                    return handle_or_overflow(scrollbar_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Progress:
-                    return handle_or_overflow(progress_.alloc(owner_idx, kind), payload);
-                case PayloadKind::List:
-                    return handle_or_overflow(list_.alloc(owner_idx, kind), payload);
-                case PayloadKind::ScrollContainer:
-                    return handle_or_overflow(scroll_container_.alloc(owner_idx, kind), payload);
-                case PayloadKind::Spinner:
-                    return handle_or_overflow(spinner_.alloc(owner_idx, kind), payload);
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+                case PayloadKind::name: \
+                    return handle_or_overflow(member.alloc(owner_idx, kind), payload);
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
             }
             return invalid_payload_handle();
         }
@@ -610,81 +521,12 @@ export namespace soa_detail {
             switch (payload) {
                 case PayloadKind::None:
                     return;
-                case PayloadKind::Label:
-                    label_.free(handle, owner_idx, kind);
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+                case PayloadKind::name: \
+                    member.free(handle, owner_idx, kind); \
                     break;
-                case PayloadKind::Button:
-                    button_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Image:
-                    image_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::TextInput:
-                    text_input_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::TextArea:
-                    text_area_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::NumberInput:
-                    number_input_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::SegmentedControl:
-                    segmented_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Stepper:
-                    stepper_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::ToggleGroup:
-                    toggle_group_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Checkbox:
-                    checkbox_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Radio:
-                    radio_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::ListItem:
-                    list_item_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::TextList:
-                    text_list_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::ListView:
-                    list_view_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::TableView:
-                    table_view_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::TreeView:
-                    tree_view_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::NumberList:
-                    number_list_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Roller:
-                    roller_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Switch:
-                    switch_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Slider:
-                    slider_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::ScrollBar:
-                    scrollbar_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Progress:
-                    progress_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::List:
-                    list_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::ScrollContainer:
-                    scroll_container_.free(handle, owner_idx, kind);
-                    break;
-                case PayloadKind::Spinner:
-                    spinner_.free(handle, owner_idx, kind);
-                    break;
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
             }
         }
 
@@ -720,31 +562,10 @@ export namespace soa_detail {
 
         PayloadStats stats() const noexcept {
             PayloadStats out{};
-            out.label = label_.stats();
-            out.button = button_.stats();
-            out.image = image_.stats();
-            out.text_input = text_input_.stats();
-            out.text_area = text_area_.stats();
-            out.number_input = number_input_.stats();
-            out.segmented = segmented_.stats();
-            out.toggle_group = toggle_group_.stats();
-            out.checkbox = checkbox_.stats();
-            out.radio = radio_.stats();
-            out.list_item = list_item_.stats();
-            out.text_list = text_list_.stats();
-            out.list_view = list_view_.stats();
-            out.table_view = table_view_.stats();
-            out.tree_view = tree_view_.stats();
-            out.stepper = stepper_.stats();
-            out.number_list = number_list_.stats();
-            out.roller = roller_.stats();
-            out.switcher = switch_.stats();
-            out.slider = slider_.stats();
-            out.progress = progress_.stats();
-            out.scrollbar = scrollbar_.stats();
-            out.list = list_.stats();
-            out.scroll_container = scroll_container_.stats();
-            out.spinner = spinner_.stats();
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+            out.stats_field = member.stats();
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
             out.overflowed = overflowed_;
             out.text_overflowed = text_arena_.overflowed;
             return out;
@@ -764,85 +585,20 @@ export namespace soa_detail {
             return handle;
         }
 
-        using LabelPool = PayloadPool<LabelPayload, pool_cap(WidgetKind::Label)>;
-        using ButtonPool = PayloadPool<ButtonPayload, pool_cap(WidgetKind::Button)>;
-        using ImagePool = PayloadPool<ImagePayload, pool_cap(WidgetKind::Image)>;
-        using TextInputPool = PayloadPool<TextInputPayload, pool_cap(WidgetKind::TextInput)>;
-        using TextAreaPool = PayloadPool<TextAreaPayload, pool_cap(WidgetKind::TextArea)>;
-        using NumberInputPool = PayloadPool<NumberInputPayload, pool_cap(WidgetKind::NumberInput)>;
-        using SegmentedPool = PayloadPool<SegmentedControlPayload, pool_cap(WidgetKind::SegmentedControl)>;
-        using StepperPool = PayloadPool<StepperPayload, pool_cap(WidgetKind::Stepper)>;
-        using ToggleGroupPool = PayloadPool<ToggleGroupPayload, pool_cap(WidgetKind::ToggleGroup)>;
-        using CheckboxPool = PayloadPool<CheckboxPayload, pool_cap(WidgetKind::Checkbox)>;
-        using RadioPool = PayloadPool<RadioPayload, pool_cap(WidgetKind::Radio)>;
-        using ListItemPool = PayloadPool<ListItemPayload, pool_cap(WidgetKind::ListItem)>;
-        using TextListPool = PayloadPool<TextListPayload, pool_cap(WidgetKind::TextList)>;
-        using ListViewPool = PayloadPool<ListViewPayload, pool_cap(WidgetKind::ListView)>;
-        using TableViewPool = PayloadPool<TableViewPayload, pool_cap(WidgetKind::TableView)>;
-        using TreeViewPool = PayloadPool<TreeViewPayload, pool_cap(WidgetKind::TreeView)>;
-        using NumberListPool = PayloadPool<NumberListPayload, pool_cap(WidgetKind::NumberList)>;
-        using RollerPool = PayloadPool<RollerPayload, pool_cap(WidgetKind::Roller)>;
-        using SwitchPool = PayloadPool<SwitchPayload, pool_cap(WidgetKind::Switch)>;
-        using SliderPool = PayloadPool<SliderPayload, pool_cap(WidgetKind::Slider)>;
-        using ProgressPool = PayloadPool<ProgressPayload, pool_cap(WidgetKind::Progress)>;
-        using ScrollBarPool = PayloadPool<ScrollBarPayload, pool_cap(WidgetKind::ScrollBar)>;
-        using ListPool = PayloadPool<ListPayload, pool_cap(WidgetKind::List)>;
-        using ScrollContainerPool = PayloadPool<ScrollContainerPayload, pool_cap(WidgetKind::ScrollContainer)>;
-        using SpinnerPool = PayloadPool<SpinnerPayload, pool_cap(WidgetKind::Spinner)>;
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+        using name##Pool = PayloadPool<name##Payload, pool_cap(WidgetKind::cap_kind)>;
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
 
         template <typename T>
         auto& pool_for() noexcept {
-            if constexpr (std::is_same_v<T, LabelPayload>) {
-                return label_;
-            } else if constexpr (std::is_same_v<T, ButtonPayload>) {
-                return button_;
-            } else if constexpr (std::is_same_v<T, ImagePayload>) {
-                return image_;
-            } else if constexpr (std::is_same_v<T, TextInputPayload>) {
-                return text_input_;
-            } else if constexpr (std::is_same_v<T, TextAreaPayload>) {
-                return text_area_;
-            } else if constexpr (std::is_same_v<T, NumberInputPayload>) {
-                return number_input_;
-            } else if constexpr (std::is_same_v<T, SegmentedControlPayload>) {
-                return segmented_;
-            } else if constexpr (std::is_same_v<T, StepperPayload>) {
-                return stepper_;
-            } else if constexpr (std::is_same_v<T, ToggleGroupPayload>) {
-                return toggle_group_;
-            } else if constexpr (std::is_same_v<T, CheckboxPayload>) {
-                return checkbox_;
-            } else if constexpr (std::is_same_v<T, RadioPayload>) {
-                return radio_;
-            } else if constexpr (std::is_same_v<T, ListItemPayload>) {
-                return list_item_;
-            } else if constexpr (std::is_same_v<T, TextListPayload>) {
-                return text_list_;
-            } else if constexpr (std::is_same_v<T, ListViewPayload>) {
-                return list_view_;
-            } else if constexpr (std::is_same_v<T, TableViewPayload>) {
-                return table_view_;
-            } else if constexpr (std::is_same_v<T, TreeViewPayload>) {
-                return tree_view_;
-            } else if constexpr (std::is_same_v<T, NumberListPayload>) {
-                return number_list_;
-            } else if constexpr (std::is_same_v<T, RollerPayload>) {
-                return roller_;
-            } else if constexpr (std::is_same_v<T, SwitchPayload>) {
-                return switch_;
-            } else if constexpr (std::is_same_v<T, SliderPayload>) {
-                return slider_;
-            } else if constexpr (std::is_same_v<T, ProgressPayload>) {
-                return progress_;
-            } else if constexpr (std::is_same_v<T, ScrollBarPayload>) {
-                return scrollbar_;
-            } else if constexpr (std::is_same_v<T, ListPayload>) {
-                return list_;
-            } else if constexpr (std::is_same_v<T, ScrollContainerPayload>) {
-                return scroll_container_;
-            } else if constexpr (std::is_same_v<T, SpinnerPayload>) {
-                return spinner_;
-            } else {
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+            if constexpr (std::is_same_v<T, name##Payload>) { \
+                return member; \
+            } else
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
+            {
                 static_assert(always_false_v<T>, "Unknown payload type");
             }
         }
@@ -904,31 +660,10 @@ export namespace soa_detail {
             }
         }
 
-        LabelPool label_{};
-        ButtonPool button_{};
-        ImagePool image_{};
-        TextInputPool text_input_{};
-        TextAreaPool text_area_{};
-        NumberInputPool number_input_{};
-        SegmentedPool segmented_{};
-        StepperPool stepper_{};
-        ToggleGroupPool toggle_group_{};
-        CheckboxPool checkbox_{};
-        RadioPool radio_{};
-        ListItemPool list_item_{};
-        TextListPool text_list_{};
-        ListViewPool list_view_{};
-        TableViewPool table_view_{};
-        TreeViewPool tree_view_{};
-        NumberListPool number_list_{};
-        RollerPool roller_{};
-        SwitchPool switch_{};
-        SliderPool slider_{};
-        ProgressPool progress_{};
-        ScrollBarPool scrollbar_{};
-        ListPool list_{};
-        ScrollContainerPool scroll_container_{};
-        SpinnerPool spinner_{};
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+        name##Pool member{};
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
         TextArena text_arena_{};
         bool overflowed_{false};
     };

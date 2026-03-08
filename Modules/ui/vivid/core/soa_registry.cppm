@@ -132,9 +132,14 @@ namespace {
         } while (0);
 #include "widgets.behavior.scroll.def"
 #undef VIVID_WIDGET_BEHAVIOR_SCROLL
-        auto& table_view = table[static_cast<std::size_t>(WidgetKind::TableView)];
-        table_view.scroll_axis = SoaScrollAxis::Both;
-        table_view.wheel_axis = SoaWheelAxisPolicy::HorizontalIfNoVertical;
+#define VIVID_WIDGET_BEHAVIOR_EXTRA(name, scroll_axis_value, wheel_axis_value) \
+        do { \
+            auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
+            entry.scroll_axis = SoaScrollAxis::scroll_axis_value; \
+            entry.wheel_axis = SoaWheelAxisPolicy::wheel_axis_value; \
+        } while (0);
+#include "widgets.behavior.extra.def"
+#undef VIVID_WIDGET_BEHAVIOR_EXTRA
 #define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \

@@ -1,30 +1,75 @@
 ﻿# 文档索引
 
-本目录按主题分组。第一次阅读建议按“入门路径”，再按需深入各专题。
+本页是 `docs/` 的文档地图与路由入口。  
+用于按任务或专题查找文档，不替代新同学入门文档 `docs/overview.md`。
 
-## 入门路径（第一次看这里）\n- 入门指南：docs/overview.md\n- 架构总览：`docs/architecture_overview.md`
+如果你是新同学，建议先读 `docs/overview.md`。
+
+## 快速开始
+- 入门指南：`docs/overview.md`
+- 架构总览：`docs/architecture_overview.md`
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - 输入链路：`docs/input/input_layering_decision.md`
 
-## 常见问题入口
-- 我要新增一个板级能力（UART/SPI/Flash）：从 `docs/system/init_graph_contract.md` 开始，再看 `docs/io/io_layering_overview.md`
-- 我要接入文件系统：先读 `docs/storage/block_device_contract.md` 与 `docs/storage/fs_vfs_mount_rules.md`
-- 我要做 USB 设备：先读 `docs/usb/usb_arch_plan.md` 与 `docs/usb/usb_dsl_overview.md`
-- 我要理解输入链路：`docs/input/input_layering_decision.md` 与 `docs/input/input_protocol_map.md`
+## 文档体系图
 
-## 总览
+```mermaid
+flowchart TD
+    A["docs/overview.md<br/>10 分钟入门"] --> B["docs/architecture_overview.md<br/>全局架构图"]
+    A --> C["docs/project/项目C++编码要求.md<br/>开始改代码前必读"]
+    A --> D["docs/agent/README.md<br/>AI / Agent 协作入口"]
+
+    E["docs/README.md<br/>文档地图 / 路由入口"] --> F["按任务找文档"]
+    E --> G["按专题索引"]
+
+    B --> H["architecture/*"]
+    B --> I["io/*"]
+    B --> J["system/*"]
+
+    F --> K["storage/*"]
+    F --> L["usb/*"]
+    F --> D
+```
+
+## 按任务找文档
+
+| 我要做什么 | 先看什么 |
+| --- | --- |
+| 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
+| 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
+| 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
+| 开始改代码 | `docs/overview.md` → `docs/project/项目C++编码要求.md` |
+| 和 AI 协作 | `docs/agent/README.md` |
+| 做代码审查 | `docs/agent/skills/code-review/` |
+
+## 按专题索引
+
+### 文档分层图
+```text
+docs/
+├─ overview.md                新同学 10 分钟入口
+├─ architecture_overview.md   全局架构图
+├─ README.md                  文档总索引
+├─ agent/                     AI / Agent 协作体系
+├─ architecture/              架构规则与依赖边界
+├─ io/                        IO 核心契约
+├─ system/                    装配、启动、系统服务
+└─ ...
+```
+
+### 总览
 - `docs/architecture_overview.md`
 
-## 架构与依赖
+### 架构与依赖
 - `docs/architecture/dependency_contract.md`
 - `docs/architecture/dependency_whitelist.md`
 - `docs/architecture/device_model_overview.md`
 - `docs/architecture/capability_recovery_rules.md`
 - `docs/architecture/capability_recovery_matrix.md`
 
-## IO 与输入
+### IO 与输入
 - `docs/io/io_layering_overview.md`
 - `docs/io/io_channel_contract.md`
 - `docs/io/io_reactor_contract.md`
@@ -32,7 +77,7 @@
 - `docs/input/input_layering_decision.md`
 - `docs/input/input_protocol_map.md`
 
-## 存储/文件系统
+### 存储/文件系统
 - `docs/storage/block_device_contract.md`
 - `docs/storage/mal_overview.md`
 - `docs/storage/mal_fatfs_demo.md`
@@ -41,13 +86,13 @@
 - `docs/storage/fs_fatfs_demo.md`
 - `docs/storage/filex_charm_map.md`
 
-## USB
+### USB
 - `docs/usb/usb_arch_plan.md`
 - `docs/usb/usb_dsl_overview.md`
 - `docs/usb/usb_cdc_contract.md`
 - `docs/usb/usb_strings_overview.md`
 
-## 系统与启动
+### 系统与启动
 - `docs/system/init_graph_contract.md`
 - `docs/system/service_component_init.md`
 - `docs/system/power_lowpower_overview.md`
@@ -56,18 +101,18 @@
 - `docs/boot/bootloader_overview.md`
 - `docs/boot/bootloader_xymodem.md`
 
-## Trace
+### Trace
 - `docs/trace/trace_core_entry.md`
 - `docs/trace/trace_core_ids.md`
 
-## VSF 参考
+### VSF 参考
 - `docs/vsf/vsf_comparison.md`
 - `docs/vsf/vsf_component_scan.md`
 - `docs/vsf/vsf_storage_map.md`
 - `docs/vsf/vsf_tcpip_map.md`
 - `docs/vsf/vsf_usb_map.md`
 
-## 项目规范与协作
+### 项目规范与协作
 - `docs/project/project_conventions.md`
 - `docs/project/项目C++编码要求.md`
 - `docs/project/《协作期待与规范》.md`
@@ -77,6 +122,5 @@
 - `docs/project/player_issue_log.md`
 - `docs/project/Powershell设置utf8.md`
 
-## UI
+### UI
 - `docs/ui/player_ui.md`
-

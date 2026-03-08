@@ -1,6 +1,7 @@
 ﻿# 文档索引
 
-本目录按主题分组。首次阅读建议按“快速开始”，再按需进入任务与专题索引。
+本页是 `docs/` 的文档地图与路由入口。  
+用于按任务或专题查找文档，不替代新同学入门文档 `docs/overview.md`。
 
 ## 快速开始
 - 入门指南：`docs/overview.md`
@@ -11,10 +12,15 @@
 - 输入链路：`docs/input/input_layering_decision.md`
 
 ## 按任务找文档
-- 我要新增一个板级能力（UART/SPI/Flash）：从 `docs/system/init_graph_contract.md` 开始，再看 `docs/io/io_layering_overview.md`
-- 我要接入文件系统：先读 `docs/storage/block_device_contract.md` 与 `docs/storage/fs_vfs_mount_rules.md`
-- 我要做 USB 设备：先读 `docs/usb/usb_arch_plan.md` 与 `docs/usb/usb_dsl_overview.md`
-- 我要理解输入链路：`docs/input/input_layering_decision.md` 与 `docs/input/input_protocol_map.md`
+
+| 我要做什么 | 先看什么 |
+| --- | --- |
+| 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
+| 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
+| 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
+| 开始改代码 | `docs/overview.md` → `docs/project/项目C++编码要求.md` |
+| 和 AI 协作 | `docs/agent/README.md` |
+| 做代码审查 | `docs/agent/skills/code-review/` |
 
 ## 按专题索引
 

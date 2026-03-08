@@ -3,6 +3,8 @@
 本页是 `docs/` 的文档地图与路由入口。  
 用于按任务或专题查找文档，不替代新同学入门文档 `docs/overview.md`。
 
+如果你是新同学，建议先读 `docs/overview.md`。
+
 ## 快速开始
 - 入门指南：`docs/overview.md`
 - 架构总览：`docs/architecture_overview.md`
@@ -10,6 +12,26 @@
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - 输入链路：`docs/input/input_layering_decision.md`
+
+## 文档体系图
+
+```mermaid
+flowchart TD
+    A["docs/overview.md<br/>10 分钟入门"] --> B["docs/architecture_overview.md<br/>全局架构图"]
+    A --> C["docs/project/项目C++编码要求.md<br/>开始改代码前必读"]
+    A --> D["docs/agent/README.md<br/>AI / Agent 协作入口"]
+
+    E["docs/README.md<br/>文档地图 / 路由入口"] --> F["按任务找文档"]
+    E --> G["按专题索引"]
+
+    B --> H["architecture/*"]
+    B --> I["io/*"]
+    B --> J["system/*"]
+
+    F --> K["storage/*"]
+    F --> L["usb/*"]
+    F --> D
+```
 
 ## 按任务找文档
 

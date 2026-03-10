@@ -43,6 +43,10 @@ Charm（统一架构）
 - Runtime：`charm.runtime`（system + io）
 - Domains：`charm.domain`（media + ui）
 
+UI/Vivid 公开入口：
+- 正式入口：`charm.ui.vivid`
+- 过渡入口：`charm.ui.vivid.full`（deprecated，后续移除）
+
 ```mermaid
 graph TD
     A[Charm 统一架构] --> C[Core]

@@ -1,8 +1,18 @@
 module;
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 export module charm.core.soa_kernel:payload;
 
-import :class;
+import :kernel_class;
+import :types;
+import charm.core.handle;
+import charm.core.soa_payload;
+import charm.core.soa_registry;
+import charm.core.style;
+import charm.core.style_sheet;
+import alg_list_scroll;
 
     void SoaKernel::set_text(WidgetHandle h, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);

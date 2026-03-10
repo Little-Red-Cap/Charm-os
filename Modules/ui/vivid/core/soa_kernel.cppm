@@ -8,4 +8,4 @@ export import :actions;
 export import :behavior;
 export import :input_core;
 export import :payload;
-export import :class;
+export import :kernel_class;

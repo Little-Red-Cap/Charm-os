@@ -2,7 +2,11 @@ module;
 
 export module charm.core.soa_kernel:behavior;
 
-import :class;
+import :kernel_class;
+import :types;
+import charm.core.handle;
+import charm.core.style;
+import charm.core.soa_registry;
 
 StyleState SoaKernel::input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
     const StateCompact state = kernel.state_compact(h);

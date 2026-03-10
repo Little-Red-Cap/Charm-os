@@ -18,7 +18,7 @@ export import charm.gfx.image;
 export import charm.gfx.render;
 export import charm.font;
 export import charm.font.typography;
-export import charm.widgets.text;
+export import charm.gfx.text_box;
 export import ui.render_backend;
 
 import util.core;

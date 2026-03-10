@@ -1,5 +1,6 @@
 ﻿#include <SDL3/SDL.h>
 #include <array>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -17,11 +18,13 @@ import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
 import charm.core.style;
+import charm.gfx.snapshot;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
 import charm.gfx.image;
+import charm.gfx.snapshot;
 import charm.font.typography;
 import out.api;
 
@@ -81,6 +84,7 @@ namespace {
         }
         return hash;
     }
+
 
     constexpr int kTestIconWidth = 8;
     constexpr int kTestIconHeight = 8;
@@ -274,6 +278,20 @@ namespace {
         buf.draw_path(g_demo_path_points.data(), 4, false, kDemoPath);
         buf.draw_icon(Rect{path_x + 44, path_y + 16, 24, 24}, g_test_icon_id);
         buf.draw_image_nine_slice(slice_rect, g_slice_id, 2, 2, 2, 2);
+    }
+
+    void apply_demo_theme() noexcept {
+        ThemeTokens tokens = Theme::instance().get_tokens();
+        tokens.surface = kDemoBg;
+        tokens.surface_variant = kDemoPanel;
+        tokens.outline = kDemoPanelBorder;
+        tokens.accent = kDemoPath;
+        tokens.on_surface = rgba{24, 28, 36, 255};
+        tokens.on_surface_muted = rgba{92, 100, 112, 255};
+        tokens.on_accent = rgba{255, 255, 255, 255};
+        tokens.focus_ring = kDemoPath;
+        Theme::instance().set_tokens_unsafe(tokens);
+        apply_baseline_theme_preset(make_style_from_tokens(tokens));
     }
 
     struct SdlTileBackend {
@@ -1805,7 +1823,9 @@ namespace {
                     "style: style table compiled without token change", fails);
 
         ThemeTokens tokens = Theme::instance().get_tokens();
-        apply_theme_tokens(tokens);
+        tokens.accent = adjust_by_luma(tokens.accent, 12);
+        Theme::instance().set_tokens_unsafe(tokens);
+        apply_baseline_theme_preset(make_style_from_tokens(tokens));
         const std::uint32_t role_after = sheet.role_palette_compile_count();
         const std::uint32_t table_after = sheet.style_table_compile_count();
         expect_true(role_after == role_before + 1u, "style: role palette not rebuilt", fails);
@@ -1921,8 +1941,14 @@ int main(int argc, char** argv) {
     bool selftest_dedup = false;
     bool replay_use_tiles = false;
     bool replay_backend_set = false;
+    bool run_screenshot = false;
+    bool run_gif = false;
+    int gif_frames = 1;
+    std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
     std::string replay_cmd_path{};
+    std::string screenshot_path{};
+    std::string gif_path{};
 #if defined(VIVID_SOA_TRACE_INPUT)
     char log_path[512]{};
     const char* temp_dir = std::getenv("TEMP");
@@ -1959,6 +1985,16 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--replay-cmd=", 0) == 0) {
             run_replay = true;
             replay_cmd_path = std::string(arg.substr(13));
+        } else if (arg.rfind("--screenshot=", 0) == 0) {
+            run_screenshot = true;
+            screenshot_path = std::string(arg.substr(13));
+        } else if (arg.rfind("--gif=", 0) == 0) {
+            run_gif = true;
+            gif_path = std::string(arg.substr(6));
+        } else if (arg.rfind("--gif-frames=", 0) == 0) {
+            gif_frames = std::atoi(std::string(arg.substr(13)).c_str());
+        } else if (arg.rfind("--gif-delay=", 0) == 0) {
+            gif_delay_cs = static_cast<std::uint16_t>(std::atoi(std::string(arg.substr(12)).c_str()));
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2013,9 +2049,11 @@ int main(int argc, char** argv) {
     };
 #endif
     g_selftest_dedup = selftest_dedup;
-    apply_ios_light_preset();
+    apply_demo_theme();
+    if (gif_frames <= 0) gif_frames = 1;
     const bool run_headless =
-        run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay;
+        run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay
+        || run_screenshot || run_gif;
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -2707,6 +2745,76 @@ int main(int argc, char** argv) {
             ci_reason ? ci_reason : "none");
         close_regress_log();
         return ok ? 0 : 1;
+    }
+#endif
+#if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_screenshot || run_gif) {
+        ensure_demo_images();
+        ui::draw_cmd::set_image_registry_locked(true);
+        ui::draw_cmd::DefaultDrawCmdBuffer snap_buf{};
+        ui::draw_cmd::DrawCmdExecutor exec{};
+        std::vector<std::vector<std::uint8_t>> frames{};
+        FrameBufferView snapshot_view{
+            screen_pixel_format,
+            fb.data(),
+            static_cast<std::size_t>(screen_width),
+            static_cast<std::size_t>(screen_height),
+            DefaultFrameBuffer::stride_bytes
+        };
+        int value = 0;
+        std::uint8_t spinner_phase = 0;
+        const int frame_count = run_gif ? gif_frames : 1;
+        frames.reserve(run_gif ? static_cast<std::size_t>(frame_count) : 0u);
+
+        for (int i = 0; i < frame_count; ++i) {
+            value = (value + 17) % 101;
+            kernel.set_value(progress, value);
+            kernel.set_value(progress_wheel, value);
+            kernel.set_value(progress_simple, value);
+            spinner_phase = static_cast<std::uint8_t>((spinner_phase + 1u) % 8u);
+            kernel.set_spinner_phase(spinner, spinner_phase);
+            if (!kernel.pressed(slider)) {
+                kernel.set_value(slider, value);
+            }
+
+            snap_buf.clear();
+            gui.record_commands(snap_buf);
+            append_path_icon(snap_buf, screen_width);
+            fb.clear(kDemoBg);
+            canvas.begin_frame();
+            exec.execute(canvas, snap_buf);
+            canvas.end_frame();
+
+            if (run_gif) {
+                frames.push_back(charm::gfx::snapshot::capture_indexed_332(snapshot_view));
+            }
+        }
+
+        if (run_screenshot) {
+            if (!charm::gfx::snapshot::write_ppm(screenshot_path.c_str(), snapshot_view)) {
+                (void)out::error<"[soa][fail] screenshot={}">(g_console, screenshot_path);
+                close_regress_log();
+                return 1;
+            }
+            (void)out::println<"[soa] screenshot={}">(g_console, screenshot_path);
+        }
+        if (run_gif) {
+            if (!charm::gfx::snapshot::write_gif(
+                    gif_path.c_str(),
+                    screen_width,
+                    screen_height,
+                    frames,
+                    gif_delay_cs)) {
+                (void)out::error<"[soa][fail] gif={}">(g_console, gif_path);
+                close_regress_log();
+                return 1;
+            }
+            (void)out::println<"[soa] gif={} frames={} delay_cs={}">(
+                g_console,
+                gif_path,
+                static_cast<unsigned>(frames.size()),
+                static_cast<unsigned>(gif_delay_cs));
+        }
     }
 #endif
 #if defined(VIVID_SOA_TRACE_INPUT)

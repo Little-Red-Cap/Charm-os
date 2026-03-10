@@ -4,6 +4,7 @@ module;
 export module charm.core.soa_factory;
 
 export import charm.core.soa_kernel;
+import charm.core.soa_registry;
 import charm.core.soa_payload;
 
 export

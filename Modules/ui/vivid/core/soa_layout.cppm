@@ -11,6 +11,7 @@ export import charm.core.soa_kernel;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.widget_registry;
+import charm.core.soa_registry;
 
 export
 class SoaLayoutPass {

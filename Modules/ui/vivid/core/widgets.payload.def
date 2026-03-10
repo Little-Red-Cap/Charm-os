@@ -23,7 +23,13 @@ VIVID_WIDGET_PAYLOAD(ProgressWheel, Progress)
 VIVID_WIDGET_PAYLOAD(ProgressBarSimple, Progress)
 // ProgressBarRound reuses Progress payload storage.
 VIVID_WIDGET_PAYLOAD(ProgressBarRound, Progress)
+// ProgressBarDrill reuses Progress payload storage.
+VIVID_WIDGET_PAYLOAD(ProgressBarDrill, Progress)
 // ProgressFlowing reuses Progress payload storage.
 VIVID_WIDGET_PAYLOAD(ProgressFlowing, Progress)
+// BusyWheel reuses Spinner payload storage.
+VIVID_WIDGET_PAYLOAD(BusyWheel, Spinner)
 // TabView reuses SegmentedControl payload storage.
 VIVID_WIDGET_PAYLOAD(TabView, SegmentedControl)
+// ImageBox reuses Image payload storage.
+VIVID_WIDGET_PAYLOAD(ImageBox, Image)

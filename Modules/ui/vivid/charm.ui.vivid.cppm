@@ -38,6 +38,7 @@ export import charm.gfx.color;
 export import charm.gfx.draw_cmd;
 export import charm.gfx.framebuffer;
 export import charm.gfx.image;
+export import charm.gfx.snapshot;
 export import charm.gfx.pixel_format;
 export import charm.gfx.render;
 

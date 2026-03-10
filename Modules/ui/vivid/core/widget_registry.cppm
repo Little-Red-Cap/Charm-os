@@ -12,7 +12,7 @@ export import charm.core.handle;
 namespace {
     constexpr std::size_t count_enabled_kinds() noexcept {
         std::size_t count = 0;
-#define VIVID_WIDGET_REGISTRY(name, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
         ++count;
 #include "widgets.registry.def"
 #undef VIVID_WIDGET_REGISTRY
@@ -22,7 +22,7 @@ namespace {
     constexpr std::array<WidgetKind, count_enabled_kinds()> build_enabled_kinds() noexcept {
         std::array<WidgetKind, count_enabled_kinds()> kinds{};
         std::size_t idx = 0;
-#define VIVID_WIDGET_REGISTRY(name, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
         kinds[idx++] = WidgetKind::name;
 #include "widgets.registry.def"
 #undef VIVID_WIDGET_REGISTRY

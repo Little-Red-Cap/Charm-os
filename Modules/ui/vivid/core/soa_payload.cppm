@@ -605,57 +605,13 @@ export namespace soa_detail {
 
         template <typename T>
         const auto& pool_for() const noexcept {
-            if constexpr (std::is_same_v<T, LabelPayload>) {
-                return label_;
-            } else if constexpr (std::is_same_v<T, ButtonPayload>) {
-                return button_;
-            } else if constexpr (std::is_same_v<T, ImagePayload>) {
-                return image_;
-            } else if constexpr (std::is_same_v<T, TextInputPayload>) {
-                return text_input_;
-            } else if constexpr (std::is_same_v<T, TextAreaPayload>) {
-                return text_area_;
-            } else if constexpr (std::is_same_v<T, NumberInputPayload>) {
-                return number_input_;
-            } else if constexpr (std::is_same_v<T, SegmentedControlPayload>) {
-                return segmented_;
-            } else if constexpr (std::is_same_v<T, StepperPayload>) {
-                return stepper_;
-            } else if constexpr (std::is_same_v<T, ToggleGroupPayload>) {
-                return toggle_group_;
-            } else if constexpr (std::is_same_v<T, CheckboxPayload>) {
-                return checkbox_;
-            } else if constexpr (std::is_same_v<T, RadioPayload>) {
-                return radio_;
-            } else if constexpr (std::is_same_v<T, ListItemPayload>) {
-                return list_item_;
-            } else if constexpr (std::is_same_v<T, TextListPayload>) {
-                return text_list_;
-            } else if constexpr (std::is_same_v<T, ListViewPayload>) {
-                return list_view_;
-            } else if constexpr (std::is_same_v<T, TableViewPayload>) {
-                return table_view_;
-            } else if constexpr (std::is_same_v<T, TreeViewPayload>) {
-                return tree_view_;
-            } else if constexpr (std::is_same_v<T, NumberListPayload>) {
-                return number_list_;
-            } else if constexpr (std::is_same_v<T, RollerPayload>) {
-                return roller_;
-            } else if constexpr (std::is_same_v<T, SwitchPayload>) {
-                return switch_;
-            } else if constexpr (std::is_same_v<T, SliderPayload>) {
-                return slider_;
-            } else if constexpr (std::is_same_v<T, ProgressPayload>) {
-                return progress_;
-            } else if constexpr (std::is_same_v<T, ScrollBarPayload>) {
-                return scrollbar_;
-            } else if constexpr (std::is_same_v<T, ListPayload>) {
-                return list_;
-            } else if constexpr (std::is_same_v<T, ScrollContainerPayload>) {
-                return scroll_container_;
-            } else if constexpr (std::is_same_v<T, SpinnerPayload>) {
-                return spinner_;
-            } else {
+#define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
+            if constexpr (std::is_same_v<T, name##Payload>) { \
+                return member; \
+            } else
+#include "widgets.payload.kinds.def"
+#undef VIVID_PAYLOAD_KIND
+            {
                 static_assert(always_false_v<T>, "Unknown payload type");
             }
         }

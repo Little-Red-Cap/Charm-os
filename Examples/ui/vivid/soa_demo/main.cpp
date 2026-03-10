@@ -280,6 +280,20 @@ namespace {
         buf.draw_image_nine_slice(slice_rect, g_slice_id, 2, 2, 2, 2);
     }
 
+    void apply_demo_theme() noexcept {
+        ThemeTokens tokens = Theme::instance().get_tokens();
+        tokens.surface = kDemoBg;
+        tokens.surface_variant = kDemoPanel;
+        tokens.outline = kDemoPanelBorder;
+        tokens.accent = kDemoPath;
+        tokens.on_surface = rgba{24, 28, 36, 255};
+        tokens.on_surface_muted = rgba{92, 100, 112, 255};
+        tokens.on_accent = rgba{255, 255, 255, 255};
+        tokens.focus_ring = kDemoPath;
+        Theme::instance().set_tokens_unsafe(tokens);
+        apply_baseline_theme_preset(make_style_from_tokens(tokens));
+    }
+
     struct SdlTileBackend {
         DefaultFrameBuffer& fb;
         bool dirty_set{false};
@@ -1809,7 +1823,9 @@ namespace {
                     "style: style table compiled without token change", fails);
 
         ThemeTokens tokens = Theme::instance().get_tokens();
-        apply_theme_tokens(tokens);
+        tokens.accent = adjust_by_luma(tokens.accent, 12);
+        Theme::instance().set_tokens_unsafe(tokens);
+        apply_baseline_theme_preset(make_style_from_tokens(tokens));
         const std::uint32_t role_after = sheet.role_palette_compile_count();
         const std::uint32_t table_after = sheet.style_table_compile_count();
         expect_true(role_after == role_before + 1u, "style: role palette not rebuilt", fails);
@@ -2033,7 +2049,7 @@ int main(int argc, char** argv) {
     };
 #endif
     g_selftest_dedup = selftest_dedup;
-    apply_ios_light_preset();
+    apply_demo_theme();
     if (gif_frames <= 0) gif_frames = 1;
     const bool run_headless =
         run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay

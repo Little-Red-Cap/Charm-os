@@ -15,7 +15,7 @@ import charm.core.geometry;
 import charm.core.event;
 import charm.core.input_interaction;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.pixel_ops;
 
 using namespace ui::render;

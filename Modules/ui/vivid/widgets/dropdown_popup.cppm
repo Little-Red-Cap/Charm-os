@@ -10,7 +10,7 @@ import charm.widgets.list_utils;
 import charm.widgets.scroll_container;
 import charm.widgets.popup_layer;
 import charm.core.event;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.string;
 
 using namespace ui::render;

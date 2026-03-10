@@ -7,7 +7,7 @@ import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.text;
 import charm.font.typography;
 

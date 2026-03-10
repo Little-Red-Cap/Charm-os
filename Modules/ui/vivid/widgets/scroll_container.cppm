@@ -9,7 +9,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.input_interaction;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.image;
 import charm.widgets.text;
 import charm.font.typography;

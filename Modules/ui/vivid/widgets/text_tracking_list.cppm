@@ -11,7 +11,7 @@ import charm.core.style_sheet;
 import charm.core.virtual_list;
 import alg_list_scroll;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.text;
 
 using namespace ui::render;

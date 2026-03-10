@@ -6,7 +6,7 @@ module;
 export module charm.core.gui;
 
 export import charm.gfx.canvas;
-export import charm.gfx.render;
+export import charm.gfx.render_style;
 export import charm.core.event;
 export import charm.core.object;
 export import charm.core.handle;

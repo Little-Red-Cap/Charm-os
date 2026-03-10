@@ -3,7 +3,7 @@ module;
 export module charm.widgets.radio_group;
 
 import charm.core.object;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.radio;
 
 // Simple mutual-exclusion group. Use resolver to avoid factory dependency.

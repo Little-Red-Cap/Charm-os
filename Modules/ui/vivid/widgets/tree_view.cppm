@@ -5,7 +5,7 @@ export module charm.widgets.tree_view;
 import charm.core.object;
 import charm.core.event;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.virtual_list;

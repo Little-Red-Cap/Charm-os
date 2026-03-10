@@ -24,7 +24,7 @@ export import charm.gfx.framebuffer;
 export import charm.gfx.image;
 export import charm.gfx.snapshot;
 export import charm.gfx.pixel_format;
-export import charm.gfx.render;
+export import charm.gfx.render_style;
 
 export import charm.font;
 export import charm.font.typography;

@@ -8,7 +8,7 @@ export module charm.widgets.perf_overlay;
 import charm.core.object;
 import charm.gfx.color;
 import charm.gfx.canvas;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.text;
 import charm.font.typography;
 import charm.core.style;

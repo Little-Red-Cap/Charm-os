@@ -3,7 +3,7 @@ export module charm.widgets.button;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
 import charm.widgets.label;
 import charm.core.style;

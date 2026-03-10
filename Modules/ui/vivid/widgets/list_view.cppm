@@ -12,7 +12,7 @@ import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.widgets.scroll_dirty;

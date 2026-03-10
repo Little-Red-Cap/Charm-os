@@ -5,7 +5,7 @@ export module charm.widgets.text_input;
 
 import charm.core.object;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;

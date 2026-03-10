@@ -8,7 +8,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.event;
 import charm.gfx.color;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.widgets.label;
 
 using namespace ui::render;

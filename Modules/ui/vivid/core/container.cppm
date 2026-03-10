@@ -4,7 +4,7 @@ export module charm.core.container;
 
 export import charm.core.object;
 export import charm.gfx.color;
-export import charm.gfx.render;
+export import charm.gfx.render_style;
 export import charm.gfx.image;
 
 using namespace ui::render;

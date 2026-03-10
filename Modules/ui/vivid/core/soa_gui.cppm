@@ -17,7 +17,7 @@ export import charm.core.style_sheet;
 export import charm.core.event;
 export import charm.gfx.canvas;
 export import charm.gfx.draw_cmd;
-export import charm.gfx.render;
+export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 export import charm.font.typography;
 

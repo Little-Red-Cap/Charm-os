@@ -17,7 +17,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.image;
-import charm.gfx.render;
+import charm.gfx.render_style;
 import charm.gfx.pixel_ops;
 
 using namespace ui::render;

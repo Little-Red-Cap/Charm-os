@@ -1,9 +1,12 @@
 module;
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 
 export module charm.core.soa_kernel:actions;
 
-import :class;
+import :kernel_class;
+import :input;
 
 void SoaKernel::input_emit_action(const SoaInputAction& action) noexcept {
     if (!action.target) return;

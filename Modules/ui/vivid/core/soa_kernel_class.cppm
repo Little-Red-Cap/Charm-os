@@ -1,21 +1,21 @@
-﻿
 module;
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include "features.hpp"
 
-export module charm.core.soa_kernel:class;
+export module charm.core.soa_kernel:kernel_class;
 
-export import :types;
-export import :input;
-export import charm.core.handle;
-export import charm.core.geometry;
-export import charm.core.config;
-export import charm.core.event;
-export import charm.core.widget_registry;
-export import charm.core.soa_registry;
+import :types;
+import :input;
+import charm.core.handle;
+import charm.core.geometry;
+import charm.core.config;
+import charm.core.event;
+import charm.core.widget_registry;
+import charm.core.soa_registry;
 
 import charm.core.style;
 import charm.core.style_sheet;
@@ -25,6 +25,8 @@ import alg_list_scroll;
 namespace {
     constexpr std::uint16_t kInvalidIndex = 0xFFFF;
 }
+
+struct ScrollBarTrackInfo;
 
 #ifdef CHARM_VIVID_SOA_MAX_NODES
 export constexpr std::size_t soa_max_nodes = CHARM_VIVID_SOA_MAX_NODES;
@@ -436,6 +438,7 @@ public:
         }
         if (input_events_.overflowed) {
             input_handle_overflow(false);
+            input_events_.overflowed = true;
         }
     }
 #endif
@@ -649,6 +652,8 @@ public:
     int roller_row_height(WidgetHandle h) const noexcept ;
     void set_roller_wheel_step(WidgetHandle h, int step) noexcept ;
     int roller_wheel_step(WidgetHandle h) const noexcept ;
+    void set_roller_source(WidgetHandle h, std::uint16_t count,
+        const void* ctx, soa_detail::RollerTextFn fn) noexcept ;
     void console_clear(WidgetHandle h) noexcept ;
     void set_console_follow_tail(WidgetHandle h, bool follow) noexcept ;
     void console_append(WidgetHandle h, const char* text) noexcept ;
@@ -660,6 +665,10 @@ public:
     soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     std::uint8_t list_view_icon_size(WidgetHandle h) const noexcept ;
     std::uint8_t list_view_overscan(WidgetHandle h) const noexcept ;
+    void set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
+        soa_detail::ListViewTextFn text_fn) noexcept ;
+    void set_list_view_icon_source(WidgetHandle h, const void* ctx,
+        soa_detail::ListViewIconFn icon_fn, std::uint8_t size) noexcept ;
     void set_table_view_header_height(WidgetHandle h, int height) noexcept ;
     void set_table_view_header_padding(WidgetHandle h, int padding) noexcept ;
     void set_table_view_header_style(WidgetHandle h, TableViewHeaderStyle style) noexcept ;
@@ -683,6 +692,12 @@ public:
     int table_view_scroll_x(WidgetHandle h) const noexcept ;
     void set_table_view_col_width(WidgetHandle h, int col_width) noexcept ;
     void set_table_view_scroll_x(WidgetHandle h, int x) noexcept ;
+    void set_table_view_source(WidgetHandle h, std::uint16_t rows, std::uint8_t cols,
+        const void* ctx, soa_detail::TableViewTextFn text_fn) noexcept ;
+    void set_table_view_header(WidgetHandle h, const void* ctx,
+        soa_detail::TableViewHeaderFn header_fn) noexcept ;
+    void set_table_view_col_width_fn(WidgetHandle h, const void* ctx,
+        soa_detail::TableViewColWidthFn width_fn) noexcept ;
     std::uint8_t table_view_overscan(WidgetHandle h) const noexcept ;
     const char* table_view_cell_text(WidgetHandle h, std::uint16_t row, std::uint8_t col) const noexcept ;
     void set_tree_view_count(WidgetHandle h, std::uint16_t count) noexcept ;
@@ -696,6 +711,9 @@ public:
     void set_tree_view_min_text_avail_px(WidgetHandle h, int px) noexcept ;
     const char* tree_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept ;
     std::uint8_t tree_view_item_indent(WidgetHandle h, std::uint16_t index) const noexcept ;
+    void set_tree_view_source(WidgetHandle h, std::uint16_t count,
+        const void* text_ctx, soa_detail::TreeViewTextFn text_fn,
+        const void* indent_ctx, soa_detail::TreeViewIndentFn indent_fn) noexcept ;
     void set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept ;
     WidgetKind toggle_group_kind(WidgetHandle h) const noexcept ;
     void set_value(WidgetHandle h, int value) noexcept ;
@@ -759,7 +777,8 @@ public:
 
     static void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
-        (void)kind;
+        std::fprintf(stderr, "[soa] unsupported WidgetKind: %s (%u)\n",
+            widget_kind_name(kind), static_cast<unsigned>(kind));
         assert(false && "SoaKernel unsupported WidgetKind");
 #else
         (void)kind;
@@ -784,21 +803,15 @@ public:
     template <typename T>
     T* payload_get(std::uint16_t idx) noexcept {
         const auto handle = common_.payload[idx];
-        T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
-        if (!payload) {
-            unsupported_kind(common_.kind[idx]);
-        }
-        return payload;
+        if (!soa_detail::payload_valid(handle)) return nullptr;
+        return payloads_.get<T>(handle, idx, common_.kind[idx]);
     }
 
     template <typename T>
     const T* payload_get(std::uint16_t idx) const noexcept {
         const auto handle = common_.payload[idx];
-        const T* payload = payloads_.get<T>(handle, idx, common_.kind[idx]);
-        if (!payload) {
-            unsupported_kind(common_.kind[idx]);
-        }
-        return payload;
+        if (!soa_detail::payload_valid(handle)) return nullptr;
+        return payloads_.get<T>(handle, idx, common_.kind[idx]);
     }
 
 private:
@@ -914,11 +927,23 @@ private:
     void clear_scrollbar_targets(WidgetHandle h) noexcept ;
     void input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) ;
     void input_on_destroy(WidgetHandle h) ;
+    void input_handle_overflow(bool assert_on_overflow = true) ;
+    void input_handle_hover(int x, int y, int button) ;
+    void input_handle_drag(int x, int y, int button) ;
+    void input_handle_press(int x, int y, int button) ;
+    void input_handle_release(int x, int y, int button) ;
+    void input_handle_wheel(int x, int y, int dy) ;
+    void input_handle_cancel(int x, int y, int button) ;
     void input_handle_click(WidgetHandle h, int x, int y) ;
     bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) ;
     bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) ;
     void input_clear_sibling_checks(WidgetHandle h, WidgetKind kind) ;
     int input_segmented_index_from_pos(WidgetHandle h, int x) const noexcept ;
+    int input_text_list_index_from_pos(WidgetHandle h, int y) const noexcept ;
+    int input_list_view_index_from_pos(WidgetHandle h, int y) const noexcept ;
+    int input_stepper_index_from_pos(WidgetHandle h, int x) const noexcept ;
+    int input_number_list_index_from_pos(WidgetHandle h, int y) const noexcept ;
+    int input_roller_index_from_pos(WidgetHandle h, int y) const noexcept ;
     void input_queue_update_slider_value(WidgetHandle h, int x, int y) ;
     void input_apply_update_slider_value(WidgetHandle h, int x, int y) ;
     Rect input_world_rect(WidgetHandle h) const noexcept ;
@@ -926,6 +951,8 @@ private:
     WidgetHandle input_find_scroll_ancestor(WidgetHandle h) const noexcept ;
     WidgetHandle input_find_toggle_group_ancestor(WidgetHandle h) const noexcept ;
     void input_scroll_by(WidgetHandle h, int dy, int dx = 0) ;
+    SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
+        SoaWheelAxisPolicy fallback) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;
@@ -940,3 +967,4 @@ private:
     bool get_state_flag(WidgetHandle h, SoaStateFlag flag) const noexcept ;
     void set_state_flag(WidgetHandle h, SoaStateFlag flag, bool on) noexcept ;
 
+};

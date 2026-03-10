@@ -1,8 +1,20 @@
 module;
+#include <array>
+#include <cassert>
+#include <cstdint>
 
 export module charm.core.soa_kernel:input_core;
 
-import :class;
+import :kernel_class;
+import :types;
+import :input;
+import charm.core.handle;
+import charm.core.event;
+import charm.core.geometry;
+import charm.core.style;
+import charm.core.style_sheet;
+import charm.core.soa_payload;
+import charm.core.soa_registry;
 
 
     int SoaKernel::clamp_int(int v, int lo, int hi) noexcept {
@@ -142,6 +154,206 @@ import :class;
         if (input_.root == h) {
             input_.root = {};
         }
+    }
+
+    void SoaKernel::input_handle_overflow(bool assert_on_overflow) {
+#ifndef NDEBUG
+        if (assert_on_overflow) {
+            assert(false && "SoA input events overflowed");
+        }
+#else
+        (void)assert_on_overflow;
+#endif
+        if (input_.dragging) {
+            input_.dragging = false;
+        }
+        if (input_.pressed) {
+            set_pressed(input_.pressed, false);
+            input_.pressed = {};
+        }
+        if (input_.captured) {
+            input_.captured = {};
+        }
+        if (input_.hovered) {
+            set_hovered(input_.hovered, false);
+            input_.hovered = {};
+        }
+        if (input_.focused) {
+            set_focused(input_.focused, false);
+            input_.focused = {};
+        }
+        input_.scroll_target = {};
+        input_.button = 0;
+        input_events_.clear();
+    }
+
+    void SoaKernel::input_handle_hover(int x, int y, int button) {
+        const WidgetHandle hit = input_hit_test(x, y);
+        if (hit == input_.hovered) {
+            return;
+        }
+        if (input_.hovered) {
+            input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverLeave, x, y, button, input_.last_ms));
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
+        }
+        input_.hovered = hit;
+        if (input_.hovered) {
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 1, 0});
+            input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverEnter, x, y, button, input_.last_ms));
+        }
+    }
+
+    void SoaKernel::input_handle_drag(int x, int y, int button) {
+        const WidgetHandle target = input_drag_target();
+        if (!target) return;
+        const int dx0 = x - input_.drag_start_x;
+        const int dy0 = y - input_.drag_start_y;
+        int ddx = x - input_.drag_last_x;
+        int ddy = y - input_.drag_last_y;
+        if (!input_.dragging) {
+            if (dx0 * dx0 + dy0 * dy0 < input_.drag_threshold_sq) {
+                return;
+            }
+            input_.dragging = true;
+            input_.drag_last_x = x;
+            input_.drag_last_y = y;
+            input_emit_event(target, Event::drag(Event::Type::DragStart, x, y, dx0, dy0, button, input_.last_ms));
+            const SoaBehavior behavior = behavior_for_kind(kind(target));
+            if (behavior.drag_behavior == SoaDragBehavior::ScrollDrag) {
+                input_.scroll_target = input_find_scroll_target(target);
+            }
+            ddx = dx0;
+            ddy = dy0;
+        } else {
+            input_.drag_last_x = x;
+            input_.drag_last_y = y;
+        }
+        input_emit_event(target, Event::drag(Event::Type::DragMove, x, y, ddx, ddy, button, input_.last_ms));
+        const SoaBehavior behavior = behavior_for_kind(kind(target));
+        const bool allow_scroll = behavior.drag_behavior == SoaDragBehavior::ScrollDrag
+            || (behavior.drag_behavior == SoaDragBehavior::None && input_.scroll_target);
+        if (allow_scroll) {
+            WidgetHandle scroll_target = input_.scroll_target;
+            if (!scroll_target) {
+                scroll_target = input_find_scroll_target(target);
+                input_.scroll_target = scroll_target;
+            }
+            if (scroll_target) {
+                input_scroll_by(scroll_target, -ddy, -ddx);
+            }
+        }
+    }
+
+    void SoaKernel::input_handle_press(int x, int y, int button) {
+        const WidgetHandle hit = input_hit_test(x, y);
+        if (!hit) return;
+        if (kind(hit) == WidgetKind::ScrollBar) {
+            const StyleState state = input_make_state(*this, hit);
+            const ResolvedStyleView view = StyleSheet::instance().lookup(kind(hit), state);
+            if (input_scrollbar_page_click(hit, x, y, view.metrics)) {
+                return;
+            }
+        }
+        input_.pressed = hit;
+        input_.button = button;
+        input_.drag_start_x = x;
+        input_.drag_start_y = y;
+        input_.drag_last_x = x;
+        input_.drag_last_y = y;
+        input_.dragging = false;
+        input_emit_event(hit, Event::mouse(Event::Type::MouseDown, x, y, button, input_.last_ms));
+        input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, hit, 1, 0});
+        const SoaBehavior behavior = behavior_for_kind(kind(hit));
+        if (behavior.capture_on_press) {
+            input_set_capture(hit, x, y, button, false);
+        }
+        if (focusable(hit)) {
+            input_set_focus(hit);
+        }
+        input_.scroll_target = input_find_scroll_target(hit);
+    }
+
+    void SoaKernel::input_handle_release(int x, int y, int button) {
+        const WidgetHandle target = input_drag_target();
+        if (input_.dragging && target) {
+            input_emit_event(target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button, input_.last_ms));
+            input_.dragging = false;
+        }
+        if (target) {
+            input_emit_event(target, Event::mouse(Event::Type::MouseUp, x, y, button, input_.last_ms));
+        }
+        if (input_.pressed) {
+            const WidgetHandle hit = input_hit_test(x, y);
+            if (hit == input_.pressed) {
+                input_handle_click(input_.pressed, x, y);
+            }
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
+            input_.pressed = {};
+        }
+        if (input_.captured) {
+            input_set_capture({}, x, y, button, false);
+        }
+        input_.scroll_target = {};
+        input_.button = 0;
+    }
+
+    void SoaKernel::input_handle_wheel(int x, int y, int dy) {
+        const int wheel = -dy;
+        const WidgetHandle hit = input_hit_test(x, y);
+        const WidgetHandle target = input_find_scroll_target(hit);
+        if (!target) return;
+        const SoaBehavior behavior = behavior_for_kind(kind(target));
+        const SoaWheelAxisPolicy axis = input_wheel_axis_override(hit, target, behavior.wheel_axis);
+        int dx = 0;
+        int dy_out = 0;
+        switch (axis) {
+        case SoaWheelAxisPolicy::PreferHorizontal:
+            dx = wheel;
+            break;
+        case SoaWheelAxisPolicy::HorizontalIfNoVertical:
+            if (behavior.scroll_axis == SoaScrollAxis::Horizontal) {
+                dx = wheel;
+            } else {
+                dy_out = wheel;
+            }
+            break;
+        case SoaWheelAxisPolicy::PreferVertical:
+        default:
+            dy_out = wheel;
+            break;
+        }
+        if (dx != 0 || dy_out != 0) {
+            input_scroll_by(target, dy_out, dx);
+            input_emit_event(target, Event::wheel(x, y, wheel, input_.last_ms));
+        }
+    }
+
+    void SoaKernel::input_handle_cancel(int x, int y, int button) {
+        const WidgetHandle drag_target = input_drag_target();
+        if (input_.dragging && drag_target) {
+            input_emit_event(drag_target, Event::drag(Event::Type::DragEnd, x, y, 0, 0, button, input_.last_ms));
+            input_.dragging = false;
+        }
+        if (input_.captured) {
+            input_emit_event(input_.captured, Event::mouse(Event::Type::Cancel, x, y, button, input_.last_ms));
+        }
+        if (input_.pressed && input_.pressed != input_.captured) {
+            input_emit_event(input_.pressed, Event::mouse(Event::Type::Cancel, x, y, button, input_.last_ms));
+        }
+        if (input_.hovered) {
+            input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverLeave, x, y, button, input_.last_ms));
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
+            input_.hovered = {};
+        }
+        if (input_.pressed) {
+            input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
+            input_.pressed = {};
+        }
+        if (input_.captured) {
+            input_.captured = {};
+        }
+        input_.scroll_target = {};
+        input_.button = 0;
     }
 
     void SoaKernel::input_handle_click(WidgetHandle h, int x, int y) {
@@ -383,6 +595,94 @@ import :class;
         return idx_raw;
     }
 
+    int SoaKernel::input_text_list_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::TextList) return -1;
+        const auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        const int row_h = payload->row_height <= 0 ? 1 : payload->row_height;
+        const int local_y = y - r.y + payload->scroll_y;
+        if (local_y < 0) return -1;
+        const int index = local_y / row_h;
+        return (index >= 0 && index < payload->count) ? index : -1;
+    }
+
+    int SoaKernel::input_list_view_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) return -1;
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        const int row_h = payload->row_height <= 0 ? 1 : payload->row_height;
+        const int local_y = y - r.y + payload->scroll_y;
+        if (local_y < 0) return -1;
+        const int index = local_y / row_h;
+        return (index >= 0 && index < payload->count) ? index : -1;
+    }
+
+    int SoaKernel::input_stepper_index_from_pos(WidgetHandle h, int x) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Stepper) return -1;
+        const auto* payload = payload_get<soa_detail::StepperPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        if (r.w <= 0) return -1;
+        const int count = payload->count;
+        int seg_w = (count > 0) ? (r.w / count) : 0;
+        if (seg_w <= 0) return 0;
+        int idx_raw = (x - r.x) / seg_w;
+        if (idx_raw < 0) idx_raw = 0;
+        if (idx_raw >= count) idx_raw = count - 1;
+        return idx_raw;
+    }
+
+    int SoaKernel::input_number_list_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::NumberList) return -1;
+        const auto* payload = payload_get<soa_detail::NumberListPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        const int row_h = payload->row_height <= 0 ? 1 : payload->row_height;
+        const int center_y = r.y + r.h / 2;
+        const int scroll = payload->scroll_y;
+        const int base_index = scroll / row_h;
+        const int offset = scroll - base_index * row_h;
+        const int row0 = center_y - row_h / 2 - offset;
+        const int index = base_index + (y - row0) / row_h;
+        return (index >= 0 && index < payload->count) ? index : -1;
+    }
+
+    int SoaKernel::input_roller_index_from_pos(WidgetHandle h, int y) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::Roller) return -1;
+        const auto* payload = payload_get<soa_detail::RollerPayload>(idx);
+        if (!payload || payload->count == 0) return -1;
+        Rect r = input_world_rect(h);
+        const int row_h = payload->row_height <= 0 ? 1 : payload->row_height;
+        const int center_y = r.y + r.h / 2;
+        const int scroll = payload->scroll_y;
+        const int base_index = scroll / row_h;
+        const int offset = scroll - base_index * row_h;
+        const int row0 = center_y - row_h / 2 - offset;
+        const int index = base_index + (y - row0) / row_h;
+        const int count = payload->count;
+        if (count <= 0) return -1;
+        int wrapped = index % count;
+        if (wrapped < 0) wrapped += count;
+        return (wrapped >= 0 && wrapped < count) ? wrapped : -1;
+    }
+
     void SoaKernel::input_queue_update_slider_value(WidgetHandle h, int x, int y) {
         input_emit_action(SoaInputAction{SoaInputActionType::UpdateSliderFromPos, h, x, y});
     }
@@ -465,6 +765,9 @@ import :class;
     WidgetHandle SoaKernel::input_find_scroll_target(WidgetHandle hit) noexcept {
         if (!hit) return {};
         const SoaBehavior behavior = behavior_for_kind(kind(hit));
+        if (behavior.scrollable && behavior.wheel_target == SoaWheelTargetPolicy::None) {
+            return hit;
+        }
         switch (behavior.wheel_target) {
         case SoaWheelTargetPolicy::None:
             return {};
@@ -505,7 +808,7 @@ import :class;
         return {};
     }
 
-    void SoaKernel::input_scroll_by(WidgetHandle h, int dy, int dx = 0) {
+    void SoaKernel::input_scroll_by(WidgetHandle h, int dy, int dx) {
         input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
     }
 
@@ -647,5 +950,4 @@ import :class;
             common_.state_flags[idx] = static_cast<std::uint8_t>(common_.state_flags[idx] & ~mask);
         }
     }
-};
 

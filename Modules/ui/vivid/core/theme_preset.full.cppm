@@ -6,7 +6,7 @@ export module charm.core.theme_preset;
 
 export import charm.core.style;
 export import charm.core.style_sheet;
-#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
     export import module_tag;
 #include "widgets.registry.def"
 #undef VIVID_WIDGET_REGISTRY
@@ -19,7 +19,7 @@ inline void sync_style_sheet_bases() noexcept {
             sheet.set_base_style(kind, theme.get<Widget>());
         };
 
-#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
         if constexpr (WidgetKind::theme_base_kind != WidgetKind::None) { \
             set_base(static_cast<cpp_type*>(nullptr), WidgetKind::theme_base_kind); \
         }

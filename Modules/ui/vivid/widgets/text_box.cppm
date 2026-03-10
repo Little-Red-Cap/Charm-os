@@ -7,7 +7,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 

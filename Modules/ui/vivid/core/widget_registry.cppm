@@ -53,7 +53,12 @@ export constexpr std::array<std::uint8_t, widget_kind_count> widget_kind_index =
 }();
 
 export constexpr bool widget_kind_enabled(WidgetKind kind) noexcept {
+    if (kind == WidgetKind::None) return false;
     const auto idx = static_cast<std::size_t>(kind);
     if (idx >= widget_kind_count) return false;
+#if defined(CHARM_VIVID_FEATURESET_MCU_MIN)
     return widget_kind_index[idx] != invalid_widget_kind_index;
+#else
+    return true;
+#endif
 }

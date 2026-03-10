@@ -3,7 +3,6 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include "features.hpp"
 
 export module charm.core.soa_kernel:kernel_class;
@@ -777,8 +776,6 @@ public:
 
     static void unsupported_kind(WidgetKind kind) noexcept {
 #ifndef NDEBUG
-        std::fprintf(stderr, "[soa] unsupported WidgetKind: %s (%u)\n",
-            widget_kind_name(kind), static_cast<unsigned>(kind));
         assert(false && "SoaKernel unsupported WidgetKind");
 #else
         (void)kind;

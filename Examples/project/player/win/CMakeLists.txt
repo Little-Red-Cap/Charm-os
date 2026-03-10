@@ -1,17 +1,12 @@
-﻿cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 4.0)
 project(charm-player-win)
 
 set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
-option(CHARM_VIVID_SOA_ONLY "Enable SoA-only player entry" OFF)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 
-if (CHARM_VIVID_SOA_ONLY)
-    set(PLAYER_MAIN main_soa.cpp)
-else()
-    set(PLAYER_MAIN main.cpp)
-endif()
+set(PLAYER_MAIN main_soa.cpp)
 
 add_executable(${target_name}
     ${PLAYER_MAIN}
@@ -39,7 +34,6 @@ set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_MEDIA ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
-set(CHARM_VIVID_PROFILE "full" CACHE STRING "" FORCE)
 set(CHARM_AUDIO_USE_VFS ON CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
 if (DEFINED CHARM_FATFS_ROOT)
@@ -58,7 +52,6 @@ elseif (EXISTS "${_fatfs_root}/src/ff.c" AND EXISTS "${_fatfs_root}/src/ff.h")
 endif()
 
 set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
-if (CHARM_VIVID_SOA_ONLY)
     set(CHARM_PLAYER_EXCLUDE_REGEX "${CHARM_PLAYER_EXCLUDE_REGEX}|player\\.ui|player\\.controller")
 endif()
 charm_example_sources_filtered(${target_name}

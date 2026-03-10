@@ -111,7 +111,7 @@ flowchart LR
 
 - `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
 - `vivid-soa-demo --soa-stats`：输出命令数、tile flush、dirty 命中率与 tile hit 率。
-- 默认构建为 **SoA-only**，legacy UI 仅在 `CHARM_VIVID_SOA_ONLY=OFF` 时参与构建/导出。
+- Vivid 仅保留 **SoA 内核**：legacy 路径不再进入默认构建，统一收敛到单一内核边界。
 
 **可移植模板：**
 

@@ -140,6 +140,14 @@ flowchart LR
 - `widgets.def` 仅作为薄封装：由 registry 生成 `VIVID_WIDGET` 列表。
 - `widget_registry.cppm` 的 enabled_kinds 构建直接读取 registry，避免手写列表分叉。
 
+### 2.6 构建自治（De-rooting）
+
+- 根 CMake 只负责启用 Vivid 与 featureset 选择，不再直接裁剪 Vivid 内部文件。
+- `Modules/ui/vivid/vivid.cmake` 负责：
+  - 生成 `soa_pool_caps.cppm`
+  - 维护 Vivid 模块清单与裁剪逻辑
+  - 注入 Vivid 编译选项与 featureset 宏
+
 ## 3. 布局与容器
 
 - 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。

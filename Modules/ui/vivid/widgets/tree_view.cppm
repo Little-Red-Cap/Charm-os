@@ -9,7 +9,7 @@ import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.virtual_list;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import alg_scroll_bounds;
 import alg_list_scroll;
 

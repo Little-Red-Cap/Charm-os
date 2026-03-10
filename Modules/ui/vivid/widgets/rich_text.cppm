@@ -10,7 +10,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.canvas;
 import charm.gfx.color;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.font;
 import charm.font.typography;
 import alg_text_layout;

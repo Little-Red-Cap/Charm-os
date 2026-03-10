@@ -12,7 +12,7 @@ import charm.core.virtual_list;
 import alg_list_scroll;
 import charm.gfx.color;
 import charm.gfx.render_style;
-import charm.widgets.text;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 

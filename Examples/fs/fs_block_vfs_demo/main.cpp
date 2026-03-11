@@ -1,4 +1,5 @@
 #include <array>
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -43,16 +44,19 @@ namespace {
         std::uint32_t sectors;
     };
 
-    std::uint32_t find_fat_partition_lba(const std::array<std::uint8_t, 512>& sector0) {
-        if (sector0[510] != 0x55 || sector0[511] != 0xAA) return 0;
+    bool parse_fat_partition_lba(const std::array<std::uint8_t, 512>& sector0,
+                                 std::uint32_t& out_lba) {
+        if (sector0[510] != 0x55 || sector0[511] != 0xAA) return false;
         const auto* parts = reinterpret_cast<const MbrPartition*>(sector0.data() + 446);
         for (int i = 0; i < 4; ++i) {
             const auto& p = parts[i];
             if (p.type == 0x0B || p.type == 0x0C) {
-                return p.lba_first;
+                out_lba = p.lba_first;
+                return true;
             }
         }
-        return 0;
+        out_lba = 0;
+        return true;
     }
 
     struct OffsetDevice {
@@ -96,6 +100,17 @@ int main(int argc, char** argv) {
     if (argc < 2) {
         (void)out::println<"usage: fs-block-vfs-demo <disk.img|vhd>">(sink);
         return 1;
+    }
+    if (std::FILE* f = std::fopen(argv[1], "rb"); !f) {
+        const int err = errno;
+        if (err == ENOENT) {
+            (void)out::println<"[ERR] image not found: {}">(sink, argv[1]);
+        } else {
+            (void)out::println<"[ERR] open image failed: {} err={}">(sink, argv[1], err);
+        }
+        return 1;
+    } else {
+        std::fclose(f);
     }
 
     auto caps = platform::board::win_stub::make_board_caps();
@@ -144,13 +159,13 @@ int main(int argc, char** argv) {
         init::Phase::app,
         file_chain.node_span());
     if (!r) {
-        (void)out::println<"[block_vfs] bringup failed err={}">(sink, static_cast<int>(r.error()));
+        (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;
     }
 
     auto* dev = bringup.block_registry().open_device("block.sd0");
     if (!dev) {
-        (void)out::println<"[block_vfs] device not found">(sink);
+        (void)out::println<"[ERR] block capability not found: block.sd0">(sink);
         return 1;
     }
 
@@ -158,13 +173,20 @@ int main(int argc, char** argv) {
     auto read0 = dev->read(dev->ctx, 0,
         std::span<util::u8>(reinterpret_cast<util::u8*>(sector0.data()), sector0.size()));
     if (!read0) {
-        (void)out::println<"[block_vfs] read MBR failed err={}">(sink, static_cast<int>(read0.err));
+        (void)out::println<"[ERR] read MBR failed err={}">(sink, static_cast<int>(read0.err));
         return 1;
     }
-    const auto lba = find_fat_partition_lba(sector0);
-    if (lba != 0) {
-        (void)out::println<"[block_vfs] MBR partition LBA={}">(sink, lba);
+    std::uint32_t lba = 0;
+    const bool mbr_ok = parse_fat_partition_lba(sector0, lba);
+    if (!mbr_ok) {
+        (void)out::println<"[ERR] invalid MBR or signature missing">(sink);
+        return 1;
     }
+    if (lba == 0) {
+        (void)out::println<"[ERR] no FAT partition found">(sink);
+        return 1;
+    }
+    (void)out::println<"[block_vfs] MBR partition LBA={}">(sink, lba);
 
     OffsetDevice part_dev{};
     part_dev.init(*dev, lba);
@@ -172,7 +194,7 @@ int main(int argc, char** argv) {
     fs::FatFsMount fat{};
     auto st = fat.mount(part_dev.device, false);
     if (!st) {
-        (void)out::println<"[block_vfs] mount failed err={}">(sink, static_cast<int>(st.err));
+        (void)out::println<"[ERR] mount failed at lba={} err={}">(sink, lba, static_cast<int>(st.err));
         return 1;
     }
 
@@ -182,7 +204,7 @@ int main(int argc, char** argv) {
     fs::File f{};
     st = fs::vfs_open("/hello.txt", f);
     if (!st) {
-        (void)out::println<"[block_vfs] open /hello.txt failed err={}">(sink, static_cast<int>(st.err));
+        (void)out::println<"[ERR] open /hello.txt failed err={}">(sink, static_cast<int>(st.err));
         return 1;
     }
 

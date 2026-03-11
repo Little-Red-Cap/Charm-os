@@ -17,6 +17,8 @@ enum class SoaInputActionType : std::uint8_t {
     SetFocused,
     SetHovered,
     SetPressed,
+    SetCaptured,
+    SetDragging,
     ToggleChecked,
     SetChecked,
     ClearSiblingChecks,

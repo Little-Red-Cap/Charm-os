@@ -9,7 +9,12 @@ import :kernel_class;
 import :input;
 
 void SoaKernel::input_emit_action(const SoaInputAction& action) noexcept {
-    if (!action.target) return;
+    if (!action.target) {
+        if (action.type != SoaInputActionType::SetCaptured
+            && action.type != SoaInputActionType::SetDragging) {
+            return;
+        }
+    }
     if (input_actions_.overflowed) return;
     if (input_actions_.count >= input_actions_.actions.size()) {
         input_actions_.overflowed = true;
@@ -35,6 +40,15 @@ void SoaKernel::input_apply_action(const SoaInputAction& action) noexcept {
         break;
     case SoaInputActionType::SetPressed:
         set_pressed(action.target, action.a != 0);
+        break;
+    case SoaInputActionType::SetCaptured:
+        input_guard_state_write("captured");
+        input_.captured = action.target;
+        input_.button = action.target ? action.a : 0;
+        break;
+    case SoaInputActionType::SetDragging:
+        input_guard_state_write("dragging");
+        input_.dragging = action.a != 0;
         break;
     case SoaInputActionType::ToggleChecked:
         set_checked(action.target, !checked(action.target));
@@ -83,6 +97,7 @@ void SoaKernel::input_apply_action(const SoaInputAction& action) noexcept {
 
 void SoaKernel::input_apply_actions() noexcept {
     if (input_actions_.count == 0) return;
+    const auto commit_guard = input_commit_scope();
     const std::size_t count = input_actions_.count;
     for (std::size_t i = 0; i < count; ++i) {
         input_apply_action(input_actions_.actions[i]);

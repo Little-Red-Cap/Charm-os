@@ -110,8 +110,10 @@ skills 回答的是：
 - `code-review`
 - `codegen`
 - `architect-review`
-
-## 计划中的技能
-- `charm-init-graph`：新增能力时的 board_caps/driver/init.node/bringup 装配流程
-- `charm-io-contracts`：Channel/Reactor/Registry 契约与落地检查清单
-- `charm-docs-update`：文档索引与 README 同步流程
+- `charm-init-graph`
+- `charm-io-contracts`
+- `charm-capability-map`
+- `charm-block-device`
+- `charm-docs-minimal`
+- `charm-docs-utf8`
+- `charm-cmake`

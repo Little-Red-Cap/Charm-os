@@ -21,6 +21,7 @@ option(CHARM_BANNED_HEADER_CHECK_EXAMPLES "Also check Examples/ for banned heade
 set(CHARM_BANNED_HEADERS "iostream;fstream;filesystem;regex;format;locale;codecvt" CACHE STRING "Semicolon list of banned headers")
 set(CHARM_BANNED_HEADERS_EXCLUDE_REGEX "" CACHE STRING "Semicolon list of regexes to exclude from banned header scan")
 option(CHARM_FORBID_SHARED_LIBS "Forbid shared/module library targets" ON)
+option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" ON)
 
 add_library(${target_name})
 
@@ -166,6 +167,9 @@ if (ARCH_LINT_SHELL AND EXISTS "${ARCH_LINT_SCRIPT}")
     add_custom_target(arch_lint
         COMMAND "${ARCH_LINT_SHELL}" ${ARCH_LINT_ARGS}
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    if (CHARM_ENABLE_ARCH_LINT_GUARD)
+        add_dependencies(${target_name} arch_lint)
+    endif()
 endif()
 
 if (CHARM_BUILD_PLAYER)

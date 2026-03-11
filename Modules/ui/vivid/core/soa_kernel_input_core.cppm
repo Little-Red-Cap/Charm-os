@@ -87,7 +87,6 @@ import charm.core.soa_registry;
             input_emit_event(old, Event::mouse(Event::Type::Cancel, x, y, button, input_.last_ms));
             if (input_.pressed == old) {
                 input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
-                input_.pressed = {};
             }
             if (input_.scroll_target == old) {
                 input_.scroll_target = {};
@@ -128,7 +127,6 @@ import charm.core.soa_registry;
 
         if (pressed_hit) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
-            input_.pressed = {};
         }
         if (captured_hit) {
             input_.button = 0;
@@ -142,14 +140,12 @@ import charm.core.soa_registry;
                 input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverLeave, x, y, input_.button, input_.last_ms));
             }
             input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
-            input_.hovered = {};
         }
         if (focused_hit) {
             if (valid(input_.focused)) {
                 input_emit_event(input_.focused, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_.last_ms));
             }
             input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 0, 0});
-            input_.focused = {};
         }
         if (input_.root == h) {
             input_.root = {};
@@ -174,18 +170,15 @@ import charm.core.soa_registry;
         }
         if (input_.pressed) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
-            input_.pressed = {};
         }
         if (input_.captured) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetCaptured, {}, 0, 0});
         }
         if (input_.hovered) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
-            input_.hovered = {};
         }
         if (input_.focused) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 0, 0});
-            input_.focused = {};
         }
         input_.scroll_target = {};
         input_.button = 0;
@@ -206,10 +199,9 @@ import charm.core.soa_registry;
             input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverLeave, x, y, button, input_.last_ms));
             input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
         }
-        input_.hovered = hit;
-        if (input_.hovered) {
-            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 1, 0});
-            input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverEnter, x, y, button, input_.last_ms));
+        if (hit) {
+            input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, hit, 1, 0});
+            input_emit_event(hit, Event::mouse(Event::Type::HoverEnter, x, y, button, input_.last_ms));
         }
     }
 
@@ -264,7 +256,6 @@ import charm.core.soa_registry;
                 return;
             }
         }
-        input_.pressed = hit;
         input_.button = button;
         input_.drag_start_x = x;
         input_.drag_start_y = y;
@@ -298,7 +289,6 @@ import charm.core.soa_registry;
                 input_handle_click(input_.pressed, x, y);
             }
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
-            input_.pressed = {};
         }
         if (input_.captured) {
             input_set_capture({}, x, y, button, false);
@@ -353,11 +343,9 @@ import charm.core.soa_registry;
         if (input_.hovered) {
             input_emit_event(input_.hovered, Event::mouse(Event::Type::HoverLeave, x, y, button, input_.last_ms));
             input_emit_action(SoaInputAction{SoaInputActionType::SetHovered, input_.hovered, 0, 0});
-            input_.hovered = {};
         }
         if (input_.pressed) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetPressed, input_.pressed, 0, 0});
-            input_.pressed = {};
         }
         if (input_.captured) {
             input_emit_action(SoaInputAction{SoaInputActionType::SetCaptured, {}, 0, 0});
@@ -851,10 +839,9 @@ import charm.core.soa_registry;
             input_emit_event(input_.focused, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_.last_ms));
             input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 0, 0});
         }
-        input_.focused = h;
-        if (input_.focused) {
-            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 1, 0});
-            input_emit_event(input_.focused, Event::key(Event::Type::FocusIn, Event::Key::Unknown, input_.last_ms));
+        if (h) {
+            input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, h, 1, 0});
+            input_emit_event(h, Event::key(Event::Type::FocusIn, Event::Key::Unknown, input_.last_ms));
         }
     }
 

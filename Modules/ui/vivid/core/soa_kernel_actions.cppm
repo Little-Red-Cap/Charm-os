@@ -33,12 +33,30 @@ void SoaKernel::input_handle_action_overflow() noexcept {
 void SoaKernel::input_apply_action(const SoaInputAction& action) noexcept {
     switch (action.type) {
     case SoaInputActionType::SetFocused:
+        input_guard_state_write("focused");
+        if (action.a != 0) {
+            input_.focused = action.target;
+        } else if (input_.focused == action.target) {
+            input_.focused = {};
+        }
         set_focused(action.target, action.a != 0);
         break;
     case SoaInputActionType::SetHovered:
+        input_guard_state_write("hovered");
+        if (action.a != 0) {
+            input_.hovered = action.target;
+        } else if (input_.hovered == action.target) {
+            input_.hovered = {};
+        }
         set_hovered(action.target, action.a != 0);
         break;
     case SoaInputActionType::SetPressed:
+        input_guard_state_write("pressed");
+        if (action.a != 0) {
+            input_.pressed = action.target;
+        } else if (input_.pressed == action.target) {
+            input_.pressed = {};
+        }
         set_pressed(action.target, action.a != 0);
         break;
     case SoaInputActionType::SetCaptured:

@@ -4,7 +4,7 @@ module;
 export module charm.core.layout;
 
 import charm.core.object;
-import charm.core.factory;
+import charm.core.soa_factory;
 
 export
 class Layout {

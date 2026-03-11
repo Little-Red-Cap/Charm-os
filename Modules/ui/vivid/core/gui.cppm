@@ -10,7 +10,7 @@ export import charm.gfx.render_style;
 export import charm.core.event;
 export import charm.core.object;
 export import charm.core.handle;
-export import charm.core.factory;
+export import charm.core.soa_factory;
 export import charm.core.layout;
 export import charm.core.input_router;
 export import charm.widgets.scroll_container;

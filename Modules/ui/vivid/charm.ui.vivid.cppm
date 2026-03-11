@@ -5,16 +5,12 @@ export module charm.ui.vivid;
 
 export import charm.core.config;
 export import charm.core.event;
-export import charm.core.factory;
+export import charm.core.soa_factory;
 export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
-export import charm.core.soa_kernel;
-export import charm.core.soa_layout;
-export import charm.core.soa_gui;
-export import charm.core.soa_router;
 
 export import ui.render_backend;
 export import charm.gfx.canvas;
@@ -28,5 +24,3 @@ export import charm.gfx.render_style;
 
 export import charm.font;
 export import charm.font.typography;
-export import charm.font.font_noto_ascii_12;
-export import charm.font.font_noto_sc_12;

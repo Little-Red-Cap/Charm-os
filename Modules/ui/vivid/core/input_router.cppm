@@ -9,7 +9,7 @@ export module charm.core.input_router;
 export import charm.core.event;
 export import charm.core.object;
 export import charm.core.handle;
-export import charm.core.factory;
+export import charm.core.soa_factory;
 export import charm.widgets.scroll_container;
 import input.nav;
 

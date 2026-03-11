@@ -16,7 +16,7 @@ export import charm.gfx.color;
 export import charm.gfx.framebuffer;
 export import charm.gfx.image;
 export import charm.gfx.path;
-export import charm.gfx.render;
+export import charm.gfx.render_core;
 export import charm.font;
 export import charm.font.typography;
 export import charm.gfx.text_box;

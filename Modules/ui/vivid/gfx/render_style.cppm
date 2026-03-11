@@ -1,6 +1,6 @@
 module;
 export module charm.gfx.render_style;
-export import charm.gfx.render;
+export import charm.gfx.render_core;
 import charm.core.style;
 
 namespace ui::render {

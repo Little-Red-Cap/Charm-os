@@ -65,20 +65,26 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    app/main.cpp
+#    app/main.cpp
+    app/application.cpp
     app/uart_bridge.c
 )
 
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cppm"
 )
+file(GLOB_RECURSE INK_APP_MODULES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app/*.cppm"
+)
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
     BASE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../app"
     FILES
         ${MODULE_INTERFACE_UNITS}
+        ${INK_APP_MODULES}
 )
 
 # Link directories setup
@@ -95,8 +101,8 @@ add_compile_definitions(STM32H747xx)
 add_compile_definitions(CORE_CM7)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
-set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
-set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 

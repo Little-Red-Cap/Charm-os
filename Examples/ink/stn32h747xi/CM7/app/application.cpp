@@ -6,8 +6,29 @@
 #include "main.h"
 #include "tim.h"
 #include "i2c.h"
+/*
+LED
+    StateLED-> PI15
 
-// import out.api;
+UART
+    PA10     ------> USART1_RX
+    PA9     ------> USART1_TX
+
+OLED
+    PB10     ------> I2C2_SCL
+    PB11     ------> I2C2_SDA
+
+Encoder
+    PI7     ------> Key
+    PI6     ------> TIM8_CH2
+    PI5     ------> TIM8_CH1
+
+Debug
+    PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
+    PA13 (JTMS/SWDIO)   ------> DEBUG_JTMS-SWDIO
+ */
+
+import out.api;
 
 // out::port::console_sink console;
 
@@ -105,7 +126,7 @@ public:
         s_i2c_dma_busy = true;
         s_i2c_dma_frame[0] = I2C_DATA_ADDR;
         std::memcpy(&s_i2c_dma_frame[1], buffer, sizeof(buffer));
-        if (HAL_I2C_Master_Transmit_DMA(&hi2c1,
+        if (HAL_I2C_Master_Transmit_DMA(&hi2c2,
                                         SSD1306::I2C_ADDR_default,
                                         s_i2c_dma_frame,
                                         sizeof(s_i2c_dma_frame)) != HAL_OK) {
@@ -157,27 +178,27 @@ private:
 
 extern "C" void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef* hi2c)
 {
-    if (hi2c == &hi2c1) {
+    if (hi2c == &hi2c2) {
         s_i2c_dma_busy = false;
     }
 }
 
 extern "C" void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef* hi2c)
 {
-    if (hi2c == &hi2c1) {
+    if (hi2c == &hi2c2) {
         s_i2c_dma_busy = false;
     }
 }
 
 extern "C" void HAL_I2C_ErrorCallback(I2C_HandleTypeDef* hi2c)
 {
-    if (hi2c == &hi2c1) {
+    if (hi2c == &hi2c2) {
         s_i2c_dma_busy = false;
     }
 }
 
 static SSD1306 display([](uint8_t *data, const uint16_t len, const bool data_or_cmd) {
-        HAL_I2C_Mem_Write(&hi2c1, SSD1306::I2C_ADDR_default, data_or_cmd == SSD1306::CMD ? SSD1306::I2C_CMD_ADDR : SSD1306::I2C_DATA_ADDR, 1, data, len, HAL_MAX_DELAY);
+        HAL_I2C_Mem_Write(&hi2c2, SSD1306::I2C_ADDR_default, data_or_cmd == SSD1306::CMD ? SSD1306::I2C_CMD_ADDR : SSD1306::I2C_DATA_ADDR, 1, data, len, HAL_MAX_DELAY);
 });
 
 
@@ -185,11 +206,11 @@ static int32_t last_cnt = 0;
 static int32_t acc = 0;
 static constexpr int32_t STEP = 4; // 实测一格=4
 
-inline int32_t Encoder_GetPos() { return static_cast<int32_t>(__HAL_TIM_GET_COUNTER(&htim2)); }
+inline int32_t Encoder_GetPos() { return static_cast<int32_t>(__HAL_TIM_GET_COUNTER(&htim8)); }
 
 int32_t Encoder_GetDelta()
 {
-    const auto    cnt   = static_cast<int32_t>(__HAL_TIM_GET_COUNTER(&htim2));
+    const auto    cnt   = static_cast<int32_t>(__HAL_TIM_GET_COUNTER(&htim8));
     const int32_t delta = static_cast<int16_t>(cnt - last_cnt); // 若 TIM 是 16-bit， 16-bit 回绕安全
     last_cnt            = cnt;
     return delta;
@@ -288,7 +309,7 @@ struct RawSourceSTM32 {
     void update(std::uint32_t now_ms) noexcept {
         (void)now_ms;
         // ---- Enter 键 ----
-        bool down = (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET);
+        bool down = (HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_7) == GPIO_PIN_RESET);
         key_down_[static_cast<size_t>(gui_input::Button::Enter)] = down;
 
         int32_t step = Encoder_GetStep();   // 这里是“菜单步进”，已经把 4 折算掉了
@@ -398,7 +419,13 @@ static void refresh_area(SSD1306& display, int x0, int y0, int x1, int y1)
 
 extern "C" void application()
 {
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+    GPIO_InitTypeDef gpio{};
+    gpio.Pin = GPIO_PIN_7;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOI, &gpio);
+
+    HAL_TIM_Encoder_Start(&htim8, TIM_CHANNEL_ALL);
     display.init();
     display.clear(0);//已确认显示正常。
 
@@ -463,6 +490,7 @@ extern "C" void application()
         app::draw_current_ui(renderer, state);
         if (state.ui.fps_overlay == gui::ui::Toggle::On) {
             char dbg_buf[24]{};
+            
             std::snprintf(dbg_buf, sizeof(dbg_buf), "D:%d A:%d%s",
                           last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
             renderer.drawText(2, 2, dbg_buf, true);

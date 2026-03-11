@@ -21,7 +21,7 @@ import gui.motion;
 
 import gui.input;
 
-namespace input = gui::input;
+namespace gui_input = gui::input;
 
 
 namespace app::detail
@@ -38,12 +38,12 @@ namespace app::detail
     }
 
 
-    inline void reduce_main(AppState& s, const std::optional<input::Intent>& it) noexcept
+    inline void reduce_main(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         const auto& sem = s.semantics;
         if (s.popup.content == PopupContentKind::Lamp) {
             if (it) {
-                using input::IntentType;
+                using gui_input::IntentType;
                 if (it->type == IntentType::Back || it->type == IntentType::Activate) {
                     s.popup.content = PopupContentKind::None;
                     return;
@@ -76,7 +76,7 @@ namespace app::detail
         }
     }
 
-    inline void reduce_battery(AppState& s, const std::optional<input::Intent>& it) noexcept
+    inline void reduce_battery(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         const auto& sem = s.semantics;
         if (sem.activation.kind == gui::ui::ActivationKind::Back) {
@@ -99,7 +99,7 @@ namespace app::detail
             return;
         }
 
-        if (it && it->type == input::IntentType::Adjust) {
+        if (it && it->type == gui_input::IntentType::Adjust) {
             const int delta = (int)it->a;
             if (delta != 0) {
                 int v = (int)s.data.battery + delta * (int)s.battery_page.step;
@@ -128,10 +128,10 @@ namespace app::detail
         }
     }
 
-    inline void reduce_icon(AppState& s, const std::optional<input::Intent>& it) noexcept
+    inline void reduce_icon(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         const auto& sem = s.semantics;
-        if (it && it->type == input::IntentType::Adjust) {
+        if (it && it->type == gui_input::IntentType::Adjust) {
             const int delta = (int)it->a;
             if (delta != 0) {
                 const std::int16_t count = app::icons::icon_count();
@@ -158,7 +158,7 @@ namespace app::detail
         }
     }
 
-    inline void reduce_settings(AppState& s, const std::optional<input::Intent>& it) noexcept
+    inline void reduce_settings(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         const auto& sem = s.semantics;
         const bool popup_open = (sem.capture.kind == gui::ui::CaptureKind::Popup &&
@@ -182,7 +182,7 @@ namespace app::detail
             // ESCAPE_HATCH: popup needs adjustable amount; current Activation does not carry delta.
             // TODO: move to Activation v2 or a dedicated adjust intent payload.
             if (sem.activation.kind == gui::ui::ActivationKind::Submit && it &&
-                it->type == input::IntentType::Adjust) {
+                it->type == gui_input::IntentType::Adjust) {
                 const int delta = (int)it->a;
                 if (delta != 0) {
                     constexpr int kStep = 10;
@@ -230,7 +230,7 @@ namespace app::detail
         }
     }
 
-    inline void reduce_widgets(AppState& s, const std::optional<input::Intent>& it) noexcept
+    inline void reduce_widgets(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         auto& sem = s.semantics;
         if (sem.activation.kind == gui::ui::ActivationKind::Back) {
@@ -259,7 +259,7 @@ namespace app::detail
             }
         }
 
-        if (it && it->type == input::IntentType::Adjust) {
+        if (it && it->type == gui_input::IntentType::Adjust) {
             const int delta = (int)it->a;
             const std::int16_t idx = sem.focus.index;
             if (idx >= 0 && idx < count && delta != 0) {
@@ -307,7 +307,7 @@ export namespace app
     // GCC -fmodules-ts (arm-none-eabi) can fail to load module bindings
     // for large/complex inline exports ("Bad file data"), while non-inline
     // works reliably. Keep it non-inline until toolchain support improves.
-    void apply_intent(AppState& s, const std::optional<input::Intent>& it) noexcept
+    void apply_intent(AppState& s, const std::optional<gui_input::Intent>& it) noexcept
     {
         if (s.request_quit) return;
 

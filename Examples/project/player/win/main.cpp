@@ -1,4 +1,4 @@
-﻿#ifndef CHARM_PLAYER_DEBUG_UI
+#ifndef CHARM_PLAYER_DEBUG_UI
 #define CHARM_PLAYER_DEBUG_UI 0
 #endif
 
@@ -69,7 +69,7 @@ import charm.widgets.popup_layer;
 import charm.widgets.modal_dialog;
 #endif
 import charm.widgets.image;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import fs_core;
 import fs_errno;
 import fs_stream;

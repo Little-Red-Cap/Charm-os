@@ -1,4 +1,4 @@
-# Charm 架构全景（收敛版）
+﻿# Charm 架构全景（收敛版）
 
 本页是 Charm 的全局架构图与依赖红线说明。  
 不承担文档路由或新同学入门职责。
@@ -45,8 +45,11 @@ Charm（统一架构）
 
 UI/Vivid 公开入口：
 - 正式 public：`charm.ui.vivid`
-- 过渡 deprecated：`charm.font.defaults_noto`、`charm.font.font_noto_*`（禁止新增依赖）
-- 内部 private：`core/*`、`soa_*`、`widgets/*`（不从聚合入口导出）
+- 过渡 deprecated：`charm.font.font_noto_ascii_12`、`charm.font.font_noto_sc_12`（禁止新增依赖）
+- 非作为组合入口的资源：`charm.font.defaults_noto`（允许显式 import，禁止再从聚合入口 re-export）
+- 已删除旧名：`input.gesture`、`charm.ui.vivid.full`、`service.fifo`、`gui.ui_input_router_bridge`、`charm.widgets.text`、`input_router_bridge`（禁止新增依赖）
+- 内部 private：`charm.core.soa_*`、`gui.ui_semantics_bridge`、`ui.vivid.core.*`、`ui.vivid.widgets.*`、`ui.ink.ui.*`（标 internal 者）、以及任意 `*bridge*/*compat*/*alias*` 模块（禁止新增依赖）
+- UI Kernel 契约：docs/ui/ui_kernel_contract.md
 
 ```mermaid
 graph TD

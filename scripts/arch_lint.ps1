@@ -55,7 +55,7 @@ function Find-Matches {
         if ($ExcludeGlobs.Count -gt 0 -and (Match-Any $rel $ExcludeGlobs)) { continue }
         $hits = Select-String -Path $file.FullName -Pattern $Pattern -AllMatches
         foreach ($hit in $hits) {
-            $matches += "$rel:$($hit.LineNumber):$($hit.Line)"
+            $matches += "${rel}:$($hit.LineNumber):$($hit.Line)"
         }
     }
     return $matches
@@ -88,7 +88,7 @@ $matches = Find-Matches `
         "Modules/platform/win_stub/**",
         "Modules/io/hal/hal_win.cppm"
     )
-if ($matches.Count -gt 0) {
+if (@($matches).Count -gt 0) {
     Fail-Rule -Name "core-no-std-chrono" `
         -Message "core modules must use charm.system.clock; std::chrono is PC-only." `
         -Matches $matches
@@ -100,7 +100,7 @@ $matches = Find-Matches `
     -Pattern "input\\.sampler" `
     -IncludeGlobs @("Modules/**", "Examples/**") `
     -ExcludeGlobs @("Modules/thirdparty/**")
-if ($matches.Count -gt 0) {
+if (@($matches).Count -gt 0) {
     Fail-Rule -Name "no-input-sampler" `
         -Message "input.sampler is removed; use input.raw_sampler + router." `
         -Matches $matches
@@ -112,7 +112,7 @@ $matches = Find-Matches `
     -Pattern "^[\\s]*import[\\s]+(platform\\.|hal_)" `
     -IncludeGlobs @("Modules/io/at/**", "Modules/io/proto/**") `
     -ExcludeGlobs @()
-if ($matches.Count -gt 0) {
+if (@($matches).Count -gt 0) {
     Fail-Rule -Name "proto-no-platform-hal-import" `
         -Message "protocol modules must not import platform or HAL." `
         -Matches $matches
@@ -125,7 +125,7 @@ $loopFiles = Find-Matches `
     -IncludeGlobs @("Modules/io/at/**", "Modules/io/proto/**") `
     -ExcludeGlobs @()
 $spinMatches = @()
-if ($loopFiles.Count -gt 0) {
+if (@($loopFiles).Count -gt 0) {
     $loopFileSet = @{}
     foreach ($m in $loopFiles) {
         $path = $m.Split(":", 2)[0]
@@ -136,16 +136,123 @@ if ($loopFiles.Count -gt 0) {
         $hits = Select-String -Path $full -Pattern "now_ms|sleep_for|sleep\\(|delay_ms|delay_us|wait_timeout" -AllMatches
         if ($hits) {
             foreach ($hit in $hits) {
-                $spinMatches += "$path:$($hit.LineNumber):$($hit.Line)"
+                $spinMatches += "${path}:$($hit.LineNumber):$($hit.Line)"
             }
         }
     }
 }
-if ($spinMatches.Count -gt 0) {
+if (@($spinMatches).Count -gt 0) {
     Fail-Rule -Name "proto-no-busy-spin" `
         -Message "protocol modules must not busy-spin; use reactor/timeouts." `
         -Matches $spinMatches
     $failed = $true
+}
+
+# Rule: forbid imports of removed/deprecated module names.
+$deletedModules = @(
+    "input.gesture",
+    "charm.ui.vivid.full",
+    "service.fifo",
+    "gui.ui_input_router_bridge",
+    "charm.widgets.text",
+    "input_router_bridge"
+)
+$deprecatedModules = @(
+    "charm.font.font_noto_ascii_12",
+    "charm.font.font_noto_sc_12"
+)
+
+function Build-Import-Pattern([string[]]$Modules) {
+    $escaped = $Modules | ForEach-Object { [Regex]::Escape($_) }
+    return "^[\\s]*(export\\s+)?import\\s+(" + ($escaped -join "|") + ")\\b"
+}
+
+$deletedPattern = Build-Import-Pattern $deletedModules
+$matches = Find-Matches `
+    -Pattern $deletedPattern `
+    -IncludeGlobs @("Modules/**", "Examples/**") `
+    -ExcludeGlobs @(
+        "Modules/thirdparty/**",
+        "Modules/**/*.bak",
+        "Examples/**/cmake-build-*/**",
+        "Draft/**"
+    )
+if (@($matches).Count -gt 0) {
+    Fail-Rule -Name "no-removed-modules" `
+        -Message "removed modules must not be imported." `
+        -Matches $matches
+    $failed = $true
+}
+
+$deprecatedPattern = Build-Import-Pattern $deprecatedModules
+$matches = Find-Matches `
+    -Pattern $deprecatedPattern `
+    -IncludeGlobs @("Modules/**", "Examples/**") `
+    -ExcludeGlobs @(
+        "Modules/thirdparty/**",
+        "Modules/gfx/font/font_defaults_noto.cppm",
+        "Modules/**/*.bak",
+        "Examples/**/cmake-build-*/**",
+        "Draft/**"
+    )
+if (@($matches).Count -gt 0) {
+    Fail-Rule -Name "no-deprecated-module-imports" `
+        -Message "deprecated module imports are forbidden; use gfx/font defaults or updated APIs." `
+        -Matches $matches
+    $failed = $true
+}
+
+# Rule: public aggregates must not re-export internal/bridge/compat modules.
+$publicAggregates = @(
+    "Modules/ui/vivid/charm.ui.vivid.cppm",
+    "Modules/ui/ink/charm.ui.ink.cppm"
+)
+$internalExportPattern = "^[\\s]*export\\s+import\\s+(charm\\.core\\.soa_|gui\\.ui_semantics_bridge|charm\\.widgets\\.)"
+$bridgeExportPattern = "^[\\s]*export\\s+import\\s+\\S*(bridge|compat|alias)\\S*"
+$defaultsNotoExportPattern = "^[\\s]*export\\s+import\\s+charm\\.font\\.defaults_noto\\b"
+
+foreach ($file in $publicAggregates) {
+    $full = Join-Path $Root $file
+    if (-not (Test-Path $full)) { continue }
+    $hits = Select-String -Path $full -Pattern $internalExportPattern
+    if ($hits) {
+        $matches = $hits | ForEach-Object { "${file}:$($_.LineNumber):$($_.Line)" }
+        Fail-Rule -Name "public-export-internal" `
+            -Message "public aggregates must not export internal modules." `
+            -Matches $matches
+        $failed = $true
+    }
+    $hits = Select-String -Path $full -Pattern $bridgeExportPattern
+    if ($hits) {
+        $matches = $hits | ForEach-Object { "${file}:$($_.LineNumber):$($_.Line)" }
+        Fail-Rule -Name "public-export-bridge" `
+            -Message "public aggregates must not export bridge/compat/alias modules." `
+            -Matches $matches
+        $failed = $true
+    }
+    $hits = Select-String -Path $full -Pattern $defaultsNotoExportPattern
+    if ($hits) {
+        $matches = $hits | ForEach-Object { "${file}:$($_.LineNumber):$($_.Line)" }
+        Fail-Rule -Name "public-export-defaults-noto" `
+            -Message "defaults_noto is an optional resource module; do not re-export from public aggregates." `
+            -Matches $matches
+        $failed = $true
+    }
+}
+
+# Rule: bridge/compat/alias modules must declare lifecycle.
+$bridgeFiles = Get-ChildItem -Path $Root -Recurse -File -Include "*bridge*.cppm", "*compat*.cppm", "*alias*.cppm"
+$bridgeExclude = @("Modules/thirdparty/**", "Modules/**/*.bak", "Draft/**")
+foreach ($file in $bridgeFiles) {
+    $rel = Get-RelativePath -Base $Root -Path $file.FullName
+    if (Match-Any $rel $bridgeExclude) { continue }
+    $hit = Select-String -Path $file.FullName -Pattern "lifecycle" -Quiet
+    if (-not $hit) {
+        Fail-Rule -Name "bridge-missing-lifecycle" `
+            -Message "bridge/compat/alias modules must declare lifecycle." `
+            -Matches @($rel)
+        $failed = $true
+    }
 }
 
 if ($failed) {
@@ -155,3 +262,5 @@ if ($failed) {
 }
 
 Write-Host "[arch_lint] OK"
+
+

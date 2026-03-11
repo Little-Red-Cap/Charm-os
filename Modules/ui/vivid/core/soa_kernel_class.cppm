@@ -319,6 +319,7 @@ public:
     }
 
     void set_hovered(WidgetHandle h, bool on) noexcept {
+        input_guard_state_write("hovered");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0;
@@ -328,6 +329,7 @@ public:
     }
 
     void set_pressed(WidgetHandle h, bool on) noexcept {
+        input_guard_state_write("pressed");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0;
@@ -337,6 +339,7 @@ public:
     }
 
     void set_focused(WidgetHandle h, bool on) noexcept {
+        input_guard_state_write("focused");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0;
@@ -446,6 +449,7 @@ public:
 
     void input_dispatch(const Event& e) noexcept {
         if (!input_.root) return;
+        const auto input_phase_guard = input_phase_scope();
         input_events_.clear();
         input_actions_.clear();
         input_.last_ms = e.ms;
@@ -874,6 +878,45 @@ private:
     };
 
     InputActionQueue input_actions_{};
+    bool input_phase_{false};
+    bool input_commit_phase_{false};
+
+    struct InputPhaseScope {
+        SoaKernel& kernel;
+        explicit InputPhaseScope(SoaKernel& k) : kernel(k) {
+            kernel.input_phase_ = true;
+        }
+        ~InputPhaseScope() {
+            kernel.input_phase_ = false;
+        }
+    };
+
+    struct InputCommitScope {
+        SoaKernel& kernel;
+        explicit InputCommitScope(SoaKernel& k) : kernel(k) {
+            kernel.input_commit_phase_ = true;
+        }
+        ~InputCommitScope() {
+            kernel.input_commit_phase_ = false;
+        }
+    };
+
+    [[nodiscard]] InputPhaseScope input_phase_scope() noexcept {
+        return InputPhaseScope{*this};
+    }
+
+    [[nodiscard]] InputCommitScope input_commit_scope() noexcept {
+        return InputCommitScope{*this};
+    }
+
+    void input_guard_state_write(const char* what) noexcept {
+#ifndef NDEBUG
+        if (input_phase_ && !input_commit_phase_) {
+            assert(false && "SoaKernel state write during input phase");
+        }
+#endif
+        (void)what;
+    }
 
     void input_emit_action(const SoaInputAction& action) noexcept;
     void input_handle_action_overflow() noexcept;
@@ -921,6 +964,7 @@ private:
     bool input_is_descendant(WidgetHandle node, WidgetHandle ancestor) const noexcept ;
     void clear_scrollbar_targets(WidgetHandle h) noexcept ;
     void input_set_capture(WidgetHandle h, int x, int y, int button, bool emit_cancel) ;
+    void input_set_dragging(bool on) ;
     void input_on_destroy(WidgetHandle h) ;
     void input_handle_overflow(bool assert_on_overflow = true) ;
     void input_handle_hover(int x, int y, int button) ;

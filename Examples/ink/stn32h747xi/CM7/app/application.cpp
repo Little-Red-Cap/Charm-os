@@ -40,7 +40,14 @@ static std::uint32_t tick_now(void*) noexcept
 static volatile bool s_i2c_dma_busy = false;
 static std::uint32_t s_i2c_dma_start_ms = 0;
 static std::uint8_t s_i2c_dma_frame[1 + 128 * 64 / 8]{};
-static bool s_i2c_dma_enabled = true;
+static bool s_i2c_dma_enabled = false;
+static constexpr std::uint32_t kI2cTimeoutMs = 20;
+
+static void i2c2_recover() noexcept
+{
+    (void)HAL_I2C_DeInit(&hi2c2);
+    MX_I2C2_Init();
+}
 
 
 class SSD1306 {
@@ -115,7 +122,16 @@ public:
         // 设置连续写入模式
         write_bytes(const_cast<uint8_t*>(init_seq), CMD, sizeof(init_seq));
 
-        write_bytes(const_cast<uint8_t*>(buffer), DATA, sizeof(buffer));
+        // write_bytes(const_cast<uint8_t*>(buffer), DATA, sizeof(buffer));
+        s_i2c_dma_frame[0] = I2C_DATA_ADDR;
+        std::memcpy(&s_i2c_dma_frame[1], buffer, sizeof(buffer));
+        if (HAL_I2C_Master_Transmit(&hi2c2,
+                                    SSD1306::I2C_ADDR_default,
+                                    s_i2c_dma_frame,
+                                    sizeof(s_i2c_dma_frame),
+                                    kI2cTimeoutMs) != HAL_OK) {
+            i2c2_recover();
+        }
 #endif
     }
 
@@ -198,7 +214,16 @@ extern "C" void HAL_I2C_ErrorCallback(I2C_HandleTypeDef* hi2c)
 }
 
 static SSD1306 display([](uint8_t *data, const uint16_t len, const bool data_or_cmd) {
-        HAL_I2C_Mem_Write(&hi2c2, SSD1306::I2C_ADDR_default, data_or_cmd == SSD1306::CMD ? SSD1306::I2C_CMD_ADDR : SSD1306::I2C_DATA_ADDR, 1, data, len, HAL_MAX_DELAY);
+        // HAL_I2C_Mem_Write(&hi2c2, SSD1306::I2C_ADDR_default, data_or_cmd == SSD1306::CMD ? SSD1306::I2C_CMD_ADDR : SSD1306::I2C_DATA_ADDR, 1, data, len, HAL_MAX_DELAY);
+    if (HAL_I2C_Mem_Write(&hi2c2,
+                          SSD1306::I2C_ADDR_default,
+                          data_or_cmd == SSD1306::CMD ? SSD1306::I2C_CMD_ADDR : SSD1306::I2C_DATA_ADDR,
+                          1,
+                          data,
+                          len,
+                          kI2cTimeoutMs) != HAL_OK) {
+        i2c2_recover();
+    }
 });
 
 
@@ -416,7 +441,10 @@ static void refresh_area(SSD1306& display, int x0, int y0, int x1, int y1)
     }
 }
 
-
+app::AppState state{};
+input::Router router{};
+gui::input::RawSampler raw_sampler{};
+gui::ui::RouterIntentQueue<> router_queue{};
 extern "C" void application()
 {
     GPIO_InitTypeDef gpio{};
@@ -433,7 +461,7 @@ extern "C" void application()
     Canvas canvas;
     gui::Renderer<Canvas> renderer(canvas);
 
-    app::AppState state{};
+    // app::AppState state{};
     state.init();
 
     app::set_tick_source(state, gui::perf::make_tick_source(tick_now, nullptr));
@@ -441,9 +469,9 @@ extern "C" void application()
     state.ui.fps_overlay = gui::ui::Toggle::On;
 
     RawSourceSTM32 raw(128, 64);
-    ::gui_input::Router router{};
-    gui::input::RawSampler raw_sampler{};
-    gui::ui::RouterIntentQueue<> router_queue{};
+    // input::Router router{};
+    // gui::input::RawSampler raw_sampler{};
+    // gui::ui::RouterIntentQueue<> router_queue{};
     (void)router_queue.start(router);
     const auto router_policy = router_queue.policy();
     state.input_policies.set(gui::ui::InputPolicyId::Default, router_policy);
@@ -489,11 +517,14 @@ extern "C" void application()
         // --- 画 UI ---
         app::draw_current_ui(renderer, state);
         if (state.ui.fps_overlay == gui::ui::Toggle::On) {
-            char dbg_buf[24]{};
-            
-            std::snprintf(dbg_buf, sizeof(dbg_buf), "D:%d A:%d%s",
-                          last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
-            renderer.drawText(2, 2, dbg_buf, true);
+            // char dbg_buf[24]{};
+            // std::snprintf(dbg_buf, sizeof(dbg_buf), "D:%d A:%d%s",
+            //               last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
+            // renderer.drawText(2, 2, dbg_buf, true);
+
+            out::buffer_sink<24> dbg_buf{};
+            out::print<"D:{} A:{}{}">(dbg_buf, last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
+            renderer.drawText(2, 2, dbg_buf.view().data(), true);
         }
 
         // --- 显示 ---

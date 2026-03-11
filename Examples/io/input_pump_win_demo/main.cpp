@@ -143,10 +143,10 @@ int main(int argc, char** argv) {
 
     auto r = bringup.start();
     if (!r) {
-        (void)out::println<"[input_pump] bringup failed err={}">(sink, static_cast<int>(r.error()));
+    (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;
     }
-    (void)out::println<"[input_pump] bringup ok">(sink);
+    (void)out::println<"[OK] bringup ok">(sink);
 
     const auto start = platform::win::SteadyClock::now();
     while ((platform::win::SteadyClock::now() - start) < 500000u) {

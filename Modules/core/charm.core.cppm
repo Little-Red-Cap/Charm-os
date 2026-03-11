@@ -16,7 +16,7 @@ export import init.graph;
 export import trace_core;
 
 export import service.bitmap;
-export import service.fifo;
+export import service_fifo;
 export import service.fixed_allocator;
 export import service.fixed_hash_map;
 export import service.fixed_list;

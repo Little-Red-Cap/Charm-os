@@ -24,6 +24,3 @@ export import charm.gfx.render_style;
 
 export import charm.font;
 export import charm.font.typography;
-// deprecated: preset font resources; avoid new deps, will be moved out later.
-export import charm.font.font_noto_ascii_12;
-export import charm.font.font_noto_sc_12;

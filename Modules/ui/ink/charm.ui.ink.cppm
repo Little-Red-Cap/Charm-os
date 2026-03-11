@@ -48,7 +48,7 @@ export import gui.ui_highlight;
 export import gui.ui_hit_test;
 export import gui.ui_input_policy;
 export import gui.ui_input_adapter;
-export import gui.ui_input_router_bridge;
+export import gui.ui_input_policy;
 export import gui.ui_nav;
 export import gui.ui_semantics;
 export import gui.ui_semantics_bridge;

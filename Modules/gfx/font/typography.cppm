@@ -3,8 +3,7 @@ module;
 export module charm.font.typography;
 
 export import charm.font;
-import charm.font.font_noto_sc_12;
-import charm.font.font_noto_ascii_12;
+
 
 export enum class FontId : uint8_t {
     Small,
@@ -12,6 +11,22 @@ export enum class FontId : uint8_t {
     Large,
     Mono,
 };
+
+namespace {
+inline const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
+inline const Font* g_default_fallback = nullptr;
+inline const Font k_empty_font{};
+} // namespace
+
+export
+inline void set_default_font(const FontId id, const Font* font) noexcept {
+    g_default_fonts[static_cast<unsigned>(id)] = font;
+}
+
+export
+inline void set_default_fallback_font(const Font* font) noexcept {
+    g_default_fallback = font;
+}
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 static std::uint32_t g_font_ptr_map_count = 0;
@@ -31,22 +46,17 @@ inline const Font* fallback_for(const Font& font) noexcept {
     if (font.fallback_font) {
         return font.fallback_font;
     }
-    const auto* table = font.table.data();
-    if (table == font_noto_ascii_12.table.data()) {
-        return &font_noto_sc_12;
+    if (g_default_fallback && &font != g_default_fallback) {
+        return g_default_fallback;
     }
     return nullptr;
 }
 
 export
 const Font& get_font(const FontId id) noexcept {
-    switch (id) {
-    case FontId::Small: return font_noto_ascii_12;
-    case FontId::Normal: return font_noto_ascii_12;
-    case FontId::Large: return font_noto_ascii_12;
-    case FontId::Mono: return font_noto_ascii_12;
-    }
-    return font_noto_ascii_12;
+    const auto* font = g_default_fonts[static_cast<unsigned>(id)];
+    if (font) return *font;
+    return k_empty_font;
 }
 
 export

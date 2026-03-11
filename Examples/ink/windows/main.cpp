@@ -19,6 +19,7 @@ import app.theme;
 import app.ui;
 import app.logic;
 import app.logic_intent;
+import app.runtime;
 import gui.ui_input_policy;
 
 import gui.input;
@@ -57,16 +58,8 @@ int main() try {
     }
 
 
-    app::AppState state_a{};
-    app::AppState state_b{};
-    state_a.init();
-    state_a.data.lamp_on = true;
-    state_a.data.battery = 100;
-    if (kEnableSecond) {
-        state_b.init();
-        state_b.data.lamp_on = true;
-        state_b.data.battery = 100;
-    }
+    app::Runtime runtime_a{};
+    std::optional<app::Runtime> runtime_b;
 
     debug::DebugScope debug_scope;
 
@@ -82,9 +75,14 @@ int main() try {
     };
 
     const gui::perf::TickSource tick = gui::perf::make_tick_source(clock_now, &clock_ctx);
-    app::set_tick_source(state_a, tick);
+    runtime_a.init(tick, !kEnableSecond);
+    runtime_a.state.data.lamp_on = true;
+    runtime_a.state.data.battery = 100;
     if (kEnableSecond) {
-        app::set_tick_source(state_b, tick);
+        runtime_b.emplace();
+        runtime_b->init(tick, false);
+        runtime_b->state.data.lamp_on = true;
+        runtime_b->state.data.battery = 100;
     }
     debug_scope.init();
 
@@ -139,128 +137,57 @@ int main() try {
         raw_b->set_window_id(sdl_b->window_id());
     }
 
-    ::input::Router router{};
-    gui::input::RawSampler raw_sampler_a{};
-    std::optional<gui::input::RawSampler> raw_sampler_b;
-    gui::ui::RouterIntentQueue<> router_queue_a{};
-    std::optional<gui::ui::RouterIntentQueue<>> router_queue_b;
-    router_queue_a.set_consume(!kEnableSecond);
-    (void)router_queue_a.start(router);
-    const auto router_policy_a = router_queue_a.policy();
+    // Input routing is handled by the runtime instances.
 
-    state_a.input_policies.set(gui::ui::InputPolicyId::Default, router_policy_a);
-    state_a.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy_a);
-    gui::ui::PolicyChain<2> policy_chain_a{};
-    policy_chain_a.add(router_policy_a);
-    state_a.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain_a));
-    state_a.input_policy_id = gui::ui::InputPolicyId::Default;
-    state_a.input_policy = state_a.input_policies.get(state_a.input_policy_id);
-
-    if (kEnableSecond && raw_b) {
-        raw_sampler_b.emplace();
-        router_queue_b.emplace();
-        router_queue_b->set_consume(false);
-        (void)router_queue_b->start(router);
-        const auto router_policy_b = router_queue_b->policy();
-        state_b.input_policies.set(gui::ui::InputPolicyId::Default, router_policy_b);
-        state_b.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy_b);
-        gui::ui::PolicyChain<2> policy_chain_b{};
-        policy_chain_b.add(router_policy_b);
-        state_b.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain_b));
-        state_b.input_policy_id = gui::ui::InputPolicyId::Default;
-        state_b.input_policy = state_b.input_policies.get(state_b.input_policy_id);
-    }
-
-    int last_dirty_count_a = 0;
-    int last_dirty_area_a = 0;
-    bool last_dirty_full_a = false;
-    int last_dirty_count_b = 0;
-    int last_dirty_area_b = 0;
-    bool last_dirty_full_b = false;
-
-    auto simulate_battery = [&](app::AppState& st, std::uint32_t t_ms) {
-        if (st.pages.current() == app::PageId::Main) {
-            const std::uint32_t period = 6000;
-            const std::uint32_t m = t_ms % period;
-            int b = (m < period / 2) ? (100 - (int)(m * 100 / (period/2)))
-                                    : (int)((m - period/2) * 100 / (period/2));
-            if (b < 0) b = 0;
-            if (b > 100) b = 100;
-            st.data.battery = b;
-            st.data.progress_demo = (std::uint8_t)b;
+    auto simulate_battery = [&](app::Runtime& rt, std::uint32_t t_ms) {
+        rt.simulate_battery(t_ms);
+        if (rt.state.pages.current() == app::PageId::Main) {
             const float t = (float)t_ms * 0.0025f;
             for (int i = 0; i < 8; ++i) {
                 const float phase = t + (float)i * 0.4f;
                 const float s = (std::sin(phase) * 0.5f) + 0.5f;
-                st.data.chart[i] = (std::uint8_t)(s * 100.0f);
+                rt.state.data.chart[i] = (std::uint8_t)(s * 100.0f);
             }
         }
     };
 
-    auto present_canvas = [&](Canvas& canvas,
-                              backend::SDL3Backend<128, 64>& sdl,
-                              int& last_dirty_count,
-                              int& last_dirty_area,
-                              bool& last_dirty_full) {
-        if (canvas.dirty_count() <= 0) return;
-
-        constexpr int kDirtyMaxRects = 4;
-        constexpr int kDirtyAreaLimit = (Canvas::kWidth * Canvas::kHeight) / 2;
-        const auto stats = canvas.dirty_stats();
-        const bool too_many = (stats.count > kDirtyMaxRects);
-        const bool too_big = (stats.area > kDirtyAreaLimit);
-        const bool full = stats.full || too_many || too_big;
-
-        last_dirty_count = stats.count;
-        last_dirty_area = stats.area;
-        last_dirty_full = full;
-
-        if (full) {
-            sdl.update_texture(canvas, nullptr);
-        } else {
-            const int n = canvas.dirty_count();
-            for (int i = 0; i < n; ++i) {
-                const auto dr = canvas.dirty_rect_at(i);
-                sdl.update_texture(canvas, &dr);
-            }
-        }
-        sdl.present_frame();
-        canvas.clear_dirty();
-    };
-
-    auto draw_state = [&](Canvas& canvas,
+    auto draw_state = [&](app::Runtime& runtime,
+                          Canvas& canvas,
                           gui::Renderer<Canvas>& renderer,
                           backend::SDL3Backend<128, 64>& sdl,
-                          app::AppState& st,
-                          int& last_dirty_count,
-                          int& last_dirty_area,
-                          bool& last_dirty_full,
                           const char* title) {
-        app::draw_current_ui(renderer, st);
+        app::draw_current_ui(renderer, runtime.state);
 
-        if (st.ui.fps_overlay == gui::ui::Toggle::On) {
+        if (runtime.state.ui.fps_overlay == gui::ui::Toggle::On) {
             char dbg_buf[32]{};
             std::snprintf(dbg_buf, sizeof(dbg_buf), "D:%d A:%d%s",
-                          last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
+                          runtime.last_dirty.dirty_count,
+                          runtime.last_dirty.dirty_area,
+                          runtime.last_dirty.dirty_full ? "F" : "");
             renderer.drawText(2, 2, dbg_buf, true);
         }
 
-        present_canvas(canvas, sdl, last_dirty_count, last_dirty_area, last_dirty_full);
+        if (runtime.flush_canvas(
+                canvas,
+                [&]() -> bool {
+                    sdl.update_texture(canvas, nullptr);
+                    return true;
+                },
+                [&](const auto& dr) -> bool {
+                    sdl.update_texture(canvas, &dr);
+                    return true;
+                })) {
+            sdl.present_frame();
+        }
 
-        if (st.fps.update(st.tick)) {
+        if (runtime.state.fps.update(runtime.state.tick)) {
             char title_buf[64]{};
             std::snprintf(title_buf, sizeof(title_buf), "%s  FPS: %.1f  D:%d A:%d%s",
-                          title, st.fps.value(), last_dirty_count, last_dirty_area,
-                          last_dirty_full ? " F" : "");
+                          title, runtime.state.fps.value(),
+                          runtime.last_dirty.dirty_count,
+                          runtime.last_dirty.dirty_area,
+                          runtime.last_dirty.dirty_full ? " F" : "");
             sdl.set_title(title_buf);
-        }
-    };
-
-    auto pump_raw = [&](input::SDLRawSource& raw,
-                        gui::input::RawSampler& sampler,
-                        std::uint32_t now_ms) {
-        while (auto ev = sampler.poll(raw, now_ms)) {
-            router.dispatch(*ev);
         }
     };
 
@@ -270,9 +197,9 @@ int main() try {
         const std::uint32_t real_delta = real_ms - last_real_ms;
         last_real_ms = real_ms;
         sim_ms += (real_delta >> 0); // 1x speed
-        state_a.now_ms = sim_ms;
-        if (kEnableSecond) {
-            state_b.now_ms = sim_ms;
+        runtime_a.tick_ui(sim_ms);
+        if (kEnableSecond && runtime_b) {
+            runtime_b->tick_ui(sim_ms);
         }
 
         raw_a.begin_frame(real_ms);
@@ -287,37 +214,31 @@ int main() try {
             }
         }
 
-        pump_raw(raw_a, raw_sampler_a, real_ms);
-        if (kEnableSecond && raw_b && raw_sampler_b) {
-            pump_raw(*raw_b, *raw_sampler_b, real_ms);
+        runtime_a.pump_raw(raw_a, real_ms);
+        if (kEnableSecond && raw_b && runtime_b) {
+            runtime_b->pump_raw(*raw_b, real_ms);
         }
 
         if (quit_requested || raw_a.should_quit() ||
             (kEnableSecond && raw_b && raw_b->should_quit()) ||
-            state_a.request_quit || (kEnableSecond && state_b.request_quit)) {
+            runtime_a.state.request_quit ||
+            (kEnableSecond && runtime_b && runtime_b->state.request_quit)) {
             break;
         }
 
-        state_a.fps_ui.update(state_a.tick);
-        if (kEnableSecond) {
-            state_b.fps_ui.update(state_b.tick);
+        runtime_a.pump_app(real_ms);
+        if (kEnableSecond && runtime_b) {
+            runtime_b->pump_app(real_ms);
         }
 
-        app::pump_input(state_a, real_ms);
-        if (kEnableSecond) {
-            app::pump_input(state_b, real_ms);
+        simulate_battery(runtime_a, sim_ms);
+        if (kEnableSecond && runtime_b) {
+            simulate_battery(*runtime_b, sim_ms);
         }
 
-        simulate_battery(state_a, sim_ms);
-        if (kEnableSecond) {
-            simulate_battery(state_b, sim_ms);
-        }
-
-        draw_state(canvas_a, renderer_a, sdl_a, state_a,
-                   last_dirty_count_a, last_dirty_area_a, last_dirty_full_a, kTitleA);
-        if (kEnableSecond && sdl_b) {
-            draw_state(*canvas_b, *renderer_b, *sdl_b, state_b,
-                       last_dirty_count_b, last_dirty_area_b, last_dirty_full_b, kTitleB);
+        draw_state(runtime_a, canvas_a, renderer_a, sdl_a, kTitleA);
+        if (kEnableSecond && sdl_b && runtime_b) {
+            draw_state(*runtime_b, *canvas_b, *renderer_b, *sdl_b, kTitleB);
         }
 
         // --- Debug scope window (setpoint vs tracking) ---
@@ -332,20 +253,20 @@ int main() try {
 
         std::uint8_t setpoint = 0;
         std::uint8_t tracking = 0;
-        if (state_a.pages.current() == app::PageId::Main) {
+        if (runtime_a.state.pages.current() == app::PageId::Main) {
             const int count = app::MainPageState::item_count;
-            const int idx = (state_a.semantics.focus.index < 0) ? 0 : state_a.semantics.focus.index;
+            const int idx = (runtime_a.state.semantics.focus.index < 0) ? 0 : runtime_a.state.semantics.focus.index;
             if (count > 1) {
                 setpoint = (std::uint8_t)(idx * 100 / (count - 1));
             }
 
-            const int y = (int)state_a.main_page.highlight_spring.value;
+            const int y = (int)runtime_a.state.main_page.highlight_spring.value;
             const int item_h = (int)th.list_item_h;
             const int gap = (int)th.list_gap;
             const int stride = (item_h + gap > 0) ? (item_h + gap) : 1;
             int rel = y - list_area.y + item_h / 2;
             if (rel < 0) rel = 0;
-            const int global_y = rel + (int)state_a.main_page.viewport.scroll_y;
+            const int global_y = rel + (int)runtime_a.state.main_page.viewport.scroll_y;
             const int pos_q8 = (global_y * 256) / stride;
             int pos = pos_q8 / 256;
             if (pos < 0) pos = 0;
@@ -359,10 +280,10 @@ int main() try {
 
         debug_scope.push(setpoint, tracking, real_delta);
         debug_scope.draw();
-        state_a.ui.anim.spring_override = true;
-        state_a.ui.anim.spring_preset = gui::motion::SpringPreset::Custom;
-        state_a.ui.anim.spring_omega = debug_scope.get_omega();
-        state_a.ui.anim.spring_zeta = debug_scope.get_zeta();
+        runtime_a.state.ui.anim.spring_override = true;
+        runtime_a.state.ui.anim.spring_preset = gui::motion::SpringPreset::Custom;
+        runtime_a.state.ui.anim.spring_omega = debug_scope.get_omega();
+        runtime_a.state.ui.anim.spring_zeta = debug_scope.get_zeta();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }

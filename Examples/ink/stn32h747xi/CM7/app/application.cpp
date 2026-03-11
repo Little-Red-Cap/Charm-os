@@ -332,6 +332,7 @@ import gui.ui_input_policy;
 import app.state;
 import app.ui;
 import app.logic_intent;
+import app.runtime;
 
 import gui.input;
 import input.router;
@@ -507,10 +508,7 @@ static void refresh_area(SSD1306& display, int x0, int y0, int x1, int y1)
     }
 }
 
-app::AppState state{};
-input::Router router{};
-gui::input::RawSampler raw_sampler{};
-gui::ui::RouterIntentQueue<> router_queue{};
+app::Runtime runtime{};
 extern "C" void application()
 {
     GPIO_InitTypeDef gpio{};
@@ -527,45 +525,22 @@ extern "C" void application()
     Canvas canvas;
     gui::Renderer<Canvas> renderer(canvas);
 
-    // app::AppState state{};
-    state.init();
-
-    app::set_tick_source(state, gui::perf::make_tick_source(tick_now, nullptr));
-    state.data.battery = 100;
-    state.ui.fps_overlay = gui::ui::Toggle::On;
+    runtime.init(gui::perf::make_tick_source(tick_now, nullptr), true);
+    runtime.state.data.battery = 100;
+    runtime.state.ui.fps_overlay = gui::ui::Toggle::On;
 
     RawSourceSTM32 raw(128, 64);
-    // input::Router router{};
-    // gui::input::RawSampler raw_sampler{};
-    // gui::ui::RouterIntentQueue<> router_queue{};
-    (void)router_queue.start(router);
-    const auto router_policy = router_queue.policy();
-    state.input_policies.set(gui::ui::InputPolicyId::Default, router_policy);
-    state.input_policies.set(gui::ui::InputPolicyId::Encoder, router_policy);
-    static gui::ui::PolicyChain<2> policy_chain{};
-    policy_chain.clear();
-    policy_chain.add(router_policy);
-    state.input_policies.set(gui::ui::InputPolicyId::Custom, gui::ui::make_policy_chain(policy_chain));
-    state.input_policy_id = gui::ui::InputPolicyId::Default;
-    state.input_policy = state.input_policies.get(state.input_policy_id);
-    int last_dirty_count = 0;
-    int last_dirty_area = 0;
-    bool last_dirty_full = false;
 
     while (true) {
         auto ms = HAL_GetTick();
-        state.now_ms = ms;
-        state.fps_ui.update(state.tick);
+        runtime.tick_ui(ms);
         raw.update(ms);
-        while (auto ev = raw_sampler.poll(raw, ms)) {
-            router.dispatch(*ev);
-        }
+        runtime.pump_raw(raw, ms);
 
         // 3) 消费意图
-        app::pump_input(state, ms);
-
+        runtime.pump_app(ms);
         // 电量缓慢往复（demo）：仅在 Main 页演示，避免覆盖 Battery 详情页的手动调节
-        if (state.pages.current() == app::PageId::Main){
+        if (runtime.state.pages.current() == app::PageId::Main){
             const std::uint32_t period = 6000;
             const std::uint32_t m = ms % period;
             int b = (m < period / 2) ? (100 - (int)(m * 100 / (period/2)))
@@ -576,15 +551,15 @@ extern "C" void application()
             if (b > 100) {
                 b = 100;
             }
-            state.data.battery = b;
-            state.data.progress_demo = (std::uint8_t)b;
+            runtime.state.data.battery = b;
+            runtime.state.data.progress_demo = (std::uint8_t)b;
         }
 
-        // --- 画 UI ---
-        app::draw_current_ui(renderer, state);
-        if (state.ui.fps_overlay == gui::ui::Toggle::On) {
+        // --- �?UI ---
+        app::draw_current_ui(renderer, runtime.state);
+        if (runtime.state.ui.fps_overlay == gui::ui::Toggle::On) {
             // out::buffer_sink<24> dbg_buf{};
-            // out::print<"D:{} A:{}{}">(dbg_buf, last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
+            // out::print<"D:{} A:{}{}">(dbg_buf, stats.count, stats.area, full ? "F" : "");
             // renderer.drawText(2, 2, dbg_buf.view().data(), true);
         }
 
@@ -603,9 +578,6 @@ extern "C" void application()
             const bool too_big = (stats.area > kDirtyAreaLimit);
             const bool full = stats.full || too_many || too_big;
             bool refreshed = false;
-            last_dirty_count = stats.count;
-            last_dirty_area = stats.area;
-            last_dirty_full = full;
 
             if (full && s_i2c_dma_enabled) {
                 if (!s_i2c_dma_busy) {
@@ -634,7 +606,7 @@ extern "C" void application()
 
             if (refreshed) {
                 canvas.clear_dirty();
-                state.fps.update(state.tick);
+                runtime.state.fps.update(runtime.state.tick);
             }
         }
     }

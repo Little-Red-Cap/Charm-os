@@ -23,6 +23,9 @@ Debug
     PA14 (JTCK/SWCLK)   ------> DEBUG_JTCK-SWCLK
     PA13 (JTMS/SWDIO)   ------> DEBUG_JTMS-SWDIO
  */
+extern "C" {
+#include "i2c.h"
+}
 
 import charm.system.bringup;
 import charm.system.caps;
@@ -39,12 +42,9 @@ import platform.board.stn32h747xi;
 import util.core;
 import util.error;
 
-extern "C" {
-#include "i2c.h"
-}
 
 extern "C" {
-    void HAL_Init(void);
+    HAL_StatusTypeDef HAL_Init(void);
     void SystemClock_Config(void);
     void MX_GPIO_Init(void);
     void MX_DMA_Init(void);
@@ -141,11 +141,12 @@ int main() {
         caps.input,
         caps.spi1,
         caps.i2c1,
+        caps.can0,
         pump,
         post_fn,
         &running,
         pump_id,
-        8
+        // 8
     };
 
     auto r = bringup.start();

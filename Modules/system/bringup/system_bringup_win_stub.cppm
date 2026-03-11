@@ -102,9 +102,9 @@ export namespace charm::system {
         PumpCaps pump_caps{};
         auto created = kernel::make_scheduler<PumpConfig>(registry, pump_caps);
         auto running = kernel::start(std::move(created));
-        const auto pump_id = Registry::id_of<PumpTask>();
-        const auto input_pump_id = Registry::id_of<InputPumpTask>();
-        const auto canopen_pump_id = Registry::id_of<CanopenPumpTask>();
+        constexpr auto pump_id = Registry::id_of<PumpTask>();
+        constexpr auto input_pump_id = Registry::id_of<InputPumpTask>();
+        constexpr auto canopen_pump_id = Registry::id_of<CanopenPumpTask>();
         auto& pump = registry.get<PumpTask>();
         auto& input_pump = registry.get<InputPumpTask>();
         auto& canopen_pump = registry.get<CanopenPumpTask>();

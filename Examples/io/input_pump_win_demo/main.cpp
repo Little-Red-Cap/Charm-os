@@ -1,6 +1,9 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
+#include <chrono>
+#include <cstring>
+#include <thread>
 
 import charm.foundation;
 import charm.runtime;
@@ -14,6 +17,7 @@ import kernel.scheduler;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
+import platform.win.time_source;
 import platform.win.wakeup;
 import util.expected;
 
@@ -30,10 +34,65 @@ namespace {
                                             : util::unexpected(out::errc::io_error);
         }
     };
+
+    struct ScriptedInput {
+        util::u64 start_us{0};
+        bool enabled{true};
+    };
+
+    bool is_down(void* ctx, input::Button b) noexcept {
+        auto* s = static_cast<ScriptedInput*>(ctx);
+        if (!s || !s->enabled) return false;
+        if (b != input::Button::Enter) return false;
+        const auto now = platform::win::SteadyClock::now();
+        const auto ms = (now - s->start_us) / 1000u;
+        return ((ms / 300u) % 2u) != 0u;
+    }
+
+    input::PointerRaw read_pointer(void* ctx) noexcept {
+        (void)ctx;
+        return input::PointerRaw{.down = false, .x = -1, .y = -1, .id = 0};
+    }
+
+    input::AxisRaw read_axis(void* ctx) noexcept {
+        (void)ctx;
+        return input::AxisRaw{};
+    }
+
+    std::optional<std::uint8_t> pop_encoder_ab(void* ctx) noexcept {
+        (void)ctx;
+        return std::nullopt;
+    }
+
+    struct RawPrintCtx {
+        StdoutSink* sink{nullptr};
+    };
+
+    bool on_raw(void* ctx, const input::RawInputEvent& ev) noexcept {
+        auto* c = static_cast<RawPrintCtx*>(ctx);
+        if (!c || !c->sink) return true;
+        int code = 0;
+        int value = 0;
+        if (ev.type == input::RawInputEventType::Button) {
+            code = static_cast<int>(ev.button);
+            value = ev.pressed ? 1 : 0;
+        }
+        (void)out::println<"[raw] t={} type={} code={} value={}">(
+            *c->sink,
+            ev.ms,
+            static_cast<int>(ev.type),
+            code,
+            value);
+        return true;
+    }
 }
 
-int main() {
+int main(int argc, char** argv) {
     StdoutSink sink{};
+    bool enable_input = true;
+    if (argc > 1 && std::strcmp(argv[1], "--no-input") == 0) {
+        enable_input = false;
+    }
     auto caps = platform::board::win_stub::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;
     using InputPumpTask = input::InputPumpTask;
@@ -46,12 +105,26 @@ int main() {
     const auto input_pump_id = Registry::id_of<InputPumpTask>();
     auto& pump = registry.get<PumpTask>();
     auto& input_pump = registry.get<InputPumpTask>();
+    ScriptedInput scripted{platform::win::SteadyClock::now(), enable_input};
+    const hal::RawInputDriver kDriver{
+        .ctx = &scripted,
+        .is_down = &is_down,
+        .read_pointer = &read_pointer,
+        .read_axis = &read_axis,
+        .pop_encoder_ab = &pop_encoder_ab
+    };
+    platform::board::InputDesc input_desc_caps = caps.input;
+    input_desc_caps.driver = &kDriver;
+
+    RawPrintCtx print_ctx{&sink};
     const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-        caps.input,
+        input_desc_caps,
         input_pump,
         &input::scheduler_schedule_at<decltype(running)>,
         &running,
-        input_pump_id);
+        input_pump_id,
+        &on_raw,
+        &print_ctx);
 
     charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
         caps.uart1,
@@ -75,8 +148,10 @@ int main() {
     }
     (void)out::println<"[input_pump] bringup ok">(sink);
 
-    for (int i = 0; i < 8; ++i) {
+    const auto start = platform::win::SteadyClock::now();
+    while ((platform::win::SteadyClock::now() - start) < 500000u) {
         (void)running.run_once();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     return 0;
 }

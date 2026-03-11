@@ -17,7 +17,7 @@ import gui.ui_immediate;
 import gui.ui_settings;
 import gui.widgets;
 import gui.list_view;
-import gui.list_layout;
+import alg_list_layout;
 import gui.renderer;
 import gui.layout;
 import gui.font;
@@ -474,7 +474,7 @@ namespace app::detail
             return gui::ui::flash_active(ctx.now_ms, s.main_page.last_activate_ms) ? focus : (std::int16_t)-1;
         };
 
-        auto highlight_fn = [&](const gui::list::Layout& layout, std::int16_t focus_index) noexcept -> int {
+        auto highlight_fn = [&](const alg::list::Layout& layout, std::int16_t focus_index) noexcept -> int {
             if (layout.row_count <= 0) return gui::kNoOverrideY;
             if (focus_index < layout.top_index || focus_index >= layout.top_index + layout.row_count) {
                 return gui::kNoOverrideY;
@@ -794,7 +794,7 @@ namespace app::detail
             return gui::ui::flash_active(ctx.now_ms, s.settings_page.last_activate_ms) ? focus : (std::int16_t)-1;
         };
 
-        auto highlight_fn = [&](const gui::list::Layout& layout, std::int16_t focus_index) noexcept -> int {
+        auto highlight_fn = [&](const alg::list::Layout& layout, std::int16_t focus_index) noexcept -> int {
             if (layout.row_count <= 0) return gui::kNoOverrideY;
             if (focus_index < layout.top_index || focus_index >= layout.top_index + layout.row_count) {
                 return gui::kNoOverrideY;
@@ -938,7 +938,7 @@ namespace app::detail
             return gui::ui::flash_active(ctx.now_ms, s.widgets_page.last_activate_ms) ? focus : (std::int16_t)-1;
         };
 
-        auto highlight_fn = [&](const gui::list::Layout&, std::int16_t) noexcept -> int {
+        auto highlight_fn = [&](const alg::list::Layout&, std::int16_t) noexcept -> int {
             return gui::kNoOverrideY;
         };
 

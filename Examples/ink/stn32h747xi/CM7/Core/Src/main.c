@@ -72,6 +72,25 @@ static void MPU_Config(void);
   * @brief  The application entry point.
   * @retval int
   */
+int main(void)
+{
+  MPU_Config();
+
+  HAL_Init();
+  SystemClock_Config();
+
+  MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_I2C2_Init();
+  MX_TIM8_Init();
+
+  void application(void);
+  application();
+
+  while (1)
+  {
+  }
+}
 
 /**
   * @brief System Clock Configuration

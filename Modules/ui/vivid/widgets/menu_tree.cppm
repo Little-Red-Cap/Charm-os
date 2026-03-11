@@ -2,7 +2,7 @@ module;
 #include <cstddef>
 export module charm.widgets.menu_tree;
 
-import charm.core.factory;
+import charm.core.soa_factory;
 import charm.core.handle;
 import charm.core.geometry;
 import charm.core.string;

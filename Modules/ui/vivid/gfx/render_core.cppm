@@ -6,7 +6,7 @@ module;
 #ifndef CHARM_ENABLE_FLOAT_ARC
 #define CHARM_ENABLE_FLOAT_ARC 1
 #endif
-export module charm.gfx.render:core;
+export module charm.gfx.render_core;
 export import charm.gfx.pixel_format;
 export import charm.gfx.canvas;
 export import charm.gfx.color;

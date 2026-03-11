@@ -6,7 +6,7 @@ export module charm.gfx.path;
 export import charm.core.geometry;
 export import charm.gfx.canvas;
 export import charm.gfx.color;
-export import charm.gfx.render;
+export import charm.gfx.render_core;
 
 export namespace ui::gfx::path {
     inline bool compute_bounds(const Point* points, int count, Rect& out) noexcept {

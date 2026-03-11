@@ -4,7 +4,7 @@ export module charm.widgets.dropdown_popup;
 
 import charm.core.handle;
 import charm.core.object;
-import charm.core.factory;
+import charm.core.soa_factory;
 import charm.widgets.list;
 import charm.widgets.list_utils;
 import charm.widgets.scroll_container;

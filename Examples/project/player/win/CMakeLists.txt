@@ -52,15 +52,13 @@ elseif (EXISTS "${_fatfs_root}/src/ff.c" AND EXISTS "${_fatfs_root}/src/ff.h")
 endif()
 
 set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
-    set(CHARM_PLAYER_EXCLUDE_REGEX "${CHARM_PLAYER_EXCLUDE_REGEX}|player\\.ui|player\\.controller")
-endif()
 charm_example_sources_filtered(${target_name}
     "${CHARM_ROOT}"
     "${CHARM_PLAYER_EXCLUDE_REGEX}"
     "${CHARM_ROOT}/Examples/project/player/*.cppm"
 )
 charm_example_sources(${target_name} "${CHARM_ROOT}"
-    "${CHARM_ROOT}/Examples/ui/vivid/assets/*.cppm"
+    "${CHARM_ROOT}/Examples/ui/vivid/*.cppm"
 )
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 

@@ -11,10 +11,6 @@ export import charm.core.handle;
 export import charm.core.style;
 export import charm.core.style_sheet;
 export import charm.core.theme_preset;
-export import charm.core.soa_kernel;
-export import charm.core.soa_layout;
-export import charm.core.soa_gui;
-export import charm.core.soa_router;
 
 export import ui.render_backend;
 export import charm.gfx.canvas;
@@ -28,5 +24,6 @@ export import charm.gfx.render_style;
 
 export import charm.font;
 export import charm.font.typography;
+// deprecated: preset font resources; avoid new deps, will be moved out later.
 export import charm.font.font_noto_ascii_12;
 export import charm.font.font_noto_sc_12;

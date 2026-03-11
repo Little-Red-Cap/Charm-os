@@ -2,6 +2,7 @@ module;
 #include <cstdint>
 #include <optional>
 
+// lifecycle: internal bridge; remove after ui_semantics/input_adapter merge is complete.
 export module gui.ui_semantics_bridge;
 
 import gui.ui_input_adapter;

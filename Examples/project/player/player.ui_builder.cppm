@@ -28,7 +28,7 @@ import charm.widgets.rich_text;
 import charm.widgets.scrollbar;
 import charm.widgets.stepper;
 import charm.widgets.table_view;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
@@ -110,7 +110,7 @@ export namespace player {
             title->set_align(TextAlignH::Center, TextAlignV::Center);
         }
 
-        h.subtitle = factory.create_label("FELT è·¯ FLAC");
+        h.subtitle = factory.create_label("FELT è·?FLAC");
         if (auto* sub = factory.get_label(h.subtitle)) {
             sub->set_color(kUiSubtitle);
             anchor_rect(sub, {kUiPadding, header_top + kHeaderSubtitleOffset,
@@ -612,3 +612,4 @@ export namespace player {
         return h;
     }
 }
+

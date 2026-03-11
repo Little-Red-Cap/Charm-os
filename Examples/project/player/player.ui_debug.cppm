@@ -9,7 +9,7 @@ export module player.ui_debug;
 import charm.core.style;
 import charm.gfx.render;
 import charm.widgets.table_view;
-import charm.widgets.text;
+import charm.gfx.text_box;
 import charm.widgets.tree_view;
 
 using namespace ui::render;
@@ -216,3 +216,4 @@ export namespace player::ui_debug {
         (void)col;
     }
 }
+

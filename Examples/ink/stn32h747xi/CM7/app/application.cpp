@@ -6,6 +6,7 @@
 #include "main.h"
 #include "tim.h"
 #include "i2c.h"
+#include "usart.h"
 /*
 LED
     StateLED-> PI15
@@ -29,12 +30,73 @@ Debug
  */
 
 import out.api;
+import out.format;
+import out.channel;
+import io.channel;
 
-// out::port::console_sink console;
 
 static std::uint32_t tick_now(void*) noexcept
 {
     return HAL_GetTick();
+}
+
+static void uart_write_raw(const char* data, std::size_t len) noexcept
+{
+    (void)HAL_UART_Transmit(&huart1, reinterpret_cast<const uint8_t*>(data), (uint16_t)len, 20);
+}
+
+static void uart_log_line(std::string_view msg) noexcept
+{
+    uart_write_raw(msg.data(), msg.size());
+    uart_write_raw("\r\n", 2);
+}
+
+namespace {
+    struct UartCtx {
+        UART_HandleTypeDef* huart{};
+    };
+
+    io::result uart_write(void* ctx, io::ByteView buf) noexcept {
+        auto* u = static_cast<UartCtx*>(ctx);
+        if (!u || !u->huart) return io::fail(io::errc::invalid_arg);
+        if (buf.empty()) return io::fail(io::errc::invalid_arg);
+
+        const auto st = HAL_UART_Transmit(
+            u->huart,
+            const_cast<uint8_t*>(buf.data()),
+            static_cast<uint16_t>(buf.size()),
+            100);
+
+        if (st == HAL_OK) return io::ok(buf.size());
+        if (st == HAL_BUSY || st == HAL_TIMEOUT) return io::fail(io::errc::would_block);
+        return io::fail(io::errc::io_error);
+    }
+
+    io::result uart_read(void*, io::MutByteView) noexcept {
+        return io::fail(io::errc::would_block);
+    }
+
+    io::result uart_flush(void*) noexcept {
+        return io::fail(io::errc::not_supported);
+    }
+
+    io::Channel make_uart_channel(UartCtx& ctx) noexcept {
+        return io::Channel{
+            &ctx,
+            io::ChannelOps{&uart_read, &uart_write, &uart_flush}
+        };
+    }
+
+    UartCtx g_uart_ctx{&huart1};
+    io::Channel g_uart_ch = make_uart_channel(g_uart_ctx);
+    out::channel_sink g_uart_sink = out::make_channel_sink(g_uart_ch);
+}
+
+extern "C" void app_uart_log(const char* data, std::size_t len) noexcept
+{
+    if (!data || len == 0) return;
+    (void)g_uart_sink.write(out::bytes{reinterpret_cast<const std::byte*>(data), len});
+    (void)g_uart_sink.write(out::bytes{reinterpret_cast<const std::byte*>("\r\n"), 2});
 }
 
 static volatile bool s_i2c_dma_busy = false;
@@ -296,6 +358,7 @@ struct RawSourceSTM32 {
 
     bool key_down_[4]{false,false,false,false};
     bool use_event_keys_{false};
+    int32_t last_step_{0};
 
     RawSourceSTM32(int lw = 0, int lh = 0, int initial_scale = 1) noexcept
         : logical_w(lw),
@@ -338,6 +401,7 @@ struct RawSourceSTM32 {
         key_down_[static_cast<size_t>(gui_input::Button::Enter)] = down;
 
         int32_t step = Encoder_GetStep();   // 这里是“菜单步进”，已经把 4 折算掉了
+        last_step_ = step;
         if (step == 0) return;
 
         static constexpr std::uint8_t seq_cw[5]  = {0, 1, 3, 2, 0};
@@ -363,6 +427,8 @@ struct RawSourceSTM32 {
         return key_down_[idx];
         return false;
     }
+
+    int32_t last_step() const noexcept { return last_step_; }
 };
 
 
@@ -517,14 +583,9 @@ extern "C" void application()
         // --- 画 UI ---
         app::draw_current_ui(renderer, state);
         if (state.ui.fps_overlay == gui::ui::Toggle::On) {
-            // char dbg_buf[24]{};
-            // std::snprintf(dbg_buf, sizeof(dbg_buf), "D:%d A:%d%s",
-            //               last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
-            // renderer.drawText(2, 2, dbg_buf, true);
-
-            out::buffer_sink<24> dbg_buf{};
-            out::print<"D:{} A:{}{}">(dbg_buf, last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
-            renderer.drawText(2, 2, dbg_buf.view().data(), true);
+            // out::buffer_sink<24> dbg_buf{};
+            // out::print<"D:{} A:{}{}">(dbg_buf, last_dirty_count, last_dirty_area, last_dirty_full ? "F" : "");
+            // renderer.drawText(2, 2, dbg_buf.view().data(), true);
         }
 
         // --- 显示 ---

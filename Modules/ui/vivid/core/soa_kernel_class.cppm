@@ -21,9 +21,7 @@ import charm.core.style_sheet;
 import charm.core.soa_payload;
 import alg_list_scroll;
 
-namespace {
-    constexpr std::uint16_t kInvalidIndex = 0xFFFF;
-}
+export constexpr std::uint16_t kInvalidIndex = 0xFFFF;
 
 struct ScrollBarTrackInfo;
 

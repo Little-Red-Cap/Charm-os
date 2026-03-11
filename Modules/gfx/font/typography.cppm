@@ -13,9 +13,9 @@ export enum class FontId : uint8_t {
 };
 
 namespace {
-inline const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
-inline const Font* g_default_fallback = nullptr;
-inline const Font k_empty_font{};
+static const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
+static const Font* g_default_fallback = nullptr;
+static const Font k_empty_font{};
 } // namespace
 
 export

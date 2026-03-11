@@ -9,6 +9,7 @@ import init.node;
 import init.graph;
 import block.device;
 import block.device.node;
+import block.file.node;
 import block.registry;
 import block.sdmmc;
 import block.spi_flash;
@@ -38,6 +39,26 @@ export namespace charm::system {
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
             return graph.build(node_span(), runlevel_mask, max_phase);
+        }
+    };
+
+    template <typename RegistryT>
+    struct FileInitChain {
+        block::FileBinding<RegistryT> binding;
+        std::array<const init::Node*, 1> nodes{};
+
+        FileInitChain(RegistryT& registry,
+                      const char* path,
+                      util::u64 block_size,
+                      const char* cap_name = "block.sd0",
+                      init::Phase phase = init::Phase::core,
+                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
+            : binding(registry, path, block_size, cap_name, phase, runlevel_mask) {
+            nodes = {&binding.node};
+        }
+
+        std::span<const init::Node* const> node_span() const noexcept {
+            return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }
     };
 

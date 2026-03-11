@@ -218,6 +218,23 @@ Charm 可以在 PC 与 MCU 上运行。
 
 </details>
 
+## 推荐验证链
+
+Charm 提供一个最小验证链，用于验证 block.device → VFS → out 的完整能力路径：
+
+```
+Win file image → block.file → block.registry
+→ FatFsMount → VFS → out
+```
+
+运行 demo：
+
+```
+fs-block-vfs-demo <disk.img>
+```
+
+镜像中需包含一个 FAT 分区与 `hello.txt` 文件。
+
 
 
 最小示例：MCU接入UART/PC接入Stdio

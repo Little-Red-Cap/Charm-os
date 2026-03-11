@@ -44,8 +44,8 @@ Charm（统一架构）
 - Domains：`charm.domain`（media + ui）
 
 UI/Vivid 公开入口：
-- 正式入口：`charm.ui.vivid`
-- 过渡入口：`charm.ui.vivid.full`（deprecated，后续移除）
+- 正式入口：charm.ui.vivid
+- 预置字体入口：charm.font.font_noto_*（deprecated，禁止新增依赖）
 
 ```mermaid
 graph TD

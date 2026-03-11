@@ -118,8 +118,8 @@ Draft/        # 计划/草案（可变动）
 - 输入分层决策：`docs/input/input_layering_decision.md`
 - 输入协议映射：`docs/input/input_protocol_map.md`
 - 能力回收规则：`docs/architecture/capability_recovery_rules.md`
-- VSF USB 映射：`docs/vsf/vsf_usb_map.md`
-- VSF TCPIP 映射：`docs/vsf/vsf_tcpip_map.md`
+- VSF USB 映射：`docs/reference/vsf/vsf_usb_map.md`
+- VSF TCPIP 映射：`docs/reference/vsf/vsf_tcpip_map.md`
 - USB 体系规划：`docs/usb/usb_arch_plan.md`
 - USB DSL 概览：`docs/usb/usb_dsl_overview.md`
 - USB CDC 回调契约：`docs/usb/usb_cdc_contract.md`
@@ -130,7 +130,7 @@ Draft/        # 计划/草案（可变动）
 - VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`
 - MAL 概览：`docs/storage/mal_overview.md`
 - MAL + FatFs 示例：`docs/storage/mal_fatfs_demo.md`
-- VSF 对照与可借鉴清单：`docs/vsf/vsf_comparison.md`
+- VSF 对照与可借鉴清单：`docs/reference/vsf/vsf_comparison.md`
 - Service/Component 初始化顺序：`docs/system/service_component_init.md`
 - InitGraph 契约：`docs/system/init_graph_contract.md`
 

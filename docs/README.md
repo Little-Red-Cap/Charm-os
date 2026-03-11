@@ -18,7 +18,7 @@
 ```mermaid
 flowchart TD
     A["docs/overview.md<br/>10 分钟入门"] --> B["docs/architecture_overview.md<br/>全局架构图"]
-    A --> C["docs/project/项目C++编码要求.md<br/>开始改代码前必读"]
+    A --> C["docs/project/standards/项目C++编码要求.md<br/>开始改代码前必读"]
     A --> D["docs/agent/README.md<br/>AI / Agent 协作入口"]
 
     E["docs/README.md<br/>文档地图 / 路由入口"] --> F["按任务找文档"]
@@ -40,7 +40,7 @@ flowchart TD
 | 新增板级能力 | `docs/system/init_graph_contract.md` → `docs/io/io_layering_overview.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
 | 实现 USB 设备 | `docs/usb/usb_arch_plan.md` → `docs/usb/usb_dsl_overview.md` |
-| 开始改代码 | `docs/overview.md` → `docs/project/项目C++编码要求.md` |
+| 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
 
@@ -106,21 +106,21 @@ docs/
 - `docs/trace/trace_core_ids.md`
 
 ### VSF 参考
-- `docs/vsf/vsf_comparison.md`
-- `docs/vsf/vsf_component_scan.md`
-- `docs/vsf/vsf_storage_map.md`
-- `docs/vsf/vsf_tcpip_map.md`
-- `docs/vsf/vsf_usb_map.md`
+- `docs/reference/vsf/vsf_comparison.md`
+- `docs/reference/vsf/vsf_component_scan.md`
+- `docs/reference/vsf/vsf_storage_map.md`
+- `docs/reference/vsf/vsf_tcpip_map.md`
+- `docs/reference/vsf/vsf_usb_map.md`
 
 ### 项目规范与协作
-- `docs/project/project_conventions.md`
-- `docs/project/项目C++编码要求.md`
-- `docs/project/《协作期待与规范》.md`
-- `docs/project/《现代 C++ 单片机代码协作认知》.md`
-- `docs/project/推进TODO与分工.md`
-- `docs/project/refactor_todo_ownership.md`
-- `docs/project/player_issue_log.md`
-- `docs/project/Powershell设置utf8.md`
+- `docs/project/standards/project_conventions.md`
+- `docs/project/standards/项目C++编码要求.md`
+- `docs/project/collaboration/《协作期待与规范》.md`
+- `docs/project/collaboration/《现代 C++ 单片机代码协作认知》.md`
+- `docs/project/tracking/推进TODO与分工.md`
+- `docs/project/tracking/refactor_todo_ownership.md`
+- `docs/project/tracking/player_issue_log.md`
+- `docs/project/tooling/Powershell设置utf8.md`
 
 ### UI
 - `docs/ui/player_ui.md`

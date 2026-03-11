@@ -5,7 +5,19 @@
 
 import charm.foundation;
 import charm.runtime;
+import charm.system.bringup;
+import charm.system.bringup.win_stub;
+import charm.system.init_block;
+import kernel.capabilities;
+import kernel.config;
+import kernel.eda;
+import kernel.evt;
+import kernel.scheduler;
 import out.api;
+import platform.board.win_stub;
+import platform.win.irq_guard;
+import platform.win.time_source;
+import platform.win.wakeup;
 import util.expected;
 
 namespace {
@@ -86,23 +98,57 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    block::FileDevice file_dev;
-    auto st = file_dev.open(argv[1], 512);
-    if (!st) {
-        (void)out::println<"[block_vfs] open failed err={}">(sink, static_cast<int>(st.err));
+    auto caps = platform::board::win_stub::make_board_caps();
+    using PumpTask = charm::system::ReactorPumpTask;
+    using InputPumpTask = input::InputPumpTask;
+    using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
+    Registry registry{};
+    charm::system::PumpCaps pump_caps{};
+    auto created = kernel::make_scheduler<charm::system::PumpConfig>(registry, pump_caps);
+    auto running = kernel::start(std::move(created));
+    const auto pump_id = Registry::id_of<PumpTask>();
+    const auto input_pump_id = Registry::id_of<InputPumpTask>();
+    auto& pump = registry.get<PumpTask>();
+    auto& input_pump = registry.get<InputPumpTask>();
+    const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
+        caps.input,
+        input_pump,
+        &input::scheduler_schedule_at<decltype(running)>,
+        &running,
+        input_pump_id);
+
+    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
+        caps.uart1,
+        caps.clock,
+        caps.input,
+        caps.spi1,
+        caps.i2c1,
+        caps.can0,
+        pump,
+        &charm::system::scheduler_post<decltype(running)>,
+        &running,
+        pump_id,
+        8,
+        input_desc
+    };
+
+    charm::system::FileInitChain<block::Registry<8>> file_chain{
+        bringup.block_registry(),
+        argv[1],
+        512,
+        "block.sd0"
+    };
+
+    auto r = bringup.start(
+        static_cast<util::u32>(init::Runlevel::all),
+        init::Phase::app,
+        file_chain.node_span());
+    if (!r) {
+        (void)out::println<"[block_vfs] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;
     }
 
-    block::Registry<4> registry{};
-    registry.init();
-    block::DeviceDesc desc{"block.sd0", block::cap_id("block.sd0")};
-    auto reg_st = registry.register_device(desc, file_dev.device());
-    if (!reg_st) {
-        (void)out::println<"[block_vfs] registry failed err={}">(sink, static_cast<int>(reg_st.error()));
-        return 1;
-    }
-
-    auto* dev = registry.open_device("block.sd0");
+    auto* dev = bringup.block_registry().open_device("block.sd0");
     if (!dev) {
         (void)out::println<"[block_vfs] device not found">(sink);
         return 1;
@@ -124,7 +170,7 @@ int main(int argc, char** argv) {
     part_dev.init(*dev, lba);
 
     fs::FatFsMount fat{};
-    st = fat.mount(part_dev.device, false);
+    auto st = fat.mount(part_dev.device, false);
     if (!st) {
         (void)out::println<"[block_vfs] mount failed err={}">(sink, static_cast<int>(st.err));
         return 1;

@@ -12,34 +12,19 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
-namespace {
-static const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
-static const Font* g_default_fallback = nullptr;
-static const Font k_empty_font{};
-} // namespace
+const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
+const Font* g_default_fallback = nullptr;
+const Font k_empty_font{};
 
-export
-inline void set_default_font(const FontId id, const Font* font) noexcept {
-    g_default_fonts[static_cast<unsigned>(id)] = font;
-}
+export void set_default_font(const FontId id, const Font* font) noexcept;
 
-export
-inline void set_default_fallback_font(const Font* font) noexcept {
-    g_default_fallback = font;
-}
+export void set_default_fallback_font(const Font* font) noexcept;
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-static std::uint32_t g_font_ptr_map_count = 0;
+std::uint32_t g_font_ptr_map_count = 0;
 
-export
-inline void reset_font_ptr_map_count() noexcept {
-    g_font_ptr_map_count = 0;
-}
-
-export
-inline std::uint32_t font_ptr_map_count() noexcept {
-    return g_font_ptr_map_count;
-}
+export void reset_font_ptr_map_count() noexcept;
+export std::uint32_t font_ptr_map_count() noexcept;
 #endif
 
 inline const Font* fallback_for(const Font& font) noexcept {
@@ -82,3 +67,25 @@ inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_
     }
     return resolved;
 }
+
+export
+void set_default_font(const FontId id, const Font* font) noexcept {
+    g_default_fonts[static_cast<unsigned>(id)] = font;
+}
+
+export
+void set_default_fallback_font(const Font* font) noexcept {
+    g_default_fallback = font;
+}
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+export
+void reset_font_ptr_map_count() noexcept {
+    g_font_ptr_map_count = 0;
+}
+
+export
+std::uint32_t font_ptr_map_count() noexcept {
+    return g_font_ptr_map_count;
+}
+#endif

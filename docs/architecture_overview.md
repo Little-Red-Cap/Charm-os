@@ -49,6 +49,7 @@ UI/Vivid 公开入口：
 - 非作为组合入口的资源：`charm.font.defaults_noto`（允许显式 import，禁止再从聚合入口 re-export）
 - 已删除旧名：`input.gesture`、`charm.ui.vivid.full`、`service.fifo`、`gui.ui_input_router_bridge`、`charm.widgets.text`、`input_router_bridge`（禁止新增依赖）
 - 内部 private：`charm.core.soa_*`、`gui.ui_semantics_bridge`、`ui.vivid.core.*`、`ui.vivid.widgets.*`、`ui.ink.ui.*`（标 internal 者）、以及任意 `*bridge*/*compat*/*alias*` 模块（禁止新增依赖）
+- UI Kernel 契约：docs/ui/ui_kernel_contract.md
 
 ```mermaid
 graph TD

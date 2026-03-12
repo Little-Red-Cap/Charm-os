@@ -4,6 +4,7 @@ export module charm.widgets.table_view;
 
 import charm.core.object;
 import charm.core.event;
+import charm.core.structured_view;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -60,6 +61,9 @@ public:
     }
 
     void set_selected(int row, int col) noexcept {
+        const int rows = row_count();
+        if (row < 0 || row >= rows) return;
+        if (col < 0 || col >= col_count()) col = 0;
         selected_row_ = row;
         selected_col_ = col;
         if (select_fn_) select_fn_(select_ctx_, row, col);
@@ -89,8 +93,13 @@ public:
         auto clip_state = cvs.save_clip();
         cvs.set_clip(r);
 
-        int y = r.y - scroll_y_;
-        for (int row = 0; row < rows && y < r.y + r.h; ++row) {
+        StructuredViewportMapper mapper{};
+        mapper.rect = r;
+        mapper.row_height = row_height_;
+        mapper.scroll_y = scroll_y_;
+        const StructuredVisibleRange range = mapper.visible_range(rows);
+        int y = r.y + range.first * row_height_ - scroll_y_;
+        for (int row = range.first; row <= range.last; ++row) {
             int x = r.x - scroll_x_;
             for (int col = 0; col < cols && x < r.x + r.w; ++col) {
                 const int w = column_width(col);
@@ -125,7 +134,11 @@ public:
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
-            const int row = (e.y - r.y + scroll_y_) / row_height_;
+            StructuredViewportMapper mapper{};
+            mapper.rect = r;
+            mapper.row_height = row_height_;
+            mapper.scroll_y = scroll_y_;
+            const int row = mapper.index_at(e.y, row_count());
             int col = 0;
             int acc = r.x - scroll_x_;
             for (int i = 0; i < col_count(); ++i) {
@@ -133,7 +146,7 @@ public:
                 if (e.x >= acc && e.x < acc + w) { col = i; break; }
                 acc += w;
             }
-            set_selected(row, col);
+            if (row >= 0) set_selected(row, col);
             return true;
         }
         return false;
@@ -143,11 +156,11 @@ private:
     static constexpr int kMaxCols = 16;
 
     int row_count() const noexcept {
-        if (row_count_fn_) {
-            const int v = row_count_fn_(data_ctx_);
-            return (v > 0) ? v : 0;
+        const StructuredDataProvider provider = make_provider();
+        if (provider.count) {
+            return provider.size();
         }
-        return row_count_;
+        return (row_count_ > 0) ? row_count_ : 0;
     }
 
     int col_count() const noexcept {
@@ -183,6 +196,59 @@ private:
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
+    }
+
+    StructuredDataProvider make_provider() const noexcept {
+        return StructuredDataProvider{
+            this,
+            &TableView::provider_count,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    }
+
+    StructuredSelectionModel make_selection_model() noexcept {
+        return StructuredSelectionModel{
+            this,
+            &TableView::selection_current,
+            &TableView::selection_set,
+            &TableView::selection_clear
+        };
+    }
+
+    static std::uint16_t provider_count(const void* ctx) noexcept {
+        const auto* self = static_cast<const TableView*>(ctx);
+        if (!self) return 0;
+        if (self->row_count_fn_) {
+            const int v = self->row_count_fn_(self->data_ctx_);
+            if (v <= 0) return 0;
+            const int capped = (v > 0xFFFF) ? 0xFFFF : v;
+            return static_cast<std::uint16_t>(capped);
+        }
+        if (self->row_count_ <= 0) return 0;
+        const int capped = (self->row_count_ > 0xFFFF) ? 0xFFFF : self->row_count_;
+        return static_cast<std::uint16_t>(capped);
+    }
+
+    static int selection_current(const void* ctx) noexcept {
+        const auto* self = static_cast<const TableView*>(ctx);
+        return self ? self->selected_row_ : -1;
+    }
+
+    static void selection_set(const void* ctx, int row) noexcept {
+        auto* self = static_cast<TableView*>(const_cast<void*>(ctx));
+        if (!self) return;
+        const int col = (self->selected_col_ >= 0) ? self->selected_col_ : 0;
+        self->set_selected(row, col);
+    }
+
+    static void selection_clear(const void* ctx) noexcept {
+        auto* self = static_cast<TableView*>(const_cast<void*>(ctx));
+        if (!self) return;
+        self->selected_row_ = -1;
+        self->selected_col_ = -1;
     }
 
     CountFn row_count_fn_{nullptr};

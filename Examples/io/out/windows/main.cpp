@@ -1,6 +1,6 @@
 #include <cstdint>
 
-import charm.system.bringup;
+import charm.system.bringup.console;
 import out.channel;
 import out.api;
 import util.core;

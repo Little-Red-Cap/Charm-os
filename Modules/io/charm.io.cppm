@@ -85,6 +85,7 @@ export import usb.class_cdc;
 export import usb.class_uac;
 export import usb.class_msc;
 export import usb.class_msc_block;
+export import usb.class_msc_block.node;
 export import usb.driver;
 export import usb.dsl;
 export import usb.host.core;

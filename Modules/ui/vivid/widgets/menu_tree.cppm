@@ -87,6 +87,9 @@ public:
         auto& kernel = factory_->kernel();
         kernel.set_rect(menu_panel_, {x, y, w, visible * item_h_});
         kernel.set_rect(menu_list_, {0, 0, w, visible * item_h_});
+        menu_scroll_.set_content(visible * item_h_, visible * item_h_);
+        menu_scroll_.set_scroll(0);
+        kernel.set_scroll_y(menu_list_, menu_scroll_.scroll_y);
         kernel.set_visible(menu_root_, true);
         kernel.set_visible(menu_panel_, true);
         kernel.set_visible(menu_list_, true);
@@ -226,12 +229,19 @@ private:
         }
     }
 
-    StructuredViewportMapper make_mapper(WidgetHandle list) const noexcept {
+    StructuredViewportMapper make_mapper(WidgetHandle list) noexcept {
         auto& kernel = factory_->kernel();
+        StructuredScrollModel& scroll = (list == submenu_list_) ? submenu_scroll_ : menu_scroll_;
+        const int menu_id = (list == submenu_list_) ? active_submenu_id_ : active_menu_id_;
+        const std::uint16_t count = provider_.count ? provider_.count(provider_.ctx, menu_id) : 0;
+        const Rect rect = kernel.world_rect(list);
+        scroll.set_content(static_cast<int>(count) * item_h_, rect.h);
+        scroll.set_scroll(kernel.scroll_y(list));
+        scroll.wheel_step = kernel.scroll_step(list);
         StructuredViewportMapper mapper{};
-        mapper.rect = kernel.world_rect(list);
+        mapper.rect = rect;
         mapper.row_height = kernel.list_row_height(list);
-        mapper.scroll_y = kernel.scroll_y(list);
+        mapper.scroll_y = scroll.scroll_y;
         return mapper;
     }
 
@@ -255,6 +265,9 @@ private:
         kernel.set_rect(submenu_panel_, {panel.x + panel.w, row_y, w, visible * item_h_});
         kernel.set_rect(submenu_list_, {0, 0, w, visible * item_h_});
         kernel.set_visible(submenu_panel_, true);
+        submenu_scroll_.set_content(visible * item_h_, visible * item_h_);
+        submenu_scroll_.set_scroll(0);
+        kernel.set_scroll_y(submenu_list_, submenu_scroll_.scroll_y);
         sync_list_source(submenu_list_, submenu_view_, selection_sub_, active_submenu_id_);
     }
 
@@ -407,4 +420,6 @@ private:
     int item_h_{24};
     bool is_open_{false};
     Callback on_select_{};
+    StructuredScrollModel menu_scroll_{};
+    StructuredScrollModel submenu_scroll_{};
 };

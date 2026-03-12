@@ -12,21 +12,8 @@ import charm.core.structured_view;
 export
 class MenuTree {
 public:
-    struct MenuProvider {
-        const void* ctx{nullptr};
-        std::uint16_t (*count)(const void* ctx, int menu_id) noexcept {nullptr};
-        const char* (*label)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-        bool (*enabled)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-        bool (*has_children)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-        int (*child_id)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-    };
-
-    struct MenuSelectionModel {
-        const void* ctx{nullptr};
-        int (*selected)(const void* ctx, int menu_id) noexcept {nullptr};
-        void (*set_selected)(const void* ctx, int menu_id, int index) noexcept {nullptr};
-        void (*clear)(const void* ctx, int menu_id) noexcept {nullptr};
-    };
+    using MenuProvider = StructuredMenuProvider;
+    using MenuSelectionModel = StructuredMenuSelectionModel;
 
     MenuTree() = default;
 
@@ -167,64 +154,6 @@ public:
 private:
     static constexpr int kMaxVisible = 10;
 
-    struct MenuView {
-        MenuTree* tree{nullptr};
-        int menu_id{-1};
-    };
-
-    struct SelectionView {
-        MenuTree* tree{nullptr};
-        int menu_id{-1};
-    };
-
-    static std::uint16_t view_count(const void* ctx) noexcept {
-        const auto* view = static_cast<const MenuView*>(ctx);
-        if (!view || !view->tree) return 0;
-        return view->tree->count(view->menu_id);
-    }
-
-    static const char* view_label(const void* ctx, std::uint16_t index) noexcept {
-        const auto* view = static_cast<const MenuView*>(ctx);
-        if (!view || !view->tree) return "";
-        return view->tree->label(view->menu_id, index);
-    }
-
-    static bool view_enabled(const void* ctx, std::uint16_t index) noexcept {
-        const auto* view = static_cast<const MenuView*>(ctx);
-        if (!view || !view->tree) return true;
-        return view->tree->enabled(view->menu_id, index);
-    }
-
-    static bool view_has_children(const void* ctx, std::uint16_t index) noexcept {
-        const auto* view = static_cast<const MenuView*>(ctx);
-        if (!view || !view->tree) return false;
-        return view->tree->has_children(view->menu_id, index);
-    }
-
-    static int view_child_id(const void* ctx, std::uint16_t index) noexcept {
-        const auto* view = static_cast<const MenuView*>(ctx);
-        if (!view || !view->tree) return -1;
-        return view->tree->child_menu_id(view->menu_id, index);
-    }
-
-    static int view_selected(const void* ctx) noexcept {
-        const auto* view = static_cast<const SelectionView*>(ctx);
-        if (!view || !view->tree) return -1;
-        return view->tree->get_selected(view->menu_id);
-    }
-
-    static void view_set_selected(const void* ctx, int index) noexcept {
-        const auto* view = static_cast<const SelectionView*>(ctx);
-        if (!view || !view->tree) return;
-        view->tree->set_selected(view->menu_id, index);
-    }
-
-    static void view_clear_selected(const void* ctx) noexcept {
-        const auto* view = static_cast<const SelectionView*>(ctx);
-        if (!view || !view->tree) return;
-        view->tree->clear_selected(view->menu_id);
-    }
-
     std::uint16_t count(int menu_id) const noexcept {
         if (!provider_.count) return 0;
         return provider_.count(provider_.ctx, menu_id);
@@ -277,29 +206,17 @@ private:
         }
     }
 
-    void sync_list_source(WidgetHandle list, MenuView& view, SelectionView& selection, int menu_id) {
+    void sync_list_source(WidgetHandle list, StructuredMenuView& view, StructuredMenuSelectionView& selection, int menu_id) {
         if (!provider_.count || !factory_) return;
-        view.tree = this;
+        view.provider = &provider_;
         view.menu_id = menu_id;
-        selection.tree = this;
+        selection.model = &selection_;
         selection.menu_id = menu_id;
 
-        StructuredDataProvider provider_view{
-            &view,
-            &MenuTree::view_count,
-            &MenuTree::view_label,
-            &MenuTree::view_enabled,
-            &MenuTree::view_has_children,
-            &MenuTree::view_child_id
-        };
-        StructuredSelectionModel selection_view{
-            &selection,
-            &MenuTree::view_selected,
-            &MenuTree::view_set_selected,
-            &MenuTree::view_clear_selected
-        };
+        const StructuredDataProvider provider_view = view.to_provider();
+        const StructuredSelectionModel selection_view = selection.to_selection();
         const std::uint16_t count = provider_view.size();
-        factory_->set_list_view_source(list, count, &view, &MenuTree::view_label);
+        factory_->set_list_view_source(list, count, &view, &StructuredMenuView::label_text);
         const int selected = selection_view.current();
         if (selected >= 0) {
             factory_->kernel().set_list_view_selected(list, selected);
@@ -478,10 +395,10 @@ private:
 
     MenuProvider provider_{};
     MenuSelectionModel selection_{};
-    MenuView main_view_{};
-    MenuView submenu_view_{};
-    SelectionView selection_main_{};
-    SelectionView selection_sub_{};
+    StructuredMenuView main_view_{};
+    StructuredMenuView submenu_view_{};
+    StructuredMenuSelectionView selection_main_{};
+    StructuredMenuSelectionView selection_sub_{};
 
     int root_menu_id_{-1};
     int active_menu_id_{-1};

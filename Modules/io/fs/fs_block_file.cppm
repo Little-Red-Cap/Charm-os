@@ -19,6 +19,7 @@ import fs_block;
 export namespace fs {
     class BlockFile {
     public:
+        BlockFile() noexcept = default;
         BlockFile(const BlockFile&) = delete;
         BlockFile& operator=(const BlockFile&) = delete;
 

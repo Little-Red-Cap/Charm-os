@@ -61,6 +61,10 @@ namespace platform::board::stm32_stub::detail {
         return 0;
     }
 
+    util::u64 stm32_now_us(void*) noexcept {
+        return 0;
+    }
+
     struct ByteRing {
         std::array<util::u8, 512> buf{};
         util::usize head{0};
@@ -115,6 +119,28 @@ namespace platform::board::stm32_stub::detail {
 } // namespace platform::board::stm32_stub::detail
 
 export namespace platform::board::stm32_stub {
+    inline ConsoleCaps make_console_caps() noexcept {
+        static detail::Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
+        static const hal::UartOps kStm32UartOps{
+            &detail::stm32_uart_init,
+            &detail::stm32_uart_enable,
+            &detail::stm32_uart_disable,
+            &detail::stm32_uart_try_write,
+            &detail::stm32_uart_try_read,
+            &detail::stm32_uart_enable_irq,
+            &detail::stm32_uart_disable_irq,
+            &detail::stm32_uart_clear_irq
+        };
+        ConsoleCaps caps{};
+        caps.uart.handle = hal::UartIoHandle{&uart1_ctx, &kStm32UartOps};
+        caps.uart.config = hal::UartConfig{};
+        caps.uart.io_cap = "io.uart1";
+        caps.uart.hal_cap = "hal.uart1";
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
+        caps.console_cap = "io.console0";
+        return caps;
+    }
+
     inline BoardCaps make_board_caps() noexcept {
         static detail::Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kStm32UartOps{
@@ -138,7 +164,7 @@ export namespace platform::board::stm32_stub {
         caps.uart1.config = hal::UartConfig{};
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
-        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
         caps.input.driver = &kStm32RawInput;
         caps.can0.channel = &can0_channel;
         caps.can0.io_cap = "io.can0";

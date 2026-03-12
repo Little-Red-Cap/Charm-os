@@ -1,6 +1,8 @@
 #include <string_view>
 
 import out.api;
+import out.channel;
+import util.core;
 
 // Custom type + formatter extension point.
 struct vec2 {
@@ -22,15 +24,12 @@ template <> inline constexpr std::string_view out::domain_name<network_domain> =
 struct noisy_domain {};
 template <> inline constexpr auto out::domain_enabled<noisy_domain> = false;
 
-extern "C" void example()
+extern "C" void example(out::channel_sink& console, util::u64 now_ms)
 {
-    out::port::console_sink console;
-
     // ------------------------------------------------------------
     // Minimal: Hello world
     // ------------------------------------------------------------
     out::println<"Hello world!">(console);
-    out::info<"Default console works too.">();
 
     // ------------------------------------------------------------
     // Format basics: {}, escaping, width/zero-pad, hex
@@ -135,8 +134,7 @@ extern "C" void example()
     // ------------------------------------------------------------
     // Timestamp
     // ------------------------------------------------------------
-    auto ts = out::port::now_ms();
-    out::info<"Timestamp(ms): {} Event occurred">(console, ts);
+    out::info<"Timestamp(ms): {} Event occurred">(console, now_ms);
 
     // ------------------------------------------------------------
     // Domain filtering
@@ -222,10 +220,6 @@ extern "C" void example()
     out::raw(dev).println<"'{}'">(0x12AB);
     dump_metrics("D2 plain");
 #endif
-
-    // Default console override (useful for tests or redirection)
-    out::port::set_default_console(&console);
-    out::info<"Default console redirected.">();
 
     // TODO: add more error examples
     // out::debug<"{}\t{}">(uart, 42); // argument count mismatch

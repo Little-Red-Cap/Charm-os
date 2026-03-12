@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstdint>
 export module charm.widgets.tree_view;
 
 import charm.core.object;

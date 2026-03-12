@@ -6,8 +6,8 @@ export module charm.widgets.list_view;
 import charm.core.object;
 import charm.core.event;
 import charm.core.geometry;
+import charm.core.structured_view;
 import charm.core.virtual_list;
-import alg_list_layout;
 import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
@@ -156,7 +156,8 @@ public:
     }
 
     void set_selected(int index) noexcept {
-        if (index < 0 || index >= item_count_) return;
+        const int count = item_count_for_render();
+        if (index < 0 || index >= count) return;
         const int prev = selected_;
         selected_ = index;
         ensure_visible(index);
@@ -291,16 +292,15 @@ public:
         int y = r.y + pad;
         if (!variable_height) {
             const int row_h = row_height_for_render();
-            const int view_h = r.h - pad * 2;
-            auto layout = alg::list::derive_layout(
-                static_cast<std::int16_t>(view_h),
-                static_cast<std::int16_t>(row_h),
-                0,
-                static_cast<std::int16_t>(count),
-                static_cast<std::int16_t>(scroll_y_));
-            start = layout.top_index;
-            visible = layout.row_count;
-            y = r.y + pad + layout.row_offset;
+            StructuredViewportMapper mapper{};
+            mapper.rect = Rect{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
+            mapper.row_height = row_h;
+            mapper.scroll_y = scroll_y_;
+            const StructuredVisibleRange range = mapper.visible_range(count);
+            start = range.first;
+            visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
+            const int row_offset = scroll_y_ - start * row_h;
+            y = r.y + pad - row_offset;
             if (prefetch_rows_ > 0 && count > 0) {
                 int pref = prefetch_rows_;
                 int pref_start = start - pref;
@@ -386,16 +386,21 @@ public:
             const int index = index_from_y(e.y);
             const int count = item_count_for_render();
             if (index >= 0 && index < count) {
-                set_selected(index);
+                auto selection = make_selection_model();
+                selection.set(index);
                 return true;
             }
         } else if (e.type == Event::Type::KeyDown) {
             if (e.key_code == Event::Key::Up) {
-                if (selected_ > 0) set_selected(selected_ - 1);
+                auto selection = make_selection_model();
+                const int current = selection.current();
+                if (current > 0) selection.set(current - 1);
                 return true;
             }
             if (e.key_code == Event::Key::Down) {
-                if (selected_ + 1 < item_count_) set_selected(selected_ + 1);
+                auto selection = make_selection_model();
+                const int current = selection.current();
+                if (current + 1 < item_count_for_render()) selection.set(current + 1);
                 return true;
             }
         }
@@ -571,13 +576,17 @@ private:
         Style st_scratch;
         const Style& st = resolve_style_for_state(st_scratch);
         const auto r = get_rect();
-        const int local = y - r.y + scroll_y_ - st.metrics.padding;
-        if (local < 0) return -1;
         if (!row_height_fn_) {
             const int row_h = row_height_for_render();
-            if (row_h <= 0) return -1;
-            return local / row_h;
+            StructuredViewportMapper mapper{};
+            mapper.rect = Rect{r.x + st.metrics.padding, r.y + st.metrics.padding,
+                               r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
+            mapper.row_height = (row_h > 0) ? row_h : 1;
+            mapper.scroll_y = scroll_y_;
+            return mapper.index_at(y, item_count_for_render());
         }
+        const int local = y - r.y + scroll_y_ - st.metrics.padding;
+        if (local < 0) return -1;
         int acc = 0;
         const int count = item_count_for_render();
         for (int i = 0; i < count; ++i) {
@@ -588,11 +597,11 @@ private:
     }
 
     int item_count_for_render() const noexcept {
-        if (count_fn_) {
-            const int count = count_fn_(data_ctx_);
-            return (count > 0) ? count : 0;
+        const StructuredDataProvider provider = make_provider();
+        if (provider.count) {
+            return provider.size();
         }
-        return item_count_;
+        return (item_count_ > 0) ? item_count_ : 0;
     }
 
     int row_height_for_render() const noexcept {
@@ -617,6 +626,58 @@ private:
         if (!scroll_fn_) return;
         const auto r = get_rect();
         scroll_fn_(scroll_ctx_, scroll_y_, max_scroll_, r.h, content_height_);
+    }
+
+    StructuredDataProvider make_provider() const noexcept {
+        return StructuredDataProvider{
+            this,
+            &ListView::provider_count,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    }
+
+    StructuredSelectionModel make_selection_model() noexcept {
+        return StructuredSelectionModel{
+            this,
+            &ListView::selection_current,
+            &ListView::selection_set,
+            &ListView::selection_clear
+        };
+    }
+
+    static std::uint16_t provider_count(const void* ctx) noexcept {
+        const auto* self = static_cast<const ListView*>(ctx);
+        if (!self) return 0;
+        if (self->count_fn_) {
+            const int count = self->count_fn_(self->data_ctx_);
+            if (count <= 0) return 0;
+            const int capped = (count > 0xFFFF) ? 0xFFFF : count;
+            return static_cast<std::uint16_t>(capped);
+        }
+        if (self->item_count_ <= 0) return 0;
+        const int capped = (self->item_count_ > 0xFFFF) ? 0xFFFF : self->item_count_;
+        return static_cast<std::uint16_t>(capped);
+    }
+
+    static int selection_current(const void* ctx) noexcept {
+        const auto* self = static_cast<const ListView*>(ctx);
+        return self ? self->selected_ : -1;
+    }
+
+    static void selection_set(const void* ctx, int index) noexcept {
+        auto* self = static_cast<ListView*>(const_cast<void*>(ctx));
+        if (self) self->set_selected(index);
+    }
+
+    static void selection_clear(const void* ctx) noexcept {
+        auto* self = static_cast<ListView*>(const_cast<void*>(ctx));
+        if (!self) return;
+        const int prev = self->selected_;
+        self->selected_ = -1;
+        self->mark_dirty_row(prev);
     }
 
     void clear_cache() noexcept {

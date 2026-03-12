@@ -8,12 +8,8 @@ import charm.foundation;
 import charm.runtime;
 import charm.system.bringup;
 import charm.system.bringup.win_stub;
+import charm.system.app_host;
 import charm.system.init_block;
-import kernel.capabilities;
-import kernel.config;
-import kernel.eda;
-import kernel.evt;
-import kernel.scheduler;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
@@ -177,23 +173,14 @@ int main(int argc, char** argv) {
     }
 
     auto caps = platform::board::win_stub::make_board_caps();
-    using PumpTask = charm::system::ReactorPumpTask;
-    using InputPumpTask = input::InputPumpTask;
-    using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
-    Registry registry{};
     charm::system::PumpCaps pump_caps{};
-    auto created = kernel::make_scheduler<charm::system::PumpConfig>(registry, pump_caps);
-    auto running = kernel::start(std::move(created));
-    const auto pump_id = Registry::id_of<PumpTask>();
-    const auto input_pump_id = Registry::id_of<InputPumpTask>();
-    auto& pump = registry.get<PumpTask>();
-    auto& input_pump = registry.get<InputPumpTask>();
+    charm::system::AppHost<charm::system::PumpCaps> host{pump_caps};
     const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
         caps.input,
-        input_pump,
-        &input::scheduler_schedule_at<decltype(running)>,
-        &running,
-        input_pump_id);
+        host.input_pump(),
+        host.schedule_fn(),
+        host.schedule_ctx(),
+        host.input_pump_id());
 
     charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
         caps.uart1,
@@ -202,10 +189,10 @@ int main(int argc, char** argv) {
         caps.spi1,
         caps.i2c1,
         caps.can0,
-        pump,
-        &charm::system::scheduler_post<decltype(running)>,
-        &running,
-        pump_id,
+        host.pump(),
+        host.post_fn(),
+        host.post_ctx(),
+        host.pump_id(),
         8,
         input_desc
     };

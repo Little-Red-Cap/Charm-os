@@ -7,6 +7,7 @@ module;
 export module charm.system.bringup.win_stub;
 
 import charm.system.bringup;
+import charm.system.app_host;
 import charm.system.caps;
 import charm.system.init_canopen;
 import charm.system.reactor_pump;
@@ -16,13 +17,7 @@ import canopen.pump;
 import canopen.sdo;
 import io.channel;
 import io.registry;
-import input.pump;
 import init.node;
-import kernel.capabilities;
-import kernel.config;
-import kernel.eda;
-import kernel.evt;
-import kernel.scheduler;
 import platform.board.win_stub;
 import platform.win.irq_guard;
 import platform.win.time_source;
@@ -31,34 +26,20 @@ import util.core;
 import util.error;
 
 export namespace charm::system {
-    struct PumpConfig : kernel::KernelConfig {
-        static constexpr std::size_t priority_levels = 1;
-        static constexpr std::size_t evtq_capacity = 8;
-    };
-
     using PumpCaps = charm::system::SystemCaps<
         platform::win::SpinIrqGuard,
         platform::win::NoopWakeup>;
 
     inline util::Result<void> bringup_minimal_win_stub() noexcept {
         auto caps = platform::board::win_stub::make_board_caps();
-        using PumpTask = charm::system::ReactorPumpTask;
-        using InputPumpTask = input::InputPumpTask;
-        using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
-        Registry registry{};
         PumpCaps pump_caps{};
-        auto created = kernel::make_scheduler<PumpConfig>(registry, pump_caps);
-        auto running = kernel::start(std::move(created));
-        const auto pump_id = Registry::id_of<PumpTask>();
-        const auto input_pump_id = Registry::id_of<InputPumpTask>();
-        auto& pump = registry.get<PumpTask>();
-        auto& input_pump = registry.get<InputPumpTask>();
+        AppHost<PumpCaps> host{pump_caps};
         const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
             caps.input,
-            input_pump,
-            &input::scheduler_schedule_at<decltype(running)>,
-            &running,
-            input_pump_id);
+            host.input_pump(),
+            host.schedule_fn(),
+            host.schedule_ctx(),
+            host.input_pump_id());
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
@@ -67,10 +48,10 @@ export namespace charm::system {
             caps.spi1,
             caps.i2c1,
             caps.can0,
-            pump,
-            &charm::system::scheduler_post<decltype(running)>,
-            &running,
-            pump_id,
+            host.pump(),
+            host.post_fn(),
+            host.post_ctx(),
+            host.pump_id(),
             8,
             input_desc
         };
@@ -88,32 +69,23 @@ export namespace charm::system {
         if (!wr && wr.error() != util::Errc::would_block) {
             return util::unexpected(wr.error());
         }
-        (void)running.run_once();
+        (void)host.run_once();
         return {};
     }
 
     inline util::Result<void> bringup_minimal_win_stub_canopen() noexcept {
         auto caps = platform::board::win_stub::make_board_caps();
-        using PumpTask = charm::system::ReactorPumpTask;
-        using InputPumpTask = input::InputPumpTask;
-        using CanopenPumpTask = canopen::CanopenPumpTask;
-        using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask, CanopenPumpTask>;
-        Registry registry{};
         PumpCaps pump_caps{};
-        auto created = kernel::make_scheduler<PumpConfig>(registry, pump_caps);
-        auto running = kernel::start(std::move(created));
-        constexpr auto pump_id = Registry::id_of<PumpTask>();
-        constexpr auto input_pump_id = Registry::id_of<InputPumpTask>();
-        constexpr auto canopen_pump_id = Registry::id_of<CanopenPumpTask>();
-        auto& pump = registry.get<PumpTask>();
-        auto& input_pump = registry.get<InputPumpTask>();
-        auto& canopen_pump = registry.get<CanopenPumpTask>();
+        using Host = AppHost<PumpCaps, AppHostConfig, canopen::CanopenPumpTask>;
+        Host host{pump_caps};
+        auto& canopen_pump = host.task<canopen::CanopenPumpTask>();
+        constexpr auto canopen_pump_id = Host::task_id<canopen::CanopenPumpTask>();
         const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
             caps.input,
-            input_pump,
-            &input::scheduler_schedule_at<decltype(running)>,
-            &running,
-            input_pump_id);
+            host.input_pump(),
+            host.schedule_fn(),
+            host.schedule_ctx(),
+            host.input_pump_id());
 
         BringupMinimal<8, 16, 8, 64, 64> bringup{
             caps.uart1,
@@ -122,10 +94,10 @@ export namespace charm::system {
             caps.spi1,
             caps.i2c1,
             caps.can0,
-            pump,
-            &charm::system::scheduler_post<decltype(running)>,
-            &running,
-            pump_id,
+            host.pump(),
+            host.post_fn(),
+            host.post_ctx(),
+            host.pump_id(),
             8,
             input_desc
         };
@@ -142,6 +114,7 @@ export namespace charm::system {
         nmt_cfg.node_id = 1;
         canopen::NmtNode nmt{nmt_cfg};
 
+        auto& running = host.scheduler();
         charm::system::CanopenInitChain<io::Registry<8>, decltype(running)> canopen_chain{
             bringup.registry(),
             sdo,
@@ -169,7 +142,7 @@ export namespace charm::system {
         if (!wr && wr.error() != util::Errc::would_block) {
             return util::unexpected(wr.error());
         }
-        (void)running.run_once();
+        (void)host.run_once();
         return {};
     }
 }

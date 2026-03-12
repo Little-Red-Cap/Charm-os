@@ -34,27 +34,7 @@ export namespace charm::system {
         auto caps = platform::board::win_stub::make_board_caps();
         PumpCaps pump_caps{};
         AppHost<PumpCaps> host{pump_caps};
-        const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-            caps.input,
-            host.input_pump(),
-            host.schedule_fn(),
-            host.schedule_ctx(),
-            host.input_pump_id());
-
-        BringupMinimal<8, 16, 8, 64, 64> bringup{
-            caps.uart1,
-            caps.clock,
-            caps.input,
-            caps.spi1,
-            caps.i2c1,
-            caps.can0,
-            host.pump(),
-            host.post_fn(),
-            host.post_ctx(),
-            host.pump_id(),
-            8,
-            input_desc
-        };
+        BringupMinimal<8, 16, 8, 64, 64> bringup{caps, host};
         auto r = bringup.start();
         if (!r) return r;
 
@@ -80,27 +60,7 @@ export namespace charm::system {
         Host host{pump_caps};
         auto& canopen_pump = host.task<canopen::CanopenPumpTask>();
         constexpr auto canopen_pump_id = Host::task_id<canopen::CanopenPumpTask>();
-        const auto input_desc = BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-            caps.input,
-            host.input_pump(),
-            host.schedule_fn(),
-            host.schedule_ctx(),
-            host.input_pump_id());
-
-        BringupMinimal<8, 16, 8, 64, 64> bringup{
-            caps.uart1,
-            caps.clock,
-            caps.input,
-            caps.spi1,
-            caps.i2c1,
-            caps.can0,
-            host.pump(),
-            host.post_fn(),
-            host.post_ctx(),
-            host.pump_id(),
-            8,
-            input_desc
-        };
+        BringupMinimal<8, 16, 8, 64, 64> bringup{caps, host};
 
         util::u32 value = 0x12345678u;
         std::array<canopen::Entry, 1> entries{

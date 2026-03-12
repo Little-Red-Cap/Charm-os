@@ -112,27 +112,7 @@ int main(int argc, char** argv) {
     auto caps = platform::board::win_stub::make_board_caps();
     charm::system::PumpCaps pump_caps{};
     charm::system::AppHost<charm::system::PumpCaps> host{pump_caps};
-    const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-        caps.input,
-        host.input_pump(),
-        host.schedule_fn(),
-        host.schedule_ctx(),
-        host.input_pump_id());
-
-    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
-        caps.uart1,
-        caps.clock,
-        caps.input,
-        caps.spi1,
-        caps.i2c1,
-        caps.can0,
-        host.pump(),
-        host.post_fn(),
-        host.post_ctx(),
-        host.pump_id(),
-        8,
-        input_desc
-    };
+    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{caps, host};
 
     charm::system::FileInitChain<block::Registry<8>> file_chain{
         bringup.block_registry(),

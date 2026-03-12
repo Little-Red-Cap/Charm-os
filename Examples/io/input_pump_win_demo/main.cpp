@@ -100,32 +100,14 @@ int main(int argc, char** argv) {
         .read_axis = &read_axis,
         .pop_encoder_ab = &pop_encoder_ab
     };
-    platform::board::InputDesc input_desc_caps = caps.input;
-    input_desc_caps.driver = &kDriver;
-
+    caps.input.driver = &kDriver;
     RawPrintCtx print_ctx{&sink};
-    const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-        input_desc_caps,
-        host.input_pump(),
-        host.schedule_fn(),
-        host.schedule_ctx(),
-        host.input_pump_id(),
-        &on_raw,
-        &print_ctx);
-
     charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
-        caps.uart1,
-        caps.clock,
-        caps.input,
-        caps.spi1,
-        caps.i2c1,
-        caps.can0,
-        host.pump(),
-        host.post_fn(),
-        host.post_ctx(),
-        host.pump_id(),
+        caps,
+        host,
         8,
-        input_desc
+        &on_raw,
+        &print_ctx
     };
 
     auto r = bringup.start();

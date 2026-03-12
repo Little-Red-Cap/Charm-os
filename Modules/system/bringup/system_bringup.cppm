@@ -67,6 +67,46 @@ export namespace charm::system {
             return out;
         }
 
+        template <typename Host>
+        static InputBringupDesc make_input_desc(const platform::board::InputDesc& desc,
+                                                Host& host,
+                                                input::SinkFn sink = nullptr,
+                                                void* sink_ctx = nullptr,
+                                                InputInitCfg cfg = {}) noexcept {
+            return make_input_desc(desc,
+                                   host.input_pump(),
+                                   host.schedule_fn(),
+                                   host.schedule_ctx(),
+                                   host.input_pump_id(),
+                                   sink,
+                                   sink_ctx,
+                                   cfg);
+        }
+
+        template <typename Host>
+        BringupMinimal(const platform::board::BoardCaps& caps,
+                       Host& host,
+                       util::usize budget = 8,
+                       input::SinkFn sink = nullptr,
+                       void* sink_ctx = nullptr,
+                       InputInitCfg cfg = {}) noexcept
+            : BringupMinimal(caps.uart1,
+                             caps.clock,
+                             caps.input,
+                             caps.spi1,
+                             caps.i2c1,
+                             caps.can0,
+                             caps.sdmmc0,
+                             caps.flash0,
+                             host.pump(),
+                             host.post_fn(),
+                             host.post_ctx(),
+                             host.pump_id(),
+                             budget,
+                             caps.input.driver
+                                 ? make_input_desc(caps.input, host, sink, sink_ctx, cfg)
+                                 : InputBringupDesc{}) {}
+
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
                        const platform::board::InputDesc& input_desc,

@@ -235,6 +235,18 @@ fs-block-vfs-demo <disk.img>
 
 镜像中需包含一个 FAT 分区与 `hello.txt` 文件。
 
+另一个最小验证链用于验证输入泵链路（RawInput → input.pump/EDA → out）：
+
+```
+hal_input / RawInputSource → input.pump / EDA → out
+```
+
+运行 demo：
+
+```
+input-pump-win-demo
+```
+
 
 
 最小示例：MCU接入UART/PC接入Stdio

@@ -121,6 +121,7 @@ Charm 使用三层结构组织系统能力：
 | Out | 统一输出、格式化与日志能力 | `out.core` | — | — | stable |
 | Shell | 命令行、REPL 与交互入口 | `io.shell` | — | — | draft |
 | HAL | 硬件抽象层能力 | `io.hal` | `docs/io/io_layering_overview.md` | — | draft |
+| Input | 原始输入采样与事件泵链路 | `input.service` | `docs/input/input_layering_decision.md` | `input_pump_win_demo` | draft |
 
 ---
 
@@ -128,8 +129,8 @@ Charm 使用三层结构组织系统能力：
 
 | Capability | Description | Modules | Docs | Example | Status |
 |---|---|---|---|---|---|
-| BlockDevice | 块设备抽象与适配 | `storage.block` | `docs/storage/block_device_contract.md` | — | draft |
-| VFS | 虚拟文件系统与挂载入口 | `fs.vfs` | `docs/storage/fs_vfs_mount_rules.md` | — | draft |
+| BlockDevice | 块设备抽象与适配 | `storage.block` | `docs/storage/block_device_contract.md` | `fs_block_vfs_demo` | draft |
+| VFS | 虚拟文件系统与挂载入口 | `fs.vfs` | `docs/storage/fs_vfs_mount_rules.md` | `fs_block_vfs_demo` | draft |
 
 ---
 

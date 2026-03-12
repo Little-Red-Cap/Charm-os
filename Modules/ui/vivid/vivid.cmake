@@ -145,23 +145,25 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
     endif()
     list(REMOVE_ITEM ${module_list_var}
-        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/container.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/gui.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/input_router.cppm"
+        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/container.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/layout.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/pool.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/render_tree.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/factory.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/factory.full.cppm"
-        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.full.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/anim.cppm"
+        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/widgets/dropdown_popup.cppm"
+        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/widgets/menu_tree.cppm"
     )
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(REMOVE_ITEM ${module_list_var}
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/object.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/input_interaction.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/string.cppm"
+            "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         )
     endif()
 

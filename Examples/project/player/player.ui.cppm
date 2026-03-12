@@ -27,6 +27,7 @@ import charm.widgets.crt_screen;
 import charm.widgets.spectrum_view;
 import charm.widgets.spinning_wheel;
 import charm.widgets.image_box;
+import charm.widgets.label;
 import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
@@ -397,69 +398,86 @@ export namespace player::ui {
         preset.progress = theme.get<Progress>();
         preset.progress.colors.bg_color = kUiProgressBg;
         preset.progress.colors.border_color = kUiProgressBorder;
-        preset.has_progress_bar_simple = true;
-        preset.progress_bar_simple = theme.get<ProgressBarSimple>();
-        preset.progress_bar_simple.colors.bg_color = kUiProgressBg;
-        preset.progress_bar_simple.colors.border_color = kUiProgressBorder;
         preset.has_scroll_bar = true;
         preset.scroll_bar = theme.get<ScrollBar>();
         preset.scroll_bar.colors.bg_color = kUiScrollBg;
         preset.scroll_bar.colors.border_color = kUiScrollBorder;
         preset.scroll_bar.metrics.corner_radius = 6;
-        preset.has_segmented_control = true;
-        preset.segmented_control = theme.get<SegmentedControl>();
-        preset.segmented_control.colors.bg_color = kUiButtonBg;
-        preset.segmented_control.colors.border_color = kUiButtonBorder;
-        preset.segmented_control.colors.bg_pressed = kUiButtonHover;
-        preset.segmented_control.colors.border_pressed = kUiButtonBorder;
-        preset.segmented_control.colors.font_color = kUiListFont;
-        preset.has_perf_overlay = true;
-        preset.perf_overlay = theme.get<PerfOverlay>();
-        preset.perf_overlay.colors.bg_color = kUiPerfBg;
-        preset.perf_overlay.colors.border_color = kUiPerfBorder;
-        preset.perf_overlay.colors.font_color = kUiPerfFont;
-        preset.perf_overlay.metrics.padding = 6;
-        preset.has_foldable_panel = true;
-        preset.foldable_panel = theme.get<FoldablePanel>();
-        preset.foldable_panel.metrics.header_padding = 10;
-        preset.foldable_panel.metrics.content_padding = 10;
-        preset.has_cloudy_glass = true;
-        preset.cloudy_glass = theme.get<CloudyGlass>();
-        preset.cloudy_glass.metrics.glass_highlight_pos = 12;
-        preset.cloudy_glass.metrics.glass_highlight_alpha = 90;
-        preset.cloudy_glass.metrics.glass_shadow_alpha = 50;
-        preset.cloudy_glass.metrics.glass_opacity_min = 60;
-        preset.cloudy_glass.metrics.glass_opacity_max = 200;
-        preset.has_spectrum_view = true;
-        preset.spectrum_view = theme.get<SpectrumView>();
-        preset.spectrum_view.colors.bg_color = kUiListBg;
-        preset.spectrum_view.colors.border_color = kUiListBorder;
-        preset.spectrum_view.colors.bg_pressed = kUiSwitchOn;
-        preset.spectrum_view.colors.border_focus = kUiOk;
-        preset.has_battery_gasgauge = true;
-        preset.battery_gasgauge = theme.get<BatteryGasGauge>();
-        preset.battery_gasgauge.colors.bg_color = kUiListBg;
-        preset.battery_gasgauge.colors.border_color = kUiListBorder;
-        preset.battery_gasgauge.metrics.corner_radius = 6;
-        preset.battery_gasgauge.metrics.padding = 6;
-        preset.has_histogram = true;
-        preset.histogram = theme.get<Histogram>();
-        preset.histogram.colors.bg_color = kUiListBg;
-        preset.histogram.colors.border_color = kUiListBorder;
-        preset.histogram.metrics.corner_radius = 6;
-        preset.histogram.metrics.padding = 6;
-        preset.histogram.colors.font_color = kUiListFont;
-        preset.has_busy_wheel = true;
-        preset.busy_wheel = theme.get<BusyWheel>();
-        preset.busy_wheel.colors.font_color = kUiListFont;
-        preset.has_console_box = true;
-        preset.console_box = theme.get<ConsoleBox>();
-        preset.console_box.colors.bg_color = kUiListBg;
-        preset.console_box.colors.border_color = kUiListBorder;
-        preset.console_box.metrics.padding = 6;
         apply_theme_preset(preset);
 
         auto& sheet = StyleSheet::instance();
+        auto set_base = [&](WidgetKind kind, Style s) {
+            if (!s.font) {
+                s.font = &player_default_font();
+            }
+            sheet.set_base_style(kind, s);
+        };
+
+        Style progress_bar_simple = theme.get<ProgressBarSimple>();
+        progress_bar_simple.colors.bg_color = kUiProgressBg;
+        progress_bar_simple.colors.border_color = kUiProgressBorder;
+        set_base(WidgetKind::ProgressBarSimple, progress_bar_simple);
+
+        Style segmented_control = theme.get<SegmentedControl>();
+        segmented_control.colors.bg_color = kUiButtonBg;
+        segmented_control.colors.border_color = kUiButtonBorder;
+        segmented_control.colors.bg_pressed = kUiButtonHover;
+        segmented_control.colors.border_pressed = kUiButtonBorder;
+        segmented_control.colors.font_color = kUiListFont;
+        set_base(WidgetKind::SegmentedControl, segmented_control);
+
+        Style perf_overlay = theme.get<PerfOverlay>();
+        perf_overlay.colors.bg_color = kUiPerfBg;
+        perf_overlay.colors.border_color = kUiPerfBorder;
+        perf_overlay.colors.font_color = kUiPerfFont;
+        perf_overlay.metrics.padding = 6;
+        set_base(WidgetKind::PerfOverlay, perf_overlay);
+
+        Style foldable_panel = theme.get<FoldablePanel>();
+        foldable_panel.metrics.header_padding = 10;
+        foldable_panel.metrics.content_padding = 10;
+        set_base(WidgetKind::FoldablePanel, foldable_panel);
+
+        Style cloudy_glass = theme.get<CloudyGlass>();
+        cloudy_glass.metrics.glass_highlight_pos = 12;
+        cloudy_glass.metrics.glass_highlight_alpha = 90;
+        cloudy_glass.metrics.glass_shadow_alpha = 50;
+        cloudy_glass.metrics.glass_opacity_min = 60;
+        cloudy_glass.metrics.glass_opacity_max = 200;
+        set_base(WidgetKind::CloudyGlass, cloudy_glass);
+
+        Style spectrum_view = theme.get<SpectrumView>();
+        spectrum_view.colors.bg_color = kUiListBg;
+        spectrum_view.colors.border_color = kUiListBorder;
+        spectrum_view.colors.bg_pressed = kUiSwitchOn;
+        spectrum_view.colors.border_focus = kUiOk;
+        set_base(WidgetKind::SpectrumView, spectrum_view);
+
+        Style battery_gasgauge = theme.get<BatteryGasGauge>();
+        battery_gasgauge.colors.bg_color = kUiListBg;
+        battery_gasgauge.colors.border_color = kUiListBorder;
+        battery_gasgauge.metrics.corner_radius = 6;
+        battery_gasgauge.metrics.padding = 6;
+        set_base(WidgetKind::BatteryGasGauge, battery_gasgauge);
+
+        Style histogram = theme.get<Histogram>();
+        histogram.colors.bg_color = kUiListBg;
+        histogram.colors.border_color = kUiListBorder;
+        histogram.metrics.corner_radius = 6;
+        histogram.metrics.padding = 6;
+        histogram.colors.font_color = kUiListFont;
+        set_base(WidgetKind::Histogram, histogram);
+
+        Style busy_wheel = theme.get<BusyWheel>();
+        busy_wheel.colors.font_color = kUiListFont;
+        set_base(WidgetKind::BusyWheel, busy_wheel);
+
+        Style console_box = theme.get<ConsoleBox>();
+        console_box.colors.bg_color = kUiListBg;
+        console_box.colors.border_color = kUiListBorder;
+        console_box.metrics.padding = 6;
+        set_base(WidgetKind::ConsoleBox, console_box);
+
         sheet.clear();
         StylePatch btn_base{};
         btn_base.has_bg_color = true;

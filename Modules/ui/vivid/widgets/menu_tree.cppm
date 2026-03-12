@@ -7,52 +7,11 @@ import charm.core.soa_factory;
 import charm.core.handle;
 import charm.core.geometry;
 import charm.core.event;
+import charm.core.structured_view;
 
 export
 class MenuTree {
 public:
-    struct DataProvider {
-        const void* ctx{nullptr};
-        std::uint16_t (*count)(const void* ctx) noexcept {nullptr};
-        const char* (*label)(const void* ctx, std::uint16_t index) noexcept {nullptr};
-        bool (*enabled)(const void* ctx, std::uint16_t index) noexcept {nullptr};
-        bool (*has_children)(const void* ctx, std::uint16_t index) noexcept {nullptr};
-        int (*child_id)(const void* ctx, std::uint16_t index) noexcept {nullptr};
-
-        std::uint16_t size() const noexcept {
-            return count ? count(ctx) : 0;
-        }
-        const char* text(std::uint16_t index) const noexcept {
-            return label ? label(ctx, index) : "";
-        }
-        bool is_enabled(std::uint16_t index) const noexcept {
-            return enabled ? enabled(ctx, index) : true;
-        }
-        bool has_child(std::uint16_t index) const noexcept {
-            return has_children ? has_children(ctx, index) : false;
-        }
-        int child(std::uint16_t index) const noexcept {
-            return child_id ? child_id(ctx, index) : -1;
-        }
-    };
-
-    struct SelectionModel {
-        const void* ctx{nullptr};
-        int (*selected)(const void* ctx) noexcept {nullptr};
-        void (*set_selected)(const void* ctx, int index) noexcept {nullptr};
-        void (*clear)(const void* ctx) noexcept {nullptr};
-
-        int current() const noexcept {
-            return selected ? selected(ctx) : -1;
-        }
-        void set(int index) const noexcept {
-            if (set_selected) set_selected(ctx, index);
-        }
-        void reset() const noexcept {
-            if (clear) clear(ctx);
-        }
-    };
-
     struct MenuProvider {
         const void* ctx{nullptr};
         std::uint16_t (*count)(const void* ctx, int menu_id) noexcept {nullptr};
@@ -67,37 +26,6 @@ public:
         int (*selected)(const void* ctx, int menu_id) noexcept {nullptr};
         void (*set_selected)(const void* ctx, int menu_id, int index) noexcept {nullptr};
         void (*clear)(const void* ctx, int menu_id) noexcept {nullptr};
-    };
-
-    struct VisibleRange {
-        int first{0};
-        int last{-1};
-    };
-
-    struct ViewportMapper {
-        Rect rect{};
-        int row_height{0};
-        int scroll_y{0};
-
-        int index_at(int y, int count) const noexcept {
-            if (row_height <= 0 || count <= 0) return -1;
-            const int local_y = y - rect.y + scroll_y;
-            if (local_y < 0) return -1;
-            const int idx = local_y / row_height;
-            return (idx >= 0 && idx < count) ? idx : -1;
-        }
-        int y_of(int index) const noexcept {
-            return rect.y + index * row_height - scroll_y;
-        }
-        VisibleRange visible_range(int count) const noexcept {
-            if (row_height <= 0 || count <= 0) return {};
-            const int first = scroll_y / row_height;
-            const int last = (scroll_y + rect.h - 1) / row_height;
-            return VisibleRange{
-                first < 0 ? 0 : first,
-                last >= count ? (count - 1) : last
-            };
-        }
     };
 
     MenuTree() = default;
@@ -356,7 +284,7 @@ private:
         selection.tree = this;
         selection.menu_id = menu_id;
 
-        DataProvider provider_view{
+        StructuredDataProvider provider_view{
             &view,
             &MenuTree::view_count,
             &MenuTree::view_label,
@@ -364,7 +292,7 @@ private:
             &MenuTree::view_has_children,
             &MenuTree::view_child_id
         };
-        SelectionModel selection_view{
+        StructuredSelectionModel selection_view{
             &selection,
             &MenuTree::view_selected,
             &MenuTree::view_set_selected,
@@ -381,9 +309,9 @@ private:
         }
     }
 
-    ViewportMapper make_mapper(WidgetHandle list) const noexcept {
+    StructuredViewportMapper make_mapper(WidgetHandle list) const noexcept {
         auto& kernel = factory_->kernel();
-        ViewportMapper mapper{};
+        StructuredViewportMapper mapper{};
         mapper.rect = kernel.world_rect(list);
         mapper.row_height = kernel.list_row_height(list);
         mapper.scroll_y = kernel.scroll_y(list);
@@ -420,7 +348,7 @@ private:
     }
 
     void handle_mouse_move_in_list(WidgetHandle list, int menu_id, int y, bool is_submenu) {
-        const ViewportMapper mapper = make_mapper(list);
+        const StructuredViewportMapper mapper = make_mapper(list);
         const int count = provider_.count(provider_.ctx, menu_id);
         const int idx = mapper.index_at(y, count);
         if (idx < 0) return;
@@ -432,7 +360,7 @@ private:
     }
 
     void handle_click_in_list(WidgetHandle list, int menu_id, int y, bool is_submenu) {
-        const ViewportMapper mapper = make_mapper(list);
+        const StructuredViewportMapper mapper = make_mapper(list);
         const int count = provider_.count(provider_.ctx, menu_id);
         const int idx = mapper.index_at(y, count);
         if (idx < 0) return;
@@ -462,7 +390,7 @@ private:
             set_selected(menu_id, selected);
             factory_->kernel().set_list_view_selected(list, selected);
             if (!submenu_open) {
-                const ViewportMapper mapper = make_mapper(menu_list_);
+                const StructuredViewportMapper mapper = make_mapper(menu_list_);
                 open_submenu(selected, mapper.y_of(selected));
             }
             return true;
@@ -471,13 +399,13 @@ private:
             set_selected(menu_id, selected);
             factory_->kernel().set_list_view_selected(list, selected);
             if (!submenu_open) {
-                const ViewportMapper mapper = make_mapper(menu_list_);
+                const StructuredViewportMapper mapper = make_mapper(menu_list_);
                 open_submenu(selected, mapper.y_of(selected));
             }
             return true;
         case Event::Key::Right:
             if (!submenu_open && has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const ViewportMapper mapper = make_mapper(menu_list_);
+                const StructuredViewportMapper mapper = make_mapper(menu_list_);
                 open_submenu(selected, mapper.y_of(selected));
                 return true;
             }
@@ -493,7 +421,7 @@ private:
         case Event::Key::Enter:
         case Event::Key::Space:
             if (has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const ViewportMapper mapper = make_mapper(menu_list_);
+                const StructuredViewportMapper mapper = make_mapper(menu_list_);
                 open_submenu(selected, mapper.y_of(selected));
                 return true;
             }

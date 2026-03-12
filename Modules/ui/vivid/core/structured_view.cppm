@@ -3,6 +3,7 @@ module;
 export module charm.core.structured_view;
 
 import charm.core.geometry;
+import alg_scroll_bounds;
 
 export
 struct StructuredVisibleRange {
@@ -36,6 +37,28 @@ struct StructuredViewportMapper {
             first < 0 ? 0 : first,
             last >= count ? (count - 1) : last
         };
+    }
+};
+
+export
+struct StructuredScrollModel {
+    int scroll_y{0};
+    int max_scroll{0};
+    int content_height{0};
+    int wheel_step{24};
+
+    void set_content(int content_h, int view_h) noexcept {
+        content_height = (content_h > 0) ? content_h : 0;
+        max_scroll = alg::scroll_bounds::compute_max(content_height, view_h);
+        scroll_y = alg::scroll_bounds::clamp(scroll_y, max_scroll);
+    }
+
+    void set_scroll(int y) noexcept {
+        scroll_y = alg::scroll_bounds::clamp(y, max_scroll);
+    }
+
+    void add_scroll(int dy) noexcept {
+        scroll_y = alg::scroll_bounds::clamp(scroll_y + dy, max_scroll);
     }
 };
 

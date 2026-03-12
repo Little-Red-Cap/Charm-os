@@ -169,27 +169,27 @@ public:
     int selected() const noexcept { return selected_; }
 
     void set_scroll_y(int y) noexcept {
-        const int old = scroll_y_;
-        scroll_y_ = clamp_scroll(y);
+        const int old = scroll_.scroll_y;
+        scroll_.set_scroll(y);
         notify_scroll();
         window_valid_ = false;
-        mark_scroll_dirty(old, scroll_y_);
+        mark_scroll_dirty(old, scroll_.scroll_y);
     }
 
     void add_scroll_y(int dy) noexcept {
-        const int old = scroll_y_;
-        scroll_y_ = clamp_scroll(scroll_y_ + dy);
+        const int old = scroll_.scroll_y;
+        scroll_.add_scroll(dy);
         notify_scroll();
         window_valid_ = false;
-        mark_scroll_dirty(old, scroll_y_);
+        mark_scroll_dirty(old, scroll_.scroll_y);
     }
 
-    void set_wheel_step(int step) noexcept { wheel_step_ = step; }
+    void set_wheel_step(int step) noexcept { scroll_.wheel_step = step; }
     void set_show_scrollbar(bool on) noexcept { show_scrollbar_ = on; }
 
-    int scroll_y() const noexcept { return scroll_y_; }
-    int max_scroll() const noexcept { return max_scroll_; }
-    int content_height() const noexcept { return content_height_; }
+    int scroll_y() const noexcept { return scroll_.scroll_y; }
+    int max_scroll() const noexcept { return scroll_.max_scroll; }
+    int content_height() const noexcept { return scroll_.content_height; }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -260,14 +260,14 @@ public:
 
         cvs.restore_clip(clip_state);
 
-        if (show_scrollbar_ && max_scroll_ > 0) {
+        if (show_scrollbar_ && scroll_.max_scroll > 0) {
             const int margin = (st.metrics.scrollbar_margin >= 0) ? st.metrics.scrollbar_margin : 0;
             const int track_w = 6;
             const int track_x = r.x + r.w - track_w - margin;
             const int track_y = r.y + margin;
             const int track_h = r.h - margin * 2;
             const auto thumb = alg::scroll_thumb::vertical_from_maxscroll(
-                track_x, track_y, track_w, track_h, r.h, max_scroll_, scroll_y_, st.metrics.scrollbar_thumb_min);
+                track_x, track_y, track_w, track_h, r.h, scroll_.max_scroll, scroll_.scroll_y, st.metrics.scrollbar_thumb_min);
             if (thumb.visible && thumb.thumb_h > 0) {
                 rgba thumb_col = st.colors.border_focus;
                 thumb_col.a = 180;
@@ -295,11 +295,11 @@ public:
             StructuredViewportMapper mapper{};
             mapper.rect = Rect{r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2};
             mapper.row_height = row_h;
-            mapper.scroll_y = scroll_y_;
+            mapper.scroll_y = scroll_.scroll_y;
             const StructuredVisibleRange range = mapper.visible_range(count);
             start = range.first;
             visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
-            const int row_offset = scroll_y_ - start * row_h;
+            const int row_offset = scroll_.scroll_y - start * row_h;
             y = r.y + pad - row_offset;
             if (prefetch_rows_ > 0 && count > 0) {
                 int pref = prefetch_rows_;
@@ -321,7 +321,7 @@ public:
             int acc = 0;
             for (int i = 0; i < count; ++i) {
                 const int h = row_height_for_index(i);
-                if (acc + h > scroll_y_) {
+                if (acc + h > scroll_.scroll_y) {
                     start = i;
                     break;
                 }
@@ -334,7 +334,7 @@ public:
                     acc -= row_height_for_index(start);
                 }
             }
-            y = r.y + pad - (scroll_y_ - acc);
+            y = r.y + pad - (scroll_.scroll_y - acc);
             int temp_y = y;
             for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
                 temp_y += row_height_for_index(i);
@@ -366,7 +366,7 @@ public:
             return true;
         } else if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            const int target_step = e.wheel_y * wheel_step_;
+            const int target_step = e.wheel_y * scroll_.wheel_step;
             add_scroll_y(-target_step);
             return true;
         } else if (e.type == Event::Type::GestureSwipe) {
@@ -487,7 +487,7 @@ private:
         }
         return Rect{
             r.x + pad,
-            r.y + pad + row_top - scroll_y_,
+            r.y + pad + row_top - scroll_.scroll_y,
             r.w - pad * 2,
             row_h
         };
@@ -517,7 +517,7 @@ private:
         }
         return Rect{
             r.x + pad,
-            r.y + pad + row_top - scroll_y_,
+            r.y + pad + row_top - scroll_.scroll_y,
             r.w - pad * 2,
             range_h
         };
@@ -533,18 +533,13 @@ private:
             for (int i = 0; i < count; ++i) {
                 sum += row_height_for_index(i);
             }
-            content_height_ = sum + st.metrics.padding * 2;
+            scroll_.content_height = sum + st.metrics.padding * 2;
         } else {
             const int row_h = row_height_for_render();
-            content_height_ = count * row_h + st.metrics.padding * 2;
+            scroll_.content_height = count * row_h + st.metrics.padding * 2;
         }
-        max_scroll_ = alg::scroll_bounds::compute_max(content_height_, r.h);
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_);
+        scroll_.set_content(scroll_.content_height, r.h);
         notify_scroll();
-    }
-
-    int clamp_scroll(int y) const noexcept {
-        return alg::scroll_bounds::clamp(y, max_scroll_);
     }
 
     void ensure_visible(int index) noexcept {
@@ -563,8 +558,8 @@ private:
             row_top = index * row_h;
             row_bottom = row_top + row_h;
         }
-        const int view_top = scroll_y_;
-        const int view_bottom = scroll_y_ + (r.h - pad * 2);
+        const int view_top = scroll_.scroll_y;
+        const int view_bottom = scroll_.scroll_y + (r.h - pad * 2);
         if (row_top < view_top) {
             set_scroll_y(row_top);
         } else if (row_bottom > view_bottom) {
@@ -582,10 +577,10 @@ private:
             mapper.rect = Rect{r.x + st.metrics.padding, r.y + st.metrics.padding,
                                r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
             mapper.row_height = (row_h > 0) ? row_h : 1;
-            mapper.scroll_y = scroll_y_;
-            return mapper.index_at(y, item_count_for_render());
-        }
-        const int local = y - r.y + scroll_y_ - st.metrics.padding;
+                mapper.scroll_y = scroll_.scroll_y;
+                return mapper.index_at(y, item_count_for_render());
+            }
+        const int local = y - r.y + scroll_.scroll_y - st.metrics.padding;
         if (local < 0) return -1;
         int acc = 0;
         const int count = item_count_for_render();
@@ -625,7 +620,7 @@ private:
     void notify_scroll() noexcept {
         if (!scroll_fn_) return;
         const auto r = get_rect();
-        scroll_fn_(scroll_ctx_, scroll_y_, max_scroll_, r.h, content_height_);
+        scroll_fn_(scroll_ctx_, scroll_.scroll_y, scroll_.max_scroll, r.h, scroll_.content_height);
     }
 
     StructuredDataProvider make_provider() const noexcept {
@@ -722,10 +717,7 @@ private:
     int item_count_{0};
     int row_height_{24};
     int selected_{-1};
-    int scroll_y_{0};
-    int max_scroll_{0};
-    int content_height_{0};
-    int wheel_step_{24};
+    StructuredScrollModel scroll_{};
     bool dragging_{false};
     int last_y_{0};
     bool show_scrollbar_{true};

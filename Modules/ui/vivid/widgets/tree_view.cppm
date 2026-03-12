@@ -4,6 +4,7 @@ export module charm.widgets.tree_view;
 
 import charm.core.object;
 import charm.core.event;
+import charm.core.structured_view;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -95,6 +96,8 @@ public:
     }
 
     void set_selected(int index) noexcept {
+        const int count = item_count();
+        if (index < 0 || index >= count) return;
         selected_ = index;
         if (select_fn_) select_fn_(select_ctx_, index);
     }
@@ -127,10 +130,28 @@ public:
         int visible = 0;
         int y = r.y;
         if (!variable_height) {
-            const auto window = compute_virtual_window(scroll_y_, row_height_, r.h, r.y, prefetch_rows_);
-            start = window.start;
-            visible = window.visible;
-            y = window.offset_y;
+            StructuredViewportMapper mapper{};
+            mapper.rect = r;
+            mapper.row_height = row_height_;
+            mapper.scroll_y = scroll_y_;
+            const StructuredVisibleRange range = mapper.visible_range(count);
+            start = range.first;
+            visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
+            const int row_offset = scroll_y_ - start * row_height_;
+            y = r.y - row_offset;
+            if (prefetch_rows_ > 0 && count > 0) {
+                int pref = prefetch_rows_;
+                int pref_start = start - pref;
+                if (pref_start < 0) pref_start = 0;
+                const int actual_pref = start - pref_start;
+                start = pref_start;
+                y -= actual_pref * row_height_;
+                visible += actual_pref;
+                int extra = pref;
+                const int max_extra = count - (start + visible);
+                if (extra > max_extra) extra = max_extra;
+                if (extra > 0) visible += extra;
+            }
         } else {
             int acc = 0;
             for (int i = 0; i < count; ++i) {
@@ -162,12 +183,14 @@ public:
             if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
         };
         cache_.begin_frame();
+        const StructuredSelectionModel selection = make_selection_model();
+        const int selected = selection.current();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             NodeInfo info = node_fn_ ? node_fn_(data_ctx_, i) : NodeInfo{};
             const int row_h = variable_height ? row_height_for_index(i, info) : row_height_;
             Rect row{r.x, y, r.w, row_h};
-            const bool selected = (i == selected_);
-            if (selected) {
+            const bool is_selected = (i == selected);
+            if (is_selected) {
                 draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             int slot = -1;
@@ -186,7 +209,7 @@ public:
             }
             draw_node_glyphs(cvs, row, st.metrics.padding, info, border);
             if (draw_fn_) {
-                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, selected, info, slot});
+                draw_fn_(data_ctx_, cvs, DrawInfo{row, i, is_selected, info, slot});
             } else if (info.label) {
                 Rect label_box{row.x + st.metrics.padding + info.depth * indent_w_, row.y, row.w, row.h};
                 draw_text_box(cvs, label_box, info.label, font, resolve_font(st),
@@ -224,7 +247,8 @@ public:
                 if (info.has_children && e.x >= toggle_x && e.x < toggle_x + indent_w_) {
                     if (toggle_fn_) toggle_fn_(data_ctx_, index);
                 }
-                set_selected(index);
+                auto selection = make_selection_model();
+                selection.set(index);
                 return true;
             }
         }
@@ -233,9 +257,9 @@ public:
 
 private:
     int item_count() const noexcept {
-        if (count_fn_) {
-            const int v = count_fn_(data_ctx_);
-            return (v > 0) ? v : 0;
+        const StructuredDataProvider provider = make_provider();
+        if (provider.count) {
+            return provider.size();
         }
         return 0;
     }
@@ -244,7 +268,11 @@ private:
         const auto r = get_rect();
         if (row_height_ <= 0) return -1;
         if (!row_height_fn_) {
-            return alg::list_scroll::index_from_y(y, r.y, scroll_y_, 0, row_height_, item_count());
+            StructuredViewportMapper mapper{};
+            mapper.rect = r;
+            mapper.row_height = row_height_;
+            mapper.scroll_y = scroll_y_;
+            return mapper.index_at(y, item_count());
         }
         const int local = y - r.y + scroll_y_;
         if (local < 0) return -1;
@@ -275,6 +303,50 @@ private:
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
+    }
+
+    StructuredDataProvider make_provider() const noexcept {
+        return StructuredDataProvider{
+            this,
+            &TreeView::provider_count,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    }
+
+    StructuredSelectionModel make_selection_model() noexcept {
+        return StructuredSelectionModel{
+            this,
+            &TreeView::selection_current,
+            &TreeView::selection_set,
+            &TreeView::selection_clear
+        };
+    }
+
+    static std::uint16_t provider_count(const void* ctx) noexcept {
+        const auto* self = static_cast<const TreeView*>(ctx);
+        if (!self || !self->count_fn_) return 0;
+        const int v = self->count_fn_(self->data_ctx_);
+        if (v <= 0) return 0;
+        const int capped = (v > 0xFFFF) ? 0xFFFF : v;
+        return static_cast<std::uint16_t>(capped);
+    }
+
+    static int selection_current(const void* ctx) noexcept {
+        const auto* self = static_cast<const TreeView*>(ctx);
+        return self ? self->selected_ : -1;
+    }
+
+    static void selection_set(const void* ctx, int index) noexcept {
+        auto* self = static_cast<TreeView*>(const_cast<void*>(ctx));
+        if (self) self->set_selected(index);
+    }
+
+    static void selection_clear(const void* ctx) noexcept {
+        auto* self = static_cast<TreeView*>(const_cast<void*>(ctx));
+        if (self) self->selected_ = -1;
     }
 
     void draw_node_glyphs(CanvasBase& cvs, const Rect& row, int pad,

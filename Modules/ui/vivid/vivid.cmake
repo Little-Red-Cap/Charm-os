@@ -155,8 +155,6 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/factory.full.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/theme_preset.full.cppm"
         "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/anim.cppm"
-        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/widgets/dropdown_popup.cppm"
-        "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/widgets/menu_tree.cppm"
     )
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(REMOVE_ITEM ${module_list_var}

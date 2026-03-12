@@ -26,6 +26,7 @@ import charm.gfx.draw_cmd;
 import charm.gfx.image;
 import charm.gfx.snapshot;
 import charm.font.typography;
+import charm.widgets.menu_tree;
 import out.api;
 
 namespace {
@@ -883,6 +884,88 @@ namespace {
 
         kernel.destroy(c);
         kernel.destroy(test_root3);
+
+        {
+            struct MenuData {
+                static std::uint16_t count(const void* ctx, int menu_id) noexcept {
+                    (void)ctx;
+                    if (menu_id == 0) return 2;
+                    if (menu_id == 1) return 2;
+                    return 0;
+                }
+                static const char* label(const void* ctx, int menu_id, std::uint16_t index) noexcept {
+                    (void)ctx;
+                    static const char* root_items[] = {"File", "Edit"};
+                    static const char* file_items[] = {"Open", "Exit"};
+                    if (menu_id == 0 && index < 2) return root_items[index];
+                    if (menu_id == 1 && index < 2) return file_items[index];
+                    return "";
+                }
+                static bool has_children(const void* ctx, int menu_id, std::uint16_t index) noexcept {
+                    (void)ctx;
+                    return menu_id == 0 && index == 0;
+                }
+                static int child_menu(const void* ctx, int menu_id, std::uint16_t index) noexcept {
+                    (void)ctx;
+                    return (menu_id == 0 && index == 0) ? 1 : -1;
+                }
+            };
+            struct MenuSelection {
+                int root_sel{0};
+                int file_sel{0};
+                static int get_selected(const void* ctx, int menu_id) noexcept {
+                    auto* self = static_cast<const MenuSelection*>(ctx);
+                    if (!self) return -1;
+                    return (menu_id == 0) ? self->root_sel : self->file_sel;
+                }
+                static void set_selected(const void* ctx, int menu_id, int index) noexcept {
+                    auto* self = static_cast<MenuSelection*>(const_cast<void*>(ctx));
+                    if (!self) return;
+                    if (menu_id == 0) self->root_sel = index;
+                    else self->file_sel = index;
+                }
+            };
+
+            MenuSelection menu_sel{};
+            MenuTree menu{};
+            auto menu_root = factory.create_container();
+            auto menu_host = factory.create_button("Menu");
+            factory.link(root, menu_root);
+            factory.link(menu_root, menu_host);
+            kernel.set_rect(menu_root, {760, 40, 200, 200});
+            kernel.set_rect(menu_host, {10, 10, 80, 24});
+
+            menu.init(factory, menu_root);
+            menu.set_root_menu(0);
+            menu.set_provider(MenuTree::DataProvider{
+                &menu_sel,
+                &MenuData::count,
+                &MenuData::label,
+                &MenuData::has_children,
+                &MenuData::child_menu
+            });
+            menu.set_selection_model(MenuTree::SelectionModel{
+                &menu_sel,
+                &MenuSelection::get_selected,
+                &MenuSelection::set_selected
+            });
+
+            menu.open(menu_host);
+            kernel.input_test_request_capture(menu.panel_handle());
+
+            const int menu_x = 780;
+            const int menu_y = 74;
+            menu.handle_event(Event::mouse(Event::Type::MouseMove, menu_x, menu_y, 0));
+            menu.handle_event(Event::mouse(Event::Type::MouseDown, 20, 20, 1));
+            menu.handle_event(Event::mouse(Event::Type::Click, 20, 20, 1));
+
+            expect_true(!menu.is_open(), "regress: menu_tree not closed", fails);
+            expect_true(!kernel.input_captured(), "regress: menu_tree captured not cleared", fails);
+            expect_true(!kernel.input_pressed(), "regress: menu_tree pressed not cleared", fails);
+
+            kernel.destroy(menu_host);
+            kernel.destroy(menu_root);
+        }
 
         expect_true(!kernel.payload_overflowed(), "regress: payload pool overflowed", fails);
         if (g_regress_log) {

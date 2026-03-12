@@ -147,6 +147,7 @@ import charm.core.soa_registry;
             }
             input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 0, 0});
         }
+        input_apply_actions();
         if (input_.root == h) {
             input_.root = {};
         }
@@ -732,7 +733,7 @@ import charm.core.soa_registry;
         set_value(h, value);
     }
 
-    Rect SoaKernel::input_world_rect(WidgetHandle h) const noexcept {
+    Rect SoaKernel::world_rect(WidgetHandle h) const noexcept {
         Rect r = rect(h);
         int ox = 0;
         int oy = 0;
@@ -758,6 +759,15 @@ import charm.core.soa_registry;
         r.x += ox;
         r.y += oy;
         return r;
+    }
+
+    Rect SoaKernel::input_world_rect(WidgetHandle h) const noexcept {
+        return world_rect(h);
+    }
+
+    void SoaKernel::input_request_cancel() noexcept {
+        input_handle_cancel(input_.last_x, input_.last_y, input_.button);
+        input_apply_actions();
     }
 
     WidgetHandle SoaKernel::input_find_scroll_target(WidgetHandle hit) noexcept {

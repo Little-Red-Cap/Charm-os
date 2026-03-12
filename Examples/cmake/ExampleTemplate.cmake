@@ -16,6 +16,8 @@ endfunction()
 
 function(charm_example_sources target_name base_dir)
     file(GLOB_RECURSE MODULE_INTERFACE_UNITS ${ARGN})
+    list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/cmake-build-")
+    list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Charm/generated/")
     target_sources(${target_name}
         PRIVATE
         FILE_SET modules TYPE CXX_MODULES
@@ -28,6 +30,8 @@ endfunction()
 
 function(charm_example_sources_filtered target_name base_dir exclude_regex)
     file(GLOB_RECURSE MODULE_INTERFACE_UNITS ${ARGN})
+    list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/cmake-build-")
+    list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Charm/generated/")
     if (exclude_regex)
         list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "${exclude_regex}")
     endif()

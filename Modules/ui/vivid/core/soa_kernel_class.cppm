@@ -408,6 +408,9 @@ public:
         return input_.dragging;
     }
 
+    Rect world_rect(WidgetHandle h) const noexcept;
+    void input_request_cancel() noexcept;
+
     void input_clear_events() noexcept {
         input_events_.clear();
     }
@@ -428,6 +431,7 @@ public:
 #if defined(VIVID_SOA_TRACE_INPUT)
     void input_test_request_capture(WidgetHandle h) noexcept {
         input_set_capture(h, input_.last_x, input_.last_y, input_.button, true);
+        input_apply_actions();
     }
 
     void input_test_force_overflow() noexcept {

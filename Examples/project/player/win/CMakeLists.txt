@@ -51,7 +51,7 @@ elseif (EXISTS "${_fatfs_root}/src/ff.c" AND EXISTS "${_fatfs_root}/src/ff.h")
     set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 endif()
 
-set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
+set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747[^/]*/|/stn32common/|/player.controller\\.cppm$|/player.ui_builder\\.cppm$")
 charm_example_sources_filtered(${target_name}
     "${CHARM_ROOT}"
     "${CHARM_PLAYER_EXCLUDE_REGEX}"

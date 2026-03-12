@@ -239,7 +239,8 @@ namespace {
         tokens.accent = kAccent;
         tokens.on_accent = kOnAccent;
         tokens.focus_ring = kAccent;
-        apply_theme_tokens(tokens);
+        Theme::instance().set_tokens_unsafe(tokens);
+        apply_baseline_theme_preset(make_style_from_tokens(tokens));
 
         auto& sheet = StyleSheet::instance();
         sheet.clear();

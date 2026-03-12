@@ -14,6 +14,7 @@ import charm.core.geometry;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.soa_payload;
+import charm.core.structured_view;
 import charm.core.soa_registry;
 
 
@@ -147,6 +148,7 @@ import charm.core.soa_registry;
             }
             input_emit_action(SoaInputAction{SoaInputActionType::SetFocused, input_.focused, 0, 0});
         }
+        input_apply_actions();
         if (input_.root == h) {
             input_.root = {};
         }
@@ -615,12 +617,11 @@ import charm.core.soa_registry;
         if (desc.payload != soa_detail::PayloadKind::ListView) return -1;
         const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
         if (!payload || payload->count == 0) return -1;
-        Rect r = input_world_rect(h);
-        const int row_h = payload->row_height <= 0 ? 1 : payload->row_height;
-        const int local_y = y - r.y + payload->scroll_y;
-        if (local_y < 0) return -1;
-        const int index = local_y / row_h;
-        return (index >= 0 && index < payload->count) ? index : -1;
+        StructuredViewportMapper mapper{};
+        mapper.rect = input_world_rect(h);
+        mapper.row_height = payload->row_height <= 0 ? 1 : payload->row_height;
+        mapper.scroll_y = payload->scroll_y;
+        return mapper.index_at(y, payload->count);
     }
 
     int SoaKernel::input_stepper_index_from_pos(WidgetHandle h, int x) const noexcept {
@@ -732,7 +733,7 @@ import charm.core.soa_registry;
         set_value(h, value);
     }
 
-    Rect SoaKernel::input_world_rect(WidgetHandle h) const noexcept {
+    Rect SoaKernel::world_rect(WidgetHandle h) const noexcept {
         Rect r = rect(h);
         int ox = 0;
         int oy = 0;
@@ -758,6 +759,15 @@ import charm.core.soa_registry;
         r.x += ox;
         r.y += oy;
         return r;
+    }
+
+    Rect SoaKernel::input_world_rect(WidgetHandle h) const noexcept {
+        return world_rect(h);
+    }
+
+    void SoaKernel::input_request_cancel() noexcept {
+        input_handle_cancel(input_.last_x, input_.last_y, input_.button);
+        input_apply_actions();
     }
 
     WidgetHandle SoaKernel::input_find_scroll_target(WidgetHandle hit) noexcept {

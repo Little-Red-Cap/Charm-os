@@ -13,7 +13,7 @@ export module player.controller;
 
 import audio.player;
 import audio.result;
-import charm.core.factory;
+import charm.core.factory.full;
 import charm.core.handle;
 import charm.gfx.color;
 import charm.widgets.button;

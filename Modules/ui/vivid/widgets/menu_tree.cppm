@@ -13,16 +13,91 @@ class MenuTree {
 public:
     struct DataProvider {
         const void* ctx{nullptr};
-        std::uint16_t (*count)(const void* ctx, int menu_id) noexcept {nullptr};
-        const char* (*label)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-        bool (*has_children)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
-        int (*child_menu)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
+        std::uint16_t (*count)(const void* ctx) noexcept {nullptr};
+        const char* (*label)(const void* ctx, std::uint16_t index) noexcept {nullptr};
+        bool (*enabled)(const void* ctx, std::uint16_t index) noexcept {nullptr};
+        bool (*has_children)(const void* ctx, std::uint16_t index) noexcept {nullptr};
+        int (*child_id)(const void* ctx, std::uint16_t index) noexcept {nullptr};
+
+        std::uint16_t size() const noexcept {
+            return count ? count(ctx) : 0;
+        }
+        const char* text(std::uint16_t index) const noexcept {
+            return label ? label(ctx, index) : "";
+        }
+        bool is_enabled(std::uint16_t index) const noexcept {
+            return enabled ? enabled(ctx, index) : true;
+        }
+        bool has_child(std::uint16_t index) const noexcept {
+            return has_children ? has_children(ctx, index) : false;
+        }
+        int child(std::uint16_t index) const noexcept {
+            return child_id ? child_id(ctx, index) : -1;
+        }
     };
 
     struct SelectionModel {
         const void* ctx{nullptr};
-        int (*get_selected)(const void* ctx, int menu_id) noexcept {nullptr};
+        int (*selected)(const void* ctx) noexcept {nullptr};
+        void (*set_selected)(const void* ctx, int index) noexcept {nullptr};
+        void (*clear)(const void* ctx) noexcept {nullptr};
+
+        int current() const noexcept {
+            return selected ? selected(ctx) : -1;
+        }
+        void set(int index) const noexcept {
+            if (set_selected) set_selected(ctx, index);
+        }
+        void reset() const noexcept {
+            if (clear) clear(ctx);
+        }
+    };
+
+    struct MenuProvider {
+        const void* ctx{nullptr};
+        std::uint16_t (*count)(const void* ctx, int menu_id) noexcept {nullptr};
+        const char* (*label)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
+        bool (*enabled)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
+        bool (*has_children)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
+        int (*child_id)(const void* ctx, int menu_id, std::uint16_t index) noexcept {nullptr};
+    };
+
+    struct MenuSelectionModel {
+        const void* ctx{nullptr};
+        int (*selected)(const void* ctx, int menu_id) noexcept {nullptr};
         void (*set_selected)(const void* ctx, int menu_id, int index) noexcept {nullptr};
+        void (*clear)(const void* ctx, int menu_id) noexcept {nullptr};
+    };
+
+    struct VisibleRange {
+        int first{0};
+        int last{-1};
+    };
+
+    struct ViewportMapper {
+        Rect rect{};
+        int row_height{0};
+        int scroll_y{0};
+
+        int index_at(int y, int count) const noexcept {
+            if (row_height <= 0 || count <= 0) return -1;
+            const int local_y = y - rect.y + scroll_y;
+            if (local_y < 0) return -1;
+            const int idx = local_y / row_height;
+            return (idx >= 0 && idx < count) ? idx : -1;
+        }
+        int y_of(int index) const noexcept {
+            return rect.y + index * row_height - scroll_y;
+        }
+        VisibleRange visible_range(int count) const noexcept {
+            if (row_height <= 0 || count <= 0) return {};
+            const int first = scroll_y / row_height;
+            const int last = (scroll_y + rect.h - 1) / row_height;
+            return VisibleRange{
+                first < 0 ? 0 : first,
+                last >= count ? (count - 1) : last
+            };
+        }
     };
 
     MenuTree() = default;
@@ -56,8 +131,8 @@ public:
         factory_->link(submenu_panel_, submenu_list_);
     }
 
-    void set_provider(DataProvider provider) noexcept { provider_ = provider; }
-    void set_selection_model(SelectionModel model) noexcept { selection_ = model; }
+    void set_provider(MenuProvider provider) noexcept { provider_ = provider; }
+    void set_selection_model(MenuSelectionModel model) noexcept { selection_ = model; }
     void set_on_select(Callback cb) noexcept { on_select_ = cb; }
 
     void set_root_menu(int menu_id) noexcept { root_menu_id_ = menu_id; }
@@ -102,7 +177,7 @@ public:
         kernel.set_visible(menu_list_, true);
         is_open_ = true;
         active_menu_id_ = root_menu_id_;
-        sync_list_source(menu_list_, main_view_, active_menu_id_);
+        sync_list_source(menu_list_, main_view_, selection_main_, active_menu_id_);
         close_submenu();
     }
 
@@ -169,15 +244,72 @@ private:
         int menu_id{-1};
     };
 
-    static const char* list_text(const void* ctx, std::uint16_t index) noexcept {
+    struct SelectionView {
+        MenuTree* tree{nullptr};
+        int menu_id{-1};
+    };
+
+    static std::uint16_t view_count(const void* ctx) noexcept {
+        const auto* view = static_cast<const MenuView*>(ctx);
+        if (!view || !view->tree) return 0;
+        return view->tree->count(view->menu_id);
+    }
+
+    static const char* view_label(const void* ctx, std::uint16_t index) noexcept {
         const auto* view = static_cast<const MenuView*>(ctx);
         if (!view || !view->tree) return "";
         return view->tree->label(view->menu_id, index);
     }
 
+    static bool view_enabled(const void* ctx, std::uint16_t index) noexcept {
+        const auto* view = static_cast<const MenuView*>(ctx);
+        if (!view || !view->tree) return true;
+        return view->tree->enabled(view->menu_id, index);
+    }
+
+    static bool view_has_children(const void* ctx, std::uint16_t index) noexcept {
+        const auto* view = static_cast<const MenuView*>(ctx);
+        if (!view || !view->tree) return false;
+        return view->tree->has_children(view->menu_id, index);
+    }
+
+    static int view_child_id(const void* ctx, std::uint16_t index) noexcept {
+        const auto* view = static_cast<const MenuView*>(ctx);
+        if (!view || !view->tree) return -1;
+        return view->tree->child_menu_id(view->menu_id, index);
+    }
+
+    static int view_selected(const void* ctx) noexcept {
+        const auto* view = static_cast<const SelectionView*>(ctx);
+        if (!view || !view->tree) return -1;
+        return view->tree->get_selected(view->menu_id);
+    }
+
+    static void view_set_selected(const void* ctx, int index) noexcept {
+        const auto* view = static_cast<const SelectionView*>(ctx);
+        if (!view || !view->tree) return;
+        view->tree->set_selected(view->menu_id, index);
+    }
+
+    static void view_clear_selected(const void* ctx) noexcept {
+        const auto* view = static_cast<const SelectionView*>(ctx);
+        if (!view || !view->tree) return;
+        view->tree->clear_selected(view->menu_id);
+    }
+
+    std::uint16_t count(int menu_id) const noexcept {
+        if (!provider_.count) return 0;
+        return provider_.count(provider_.ctx, menu_id);
+    }
+
     const char* label(int menu_id, std::uint16_t index) const noexcept {
         if (!provider_.label) return "";
         return provider_.label(provider_.ctx, menu_id, index);
+    }
+
+    bool enabled(int menu_id, std::uint16_t index) const noexcept {
+        if (!provider_.enabled) return true;
+        return provider_.enabled(provider_.ctx, menu_id, index);
     }
 
     bool has_children(int menu_id, std::uint16_t index) const noexcept {
@@ -186,13 +318,13 @@ private:
     }
 
     int child_menu_id(int menu_id, std::uint16_t index) const noexcept {
-        if (!provider_.child_menu) return -1;
-        return provider_.child_menu(provider_.ctx, menu_id, index);
+        if (!provider_.child_id) return -1;
+        return provider_.child_id(provider_.ctx, menu_id, index);
     }
 
     int get_selected(int menu_id) const noexcept {
-        if (selection_.get_selected) {
-            return selection_.get_selected(selection_.ctx, menu_id);
+        if (selection_.selected) {
+            return selection_.selected(selection_.ctx, menu_id);
         }
         return (menu_id == active_menu_id_) ? fallback_selected_ : -1;
     }
@@ -207,29 +339,55 @@ private:
         }
     }
 
-    void sync_list_source(WidgetHandle list, MenuView& view, int menu_id) {
+    void clear_selected(int menu_id) noexcept {
+        if (selection_.clear) {
+            selection_.clear(selection_.ctx, menu_id);
+            return;
+        }
+        if (menu_id == active_menu_id_) {
+            fallback_selected_ = -1;
+        }
+    }
+
+    void sync_list_source(WidgetHandle list, MenuView& view, SelectionView& selection, int menu_id) {
         if (!provider_.count || !factory_) return;
         view.tree = this;
         view.menu_id = menu_id;
-        const std::uint16_t count = provider_.count(provider_.ctx, menu_id);
-        factory_->set_list_view_source(list, count, &view, &MenuTree::list_text);
-        const int selected = get_selected(menu_id);
+        selection.tree = this;
+        selection.menu_id = menu_id;
+
+        DataProvider provider_view{
+            &view,
+            &MenuTree::view_count,
+            &MenuTree::view_label,
+            &MenuTree::view_enabled,
+            &MenuTree::view_has_children,
+            &MenuTree::view_child_id
+        };
+        SelectionModel selection_view{
+            &selection,
+            &MenuTree::view_selected,
+            &MenuTree::view_set_selected,
+            &MenuTree::view_clear_selected
+        };
+        const std::uint16_t count = provider_view.size();
+        factory_->set_list_view_source(list, count, &view, &MenuTree::view_label);
+        const int selected = selection_view.current();
         if (selected >= 0) {
             factory_->kernel().set_list_view_selected(list, selected);
         } else if (count > 0) {
             factory_->kernel().set_list_view_selected(list, 0);
-            set_selected(menu_id, 0);
+            selection_view.set(0);
         }
     }
 
-    int index_from_pos(WidgetHandle list, int y) const noexcept {
+    ViewportMapper make_mapper(WidgetHandle list) const noexcept {
         auto& kernel = factory_->kernel();
-        const Rect rect = kernel.world_rect(list);
-        const int row_h = kernel.list_row_height(list);
-        const int scroll = kernel.scroll_y(list);
-        const int local_y = y - rect.y + scroll;
-        if (local_y < 0 || row_h <= 0) return -1;
-        return local_y / row_h;
+        ViewportMapper mapper{};
+        mapper.rect = kernel.world_rect(list);
+        mapper.row_height = kernel.list_row_height(list);
+        mapper.scroll_y = kernel.scroll_y(list);
+        return mapper;
     }
 
     void open_submenu(int index, int row_y) {
@@ -252,7 +410,7 @@ private:
         kernel.set_rect(submenu_panel_, {panel.x + panel.w, row_y, w, visible * item_h_});
         kernel.set_rect(submenu_list_, {0, 0, w, visible * item_h_});
         kernel.set_visible(submenu_panel_, true);
-        sync_list_source(submenu_list_, submenu_view_, active_submenu_id_);
+        sync_list_source(submenu_list_, submenu_view_, selection_sub_, active_submenu_id_);
     }
 
     void close_submenu() {
@@ -262,27 +420,27 @@ private:
     }
 
     void handle_mouse_move_in_list(WidgetHandle list, int menu_id, int y, bool is_submenu) {
-        const int idx = index_from_pos(list, y);
+        const ViewportMapper mapper = make_mapper(list);
+        const int count = provider_.count(provider_.ctx, menu_id);
+        const int idx = mapper.index_at(y, count);
         if (idx < 0) return;
         set_selected(menu_id, idx);
         factory_->kernel().set_list_view_selected(list, idx);
         if (!is_submenu) {
-            const Rect panel = factory_->kernel().world_rect(menu_panel_);
-            const int row_y = panel.y + idx * item_h_;
-            open_submenu(idx, row_y);
+            open_submenu(idx, mapper.y_of(idx));
         }
     }
 
     void handle_click_in_list(WidgetHandle list, int menu_id, int y, bool is_submenu) {
-        const int idx = index_from_pos(list, y);
+        const ViewportMapper mapper = make_mapper(list);
+        const int count = provider_.count(provider_.ctx, menu_id);
+        const int idx = mapper.index_at(y, count);
         if (idx < 0) return;
         set_selected(menu_id, idx);
         factory_->kernel().set_list_view_selected(list, idx);
         if (has_children(menu_id, static_cast<std::uint16_t>(idx))) {
             if (!is_submenu) {
-                const Rect panel = factory_->kernel().world_rect(menu_panel_);
-                const int row_y = panel.y + idx * item_h_;
-                open_submenu(idx, row_y);
+                open_submenu(idx, mapper.y_of(idx));
             }
             return;
         }
@@ -304,9 +462,8 @@ private:
             set_selected(menu_id, selected);
             factory_->kernel().set_list_view_selected(list, selected);
             if (!submenu_open) {
-                const Rect panel = factory_->kernel().world_rect(menu_panel_);
-                const int row_y = panel.y + selected * item_h_;
-                open_submenu(selected, row_y);
+                const ViewportMapper mapper = make_mapper(menu_list_);
+                open_submenu(selected, mapper.y_of(selected));
             }
             return true;
         case Event::Key::Up:
@@ -314,16 +471,14 @@ private:
             set_selected(menu_id, selected);
             factory_->kernel().set_list_view_selected(list, selected);
             if (!submenu_open) {
-                const Rect panel = factory_->kernel().world_rect(menu_panel_);
-                const int row_y = panel.y + selected * item_h_;
-                open_submenu(selected, row_y);
+                const ViewportMapper mapper = make_mapper(menu_list_);
+                open_submenu(selected, mapper.y_of(selected));
             }
             return true;
         case Event::Key::Right:
             if (!submenu_open && has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const Rect panel = factory_->kernel().world_rect(menu_panel_);
-                const int row_y = panel.y + selected * item_h_;
-                open_submenu(selected, row_y);
+                const ViewportMapper mapper = make_mapper(menu_list_);
+                open_submenu(selected, mapper.y_of(selected));
                 return true;
             }
             return false;
@@ -338,9 +493,8 @@ private:
         case Event::Key::Enter:
         case Event::Key::Space:
             if (has_children(menu_id, static_cast<std::uint16_t>(selected))) {
-                const Rect panel = factory_->kernel().world_rect(menu_panel_);
-                const int row_y = panel.y + selected * item_h_;
-                open_submenu(selected, row_y);
+                const ViewportMapper mapper = make_mapper(menu_list_);
+                open_submenu(selected, mapper.y_of(selected));
                 return true;
             }
             if (on_select_) on_select_();
@@ -394,10 +548,12 @@ private:
     WidgetHandle submenu_panel_{};
     WidgetHandle submenu_list_{};
 
-    DataProvider provider_{};
-    SelectionModel selection_{};
+    MenuProvider provider_{};
+    MenuSelectionModel selection_{};
     MenuView main_view_{};
     MenuView submenu_view_{};
+    SelectionView selection_main_{};
+    SelectionView selection_sub_{};
 
     int root_menu_id_{-1};
     int active_menu_id_{-1};

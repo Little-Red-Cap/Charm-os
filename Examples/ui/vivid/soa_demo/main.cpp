@@ -937,17 +937,19 @@ namespace {
 
             menu.init(factory, menu_root);
             menu.set_root_menu(0);
-            menu.set_provider(MenuTree::DataProvider{
+            menu.set_provider(MenuTree::MenuProvider{
                 &menu_sel,
                 &MenuData::count,
                 &MenuData::label,
+                nullptr,
                 &MenuData::has_children,
                 &MenuData::child_menu
             });
-            menu.set_selection_model(MenuTree::SelectionModel{
+            menu.set_selection_model(MenuTree::MenuSelectionModel{
                 &menu_sel,
                 &MenuSelection::get_selected,
-                &MenuSelection::set_selected
+                &MenuSelection::set_selected,
+                nullptr
             });
 
             menu.open(menu_host);

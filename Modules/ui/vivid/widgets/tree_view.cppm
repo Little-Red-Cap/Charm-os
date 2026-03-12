@@ -133,11 +133,11 @@ public:
             StructuredViewportMapper mapper{};
             mapper.rect = r;
             mapper.row_height = row_height_;
-            mapper.scroll_y = scroll_y_;
+            mapper.scroll_y = scroll_.scroll_y;
             const StructuredVisibleRange range = mapper.visible_range(count);
             start = range.first;
             visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
-            const int row_offset = scroll_y_ - start * row_height_;
+            const int row_offset = scroll_.scroll_y - start * row_height_;
             y = r.y - row_offset;
             if (prefetch_rows_ > 0 && count > 0) {
                 int pref = prefetch_rows_;
@@ -156,20 +156,20 @@ public:
             int acc = 0;
             for (int i = 0; i < count; ++i) {
                 const int h = row_height_for_index(i);
-                if (acc + h > scroll_y_) {
-                    start = i;
-                    break;
-                }
-                acc += h;
-                start = i + 1;
+            if (acc + h > scroll_.scroll_y) {
+                start = i;
+                break;
             }
+            acc += h;
+            start = i + 1;
+        }
             if (prefetch_rows_ > 0) {
                 for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
                     --start;
                     acc -= row_height_for_index(start);
                 }
             }
-            y = r.y - (scroll_y_ - acc);
+            y = r.y - (scroll_.scroll_y - acc);
             int temp_y = y;
             for (int i = start; i < count && temp_y < r.y + r.h; ++i) {
                 temp_y += row_height_for_index(i);
@@ -230,7 +230,7 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            add_scroll_y(-e.wheel_y * wheel_step_);
+            add_scroll_y(-e.wheel_y * scroll_.wheel_step);
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
@@ -271,10 +271,10 @@ private:
             StructuredViewportMapper mapper{};
             mapper.rect = r;
             mapper.row_height = row_height_;
-            mapper.scroll_y = scroll_y_;
+            mapper.scroll_y = scroll_.scroll_y;
             return mapper.index_at(y, item_count());
         }
-        const int local = y - r.y + scroll_y_;
+        const int local = y - r.y + scroll_.scroll_y;
         if (local < 0) return -1;
         int acc = 0;
         const int count = item_count();
@@ -288,21 +288,20 @@ private:
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         if (!row_height_fn_) {
-            const auto bounds = alg::list_scroll::compute_bounds(item_count(), row_height_, 0, r.h);
-            max_scroll_y_ = bounds.max_scroll;
+            const int content_h = item_count() * row_height_;
+            scroll_.set_content(content_h, r.h);
         } else {
             int total_h = 0;
             const int count = item_count();
             for (int i = 0; i < count; ++i) {
                 total_h += row_height_for_index(i);
             }
-            max_scroll_y_ = alg::scroll_bounds::compute_max(total_h, r.h);
+            scroll_.set_content(total_h, r.h);
         }
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
+        scroll_.add_scroll(dy);
     }
 
     StructuredDataProvider make_provider() const noexcept {
@@ -382,9 +381,7 @@ private:
     void* data_ctx_{nullptr};
     void* select_ctx_{nullptr};
     int row_height_{20};
-    int scroll_y_{0};
-    int max_scroll_y_{0};
-    int wheel_step_{24};
+    StructuredScrollModel scroll_{};
     int selected_{-1};
     int prefetch_rows_{1};
 

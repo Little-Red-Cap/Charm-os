@@ -508,9 +508,33 @@ static void refresh_area(SSD1306& display, int x0, int y0, int x1, int y1)
     }
 }
 
+
+
+extern "C" {
+    void MPU_Config();
+
+    void SystemClock_Config();
+
+    void MX_GPIO_Init();
+    void MX_DMA_Init();
+}
+
+
+
 app::Runtime runtime{};
-extern "C" void application()
+int main()
 {
+    MPU_Config();
+
+    HAL_Init();
+    SystemClock_Config();
+
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_I2C2_Init();
+    MX_TIM8_Init();
+    MX_USART1_UART_Init();
+
     GPIO_InitTypeDef gpio{};
     gpio.Pin = GPIO_PIN_7;
     gpio.Mode = GPIO_MODE_INPUT;

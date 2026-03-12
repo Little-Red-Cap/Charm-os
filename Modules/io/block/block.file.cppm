@@ -26,6 +26,6 @@ export namespace block {
         [[nodiscard]] util::u64 block_count() const noexcept { return file_.block_count(); }
 
     private:
-        fs::BlockFile file_{};
+        fs::BlockFile file_;
     };
 }

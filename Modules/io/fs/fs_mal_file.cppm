@@ -37,7 +37,7 @@ export namespace fs {
         [[nodiscard]] BlockFile& block_file() noexcept { return file_; }
 
     private:
-        BlockFile file_{};
+        BlockFile file_;
         MalDevice mal_{};
     };
 }

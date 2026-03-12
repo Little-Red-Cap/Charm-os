@@ -14,6 +14,7 @@ import usb.class_msc_block;
 import usb.device;
 import usb.device_driver;
 import usb.driver;
+import usb.common;
 import usb.dsl;
 import util.core;
 import util.error;

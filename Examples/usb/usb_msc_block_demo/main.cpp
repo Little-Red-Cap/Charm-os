@@ -281,6 +281,7 @@ int main(int argc, char** argv) {
 
     (void)out::println<"[OK] msc binding ready; block_size={} blocks={}">(sink,
         dev->block_size, dev->block_count);
+    (void)out::println<"[WARN] DCD is stub; enumeration needs real device">(sink);
 
     return 0;
 }

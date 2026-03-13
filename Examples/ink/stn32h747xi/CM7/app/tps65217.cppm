@@ -24,16 +24,22 @@ namespace app::tps65217::detail
     constexpr std::uint8_t kRegDefLdo2  = 0x13;
     constexpr std::uint8_t kRegDefLs1   = 0x14;
     constexpr std::uint8_t kRegDefLs2   = 0x15;
+    constexpr std::uint8_t kRegWledCtrl1 = 0x07;
+    constexpr std::uint8_t kRegWledCtrl2 = 0x08;
 
     constexpr std::uint8_t kMaskDcdc = 0x3F;
     constexpr std::uint8_t kMaskLdo1 = 0x0F;
     constexpr std::uint8_t kMaskLdo2 = 0x3F;
     constexpr std::uint8_t kMaskLdo34 = 0x1F;
+    constexpr std::uint8_t kMaskWledFdim = 0x03;
+    constexpr std::uint8_t kMaskWledDuty = 0x7F;
     constexpr std::uint8_t kBitDcdcXadj = 0x80;
     constexpr std::uint8_t kBitDcdcGo = 0x80;
     constexpr std::uint8_t kBitLdo2Track = 0x40;
     constexpr std::uint8_t kBitLdo3En = 0x20;
     constexpr std::uint8_t kBitLdo4En = 0x20;
+    constexpr std::uint8_t kBitWledIsinkEn = 0x08;
+    constexpr std::uint8_t kBitWledIsel = 0x04;
 
     constexpr std::array<int, 16> kLdo1TableUv{
         1000000, 1100000, 1200000, 1250000,
@@ -171,6 +177,14 @@ namespace app::tps65217::detail
         return write_reg(reg, val);
     }
 
+    static bool update_reg(std::uint8_t reg, std::uint8_t mask, std::uint8_t val) noexcept
+    {
+        std::uint8_t cur = 0;
+        if (!read_reg(reg, cur)) return false;
+        const std::uint8_t next = static_cast<std::uint8_t>((cur & ~mask) | (val & mask));
+        return write_reg(reg, next);
+    }
+
     static bool decode_uv1(std::uint8_t code, int& uv) noexcept
     {
         if (code <= 24) {
@@ -248,6 +262,20 @@ export namespace app::tps65217
 
     struct LsSetting : VoltageSetting {
         bool ldo_enabled{false};
+    };
+
+    enum class WledFdim : std::uint8_t {
+        Hz100 = 0,
+        Hz200 = 1,
+        Hz500 = 2,
+        Hz1000 = 3,
+    };
+
+    struct WledConfig {
+        bool isink_enabled{false};
+        bool isel_high{false};
+        WledFdim fdim{WledFdim::Hz200};
+        std::uint8_t duty{0};
     };
 
     void init_soft() noexcept
@@ -351,6 +379,42 @@ export namespace app::tps65217
         return true;
     }
 
+    bool read_wled_config(WledConfig& out) noexcept
+    {
+        out = {};
+        std::uint8_t ctrl1 = 0;
+        std::uint8_t ctrl2 = 0;
+        if (!detail::read_reg(detail::kRegWledCtrl1, ctrl1)) return false;
+        if (!detail::read_reg(detail::kRegWledCtrl2, ctrl2)) return false;
+        out.isink_enabled = (ctrl1 & detail::kBitWledIsinkEn) != 0;
+        out.isel_high = (ctrl1 & detail::kBitWledIsel) != 0;
+        out.fdim = static_cast<WledFdim>(ctrl1 & detail::kMaskWledFdim);
+        out.duty = static_cast<std::uint8_t>(ctrl2 & detail::kMaskWledDuty);
+        return true;
+    }
+
+    bool set_wled_config(bool isink_en, bool isel_high, WledFdim fdim) noexcept
+    {
+        std::uint8_t val = 0;
+        if (isink_en) {
+            val |= detail::kBitWledIsinkEn;
+        }
+        if (isel_high) {
+            val |= detail::kBitWledIsel;
+        }
+        val |= (static_cast<std::uint8_t>(fdim) & detail::kMaskWledFdim);
+        const std::uint8_t mask = static_cast<std::uint8_t>(detail::kBitWledIsinkEn |
+                                                            detail::kBitWledIsel |
+                                                            detail::kMaskWledFdim);
+        return detail::update_reg(detail::kRegWledCtrl1, mask, val);
+    }
+
+    bool set_wled_duty(std::uint8_t duty) noexcept
+    {
+        const std::uint8_t val = static_cast<std::uint8_t>(duty & detail::kMaskWledDuty);
+        return detail::update_reg(detail::kRegWledCtrl2, detail::kMaskWledDuty, val);
+    }
+
     bool set_dcdc_voltage(Dcdc id, std::uint8_t code) noexcept
     {
         const std::uint8_t reg = static_cast<std::uint8_t>(detail::kRegDefDcdc1 + static_cast<std::uint8_t>(id));
@@ -383,5 +447,19 @@ export namespace app::tps65217
     bool set_enable(std::uint8_t mask) noexcept
     {
         return detail::write_level1(0x16, mask);
+    }
+
+    bool read_enable(std::uint8_t& out) noexcept
+    {
+        return detail::read_reg(0x16, out);
+    }
+
+    bool update_enable(std::uint8_t mask, bool on) noexcept
+    {
+        std::uint8_t cur = 0;
+        if (!read_enable(cur)) return false;
+        const std::uint8_t next = on ? static_cast<std::uint8_t>(cur | mask)
+                                      : static_cast<std::uint8_t>(cur & ~mask);
+        return detail::write_level1(0x16, next);
     }
 }

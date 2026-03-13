@@ -426,6 +426,29 @@ static void log_ls(const char* name, const app::tps65217::LsSetting& s) noexcept
     log_uv_setting(name, s, s.ldo_enabled ? "" : " ls");
 }
 
+static const char* wled_fdim_name(app::tps65217::WledFdim f) noexcept
+{
+    switch (f) {
+    case app::tps65217::WledFdim::Hz100: return "100Hz";
+    case app::tps65217::WledFdim::Hz200: return "200Hz";
+    case app::tps65217::WledFdim::Hz500: return "500Hz";
+    case app::tps65217::WledFdim::Hz1000: return "1000Hz";
+    }
+    return "unknown";
+}
+
+static void log_wled(const app::tps65217::WledConfig& cfg) noexcept
+{
+    char buf[80]{};
+    const int n = std::snprintf(buf, sizeof(buf),
+                                "tps65217: wled isink=%d isel=%d fdim=%s duty=%u",
+                                cfg.isink_enabled ? 1 : 0,
+                                cfg.isel_high ? 1 : 0,
+                                wled_fdim_name(cfg.fdim),
+                                cfg.duty);
+    if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+}
+
 static void tps_read_and_log() noexcept
 {
     std::uint8_t v = 0;
@@ -695,10 +718,25 @@ int main()
         HAL_Delay(5);
     }
     tps_read_and_log();
+    {
+        (void)app::tps65217::set_wled_config(true, false, app::tps65217::WledFdim::Hz200);
+        (void)app::tps65217::set_wled_duty(0x63); // ~100%
+        app::tps65217::WledConfig cfg{};
+        if (app::tps65217::read_wled_config(cfg)) {
+            log_wled(cfg);
+        } else {
+            uart_log_line("tps65217: wled read fail");
+        }
+    }
     i2c2_scan();
     if (!kRunUi) {
         for (;;) {
-            HAL_Delay(1000);
+            (void)app::tps65217::update_enable(0x04, false); // DCDC3 off
+            uart_log_line("tps65217: dcdc3 off");
+            HAL_Delay(1500);
+            (void)app::tps65217::update_enable(0x04, true); // DCDC3 on
+            uart_log_line("tps65217: dcdc3 on");
+            HAL_Delay(1500);
         }
     }
     display.init();

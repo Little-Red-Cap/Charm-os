@@ -9,7 +9,7 @@ import util.core;
 import device.bus;
 import device.registry;
 import device.desc;
-import device.driver;
+import device.types;
 
 export namespace device {
     template <util::usize MaxBuses>

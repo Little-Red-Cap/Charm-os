@@ -7,7 +7,6 @@ export module device.registry;
 
 import util.core;
 import device.desc;
-import device.driver;
 import device.types;
 
 export namespace device {

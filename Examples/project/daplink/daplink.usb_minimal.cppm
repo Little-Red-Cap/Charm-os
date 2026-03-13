@@ -2,6 +2,7 @@ module;
 
 #include "usb.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -106,16 +107,23 @@ namespace daplink::usb_minimal::detail {
 
     constexpr std::uint8_t lang_id_descriptor[] = {0x04, 0x03, 0x09, 0x04};
 
-    constexpr std::uint8_t manufacturer_string[] = {
-        12, 0x03, 'C', 0, 'h', 0, 'a', 0, 'r', 0, 'm', 0
-    };
-    constexpr std::uint8_t product_string[] = {
-        26, 0x03, 'C', 0, 'h', 0, 'a', 0, 'r', 0, 'm', 0, ' ', 0,
-        'D', 0, 'A', 0, 'P', 0, 'L', 0, 'i', 0, 'n', 0, 'k', 0
-    };
-    constexpr std::uint8_t serial_string[] = {
-        10, 0x03, '0', 0, '0', 0, '0', 0, '1', 0
-    };
+    template <std::size_t N>
+    consteval auto make_string_descriptor(const char (&text)[N]) {
+        static_assert(N > 0);
+        constexpr std::size_t kLen = 2 + (N - 1) * 2;
+        std::array<std::uint8_t, kLen> desc{};
+        desc[0] = static_cast<std::uint8_t>(kLen);
+        desc[1] = 0x03;
+        for (std::size_t i = 0; i < N - 1; ++i) {
+            desc[2 + i * 2] = static_cast<std::uint8_t>(text[i]);
+            desc[3 + i * 2] = 0;
+        }
+        return desc;
+    }
+
+    constexpr auto manufacturer_string = make_string_descriptor("Charm");
+    constexpr auto product_string = make_string_descriptor("Charm CMSIS-DAP");
+    constexpr auto serial_string = make_string_descriptor("0001");
 
     inline std::uint16_t min_u16(const std::uint16_t a, const std::uint16_t b) noexcept {
         return (a < b) ? a : b;
@@ -193,14 +201,14 @@ namespace daplink::usb_minimal::detail {
                     data = lang_id_descriptor;
                     len = static_cast<std::uint16_t>(sizeof(lang_id_descriptor));
                 } else if (desc_index == 1) {
-                    data = manufacturer_string;
-                    len = static_cast<std::uint16_t>(sizeof(manufacturer_string));
+                    data = manufacturer_string.data();
+                    len = static_cast<std::uint16_t>(manufacturer_string.size());
                 } else if (desc_index == 2) {
-                    data = product_string;
-                    len = static_cast<std::uint16_t>(sizeof(product_string));
+                    data = product_string.data();
+                    len = static_cast<std::uint16_t>(product_string.size());
                 } else if (desc_index == 3) {
-                    data = serial_string;
-                    len = static_cast<std::uint16_t>(sizeof(serial_string));
+                    data = serial_string.data();
+                    len = static_cast<std::uint16_t>(serial_string.size());
                 }
                 break;
             case kDescTypeReport:
@@ -340,6 +348,10 @@ export namespace daplink::usb_minimal {
                     return;
                 case kReqSetReport:
                     if (!dir_in && s.w_length > 0) {
+                        if (s.w_length > kEp0Mps) {
+                            ep0_stall(hpcd);
+                            return;
+                        }
                         ep0_prepare_out(hpcd, s.w_length);
                     } else if (!dir_in) {
                         ep0_status_in(hpcd);

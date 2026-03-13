@@ -52,27 +52,27 @@ export namespace daplink::board {
             GPIO_InitTypeDef gpio = {};
 
             gpio.Pin = T_CLKB4_Pin;
-            gpio.Mode = GPIO_MODE_OUTPUT_OD;
+            gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
             HAL_GPIO_Init(T_CLKB4_GPIO_Port, &gpio);
 
             gpio.Pin = T_DIO_OUT_Pin;
-            gpio.Mode = GPIO_MODE_OUTPUT_OD;
+            gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
             HAL_GPIO_Init(T_DIO_OUT_GPIO_Port, &gpio);
 
             gpio.Pin = T_DIO_IN_Pin;
             gpio.Mode = GPIO_MODE_INPUT;
-            gpio.Pull = GPIO_PULLUP;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_NOPULL;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_DIO_IN_GPIO_Port, &gpio);
 
             gpio.Pin = T_RST_Pin;
             gpio.Mode = GPIO_MODE_OUTPUT_OD;
-            gpio.Pull = GPIO_NOPULL;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_PULLUP;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_RST_GPIO_Port, &gpio);
 
             HAL_GPIO_WritePin(T_CLKB4_GPIO_Port, T_CLKB4_Pin, GPIO_PIN_SET);
@@ -125,8 +125,8 @@ export namespace daplink::board {
             GPIO_InitTypeDef gpio = {};
             gpio.Pin = T_DIO_OUT_Pin;
             gpio.Mode = GPIO_MODE_INPUT;
-            gpio.Pull = GPIO_PULLUP;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_NOPULL;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_DIO_OUT_GPIO_Port, &gpio);
         }
 

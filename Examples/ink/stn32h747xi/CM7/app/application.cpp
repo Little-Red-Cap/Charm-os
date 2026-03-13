@@ -390,10 +390,10 @@ import app.logic_intent;
 import app.tps65217;
 import app.runtime;
 
-import gui.input;
+import input.raw;
 import input.router;
 
-namespace gui_input = gui::input;
+namespace gui_input = ::input;
 
 static void log_uv_setting(const char* name, const app::tps65217::VoltageSetting& s, const char* extra) noexcept
 {

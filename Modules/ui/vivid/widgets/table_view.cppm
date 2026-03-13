@@ -97,9 +97,9 @@ public:
         StructuredViewportMapper mapper{};
         mapper.rect = r;
         mapper.row_height = row_height_;
-        mapper.scroll_y = scroll_y_;
+        mapper.scroll_y = scroll_.scroll_y;
         const StructuredVisibleRange range = mapper.visible_range(rows);
-        int y = r.y + range.first * row_height_ - scroll_y_;
+        int y = r.y + range.first * row_height_ - scroll_.scroll_y;
         for (int row = range.first; row <= range.last; ++row) {
             int x = r.x - scroll_x_;
             for (int col = 0; col < cols && x < r.x + r.w; ++col) {
@@ -131,14 +131,14 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::MouseWheel) {
             if (!r.contains(e.x, e.y)) return false;
-            add_scroll_y(-e.wheel_y * wheel_step_);
+            add_scroll_y(-e.wheel_y * scroll_.wheel_step);
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
             StructuredViewportMapper mapper{};
             mapper.rect = r;
             mapper.row_height = row_height_;
-            mapper.scroll_y = scroll_y_;
+            mapper.scroll_y = scroll_.scroll_y;
             const int row = mapper.index_at(e.y, row_count());
             int col = 0;
             int acc = r.x - scroll_x_;
@@ -189,14 +189,13 @@ private:
         int total_w = 0;
         for (int i = 0; i < cols; ++i) total_w += column_width(i);
         max_scroll_x_ = alg::scroll_bounds::compute_max(total_w, r.w);
-        const auto bounds = alg::list_scroll::compute_bounds(rows, row_height_, 0, r.h);
-        max_scroll_y_ = bounds.max_scroll;
         scroll_x_ = alg::scroll_bounds::clamp(scroll_x_, max_scroll_x_);
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_y_);
+        const int content_h = rows * row_height_;
+        scroll_.set_content(content_h, r.h);
     }
 
     void add_scroll_y(int dy) noexcept {
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_ + dy, max_scroll_y_);
+        scroll_.add_scroll(dy);
     }
 
     StructuredDataProvider make_provider() const noexcept {
@@ -265,10 +264,8 @@ private:
     int row_height_{20};
     int col_widths_[kMaxCols]{};
     int scroll_x_{0};
-    int scroll_y_{0};
+    StructuredScrollModel scroll_{};
     int max_scroll_x_{0};
-    int max_scroll_y_{0};
-    int wheel_step_{24};
     int selected_row_{-1};
     int selected_col_{-1};
 };

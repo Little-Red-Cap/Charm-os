@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 
 export module block.file.node;
@@ -16,7 +17,7 @@ import util.error;
 export namespace block {
     template <typename RegistryT>
     struct FileBinding {
-        FileDevice file{};
+        std::optional<FileDevice> file{};
         RegistryT* registry{nullptr};
         DeviceDesc desc{};
         const char* path{nullptr};
@@ -54,9 +55,10 @@ export namespace block {
             if (!self || !self->registry || !self->path || self->block_size == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            const auto st = self->file.open(self->path, self->block_size);
+            if (!self->file) self->file.emplace();
+            const auto st = self->file->open(self->path, self->block_size);
             if (!st) return util::unexpected(util::Errc::io);
-            auto& dev = self->file.device();
+            auto& dev = self->file->device();
             if (dev.caps == 0) {
                 dev.caps = caps_from_ops(dev);
             }

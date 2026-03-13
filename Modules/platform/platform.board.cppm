@@ -73,4 +73,10 @@ export namespace platform::board {
         SdmmcDesc sdmmc0{};
         SpiFlashDesc flash0{};
     };
+
+    struct ConsoleCaps {
+        UartDesc uart{};
+        ClockDesc clock{};
+        const char* console_cap{"io.console0"};
+    };
 }

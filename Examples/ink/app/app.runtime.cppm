@@ -11,8 +11,8 @@ import app.ui;
 import app.logic_intent;
 import gui.perf;
 import gui.ui_input_policy;
-import gui.input;
 import input.router;
+import input.raw_sampler;
 
 export namespace app
 {
@@ -25,7 +25,7 @@ export namespace app
     struct Runtime {
         AppState state{};
         ::input::Router router{};
-        gui::input::RawSampler raw_sampler{};
+        ::input::RawSampler raw_sampler{};
         gui::ui::RouterIntentQueue<> router_queue{};
         RuntimeStats last_dirty{};
 

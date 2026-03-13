@@ -19,9 +19,9 @@ import gui.ui_semantics;
 import gui.ui_focus_bookmark;
 import gui.motion;
 
-import gui.input;
+import input.intent;
 
-namespace gui_input = gui::input;
+namespace gui_input = ::input;
 
 
 namespace app::detail

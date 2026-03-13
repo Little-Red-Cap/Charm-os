@@ -6,27 +6,21 @@ set(CMAKE_CXX_STANDARD 26)
 
 
 add_executable(${target_name}
-        main.cpp
-        ../example.cpp
+    main.cpp
+    ../example.cpp
 )
 
-# Usage 1:  build source
-file(GLOB_RECURSE MODULE_INTERFACE_UNITS "../../modules/*.cppm")
-target_sources(${target_name}
-        PUBLIC
-        FILE_SET modules TYPE CXX_MODULES
-        BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/../../"
-        FILES
-            ${MODULE_INTERFACE_UNITS}
-)
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
+add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
+target_link_libraries(${target_name} PRIVATE Charm-os)
 
 target_compile_definitions(${target_name}
-        PRIVATE
-        LOG_LEVEL_DEBUG
-        OUT_ENABLE_BINARY
-        OUT_ENABLE_FLOAT
+    PRIVATE
+    LOG_LEVEL_DEBUG
+    OUT_ENABLE_BINARY
+    OUT_ENABLE_FLOAT
 )
-
-# Usage 2:  link lib
-#target_link_libraries(${target_name} PRIVATE out_lib)

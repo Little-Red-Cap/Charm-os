@@ -79,4 +79,13 @@ export namespace platform::board {
         ClockDesc clock{};
         const char* console_cap{"io.console0"};
     };
+
+    struct InputCaps {
+        InputDesc input{};
+        ClockDesc clock{};
+    };
+
+    struct BlockCaps {
+        ClockDesc clock{};
+    };
 }

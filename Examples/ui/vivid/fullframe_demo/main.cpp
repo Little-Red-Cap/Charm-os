@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -12,6 +13,20 @@ import charm.gfx.framebuffer;
 import out.api;
 
 namespace {
+    struct StderrSink {
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (b.size() == 0) return out::ok<std::size_t>(0u);
+            const auto n = std::fwrite(b.data(), 1, b.size(), stderr);
+            std::fflush(stderr);
+            return out::ok(static_cast<std::size_t>(n));
+        }
+    };
+
+    StderrSink& stderr_sink() noexcept {
+        static StderrSink sink{};
+        return sink;
+    }
+
     struct Viewport {
         int x{0};
         int y{0};
@@ -41,21 +56,22 @@ namespace {
 }
 
 int main() {
+    auto& err = stderr_sink();
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        (void)out::error<"SDL_Init failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_Init failed: {}">(err, SDL_GetError());
         return 1;
     }
 
     SDL_Window* window = SDL_CreateWindow("Vivid FullFrame Demo", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
-        (void)out::error<"SDL_CreateWindow failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateWindow failed: {}">(err, SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
-        (void)out::error<"SDL_CreateRenderer failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateRenderer failed: {}">(err, SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
@@ -64,7 +80,7 @@ int main() {
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
-        (void)out::error<"SDL_CreateTexture failed: {}">(SDL_GetError());
+        (void)out::error<"SDL_CreateTexture failed: {}">(err, SDL_GetError());
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();

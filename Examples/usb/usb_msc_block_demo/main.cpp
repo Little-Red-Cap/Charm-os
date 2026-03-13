@@ -4,12 +4,13 @@
 #include <cstdio>
 #include <cstring>
 
-import charm.foundation;
-import charm.runtime;
-import charm.system.bringup;
-import charm.system.bringup.win_stub;
+import block.device;
+import block.registry;
+import charm.system.bringup.block;
 import charm.system.app_host;
+import charm.system.caps;
 import charm.system.init_block;
+import init.node;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
@@ -17,9 +18,11 @@ import platform.win.time_source;
 import platform.win.wakeup;
 import usb.class_msc;
 import usb.class_msc_block;
+import usb.common;
 import usb.device;
 import usb.device_driver;
 import usb.dsl;
+import util.core;
 import util.expected;
 
 namespace {
@@ -172,10 +175,13 @@ int main(int argc, char** argv) {
         std::fclose(f);
     }
 
-    auto caps = platform::board::win_stub::make_board_caps();
-    charm::system::PumpCaps pump_caps{};
-    charm::system::AppHost<charm::system::PumpCaps> host{pump_caps};
-    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{caps, host};
+    auto caps = platform::board::win_stub::make_block_caps();
+    using PumpCaps = charm::system::SystemCaps<
+        platform::win::SpinIrqGuard,
+        platform::win::NoopWakeup>;
+    PumpCaps pump_caps{};
+    charm::system::AppHost<PumpCaps> host{pump_caps};
+    charm::system::BringupBlock<8, 16, 8> bringup{caps, host};
 
     charm::system::FileInitChain<block::Registry<8>> file_chain{
         bringup.block_registry(),

@@ -141,6 +141,20 @@ export namespace platform::board::stm32_stub {
         return caps;
     }
 
+    inline InputCaps make_input_caps() noexcept {
+        static const hal::RawInputDriver kStm32RawInput = hal::stm32_stub::RawInput::driver();
+        InputCaps caps{};
+        caps.input.driver = &kStm32RawInput;
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
+        return caps;
+    }
+
+    inline BlockCaps make_block_caps() noexcept {
+        BlockCaps caps{};
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
+        return caps;
+    }
+
     inline BoardCaps make_board_caps() noexcept {
         static detail::Stm32UartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kStm32UartOps{

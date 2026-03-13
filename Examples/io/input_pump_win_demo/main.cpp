@@ -4,17 +4,19 @@
 #include <chrono>
 #include <cstring>
 #include <thread>
+#include <optional>
 
-import charm.foundation;
-import charm.runtime;
-import charm.system.bringup;
-import charm.system.bringup.win_stub;
+import charm.system.bringup.input;
 import charm.system.app_host;
+import charm.system.caps;
+import hal_input;
+import input.raw_event;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
 import platform.win.time_source;
 import platform.win.wakeup;
+import util.core;
 import util.expected;
 
 namespace {
@@ -89,9 +91,7 @@ int main(int argc, char** argv) {
     if (argc > 1 && std::strcmp(argv[1], "--no-input") == 0) {
         enable_input = false;
     }
-    auto caps = platform::board::win_stub::make_board_caps();
-    charm::system::PumpCaps pump_caps{};
-    charm::system::AppHost<charm::system::PumpCaps> host{pump_caps};
+    auto caps = platform::board::win_stub::make_input_caps();
     ScriptedInput scripted{platform::win::SteadyClock::now(), enable_input};
     const hal::RawInputDriver kDriver{
         .ctx = &scripted,
@@ -102,14 +102,18 @@ int main(int argc, char** argv) {
     };
     caps.input.driver = &kDriver;
     RawPrintCtx print_ctx{&sink};
-    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
+    using PumpCaps = charm::system::SystemCaps<
+        platform::win::SpinIrqGuard,
+        platform::win::NoopWakeup>;
+    PumpCaps pump_caps{};
+    charm::system::AppHost<PumpCaps> host{pump_caps};
+    charm::system::BringupInput<12, 16, 8> bringup{
         caps,
         host,
         8,
         &on_raw,
         &print_ctx
     };
-
     auto r = bringup.start();
     if (!r) {
     (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));

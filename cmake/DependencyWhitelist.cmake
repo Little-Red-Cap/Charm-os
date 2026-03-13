@@ -12,34 +12,14 @@ function(charm_check_imports files disallow_regex message)
 endfunction()
 
 function(charm_enforce_dependency_whitelist)
-    set(foundation_files "")
-    file(GLOB_RECURSE foundation_files CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/core/*.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/out/*.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/charm.foundation.cppm")
+    set(module_files "")
+    file(GLOB_RECURSE module_files CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/*.cppm")
 
-    set(runtime_files "")
-    file(GLOB_RECURSE runtime_files CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/system/*.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/*.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/platform/*.cppm"
-        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/charm.runtime.cppm")
-    list(FILTER runtime_files EXCLUDE REGEX "/Modules/io/out/")
-
-    set(import_runtime "(^|\\n)[ \\t]*(export[ \\t]+)?import[ \\t]+charm\\.runtime")
-    set(import_domain "(^|\\n)[ \\t]*(export[ \\t]+)?import[ \\t]+charm\\.domain")
+    set(import_removed "(^|\\n)[ \\t]*(export[ \\t]+)?import[ \\t]+charm\\.(foundation|runtime|domain)")
 
     charm_check_imports(
-        "${foundation_files}"
-        "${import_runtime}"
-        "Foundation 不能 import charm.runtime")
-    charm_check_imports(
-        "${foundation_files}"
-        "${import_domain}"
-        "Foundation 不能 import charm.domain")
-    charm_check_imports(
-        "${runtime_files}"
-        "${import_domain}"
-        "Runtime 不能 import charm.domain")
+        "${module_files}"
+        "${import_removed}"
+        "Removed entry module imported")
 endfunction()
-

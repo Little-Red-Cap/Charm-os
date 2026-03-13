@@ -4,21 +4,21 @@
 #include <cstdio>
 #include <cstring>
 
-import charm.foundation;
-import charm.runtime;
-import charm.system.bringup;
-import charm.system.bringup.win_stub;
+import block.device;
+import block.registry;
+import charm.system.bringup.block;
+import charm.system.app_host;
+import charm.system.caps;
 import charm.system.init_block;
-import kernel.capabilities;
-import kernel.config;
-import kernel.eda;
-import kernel.evt;
-import kernel.scheduler;
+import fs_fatfs;
+import fs_vfs;
+import init.node;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
 import platform.win.time_source;
 import platform.win.wakeup;
+import util.core;
 import util.expected;
 
 namespace {
@@ -64,19 +64,19 @@ namespace {
         std::uint32_t lba_offset{0};
         block::Device device{};
 
-        static fs::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
+        static block::Status read_impl(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
             auto* self = static_cast<OffsetDevice*>(ctx);
             return self->base->read(self->base->ctx, lba + self->lba_offset, out);
         }
-        static fs::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
+        static block::Status write_impl(void* ctx, util::u64 lba, std::span<const util::u8> in) noexcept {
             auto* self = static_cast<OffsetDevice*>(ctx);
             return self->base->write(self->base->ctx, lba + self->lba_offset, in);
         }
-        static fs::Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
+        static block::Status erase_impl(void* ctx, util::u64 lba, util::u64 count) noexcept {
             auto* self = static_cast<OffsetDevice*>(ctx);
             return self->base->erase(self->base->ctx, lba + self->lba_offset, count);
         }
-        static fs::Status flush_impl(void* ctx) noexcept {
+        static block::Status flush_impl(void* ctx) noexcept {
             auto* self = static_cast<OffsetDevice*>(ctx);
             return self->base->flush(self->base->ctx);
         }
@@ -113,39 +113,13 @@ int main(int argc, char** argv) {
         std::fclose(f);
     }
 
-    auto caps = platform::board::win_stub::make_board_caps();
-    using PumpTask = charm::system::ReactorPumpTask;
-    using InputPumpTask = input::InputPumpTask;
-    using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
-    Registry registry{};
-    charm::system::PumpCaps pump_caps{};
-    auto created = kernel::make_scheduler<charm::system::PumpConfig>(registry, pump_caps);
-    auto running = kernel::start(std::move(created));
-    const auto pump_id = Registry::id_of<PumpTask>();
-    const auto input_pump_id = Registry::id_of<InputPumpTask>();
-    auto& pump = registry.get<PumpTask>();
-    auto& input_pump = registry.get<InputPumpTask>();
-    const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-        caps.input,
-        input_pump,
-        &input::scheduler_schedule_at<decltype(running)>,
-        &running,
-        input_pump_id);
-
-    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
-        caps.uart1,
-        caps.clock,
-        caps.input,
-        caps.spi1,
-        caps.i2c1,
-        caps.can0,
-        pump,
-        &charm::system::scheduler_post<decltype(running)>,
-        &running,
-        pump_id,
-        8,
-        input_desc
-    };
+    auto caps = platform::board::win_stub::make_block_caps();
+    using PumpCaps = charm::system::SystemCaps<
+        platform::win::SpinIrqGuard,
+        platform::win::NoopWakeup>;
+    PumpCaps pump_caps{};
+    charm::system::AppHost<PumpCaps> host{pump_caps};
+    charm::system::BringupBlock<8, 16, 8> bringup{caps, host};
 
     charm::system::FileInitChain<block::Registry<8>> file_chain{
         bringup.block_registry(),

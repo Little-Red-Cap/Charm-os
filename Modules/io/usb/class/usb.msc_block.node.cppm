@@ -11,6 +11,7 @@ import block.registry;
 import init.node;
 import usb.class_msc;
 import usb.class_msc_block;
+import usb.common;
 import usb.device;
 import usb.device_driver;
 import usb.driver;
@@ -31,6 +32,10 @@ export namespace usb::device {
         usb::class_driver::MscConfig msc_cfg{};
         std::span<const std::span<const usb::u8>> strings{};
         usb::class_driver::MscBlockConfig storage_cfg{};
+        void (*on_ready)(void* ctx,
+                         usb::class_driver::MscBot* bot,
+                         const usb::class_driver::MscConfig* cfg) noexcept { nullptr };
+        void* on_ready_ctx{nullptr};
     };
 
     template <typename RegistryT,
@@ -140,6 +145,10 @@ export namespace usb::device {
             self->driver.emplace(self->dev, self->desc.dcd_ctx, self->desc.dcd);
             if (self->desc.adapter) {
                 self->desc.adapter->callbacks = self->driver->callbacks();
+            }
+            if (self->desc.on_ready) {
+                self->desc.on_ready(self->desc.on_ready_ctx,
+                    &(*self->bot), &self->desc.msc_cfg);
             }
             if (self->desc.dcd.connect) {
                 self->desc.dcd.connect(self->desc.dcd_ctx, true);

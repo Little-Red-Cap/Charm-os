@@ -7,3 +7,4 @@ Draft
 ThirdParty
 !Modules/thirdparty/
 !Modules/thirdparty/**
+Examples/project/player/Hardware/Player.PrjPcbStructure

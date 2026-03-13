@@ -9,6 +9,7 @@
 #include "stm32h7xx_hal.h"
 #include "fmc.h"
 #include "tim.h"
+#include "usb_otg.h"
 
 /*
 LED
@@ -66,9 +67,11 @@ SD NAND W25Q256
 import charm.system.bringup;
 import charm.system.clock;
 import charm.system.reactor_pump;
+import charm.system.init_usb;
 import driver.usart_channel;
 import io.channel;
 import io.registry;
+import block.registry;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
@@ -81,6 +84,11 @@ import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import player.stm32h7.ink_demo;
 import platform.board.stn32h747xi;
+import usb.class_msc;
+import usb.class_msc_block;
+import usb.device_driver;
+import usb.driver;
+import usb.dsl;
 import util.core;
 import util.error;
 
@@ -91,12 +99,14 @@ extern "C" {
     void MX_FMC_Init(void);
     void MX_I2S1_Init(void);
     void MX_SDMMC1_SD_Init(void);
+    void MX_USB_OTG_FS_PCD_Init(void);
     void MX_SPI5_Init(void);
     void MX_TIM8_Init(void);
     void MX_USART1_UART_Init(void);
     void Error_Handler(void);
     extern UART_HandleTypeDef huart1;
     extern TIM_HandleTypeDef htim8;
+    extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 }
 
 namespace {
@@ -113,6 +123,29 @@ namespace {
     constexpr bool kEncoderTestOnBoot = false;
     constexpr util::u32 kEncoderTestMs = 5000;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
+    usb::driver::DcdDeviceAdapter g_usb_adapter{};
+    usb::driver::DcdOps g_usb_dcd_ops{};
+    usb::class_driver::MscBot* g_msc_bot = nullptr;
+    const usb::class_driver::MscConfig* g_msc_cfg = nullptr;
+    std::array<usb::driver::EpCallbacks, 16> g_usb_out_cbs{};
+    std::array<usb::driver::EpCallbacks, 16> g_usb_in_cbs{};
+    std::array<std::array<usb::u8, 64>, 16> g_usb_out_bufs{};
+    std::array<usb::u16, 16> g_usb_out_mps{};
+
+    constexpr usb::u16 kLangs[] = { 0x0409 };
+    constexpr auto kLangDesc = usb::make_lang_id_descriptor(kLangs);
+    constexpr auto kVendorStr = usb::make_ascii_string_descriptor("Charm");
+    constexpr auto kProductStr = usb::make_ascii_string_descriptor("Charm MSC");
+    constexpr auto kSerialStr = usb::make_ascii_string_descriptor("0001");
+
+    static const usb::StringTable<4> kUsbStrings{
+        std::array<std::span<const usb::u8>, 4>{
+            std::span<const usb::u8>(kLangDesc.data(), kLangDesc.size()),
+            std::span<const usb::u8>(kVendorStr.data(), kVendorStr.size()),
+            std::span<const usb::u8>(kProductStr.data(), kProductStr.size()),
+            std::span<const usb::u8>(kSerialStr.data(), kSerialStr.size()),
+        }
+    };
 
 #if defined(__GNUC__)
 #define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
@@ -140,6 +173,91 @@ namespace {
 #if defined(SCB_CCR_UNALIGN_TRP_Msk)
         SCB->CCR &= ~SCB_CCR_UNALIGN_TRP_Msk;
 #endif
+    }
+
+    inline PCD_HandleTypeDef* usb_pcd(void* ctx) noexcept {
+        return static_cast<PCD_HandleTypeDef*>(ctx);
+    }
+
+    void usb_set_ready(void*, usb::class_driver::MscBot* bot,
+                       const usb::class_driver::MscConfig* cfg) noexcept {
+        g_msc_bot = bot;
+        g_msc_cfg = cfg;
+    }
+
+    bool usb_ep_open(void* ctx, const usb::driver::EpConfig& cfg,
+                     usb::driver::EpCallbacks cb) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        std::uint8_t type = USB_EP_TYPE_BULK;
+        switch (cfg.type) {
+        case usb::driver::EpType::control: type = USB_EP_TYPE_CTRL; break;
+        case usb::driver::EpType::isochronous: type = USB_EP_TYPE_ISOC; break;
+        case usb::driver::EpType::bulk: type = USB_EP_TYPE_BULK; break;
+        case usb::driver::EpType::interrupt: type = USB_EP_TYPE_INTR; break;
+        }
+        if (HAL_PCD_EP_Open(pcd, cfg.address, cfg.max_packet_size, type) != HAL_OK) {
+            return false;
+        }
+        const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
+        if (cfg.direction == usb::driver::EpDirection::out) {
+            g_usb_out_cbs[ep_num] = cb;
+            g_usb_out_mps[ep_num] = cfg.max_packet_size;
+            (void)HAL_PCD_EP_Receive(pcd, cfg.address,
+                g_usb_out_bufs[ep_num].data(),
+                g_usb_out_mps[ep_num]);
+        } else {
+            g_usb_in_cbs[ep_num] = cb;
+        }
+        return true;
+    }
+
+    bool usb_ep_close(void* ctx, usb::u8 address) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        if (HAL_PCD_EP_Close(pcd, address) != HAL_OK) return false;
+        const std::uint8_t ep_num = static_cast<std::uint8_t>(address & 0x0F);
+        if ((address & 0x80) != 0) {
+            g_usb_in_cbs[ep_num] = {};
+        } else {
+            g_usb_out_cbs[ep_num] = {};
+        }
+        return true;
+    }
+
+    bool usb_ep_send(void* ctx, usb::u8 address,
+                     std::span<const usb::u8> data, bool) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        auto* ptr = const_cast<usb::u8*>(data.data());
+        return HAL_PCD_EP_Transmit(pcd, address, ptr,
+            static_cast<uint16_t>(data.size())) == HAL_OK;
+    }
+
+    bool usb_ep_stall(void* ctx, usb::u8 address) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        return HAL_PCD_EP_SetStall(pcd, address) == HAL_OK;
+    }
+
+    bool usb_set_address(void* ctx, usb::u8 address) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        return HAL_PCD_SetAddress(pcd, address) == HAL_OK;
+    }
+
+    bool usb_set_configured(void* ctx, bool configured) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        return configured ? (HAL_PCD_Start(pcd) == HAL_OK)
+                          : (HAL_PCD_Stop(pcd) == HAL_OK);
+    }
+
+    bool usb_connect(void* ctx, bool enable) noexcept {
+        auto* pcd = usb_pcd(ctx);
+        if (!pcd) return false;
+        return enable ? (HAL_PCD_Start(pcd) == HAL_OK)
+                      : (HAL_PCD_Stop(pcd) == HAL_OK);
     }
 
     struct PumpConfig : kernel::KernelConfig {
@@ -613,6 +731,63 @@ extern "C" void USART1_IRQHandler(void) {
     }
 }
 
+extern "C" void OTG_FS_IRQHandler(void) {
+    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+}
+
+extern "C" void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
+    if (!hpcd) return;
+    usb::SetupPacket setup{};
+    setup.bm_request_type = hpcd->Setup[0];
+    setup.b_request = hpcd->Setup[1];
+    setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
+    setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
+    setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
+    g_usb_adapter.handle_setup(setup);
+}
+
+extern "C" void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+    if (!hpcd) return;
+    const auto len = hpcd->OUT_ep[epnum].xfer_count;
+    auto& cb = g_usb_out_cbs[epnum];
+    if (cb.on_out && len > 0) {
+        cb.on_out(cb.ctx, std::span<const usb::u8>(g_usb_out_bufs[epnum].data(), len));
+    }
+    const auto addr = static_cast<uint8_t>(epnum & 0x0F);
+    (void)HAL_PCD_EP_Receive(hpcd, addr,
+        g_usb_out_bufs[epnum].data(),
+        g_usb_out_mps[epnum]);
+}
+
+extern "C" void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+    if (!hpcd) return;
+    auto& cb = g_usb_in_cbs[epnum];
+    if (cb.on_in_complete) {
+        const auto sent = hpcd->IN_ep[epnum].xfer_count;
+        cb.on_in_complete(cb.ctx, sent, false);
+    }
+}
+
+extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef*) {
+    g_usb_adapter.handle_reset();
+}
+
+extern "C" void HAL_PCD_SuspendCallback(PCD_HandleTypeDef*) {
+    g_usb_adapter.handle_suspend();
+}
+
+extern "C" void HAL_PCD_ResumeCallback(PCD_HandleTypeDef*) {
+    g_usb_adapter.handle_resume();
+}
+
+extern "C" void HAL_PCD_ConnectCallback(PCD_HandleTypeDef*) {
+    g_usb_adapter.handle_connect(true);
+}
+
+extern "C" void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef*) {
+    g_usb_adapter.handle_connect(false);
+}
+
 extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     if (huart == &huart1) {
         g_uart1_dma_tx.on_complete();
@@ -655,9 +830,10 @@ int main() {
         (void)sdram_selftest_early();
         early_uart_print("boot: sdram test end\n");
     }
-    // MX_SDMMC1_SD_Init();
+    MX_SDMMC1_SD_Init();
     MX_I2S1_Init();
     MX_SPI5_Init();
+    MX_USB_OTG_FS_PCD_Init();
 
     hqzy_gpio_init();
 
@@ -698,7 +874,42 @@ int main() {
     };
 
     early_uart_print("boot: pre-bringup\n");
-    auto r = bringup.start();
+    g_usb_dcd_ops.ep.open = &usb_ep_open;
+    g_usb_dcd_ops.ep.close = &usb_ep_close;
+    g_usb_dcd_ops.ep.send = &usb_ep_send;
+    g_usb_dcd_ops.ep.stall = &usb_ep_stall;
+    g_usb_dcd_ops.set_address = &usb_set_address;
+    g_usb_dcd_ops.set_configured = &usb_set_configured;
+    g_usb_dcd_ops.connect = &usb_connect;
+
+    usb::device::MscBlockDesc usb_desc{};
+    usb_desc.cap_name = "usb.msc0";
+    usb_desc.block_cap = "block.sd0";
+    usb_desc.dcd = g_usb_dcd_ops;
+    usb_desc.dcd_ctx = &hpcd_USB_OTG_FS;
+    usb_desc.adapter = &g_usb_adapter;
+    usb_desc.dev_info.vendor_id = 0x1209;
+    usb_desc.dev_info.product_id = 0x0002;
+    usb_desc.dev_info.i_manufacturer = 1;
+    usb_desc.dev_info.i_product = 2;
+    usb_desc.dev_info.i_serial = 3;
+    usb_desc.msc_cfg.ep_out = 0x01;
+    usb_desc.msc_cfg.ep_in = 0x81;
+    usb_desc.msc_cfg.ep_mps = 64;
+    usb_desc.strings = std::span<const std::span<const usb::u8>>(
+        kUsbStrings.entries.data(), kUsbStrings.entries.size());
+    usb_desc.storage_cfg.read_only = true;
+    usb_desc.on_ready = &usb_set_ready;
+    usb_desc.on_ready_ctx = nullptr;
+
+    charm::system::UsbMscBlockInitChain<block::Registry<16>> usb_chain{
+        bringup.block_registry(), usb_desc
+    };
+
+    auto r = bringup.start(
+        static_cast<util::u32>(init::Runlevel::all),
+        init::Phase::app,
+        usb_chain.node_span());
     if (!r) {
         early_uart_print("boot: bringup failed\n");
         early_uart_print_err("boot: bringup", r.error());
@@ -846,5 +1057,9 @@ int main() {
 
     while (true) {
         (void)running.run_once();
+        if (g_msc_bot && g_msc_cfg) {
+            (void)usb::device::examples::send_msc_in_packet(
+                g_usb_dcd_ops, &hpcd_USB_OTG_FS, *g_msc_bot, *g_msc_cfg);
+        }
     }
 }

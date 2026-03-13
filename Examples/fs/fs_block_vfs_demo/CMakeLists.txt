@@ -1,26 +1,19 @@
-﻿cmake_minimum_required(VERSION 4.0)
-project(out-example-win)
+cmake_minimum_required(VERSION 4.0)
+project(fs-block-vfs-demo)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
 
-
 add_executable(${target_name}
     main.cpp
-    ../example.cpp
 )
 
-set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
-
-target_compile_definitions(${target_name}
-    PRIVATE
-    LOG_LEVEL_DEBUG
-    OUT_ENABLE_BINARY
-    OUT_ENABLE_FLOAT
-)

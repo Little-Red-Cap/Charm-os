@@ -107,6 +107,23 @@ if (@($matches).Count -gt 0) {
     $failed = $true
 }
 
+# Rule: examples should not import full bringup entry.
+$matches = Find-Matches `
+    -Pattern "^[\\s]*import[\\s]+charm\\.system\\.bringup[\\s]*;" `
+    -IncludeGlobs @("Examples/**") `
+    -ExcludeGlobs @(
+        "Examples/project/**",
+        "Examples/system/**",
+        "Examples/**/cmake-build-*/**",
+        "Draft/**"
+    )
+if (@($matches).Count -gt 0) {
+    Fail-Rule -Name "examples-no-full-bringup" `
+        -Message "examples should use bringup.console or app_host; full bringup is reserved for project/system examples." `
+        -Matches $matches
+    $failed = $true
+}
+
 # Rule: protocol modules must not import platform/hal.
 $matches = Find-Matches `
     -Pattern "^[\\s]*import[\\s]+(platform\\.|hal_)" `

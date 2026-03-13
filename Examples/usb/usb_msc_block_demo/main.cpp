@@ -3,13 +3,14 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <span>
 
-import block.device;
 import block.registry;
 import charm.system.bringup.block;
 import charm.system.app_host;
 import charm.system.caps;
 import charm.system.init_block;
+import charm.system.init_usb;
 import init.node;
 import out.api;
 import platform.board.win_stub;
@@ -18,9 +19,9 @@ import platform.win.time_source;
 import platform.win.wakeup;
 import usb.class_msc;
 import usb.class_msc_block;
+import usb.class_msc_block.node;
 import usb.common;
-import usb.device;
-import usb.device_driver;
+import usb.driver;
 import usb.dsl;
 import util.core;
 import util.expected;
@@ -155,6 +156,49 @@ namespace {
 
         return true;
     }
+
+    struct FakeDcd {
+        usb::driver::DcdOps ops{};
+        usb::driver::DcdDeviceAdapter adapter{};
+
+        FakeDcd() noexcept {
+            ops.ep.open = &FakeDcd::ep_open;
+            ops.ep.close = &FakeDcd::ep_close;
+            ops.ep.send = &FakeDcd::ep_send;
+            ops.ep.stall = &FakeDcd::ep_stall;
+            ops.set_address = &FakeDcd::set_address;
+            ops.set_configured = &FakeDcd::set_configured;
+            ops.connect = &FakeDcd::connect;
+        }
+
+        static bool ep_open(void*, const usb::driver::EpConfig&, usb::driver::EpCallbacks) noexcept {
+            return true;
+        }
+        static bool ep_close(void*, usb::u8) noexcept { return true; }
+        static bool ep_send(void*, usb::u8, std::span<const usb::u8>, bool) noexcept { return true; }
+        static bool ep_stall(void*, usb::u8) noexcept { return true; }
+        static bool set_address(void*, usb::u8) noexcept { return true; }
+        static bool set_configured(void*, bool) noexcept { return true; }
+        static bool connect(void*, bool) noexcept { return true; }
+    };
+
+    struct DemoContext {
+        StdoutSink* sink{nullptr};
+    };
+
+    void on_msc_ready(void* ctx,
+                      usb::class_driver::MscBot* bot,
+                      const usb::class_driver::MscConfig* cfg) noexcept {
+        auto* demo = static_cast<DemoContext*>(ctx);
+        if (!demo || !demo->sink || !bot || !cfg) return;
+
+        (void)run_scsi_in(*demo->sink, *bot, *cfg,
+            usb::class_driver::ScsiCmd::inquiry, 36, 1);
+        (void)run_scsi_in(*demo->sink, *bot, *cfg,
+            usb::class_driver::ScsiCmd::read_capacity_10, 8, 2);
+        (void)run_scsi_in(*demo->sink, *bot, *cfg,
+            usb::class_driver::ScsiCmd::read_10, 512, 3, 0, 1);
+    }
 }
 
 int main(int argc, char** argv) {
@@ -190,10 +234,40 @@ int main(int argc, char** argv) {
         "block.sd0"
     };
 
+    FakeDcd dcd{};
+    DemoContext demo_ctx{&sink};
+
+    usb::device::MscBlockDesc msc_desc{};
+    msc_desc.block_cap = "block.sd0";
+    msc_desc.dcd = dcd.ops;
+    msc_desc.dcd_ctx = &dcd;
+    msc_desc.adapter = &dcd.adapter;
+    msc_desc.dev_info.vendor_id = 0x1209;
+    msc_desc.dev_info.product_id = 0x0002;
+    msc_desc.dev_info.i_manufacturer = 1;
+    msc_desc.dev_info.i_product = 2;
+    msc_desc.dev_info.i_serial = 3;
+    msc_desc.storage_cfg.read_only = true;
+    msc_desc.strings = std::span<const std::span<const usb::u8>>(
+        kStrings.entries.data(), kStrings.entries.size());
+    msc_desc.on_ready = &on_msc_ready;
+    msc_desc.on_ready_ctx = &demo_ctx;
+
+    charm::system::UsbMscBlockInitChain<block::Registry<8>> usb_chain{
+        bringup.block_registry(),
+        msc_desc,
+        init::Phase::app
+    };
+
+    std::array<const init::Node*, 2> extra_nodes{
+        file_chain.node_span().data()[0],
+        usb_chain.node_span().data()[0]
+    };
+
     auto r = bringup.start(
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app,
-        file_chain.node_span());
+        std::span<const init::Node* const>(extra_nodes.data(), extra_nodes.size()));
     if (!r) {
         (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;
@@ -205,72 +279,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    usb::class_driver::MscBlockConfig cfg{};
-    cfg.read_only = true;
-    auto storage = usb::class_driver::make_storage_from_block_device(*dev, cfg);
-
-    std::array<usb::class_driver::MscStorage, 1> luns{ storage };
-    std::array<usb::u8, 4096> io_buf{};
-    if (dev->block_size > io_buf.size()) {
-        (void)out::println<"[ERR] io buffer too small: {}">(sink, dev->block_size);
-        return 1;
-    }
-
-    usb::class_driver::MscBot bot{
-        std::span<usb::class_driver::MscStorage>(luns.data(), luns.size()),
-        std::span<usb::u8>(io_buf.data(), io_buf.size())
-    };
-    auto msc_ops = usb::class_driver::make_msc_ops(bot);
-    usb::class_driver::MscDevice msc{ &bot, msc_ops };
-
-    std::array<usb::u8, 64> dev_desc{};
-    std::array<usb::u8, 256> cfg_desc{};
-    usb::device::DescriptorTable table{};
-    usb::device::ConfigTree tree{};
-    usb::dsl::DeviceBuildContext build_ctx{
-        std::span<usb::u8>(dev_desc.data(), dev_desc.size()),
-        std::span<usb::u8>(cfg_desc.data(), cfg_desc.size()),
-        &table,
-        &tree
-    };
-
-    usb::dsl::DeviceInfo dev_info{};
-    dev_info.vendor_id = 0x1209;
-    dev_info.product_id = 0x0002;
-    dev_info.i_manufacturer = 1;
-    dev_info.i_product = 2;
-    dev_info.i_serial = 3;
-
-    usb::dsl::ConfigInfo cfg_info{};
-    usb::class_driver::MscConfig msc_cfg{};
-    usb::dsl::MscClassDescriptors msc_desc{};
-
-    usb::device::Device device{};
-    const auto ok = usb::device::examples::build_and_attach_msc(
-        device, msc, build_ctx,
-        dev_info, cfg_info, msc_cfg,
-        msc_desc.view(), kStrings.entries.data(), kStrings.entries.size());
-    if (!ok) {
-        (void)out::println<"[ERR] build MSC descriptors failed">(sink);
-        return 1;
-    }
-
-    (void)out::println<"[OK] msc descriptors built; block_size={} blocks={}">(sink,
+    (void)out::println<"[OK] msc binding ready; block_size={} blocks={}">(sink,
         dev->block_size, dev->block_count);
-
-    if (!run_scsi_in(sink, bot, msc_cfg,
-            usb::class_driver::ScsiCmd::inquiry, 36, 1)) {
-        return 1;
-    }
-    if (!run_scsi_in(sink, bot, msc_cfg,
-            usb::class_driver::ScsiCmd::read_capacity_10, 8, 2)) {
-        return 1;
-    }
-    if (!run_scsi_in(sink, bot, msc_cfg,
-            usb::class_driver::ScsiCmd::read_10,
-            static_cast<usb::u32>(dev->block_size), 3, 0, 1)) {
-        return 1;
-    }
 
     return 0;
 }

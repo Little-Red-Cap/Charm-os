@@ -84,10 +84,11 @@ public:
         if (root_menu_id_ < 0) return;
         const std::uint16_t count = provider_.count(provider_.ctx, root_menu_id_);
         const int visible = (count < kMaxVisible) ? count : kMaxVisible;
+        const int view_h = visible * item_h_;
         auto& kernel = factory_->kernel();
-        kernel.set_rect(menu_panel_, {x, y, w, visible * item_h_});
-        kernel.set_rect(menu_list_, {0, 0, w, visible * item_h_});
-        menu_scroll_.set_content(visible * item_h_, visible * item_h_);
+        kernel.set_rect(menu_panel_, {x, y, w, view_h});
+        kernel.set_rect(menu_list_, {0, 0, w, view_h});
+        menu_scroll_.set_content(static_cast<int>(count) * item_h_, view_h);
         menu_scroll_.set_scroll(0);
         kernel.set_scroll_y(menu_list_, menu_scroll_.scroll_y);
         kernel.set_visible(menu_root_, true);
@@ -137,6 +138,14 @@ public:
                 handle_mouse_move_in_list(menu_list_, active_menu_id_, e.y, false);
             }
             return true;
+        case Event::Type::MouseWheel:
+            if (submenu_open && point_in_submenu(e.x, e.y)) {
+                return handle_wheel_in_list(submenu_list_, active_submenu_id_, e.wheel_y);
+            }
+            if (point_in_menu(e.x, e.y)) {
+                return handle_wheel_in_list(menu_list_, active_menu_id_, e.wheel_y);
+            }
+            return false;
         case Event::Type::Click:
             if (submenu_open && point_in_submenu(e.x, e.y)) {
                 handle_click_in_list(submenu_list_, active_submenu_id_, e.y, true);
@@ -229,20 +238,46 @@ private:
         }
     }
 
-    StructuredViewportMapper make_mapper(WidgetHandle list) noexcept {
+    StructuredScrollModel& scroll_model_for(WidgetHandle list) noexcept {
+        return (list == submenu_list_) ? submenu_scroll_ : menu_scroll_;
+    }
+
+    int menu_id_for(WidgetHandle list) const noexcept {
+        return (list == submenu_list_) ? active_submenu_id_ : active_menu_id_;
+    }
+
+    void sync_scroll_state(WidgetHandle list, int menu_id, StructuredScrollModel& scroll) noexcept {
         auto& kernel = factory_->kernel();
-        StructuredScrollModel& scroll = (list == submenu_list_) ? submenu_scroll_ : menu_scroll_;
-        const int menu_id = (list == submenu_list_) ? active_submenu_id_ : active_menu_id_;
         const std::uint16_t count = provider_.count ? provider_.count(provider_.ctx, menu_id) : 0;
         const Rect rect = kernel.world_rect(list);
         scroll.set_content(static_cast<int>(count) * item_h_, rect.h);
         scroll.set_scroll(kernel.scroll_y(list));
         scroll.wheel_step = kernel.scroll_step(list);
+    }
+
+    StructuredViewportMapper make_mapper(WidgetHandle list) noexcept {
+        auto& kernel = factory_->kernel();
+        StructuredScrollModel& scroll = scroll_model_for(list);
+        const int menu_id = menu_id_for(list);
+        sync_scroll_state(list, menu_id, scroll);
         StructuredViewportMapper mapper{};
-        mapper.rect = rect;
+        mapper.rect = kernel.world_rect(list);
         mapper.row_height = kernel.list_row_height(list);
         mapper.scroll_y = scroll.scroll_y;
         return mapper;
+    }
+
+    bool handle_wheel_in_list(WidgetHandle list, int menu_id, int wheel_y) {
+        if (!factory_ || wheel_y == 0) return false;
+        StructuredScrollModel& scroll = scroll_model_for(list);
+        sync_scroll_state(list, menu_id, scroll);
+        const int target_step = wheel_y * scroll.wheel_step;
+        const int before = scroll.scroll_y;
+        scroll.add_scroll(-target_step);
+        if (scroll.scroll_y != before) {
+            factory_->kernel().set_scroll_y(list, scroll.scroll_y);
+        }
+        return true;
     }
 
     void open_submenu(int index, int row_y) {
@@ -261,11 +296,12 @@ private:
         const Rect panel = kernel.world_rect(menu_panel_);
         const std::uint16_t count = provider_.count(provider_.ctx, active_submenu_id_);
         const int visible = (count < kMaxVisible) ? count : kMaxVisible;
+        const int view_h = visible * item_h_;
         const int w = panel.w;
-        kernel.set_rect(submenu_panel_, {panel.x + panel.w, row_y, w, visible * item_h_});
-        kernel.set_rect(submenu_list_, {0, 0, w, visible * item_h_});
+        kernel.set_rect(submenu_panel_, {panel.x + panel.w, row_y, w, view_h});
+        kernel.set_rect(submenu_list_, {0, 0, w, view_h});
         kernel.set_visible(submenu_panel_, true);
-        submenu_scroll_.set_content(visible * item_h_, visible * item_h_);
+        submenu_scroll_.set_content(static_cast<int>(count) * item_h_, view_h);
         submenu_scroll_.set_scroll(0);
         kernel.set_scroll_y(submenu_list_, submenu_scroll_.scroll_y);
         sync_list_source(submenu_list_, submenu_view_, selection_sub_, active_submenu_id_);

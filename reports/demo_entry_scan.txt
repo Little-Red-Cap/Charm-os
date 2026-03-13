@@ -1,6 +1,6 @@
 ﻿Demo entry scan
 Root: G:\Project\Charm-os
-Generated: 2026-03-13 23:25:03
+Generated: 2026-03-13 23:53:54
 
 Entry rules (minimal)
 - console-only demo: import charm.system.bringup.console

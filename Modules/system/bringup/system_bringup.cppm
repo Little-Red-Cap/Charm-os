@@ -20,6 +20,7 @@ import init.graph;
 import init.node;
 import io.registry;
 import io.reactor;
+import io.channel;
 import io.channel.node;
 import input.pump;
 import kernel.eda;

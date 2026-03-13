@@ -334,10 +334,10 @@ import app.ui;
 import app.logic_intent;
 import app.runtime;
 
-import gui.input;
+import input.raw;
 import input.router;
 
-namespace gui_input = gui::input;
+namespace gui_input = ::input;
 
 
 struct RawSourceSTM32 {

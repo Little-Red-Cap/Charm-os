@@ -21,8 +21,6 @@ import app.logic;
 import app.logic_intent;
 import app.runtime;
 import gui.ui_input_policy;
-
-import gui.input;
 import input.router;
 import input.source.sdl;
 

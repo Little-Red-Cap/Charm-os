@@ -5,7 +5,6 @@ export module charm.ui.vivid;
 
 export import charm.core.config;
 export import charm.core.event;
-export import charm.core.soa_factory;
 export import charm.core.geometry;
 export import charm.core.handle;
 export import charm.core.style;

@@ -7,9 +7,7 @@ module;
 export module app.logic;
 
 import app.state;
-import gui.input;
-
-namespace input = gui::input;
+import input.events;
 
 export namespace app {
 #if 0

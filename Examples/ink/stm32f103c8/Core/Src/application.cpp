@@ -225,10 +225,11 @@ import app.state;
 import app.ui;
 import app.logic_intent;
 
-import gui.input;
+import input.raw;
 import input.router;
+import input.raw_sampler;
 
-namespace gui_input = gui::input;
+namespace gui_input = ::input;
 
 
 struct RawSourceSTM32 {
@@ -415,7 +416,7 @@ extern "C" void application()
 
     RawSourceSTM32 raw(128, 64);
     ::gui_input::Router router{};
-    gui::input::RawSampler raw_sampler{};
+    gui_input::RawSampler raw_sampler{};
     gui::ui::RouterIntentQueue<> router_queue{};
     (void)router_queue.start(router);
     const auto router_policy = router_queue.policy();

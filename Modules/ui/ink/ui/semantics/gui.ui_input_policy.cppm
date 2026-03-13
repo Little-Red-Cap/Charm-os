@@ -8,9 +8,9 @@ module;
 
 export module gui.ui_input_policy;
 
-import gui.input;
 import gui.ui_input_adapter;
 import gui.trace;
+import input.intent;
 import input.queue;
 import input.raw_event;
 import input.router;
@@ -28,12 +28,12 @@ export namespace gui::ui {
     };
 
     struct InputPolicy {
-        using PollFn = std::optional<gui::input::Intent> (*)(void*, std::uint32_t) noexcept;
+        using PollFn = std::optional<::input::Intent> (*)(void*, std::uint32_t) noexcept;
 
         PollFn poll{nullptr};
         void*  ctx{nullptr};
 
-        [[nodiscard]] std::optional<gui::input::Intent> poll_intent(std::uint32_t now_ms) const noexcept {
+        [[nodiscard]] std::optional<::input::Intent> poll_intent(std::uint32_t now_ms) const noexcept {
             if (!poll) return std::nullopt;
             auto it = poll(ctx, now_ms);
             if (it) {
@@ -79,7 +79,7 @@ export namespace gui::ui {
     };
 
     template <std::uint8_t MaxPolicies>
-    std::optional<gui::input::Intent> chain_poll(void* ctx, std::uint32_t now_ms) noexcept {
+    std::optional<::input::Intent> chain_poll(void* ctx, std::uint32_t now_ms) noexcept {
         auto* c = static_cast<PolicyChain<MaxPolicies>*>(ctx);
         if (!c) return std::nullopt;
         for (std::uint8_t i = 0; i < c->count; ++i) {
@@ -123,7 +123,7 @@ export namespace gui::ui {
             return InputPolicy{&RouterIntentQueue::poll_trampoline, this};
         }
 
-        std::optional<gui::input::Intent> poll(std::uint32_t) noexcept {
+        std::optional<::input::Intent> poll(std::uint32_t) noexcept {
             return queue_.pop();
         }
 
@@ -143,8 +143,8 @@ export namespace gui::ui {
             return false;
         }
 
-        static std::optional<gui::input::Intent> poll_trampoline(void* ctx,
-                                                                 std::uint32_t now_ms) noexcept {
+        static std::optional<::input::Intent> poll_trampoline(void* ctx,
+                                                              std::uint32_t now_ms) noexcept {
             auto* self = static_cast<RouterIntentQueue*>(ctx);
             if (!self) return std::nullopt;
             return self->poll(now_ms);
@@ -152,7 +152,7 @@ export namespace gui::ui {
 
         ::input::Router* router_{nullptr};
         ::input::Subscription sub_{};
-        ::input::RingQueue<gui::input::Intent, Capacity> queue_{};
+        ::input::RingQueue<::input::Intent, Capacity> queue_{};
         util::u32 dropped_{0};
         bool consume_{true};
     };

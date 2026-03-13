@@ -51,7 +51,6 @@ static void uart_log_line(std::string_view msg) noexcept
     uart_write_raw(msg.data(), msg.size());
     uart_write_raw("\r\n", 2);
 }
-
 static void uart_log_addr(const char* tag, std::uint8_t addr) noexcept
 {
     char buf[32]{};
@@ -62,111 +61,19 @@ static void uart_log_addr(const char* tag, std::uint8_t addr) noexcept
     }
 }
 
-static void i2c1_pin_dump() noexcept
+static void log_i2c1_pins(int scl, int sda) noexcept
 {
-    const auto scl = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_7);
-    const auto sda = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6);
     char buf[48]{};
-    const int n = std::snprintf(buf, sizeof(buf), "i2c1: pins scl(PB7)=%d sda(PB6)=%d", (int)scl, (int)sda);
+    const int n = std::snprintf(buf, sizeof(buf), "i2c1: pins scl(PB7)=%d sda(PB6)=%d", scl, sda);
     if (n > 0) {
         uart_write_raw(buf, static_cast<std::size_t>(n));
         uart_write_raw("\r\n", 2);
     }
 }
 
-static constexpr uint16_t kI2c1SclPin = GPIO_PIN_7;
-static constexpr uint16_t kI2c1SdaPin = GPIO_PIN_6;
-
-static void soft_i2c_delay() noexcept
+static void tps_found(std::uint8_t addr) noexcept
 {
-    for (volatile int i = 0; i < 200; ++i) {
-        __NOP();
-    }
-}
-
-static void soft_i2c_init() noexcept
-{
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    GPIO_InitTypeDef gpio{};
-    gpio.Pin = kI2c1SclPin | kI2c1SdaPin;
-    gpio.Mode = GPIO_MODE_OUTPUT_OD;
-    gpio.Pull = GPIO_PULLUP;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOB, &gpio);
-    HAL_GPIO_WritePin(GPIOB, kI2c1SclPin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPIOB, kI2c1SdaPin, GPIO_PIN_SET);
-}
-
-static inline void soft_scl_high() noexcept { HAL_GPIO_WritePin(GPIOB, kI2c1SclPin, GPIO_PIN_SET); }
-static inline void soft_scl_low() noexcept { HAL_GPIO_WritePin(GPIOB, kI2c1SclPin, GPIO_PIN_RESET); }
-static inline void soft_sda_high() noexcept { HAL_GPIO_WritePin(GPIOB, kI2c1SdaPin, GPIO_PIN_SET); }
-static inline void soft_sda_low() noexcept { HAL_GPIO_WritePin(GPIOB, kI2c1SdaPin, GPIO_PIN_RESET); }
-static inline GPIO_PinState soft_sda_read() noexcept { return HAL_GPIO_ReadPin(GPIOB, kI2c1SdaPin); }
-
-static void soft_i2c_start() noexcept
-{
-    soft_sda_high();
-    soft_scl_high();
-    soft_i2c_delay();
-    soft_sda_low();
-    soft_i2c_delay();
-    soft_scl_low();
-    soft_i2c_delay();
-}
-
-static void soft_i2c_stop() noexcept
-{
-    soft_sda_low();
-    soft_i2c_delay();
-    soft_scl_high();
-    soft_i2c_delay();
-    soft_sda_high();
-    soft_i2c_delay();
-}
-
-static bool soft_i2c_write_byte(std::uint8_t byte) noexcept
-{
-    for (int i = 0; i < 8; ++i) {
-        if (byte & 0x80u) {
-            soft_sda_high();
-        } else {
-            soft_sda_low();
-        }
-        soft_i2c_delay();
-        soft_scl_high();
-        soft_i2c_delay();
-        soft_scl_low();
-        soft_i2c_delay();
-        byte <<= 1;
-    }
-
-    soft_sda_high();
-    soft_i2c_delay();
-    soft_scl_high();
-    soft_i2c_delay();
-    const bool ack = (soft_sda_read() == GPIO_PIN_RESET);
-    soft_scl_low();
-    soft_i2c_delay();
-    return ack;
-}
-
-static bool soft_i2c_probe(std::uint8_t addr7) noexcept
-{
-    soft_i2c_start();
-    const bool ack = soft_i2c_write_byte((addr7 << 1) | 0u);
-    soft_i2c_stop();
-    return ack;
-}
-
-static void soft_i2c1_scan() noexcept
-{
-    uart_log_line("i2c1-soft: scan begin");
-    for (std::uint8_t addr = 0x03; addr <= 0x77; ++addr) {
-        if (soft_i2c_probe(addr)) {
-            uart_log_addr("i2c1-soft", addr);
-        }
-    }
-    uart_log_line("i2c1-soft: scan end");
+    uart_log_addr("i2c1-soft", addr);
 }
 
 static void i2c_scan_bus(I2C_HandleTypeDef* hi2c, const char* tag) noexcept
@@ -194,10 +101,6 @@ static void i2c_scan_bus(I2C_HandleTypeDef* hi2c, const char* tag) noexcept
     }
 }
 
-static void i2c1_scan() noexcept
-{
-    i2c_scan_bus(&hi2c1, "i2c1");
-}
 
 static void i2c2_scan() noexcept
 {
@@ -251,7 +154,6 @@ extern "C" void app_uart_log(const char* data, std::size_t len) noexcept
     (void)g_uart_sink.write(out::bytes{reinterpret_cast<const std::byte*>(data), len});
     (void)g_uart_sink.write(out::bytes{reinterpret_cast<const std::byte*>("\r\n"), 2});
 }
-
 static volatile bool s_i2c_dma_busy = false;
 static std::uint32_t s_i2c_dma_start_ms = 0;
 static std::uint8_t s_i2c_dma_frame[1 + 128 * 64 / 8]{};
@@ -485,6 +387,7 @@ import gui.ui_input_policy;
 import app.state;
 import app.ui;
 import app.logic_intent;
+import app.tps65217;
 import app.runtime;
 
 import gui.input;
@@ -697,9 +600,10 @@ int main()
     HAL_GPIO_Init(GPIOI, &gpio);
 
     HAL_TIM_Encoder_Start(&htim8, TIM_CHANNEL_ALL);
-    soft_i2c_init();
-    i2c1_pin_dump();
-    soft_i2c1_scan();
+    app::tps65217::init_soft();
+    const auto pins = app::tps65217::read_pins();
+    log_i2c1_pins(pins.scl, pins.sda);
+    app::tps65217::scan(tps_found);
     i2c2_scan();
     if (!kRunUi) {
         for (;;) {

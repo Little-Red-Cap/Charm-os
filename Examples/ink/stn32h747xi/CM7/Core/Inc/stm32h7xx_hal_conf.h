@@ -63,7 +63,7 @@
 /* #define HAL_SMBUS_MODULE_ENABLED   */
 /* #define HAL_IWDG_MODULE_ENABLED   */
 /* #define HAL_LPTIM_MODULE_ENABLED   */
-/* #define HAL_LTDC_MODULE_ENABLED   */
+#define HAL_LTDC_MODULE_ENABLED
 /* #define HAL_QSPI_MODULE_ENABLED   */
 /* #define HAL_RAMECC_MODULE_ENABLED   */
 /* #define HAL_RNG_MODULE_ENABLED   */
@@ -83,7 +83,7 @@
 /* #define HAL_PCD_MODULE_ENABLED   */
 /* #define HAL_HCD_MODULE_ENABLED   */
 /* #define HAL_DFSDM_MODULE_ENABLED   */
-/* #define HAL_DSI_MODULE_ENABLED   */
+#define HAL_DSI_MODULE_ENABLED
 /* #define HAL_JPEG_MODULE_ENABLED   */
 /* #define HAL_MDIOS_MODULE_ENABLED   */
 /* #define HAL_PSSI_MODULE_ENABLED   */

@@ -19,8 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "dma.h"
+#include "dsihost.h"
 #include "i2c.h"
 #include "i2s.h"
+#include "ltdc.h"
 #include "sdmmc.h"
 #include "tim.h"
 #include "usart.h"
@@ -58,7 +60,7 @@
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void MPU_Config(void);
+static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */

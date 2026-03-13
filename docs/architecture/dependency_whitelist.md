@@ -4,44 +4,19 @@ Goal: enforce layering rules at configure/build time. Modules should import only
 
 ## Entry Modules
 
-- Foundation: `charm.foundation`
-- Runtime: `charm.runtime`
-- Domains: `charm.domain`
+Legacy entry modules have been removed:
+
+- `charm.foundation`
+- `charm.runtime`
+- `charm.domain`
+
+Do not import them. Use capability entry modules or subsystem entries
+(`charm.system`, `charm.io`, `charm.ui.*`, etc.) instead.
 
 ## Layering (one-way dependency)
 
-```
-Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
-```
-
-### Foundation (capability base)
-
-Allowed:
-- `import charm.foundation`
-
-Forbidden:
-- `charm.runtime` / `charm.domain`
-- any `kernel/*` / `fs/*` / `hal/*` / `ui/*` / `audio/*`
-
-### Runtime (system/runtime capabilities)
-
-Allowed:
-- `import charm.foundation`
-- `import charm.runtime`
-
-Forbidden:
-- `charm.domain`
-- any direct `ui/*` / `audio/*`
-
-### Domains (feature systems)
-
-Allowed:
-- `import charm.foundation`
-- `import charm.runtime`
-- `import charm.domain`
-
-Forbidden:
-- reverse dependency into Foundation/Runtime implementation details
+Refer to `docs/architecture_overview.md` for dependency rules.
+This whitelist only blocks removed entry modules at build time.
 
 ## Exceptions (platform/adapters only)
 
@@ -50,7 +25,7 @@ Forbidden:
 
 ## Execution Rules
 
-1. New modules import entry modules only by default.
+1. New modules should not import removed entry modules.
 2. If direct import is required, record it in the exception list with rationale.
 3. Violations are treated as build failures.
 
@@ -61,14 +36,7 @@ Forbidden:
 
 ## Examples
 
-### Runtime module
-
-```
-import charm.foundation;
-import charm.runtime;
-```
-
-### Domain module
+### Removed entry modules (do not use)
 
 ```
 import charm.foundation;

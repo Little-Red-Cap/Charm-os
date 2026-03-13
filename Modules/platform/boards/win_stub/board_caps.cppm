@@ -128,9 +128,9 @@ export namespace platform::board::win_stub {
             &detail::win_uart_disable,
             &detail::win_uart_try_write,
             &detail::win_uart_try_read,
-            &detail::win_uart_enable_irq,
-            &detail::win_uart_disable_irq,
-            &detail::win_uart_clear_irq
+            nullptr,
+            nullptr,
+            nullptr
         };
         ConsoleCaps caps{};
         caps.uart.handle = hal::UartIoHandle{&uart1_ctx, &kWinUartOps};
@@ -142,6 +142,20 @@ export namespace platform::board::win_stub {
         return caps;
     }
 
+    inline InputCaps make_input_caps() noexcept {
+        static const hal::RawInputDriver kWinRawInput = hal::win::RawInput::driver();
+        InputCaps caps{};
+        caps.input.driver = &kWinRawInput;
+        caps.clock = ClockDesc{nullptr, &detail::win_now_ms, &detail::win_now_us};
+        return caps;
+    }
+
+    inline BlockCaps make_block_caps() noexcept {
+        BlockCaps caps{};
+        caps.clock = ClockDesc{nullptr, &detail::win_now_ms, &detail::win_now_us};
+        return caps;
+    }
+
     inline BoardCaps make_board_caps() noexcept {
         static detail::WinUartCtx uart1_ctx{hal::UartHandle{1, nullptr}};
         static const hal::UartOps kWinUartOps{
@@ -150,9 +164,9 @@ export namespace platform::board::win_stub {
             &detail::win_uart_disable,
             &detail::win_uart_try_write,
             &detail::win_uart_try_read,
-            &detail::win_uart_enable_irq,
-            &detail::win_uart_disable_irq,
-            &detail::win_uart_clear_irq
+            nullptr,
+            nullptr,
+            nullptr
         };
         static const hal::RawInputDriver kWinRawInput = hal::win::RawInput::driver();
         static detail::CanLoopbackCtx can0_ctx{};

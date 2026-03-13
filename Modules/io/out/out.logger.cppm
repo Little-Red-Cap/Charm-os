@@ -53,18 +53,6 @@ export namespace out {
 
     // error_hook is intended to be set during initialization only (not thread-safe).
     inline void (*error_hook)(errc) = nullptr;
-    inline TimestampFn timestamp_fn = nullptr;
-    inline void* timestamp_ctx = nullptr;
-
-    inline void set_timestamp_provider(TimestampFn fn, void* ctx) noexcept {
-        timestamp_fn = fn;
-        timestamp_ctx = ctx;
-    }
-
-    inline util::u64 timestamp_now() noexcept {
-        if (!timestamp_fn) return 0;
-        return timestamp_fn(timestamp_ctx);
-    }
 
     enum class newline : std::uint8_t { none, lf, crlf };
 
@@ -161,6 +149,8 @@ export namespace out {
         std::uint8_t style_count = 0;
         bool auto_reset_enabled = true;
         bool with_timestamp = false;
+        TimestampFn timestamp_fn = nullptr;
+        void* timestamp_ctx = nullptr;
         bool with_level = true;
         bool with_domain = false;
         bool flush_enabled = true;
@@ -192,7 +182,18 @@ export namespace out {
         constexpr logger& auto_reset(bool on) noexcept { auto_reset_enabled = on; return *this; }
         constexpr logger& no_reset() noexcept { auto_reset_enabled = false; return *this; }
         constexpr logger& reset_on() noexcept { auto_reset_enabled = true; return *this; }
-        constexpr logger& timestamp() noexcept { with_timestamp = true; return *this; }
+        constexpr logger& timestamp(TimestampFn fn, void* ctx) noexcept {
+            with_timestamp = true;
+            timestamp_fn = fn;
+            timestamp_ctx = ctx;
+            return *this;
+        }
+        constexpr logger& no_timestamp() noexcept {
+            with_timestamp = false;
+            timestamp_fn = nullptr;
+            timestamp_ctx = nullptr;
+            return *this;
+        }
         constexpr logger& level_prefix(bool on = true) noexcept { with_level = on; return *this; }
         constexpr logger& domain_prefix(bool on = true) noexcept { with_domain = on; return *this; }
         constexpr logger& set_newline(newline n) noexcept { nl = n; return *this; }
@@ -234,6 +235,8 @@ export namespace out {
             out.style_count = style_count;
             out.auto_reset_enabled = auto_reset_enabled;
             out.with_timestamp = with_timestamp;
+            out.timestamp_fn = timestamp_fn;
+            out.timestamp_ctx = timestamp_ctx;
             out.with_level = with_level;
             out.with_domain = with_domain;
             out.flush_enabled = flush_enabled;
@@ -339,7 +342,9 @@ export namespace out {
                 detail::buffered_writer<decltype(sink), OUT_LOGGER_WRITE_BUFFER_SIZE> bw{sink};
 
                 if (with_timestamp) {
-                    auto rts = vprint<"[{}] ", decltype(bw), false>(bw, timestamp_now());
+                    if (!timestamp_fn) return util::unexpected(errc::invalid_arg);
+                    auto rts = vprint<"[{}] ", decltype(bw), false>(
+                        bw, timestamp_fn(timestamp_ctx));
                     if (!rts) return util::unexpected(rts.error());
                     total += *rts;
                 }

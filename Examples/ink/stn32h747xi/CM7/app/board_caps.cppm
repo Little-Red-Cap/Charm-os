@@ -86,6 +86,40 @@ namespace platform::board::stn32h747xi::detail {
 } // namespace platform::board::stn32h747xi::detail
 
 export namespace platform::board::stn32h747xi {
+    inline ConsoleCaps make_console_caps() noexcept {
+        void* uart1_ctx = charm_uart1_ctx();
+        static const hal::UartOps kStm32UartOps{
+            &detail::stm32_uart_init,
+            &detail::stm32_uart_enable,
+            &detail::stm32_uart_disable,
+            &detail::stm32_uart_try_write,
+            &detail::stm32_uart_try_read,
+            &detail::stm32_uart_enable_irq,
+            &detail::stm32_uart_disable_irq,
+            &detail::stm32_uart_clear_irq
+        };
+        ConsoleCaps caps{};
+        caps.uart.handle = hal::UartIoHandle{uart1_ctx, &kStm32UartOps};
+        caps.uart.config = hal::UartConfig{};
+        caps.uart.io_cap = "io.uart1";
+        caps.uart.hal_cap = "hal.uart1";
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        caps.console_cap = "io.console0";
+        return caps;
+    }
+
+    inline InputCaps make_input_caps() noexcept {
+        InputCaps caps{};
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        return caps;
+    }
+
+    inline BlockCaps make_block_caps() noexcept {
+        BlockCaps caps{};
+        caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        return caps;
+    }
+
     inline BoardCaps make_board_caps() noexcept {
         void* uart1_ctx = charm_uart1_ctx();
         static const hal::UartOps kStm32UartOps{

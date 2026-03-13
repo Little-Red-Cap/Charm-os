@@ -2,11 +2,11 @@ import io.proto.modem_xymodem;
 import io.channel;
 import io.channel.adapters;
 import out.api;
+import out.channel;
 import util.core;
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -71,17 +71,9 @@ int main() {
         return io::ok(0);
     };
     auto console = stdout_ch.channel();
-    io::set_default_console_channel(&console);
+    auto console_sink = out::make_channel_sink(console);
 
     Duplex link{};
-
-    auto now_ms = [](void*) noexcept -> io::tick_t {
-        using clock = std::chrono::steady_clock;
-        static const auto start = clock::now();
-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count();
-        return static_cast<io::tick_t>(ms);
-    };
-    io::set_now_ms_provider(now_ms, nullptr);
 
     io::UartChannel<Duplex> sender{};
     sender.ctx = &link;
@@ -143,7 +135,7 @@ int main() {
             },
             &received);
         if (!res) {
-            out::error<"x/y receive failed: status={} bytes={}">(static_cast<int>(res.status), res.bytes);
+            out::error<"x/y receive failed: status={} bytes={}">(console_sink, static_cast<int>(res.status), res.bytes);
         }
     });
 
@@ -168,7 +160,7 @@ int main() {
             },
             &send_state);
         if (!res) {
-            out::error<"x/y send failed: status={} bytes={}">(static_cast<int>(res.status), res.bytes);
+            out::error<"x/y send failed: status={} bytes={}">(console_sink, static_cast<int>(res.status), res.bytes);
         }
     });
 
@@ -184,9 +176,9 @@ int main() {
     }
 
     if (ok) {
-        out::info<"x/y modem demo ok, bytes={}">(received.size());
+        out::info<"x/y modem demo ok, bytes={}">(console_sink, received.size());
         return 0;
     }
-    out::error<"x/y modem demo mismatch, bytes={}">(received.size());
+    out::error<"x/y modem demo mismatch, bytes={}">(console_sink, received.size());
     return 1;
 }

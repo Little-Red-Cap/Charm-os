@@ -4,21 +4,19 @@
 #include <chrono>
 #include <cstring>
 #include <thread>
+#include <optional>
 
-import charm.foundation;
-import charm.runtime;
-import charm.system.bringup;
-import charm.system.bringup.win_stub;
-import kernel.capabilities;
-import kernel.config;
-import kernel.eda;
-import kernel.evt;
-import kernel.scheduler;
+import charm.system.bringup.input;
+import charm.system.app_host;
+import charm.system.caps;
+import hal_input;
+import input.raw_event;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
 import platform.win.time_source;
 import platform.win.wakeup;
+import util.core;
 import util.expected;
 
 namespace {
@@ -93,18 +91,7 @@ int main(int argc, char** argv) {
     if (argc > 1 && std::strcmp(argv[1], "--no-input") == 0) {
         enable_input = false;
     }
-    auto caps = platform::board::win_stub::make_board_caps();
-    using PumpTask = charm::system::ReactorPumpTask;
-    using InputPumpTask = input::InputPumpTask;
-    using Registry = kernel::TaskRegistry<PumpTask, InputPumpTask>;
-    Registry registry{};
-    charm::system::PumpCaps pump_caps{};
-    auto created = kernel::make_scheduler<charm::system::PumpConfig>(registry, pump_caps);
-    auto running = kernel::start(std::move(created));
-    const auto pump_id = Registry::id_of<PumpTask>();
-    const auto input_pump_id = Registry::id_of<InputPumpTask>();
-    auto& pump = registry.get<PumpTask>();
-    auto& input_pump = registry.get<InputPumpTask>();
+    auto caps = platform::board::win_stub::make_input_caps();
     ScriptedInput scripted{platform::win::SteadyClock::now(), enable_input};
     const hal::RawInputDriver kDriver{
         .ctx = &scripted,
@@ -113,34 +100,20 @@ int main(int argc, char** argv) {
         .read_axis = &read_axis,
         .pop_encoder_ab = &pop_encoder_ab
     };
-    platform::board::InputDesc input_desc_caps = caps.input;
-    input_desc_caps.driver = &kDriver;
-
+    caps.input.driver = &kDriver;
     RawPrintCtx print_ctx{&sink};
-    const auto input_desc = charm::system::BringupMinimal<8, 16, 8, 64, 64>::make_input_desc(
-        input_desc_caps,
-        input_pump,
-        &input::scheduler_schedule_at<decltype(running)>,
-        &running,
-        input_pump_id,
-        &on_raw,
-        &print_ctx);
-
-    charm::system::BringupMinimal<8, 16, 8, 64, 64> bringup{
-        caps.uart1,
-        caps.clock,
-        caps.input,
-        caps.spi1,
-        caps.i2c1,
-        caps.can0,
-        pump,
-        &charm::system::scheduler_post<decltype(running)>,
-        &running,
-        pump_id,
+    using PumpCaps = charm::system::SystemCaps<
+        platform::win::SpinIrqGuard,
+        platform::win::NoopWakeup>;
+    PumpCaps pump_caps{};
+    charm::system::AppHost<PumpCaps> host{pump_caps};
+    charm::system::BringupInput<12, 16, 8> bringup{
+        caps,
+        host,
         8,
-        input_desc
+        &on_raw,
+        &print_ctx
     };
-
     auto r = bringup.start();
     if (!r) {
     (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
@@ -150,7 +123,7 @@ int main(int argc, char** argv) {
 
     const auto start = platform::win::SteadyClock::now();
     while ((platform::win::SteadyClock::now() - start) < 500000u) {
-        (void)running.run_once();
+        (void)host.run_once();
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     return 0;

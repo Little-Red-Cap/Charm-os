@@ -7,16 +7,14 @@
 
 import block.registry;
 import charm.system.bringup.block;
-import charm.system.app_host;
-import charm.system.caps;
 import charm.system.init_block;
 import charm.system.init_usb;
 import init.node;
+import kernel.eda;
+import kernel.evt;
 import out.api;
+import charm.system.reactor_pump;
 import platform.board.win_stub;
-import platform.win.irq_guard;
-import platform.win.time_source;
-import platform.win.wakeup;
 import usb.class_msc;
 import usb.class_msc_block;
 import usb.class_msc_block.node;
@@ -186,6 +184,20 @@ namespace {
         StdoutSink* sink{nullptr};
     };
 
+    struct MiniHost {
+        charm::system::ReactorPumpTask pump_task{};
+
+        charm::system::ReactorPumpTask& pump() noexcept { return pump_task; }
+
+        static bool post(void*, kernel::TaskId, kernel::Event) noexcept {
+            return true;
+        }
+
+        charm::system::PostFn post_fn() noexcept { return &MiniHost::post; }
+        void* post_ctx() noexcept { return nullptr; }
+        kernel::TaskId pump_id() noexcept { return kernel::TaskId{0}; }
+    };
+
     void on_msc_ready(void* ctx,
                       usb::class_driver::MscBot* bot,
                       const usb::class_driver::MscConfig* cfg) noexcept {
@@ -196,8 +208,6 @@ namespace {
             usb::class_driver::ScsiCmd::inquiry, 36, 1);
         (void)run_scsi_in(*demo->sink, *bot, *cfg,
             usb::class_driver::ScsiCmd::read_capacity_10, 8, 2);
-        (void)run_scsi_in(*demo->sink, *bot, *cfg,
-            usb::class_driver::ScsiCmd::read_10, 512, 3, 0, 1);
     }
 }
 
@@ -220,11 +230,7 @@ int main(int argc, char** argv) {
     }
 
     auto caps = platform::board::win_stub::make_block_caps();
-    using PumpCaps = charm::system::SystemCaps<
-        platform::win::SpinIrqGuard,
-        platform::win::NoopWakeup>;
-    PumpCaps pump_caps{};
-    charm::system::AppHost<PumpCaps> host{pump_caps};
+    MiniHost host{};
     charm::system::BringupBlock<8, 16, 8> bringup{caps, host};
 
     charm::system::FileInitChain<block::Registry<8>> file_chain{
@@ -264,6 +270,7 @@ int main(int argc, char** argv) {
         usb_chain.node_span().data()[0]
     };
 
+    (void)out::println<"[OK] bringup starting">(sink);
     auto r = bringup.start(
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app,
@@ -272,12 +279,14 @@ int main(int argc, char** argv) {
         (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;
     }
+    (void)out::println<"[OK] bringup done">(sink);
 
     auto* dev = bringup.block_registry().open_device("block.sd0");
     if (!dev) {
         (void)out::println<"[ERR] block capability not found: block.sd0">(sink);
         return 1;
     }
+    (void)out::println<"[OK] block open">(sink);
 
     (void)out::println<"[OK] msc binding ready; block_size={} blocks={}">(sink,
         dev->block_size, dev->block_count);

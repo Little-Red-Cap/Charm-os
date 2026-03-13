@@ -68,6 +68,7 @@ export namespace io {
             for (auto& ep : endpoints_) {
                 ep = {};
             }
+            used_ = {};
             count_ = 0;
         }
 
@@ -83,7 +84,13 @@ export namespace io {
             if (count_ >= endpoints_.size()) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
-            endpoints_[count_++] = ChannelEndpoint{desc, &ch, reactor};
+            const auto slot = find_free_slot();
+            if (slot >= endpoints_.size()) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            endpoints_[slot] = ChannelEndpoint{desc, &ch, reactor};
+            mark_used(slot);
+            ++count_;
             return {};
         }
 
@@ -93,7 +100,8 @@ export namespace io {
             if (desc.name.empty() || desc.cap == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (endpoints_[i].desc.cap != desc.cap) continue;
                 if (endpoints_[i].desc.name.compare(desc.name) != 0) {
                     return util::unexpected(util::Errc::exist);
@@ -115,7 +123,8 @@ export namespace io {
         }
 
         const ChannelEndpoint* find_channel(std::string_view name) const noexcept {
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (endpoints_[i].desc.name.compare(name) == 0) {
                     return &endpoints_[i];
                 }
@@ -124,7 +133,8 @@ export namespace io {
         }
 
         const ChannelEndpoint* find_channel(CapId cap) const noexcept {
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (endpoints_[i].desc.cap == cap) return &endpoints_[i];
             }
             return nullptr;
@@ -134,7 +144,8 @@ export namespace io {
 
         void list_channels(VisitFn fn, void* ctx) const noexcept {
             if (!fn) return;
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < endpoints_.size(); ++i) {
+                if (!is_used(i)) continue;
                 fn(ctx, endpoints_[i]);
             }
         }
@@ -143,7 +154,42 @@ export namespace io {
         util::usize capacity() const noexcept { return endpoints_.size(); }
 
     private:
+        static constexpr util::usize kWordBits = 32;
+        static constexpr util::usize kWordCount = (MaxEndpoints + kWordBits - 1) / kWordBits;
+
+        static constexpr util::usize word_index(util::usize idx) noexcept {
+            return idx / kWordBits;
+        }
+
+        static constexpr util::u32 bit_mask(util::usize idx) noexcept {
+            return static_cast<util::u32>(1u << (idx % kWordBits));
+        }
+
+        bool is_used(util::usize idx) const noexcept {
+            return (used_[word_index(idx)] & bit_mask(idx)) != 0u;
+        }
+
+        void mark_used(util::usize idx) noexcept {
+            used_[word_index(idx)] |= bit_mask(idx);
+        }
+
+        util::usize find_free_slot() const noexcept {
+            for (util::usize word = 0; word < used_.size(); ++word) {
+                const util::u32 used = used_[word];
+                const util::u32 free = ~used;
+                if (free == 0u) continue;
+                for (util::u32 bit = 0; bit < kWordBits; ++bit) {
+                    if ((free & (1u << bit)) == 0u) continue;
+                    const util::usize idx = word * kWordBits + bit;
+                    if (idx < endpoints_.size()) return idx;
+                    return endpoints_.size();
+                }
+            }
+            return endpoints_.size();
+        }
+
         std::array<ChannelEndpoint, MaxEndpoints> endpoints_{};
+        std::array<util::u32, kWordCount> used_{};
         util::usize count_{0};
     };
 

@@ -395,6 +395,87 @@ import input.router;
 
 namespace gui_input = gui::input;
 
+static void log_uv_setting(const char* name, const app::tps65217::VoltageSetting& s, const char* extra) noexcept
+{
+    char buf[96]{};
+    if (s.uv_valid) {
+        const int n = std::snprintf(buf, sizeof(buf),
+                                    "tps65217: %s reg=0x%02X raw=0x%02X code=%u uv=%d%s",
+                                    name, s.reg, s.raw, s.code, s.uv, extra ? extra : "");
+        if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+        return;
+    }
+    const int n = std::snprintf(buf, sizeof(buf),
+                                "tps65217: %s reg=0x%02X raw=0x%02X code=%u uv=NA%s",
+                                name, s.reg, s.raw, s.code, extra ? extra : "");
+    if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+}
+
+static void log_dcdc(const char* name, const app::tps65217::DcdcSetting& s) noexcept
+{
+    log_uv_setting(name, s, s.xadj ? " xadj" : "");
+}
+
+static void log_ldo(const char* name, const app::tps65217::LdoSetting& s) noexcept
+{
+    log_uv_setting(name, s, s.track ? " track" : "");
+}
+
+static void log_ls(const char* name, const app::tps65217::LsSetting& s) noexcept
+{
+    log_uv_setting(name, s, s.ldo_enabled ? "" : " ls");
+}
+
+static void tps_read_and_log() noexcept
+{
+    std::uint8_t v = 0;
+    if (app::tps65217::read_chip_id(v)) {
+        char buf[32]{};
+        const int n = std::snprintf(buf, sizeof(buf), "tps65217: chipid=0x%02X", v);
+        if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+    } else {
+        uart_log_line("tps65217: chipid read fail");
+    }
+    if (app::tps65217::read_status(v)) {
+        char buf[32]{};
+        const int n = std::snprintf(buf, sizeof(buf), "tps65217: status=0x%02X", v);
+        if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+    } else {
+        uart_log_line("tps65217: status read fail");
+    }
+    if (app::tps65217::read_pgood(v)) {
+        char buf[32]{};
+        const int n = std::snprintf(buf, sizeof(buf), "tps65217: pgood=0x%02X", v);
+        if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+    } else {
+        uart_log_line("tps65217: pgood read fail");
+    }
+    app::tps65217::DcdcSetting dcdc{};
+    if (app::tps65217::read_dcdc_setting(app::tps65217::Dcdc::Dcdc1, dcdc)) {
+        log_dcdc("dcdc1", dcdc);
+    }
+    if (app::tps65217::read_dcdc_setting(app::tps65217::Dcdc::Dcdc2, dcdc)) {
+        log_dcdc("dcdc2", dcdc);
+    }
+    if (app::tps65217::read_dcdc_setting(app::tps65217::Dcdc::Dcdc3, dcdc)) {
+        log_dcdc("dcdc3", dcdc);
+    }
+    app::tps65217::LdoSetting ldo{};
+    if (app::tps65217::read_ldo_setting(app::tps65217::Ldo::Ldo1, ldo)) {
+        log_ldo("ldo1", ldo);
+    }
+    if (app::tps65217::read_ldo_setting(app::tps65217::Ldo::Ldo2, ldo)) {
+        log_ldo("ldo2", ldo);
+    }
+    app::tps65217::LsSetting ls{};
+    if (app::tps65217::read_ls_setting(app::tps65217::Ls::Ls1, ls)) {
+        log_ls("ls1", ls);
+    }
+    if (app::tps65217::read_ls_setting(app::tps65217::Ls::Ls2, ls)) {
+        log_ls("ls2", ls);
+    }
+}
+
 
 struct RawSourceSTM32 {
     const bool* ks{nullptr};
@@ -604,6 +685,16 @@ int main()
     const auto pins = app::tps65217::read_pins();
     log_i2c1_pins(pins.scl, pins.sda);
     app::tps65217::scan(tps_found);
+    tps_read_and_log();
+    {
+        constexpr std::uint8_t kDcdc3Code = 20; // 1.4V
+        const bool ok = app::tps65217::set_dcdc_voltage_go(app::tps65217::Dcdc::Dcdc3, kDcdc3Code);
+        char buf[48]{};
+        const int n = std::snprintf(buf, sizeof(buf), "tps65217: set dcdc3 code=%u ok=%d", kDcdc3Code, ok ? 1 : 0);
+        if (n > 0) { uart_write_raw(buf, static_cast<std::size_t>(n)); uart_write_raw("\r\n", 2); }
+        HAL_Delay(5);
+    }
+    tps_read_and_log();
     i2c2_scan();
     if (!kRunUi) {
         for (;;) {

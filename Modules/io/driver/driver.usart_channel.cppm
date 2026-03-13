@@ -23,6 +23,7 @@ export namespace driver::usart {
     public:
         explicit ChannelAdapter(hal::UartIoHandle uart, io::Reactor* reactor = nullptr) noexcept
             : uart_(uart), reactor_(reactor) {
+            irq_supported_ = (uart_.ops && uart_.ops->enable_irq);
             channel_.ctx = this;
             channel_.ops = io::ChannelOps{
                 .read = &ChannelAdapter::read_trampoline,
@@ -101,6 +102,9 @@ export namespace driver::usart {
             }
             if (pushed == 0) return io::fail(io::errc::would_block);
             hal::uart_enable_irq(self->uart_, static_cast<util::u32>(hal::UartIrq::tx));
+            if (!self->irq_supported_) {
+                self->drain_tx();
+            }
             return io::ok(pushed);
         }
 
@@ -155,6 +159,7 @@ export namespace driver::usart {
         hal::UartIoHandle uart_{};
         io::Reactor* reactor_{nullptr};
         io::Channel channel_{};
+        bool irq_supported_{false};
         service::RingBuffer<util::u8, RxCap> rx_{};
         service::RingBuffer<util::u8, TxCap> tx_{};
         util::u8 tx_pending_{0};

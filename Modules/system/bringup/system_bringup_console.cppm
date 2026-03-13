@@ -9,6 +9,7 @@ import charm.system.clock;
 import charm.system.init_usart;
 import init.graph;
 import init.node;
+import io.channel;
 import io.registry;
 import io.reactor;
 import platform.board;

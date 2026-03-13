@@ -7,6 +7,7 @@ export module charm.system.app_host;
 import charm.system.caps;
 import charm.system.reactor_pump;
 import input.pump;
+import kernel.config;
 import kernel.eda;
 import kernel.scheduler;
 import kernel.task_state;

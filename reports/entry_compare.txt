@@ -1,0 +1,57 @@
+﻿Entry compare: import counts
+Generated: 2026-03-13 11:44:42
+
+Examples/io/out/windows/main.cpp
+  import_count: 5
+    import charm.system.bringup.console;
+    import out.channel;
+    import out.api;
+    import util.core;
+    import platform.board.win_stub;
+
+Examples/io/input_pump_win_demo/main.cpp
+  import_count: 11
+    import charm.foundation;
+    import charm.runtime;
+    import charm.system.bringup;
+    import charm.system.bringup.win_stub;
+    import charm.system.app_host;
+    import out.api;
+    import platform.board.win_stub;
+    import platform.win.irq_guard;
+    import platform.win.time_source;
+    import platform.win.wakeup;
+    import util.expected;
+
+Examples/fs/fs_block_vfs_demo/main.cpp
+  import_count: 12
+    import charm.foundation;
+    import charm.runtime;
+    import charm.system.bringup;
+    import charm.system.bringup.win_stub;
+    import charm.system.app_host;
+    import charm.system.init_block;
+    import out.api;
+    import platform.board.win_stub;
+    import platform.win.irq_guard;
+    import platform.win.time_source;
+    import platform.win.wakeup;
+    import util.expected;
+
+Examples/ink/stn32h747xi/CM7/app/main.cpp
+  import_count: 14
+    import charm.system.bringup;
+    import charm.system.caps;
+    import charm.system.reactor_pump;
+    import driver.usart_channel;
+    import io.channel;
+    import io.registry;
+    import kernel.capabilities;
+    import kernel.config;
+    import kernel.eda;
+    import kernel.evt;
+    import kernel.scheduler;
+    import platform.board.stn32h747xi;
+    import util.core;
+    import util.error;
+

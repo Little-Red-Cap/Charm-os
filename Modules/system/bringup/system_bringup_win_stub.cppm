@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 export module charm.system.bringup.win_stub;
@@ -75,7 +76,8 @@ export namespace charm::system {
         canopen::NmtNode nmt{nmt_cfg};
 
         auto& running = host.scheduler();
-        charm::system::CanopenInitChain<io::Registry<8>, decltype(running)> canopen_chain{
+        using Scheduler = std::remove_reference_t<decltype(running)>;
+        charm::system::CanopenInitChain<io::Registry<8>, Scheduler> canopen_chain{
             bringup.registry(),
             sdo,
             nmt,

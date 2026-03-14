@@ -33,6 +33,12 @@ export namespace io {
 
     class Reactor {
     public:
+        enum class QueuePolicy : util::u8 {
+            irq_safe,
+            sched_safe,
+            no_lock,
+        };
+
         using ResultSub = util::Result<Subscription>;
 
         ResultSub subscribe(Channel& ch, util::u32 events, Callback cb, void* ctx) noexcept {
@@ -69,6 +75,12 @@ export namespace io {
             }
         }
 
+        void set_queue_policy(QueuePolicy policy) noexcept {
+            policy_ = policy;
+        }
+
+        QueuePolicy queue_policy() const noexcept { return policy_; }
+
         // ISR-safe: enqueue only, do not run callbacks here.
         void notify(Channel& ch, util::u32 events) noexcept {
             if (events == 0) return;
@@ -76,7 +88,9 @@ export namespace io {
                 const auto idx = (pending_head_ + i) % pending_.size();
                 if (pending_[idx].ch == &ch) {
                     pending_[idx].events |= events;
-                    try_wake();
+                    if (policy_ == QueuePolicy::irq_safe) {
+                        try_wake();
+                    }
                     return;
                 }
             }
@@ -85,13 +99,17 @@ export namespace io {
                 overflowed_ = true;
                 overflow_pending_ = true;
                 overflow_ch_ = &ch;
-                try_wake();
+                if (policy_ == QueuePolicy::irq_safe) {
+                    try_wake();
+                }
                 return;
             }
             pending_[pending_tail_] = Pending{&ch, events};
             pending_tail_ = (pending_tail_ + 1) % pending_.size();
             pending_count_++;
-            try_wake();
+            if (policy_ == QueuePolicy::irq_safe) {
+                try_wake();
+            }
         }
 
         // Call in task context to dispatch pending events.
@@ -114,7 +132,7 @@ export namespace io {
                 ++processed;
             }
             const bool more = (pending_count_ > 0) || overflow_pending_;
-            if (more) {
+            if (more && policy_ == QueuePolicy::irq_safe) {
                 try_wake();
             }
             return more;
@@ -171,6 +189,7 @@ export namespace io {
         bool overflow_pending_{false};
         Channel* overflow_ch_{nullptr};
         bool wake_pending_{false};
+        QueuePolicy policy_{QueuePolicy::irq_safe};
         WakeFn waker_{nullptr};
         void* waker_ctx_{nullptr};
     };

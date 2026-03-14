@@ -3,12 +3,13 @@ module;
 #include <concepts>
 export module daplink.swd_engine;
 
+import daplink.app_config;
 
 export namespace daplink::swd {
     struct Config {
-        std::uint8_t turnaround = 1;
-        std::uint8_t idle_cycles = 0;
-        std::uint16_t retry_count = 100; // CMSIS-DAP default retry count.
+        std::uint8_t turnaround = daplink::app_config::kConfig.swd.turnaround;
+        std::uint8_t idle_cycles = daplink::app_config::kConfig.swd.idle_cycles;
+        std::uint16_t retry_count = daplink::app_config::kConfig.swd.retry_count; // CMSIS-DAP default retry count.
         bool data_phase = false;
     };
 

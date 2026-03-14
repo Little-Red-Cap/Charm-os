@@ -44,13 +44,13 @@ VIVID_WIDGET_REGISTRY(Label, charm.widgets.label, Label, Label, label, labels_, 
 #define CHARM_VIVID_ENABLE_WIDGET_Button VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_Button
-VIVID_WIDGET_REGISTRY(Button, charm.widgets.button, Button, Button, button, buttons_, Text, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(Button, charm.widgets.button, Button, Button, button, buttons_, Text, 0, None, Interactive, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_IconButton
 #define CHARM_VIVID_ENABLE_WIDGET_IconButton VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_IconButton
-VIVID_WIDGET_REGISTRY(IconButton, charm.widgets.button, Button, IconButton, icon_button, buttons_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(IconButton, charm.widgets.button, Button, IconButton, icon_button, buttons_, None, 0, None, Interactive, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_Checkbox
 #define CHARM_VIVID_ENABLE_WIDGET_Checkbox VIVID_WIDGET_DEFAULT

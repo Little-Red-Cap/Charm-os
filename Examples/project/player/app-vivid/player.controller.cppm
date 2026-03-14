@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <array>
 #include <chrono>
 #include <cctype>
@@ -13,21 +13,9 @@ export module player.controller;
 
 import audio.player;
 import audio.result;
-import charm.core.factory.full;
+import charm.core.event;
 import charm.core.handle;
-import charm.gfx.color;
-import charm.widgets.button;
-import charm.widgets.spectrum_view;
-import charm.widgets.label;
-import charm.widgets.list_view;
-import charm.widgets.progress;
-import charm.widgets.scrollbar;
-import charm.widgets.switcher;
-import charm.widgets.slider;
-import charm.widgets.dropdown;
-#if CHARM_PLAYER_DEBUG_UI
-import charm.widgets.menu_tree;
-#endif
+import charm.core.soa_kernel;
 import fs_core;
 import fs_vfs;
 import player.fs_utils;
@@ -57,72 +45,29 @@ export namespace player {
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
+        WidgetHandle progress{};
+        WidgetHandle time{};
         WidgetHandle list{};
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
         WidgetHandle mode_hint{};
-        WidgetHandle spectrum_view{};
-        WidgetHandle options_row{};
-        WidgetHandle opt_spectrum_label{};
-        WidgetHandle opt_spectrum_switch{};
-        WidgetHandle opt_low_label{};
-        WidgetHandle opt_low_switch{};
-        WidgetHandle opt_eq_label{};
-        WidgetHandle opt_eq_switch{};
-        WidgetHandle eq_panel{};
-        WidgetHandle eq_title{};
-        WidgetHandle eq_preset_label{};
-        WidgetHandle eq_preset{};
-        std::array<WidgetHandle, kEqBands> eq_band_labels{};
-        std::array<WidgetHandle, kEqBands> eq_sliders{};
-        std::array<WidgetHandle, kEqBands> eq_value_labels{};
-#if CHARM_PLAYER_DEBUG_UI
-        WidgetHandle table{};
-        WidgetHandle tree{};
-        WidgetHandle debug_grid{};
-        WidgetHandle chart{};
-        WidgetHandle debug_side{};
-        WidgetHandle logo{};
-        WidgetHandle stepper{};
-        WidgetHandle timeline{};
-        WidgetHandle rich_text{};
-        WidgetHandle code_block{};
-        WidgetHandle progress_wheel{};
-        WidgetHandle waveform{};
-        WidgetHandle battery_gauge{};
-        WidgetHandle histogram{};
-        WidgetHandle fold_panel{};
-        WidgetHandle progress_flow{};
-        WidgetHandle cloudy_glass{};
-        WidgetHandle spinning_wheel{};
-        WidgetHandle image_box{};
-        WidgetHandle meter_pointer{};
-        WidgetHandle progress_drill{};
-#endif
-        WidgetHandle progress{};
-        WidgetHandle time{};
         WidgetHandle btn_prev{};
         WidgetHandle btn_pause{};
         WidgetHandle btn_next{};
         WidgetHandle btn_mode{};
         WidgetHandle controls{};
-        WidgetHandle perf_overlay{};
     };
 
     struct PlayerController {
         audio::AudioPlayer* player{nullptr};
-        UiFactory* factory{nullptr};
+        SoaKernel* kernel{nullptr};
         UiHandles handles{};
         bool playing{false};
         bool track_ready{false};
-        bool dragging{false};
         std::chrono::steady_clock::time_point start{};
         int duration_sec{180};
         int current_sec{0};
-        int drag_origin_sec{0};
-        int drag_target_sec{0};
-        int pending_seek_sec{-1};
         const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
         std::vector<std::string> track_labels{};
@@ -130,66 +75,28 @@ export namespace player {
         std::string title_text{};
         std::string subtitle_text{};
         bool paused{false};
-        bool updating{false};
         bool fs_ready{false};
         int play_mode{0};
-        bool spectrum_enabled{true};
-        int spectrum_style{0};
-        bool spectrum_low_load{false};
-        bool eq_enabled{false};
-        bool eq_ui_guard{false};
-        int eq_preset_index{0};
-        std::array<int, kEqBands> eq_gains{};
-        std::uint32_t spectrum_tick{0};
         bool duration_ready{false};
         bool ignore_list_select{false};
+        int last_list_selected{-1};
         std::string mount_status{};
-        bool syncing_scrollbar{false};
-        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_values{};
-        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_bars{};
-        std::array<float, audio::AudioPlayer::spectrum_bins> spectrum_peaks{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
-#if CHARM_PLAYER_DEBUG_UI
-        bool show_debug{false};
-        MenuTree menu_tree{};
-#endif
-        struct ListCacheEntry {
-            int index{-1};
-            int width{0};
-            std::string text{};
-        };
-        std::array<ListCacheEntry, 32> list_cache{};
+
+        void bind_kernel(SoaKernel& k) {
+            kernel = &k;
+        }
 
         void set_label(WidgetHandle h, const char* text) {
-            if (!factory) return;
-            if (auto* label = factory->get_label(h)) {
-                label->set_text(text);
-            }
+            if (!kernel || !h) return;
+            kernel->set_text(h, text);
         }
 
         void set_status(const char* text) { set_label(handles.status, text); }
 
-        void set_cover_color(const rgba& color) {
-            if (!factory) return;
-            if (auto* cover = factory->get_container(handles.cover)) {
-                cover->set_background(color);
-            }
-        }
-
-        void set_status_color(const rgba& color) {
-            if (!factory) return;
-            if (auto* label = factory->get_label(handles.status)) {
-                label->set_color(color);
-            }
-        }
-
-        void set_play_button_icon(bool playing_now) {
-            if (!factory) return;
-            if (auto* btn = factory->get_button(handles.btn_pause)) {
-                btn->set_text("");
-                btn->set_icon(playing_now ? icon_pause() : icon_play(), 24, 24);
-            }
+        void set_play_button_text(bool playing_now) {
+            set_label(handles.btn_pause, playing_now ? "Pause" : "Play");
         }
 
         void set_time_label(int elapsed_sec) {
@@ -223,112 +130,11 @@ export namespace player {
             set_label(handles.mode_hint, buf);
         }
 
-        void update_play_mode_icon() {
-            if (!factory) return;
-            if (auto* btn = factory->get_button(handles.btn_mode)) {
-                btn->set_text("");
-                if (play_mode == 1) {
-                    btn->set_icon(icon_single(), 24, 24);
-                } else if (play_mode == 2) {
-                    btn->set_icon(icon_shuffle(), 24, 24);
-                } else {
-                    btn->set_icon(icon_loop(), 24, 24);
-                }
-            }
-        }
-
-        void update_eq_label() {
-            if (!factory) return;
-            auto* label = factory->get_label(handles.opt_eq_label);
-            if (!label) return;
-            label->set_text(eq_enabled ? "EQ On" : "EQ Off");
-        }
-
-        void update_eq_panel_labels() {
-            if (!factory) return;
-            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                auto* label = factory->get_label(handles.eq_value_labels[i]);
-                if (!label) continue;
-                char buf[16]{};
-                std::snprintf(buf, sizeof(buf), "%+d dB", eq_gains[i]);
-                label->set_text(buf);
-            }
-        }
-
-        void update_eq_panel_state() {
-            if (!factory) return;
-            const bool show = eq_enabled && !spectrum_low_load;
-            if (auto* panel = factory->get_container(handles.eq_panel)) {
-                panel->set_visible(show);
-            }
-            if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
-                sw->set_enabled(!spectrum_low_load);
-            }
-            if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
-                dropdown->set_enabled(show);
-            }
-            for (auto h : handles.eq_sliders) {
-                if (auto* slider = factory->get_slider(h)) {
-                    slider->set_enabled(show);
-                }
-            }
-        }
-
-        void apply_eq_to_player() {
-            if (!player) return;
-            audio::EqConfig cfg{};
-            cfg.enabled = eq_enabled && !spectrum_low_load;
-            cfg.band_count = static_cast<std::uint8_t>(eq_gains.size());
-            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                cfg.bands[i].freq_hz = kEqFrequencies[i];
-                cfg.bands[i].gain_db = static_cast<float>(eq_gains[i]);
-                cfg.bands[i].q = 1.0f;
-            }
-            (void)player->set_eq(cfg);
-        }
-
-        static constexpr int kPresetFlat = 0;
-        static constexpr int kPresetBass = 1;
-        static constexpr int kPresetVocal = 2;
-        static constexpr int kPresetTreble = 3;
-        static constexpr int kPresetCustom = 4;
-        static constexpr std::array<std::uint32_t, kEqBands> kEqFrequencies = {60, 250, 1000, 4000, 12000};
-
-        void update_eq_sliders_from_gains() {
-            if (!factory) return;
-            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                auto* slider = factory->get_slider(handles.eq_sliders[i]);
-                if (!slider) continue;
-                slider->set_value(eq_gains[i]);
-            }
-        }
-
-        void apply_eq_preset(int preset) {
-            static constexpr int flat[kEqBands] = {0, 0, 0, 0, 0};
-            static constexpr int bass[kEqBands] = {6, 4, 0, -2, -3};
-            static constexpr int vocal[kEqBands] = {-2, 0, 4, 3, -1};
-            static constexpr int treble[kEqBands] = {-3, -1, 1, 4, 6};
-            const int* src = nullptr;
-            switch (preset) {
-            case kPresetFlat: src = flat; break;
-            case kPresetBass: src = bass; break;
-            case kPresetVocal: src = vocal; break;
-            case kPresetTreble: src = treble; break;
-            default: return;
-            }
-            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                eq_gains[i] = src[i];
-            }
-            update_eq_sliders_from_gains();
-            update_eq_panel_labels();
-            apply_eq_to_player();
-        }
-
-        void update_low_load_label() {
-            if (!factory) return;
-            auto* label = factory->get_label(handles.opt_low_label);
-            if (!label) return;
-            label->set_text(spectrum_low_load ? "Low load On" : "Low load");
+        static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return "";
+            if (index >= self->track_labels.size()) return "";
+            return self->track_labels[index].c_str();
         }
 
         void rebuild_track_labels() {
@@ -344,65 +150,55 @@ export namespace player {
         }
 
         void sync_list_selection() {
-            if (!factory) return;
-            auto* list = factory->get_list_view(handles.list);
-            if (!list) return;
+            if (!kernel || !handles.list) return;
             if (track_index < 0 || track_index >= static_cast<int>(track_labels.size())) return;
             ignore_list_select = true;
-            list->set_selected(track_index);
+            kernel->set_list_view_selected(handles.list, track_index);
+            last_list_selected = track_index;
             ignore_list_select = false;
         }
 
         void refresh_list_view() {
-            if (!factory) return;
-            auto* list = factory->get_list_view(handles.list);
-            if (!list) return;
+            if (!kernel || !handles.list) return;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
-            list->set_item_count(count);
-            list->set_row_height(34);
-            list->set_wheel_step(34);
+            kernel->set_list_view_source(handles.list,
+                                         static_cast<std::uint16_t>(count),
+                                         this,
+                                         &PlayerController::list_view_text);
+            kernel->set_list_row_height(handles.list, 34);
+            kernel->set_scroll_step(handles.list, 34);
             if (count > 0) {
                 sync_list_selection();
+            } else {
+                last_list_selected = -1;
             }
             update_list_title();
             update_list_placeholder();
         }
 
         void update_list_title() {
-            if (!factory) return;
-            auto* label = factory->get_label(handles.list_title);
-            if (!label) return;
+            if (!kernel) return;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            char buf[64]{};
             if (count > 0) {
-                char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Tracks (%d)", count);
-                label->set_text(buf);
+                set_label(handles.list_title, buf);
             } else {
-                label->set_text("Tracks");
+                set_label(handles.list_title, "Tracks");
             }
         }
 
         void update_list_placeholder() {
-            if (!factory) return;
-            auto* label = factory->get_label(handles.list_hint);
-            if (!label) return;
-#if CHARM_PLAYER_DEBUG_UI
-            if (show_debug) {
-                label->set_visible(false);
-                return;
-            }
-#endif
+            if (!kernel || !handles.list_hint) return;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
-            if (count > 0) {
-                label->set_visible(false);
-                return;
-            }
-            label->set_visible(true);
+            const bool show = (count == 0);
+            kernel->set_visible(handles.list_hint, show);
+            if (!show) return;
             if (!mount_status.empty()) {
-                label->set_text(mount_status.c_str());
+                set_label(handles.list_hint, mount_status.c_str());
                 return;
             }
-            label->set_text(fs_ready ? "No tracks in /music or /" : "FS not ready");
+            set_label(handles.list_hint, fs_ready ? "No tracks in /music or /" : "FS not ready");
         }
 
         int resolve_next_track() {
@@ -444,48 +240,6 @@ export namespace player {
             }
         }
 
-        void set_debug_visible(bool on) {
-#if CHARM_PLAYER_DEBUG_UI
-            show_debug = on;
-            if (!factory) return;
-            if (auto* title = factory->get_label(handles.list_title)) {
-                title->set_visible(!on);
-            }
-            if (auto* hint = factory->get_label(handles.list_hint)) {
-                hint->set_visible(!on);
-            }
-            if (auto* hint = factory->get_label(handles.mode_hint)) {
-                hint->set_visible(!on);
-            }
-            if (auto* btn = factory->get_button(handles.btn_mode)) {
-                btn->set_visible(!on);
-            }
-            if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                view->set_visible(!on);
-            }
-            if (auto* row = factory->get_container(handles.options_row)) {
-                row->set_visible(!on);
-            }
-            if (auto* list = factory->get_list_view(handles.list)) {
-                list->set_visible(!on);
-            }
-            if (auto* bar = factory->get_scroll_bar(handles.list_scroll)) {
-                bar->set_visible(!on);
-            }
-            if (auto* grid = factory->get_container(handles.debug_grid)) {
-                grid->set_visible(on);
-            }
-#else
-            (void)on;
-#endif
-        }
-
-        void toggle_debug_view() {
-#if CHARM_PLAYER_DEBUG_UI
-            set_debug_visible(!show_debug);
-#endif
-        }
-
         void update_duration_from_player() {
             if (duration_ready || !player) return;
             const auto total = player->total_frames();
@@ -503,249 +257,21 @@ export namespace player {
         }
 
         bool update_progress() {
-            if (!playing || updating) return false;
+            if (!playing || !kernel) return false;
             const auto now = std::chrono::steady_clock::now();
             const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
             const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
             const int value = (duration_sec > 0)
                 ? static_cast<int>((clamped * 100) / duration_sec)
                 : 0;
-
-            if (auto* bar = factory->get_progress(handles.progress)) {
-                bar->set_value(value);
-            }
-#if CHARM_PLAYER_DEBUG_UI
-            if (auto* meter = factory->get_meter_pointer(handles.meter_pointer)) {
-                meter->set_value(value);
-            }
-            if (auto* drill = factory->get_progress_bar_drill(handles.progress_drill)) {
-                drill->set_value(value);
-            }
-#endif
+            kernel->set_value(handles.progress, value);
             set_time_label(clamped);
             return true;
         }
 
-        bool update_spectrum() {
-            if (!player || !factory) return false;
-            if (!spectrum_enabled) return false;
-            if (spectrum_low_load) {
-                if ((spectrum_tick++ & 3u) != 0u) return false;
-            } else {
-                spectrum_tick = 0;
-            }
-            constexpr float kBarDecay = 0.03f;
-            constexpr float kPeakDecay = 0.015f;
-            constexpr float kPauseBarDecay = 0.015f;
-            constexpr float kPausePeakDecay = 0.01f;
-            auto decay_only = [&](float bar_decay, float peak_decay) {
-                bool changed = false;
-                for (std::size_t i = 0; i < spectrum_bars.size(); ++i) {
-                    float bar = spectrum_bars[i];
-                    if (bar > 0.0f) {
-                        const float next = (bar > bar_decay) ? (bar - bar_decay) : 0.0f;
-                        if (next != bar) changed = true;
-                        bar = next;
-                    }
-                    float peak = spectrum_peaks[i];
-                    if (peak > 0.0f) {
-                        const float next = (peak > peak_decay) ? (peak - peak_decay) : 0.0f;
-                        if (next != peak) changed = true;
-                        peak = next;
-                    }
-                    if (peak < bar) peak = bar;
-                    spectrum_bars[i] = bar;
-                    spectrum_peaks[i] = peak;
-                }
-                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                    view->set_values(spectrum_bars.data(), static_cast<int>(spectrum_bars.size()));
-                }
-                return changed;
-            };
-
-            if (paused || !playing) {
-                return decay_only(kPauseBarDecay, kPausePeakDecay);
-            }
-            if (!player->read_spectrum(spectrum_values)) return false;
-            for (std::size_t i = 0; i < spectrum_values.size(); ++i) {
-                const float target = spectrum_values[i];
-                float bar = spectrum_bars[i];
-                if (target > bar) bar = target;
-                else bar = (bar > kBarDecay) ? (bar - kBarDecay) : 0.0f;
-                spectrum_bars[i] = bar;
-
-                float peak = spectrum_peaks[i];
-                if (bar > peak) peak = bar;
-                else peak = (peak > kPeakDecay) ? (peak - kPeakDecay) : 0.0f;
-                spectrum_peaks[i] = peak;
-
-            }
-            if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                view->set_values(spectrum_bars.data(), static_cast<int>(spectrum_bars.size()));
-            }
-            return true;
-        }
-
-        void set_spectrum_enabled(bool on) {
-            spectrum_enabled = on;
-            if (player) player->enable_spectrum(on);
-            if (factory) {
-                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                    view->set_visible(on);
-                }
-                if (auto* sw = factory->get_switch(handles.opt_spectrum_switch)) {
-                    sw->set_on(on);
-                }
-            }
-        }
-
-        void update_spectrum_label() {
-            if (!factory) return;
-            auto* label = factory->get_label(handles.opt_spectrum_label);
-            if (!label) return;
-            const char* name = "Neon";
-            if (spectrum_style == 1) name = "Ring";
-            else if (spectrum_style == 2) name = "Wave";
-            char buf[32]{};
-            std::snprintf(buf, sizeof(buf), "Spec %s", name);
-            label->set_text(buf);
-        }
-
-        void set_spectrum_style(int style) {
-            spectrum_style = (style < 0) ? 0 : (style % 3);
-            if (factory) {
-                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                    view->set_mode(static_cast<SpectrumView::Mode>(spectrum_style));
-                }
-            }
-            update_spectrum_label();
-        }
-
-        void cycle_spectrum_style() {
-            set_spectrum_style((spectrum_style + 1) % 3);
-        }
-
-        void set_low_load(bool on) {
-            spectrum_low_load = on;
-            if (factory) {
-                if (auto* sw = factory->get_switch(handles.opt_low_switch)) {
-                    sw->set_on(on);
-                }
-                update_low_load_label();
-            }
-            update_eq_panel_state();
-            apply_eq_to_player();
-        }
-
-        void set_eq_enabled(bool on) {
-            eq_enabled = on;
-            if (factory) {
-                if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
-                    sw->set_on(on);
-                }
-                update_eq_label();
-            }
-            update_eq_panel_state();
-            apply_eq_to_player();
-        }
-
-        void set_play_mode(int mode) {
-            play_mode = mode;
-            update_play_mode_label();
-            update_play_mode_icon();
-        }
-
-        void cycle_play_mode() {
-            set_play_mode((play_mode + 1) % 3);
-        }
-
-        void sync_option_states() {
-            if (factory) {
-                if (auto* sw = factory->get_switch(handles.opt_spectrum_switch)) {
-                    sw->set_on(spectrum_enabled);
-                }
-                if (auto* sw = factory->get_switch(handles.opt_low_switch)) {
-                    sw->set_on(spectrum_low_load);
-                }
-                if (auto* sw = factory->get_switch(handles.opt_eq_switch)) {
-                    sw->set_on(eq_enabled);
-                }
-                if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
-                    eq_ui_guard = true;
-                    dropdown->set_selected(eq_preset_index);
-                    eq_ui_guard = false;
-                }
-                if (auto* view = factory->get_spectrum_view(handles.spectrum_view)) {
-                    view->set_mode(static_cast<SpectrumView::Mode>(spectrum_style));
-                }
-            }
-            update_play_mode_label();
-            update_play_mode_icon();
-            update_spectrum_label();
-            update_low_load_label();
-            update_eq_label();
-            update_eq_panel_labels();
-            update_eq_panel_state();
-        }
-
-        void on_spectrum_toggle() {
-            if (!factory) return;
-            auto* sw = factory->get_switch(handles.opt_spectrum_switch);
-            if (!sw) return;
-            set_spectrum_enabled(sw->is_on());
-        }
-
-        void on_low_load_toggle() {
-            if (!factory) return;
-            auto* sw = factory->get_switch(handles.opt_low_switch);
-            if (!sw) return;
-            set_low_load(sw->is_on());
-        }
-
-        void on_eq_toggle() {
-            if (!factory) return;
-            auto* sw = factory->get_switch(handles.opt_eq_switch);
-            if (!sw) return;
-            set_eq_enabled(sw->is_on());
-        }
-
-        void on_eq_slider_change() {
-            if (!factory) return;
-            if (eq_ui_guard) return;
-            eq_ui_guard = true;
-            for (std::size_t i = 0; i < eq_gains.size(); ++i) {
-                auto* slider = factory->get_slider(handles.eq_sliders[i]);
-                if (!slider) continue;
-                eq_gains[i] = slider->value();
-            }
-            update_eq_panel_labels();
-            if (auto* dropdown = factory->get_dropdown(handles.eq_preset)) {
-                if (dropdown->selected() != kPresetCustom) {
-                    dropdown->set_selected(kPresetCustom);
-                    eq_preset_index = kPresetCustom;
-                }
-            }
-            apply_eq_to_player();
-            eq_ui_guard = false;
-        }
-
-        void on_eq_preset_change() {
-            if (!factory) return;
-            if (eq_ui_guard) return;
-            auto* dropdown = factory->get_dropdown(handles.eq_preset);
-            if (!dropdown) return;
-            const int preset = dropdown->selected();
-            eq_preset_index = preset;
-            if (preset == kPresetCustom) return;
-            eq_ui_guard = true;
-            apply_eq_preset(preset);
-            eq_ui_guard = false;
-        }
-
         void sync_progress_value(int value) {
-            if (auto* bar = factory->get_progress(handles.progress)) {
-                bar->set_value(value);
-            }
+            if (!kernel) return;
+            kernel->set_value(handles.progress, value);
         }
 
         bool is_seek_ready() const {
@@ -765,33 +291,17 @@ export namespace player {
             return true;
         }
 
-        void apply_pending_seek() {
-            if (pending_seek_sec < 0) return;
-            if (!is_seek_ready()) return;
-            const int target = pending_seek_sec;
-            pending_seek_sec = -1;
-            if (request_seek(target)) {
-                start = std::chrono::steady_clock::now() - std::chrono::seconds(target);
-                set_time_label(target);
-                const int value = (duration_sec > 0) ? static_cast<int>((target * 100) / duration_sec) : 0;
-                sync_progress_value(value);
-            }
-        }
-
         void start_playback() {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color(kUiError);
                 return;
             }
             if (!player || !track_path) {
                 set_status("No track");
-                set_status_color(kUiError);
                 return;
             }
             if (!track_ready) {
                 set_status("Track not ready");
-                set_status_color(kUiError);
                 return;
             }
             (void)player->stop();
@@ -806,11 +316,9 @@ export namespace player {
             paused = false;
             start = std::chrono::steady_clock::now();
             set_status("Opening");
-            set_status_color(kUiStatus);
-            set_play_button_icon(true);
+            set_play_button_text(true);
             set_time_label(0);
             sync_progress_value(0);
-            apply_pending_seek();
         }
 
         void pause_playback() {
@@ -825,8 +333,7 @@ export namespace player {
             playing = false;
             paused = true;
             set_status("Paused");
-            set_status_color(kUiPaused);
-            set_play_button_icon(false);
+            set_play_button_text(false);
         }
 
         void resume_playback() {
@@ -842,8 +349,7 @@ export namespace player {
             playing = true;
             start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
             set_status("Playing");
-            set_status_color(kUiOk);
-            set_play_button_icon(true);
+            set_play_button_text(true);
         }
 
         void stop_playback() {
@@ -852,10 +358,8 @@ export namespace player {
             }
             playing = false;
             paused = false;
-            pending_seek_sec = -1;
             set_status("Stopped");
-            set_status_color(kUiStatus);
-            set_play_button_icon(false);
+            set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
         }
@@ -889,7 +393,6 @@ export namespace player {
         bool load_track_index(int idx) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color(kUiError);
                 return false;
             }
             if (!tracks || tracks->empty()) return false;
@@ -914,11 +417,9 @@ export namespace player {
                 std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
                 set_status(buf);
             }
-            set_status_color(track_ready ? kUiOk : kUiError);
-            set_play_button_icon(false);
+            set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
-            pending_seek_sec = -1;
             playing = false;
             paused = false;
             reset_duration();
@@ -929,7 +430,6 @@ export namespace player {
         void switch_track(int delta) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color(kUiError);
                 return;
             }
             if (!tracks || tracks->empty()) return;
@@ -948,7 +448,6 @@ export namespace player {
         void select_track_index(int idx) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
-                set_status_color(kUiError);
                 return;
             }
             if (!tracks || tracks->empty()) return;
@@ -964,56 +463,43 @@ export namespace player {
             }
         }
 
-        bool begin_drag(int x, int y) {
-            if (!factory) return false;
-            auto* bar = factory->get_progress(handles.progress);
-            if (!bar) return false;
-            const auto r = bar->get_rect();
-            if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) return false;
-            drag_origin_sec = current_sec;
-            dragging = true;
-            updating = true;
-            return update_drag(x);
+        void set_play_mode(int mode) {
+            play_mode = mode;
+            update_play_mode_label();
         }
 
-        bool update_drag(int x) {
-            if (!factory) return false;
-            auto* bar = factory->get_progress(handles.progress);
-            if (!bar) return false;
-            const auto r = bar->get_rect();
-            if (r.w <= 0) return false;
-            int clamped = x;
-            if (clamped < r.x) clamped = r.x;
-            if (clamped > r.x + r.w) clamped = r.x + r.w;
-            const int value = static_cast<int>(((clamped - r.x) * 100) / r.w);
-            bar->set_value(value);
-            drag_target_sec = (duration_sec > 0) ? static_cast<int>((value * duration_sec) / 100) : 0;
-            set_time_label(drag_target_sec);
-            return true;
+        void cycle_play_mode() {
+            set_play_mode((play_mode + 1) % 3);
         }
 
-        void end_drag() {
-            if (!dragging) return;
-            dragging = false;
-            updating = false;
-            if (!playing) {
-                set_time_label(drag_origin_sec);
-                const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
-                sync_progress_value(value);
-                set_status("Seek only during play");
-                return;
-            }
-            if (is_seek_ready()) {
-                if (request_seek(drag_target_sec)) {
-                    start = std::chrono::steady_clock::now() - std::chrono::seconds(drag_target_sec);
-                } else {
-                    set_time_label(drag_origin_sec);
-                    const int value = (duration_sec > 0) ? static_cast<int>((drag_origin_sec * 100) / duration_sec) : 0;
-                    sync_progress_value(value);
+        void process_input_events() {
+            if (!kernel) return;
+            const std::size_t count = kernel->input_event_count();
+            for (std::size_t i = 0; i < count; ++i) {
+                const auto& item = kernel->input_event(i);
+                if (item.event.type != Event::Type::MouseUp) continue;
+                const auto target = item.target;
+                if (target == handles.btn_prev) {
+                    switch_track(-1);
+                } else if (target == handles.btn_next) {
+                    switch_track(1);
+                } else if (target == handles.btn_pause) {
+                    if (playing) pause_playback();
+                    else if (paused) resume_playback();
+                    else start_playback();
+                } else if (target == handles.btn_mode) {
+                    cycle_play_mode();
                 }
-            } else {
-                pending_seek_sec = drag_target_sec;
-                set_status("Seek queued");
+            }
+
+            if (handles.list) {
+                const int selected = kernel->list_view_selected(handles.list);
+                if (selected >= 0 && selected != last_list_selected) {
+                    last_list_selected = selected;
+                    if (!ignore_list_select) {
+                        select_track_index(selected);
+                    }
+                }
             }
         }
     };

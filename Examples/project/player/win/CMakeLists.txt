@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 
-set(PLAYER_MAIN_VIVID main_soa.cpp)
+set(PLAYER_MAIN_VIVID main.cpp)
 set(PLAYER_MAIN_INK main_ink.cpp)
 set(PLAYER_TARGET_VIVID charm-player-win-vivid)
 set(PLAYER_TARGET_INK charm-player-win-ink)
@@ -58,7 +58,7 @@ elseif (EXISTS "${_fatfs_root}/src/ff.c" AND EXISTS "${_fatfs_root}/src/ff.h")
 endif()
 
 set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
-set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/player.controller\\.cppm$|/app-vivid/player.ui_builder\\.cppm$")
+set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/")
 
 charm_example_sources_filtered(${PLAYER_TARGET_VIVID}
@@ -104,5 +104,4 @@ endif()
 
 charm_example_link_sdl3(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
 charm_example_link_sdl3(${PLAYER_TARGET_INK} "${CHARM_ROOT}")
-
 

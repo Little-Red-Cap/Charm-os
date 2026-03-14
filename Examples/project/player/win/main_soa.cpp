@@ -33,22 +33,10 @@ import charm.gfx.draw_cmd;
 import charm.gfx.framebuffer;
 import charm.font.typography;
 import out.api;
+import example.pc.console;
 
 namespace {
-    struct StdioSink {
-        out::result<std::size_t> write(out::bytes b) noexcept {
-            if (b.size() == 0) return out::ok<std::size_t>(0u);
-            (void)std::fwrite(b.data(), 1, b.size(), stdout);
-            return out::ok(b.size());
-        }
-
-        out::result<std::size_t> flush() noexcept {
-            std::fflush(stdout);
-            return out::ok<std::size_t>(0u);
-        }
-    };
-
-    StdioSink g_console{};
+    out::channel_sink g_console = example::pc::stdout_sink();
 
     struct Viewport {
         int x{0};

@@ -13,9 +13,11 @@
 #include <cstring>
 
 import backend.sdl3;
+import example.sdl3.input;
 import gui.canvas_1bpp;
 import gui.renderer;
 import gui.theme;
+import example.pc.board_io;
 import player.hqzy.app_state;
 import player.hqzy.controller;
 import player.hqzy.ui_ink;
@@ -90,41 +92,12 @@ int main() {
     std::uint32_t last_frame = SDL_GetTicks();
 
     while (running) {
-        int enc_steps = 0;
-        SDL_Event evt{};
-        while (SDL_PollEvent(&evt)) {
-            if (evt.type == SDL_EVENT_QUIT) {
-                running = false;
-                break;
-            }
-            if (evt.type == SDL_EVENT_KEY_DOWN) {
-                if (evt.key.key == SDLK_ESCAPE) {
-                    running = false;
-                    break;
-                }
-                if (evt.key.key == SDLK_UP) {
-                    enc_steps -= 1;
-                } else if (evt.key.key == SDLK_DOWN) {
-                    enc_steps += 1;
-                } else if (evt.key.key == SDLK_PAGEUP) {
-                    enc_steps -= 4;
-                } else if (evt.key.key == SDLK_PAGEDOWN) {
-                    enc_steps += 4;
-                }
-            } else if (evt.type == SDL_EVENT_MOUSE_WHEEL) {
-                if (evt.wheel.y != 0.0f) {
-                    enc_steps -= static_cast<int>(evt.wheel.y);
-                }
-            }
-        }
+        running = example::sdl3::pump_input();
+        if (!running) break;
 
-        const bool* keys = SDL_GetKeyboardState(nullptr);
-        const bool key0 = keys && keys[SDL_SCANCODE_SPACE];
-        const bool wkup2 = keys && keys[SDL_SCANCODE_TAB];
-        const bool enc_key = keys && (keys[SDL_SCANCODE_RETURN] || keys[SDL_SCANCODE_KP_ENTER]);
-
-        controller.on_keys(key0, wkup2);
-        controller.on_encoder(enc_steps, enc_key);
+        const auto snap = example::pc::poll_keys();
+        controller.on_keys(snap.key0, snap.wkup2);
+        controller.on_encoder(snap.enc_steps, snap.enc_key);
 
         if (state.stop_request) {
             state.stop_request = false;

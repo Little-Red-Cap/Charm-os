@@ -4,9 +4,9 @@ set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 
-set(PLAYER_MAIN_VIVID main_soa.cpp)
+set(PLAYER_MAIN_VIVID main.cpp)
 set(PLAYER_MAIN_INK main_ink.cpp)
-set(PLAYER_TARGET_VIVID charm-player-win)
+set(PLAYER_TARGET_VIVID charm-player-win-vivid)
 set(PLAYER_TARGET_INK charm-player-win-ink)
 
 add_executable(${PLAYER_TARGET_VIVID}
@@ -69,6 +69,7 @@ charm_example_sources_filtered(${PLAYER_TARGET_VIVID}
 )
 charm_example_sources(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/ui/vivid/*.cppm"
+    "${CHARM_ROOT}/Examples/common/pc/*.cppm"
 )
 
 charm_example_sources_filtered(${PLAYER_TARGET_INK}
@@ -78,7 +79,9 @@ charm_example_sources_filtered(${PLAYER_TARGET_INK}
     "${CHARM_ROOT}/Examples/project/player/app-ink/**/*.cppm"
 )
 charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
-    "${CHARM_ROOT}/Examples/ink/windows/backend.sdl3.cppm"
+    "${CHARM_ROOT}/Examples/common/sdl3/backend.sdl3.cppm"
+    "${CHARM_ROOT}/Examples/common/sdl3/sdl3.input.cppm"
+    "${CHARM_ROOT}/Examples/common/pc/*.cppm"
 )
 
 charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")

@@ -2,6 +2,8 @@ module;
 
 #include "usb.h"
 
+#include "app_config.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -28,19 +30,19 @@ module;
 export module daplink.usb_minimal;
 
 namespace daplink::usb_minimal::detail {
-    constexpr std::uint8_t kEp0Mps = 64;
-    constexpr std::uint8_t kHidEpOut = 0x01;
-    constexpr std::uint8_t kHidEpIn = 0x81;
-    constexpr std::uint16_t kHidEpMps = 64;
+    constexpr std::uint8_t kEp0Mps = DAPLINK_USB_EP0_MPS;
+    constexpr std::uint8_t kHidEpOut = DAPLINK_USB_HID_EP_OUT;
+    constexpr std::uint8_t kHidEpIn = DAPLINK_USB_HID_EP_IN;
+    constexpr std::uint16_t kHidEpMps = DAPLINK_USB_HID_EP_MPS;
     constexpr std::size_t kHidPacketSize = 64;
 #if CHARM_DAP_USB_ENABLE_CDC
 #if CHARM_DAP_USB_CDC_HAS_CMD_EP
-    constexpr std::uint8_t kCdcEpCmd = 0x83;
+    constexpr std::uint8_t kCdcEpCmd = DAPLINK_USB_CDC_EP_CMD;
 #endif
-    constexpr std::uint8_t kCdcEpOut = 0x04;
-    constexpr std::uint8_t kCdcEpIn = 0x84;
-    constexpr std::uint16_t kCdcEpCmdMps = 8;
-    constexpr std::uint16_t kCdcEpMps = 64;
+    constexpr std::uint8_t kCdcEpOut = DAPLINK_USB_CDC_EP_OUT;
+    constexpr std::uint8_t kCdcEpIn = DAPLINK_USB_CDC_EP_IN;
+    constexpr std::uint16_t kCdcEpCmdMps = DAPLINK_USB_CDC_EP_CMD_MPS;
+    constexpr std::uint16_t kCdcEpMps = DAPLINK_USB_CDC_EP_MPS;
 #endif
 
     constexpr std::uint16_t kPmaEp0Out = 0x18;
@@ -165,19 +167,31 @@ namespace daplink::usb_minimal::detail {
 #if (CHARM_DAP_USB_PROFILE == 2)
     constexpr std::uint8_t device_descriptor[] = {
         0x12, 0x01, 0x00, 0x02, 0xEF, 0x02, 0x01, kEp0Mps,
-        0xFE, 0xCA, 0x01, 0x40, 0x00, 0x01, 0x01, 0x02,
+        static_cast<std::uint8_t>(DAPLINK_USB_VID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_VID >> 8) & 0xFFU),
+        static_cast<std::uint8_t>(DAPLINK_USB_PID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_PID >> 8) & 0xFFU),
+        0x00, 0x01, 0x01, 0x02,
         0x03, 0x01
     };
 #elif (CHARM_DAP_USB_PROFILE == 1)
     constexpr std::uint8_t device_descriptor[] = {
         0x12, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, kEp0Mps,
-        0xFE, 0xCA, 0x01, 0x40, 0x00, 0x01, 0x01, 0x02,
+        static_cast<std::uint8_t>(DAPLINK_USB_VID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_VID >> 8) & 0xFFU),
+        static_cast<std::uint8_t>(DAPLINK_USB_PID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_PID >> 8) & 0xFFU),
+        0x00, 0x01, 0x01, 0x02,
         0x03, 0x01
     };
 #elif (CHARM_DAP_USB_PROFILE == 0)
     constexpr std::uint8_t device_descriptor[] = {
         0x12, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, kEp0Mps,
-        0xFE, 0xCA, 0x01, 0x40, 0x00, 0x01, 0x01, 0x02,
+        static_cast<std::uint8_t>(DAPLINK_USB_VID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_VID >> 8) & 0xFFU),
+        static_cast<std::uint8_t>(DAPLINK_USB_PID & 0xFFU),
+        static_cast<std::uint8_t>((DAPLINK_USB_PID >> 8) & 0xFFU),
+        0x00, 0x01, 0x01, 0x02,
         0x03, 0x01
     };
 #endif
@@ -260,9 +274,9 @@ namespace daplink::usb_minimal::detail {
         return desc;
     }
 
-    constexpr auto manufacturer_string = make_string_descriptor("Charm");
-    constexpr auto product_string = make_string_descriptor("Charm CMSIS-DAP");
-    constexpr auto serial_string = make_string_descriptor("0001");
+    constexpr auto manufacturer_string = make_string_descriptor(DAPLINK_USB_MANUFACTURER);
+    constexpr auto product_string = make_string_descriptor(DAPLINK_USB_PRODUCT);
+    constexpr auto serial_string = make_string_descriptor(DAPLINK_USB_SERIAL);
 
     inline std::uint16_t min_u16(const std::uint16_t a, const std::uint16_t b) noexcept {
         return (a < b) ? a : b;

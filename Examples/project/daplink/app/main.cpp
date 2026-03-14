@@ -1,8 +1,9 @@
 #include "main.h"
-#include "usart.h"
 
 #include <array>
 #include <cstdint>
+
+#include "app_config.h"
 
 import daplink.board;
 import daplink.usb_minimal;
@@ -10,10 +11,6 @@ import daplink.cmsis_dap;
 
 extern "C" void SystemClock_Config(void);
 extern "C" void MPU_Config(void);
-
-#ifndef CHARM_DAP_CDC_UART
-#define CHARM_DAP_CDC_UART 1
-#endif
 
 #if (CHARM_DAP_USB_PROFILE != 0)
 namespace {
@@ -74,53 +71,8 @@ namespace {
         rb.tail = static_cast<std::uint16_t>((rb.tail + len) & kUartBufMask);
     }
 
-    inline UART_HandleTypeDef* cdc_uart_handle() noexcept {
-#if (CHARM_DAP_CDC_UART == 2)
-        return &huart2;
-#else
-        return &huart1;
-#endif
-    }
-
-    inline void apply_line_coding(UART_HandleTypeDef& uart,
-                                  const daplink::usb_minimal::cdc_line_config& cfg) noexcept {
-        uart.Init.BaudRate = cfg.baud;
-        uart.Init.StopBits = UART_STOPBITS_1;
-        if (cfg.stop_bits == 2) {
-            uart.Init.StopBits = UART_STOPBITS_2;
-        }
-        uart.Init.Parity = UART_PARITY_NONE;
-        if (cfg.parity == 1) {
-            uart.Init.Parity = UART_PARITY_ODD;
-        } else if (cfg.parity == 2) {
-            uart.Init.Parity = UART_PARITY_EVEN;
-        }
-        uart.Init.WordLength = UART_WORDLENGTH_8B;
-        if (cfg.data_bits == 9) {
-            uart.Init.WordLength = UART_WORDLENGTH_9B;
-        } else if (cfg.data_bits == 8 && uart.Init.Parity != UART_PARITY_NONE) {
-            uart.Init.WordLength = UART_WORDLENGTH_9B;
-        }
-        (void)HAL_UART_Init(&uart);
-    }
 } // namespace
 #endif
-
-extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
-    daplink::usb_minimal::on_reset(*hpcd);
-}
-
-extern "C" void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
-    daplink::usb_minimal::on_setup_stage(*hpcd);
-}
-
-extern "C" void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    daplink::usb_minimal::on_data_out_stage(*hpcd, epnum);
-}
-
-extern "C" void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    daplink::usb_minimal::on_data_in_stage(*hpcd, epnum);
-}
 
 int main()
 {
@@ -134,10 +86,10 @@ int main()
 
     static_assert(daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize);
     daplink::cmsis_dap::State dap_state{};
-    constexpr char kVendor[] = "Charm";
-    constexpr char kProduct[] = "Charm CMSIS-DAP";
-    constexpr char kSerial[] = "0001";
-    constexpr char kFw[] = "0.1.0";
+    constexpr char kVendor[] = DAPLINK_USB_MANUFACTURER;
+    constexpr char kProduct[] = DAPLINK_USB_PRODUCT;
+    constexpr char kSerial[] = DAPLINK_USB_SERIAL;
+    constexpr char kFw[] = DAPLINK_FW_VERSION;
     const daplink::cmsis_dap::DeviceInfo kInfo{
         daplink::cmsis_dap::make_info_field(kVendor),
         daplink::cmsis_dap::make_info_field(kProduct),
@@ -146,11 +98,11 @@ int main()
     };
 
 #if (CHARM_DAP_USB_PROFILE != 0)
-    auto* cdc_uart = cdc_uart_handle();
     ring_buffer uart_tx{};
     ring_buffer uart_rx{};
     daplink::usb_minimal::cdc_line_config last_line = daplink::usb_minimal::cdc_line();
-    apply_line_coding(*cdc_uart, last_line);
+    daplink::board::cdc_uart_apply_line(
+        last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
 #endif
 
     while (true) {
@@ -168,7 +120,8 @@ int main()
             if (line.baud != last_line.baud || line.stop_bits != last_line.stop_bits ||
                 line.parity != last_line.parity || line.data_bits != last_line.data_bits) {
                 last_line = line;
-                apply_line_coding(*cdc_uart, last_line);
+                daplink::board::cdc_uart_apply_line(
+                    last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
             }
             if (daplink::usb_minimal::cdc_out_ready()) {
                 const auto payload = daplink::usb_minimal::cdc_out_packet();
@@ -184,16 +137,14 @@ int main()
                 }
             }
 
-            if (__HAL_UART_GET_FLAG(cdc_uart, UART_FLAG_RXNE) != RESET) {
-                const std::uint8_t byte = static_cast<std::uint8_t>(cdc_uart->Instance->DR & 0xFFU);
-                (void)rb_push(uart_rx, byte);
+            if (daplink::board::cdc_uart_rx_ready()) {
+                (void)rb_push(uart_rx, daplink::board::cdc_uart_read());
             }
 
-            while (!rb_empty(uart_tx) &&
-                   (__HAL_UART_GET_FLAG(cdc_uart, UART_FLAG_TXE) != RESET)) {
+            while (!rb_empty(uart_tx) && daplink::board::cdc_uart_tx_ready()) {
                 std::uint8_t byte = 0;
                 (void)rb_pop(uart_tx, byte);
-                cdc_uart->Instance->DR = byte;
+                daplink::board::cdc_uart_write(byte);
             }
 
             if (!rb_empty(uart_rx)) {

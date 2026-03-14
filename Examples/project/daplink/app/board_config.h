@@ -1,0 +1,22 @@
+#ifndef DAPLINK_APP_BOARD_CONFIG_H
+#define DAPLINK_APP_BOARD_CONFIG_H
+
+#include "stm32f1xx_hal.h"
+
+// Board pin mappings for daplink application.
+#define DAPLINK_T_CLK_Pin GPIO_PIN_5
+#define DAPLINK_T_CLK_GPIO_Port GPIOA
+#define DAPLINK_T_RST_Pin GPIO_PIN_0
+#define DAPLINK_T_RST_GPIO_Port GPIOB
+#define DAPLINK_DBG_LED_Pin GPIO_PIN_9
+#define DAPLINK_DBG_LED_GPIO_Port GPIOA
+#define DAPLINK_TDO_SWO_Pin GPIO_PIN_10
+#define DAPLINK_TDO_SWO_GPIO_Port GPIOA
+#define DAPLINK_T_DIO_IN_Pin GPIO_PIN_3
+#define DAPLINK_T_DIO_IN_GPIO_Port GPIOB
+#define DAPLINK_T_DIO_OUT_Pin GPIO_PIN_5
+#define DAPLINK_T_DIO_OUT_GPIO_Port GPIOB
+#define DAPLINK_CONNECT_LED_Pin GPIO_PIN_6
+#define DAPLINK_CONNECT_LED_GPIO_Port GPIOB
+
+#endif

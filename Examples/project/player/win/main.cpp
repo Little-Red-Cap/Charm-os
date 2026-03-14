@@ -2,6 +2,7 @@
 import audio.result;
 import player.controller;
 import player.fs_utils;
+import player.media_scan;
 import player.ui_builder;
 import player.ui;
 import charm.core.config;
@@ -310,82 +311,34 @@ int main(int argc, char** argv) {
     g_ctx.init_text_slots();
     g_ctx.focus_list();
     g_ctx.set_time_label(0);
-    g_ctx.mount_status = "Mounting VHD...";
-    g_ctx.set_status("Mounting");
+    g_ctx.mount_status = "Mounting storage...";
+    g_ctx.set_status("Mounting storage");
     g_ctx.update_list_placeholder();
 
-    const auto mount_st = mount_fatfs_from_vhd(vhd_path);
-    g_ctx.fs_ready = static_cast<bool>(mount_st);
-    if (!g_ctx.fs_ready) {
-        char buf[64]{};
-        std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
-        g_ctx.set_status(buf);
-        g_ctx.mount_status = std::string(buf) + ". Unmount VHD in Windows";
-        g_vfs_tracks.clear();
-        g_ctx.rebuild_track_labels();
-        g_ctx.refresh_list_view();
+    auto scan = player::scan_tracks(&player::fs_utils::mount_fatfs_from_vhd, vhd_path);
+    g_ctx.fs_ready = scan.fs_ready;
+    g_vfs_tracks = std::move(scan.tracks);
+    g_ctx.mount_status = scan.mount_status;
+    if (!scan.status.empty()) {
+        g_ctx.set_status(scan.status.c_str());
+    }
+
+    g_ctx.rebuild_track_labels();
+    g_ctx.refresh_list_view();
+    if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {
+        g_ctx.load_track_index(0);
+        if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
+            g_ctx.set_status("Fs seek selftest failed");
+        }
+    } else {
         g_ctx.track_ready = false;
         g_ctx.track_path = nullptr;
-        g_ctx.set_play_button_text(false);
-        g_ctx.set_time_label(0);
-        g_ctx.sync_progress_value(0);
-        g_ctx.reset_duration();
-        g_ctx.update_list_placeholder();
-    } else {
-        g_ctx.mount_status = "Mounted";
-        g_ctx.update_list_placeholder();
-        g_vfs_tracks.clear();
-        fs::Status list_st{fs::Errc::ok};
-        g_ctx.mount_status = "Scanning /music...";
-        if (!collect_tracks_from_dir("/music", g_vfs_tracks, nullptr, list_st)) {
-            std::vector<std::string> subdirs;
-            g_ctx.mount_status = "Scanning /...";
-            const bool root_has = collect_tracks_from_dir("/", g_vfs_tracks, &subdirs, list_st);
-            if (list_st) {
-                for (const auto& dir : subdirs) {
-                    collect_tracks_from_dir(dir, g_vfs_tracks, nullptr, list_st);
-                }
-            }
-            if (!list_st) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
-                g_ctx.set_status(buf);
-                g_ctx.mount_status = buf;
-            } else if (!root_has && g_vfs_tracks.empty()) {
-                g_ctx.set_status("No tracks found");
-                g_ctx.mount_status = "No tracks in /music or /";
-            }
-        }
-        bool should_load = true;
-        if (g_vfs_tracks.empty()) {
-            char buf[64]{};
-            std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
-            g_ctx.set_status(buf);
-            if (g_ctx.mount_status == "Mounted") {
-                g_ctx.mount_status = "No tracks in /music or /";
-            }
-            should_load = false;
-        }
-        g_ctx.rebuild_track_labels();
-        g_ctx.refresh_list_view();
-        if (should_load) {
-            g_ctx.load_track_index(0);
-            if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
-                g_ctx.set_status("Fs seek selftest failed");
-            }
-            if (g_ctx.track_ready) {
-                g_ctx.mount_status = "Ready";
-            }
-        } else {
-            g_ctx.track_ready = false;
-            g_ctx.track_path = nullptr;
-            g_ctx.set_play_button_text(false);
-            g_ctx.set_time_label(0);
-            g_ctx.sync_progress_value(0);
-            g_ctx.reset_duration();
-        }
-        g_ctx.update_list_placeholder();
     }
+    g_ctx.set_play_button_text(false);
+    g_ctx.set_time_label(0);
+    g_ctx.sync_progress_value(0);
+    g_ctx.reset_duration();
+    g_ctx.update_list_placeholder();
 
     SoaGui gui(g_canvas, g_kernel, g_ctx.handles.root);
     ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf{};

@@ -48,6 +48,7 @@ export namespace example::sdl3 {
             }
         }
 
+        SDL_PumpEvents();
         const bool* keys = SDL_GetKeyboardState(nullptr);
         example::pc::set_key(example::pc::KeyId::key0, keys && keys[map.key0]);
         example::pc::set_key(example::pc::KeyId::wkup2, keys && keys[map.wkup2]);

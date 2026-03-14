@@ -39,9 +39,21 @@ public:
         kernel_.set_hit_testable(h, false);
         return h;
     }
+    WidgetHandle create_text_input_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextInput);
+        kernel_.set_text_static(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
     WidgetHandle create_text_area(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::TextArea);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_text_area_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextArea);
+        kernel_.set_text_static(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }
@@ -51,9 +63,21 @@ public:
         kernel_.set_hit_testable(h, false);
         return h;
     }
+    WidgetHandle create_number_input_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::NumberInput);
+        kernel_.set_text_static(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
     WidgetHandle create_text_box(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::TextBox);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_text_box_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextBox);
+        kernel_.set_text_static(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }

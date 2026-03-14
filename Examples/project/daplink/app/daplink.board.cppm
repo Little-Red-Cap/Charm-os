@@ -13,6 +13,10 @@ module;
 #define T_CLKB4_GPIO_Port GPIOB
 #endif
 
+#ifndef CHARM_DAP_CDC_UART
+#define CHARM_DAP_CDC_UART 1
+#endif
+
 export module daplink.board;
 import daplink.usb_minimal;
 
@@ -25,6 +29,7 @@ export namespace daplink::board {
 
     struct SwdBackend {
         static inline std::uint32_t swj_delay_cycles = 0;
+        static inline bool swdio_output = false;
 
         static void pin_delay() noexcept {
             for (std::uint32_t i = 0; i < swj_delay_cycles; ++i) {
@@ -52,27 +57,28 @@ export namespace daplink::board {
             GPIO_InitTypeDef gpio = {};
 
             gpio.Pin = T_CLKB4_Pin;
-            gpio.Mode = GPIO_MODE_OUTPUT_OD;
+            gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
             HAL_GPIO_Init(T_CLKB4_GPIO_Port, &gpio);
 
             gpio.Pin = T_DIO_OUT_Pin;
-            gpio.Mode = GPIO_MODE_OUTPUT_OD;
+            gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
             HAL_GPIO_Init(T_DIO_OUT_GPIO_Port, &gpio);
+            swdio_output = true;
 
             gpio.Pin = T_DIO_IN_Pin;
             gpio.Mode = GPIO_MODE_INPUT;
-            gpio.Pull = GPIO_PULLUP;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_NOPULL;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_DIO_IN_GPIO_Port, &gpio);
 
             gpio.Pin = T_RST_Pin;
             gpio.Mode = GPIO_MODE_OUTPUT_OD;
-            gpio.Pull = GPIO_NOPULL;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_PULLUP;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_RST_GPIO_Port, &gpio);
 
             HAL_GPIO_WritePin(T_CLKB4_GPIO_Port, T_CLKB4_Pin, GPIO_PIN_SET);
@@ -94,6 +100,7 @@ export namespace daplink::board {
 
             gpio.Pin = T_DIO_IN_Pin | T_DIO_OUT_Pin;
             HAL_GPIO_Init(GPIOB, &gpio);
+            swdio_output = false;
         }
 
         static void swclk_low() noexcept {
@@ -113,21 +120,29 @@ export namespace daplink::board {
         }
 
         static void swdio_set_output() noexcept {
+            if (swdio_output) {
+                return;
+            }
             GPIO_InitTypeDef gpio = {};
             gpio.Pin = T_DIO_OUT_Pin;
             gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
             HAL_GPIO_Init(T_DIO_OUT_GPIO_Port, &gpio);
+            swdio_output = true;
         }
 
         static void swdio_set_input() noexcept {
+            if (!swdio_output) {
+                return;
+            }
             GPIO_InitTypeDef gpio = {};
             gpio.Pin = T_DIO_OUT_Pin;
             gpio.Mode = GPIO_MODE_INPUT;
-            gpio.Pull = GPIO_PULLUP;
-            gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+            gpio.Pull = GPIO_NOPULL;
+            gpio.Speed = GPIO_SPEED_FREQ_LOW;
             HAL_GPIO_Init(T_DIO_OUT_GPIO_Port, &gpio);
+            swdio_output = false;
         }
 
         static std::uint8_t swj_pins(const std::uint8_t value, const std::uint8_t select) noexcept {
@@ -194,7 +209,11 @@ export namespace daplink::board {
 
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {
         MX_GPIO_Init();
+#if (CHARM_DAP_CDC_UART == 2)
+        MX_USART2_UART_Init();
+#else
         MX_USART1_UART_Init();
+#endif
         MX_USB_PCD_Init();
         SwdBackend::set_swj_clock_hz(5000000U);
         if (!daplink::usb_minimal::attach(hpcd_USB_FS)) {

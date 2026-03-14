@@ -49,7 +49,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS
-        "../app/*.cppm"
+        "./app/*.cppm"
         "./*.cppm"
 )
 list(REMOVE_ITEM MODULE_INTERFACE_UNITS
@@ -59,7 +59,7 @@ list(REMOVE_ITEM MODULE_INTERFACE_UNITS
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-        Core/Src/main.cpp
+        app/main.cpp
 
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
@@ -78,12 +78,22 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     CHARM_VIVID_ENABLE_LAYER_CACHE=0
+    CHARM_DAP_ENABLE_SWO=0
+    CHARM_DAP_ENABLE_SWO_STREAM=0
+    CHARM_DAP_ENABLE_DAP_UART=0
+    CHARM_DAP_CDC_UART=2
+    CHARM_DAP_USB_PROFILE=2
     STM32F103xx
     USE_HAL_DRIVER
 )
 
 # Ensure Charm-os is built with the same feature flags.
 add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
+add_compile_definitions(CHARM_DAP_ENABLE_SWO=0)
+add_compile_definitions(CHARM_DAP_ENABLE_SWO_STREAM=0)
+add_compile_definitions(CHARM_DAP_ENABLE_DAP_UART=0)
+add_compile_definitions(CHARM_DAP_CDC_UART=2)
+add_compile_definitions(CHARM_DAP_USB_PROFILE=2)
 add_compile_definitions(STM32F103xx)
 add_compile_definitions(USE_HAL_DRIVER)
 

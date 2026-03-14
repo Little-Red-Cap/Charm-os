@@ -12,6 +12,7 @@ import charm.core.theme_preset;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.font;
+import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import charm.widgets.button;
@@ -35,6 +36,7 @@ import charm.widgets.battery_gasgauge;
 import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
+import charm.widgets.scroll_container;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
@@ -109,6 +111,16 @@ export namespace player::ui {
     inline constexpr rgba kUiPerfBg = {24, 26, 36, 230};
     inline constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
     inline constexpr rgba kUiPerfFont = {220, 228, 242, 255};
+
+    struct PlayerIconIds {
+        ::ui::gfx::ImageId prev{};
+        ::ui::gfx::ImageId play{};
+        ::ui::gfx::ImageId pause{};
+        ::ui::gfx::ImageId next{};
+        ::ui::gfx::ImageId loop{};
+        ::ui::gfx::ImageId single{};
+        ::ui::gfx::ImageId shuffle{};
+    };
 
     namespace detail {
         constexpr int kIconSize = 16;
@@ -362,11 +374,29 @@ export namespace player::ui {
                                false);
     }
 
+    inline PlayerIconIds register_player_icons() noexcept {
+        PlayerIconIds out{};
+        out.prev = ::ui::gfx::register_image_dedup(icon_prev());
+        out.play = ::ui::gfx::register_image_dedup(icon_play());
+        out.pause = ::ui::gfx::register_image_dedup(icon_pause());
+        out.next = ::ui::gfx::register_image_dedup(icon_next());
+        out.loop = ::ui::gfx::register_image_dedup(icon_loop());
+        out.single = ::ui::gfx::register_image_dedup(icon_single());
+        out.shuffle = ::ui::gfx::register_image_dedup(icon_shuffle());
+        return out;
+    }
+
     inline const Font& player_default_font() noexcept {
         return get_font(FontId::Normal);
     }
 
     inline void apply_player_theme() {
+        set_default_font(FontId::Small, &font_noto_ascii_16);
+        set_default_font(FontId::Normal, &font_noto_ascii_16);
+        set_default_font(FontId::Large, &font_noto_ascii_16);
+        set_default_font(FontId::Mono, &font_noto_ascii_16);
+        set_default_fallback_font(&font_noto_sc_16);
+
         auto& theme = Theme::instance();
         theme.set_default_font(player_default_font());
         Style baseline = theme.get<Button>();
@@ -412,6 +442,11 @@ export namespace player::ui {
             }
             sheet.set_base_style(kind, s);
         };
+
+        Style scroll_container = theme.get<ScrollContainer>();
+        scroll_container.colors.bg_color = kUiBackground;
+        scroll_container.colors.border_color = kUiBackground;
+        set_base(WidgetKind::ScrollContainer, scroll_container);
 
         Style progress_bar_simple = theme.get<ProgressBarSimple>();
         progress_bar_simple.colors.bg_color = kUiProgressBg;

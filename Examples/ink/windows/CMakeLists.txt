@@ -34,6 +34,8 @@ add_executable(${target_name}
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
         "../app/*.cppm"
         "./*.cppm"
+        "../../common/sdl3/*.cppm"
+        "../../common/pc/*.cppm"
 )
 set(FLIP_DEMO_CPPM "${CMAKE_CURRENT_SOURCE_DIR}/flip.demo.cppm")
 list(REMOVE_ITEM MODULE_INTERFACE_UNITS "${FLIP_DEMO_CPPM}")
@@ -41,7 +43,7 @@ target_sources(${target_name}
         PRIVATE
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/../"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../.."
         FILES
             ${MODULE_INTERFACE_UNITS}
 )

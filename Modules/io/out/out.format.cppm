@@ -1,5 +1,6 @@
 ﻿module;
 #include <expected>
+#include <cstddef>
 #include <array>
 #include <utility>
 #include <charconv>
@@ -790,6 +791,19 @@ namespace detail {
     }
   }
 
+  namespace detail {
+    template <class S, class Tup, std::size_t... Is>
+    inline result<std::size_t> dispatch_arg(std::size_t idx,
+                                            S& sink,
+                                            Tup& tup,
+                                            fmt_spec spec,
+                                            std::index_sequence<Is...>) noexcept {
+      result<std::size_t> r = util::unexpected(errc::invalid_format);
+      ((idx == Is ? r = write_one(sink, std::get<Is>(tup), spec) : r), ...);
+      return r;
+    }
+  }
+
   // format output: compile-time parse + runtime expansion
   // TODO: optionally unroll tokens at compile time for MCU builds.
   template <fixed_string Fmt, Sink S, bool FinalFlush = true, class... Args>
@@ -838,10 +852,8 @@ namespace detail {
             auto idx = tk.arg_index;
             result<std::size_t> r = util::unexpected(errc::invalid_format);
 
-            // ????? lambda + index_sequence ? compile-time ??
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-              ((idx == Is ? r = write_one(sink, std::get<Is>(tup), tk.spec) : r), ...);
-            }(std::make_index_sequence<sizeof...(Args)>{});
+            r = detail::dispatch_arg(
+              idx, sink, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
 
             if (!r) return util::unexpected(r.error());
             total += *r;
@@ -861,10 +873,8 @@ namespace detail {
           auto idx = tk.arg_index;
           result<std::size_t> r = util::unexpected(errc::invalid_format);
 
-          // ????? lambda + index_sequence ? compile-time ??
-          [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-            ((idx == Is ? r = write_one(sink, std::get<Is>(tup), tk.spec) : r), ...);
-          }(std::make_index_sequence<sizeof...(Args)>{});
+          r = detail::dispatch_arg(
+            idx, sink, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
 
           if (!r) return util::unexpected(r.error());
           total += *r;
@@ -907,10 +917,8 @@ namespace detail {
         auto idx = tk.arg_index;
         result<std::size_t> r = util::unexpected(errc::invalid_format);
 
-        // ????? lambda + index_sequence ? compile-time ??
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-          ((idx == Is ? r = write_one(bw, std::get<Is>(tup), tk.spec) : r), ...);
-        }(std::make_index_sequence<sizeof...(Args)>{});
+        r = detail::dispatch_arg(
+          idx, bw, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
 
         if (!r) return util::unexpected(r.error());
         total += *r;

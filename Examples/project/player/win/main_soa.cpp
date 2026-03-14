@@ -168,6 +168,10 @@ namespace {
         (void)out::println<"[player] payload overflow={} text_overflow={}">(
             g_console, stats.overflowed ? 1 : 0, stats.text_overflowed ? 1 : 0);
     }
+#else
+    bool parse_u32(std::string_view, std::uint32_t&) noexcept {
+        return false;
+    }
 #endif
 
     struct SdlTileBackend {

@@ -52,8 +52,12 @@ export namespace alg {
                 for (std::size_t j = 0; j < len / 2; ++j) {
                     const auto u = data[i + j];
                     const auto v = data[i + j + len / 2] * w;
-                    data[i + j] = u + v;
-                    data[i + j + len / 2] = u - v;
+                    auto uv = u;
+                    uv += v;
+                    data[i + j] = uv;
+                    auto um = u;
+                    um -= v;
+                    data[i + j + len / 2] = um;
                     w *= wlen;
                 }
             }

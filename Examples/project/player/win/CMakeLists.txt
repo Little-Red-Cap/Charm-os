@@ -1,28 +1,34 @@
 cmake_minimum_required(VERSION 4.0)
 project(charm-player-win)
-
-set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 
-set(PLAYER_MAIN main_soa.cpp)
+set(PLAYER_MAIN_VIVID main_soa.cpp)
+set(PLAYER_MAIN_INK main_ink.cpp)
+set(PLAYER_TARGET_VIVID charm-player-win)
+set(PLAYER_TARGET_INK charm-player-win-ink)
 
-add_executable(${target_name}
-    ${PLAYER_MAIN}
+add_executable(${PLAYER_TARGET_VIVID}
+    ${PLAYER_MAIN_VIVID}
+)
+add_executable(${PLAYER_TARGET_INK}
+    ${PLAYER_MAIN_INK}
 )
 
-target_compile_definitions(${target_name} PRIVATE
-    OUT_ENABLE_FLOAT
-    CHARM_AUDIO_USE_VFS=1
-    CHARM_VIVID_SCREEN_WIDTH=480
-    CHARM_VIVID_SCREEN_HEIGHT=960
-)
-if (CHARM_PLAYER_DEBUG_UI)
-    target_compile_definitions(${target_name} PRIVATE CHARM_PLAYER_DEBUG_UI=1)
-else()
-    target_compile_definitions(${target_name} PRIVATE CHARM_PLAYER_DEBUG_UI=0)
-endif()
+foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK})
+    target_compile_definitions(${_target} PRIVATE
+        OUT_ENABLE_FLOAT
+        CHARM_AUDIO_USE_VFS=1
+        CHARM_VIVID_SCREEN_WIDTH=480
+        CHARM_VIVID_SCREEN_HEIGHT=960
+    )
+    if (CHARM_PLAYER_DEBUG_UI)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_DEBUG_UI=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_DEBUG_UI=0)
+    endif()
+endforeach()
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
@@ -51,32 +57,49 @@ elseif (EXISTS "${_fatfs_root}/src/ff.c" AND EXISTS "${_fatfs_root}/src/ff.h")
     set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 endif()
 
-set(CHARM_PLAYER_EXCLUDE_REGEX "/stm32f407/|/stn32h747[^/]*/|/stn32common/|/app-ink/|/app-vivid/player.controller\\.cppm$|/app-vivid/player.ui_builder\\.cppm$")
-charm_example_sources_filtered(${target_name}
+set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
+set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/player.controller\\.cppm$|/app-vivid/player.ui_builder\\.cppm$")
+set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/")
+
+charm_example_sources_filtered(${PLAYER_TARGET_VIVID}
     "${CHARM_ROOT}"
-    "${CHARM_PLAYER_EXCLUDE_REGEX}"
+    "${CHARM_PLAYER_EXCLUDE_REGEX_VIVID}"
     "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/app-vivid/*.cppm"
 )
-charm_example_sources(${target_name} "${CHARM_ROOT}"
+charm_example_sources(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/ui/vivid/*.cppm"
 )
-charm_example_link_charm(${target_name} "${CHARM_ROOT}")
+
+charm_example_sources_filtered(${PLAYER_TARGET_INK}
+    "${CHARM_ROOT}"
+    "${CHARM_PLAYER_EXCLUDE_REGEX_INK}"
+    "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-ink/**/*.cppm"
+)
+charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
+    "${CHARM_ROOT}/Examples/ink/windows/backend.sdl3.cppm"
+)
+
+charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
+target_link_libraries(${PLAYER_TARGET_INK} PRIVATE Charm-os)
 
 if (CHARM_PLAYER_SOA_TRACE)
-    target_compile_definitions(${target_name} PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    target_compile_definitions(${PLAYER_TARGET_VIVID} PRIVATE VIVID_SOA_TRACE_INPUT=1)
     target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
 endif()
 
-target_sources(${target_name} PRIVATE
+target_sources(${PLAYER_TARGET_VIVID} PRIVATE
 )
 
 set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs")
 if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
     include("${CHARM_ROOT}/cmake/DRLibs.cmake")
-    charm_link_dr_libs(${target_name})
+    charm_link_dr_libs(${PLAYER_TARGET_VIVID})
+    charm_link_dr_libs(${PLAYER_TARGET_INK})
 endif()
 
-charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+charm_example_link_sdl3(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
+charm_example_link_sdl3(${PLAYER_TARGET_INK} "${CHARM_ROOT}")
 
 

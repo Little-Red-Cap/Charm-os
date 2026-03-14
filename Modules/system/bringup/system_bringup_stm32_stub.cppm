@@ -11,6 +11,7 @@ import charm.system.app_host;
 import charm.system.caps;
 import charm.system.reactor_pump;
 import io.channel;
+import kernel.capabilities;
 import platform.board.stm32_stub;
 import util.core;
 import util.error;

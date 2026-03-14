@@ -282,7 +282,6 @@ int main(int argc, char** argv) {
 
     g_ctx.bind_player(g_player);
     g_ctx.bind_kernel(g_kernel);
-    g_ctx.track_path = nullptr;
     g_ctx.tracks = &g_vfs_tracks;
 
     apply_player_theme();
@@ -308,12 +307,11 @@ int main(int argc, char** argv) {
     g_ctx.refresh_list_view();
     if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {
         g_ctx.load_track_index(0);
-        if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
+        if (g_ctx.track_ready() && !fs_seek_selftest(g_ctx.track_path())) {
             g_ctx.set_status("Fs seek selftest failed");
         }
     } else {
-        g_ctx.track_ready = false;
-        g_ctx.track_path = nullptr;
+        g_ctx.clear_track_state();
     }
     g_ctx.set_play_button_text(false);
     g_ctx.set_time_label(0);

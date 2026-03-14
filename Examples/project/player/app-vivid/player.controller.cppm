@@ -60,9 +60,7 @@ export namespace player {
         SoaKernel* kernel{nullptr};
         UiHandles handles{};
         PlayerIconIds icons{};
-        bool track_ready{false};
         int last_time_sec{-1};
-        const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
         std::vector<std::string> track_labels{};
         int track_index{0};
@@ -103,6 +101,19 @@ export namespace player {
 
         void bind_player(audio::AudioPlayer& p) {
             playback.set_player(p);
+        }
+
+        const char* track_path() const noexcept {
+            return playback.track_path();
+        }
+
+        bool track_ready() const noexcept {
+            return playback.track_ready();
+        }
+
+        void clear_track_state() noexcept {
+            playback.set_track_path(nullptr);
+            playback.set_track_ready(false);
         }
 
         void init_text_slots() {
@@ -416,8 +427,6 @@ export namespace player {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return;
             }
-            playback.set_track_path(track_path);
-            playback.set_track_ready(track_ready);
             std::string status;
             if (!playback.start_playback(status)) {
                 set_status(status.c_str());
@@ -487,10 +496,11 @@ export namespace player {
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
             track_index = idx;
             const auto& vfs_path = (*tracks)[track_index];
-            track_path = vfs_path.c_str();
+            const char* track_path = vfs_path.c_str();
             set_track_labels(vfs_path);
             fs::File f{};
             auto st = fs::vfs_open(vfs_path, f);
+            bool track_ready = false;
             if (st) {
                 (void)fs::vfs_close(f);
                 track_ready = true;
@@ -512,7 +522,7 @@ export namespace player {
             reset_duration();
             last_time_sec = -1;
             sync_list_selection();
-            return track_ready;
+            return playback.track_ready();
         }
 
         void switch_track(int delta) {
@@ -528,7 +538,7 @@ export namespace player {
             const bool was_active = playback.playing() || playback.paused();
             stop_playback();
             load_track_index(next);
-            if (was_active && track_ready) {
+            if (was_active && playback.track_ready()) {
                 start_playback();
             }
         }
@@ -543,9 +553,9 @@ export namespace player {
             const bool was_paused = playback.paused();
             stop_playback();
             load_track_index(idx);
-            if (was_playing && track_ready) {
+            if (was_playing && playback.track_ready()) {
                 start_playback();
-            } else if (was_paused && track_ready) {
+            } else if (was_paused && playback.track_ready()) {
                 start_playback();
                 pause_playback();
             }

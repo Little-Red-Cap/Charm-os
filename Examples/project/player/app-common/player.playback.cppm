@@ -56,6 +56,8 @@ export namespace player {
 
         void set_track_path(const char* path) noexcept { track_path_ = path; }
         void set_track_ready(bool ready) noexcept { track_ready_ = ready; }
+        const char* track_path() const noexcept { return track_path_; }
+        bool track_ready() const noexcept { return track_ready_; }
 
         bool playing() const noexcept { return playing_; }
         bool paused() const noexcept { return paused_; }

@@ -71,6 +71,7 @@ export namespace player {
         audio::AudioPlayer* player{nullptr};
         SoaKernel* kernel{nullptr};
         UiHandles handles{};
+        PlayerIconIds icons{};
         bool playing{false};
         bool track_ready{false};
         std::chrono::steady_clock::time_point start{};
@@ -108,7 +109,9 @@ export namespace player {
         void set_status(const char* text) { set_label(handles.status, text); }
 
         void set_play_button_text(bool playing_now) {
-            set_label(handles.btn_pause, playing_now ? "Pause" : "Play");
+            if (!kernel) return;
+            kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
+            set_label(handles.btn_pause, "");
         }
 
         void set_time_label(int elapsed_sec) {
@@ -140,6 +143,11 @@ export namespace player {
             char buf[32]{};
             std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
             set_label(handles.mode_hint, buf);
+            if (!kernel) return;
+            auto icon = icons.loop;
+            if (play_mode == 1) icon = icons.single;
+            else if (play_mode == 2) icon = icons.shuffle;
+            kernel->set_button_icon(handles.btn_mode, icon);
         }
 
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {

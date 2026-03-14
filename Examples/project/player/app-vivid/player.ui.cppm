@@ -111,6 +111,16 @@ export namespace player::ui {
     inline constexpr rgba kUiPerfBorder = {70, 90, 120, 255};
     inline constexpr rgba kUiPerfFont = {220, 228, 242, 255};
 
+    struct PlayerIconIds {
+        ::ui::gfx::ImageId prev{};
+        ::ui::gfx::ImageId play{};
+        ::ui::gfx::ImageId pause{};
+        ::ui::gfx::ImageId next{};
+        ::ui::gfx::ImageId loop{};
+        ::ui::gfx::ImageId single{};
+        ::ui::gfx::ImageId shuffle{};
+    };
+
     namespace detail {
         constexpr int kIconSize = 16;
         constexpr int kIconStride = kIconSize * 4;
@@ -361,6 +371,18 @@ export namespace player::ui {
                                buf.data(),
                                false,
                                false);
+    }
+
+    inline PlayerIconIds register_player_icons() noexcept {
+        PlayerIconIds out{};
+        out.prev = ::ui::gfx::register_image_dedup(icon_prev());
+        out.play = ::ui::gfx::register_image_dedup(icon_play());
+        out.pause = ::ui::gfx::register_image_dedup(icon_pause());
+        out.next = ::ui::gfx::register_image_dedup(icon_next());
+        out.loop = ::ui::gfx::register_image_dedup(icon_loop());
+        out.single = ::ui::gfx::register_image_dedup(icon_single());
+        out.shuffle = ::ui::gfx::register_image_dedup(icon_shuffle());
+        return out;
     }
 
     inline const Font& player_default_font() noexcept {

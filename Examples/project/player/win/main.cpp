@@ -282,7 +282,8 @@ int main(int argc, char** argv) {
 
     apply_player_theme();
 
-    g_ctx.handles = build_ui(g_factory, g_ctx);
+    g_ctx.icons = register_player_icons();
+    g_ctx.handles = build_ui(g_factory, g_ctx, g_ctx.icons);
     g_ctx.set_time_label(0);
     g_ctx.mount_status = "Mounting VHD...";
     g_ctx.set_status("Mounting");

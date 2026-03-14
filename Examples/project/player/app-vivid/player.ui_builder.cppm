@@ -14,7 +14,7 @@ import player.ui;
 export namespace player {
     using namespace player::ui;
 
-    UiHandles build_ui(SoaFactory& factory, PlayerController& ctx) {
+    UiHandles build_ui(SoaFactory& factory, PlayerController& ctx, const PlayerIconIds& icons) {
         (void)ctx;
         auto& kernel = factory.kernel();
 
@@ -126,20 +126,28 @@ export namespace player {
         h.controls = factory.create_container();
         anchor_rect(h.controls, {controls_x, controls_y, controls_w, kButtonHeight});
 
-        h.btn_prev = factory.create_button("Prev");
+        h.btn_prev = factory.create_button("");
         anchor_rect(h.btn_prev, {controls_x, controls_y, kButtonWidth, kButtonHeight});
+        factory.set_button_icon(h.btn_prev, icons.prev);
+        factory.set_button_icon_size(h.btn_prev, 16);
 
-        h.btn_pause = factory.create_button("Play");
+        h.btn_pause = factory.create_button("");
         anchor_rect(h.btn_pause, {controls_x + kButtonWidth + kButtonGap, controls_y,
                                   kButtonWidth, kButtonHeight});
+        factory.set_button_icon(h.btn_pause, icons.play);
+        factory.set_button_icon_size(h.btn_pause, 16);
 
-        h.btn_next = factory.create_button("Next");
+        h.btn_next = factory.create_button("");
         anchor_rect(h.btn_next, {controls_x + (kButtonWidth + kButtonGap) * 2, controls_y,
                                  kButtonWidth, kButtonHeight});
+        factory.set_button_icon(h.btn_next, icons.next);
+        factory.set_button_icon_size(h.btn_next, 16);
 
         h.btn_mode = factory.create_button("Mode");
         anchor_rect(h.btn_mode, {controls_x + (kButtonWidth + kButtonGap) * 3, controls_y,
                                  kModeButtonWidth, kButtonHeight});
+        factory.set_button_icon(h.btn_mode, icons.loop);
+        factory.set_button_icon_size(h.btn_mode, 16);
 
         factory.link(h.root, h.cover);
         factory.link(h.root, h.title);

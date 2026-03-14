@@ -73,18 +73,16 @@ int main()
                         last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
                 }
                 if (daplink::usb_minimal::cdc_out_ready()) {
-                    const auto payload = daplink::usb_minimal::cdc_out_packet();
-                    if (!payload.empty()) {
-                        for (const auto byte : payload) {
-                        if (!uart_tx.push(byte)) {
+                const auto payload = daplink::usb_minimal::cdc_out_packet();
+                if (!payload.empty()) {
+                    for (std::size_t i = 0; i < payload.size(); ++i) {
+                        if (!uart_tx.push(payload[i])) {
                             break;
                         }
                     }
-                        daplink::usb_minimal::cdc_consume_out();
-                    } else {
-                        daplink::usb_minimal::cdc_consume_out();
-                    }
                 }
+                daplink::usb_minimal::cdc_consume_out();
+            }
 
                 if (daplink::board::cdc_uart_rx_ready()) {
                 (void)uart_rx.push(daplink::board::cdc_uart_read());

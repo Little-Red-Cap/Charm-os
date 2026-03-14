@@ -14,6 +14,15 @@ export namespace service {
     public:
         static_assert(Capacity >= 1);
 
+        enum class QueuePolicy : util::u8 {
+            irq_safe,
+            sched_safe,
+            no_lock,
+        };
+
+        RingQueue() noexcept = default;
+        explicit RingQueue(QueuePolicy policy) noexcept : policy_(policy) {}
+
         [[nodiscard]] bool push(T value) noexcept {
             if (count_ >= Capacity) {
                 return false;
@@ -42,10 +51,13 @@ export namespace service {
             return count_ == 0;
         }
 
+        QueuePolicy policy() const noexcept { return policy_; }
+
     private:
         std::array<T, Capacity> buffer_{};
         util::usize head_{0};
         util::usize tail_{0};
         util::usize count_{0};
+        QueuePolicy policy_{QueuePolicy::irq_safe};
     };
 }

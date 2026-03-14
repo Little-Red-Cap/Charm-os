@@ -47,6 +47,7 @@ export namespace block {
             for (auto& ep : devices_) {
                 ep = {};
             }
+            used_ = {};
             count_ = 0;
         }
 
@@ -61,7 +62,13 @@ export namespace block {
             if (count_ >= devices_.size()) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
-            devices_[count_++] = DeviceEndpoint{desc, &dev};
+            const auto slot = find_free_slot();
+            if (slot >= devices_.size()) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            devices_[slot] = DeviceEndpoint{desc, &dev};
+            mark_used(slot);
+            ++count_;
             return {};
         }
 
@@ -70,7 +77,8 @@ export namespace block {
             if (desc.name.empty() || desc.cap == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (devices_[i].desc.cap != desc.cap) continue;
                 if (devices_[i].desc.name.compare(desc.name) != 0) {
                     return util::unexpected(util::Errc::exist);
@@ -92,7 +100,8 @@ export namespace block {
         }
 
         const DeviceEndpoint* find_device(std::string_view name) const noexcept {
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (devices_[i].desc.name.compare(name) == 0) {
                     return &devices_[i];
                 }
@@ -101,7 +110,8 @@ export namespace block {
         }
 
         const DeviceEndpoint* find_device(CapId cap) const noexcept {
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
                 if (devices_[i].desc.cap == cap) return &devices_[i];
             }
             return nullptr;
@@ -111,7 +121,8 @@ export namespace block {
 
         void list_devices(VisitFn fn, void* ctx) const noexcept {
             if (!fn) return;
-            for (util::usize i = 0; i < count_; ++i) {
+            for (util::usize i = 0; i < devices_.size(); ++i) {
+                if (!is_used(i)) continue;
                 fn(ctx, devices_[i]);
             }
         }
@@ -120,7 +131,42 @@ export namespace block {
         util::usize capacity() const noexcept { return devices_.size(); }
 
     private:
+        static constexpr util::usize kWordBits = 32;
+        static constexpr util::usize kWordCount = (MaxDevices + kWordBits - 1) / kWordBits;
+
+        static constexpr util::usize word_index(util::usize idx) noexcept {
+            return idx / kWordBits;
+        }
+
+        static constexpr util::u32 bit_mask(util::usize idx) noexcept {
+            return static_cast<util::u32>(1u << (idx % kWordBits));
+        }
+
+        bool is_used(util::usize idx) const noexcept {
+            return (used_[word_index(idx)] & bit_mask(idx)) != 0u;
+        }
+
+        void mark_used(util::usize idx) noexcept {
+            used_[word_index(idx)] |= bit_mask(idx);
+        }
+
+        util::usize find_free_slot() const noexcept {
+            for (util::usize word = 0; word < used_.size(); ++word) {
+                const util::u32 used = used_[word];
+                const util::u32 free = ~used;
+                if (free == 0u) continue;
+                for (util::u32 bit = 0; bit < kWordBits; ++bit) {
+                    if ((free & (1u << bit)) == 0u) continue;
+                    const util::usize idx = word * kWordBits + bit;
+                    if (idx < devices_.size()) return idx;
+                    return devices_.size();
+                }
+            }
+            return devices_.size();
+        }
+
         std::array<DeviceEndpoint, MaxDevices> devices_{};
+        std::array<util::u32, kWordCount> used_{};
         util::usize count_{0};
     };
 

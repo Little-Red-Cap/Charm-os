@@ -52,6 +52,7 @@ int main()
         if (daplink::usb_minimal::take_reset()) {
             dap_state = {};
         }
+#if (CHARM_DAP_USB_PROFILE != 1)
         if (daplink::usb_minimal::out_ready()) {
             auto in = daplink::usb_minimal::out_packet();
             auto out = daplink::usb_minimal::in_packet();
@@ -59,5 +60,16 @@ int main()
             daplink::usb_minimal::send_in_packet(static_cast<std::uint16_t>(daplink::cmsis_dap::kPacketSize));
             daplink::usb_minimal::consume_out();
         }
+#endif
+#if (CHARM_DAP_USB_PROFILE != 0)
+        if (daplink::usb_minimal::cdc_out_ready()) {
+            const auto payload = daplink::usb_minimal::cdc_out_packet();
+            if (!payload.empty()) {
+                (void)daplink::usb_minimal::cdc_send_in(payload.data(),
+                                                       static_cast<std::uint16_t>(payload.size()));
+            }
+            daplink::usb_minimal::cdc_consume_out();
+        }
+#endif
     }
 }

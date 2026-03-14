@@ -2,6 +2,15 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#ifndef CHARM_DAP_ENABLE_SWO
+#define CHARM_DAP_ENABLE_SWO 0
+#endif
+#ifndef CHARM_DAP_ENABLE_SWO_STREAM
+#define CHARM_DAP_ENABLE_SWO_STREAM 0
+#endif
+#ifndef CHARM_DAP_ENABLE_DAP_UART
+#define CHARM_DAP_ENABLE_DAP_UART 0
+#endif
 export module daplink.cmsis_dap;
 
 
@@ -35,6 +44,12 @@ export namespace daplink::cmsis_dap {
         swd::Config swd_cfg{};
         std::uint16_t match_retry = 0;
         std::uint32_t match_mask = 0;
+#if CHARM_DAP_ENABLE_SWO
+        std::uint32_t swo_baudrate = 0;
+        std::uint8_t swo_mode = 0;
+        std::uint8_t swo_transport = 1;
+        std::uint8_t swo_status = 0;
+#endif
     };
 
     namespace detail {
@@ -52,6 +67,18 @@ export namespace daplink::cmsis_dap {
         constexpr std::uint8_t kCmsisDapSwjClock = 0x11;
         constexpr std::uint8_t kCmsisDapSwjSequence = 0x12;
         constexpr std::uint8_t kCmsisDapSwdConfigure = 0x13;
+        constexpr std::uint8_t kCmsisDapSwoTransport = 0x17;
+        constexpr std::uint8_t kCmsisDapSwoMode = 0x18;
+        constexpr std::uint8_t kCmsisDapSwoBaudrate = 0x19;
+        constexpr std::uint8_t kCmsisDapSwoControl = 0x1A;
+        constexpr std::uint8_t kCmsisDapSwoStatus = 0x1B;
+        constexpr std::uint8_t kCmsisDapSwoData = 0x1C;
+        constexpr std::uint8_t kCmsisDapSwoExtendedStatus = 0x1E;
+        constexpr std::uint8_t kCmsisDapUartTransport = 0x1F;
+        constexpr std::uint8_t kCmsisDapUartConfigure = 0x20;
+        constexpr std::uint8_t kCmsisDapUartTransfer = 0x21;
+        constexpr std::uint8_t kCmsisDapUartControl = 0x22;
+        constexpr std::uint8_t kCmsisDapUartStatus = 0x23;
         constexpr std::uint8_t kCmsisDapQueueCommands = 0x7E;
         constexpr std::uint8_t kCmsisDapExecuteCommands = 0x7F;
         constexpr std::uint8_t kCmsisDapInvalid = 0xFF;
@@ -61,10 +88,30 @@ export namespace daplink::cmsis_dap {
         constexpr std::uint8_t kDapInfoSerial = 3;
         constexpr std::uint8_t kDapInfoFwVersion = 4;
         constexpr std::uint8_t kDapInfoCapabilities = 0xF0;
+        constexpr std::uint8_t kDapInfoUartRxBufferSize = 0xFB;
+        constexpr std::uint8_t kDapInfoUartTxBufferSize = 0xFC;
+        constexpr std::uint8_t kDapInfoSwoBufferSize = 0xFD;
         constexpr std::uint8_t kDapInfoPacketCount = 0xFE;
         constexpr std::uint8_t kDapInfoPacketSize = 0xFF;
 
+        constexpr std::uint8_t kCapSwd = 1U << 0;
+        constexpr std::uint8_t kCapJtag = 1U << 1;
+        constexpr std::uint8_t kCapSwoUart = 1U << 2;
+        constexpr std::uint8_t kCapSwoManchester = 1U << 3;
+        constexpr std::uint8_t kCapAtomic = 1U << 4;
+        constexpr std::uint8_t kCapTimestamp = 1U << 5;
+        constexpr std::uint8_t kCapSwoStreaming = 1U << 6;
+        constexpr std::uint8_t kCapDapUart = 1U << 7;
+
+        constexpr std::uint8_t kCapabilities =
+            kCapSwd |
+            kCapAtomic |
+            (CHARM_DAP_ENABLE_SWO ? kCapSwoUart : 0U) |
+            (CHARM_DAP_ENABLE_SWO_STREAM ? kCapSwoStreaming : 0U) |
+            (CHARM_DAP_ENABLE_DAP_UART ? kCapDapUart : 0U);
+
         constexpr std::uint8_t kDapOk = 0x00;
+        constexpr std::uint8_t kDapError = 0xFF;
         constexpr std::uint8_t kDapPortDisabled = 0x00;
         constexpr std::uint8_t kDapPortSwd = 0x01;
         constexpr std::uint8_t kDapTransferOk = 0x01;
@@ -75,6 +122,13 @@ export namespace daplink::cmsis_dap {
         constexpr std::uint8_t kReqMatchValue = 1U << 4;
         constexpr std::uint8_t kReqMatchMask = 1U << 5;
         constexpr std::uint8_t kReqDpRdbuff = kReqRnw | (1U << 2) | (1U << 3);
+
+        constexpr std::uint8_t kSwoModeOff = 0;
+        constexpr std::uint8_t kSwoModeUart = 1;
+        constexpr std::uint8_t kSwoModeManchester = 2;
+        constexpr std::uint8_t kSwoCaptureActive = 1U << 0;
+        constexpr std::uint16_t kSwoBufferSize = 256;
+        constexpr std::uint16_t kUartBufferSize = 256;
 
         inline std::uint32_t read_le32(const std::uint8_t* p) noexcept {
             return static_cast<std::uint32_t>(p[0]) |
@@ -169,8 +223,32 @@ export namespace daplink::cmsis_dap {
                             len = fill_info(info.fw_version, &out[2]);
                             break;
                         case kDapInfoCapabilities:
-                            out[2] = 0x11;
+                            out[2] = kCapabilities;
                             len = 1;
+                            break;
+                        case kDapInfoUartRxBufferSize:
+#if CHARM_DAP_ENABLE_DAP_UART
+                            write_le32(&out[2], kUartBufferSize);
+                            len = 4;
+#else
+                            len = 0;
+#endif
+                            break;
+                        case kDapInfoUartTxBufferSize:
+#if CHARM_DAP_ENABLE_DAP_UART
+                            write_le32(&out[2], kUartBufferSize);
+                            len = 4;
+#else
+                            len = 0;
+#endif
+                            break;
+                        case kDapInfoSwoBufferSize:
+#if CHARM_DAP_ENABLE_SWO
+                            write_le32(&out[2], kSwoBufferSize);
+                            len = 4;
+#else
+                            len = 0;
+#endif
                             break;
                         case kDapInfoPacketCount:
                             out[2] = kPacketCount;
@@ -303,6 +381,135 @@ export namespace daplink::cmsis_dap {
                     state.swd_cfg.data_phase = (in[1] & 0x4U) != 0U;
                     out[1] = kDapOk;
                     return {2, 2, true};
+#if CHARM_DAP_ENABLE_SWO
+                case kCmsisDapSwoTransport: {
+                    if (in_size < 2 || out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    const auto transport = in[1];
+                    bool ok = false;
+                    if ((state.swo_status & kSwoCaptureActive) == 0U) {
+                        if (transport == 0U || transport == 1U) {
+                            state.swo_transport = transport;
+                            ok = true;
+                        } else if (CHARM_DAP_ENABLE_SWO_STREAM && transport == 2U) {
+                            state.swo_transport = transport;
+                            ok = true;
+                        }
+                    }
+                    out[1] = ok ? kDapOk : kDapError;
+                    return {2, 2, ok};
+                }
+                case kCmsisDapSwoMode: {
+                    if (in_size < 2 || out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    const auto mode = in[1];
+                    bool ok = false;
+                    if (mode == kSwoModeOff) {
+                        state.swo_mode = kSwoModeOff;
+                        state.swo_status = 0;
+                        ok = true;
+                    } else if (mode == kSwoModeUart) {
+                        state.swo_mode = kSwoModeUart;
+                        ok = true;
+                    }
+                    out[1] = ok ? kDapOk : kDapError;
+                    return {2, 2, ok};
+                }
+                case kCmsisDapSwoBaudrate: {
+                    if (in_size < 5 || out_size < 5) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    const auto baud = read_le32(&in[1]);
+                    if (state.swo_mode == kSwoModeUart && baud != 0U) {
+                        state.swo_baudrate = baud;
+                        write_le32(&out[1], baud);
+                        return {5, 5, true};
+                    }
+                    write_le32(&out[1], 0U);
+                    return {5, 5, false};
+                }
+                case kCmsisDapSwoControl: {
+                    if (in_size < 2 || out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    const bool active = (in[1] & kSwoCaptureActive) != 0U;
+                    bool ok = false;
+                    if (state.swo_mode != kSwoModeOff) {
+                        if (active) {
+                            state.swo_status = static_cast<std::uint8_t>(state.swo_status | kSwoCaptureActive);
+                        } else {
+                            state.swo_status = static_cast<std::uint8_t>(state.swo_status & ~kSwoCaptureActive);
+                        }
+                        ok = true;
+                    }
+                    out[1] = ok ? kDapOk : kDapError;
+                    return {2, 2, ok};
+                }
+                case kCmsisDapSwoStatus: {
+                    if (out_size < 6) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    out[1] = state.swo_status;
+                    write_le32(&out[2], 0U);
+                    return {1, 6, true};
+                }
+                case kCmsisDapSwoExtendedStatus: {
+                    if (in_size < 2 || out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    std::uint16_t out_idx = 1;
+                    const auto mask = in[1];
+                    if ((mask & 0x01U) != 0U) {
+                        if (out_idx >= out_size) {
+                            out[0] = kCmsisDapInvalid;
+                            return {1, 1, false};
+                        }
+                        out[out_idx++] = state.swo_status;
+                    }
+                    if ((mask & 0x02U) != 0U) {
+                        if ((out_idx + 3U) >= out_size) {
+                            out[0] = kCmsisDapInvalid;
+                            return {1, 1, false};
+                        }
+                        write_le32(&out[out_idx], 0U);
+                        out_idx = static_cast<std::uint16_t>(out_idx + 4U);
+                    }
+                    return {2, out_idx, true};
+                }
+                case kCmsisDapSwoData: {
+                    if (in_size < 3 || out_size < 4) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    const std::uint16_t max_count = static_cast<std::uint16_t>(in[1] | (in[2] << 8));
+                    (void)max_count;
+                    out[1] = state.swo_status;
+                    out[2] = 0;
+                    out[3] = 0;
+                    return {3, 4, true};
+                }
+#endif
+#if CHARM_DAP_ENABLE_DAP_UART
+                case kCmsisDapUartTransport:
+                case kCmsisDapUartConfigure:
+                case kCmsisDapUartTransfer:
+                case kCmsisDapUartControl:
+                case kCmsisDapUartStatus:
+                    if (out_size < 2) {
+                        out[0] = kCmsisDapInvalid;
+                        return {1, 1, false};
+                    }
+                    out[1] = kDapError;
+                    return {2, 2, false};
+#endif
                 case kCmsisDapTransfer: {
                     if (in_size < 3 || out_size < 3) {
                         out[0] = kCmsisDapInvalid;

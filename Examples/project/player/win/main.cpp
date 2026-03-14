@@ -196,7 +196,7 @@ namespace {
             return true;
         }
         case SDL_EVENT_MOUSE_WHEEL:
-            gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, evt.wheel.y));
+            gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, -evt.wheel.y));
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:

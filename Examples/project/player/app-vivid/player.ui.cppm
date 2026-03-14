@@ -36,6 +36,7 @@ import charm.widgets.battery_gasgauge;
 import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
+import charm.widgets.scroll_container;
 import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
@@ -441,6 +442,11 @@ export namespace player::ui {
             }
             sheet.set_base_style(kind, s);
         };
+
+        Style scroll_container = theme.get<ScrollContainer>();
+        scroll_container.colors.bg_color = kUiBackground;
+        scroll_container.colors.border_color = kUiBackground;
+        set_base(WidgetKind::ScrollContainer, scroll_container);
 
         Style progress_bar_simple = theme.get<ProgressBarSimple>();
         progress_bar_simple.colors.bg_color = kUiProgressBg;

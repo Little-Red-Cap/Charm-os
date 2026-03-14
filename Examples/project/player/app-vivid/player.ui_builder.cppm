@@ -23,9 +23,11 @@ export namespace player {
         };
 
         UiHandles h{};
-        h.root = factory.create_container();
+        h.root = factory.create_scroll_container();
         anchor_rect(h.root, {0, 0, screen_width, screen_height});
         kernel.set_input_root(h.root);
+        kernel.set_clip_children(h.root, true);
+        kernel.set_scroll_step(h.root, 28);
 
         const int cover_top = kUiPadding * 2;
         const int header_top = cover_top + kCoverSize;
@@ -34,8 +36,12 @@ export namespace player {
         const int spectrum_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
         const int eq_y = spectrum_y + kSpectrumHeight + kSpectrumGap;
         const int list_y = eq_y + kEqPanelHeight + kSpectrumGap;
-        const int list_h = screen_height - list_y - kListBottomReserve;
+        const int list_h = 320;
+        const int controls_y = list_y + list_h + kControlsBottomMargin;
+        const int content_h = controls_y + kButtonHeight + kControlsBottomMargin;
 
+        const WidgetHandle content = factory.create_container();
+        anchor_rect(content, {0, 0, screen_width, content_h});
         h.cover = factory.create_container();
         anchor_rect(h.cover, {(screen_width - kCoverSize) / 2, cover_top, kCoverSize, kCoverSize});
 
@@ -119,7 +125,6 @@ export namespace player {
         h.list_hint = factory.create_label("No tracks in /music or /");
         anchor_rect(h.list_hint, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
 
-        const int controls_y = screen_height - kControlsBottomMargin - kButtonHeight;
         const int controls_w = kButtonWidth * 3 + kButtonGap * 2 + kModeButtonWidth;
         const int controls_x = (screen_width - controls_w) / 2;
 
@@ -149,26 +154,27 @@ export namespace player {
         factory.set_button_icon(h.btn_mode, icons.loop);
         factory.set_button_icon_size(h.btn_mode, 16);
 
-        factory.link(h.root, h.cover);
-        factory.link(h.root, h.title);
-        factory.link(h.root, h.subtitle);
-        factory.link(h.root, h.progress);
-        factory.link(h.root, h.time);
-        factory.link(h.root, h.status);
-        factory.link(h.root, h.mode_hint);
-        factory.link(h.root, h.spectrum);
-        factory.link(h.root, h.eq_panel);
-        factory.link(h.root, h.eq_title);
+        factory.link(h.root, content);
+        factory.link(content, h.cover);
+        factory.link(content, h.title);
+        factory.link(content, h.subtitle);
+        factory.link(content, h.progress);
+        factory.link(content, h.time);
+        factory.link(content, h.status);
+        factory.link(content, h.mode_hint);
+        factory.link(content, h.spectrum);
+        factory.link(content, h.eq_panel);
+        factory.link(content, h.eq_title);
         for (std::size_t i = 0; i < kEqBands; ++i) {
-            factory.link(h.root, h.eq_labels[i]);
-            factory.link(h.root, h.eq_sliders[i]);
-            factory.link(h.root, h.eq_values[i]);
+            factory.link(content, h.eq_labels[i]);
+            factory.link(content, h.eq_sliders[i]);
+            factory.link(content, h.eq_values[i]);
         }
-        factory.link(h.root, h.list_title);
-        factory.link(h.root, h.list);
-        factory.link(h.root, h.list_scroll);
-        factory.link(h.root, h.list_hint);
-        factory.link(h.root, h.controls);
+        factory.link(content, h.list_title);
+        factory.link(content, h.list);
+        factory.link(content, h.list_scroll);
+        factory.link(content, h.list_hint);
+        factory.link(content, h.controls);
         factory.link(h.controls, h.btn_prev);
         factory.link(h.controls, h.btn_pause);
         factory.link(h.controls, h.btn_next);

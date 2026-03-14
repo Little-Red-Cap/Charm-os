@@ -32,6 +32,8 @@ import charm.gfx.color;
 import charm.gfx.draw_cmd;
 import charm.gfx.framebuffer;
 import charm.font.typography;
+import charm.font.font_noto_ascii_16;
+import charm.font.font_noto_sc_16;
 import out.api;
 import example.pc.console;
 
@@ -342,6 +344,11 @@ int main(int argc, char** argv) {
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
     auto& theme = Theme::instance();
+    set_default_font(FontId::Small, &font_noto_ascii_16);
+    set_default_font(FontId::Normal, &font_noto_ascii_16);
+    set_default_font(FontId::Large, &font_noto_ascii_16);
+    set_default_font(FontId::Mono, &font_noto_ascii_16);
+    set_default_fallback_font(&font_noto_sc_16);
     theme.set_default_font(get_font(FontId::Normal));
     apply_player_theme();
 

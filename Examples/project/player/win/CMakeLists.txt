@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 26)
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 
-set(PLAYER_MAIN_VIVID main.cpp)
+set(PLAYER_MAIN_VIVID main_soa.cpp)
 set(PLAYER_MAIN_INK main_ink.cpp)
 set(PLAYER_TARGET_VIVID charm-player-win-vivid)
 set(PLAYER_TARGET_INK charm-player-win-ink)

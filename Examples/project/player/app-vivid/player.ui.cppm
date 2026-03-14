@@ -12,6 +12,7 @@ import charm.core.theme_preset;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.font;
+import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import charm.widgets.button;
@@ -367,6 +368,12 @@ export namespace player::ui {
     }
 
     inline void apply_player_theme() {
+        set_default_font(FontId::Small, &font_noto_ascii_16);
+        set_default_font(FontId::Normal, &font_noto_ascii_16);
+        set_default_font(FontId::Large, &font_noto_ascii_16);
+        set_default_font(FontId::Mono, &font_noto_ascii_16);
+        set_default_fallback_font(&font_noto_sc_16);
+
         auto& theme = Theme::instance();
         theme.set_default_font(player_default_font());
         Style baseline = theme.get<Button>();

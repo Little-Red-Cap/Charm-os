@@ -21,26 +21,13 @@ import charm.core.soa_kernel;
 import charm.core.soa_payload;
 import fs_core;
 import fs_vfs;
+import player.playback;
 import player.fs_utils;
 import player.ui;
 
 export namespace player {
     using namespace player::fs_utils;
     using namespace player::ui;
-
-    const char* audio_err_text(audio::Errc err) {
-        switch (err) {
-        case audio::Errc::ok: return "ok";
-        case audio::Errc::invalid_arg: return "invalid_arg";
-        case audio::Errc::not_supported: return "not_supported";
-        case audio::Errc::io_error: return "io_error";
-        case audio::Errc::decode_error: return "decode_error";
-        case audio::Errc::bad_state: return "bad_state";
-        case audio::Errc::timeout: return "timeout";
-        case audio::Errc::end_of_stream: return "end_of_stream";
-        }
-        return "unknown";
-    }
 
     struct UiHandles {
         WidgetHandle root{};
@@ -69,15 +56,11 @@ export namespace player {
     };
 
     struct PlayerController {
-        audio::AudioPlayer* player{nullptr};
+        PlaybackEngine playback{};
         SoaKernel* kernel{nullptr};
         UiHandles handles{};
         PlayerIconIds icons{};
-        bool playing{false};
         bool track_ready{false};
-        std::chrono::steady_clock::time_point start{};
-        int duration_sec{180};
-        int current_sec{0};
         int last_time_sec{-1};
         const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
@@ -85,10 +68,8 @@ export namespace player {
         int track_index{0};
         std::string title_text{};
         std::string subtitle_text{};
-        bool paused{false};
         bool fs_ready{false};
         int play_mode{0};
-        bool duration_ready{false};
         bool ignore_list_select{false};
         int last_list_selected{-1};
         bool progress_dragging{false};
@@ -118,6 +99,10 @@ export namespace player {
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
+        }
+
+        void bind_player(audio::AudioPlayer& p) {
+            playback.set_player(p);
         }
 
         void init_text_slots() {
@@ -154,6 +139,51 @@ export namespace player {
 
         void set_status(const char* text) { set_label_slot(handles.status, text_slots.status, text); }
 
+        bool is_playing() const noexcept { return playback.playing(); }
+        bool is_paused() const noexcept { return playback.paused(); }
+
+        void on_player_stopped() {
+            playback.stop_playback();
+            set_status("Stopped");
+            set_play_button_text(false);
+        }
+
+        void on_player_error(const char* text) {
+            playback.stop_playback();
+            set_status(text);
+            set_play_button_text(false);
+        }
+
+        void tick_player(const audio::AudioPlayer& player) {
+            if (playback.playing() && !player.is_running()) {
+                if (player.state() == audio::PlayerState::error) {
+                    on_player_stopped();
+                } else {
+                    handle_track_end();
+                }
+            }
+            if (!playback.paused()) {
+                const auto st = player.state();
+                if (st == audio::PlayerState::opening) {
+                    set_status("Opening");
+                } else if (st == audio::PlayerState::buffering) {
+                    set_status("Buffering");
+                } else if (st == audio::PlayerState::playing) {
+                    set_status("Playing");
+                }
+            }
+            if (player.state() == audio::PlayerState::error) {
+                const auto err = player.last_error();
+                const auto stage = player.last_error_stage();
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
+                              player::audio_err_text(err), player::audio_stage_text(stage));
+                on_player_error(buf);
+            }
+            update_duration_from_player();
+            update_progress();
+        }
+
         void set_play_button_text(bool playing_now) {
             if (!kernel) return;
             kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
@@ -162,10 +192,9 @@ export namespace player {
 
         void set_time_label(int elapsed_sec) {
             if (elapsed_sec == last_time_sec) return;
-            current_sec = elapsed_sec;
             last_time_sec = elapsed_sec;
             char buf[32]{};
-            const int total = duration_sec;
+            const int total = playback.duration_sec();
             const int cur_m = elapsed_sec / 60;
             const int cur_s = elapsed_sec % 60;
             const int total_m = total / 60;
@@ -175,8 +204,7 @@ export namespace player {
         }
 
         void reset_duration() {
-            duration_ready = false;
-            duration_sec = 180;
+            playback.reset_duration();
             last_time_sec = -1;
         }
 
@@ -311,31 +339,24 @@ export namespace player {
         }
 
         void update_duration_from_player() {
-            if (duration_ready || !player) return;
-            const auto total = player->total_frames();
-            const auto fmt = player->input_format();
-            if (total == 0 || fmt.rate == 0) return;
-            const auto secs = static_cast<int>(total / fmt.rate);
-            duration_sec = (secs > 0) ? secs : 1;
-            duration_ready = true;
-            if (current_sec > duration_sec) {
-                set_time_label(duration_sec);
+            if (!playback.update_duration_from_player()) return;
+            const int dur = playback.duration_sec();
+            if (progress_dragging) return;
+            const int cur = playback.current_sec();
+            if (cur > dur) {
+                set_time_label(dur);
                 sync_progress_value(100);
             } else {
-                set_time_label(current_sec);
+                set_time_label(cur);
             }
         }
 
         bool update_progress() {
-            if (!playing || !kernel || progress_dragging) return false;
-            const auto now = std::chrono::steady_clock::now();
-            const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
-            const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
-            const int value = (duration_sec > 0)
-                ? static_cast<int>((clamped * 100) / duration_sec)
-                : 0;
-            kernel->set_value(handles.progress, value);
-            set_time_label(clamped);
+            if (!kernel || progress_dragging) return false;
+            auto upd = playback.update_progress();
+            if (!upd.updated) return false;
+            kernel->set_value(handles.progress, upd.value);
+            set_time_label(upd.current_sec);
             return true;
         }
 
@@ -345,16 +366,13 @@ export namespace player {
         }
 
         bool is_seek_ready() const {
-            if (!player) return false;
-            const auto st = player->state();
-            return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
+            return playback.is_seek_ready();
         }
 
         bool request_seek(int target_sec) {
-            if (!player || target_sec < 0) return false;
-            const auto res = player->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
-            if (!res) {
-                set_status("Seek unsupported");
+            std::string status;
+            if (!playback.request_seek(target_sec, status)) {
+                if (!status.empty()) set_status(status.c_str());
                 return false;
             }
             set_status("Playing");
@@ -370,6 +388,7 @@ export namespace player {
         }
 
         int progress_sec_from_value(int value) const {
+            const int duration_sec = playback.duration_sec();
             if (duration_sec <= 0) return 0;
             const int clamped = std::clamp(value, 0, 100);
             return (clamped * duration_sec) / 100;
@@ -387,8 +406,7 @@ export namespace player {
             progress_dragging = false;
             if (apply_seek && is_seek_ready()) {
                 if (request_seek(progress_drag_sec)) {
-                    current_sec = progress_drag_sec;
-                    start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
+                    playback.set_current_sec(progress_drag_sec);
                 }
             }
         }
@@ -398,68 +416,35 @@ export namespace player {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return;
             }
-            if (!player || !track_path) {
-                set_status("No track");
+            playback.set_track_path(track_path);
+            playback.set_track_ready(track_ready);
+            std::string status;
+            if (!playback.start_playback(status)) {
+                set_status(status.c_str());
                 return;
             }
-            if (!track_ready) {
-                set_status("Track not ready");
-                return;
-            }
-            (void)player->stop();
-            auto res = player->play(track_path);
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
-                set_status(buf);
-                return;
-            }
-            playing = true;
-            paused = false;
-            start = std::chrono::steady_clock::now();
-            set_status("Opening");
+            set_status(status.c_str());
             set_play_button_text(true);
             set_time_label(0);
             sync_progress_value(0);
         }
 
         void pause_playback() {
-            if (!player || !playing) return;
-            auto res = player->pause();
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error()));
-                set_status(buf);
-                return;
-            }
-            playing = false;
-            paused = true;
-            set_status("Paused");
+            std::string status;
+            if (!playback.pause_playback(status)) return;
+            set_status(status.c_str());
             set_play_button_text(false);
         }
 
         void resume_playback() {
-            if (!player || !paused) return;
-            auto res = player->resume();
-            if (!res) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error()));
-                set_status(buf);
-                return;
-            }
-            paused = false;
-            playing = true;
-            start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
-            set_status("Playing");
+            std::string status;
+            if (!playback.resume_playback(status)) return;
+            set_status(status.c_str());
             set_play_button_text(true);
         }
 
         void stop_playback() {
-            if (player) {
-                (void)player->stop();
-            }
-            playing = false;
-            paused = false;
+            playback.stop_playback();
             set_status("Stopped");
             set_play_button_text(false);
             set_time_label(0);
@@ -519,11 +504,11 @@ export namespace player {
                 std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
                 set_status(buf);
             }
+            playback.set_track_path(track_path);
+            playback.set_track_ready(track_ready);
             set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
-            playing = false;
-            paused = false;
             reset_duration();
             last_time_sec = -1;
             sync_list_selection();
@@ -540,7 +525,7 @@ export namespace player {
             int next = track_index + delta;
             if (next < 0) next = count - 1;
             if (next >= count) next = 0;
-            const bool was_active = playing || paused;
+            const bool was_active = playback.playing() || playback.paused();
             stop_playback();
             load_track_index(next);
             if (was_active && track_ready) {
@@ -554,8 +539,8 @@ export namespace player {
                 return;
             }
             if (!tracks || tracks->empty()) return;
-            const bool was_playing = playing;
-            const bool was_paused = paused;
+            const bool was_playing = playback.playing();
+            const bool was_paused = playback.paused();
             stop_playback();
             load_track_index(idx);
             if (was_playing && track_ready) {
@@ -645,8 +630,8 @@ export namespace player {
                     } else if (target == handles.btn_next) {
                         switch_track(1);
                     } else if (target == handles.btn_pause) {
-                        if (playing) pause_playback();
-                        else if (paused) resume_playback();
+                        if (playback.playing()) pause_playback();
+                        else if (playback.paused()) resume_playback();
                         else start_playback();
                     } else if (target == handles.btn_mode) {
                         cycle_play_mode();

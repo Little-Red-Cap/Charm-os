@@ -3,6 +3,7 @@ import audio.result;
 import player.controller;
 import player.fs_utils;
 import player.media_scan;
+import player.playback;
 import player.ui_builder;
 import player.ui;
 import charm.core.config;
@@ -70,26 +71,6 @@ namespace {
     static PlayerUiContext g_ctx{};
     static std::array<float, 24> g_spectrum{};
 
-    const char* audio_stage_text(audio::PlayerErrorStage stage) {
-        switch (stage) {
-        case audio::PlayerErrorStage::none: return "none";
-        case audio::PlayerErrorStage::open_source: return "open_source";
-        case audio::PlayerErrorStage::unsupported_format: return "unsupported_format";
-        case audio::PlayerErrorStage::decode_open: return "decode_open";
-        case audio::PlayerErrorStage::wav_parse: return "wav_parse";
-        case audio::PlayerErrorStage::wav_bits: return "wav_bits";
-        case audio::PlayerErrorStage::channel_convert: return "channel_convert";
-        case audio::PlayerErrorStage::buffer_config: return "buffer_config";
-        case audio::PlayerErrorStage::sink_open: return "sink_open";
-        case audio::PlayerErrorStage::buffer_alloc: return "buffer_alloc";
-        case audio::PlayerErrorStage::sink_start: return "sink_start";
-        case audio::PlayerErrorStage::seek: return "seek";
-        case audio::PlayerErrorStage::resume: return "resume";
-        case audio::PlayerErrorStage::reconfigure: return "reconfigure";
-        }
-        return "unknown";
-    }
-
     void update_spectrum(float t_sec, bool active) {
         const float base_speed = 2.2f;
         for (std::size_t i = 0; i < g_spectrum.size(); ++i) {
@@ -108,7 +89,7 @@ namespace {
         const int cover_radius = 18;
         out.fill_round_rect(cover, cover_radius, kUiCover);
         rgba cover_ring = kUiOk;
-        if (ctx.playing) {
+        if (ctx.is_playing()) {
             const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
             cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
         } else {
@@ -225,8 +206,8 @@ namespace {
                 return true;
             }
             if (evt.key.key == SDLK_SPACE) {
-                if (ctx.playing) ctx.pause_playback();
-                else if (ctx.paused) ctx.resume_playback();
+                if (ctx.is_playing()) ctx.pause_playback();
+                else if (ctx.is_paused()) ctx.resume_playback();
                 else ctx.start_playback();
                 return true;
             }
@@ -299,7 +280,7 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_ctx.player = &g_player;
+    g_ctx.bind_player(g_player);
     g_ctx.bind_kernel(g_kernel);
     g_ctx.track_path = nullptr;
     g_ctx.tracks = &g_vfs_tracks;
@@ -362,44 +343,12 @@ int main(int argc, char** argv) {
         }
 
         g_player.tick();
-        if (g_ctx.playing && !g_player.is_running()) {
-            if (g_player.state() == audio::PlayerState::error) {
-                g_ctx.playing = false;
-                g_ctx.paused = false;
-                g_ctx.set_status("Stopped");
-                g_ctx.set_play_button_text(false);
-            } else {
-                g_ctx.handle_track_end();
-            }
-        }
-        if (!g_ctx.paused) {
-            const auto st = g_player.state();
-            if (st == audio::PlayerState::opening) {
-                g_ctx.set_status("Opening");
-            } else if (st == audio::PlayerState::buffering) {
-                g_ctx.set_status("Buffering");
-            } else if (st == audio::PlayerState::playing) {
-                g_ctx.set_status("Playing");
-            }
-        }
-        if (g_player.state() == audio::PlayerState::error) {
-            g_ctx.playing = false;
-            g_ctx.paused = false;
-            const auto err = g_player.last_error();
-            const auto stage = g_player.last_error_stage();
-            char buf[96]{};
-            std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
-                          player::audio_err_text(err), audio_stage_text(stage));
-            g_ctx.set_status(buf);
-            g_ctx.set_play_button_text(false);
-        }
-        g_ctx.update_duration_from_player();
-        g_ctx.update_progress();
+        g_ctx.tick_player(g_player);
 
         g_framebuffer.clear(kUiBackground);
         g_canvas.begin_frame();
         gui.record_commands(cmd_buf);
-        update_spectrum(static_cast<float>(SDL_GetTicks()) * 0.001f, g_ctx.playing);
+        update_spectrum(static_cast<float>(SDL_GetTicks()) * 0.001f, g_ctx.is_playing() || g_ctx.is_paused());
         draw_player_fx(cmd_buf, g_ctx, g_kernel, static_cast<float>(SDL_GetTicks()) * 0.001f);
         cmd_exec.execute(g_canvas, cmd_buf);
         g_canvas.end_frame();

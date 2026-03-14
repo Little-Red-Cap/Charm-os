@@ -1,4 +1,5 @@
 ﻿module;
+#include <array>
 #include <cstdint>
 
 export module player.ui_builder;
@@ -30,7 +31,9 @@ export namespace player {
         const int header_top = cover_top + kCoverSize;
         const int mode_y = header_top + kHeaderModeOffset;
         const int mode_hint_y = mode_y + kModeHeight + kModeHintGap;
-        const int list_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
+        const int spectrum_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
+        const int eq_y = spectrum_y + kSpectrumHeight + kSpectrumGap;
+        const int list_y = eq_y + kEqPanelHeight + kSpectrumGap;
         const int list_h = screen_height - list_y - kListBottomReserve;
 
         h.cover = factory.create_container();
@@ -49,6 +52,7 @@ export namespace player {
                                  screen_width - kUiPadding * 2, 16});
         kernel.set_range(h.progress, 0, 100);
         kernel.set_value(h.progress, 0);
+        kernel.set_hit_testable(h.progress, true);
 
         h.time = factory.create_label("0:00 / 3:00");
         anchor_rect(h.time, {kUiPadding, header_top + kHeaderTimeOffset,
@@ -61,6 +65,42 @@ export namespace player {
         h.mode_hint = factory.create_label("Mode: Order");
         anchor_rect(h.mode_hint, {kUiPadding, mode_hint_y,
                                   screen_width - kUiPadding * 2, kModeHintHeight});
+
+        h.spectrum = factory.create_container();
+        anchor_rect(h.spectrum, {kUiPadding, spectrum_y,
+                                 screen_width - kUiPadding * 2, kSpectrumHeight});
+        kernel.set_hit_testable(h.spectrum, false);
+
+        h.eq_panel = factory.create_container();
+        anchor_rect(h.eq_panel, {kUiPadding, eq_y,
+                                 screen_width - kUiPadding * 2, kEqPanelHeight});
+        kernel.set_hit_testable(h.eq_panel, false);
+
+        h.eq_title = factory.create_label("EQ");
+        anchor_rect(h.eq_title, {kUiPadding, eq_y,
+                                 screen_width - kUiPadding * 2, kEqTitleHeight});
+
+        constexpr std::array<const char*, kEqBands> kEqLabels{
+            "60", "250", "1K", "4K", "16K"
+        };
+        for (std::size_t i = 0; i < kEqBands; ++i) {
+            const int row_y = eq_y + kEqTitleHeight + kEqRowGap
+                + static_cast<int>(i) * (kEqRowHeight + kEqRowGap);
+            h.eq_labels[i] = factory.create_label(kEqLabels[i]);
+            anchor_rect(h.eq_labels[i], {kUiPadding, row_y, kEqLabelWidth, kEqRowHeight});
+
+            const int slider_x = kUiPadding + kEqLabelWidth + kEqRowGapX;
+            const int slider_w = screen_width - kUiPadding * 2
+                - kEqLabelWidth - kEqValueWidth - kEqRowGapX * 2;
+            h.eq_sliders[i] = factory.create_slider();
+            anchor_rect(h.eq_sliders[i], {slider_x, row_y, slider_w, kEqRowHeight});
+            kernel.set_range(h.eq_sliders[i], -12, 12);
+            kernel.set_value(h.eq_sliders[i], 0);
+
+            h.eq_values[i] = factory.create_label("0");
+            anchor_rect(h.eq_values[i], {slider_x + slider_w + kEqRowGapX, row_y,
+                                          kEqValueWidth, kEqRowHeight});
+        }
 
         h.list_title = factory.create_label("Tracks");
         anchor_rect(h.list_title, {kUiPadding, list_y - kListTitleGap,
@@ -108,6 +148,14 @@ export namespace player {
         factory.link(h.root, h.time);
         factory.link(h.root, h.status);
         factory.link(h.root, h.mode_hint);
+        factory.link(h.root, h.spectrum);
+        factory.link(h.root, h.eq_panel);
+        factory.link(h.root, h.eq_title);
+        for (std::size_t i = 0; i < kEqBands; ++i) {
+            factory.link(h.root, h.eq_labels[i]);
+            factory.link(h.root, h.eq_sliders[i]);
+            factory.link(h.root, h.eq_values[i]);
+        }
         factory.link(h.root, h.list_title);
         factory.link(h.root, h.list);
         factory.link(h.root, h.list_scroll);

@@ -35,7 +35,9 @@ import platform.win.time_source;
 #undef WIN32_LEAN_AND_MEAN
 #endif
 
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
@@ -65,6 +67,7 @@ namespace {
     using UiHandles = player::UiHandles;
 
     static PlayerUiContext g_ctx{};
+    static std::array<float, 24> g_spectrum{};
 
     const char* audio_stage_text(audio::PlayerErrorStage stage) {
         switch (stage) {
@@ -84,6 +87,51 @@ namespace {
         case audio::PlayerErrorStage::reconfigure: return "reconfigure";
         }
         return "unknown";
+    }
+
+    void update_spectrum(float t_sec, bool active) {
+        const float base_speed = 2.2f;
+        for (std::size_t i = 0; i < g_spectrum.size(); ++i) {
+            const float phase = t_sec * base_speed + static_cast<float>(i) * 0.35f;
+            const float wave = 0.5f + 0.5f * std::sin(phase);
+            const float target = active ? (0.12f + wave * 0.88f) : 0.05f;
+            g_spectrum[i] = g_spectrum[i] * 0.82f + target * 0.18f;
+        }
+    }
+
+    void draw_player_fx(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                        const PlayerUiContext& ctx,
+                        const SoaKernel& kernel,
+                        float t_sec) {
+        const Rect cover = kernel.world_rect(ctx.handles.cover);
+        const int cover_radius = 18;
+        out.fill_round_rect(cover, cover_radius, kUiCover);
+        rgba cover_ring = kUiOk;
+        if (ctx.playing) {
+            const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
+            cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
+        } else {
+            cover_ring.a = 70;
+        }
+        out.stroke_round_rect(cover, cover_radius, cover_ring);
+
+        const Rect spec = kernel.world_rect(ctx.handles.spectrum);
+        if (spec.w > 0 && spec.h > 0) {
+            out.fill_round_rect(spec, 10, kUiListBg);
+            out.stroke_round_rect(spec, 10, kUiListBorder);
+            const int bar_count = static_cast<int>(g_spectrum.size());
+            const int gap = 2;
+            const int bar_w = std::max(2, (spec.w - gap * (bar_count - 1)) / bar_count);
+            int x = spec.x;
+            for (int i = 0; i < bar_count; ++i) {
+                const float v = g_spectrum[static_cast<std::size_t>(i)];
+                const int h = static_cast<int>(v * static_cast<float>(spec.h - 8));
+                const int y = spec.y + spec.h - 4 - h;
+                const Rect bar{ x, y, bar_w, h };
+                out.fill_round_rect(bar, 3, kUiSwitchOn);
+                x += bar_w + gap;
+            }
+        }
     }
 
     void dispatch_raw_event(SoaGui& gui, PlayerUiContext& ctx, const input::RawInputEvent& ev) {
@@ -372,6 +420,8 @@ int main(int argc, char** argv) {
         g_framebuffer.clear(kUiBackground);
         g_canvas.begin_frame();
         gui.record_commands(cmd_buf);
+        update_spectrum(static_cast<float>(SDL_GetTicks()) * 0.001f, g_ctx.playing);
+        draw_player_fx(cmd_buf, g_ctx, g_kernel, static_cast<float>(SDL_GetTicks()) * 0.001f);
         cmd_exec.execute(g_canvas, cmd_buf);
         g_canvas.end_frame();
 

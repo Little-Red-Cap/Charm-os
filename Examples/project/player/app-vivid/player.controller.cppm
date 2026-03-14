@@ -1,4 +1,5 @@
 ﻿module;
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cctype>
@@ -14,6 +15,7 @@ export module player.controller;
 import audio.player;
 import audio.result;
 import charm.core.event;
+import charm.core.geometry;
 import charm.core.handle;
 import charm.core.soa_kernel;
 import fs_core;
@@ -47,6 +49,12 @@ export namespace player {
         WidgetHandle status{};
         WidgetHandle progress{};
         WidgetHandle time{};
+        WidgetHandle spectrum{};
+        WidgetHandle eq_panel{};
+        WidgetHandle eq_title{};
+        std::array<WidgetHandle, kEqBands> eq_labels{};
+        std::array<WidgetHandle, kEqBands> eq_sliders{};
+        std::array<WidgetHandle, kEqBands> eq_values{};
         WidgetHandle list{};
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
@@ -80,6 +88,10 @@ export namespace player {
         bool duration_ready{false};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        bool progress_dragging{false};
+        int progress_drag_value{0};
+        int progress_drag_sec{0};
+        std::array<int, kEqBands> last_eq_values{};
         std::string mount_status{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
@@ -257,7 +269,7 @@ export namespace player {
         }
 
         bool update_progress() {
-            if (!playing || !kernel) return false;
+            if (!playing || !kernel || progress_dragging) return false;
             const auto now = std::chrono::steady_clock::now();
             const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count());
             const int clamped = (elapsed > duration_sec) ? duration_sec : elapsed;
@@ -289,6 +301,38 @@ export namespace player {
             }
             set_status("Playing");
             return true;
+        }
+
+        int progress_value_from_x(int x) const {
+            if (!kernel) return 0;
+            const Rect r = kernel->world_rect(handles.progress);
+            if (r.w <= 1) return 0;
+            const int dx = std::clamp(x - r.x, 0, r.w);
+            return (dx * 100) / r.w;
+        }
+
+        int progress_sec_from_value(int value) const {
+            if (duration_sec <= 0) return 0;
+            const int clamped = std::clamp(value, 0, 100);
+            return (clamped * duration_sec) / 100;
+        }
+
+        void update_progress_drag(int x) {
+            progress_drag_value = progress_value_from_x(x);
+            progress_drag_sec = progress_sec_from_value(progress_drag_value);
+            sync_progress_value(progress_drag_value);
+            set_time_label(progress_drag_sec);
+        }
+
+        void end_progress_drag(bool apply_seek) {
+            if (!progress_dragging) return;
+            progress_dragging = false;
+            if (apply_seek && is_seek_ready()) {
+                if (request_seek(progress_drag_sec)) {
+                    current_sec = progress_drag_sec;
+                    start = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec);
+                }
+            }
         }
 
         void start_playback() {
@@ -472,23 +516,57 @@ export namespace player {
             set_play_mode((play_mode + 1) % 3);
         }
 
+        void sync_eq_values() {
+            if (!kernel) return;
+            for (std::size_t i = 0; i < kEqBands; ++i) {
+                if (!handles.eq_sliders[i] || !handles.eq_values[i]) continue;
+                const int value = kernel->value(handles.eq_sliders[i]);
+                if (value == last_eq_values[i]) continue;
+                last_eq_values[i] = value;
+                char buf[16]{};
+                std::snprintf(buf, sizeof(buf), "%+d", value);
+                set_label(handles.eq_values[i], buf);
+            }
+        }
+
         void process_input_events() {
             if (!kernel) return;
             const std::size_t count = kernel->input_event_count();
             for (std::size_t i = 0; i < count; ++i) {
                 const auto& item = kernel->input_event(i);
-                if (item.event.type != Event::Type::MouseUp) continue;
                 const auto target = item.target;
-                if (target == handles.btn_prev) {
-                    switch_track(-1);
-                } else if (target == handles.btn_next) {
-                    switch_track(1);
-                } else if (target == handles.btn_pause) {
-                    if (playing) pause_playback();
-                    else if (paused) resume_playback();
-                    else start_playback();
-                } else if (target == handles.btn_mode) {
-                    cycle_play_mode();
+                const auto type = item.event.type;
+                if (target == handles.progress) {
+                    if (type == Event::Type::MouseDown) {
+                        progress_dragging = true;
+                        update_progress_drag(item.event.x);
+                    } else if (type == Event::Type::DragStart || type == Event::Type::DragMove
+                               || type == Event::Type::MouseMove) {
+                        if (progress_dragging) {
+                            update_progress_drag(item.event.x);
+                        }
+                    } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
+                        if (progress_dragging) {
+                            update_progress_drag(item.event.x);
+                            end_progress_drag(true);
+                        }
+                    } else if (type == Event::Type::Cancel) {
+                        end_progress_drag(false);
+                    }
+                    continue;
+                }
+                if (type == Event::Type::MouseUp) {
+                    if (target == handles.btn_prev) {
+                        switch_track(-1);
+                    } else if (target == handles.btn_next) {
+                        switch_track(1);
+                    } else if (target == handles.btn_pause) {
+                        if (playing) pause_playback();
+                        else if (paused) resume_playback();
+                        else start_playback();
+                    } else if (target == handles.btn_mode) {
+                        cycle_play_mode();
+                    }
                 }
             }
 
@@ -501,6 +579,8 @@ export namespace player {
                     }
                 }
             }
+
+            sync_eq_values();
         }
     };
 }

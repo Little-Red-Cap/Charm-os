@@ -453,6 +453,15 @@ export namespace daplink::usb_minimal {
 
     constexpr std::size_t hid_packet_size = kHidPacketSize;
 
+#if CHARM_DAP_USB_ENABLE_CDC
+    struct cdc_line_config {
+        std::uint32_t baud = 115200;
+        std::uint8_t stop_bits = 0;
+        std::uint8_t parity = 0;
+        std::uint8_t data_bits = 8;
+    };
+#endif
+
     inline bool attach(PCD_HandleTypeDef& hpcd) noexcept {
         g_state.hpcd = &hpcd;
         const auto r0 = HAL_PCDEx_PMAConfig(&hpcd, 0x00, PCD_SNG_BUF, kPmaEp0Out);
@@ -872,6 +881,15 @@ export namespace daplink::usb_minimal {
             return false;
         }
         return cdc_in_send(*g_state.hpcd, data, len);
+    }
+
+    inline cdc_line_config cdc_line() noexcept {
+        return {
+            g_state.cdc_line.dwDTERate,
+            g_state.cdc_line.bCharFormat,
+            g_state.cdc_line.bParityType,
+            g_state.cdc_line.bDataBits
+        };
     }
 #endif
 

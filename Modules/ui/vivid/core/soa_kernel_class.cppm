@@ -611,7 +611,11 @@ public:
         return (idx == kInvalidIndex) ? std::uint8_t{0} : common_.variant[idx];
     }
 
+    soa_detail::TextSlotId alloc_text_slot() noexcept;
+    void free_text_slot(soa_detail::TextSlotId slot) noexcept;
     void set_text(WidgetHandle h, const char* text) noexcept ;
+    void set_text_static(WidgetHandle h, const char* text) noexcept;
+    void set_text_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) noexcept;
     const char* text(WidgetHandle h) const noexcept ;
     void set_image(WidgetHandle h, soa_detail::ImageId image) noexcept ;
     soa_detail::ImageId image(WidgetHandle h) const noexcept ;

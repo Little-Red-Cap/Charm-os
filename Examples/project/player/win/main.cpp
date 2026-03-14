@@ -132,6 +132,7 @@ namespace {
                 x += bar_w + gap;
             }
         }
+
     }
 
     void dispatch_raw_event(SoaGui& gui, PlayerUiContext& ctx, const input::RawInputEvent& ev) {
@@ -306,6 +307,7 @@ int main(int argc, char** argv) {
 
     g_ctx.icons = register_player_icons();
     g_ctx.handles = build_ui(g_factory, g_ctx, g_ctx.icons);
+    g_ctx.init_text_slots();
     g_ctx.focus_list();
     g_ctx.set_time_label(0);
     g_ctx.mount_status = "Mounting VHD...";

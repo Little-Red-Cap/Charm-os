@@ -421,7 +421,6 @@ export namespace player::ui {
         preset.list_view = theme.get<ListView>();
         preset.list_view.colors.bg_color = kUiListBg;
         preset.list_view.colors.border_color = kUiListBorder;
-        preset.list_view.colors.accent_color = kUiButtonHover;
         preset.list_view.colors.on_accent = kUiListFont;
         preset.list_view.metrics.corner_radius = 6;
         preset.list_view.metrics.padding = 6;

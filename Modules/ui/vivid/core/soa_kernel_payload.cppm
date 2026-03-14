@@ -14,10 +14,184 @@ import charm.core.style;
 import charm.core.style_sheet;
 import alg_list_scroll;
 
+    soa_detail::TextSlotId SoaKernel::alloc_text_slot() noexcept {
+        return payloads_.alloc_text_slot();
+    }
+
+    void SoaKernel::free_text_slot(soa_detail::TextSlotId slot) noexcept {
+        payloads_.free_text_slot(slot);
+    }
+
     void SoaKernel::set_text(WidgetHandle h, const char* text) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto id = payloads_.store_text(text);
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Label: {
+            auto* payload = payload_get<soa_detail::LabelPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Button: {
+            auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextInput: {
+            auto* payload = payload_get<soa_detail::TextInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextArea: {
+            auto* payload = payload_get<soa_detail::TextAreaPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::NumberInput: {
+            auto* payload = payload_get<soa_detail::NumberInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            auto* payload = payload_get<soa_detail::RadioPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (payload->count == 0) {
+                payload->count = 1;
+            }
+            payload->items[0] = id;
+            break;
+        }
+        case soa_detail::PayloadKind::None:
+        case soa_detail::PayloadKind::Image:
+        case soa_detail::PayloadKind::SegmentedControl:
+        case soa_detail::PayloadKind::ToggleGroup:
+        case soa_detail::PayloadKind::Switch:
+        case soa_detail::PayloadKind::Slider:
+        case soa_detail::PayloadKind::ScrollBar:
+        case soa_detail::PayloadKind::Progress:
+        case soa_detail::PayloadKind::List:
+        case soa_detail::PayloadKind::ScrollContainer:
+        case soa_detail::PayloadKind::Spinner:
+            unsupported_kind(common_.kind[idx]);
+            break;
+        default:
+            unsupported_kind(common_.kind[idx]);
+            break;
+        }
+        mark_layout_dirty();
+    }
+
+    void SoaKernel::set_text_static(WidgetHandle h, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto id = payloads_.store_text_static(text);
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        switch (desc.payload) {
+        case soa_detail::PayloadKind::Label: {
+            auto* payload = payload_get<soa_detail::LabelPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Button: {
+            auto* payload = payload_get<soa_detail::ButtonPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextInput: {
+            auto* payload = payload_get<soa_detail::TextInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextArea: {
+            auto* payload = payload_get<soa_detail::TextAreaPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::NumberInput: {
+            auto* payload = payload_get<soa_detail::NumberInputPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Checkbox: {
+            auto* payload = payload_get<soa_detail::CheckboxPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::Radio: {
+            auto* payload = payload_get<soa_detail::RadioPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::ListItem: {
+            auto* payload = payload_get<soa_detail::ListItemPayload>(idx);
+            if (!payload) return;
+            payload->text = id;
+            break;
+        }
+        case soa_detail::PayloadKind::TextList: {
+            auto* payload = payload_get<soa_detail::TextListPayload>(idx);
+            if (!payload) return;
+            if (payload->count == 0) {
+                payload->count = 1;
+            }
+            payload->items[0] = id;
+            break;
+        }
+        case soa_detail::PayloadKind::None:
+        case soa_detail::PayloadKind::Image:
+        case soa_detail::PayloadKind::SegmentedControl:
+        case soa_detail::PayloadKind::ToggleGroup:
+        case soa_detail::PayloadKind::Switch:
+        case soa_detail::PayloadKind::Slider:
+        case soa_detail::PayloadKind::ScrollBar:
+        case soa_detail::PayloadKind::Progress:
+        case soa_detail::PayloadKind::List:
+        case soa_detail::PayloadKind::ScrollContainer:
+        case soa_detail::PayloadKind::Spinner:
+            unsupported_kind(common_.kind[idx]);
+            break;
+        default:
+            unsupported_kind(common_.kind[idx]);
+            break;
+        }
+        mark_layout_dirty();
+    }
+
+    void SoaKernel::set_text_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto id = payloads_.store_text_slot(slot, text);
         const auto desc = payload_descriptor(common_.kind[idx]);
         switch (desc.payload) {
         case soa_detail::PayloadKind::Label: {

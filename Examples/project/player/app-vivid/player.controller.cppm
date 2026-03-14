@@ -18,6 +18,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.core.soa_kernel;
+import charm.core.soa_payload;
 import fs_core;
 import fs_vfs;
 import player.fs_utils;
@@ -77,6 +78,7 @@ export namespace player {
         std::chrono::steady_clock::time_point start{};
         int duration_sec{180};
         int current_sec{0};
+        int last_time_sec{-1};
         const char* track_path{nullptr};
         std::vector<std::string>* tracks{nullptr};
         std::vector<std::string> track_labels{};
@@ -93,6 +95,23 @@ export namespace player {
         int progress_drag_value{0};
         int progress_drag_sec{0};
         std::array<int, kEqBands> last_eq_values{};
+        struct TextSlots {
+            soa_detail::TextSlotId title{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId subtitle{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId status{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId time{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId mode_hint{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId list_title{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId list_hint{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId btn_pause{soa_detail::kInvalidTextSlot};
+            std::array<soa_detail::TextSlotId, kEqBands> eq_values{
+                soa_detail::kInvalidTextSlot,
+                soa_detail::kInvalidTextSlot,
+                soa_detail::kInvalidTextSlot,
+                soa_detail::kInvalidTextSlot,
+                soa_detail::kInvalidTextSlot,
+            };
+        } text_slots{};
         std::string mount_status{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
@@ -101,21 +120,50 @@ export namespace player {
             kernel = &k;
         }
 
+        void init_text_slots() {
+            if (!kernel) return;
+            auto alloc = [this]() noexcept {
+                return kernel->alloc_text_slot();
+            };
+            text_slots.title = alloc();
+            text_slots.subtitle = alloc();
+            text_slots.status = alloc();
+            text_slots.time = alloc();
+            text_slots.mode_hint = alloc();
+            text_slots.list_title = alloc();
+            text_slots.list_hint = alloc();
+            text_slots.btn_pause = alloc();
+            for (auto& slot : text_slots.eq_values) {
+                slot = alloc();
+            }
+        }
+
         void set_label(WidgetHandle h, const char* text) {
             if (!kernel || !h) return;
             kernel->set_text(h, text);
         }
 
-        void set_status(const char* text) { set_label(handles.status, text); }
+        void set_label_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) {
+            if (!kernel || !h) return;
+            if (slot != soa_detail::kInvalidTextSlot) {
+                kernel->set_text_slot(h, slot, text);
+                return;
+            }
+            kernel->set_text(h, text);
+        }
+
+        void set_status(const char* text) { set_label_slot(handles.status, text_slots.status, text); }
 
         void set_play_button_text(bool playing_now) {
             if (!kernel) return;
             kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
-            set_label(handles.btn_pause, playing_now ? "Pause" : "Play");
+            set_label_slot(handles.btn_pause, text_slots.btn_pause, playing_now ? "Pause" : "Play");
         }
 
         void set_time_label(int elapsed_sec) {
+            if (elapsed_sec == last_time_sec) return;
             current_sec = elapsed_sec;
+            last_time_sec = elapsed_sec;
             char buf[32]{};
             const int total = duration_sec;
             const int cur_m = elapsed_sec / 60;
@@ -123,12 +171,13 @@ export namespace player {
             const int total_m = total / 60;
             const int total_s = total % 60;
             std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
-            set_label(handles.time, buf);
+            set_label_slot(handles.time, text_slots.time, buf);
         }
 
         void reset_duration() {
             duration_ready = false;
             duration_sec = 180;
+            last_time_sec = -1;
         }
 
         static const char* play_mode_text(int mode) noexcept {
@@ -142,7 +191,7 @@ export namespace player {
         void update_play_mode_label() {
             char buf[32]{};
             std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
-            set_label(handles.mode_hint, buf);
+            set_label_slot(handles.mode_hint, text_slots.mode_hint, buf);
             if (!kernel) return;
             auto icon = icons.loop;
             if (play_mode == 1) icon = icons.single;
@@ -202,9 +251,9 @@ export namespace player {
             char buf[64]{};
             if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "Tracks (%d)", count);
-                set_label(handles.list_title, buf);
+                set_label_slot(handles.list_title, text_slots.list_title, buf);
             } else {
-                set_label(handles.list_title, "Tracks");
+                set_label_slot(handles.list_title, text_slots.list_title, "Tracks");
             }
         }
 
@@ -215,10 +264,11 @@ export namespace player {
             kernel->set_visible(handles.list_hint, show);
             if (!show) return;
             if (!mount_status.empty()) {
-                set_label(handles.list_hint, mount_status.c_str());
+                set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
                 return;
             }
-            set_label(handles.list_hint, fs_ready ? "No tracks in /music or /" : "FS not ready");
+            set_label_slot(handles.list_hint, text_slots.list_hint,
+                           fs_ready ? "No tracks in /music or /" : "FS not ready");
         }
 
         int resolve_next_track() {
@@ -438,8 +488,8 @@ export namespace player {
                 subtitle_text = "UNKNOWN";
             }
 
-            set_label(handles.title, title_text.c_str());
-            set_label(handles.subtitle, subtitle_text.c_str());
+            set_label_slot(handles.title, text_slots.title, title_text.c_str());
+            set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
         }
 
         bool load_track_index(int idx) {
@@ -475,6 +525,7 @@ export namespace player {
             playing = false;
             paused = false;
             reset_duration();
+            last_time_sec = -1;
             sync_list_selection();
             return track_ready;
         }
@@ -558,7 +609,7 @@ export namespace player {
                 last_eq_values[i] = value;
                 char buf[16]{};
                 std::snprintf(buf, sizeof(buf), "%+d", value);
-                set_label(handles.eq_values[i], buf);
+                set_label_slot(handles.eq_values[i], text_slots.eq_values[i], buf);
             }
         }
 

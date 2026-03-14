@@ -42,7 +42,7 @@ export namespace player {
         const int mode_hint_y = mode_y + kModeHeight + kModeHintGap;
         const int spectrum_y = mode_hint_y + kModeHintHeight + kSpectrumGap;
         const int eq_y = spectrum_y + kSpectrumHeight + kSpectrumGap;
-        const int list_y = eq_y + kEqPanelHeight + kSpectrumGap;
+        const int list_y = eq_y + kEqPanelHeight + kSpectrumGap + kListTitleGap;
         const int list_h = 320;
         const int content_h = list_y + list_h + kControlsBottomMargin;
 
@@ -51,11 +51,11 @@ export namespace player {
         h.cover = factory.create_container();
         anchor_rect(h.cover, {(screen_width - kCoverSize) / 2, cover_top, kCoverSize, kCoverSize});
 
-        h.title = factory.create_label("Beautiful Trick");
+        h.title = factory.create_label_static("");
         anchor_rect(h.title, {kUiPadding, header_top + kHeaderTitleOffset,
                               screen_width - kUiPadding * 2, 24});
 
-        h.subtitle = factory.create_label("FELT / FLAC");
+        h.subtitle = factory.create_label_static("");
         anchor_rect(h.subtitle, {kUiPadding, header_top + kHeaderSubtitleOffset,
                                  screen_width - kUiPadding * 2, 20});
 
@@ -66,15 +66,15 @@ export namespace player {
         kernel.set_value(h.progress, 0);
         kernel.set_hit_testable(h.progress, true);
 
-        h.time = factory.create_label("0:00 / 3:00");
+        h.time = factory.create_label_static("");
         anchor_rect(h.time, {kUiPadding, header_top + kHeaderTimeOffset,
                              screen_width - kUiPadding * 2, 18});
 
-        h.status = factory.create_label("Stopped");
+        h.status = factory.create_label_static("");
         anchor_rect(h.status, {kUiPadding, header_top + kHeaderStatusOffset,
                                screen_width - kUiPadding * 2, 18});
 
-        h.mode_hint = factory.create_label("Mode: Order");
+        h.mode_hint = factory.create_label_static("");
         anchor_rect(h.mode_hint, {kUiPadding, mode_hint_y,
                                   screen_width - kUiPadding * 2, kModeHintHeight});
 
@@ -88,7 +88,7 @@ export namespace player {
                                  screen_width - kUiPadding * 2, kEqPanelHeight});
         kernel.set_hit_testable(h.eq_panel, false);
 
-        h.eq_title = factory.create_label("EQ");
+        h.eq_title = factory.create_label_static("EQ");
         anchor_rect(h.eq_title, {kUiPadding, eq_y,
                                  screen_width - kUiPadding * 2, kEqTitleHeight});
 
@@ -98,7 +98,7 @@ export namespace player {
         for (std::size_t i = 0; i < kEqBands; ++i) {
             const int row_y = eq_y + kEqTitleHeight + kEqRowGap
                 + static_cast<int>(i) * (kEqRowHeight + kEqRowGap);
-            h.eq_labels[i] = factory.create_label(kEqLabels[i]);
+            h.eq_labels[i] = factory.create_label_static(kEqLabels[i]);
             anchor_rect(h.eq_labels[i], {kUiPadding, row_y, kEqLabelWidth, kEqRowHeight});
 
             const int slider_x = kUiPadding + kEqLabelWidth + kEqRowGapX;
@@ -109,12 +109,12 @@ export namespace player {
             kernel.set_range(h.eq_sliders[i], -12, 12);
             kernel.set_value(h.eq_sliders[i], 0);
 
-            h.eq_values[i] = factory.create_label("0");
+            h.eq_values[i] = factory.create_label_static("");
             anchor_rect(h.eq_values[i], {slider_x + slider_w + kEqRowGapX, row_y,
                                           kEqValueWidth, kEqRowHeight});
         }
 
-        h.list_title = factory.create_label("Tracks");
+        h.list_title = factory.create_label_static("");
         anchor_rect(h.list_title, {kUiPadding, list_y - kListTitleGap,
                                    screen_width - kUiPadding * 2, 18});
 
@@ -128,30 +128,30 @@ export namespace player {
                                     kListScrollWidth, list_h});
         kernel.set_scrollbar_orientation(h.list_scroll, ScrollBarOrientation::Vertical);
 
-        h.list_hint = factory.create_label("No tracks in /music or /");
+        h.list_hint = factory.create_label_static("");
         anchor_rect(h.list_hint, {kUiPadding, list_y, screen_width - kUiPadding * 2, list_h});
 
         h.controls = factory.create_container();
         anchor_rect(h.controls, {controls_x, controls_y, controls_w, kButtonHeight});
 
-        h.btn_prev = factory.create_button("Prev");
+        h.btn_prev = factory.create_button_static("Prev");
         anchor_rect(h.btn_prev, {0, 0, kButtonWidth, kButtonHeight});
         factory.set_button_icon(h.btn_prev, icons.prev);
         factory.set_button_icon_size(h.btn_prev, 16);
 
-        h.btn_pause = factory.create_button("Play");
+        h.btn_pause = factory.create_button_static("");
         anchor_rect(h.btn_pause, {kButtonWidth + kButtonGap, 0,
                                   kButtonWidth, kButtonHeight});
         factory.set_button_icon(h.btn_pause, icons.play);
         factory.set_button_icon_size(h.btn_pause, 16);
 
-        h.btn_next = factory.create_button("Next");
+        h.btn_next = factory.create_button_static("Next");
         anchor_rect(h.btn_next, {(kButtonWidth + kButtonGap) * 2, 0,
                                  kButtonWidth, kButtonHeight});
         factory.set_button_icon(h.btn_next, icons.next);
         factory.set_button_icon_size(h.btn_next, 16);
 
-        h.btn_mode = factory.create_button("Mode");
+        h.btn_mode = factory.create_button_static("Mode");
         anchor_rect(h.btn_mode, {(kButtonWidth + kButtonGap) * 3, 0,
                                  kModeButtonWidth, kButtonHeight});
         factory.set_button_icon(h.btn_mode, icons.loop);

@@ -1,13 +1,12 @@
 #include "main.h"
 
-#include <array>
 #include <cstdint>
-
-#include "app_config.h"
 
 import daplink.board;
 import daplink.usb_minimal;
 import daplink.cmsis_dap;
+import daplink.app_config;
+import daplink.ring_buffer;
 
 namespace {
     constexpr auto kUsbProfile = daplink::app_config::kConfig.usb.profile;
@@ -26,62 +25,7 @@ extern "C" void MPU_Config(void);
 
 namespace {
     constexpr std::size_t kUartBufSize = 256;
-    constexpr std::size_t kUartBufMask = kUartBufSize - 1;
-    static_assert((kUartBufSize & kUartBufMask) == 0);
-
-    struct ring_buffer {
-        std::array<std::uint8_t, kUartBufSize> data{};
-        std::uint16_t head = 0;
-        std::uint16_t tail = 0;
-    };
-
-    inline bool rb_empty(const ring_buffer& rb) noexcept {
-        return rb.head == rb.tail;
-    }
-
-    inline bool rb_full(const ring_buffer& rb) noexcept {
-        return static_cast<std::uint16_t>((rb.head + 1) & kUartBufMask) == rb.tail;
-    }
-
-    inline bool rb_push(ring_buffer& rb, const std::uint8_t value) noexcept {
-        if (rb_full(rb)) {
-            return false;
-        }
-        rb.data[rb.head] = value;
-        rb.head = static_cast<std::uint16_t>((rb.head + 1) & kUartBufMask);
-        return true;
-    }
-
-    inline bool rb_pop(ring_buffer& rb, std::uint8_t& value) noexcept {
-        if (rb_empty(rb)) {
-            return false;
-        }
-        value = rb.data[rb.tail];
-        rb.tail = static_cast<std::uint16_t>((rb.tail + 1) & kUartBufMask);
-        return true;
-    }
-
-    inline std::uint16_t rb_count(const ring_buffer& rb) noexcept {
-        return static_cast<std::uint16_t>((rb.head - rb.tail) & kUartBufMask);
-    }
-
-    inline std::uint16_t rb_peek(const ring_buffer& rb,
-                                 std::uint8_t* dst,
-                                 const std::uint16_t max_len) noexcept {
-        const std::uint16_t available = rb_count(rb);
-        const std::uint16_t len = (available < max_len) ? available : max_len;
-        std::uint16_t index = rb.tail;
-        for (std::uint16_t i = 0; i < len; ++i) {
-            dst[i] = rb.data[index];
-            index = static_cast<std::uint16_t>((index + 1) & kUartBufMask);
-        }
-        return len;
-    }
-
-    inline void rb_drop(ring_buffer& rb, const std::uint16_t len) noexcept {
-        rb.tail = static_cast<std::uint16_t>((rb.tail + len) & kUartBufMask);
-    }
-
+    using UartRing = daplink::ring_buffer::Buffer<kUartBufSize>;
 } // namespace
 
 int main()
@@ -102,8 +46,8 @@ int main()
         daplink::cmsis_dap::make_info_field(daplink::app_config::kFwVersion)
     };
 
-    ring_buffer uart_tx{};
-    ring_buffer uart_rx{};
+    UartRing uart_tx{};
+    UartRing uart_rx{};
     daplink::usb_minimal::cdc_line_config last_line = daplink::usb_minimal::cdc_line();
     if constexpr (kEnableCdc) {
         daplink::board::cdc_uart_apply_line(
@@ -132,10 +76,10 @@ int main()
                     const auto payload = daplink::usb_minimal::cdc_out_packet();
                     if (!payload.empty()) {
                         for (const auto byte : payload) {
-                            if (!rb_push(uart_tx, byte)) {
-                                break;
-                            }
+                        if (!uart_tx.push(byte)) {
+                            break;
                         }
+                    }
                         daplink::usb_minimal::cdc_consume_out();
                     } else {
                         daplink::usb_minimal::cdc_consume_out();
@@ -143,25 +87,25 @@ int main()
                 }
 
                 if (daplink::board::cdc_uart_rx_ready()) {
-                    (void)rb_push(uart_rx, daplink::board::cdc_uart_read());
-                }
+                (void)uart_rx.push(daplink::board::cdc_uart_read());
+            }
 
-                while (!rb_empty(uart_tx) && daplink::board::cdc_uart_tx_ready()) {
-                    std::uint8_t byte = 0;
-                    (void)rb_pop(uart_tx, byte);
-                    daplink::board::cdc_uart_write(byte);
-                }
+            while (!uart_tx.empty() && daplink::board::cdc_uart_tx_ready()) {
+                std::uint8_t byte = 0;
+                (void)uart_tx.pop(byte);
+                daplink::board::cdc_uart_write(byte);
+            }
 
-                if (!rb_empty(uart_rx)) {
-                    std::uint8_t temp[64] = {};
-                    const auto len = rb_peek(uart_rx, temp, static_cast<std::uint16_t>(sizeof(temp)));
-                    if (len != 0U) {
-                        const bool sent = daplink::usb_minimal::cdc_send_in(temp, len);
-                        if (sent) {
-                            rb_drop(uart_rx, len);
-                        }
+            if (!uart_rx.empty()) {
+                std::uint8_t temp[64] = {};
+                const auto len = uart_rx.peek(temp, static_cast<std::uint16_t>(sizeof(temp)));
+                if (len != 0U) {
+                    const bool sent = daplink::usb_minimal::cdc_send_in(temp, len);
+                    if (sent) {
+                        uart_rx.drop(len);
                     }
                 }
+            }
             }
         }
         if constexpr (kEnableHid) {

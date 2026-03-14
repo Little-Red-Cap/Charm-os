@@ -1,9 +1,9 @@
 module;
-#include "app_config.h"
 #include <cstdint>
 #include <concepts>
 export module daplink.swd_engine;
 
+import daplink.app_config;
 
 export namespace daplink::swd {
     struct Config {

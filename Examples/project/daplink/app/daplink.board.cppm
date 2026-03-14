@@ -4,17 +4,17 @@ module;
 #include "usart.h"
 #include "usb.h"
 
-#include "app_config.h"
-#include "board_config.h"
-
 #include <cstdint>
 #include <expected>
 
 export module daplink.board;
 import daplink.usb_minimal;
+import daplink.app_config;
+import daplink.board_config;
 
 namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
+    namespace board_cfg = daplink::board_config;
 }
 
 extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
@@ -69,34 +69,34 @@ export namespace daplink::board {
         static void setup_swd_pins_active() noexcept {
             GPIO_InitTypeDef gpio = {};
 
-            gpio.Pin = DAPLINK_T_CLK_Pin;
+            gpio.Pin = board_cfg::kTClkPin;
             gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-            HAL_GPIO_Init(DAPLINK_T_CLK_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTClkPort, &gpio);
 
-            gpio.Pin = DAPLINK_T_DIO_OUT_Pin;
+            gpio.Pin = board_cfg::kTDioOutPin;
             gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-            HAL_GPIO_Init(DAPLINK_T_DIO_OUT_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTDioOutPort, &gpio);
             swdio_output = true;
 
-            gpio.Pin = DAPLINK_T_DIO_IN_Pin;
+            gpio.Pin = board_cfg::kTDioInPin;
             gpio.Mode = GPIO_MODE_INPUT;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_LOW;
-            HAL_GPIO_Init(DAPLINK_T_DIO_IN_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTDioInPort, &gpio);
 
-            gpio.Pin = DAPLINK_T_RST_Pin;
+            gpio.Pin = board_cfg::kTRstPin;
             gpio.Mode = GPIO_MODE_OUTPUT_OD;
             gpio.Pull = GPIO_PULLUP;
             gpio.Speed = GPIO_SPEED_FREQ_LOW;
-            HAL_GPIO_Init(DAPLINK_T_RST_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTRstPort, &gpio);
 
-            HAL_GPIO_WritePin(DAPLINK_T_CLK_GPIO_Port, DAPLINK_T_CLK_Pin, GPIO_PIN_SET);
-            HAL_GPIO_WritePin(DAPLINK_T_DIO_OUT_GPIO_Port, DAPLINK_T_DIO_OUT_Pin, GPIO_PIN_SET);
-            HAL_GPIO_WritePin(DAPLINK_T_RST_GPIO_Port, DAPLINK_T_RST_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(board_cfg::kTClkPort, board_cfg::kTClkPin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(board_cfg::kTDioOutPort, board_cfg::kTDioOutPin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(board_cfg::kTRstPort, board_cfg::kTRstPin, GPIO_PIN_SET);
         }
 
         static void setup_swd_pins_hi_z() noexcept {
@@ -105,32 +105,32 @@ export namespace daplink::board {
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_LOW;
 
-            gpio.Pin = DAPLINK_T_CLK_Pin;
-            HAL_GPIO_Init(DAPLINK_T_CLK_GPIO_Port, &gpio);
+            gpio.Pin = board_cfg::kTClkPin;
+            HAL_GPIO_Init(board_cfg::kTClkPort, &gpio);
 
-            gpio.Pin = DAPLINK_T_RST_Pin;
-            HAL_GPIO_Init(DAPLINK_T_RST_GPIO_Port, &gpio);
+            gpio.Pin = board_cfg::kTRstPin;
+            HAL_GPIO_Init(board_cfg::kTRstPort, &gpio);
 
-            gpio.Pin = DAPLINK_T_DIO_IN_Pin | DAPLINK_T_DIO_OUT_Pin;
-            HAL_GPIO_Init(DAPLINK_T_DIO_IN_GPIO_Port, &gpio);
+            gpio.Pin = board_cfg::kTDioInPin | board_cfg::kTDioOutPin;
+            HAL_GPIO_Init(board_cfg::kTDioInPort, &gpio);
             swdio_output = false;
         }
 
         static void swclk_low() noexcept {
-            HAL_GPIO_WritePin(DAPLINK_T_CLK_GPIO_Port, DAPLINK_T_CLK_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(board_cfg::kTClkPort, board_cfg::kTClkPin, GPIO_PIN_RESET);
         }
 
         static void swclk_high() noexcept {
-            HAL_GPIO_WritePin(DAPLINK_T_CLK_GPIO_Port, DAPLINK_T_CLK_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(board_cfg::kTClkPort, board_cfg::kTClkPin, GPIO_PIN_SET);
         }
 
         static void swdio_write(const std::uint8_t bit) noexcept {
-            HAL_GPIO_WritePin(DAPLINK_T_DIO_OUT_GPIO_Port, DAPLINK_T_DIO_OUT_Pin,
+            HAL_GPIO_WritePin(board_cfg::kTDioOutPort, board_cfg::kTDioOutPin,
                               bit ? GPIO_PIN_SET : GPIO_PIN_RESET);
         }
 
         static std::uint8_t swdio_read() noexcept {
-            return (HAL_GPIO_ReadPin(DAPLINK_T_DIO_IN_GPIO_Port, DAPLINK_T_DIO_IN_Pin) == GPIO_PIN_SET) ? 1U : 0U;
+            return (HAL_GPIO_ReadPin(board_cfg::kTDioInPort, board_cfg::kTDioInPin) == GPIO_PIN_SET) ? 1U : 0U;
         }
 
         static void swdio_set_output() noexcept {
@@ -138,11 +138,11 @@ export namespace daplink::board {
                 return;
             }
             GPIO_InitTypeDef gpio = {};
-            gpio.Pin = DAPLINK_T_DIO_OUT_Pin;
+            gpio.Pin = board_cfg::kTDioOutPin;
             gpio.Mode = GPIO_MODE_OUTPUT_PP;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-            HAL_GPIO_Init(DAPLINK_T_DIO_OUT_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTDioOutPort, &gpio);
             swdio_output = true;
         }
 
@@ -151,11 +151,11 @@ export namespace daplink::board {
                 return;
             }
             GPIO_InitTypeDef gpio = {};
-            gpio.Pin = DAPLINK_T_DIO_OUT_Pin;
+            gpio.Pin = board_cfg::kTDioOutPin;
             gpio.Mode = GPIO_MODE_INPUT;
             gpio.Pull = GPIO_NOPULL;
             gpio.Speed = GPIO_SPEED_FREQ_LOW;
-            HAL_GPIO_Init(DAPLINK_T_DIO_OUT_GPIO_Port, &gpio);
+            HAL_GPIO_Init(board_cfg::kTDioOutPort, &gpio);
             swdio_output = false;
         }
 
@@ -169,31 +169,31 @@ export namespace daplink::board {
                 swdio_write((value >> 1) & 1U);
             }
             if ((select & (1U << 7)) != 0U) {
-                HAL_GPIO_WritePin(DAPLINK_T_RST_GPIO_Port, DAPLINK_T_RST_Pin,
+                HAL_GPIO_WritePin(board_cfg::kTRstPort, board_cfg::kTRstPin,
                                   ((value >> 7) & 1U) ? GPIO_PIN_SET : GPIO_PIN_RESET);
             }
 
             std::uint8_t pin_state = 0;
-            pin_state |= (HAL_GPIO_ReadPin(DAPLINK_T_CLK_GPIO_Port, DAPLINK_T_CLK_Pin) == GPIO_PIN_SET) ? (1U << 0) : 0U;
-            pin_state |= (HAL_GPIO_ReadPin(DAPLINK_T_DIO_IN_GPIO_Port, DAPLINK_T_DIO_IN_Pin) == GPIO_PIN_SET) ? (1U << 1) : 0U;
-            pin_state |= (HAL_GPIO_ReadPin(DAPLINK_T_RST_GPIO_Port, DAPLINK_T_RST_Pin) == GPIO_PIN_SET) ? (1U << 7) : 0U;
+            pin_state |= (HAL_GPIO_ReadPin(board_cfg::kTClkPort, board_cfg::kTClkPin) == GPIO_PIN_SET) ? (1U << 0) : 0U;
+            pin_state |= (HAL_GPIO_ReadPin(board_cfg::kTDioInPort, board_cfg::kTDioInPin) == GPIO_PIN_SET) ? (1U << 1) : 0U;
+            pin_state |= (HAL_GPIO_ReadPin(board_cfg::kTRstPort, board_cfg::kTRstPin) == GPIO_PIN_SET) ? (1U << 7) : 0U;
             return pin_state;
         }
 
         static void set_connected_led(const bool on) noexcept {
-            HAL_GPIO_WritePin(DAPLINK_CONNECT_LED_GPIO_Port, DAPLINK_CONNECT_LED_Pin,
+            HAL_GPIO_WritePin(board_cfg::kConnectLedPort, board_cfg::kConnectLedPin,
                               on ? GPIO_PIN_RESET : GPIO_PIN_SET);
         }
 
         static void set_running_led(const bool on) noexcept {
-            HAL_GPIO_WritePin(DAPLINK_DBG_LED_GPIO_Port, DAPLINK_DBG_LED_Pin,
+            HAL_GPIO_WritePin(board_cfg::kDbgLedPort, board_cfg::kDbgLedPin,
                               on ? GPIO_PIN_RESET : GPIO_PIN_SET);
         }
 
         static std::uint8_t reset_target() noexcept {
-            HAL_GPIO_WritePin(DAPLINK_T_RST_GPIO_Port, DAPLINK_T_RST_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(board_cfg::kTRstPort, board_cfg::kTRstPin, GPIO_PIN_RESET);
             HAL_Delay(10);
-            HAL_GPIO_WritePin(DAPLINK_T_RST_GPIO_Port, DAPLINK_T_RST_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(board_cfg::kTRstPort, board_cfg::kTRstPin, GPIO_PIN_SET);
             return 1;
         }
     };
@@ -202,14 +202,14 @@ export namespace daplink::board {
         SwdBackend::setup_swd_pins_hi_z();
 
         GPIO_InitTypeDef cfg = {};
-        cfg.Pin = DAPLINK_CONNECT_LED_Pin;
+        cfg.Pin = board_cfg::kConnectLedPin;
         cfg.Mode = GPIO_MODE_OUTPUT_OD;
         cfg.Pull = GPIO_NOPULL;
         cfg.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(DAPLINK_CONNECT_LED_GPIO_Port, &cfg);
+        HAL_GPIO_Init(board_cfg::kConnectLedPort, &cfg);
 
-        cfg.Pin = DAPLINK_DBG_LED_Pin;
-        HAL_GPIO_Init(DAPLINK_DBG_LED_GPIO_Port, &cfg);
+        cfg.Pin = board_cfg::kDbgLedPin;
+        HAL_GPIO_Init(board_cfg::kDbgLedPort, &cfg);
         SwdBackend::set_connected_led(false);
         SwdBackend::set_running_led(false);
     }

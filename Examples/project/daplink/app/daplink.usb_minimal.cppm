@@ -2,14 +2,14 @@ module;
 
 #include "usb.h"
 
-#include "app_config.h"
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <type_traits>
 export module daplink.usb_minimal;
+
+import daplink.app_config;
 
 namespace daplink::usb_minimal::detail {
     using UsbProfile = daplink::app_config::UsbProfile;

@@ -1,10 +1,11 @@
-#ifndef DAPLINK_APP_CONFIG_H
-#define DAPLINK_APP_CONFIG_H
+module;
 
 #include <cstddef>
 #include <cstdint>
 
-namespace daplink::app_config {
+export module daplink.app_config;
+
+export namespace daplink::app_config {
     enum class UsbProfile : std::uint8_t {
         hid = 0,
         cdc = 1,
@@ -122,5 +123,3 @@ namespace daplink::app_config {
         kFwVersion,
     };
 }
-
-#endif

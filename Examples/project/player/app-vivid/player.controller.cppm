@@ -111,7 +111,7 @@ export namespace player {
         void set_play_button_text(bool playing_now) {
             if (!kernel) return;
             kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
-            set_label(handles.btn_pause, "");
+            set_label(handles.btn_pause, playing_now ? "Pause" : "Play");
         }
 
         void set_time_label(int elapsed_sec) {

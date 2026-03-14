@@ -196,7 +196,14 @@ namespace {
             return true;
         }
         case SDL_EVENT_MOUSE_WHEEL:
-            gui.dispatch_event(Event::wheel(evt.wheel.x, evt.wheel.y, -evt.wheel.y));
+            {
+                float mx = 0.0f;
+                float my = 0.0f;
+                SDL_GetMouseState(&mx, &my);
+                gui.dispatch_event(Event::wheel(static_cast<int>(mx),
+                                                static_cast<int>(my),
+                                                evt.wheel.y));
+            }
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:

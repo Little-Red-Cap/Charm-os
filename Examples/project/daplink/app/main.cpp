@@ -9,10 +9,21 @@ import daplink.board;
 import daplink.usb_minimal;
 import daplink.cmsis_dap;
 
+namespace {
+    constexpr auto kUsbProfile = daplink::app_config::kConfig.usb.profile;
+    constexpr bool kEnableCdc =
+        (kUsbProfile == daplink::app_config::UsbProfile::cdc) ||
+        (kUsbProfile == daplink::app_config::UsbProfile::composite);
+    constexpr bool kEnableHid =
+        (kUsbProfile == daplink::app_config::UsbProfile::hid) ||
+        (kUsbProfile == daplink::app_config::UsbProfile::composite);
+
+    static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize));
+}
+
 extern "C" void SystemClock_Config(void);
 extern "C" void MPU_Config(void);
 
-#if (CHARM_DAP_USB_PROFILE != 0)
 namespace {
     constexpr std::size_t kUartBufSize = 256;
     constexpr std::size_t kUartBufMask = kUartBufSize - 1;
@@ -72,7 +83,6 @@ namespace {
     }
 
 } // namespace
-#endif
 
 int main()
 {
@@ -84,89 +94,84 @@ int main()
     }
     daplink::board::configure_debug_pins_hi_z();
 
-    static_assert(daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize);
     daplink::cmsis_dap::State dap_state{};
-    constexpr char kVendor[] = DAPLINK_USB_MANUFACTURER;
-    constexpr char kProduct[] = DAPLINK_USB_PRODUCT;
-    constexpr char kSerial[] = DAPLINK_USB_SERIAL;
-    constexpr char kFw[] = DAPLINK_FW_VERSION;
     const daplink::cmsis_dap::DeviceInfo kInfo{
-        daplink::cmsis_dap::make_info_field(kVendor),
-        daplink::cmsis_dap::make_info_field(kProduct),
-        daplink::cmsis_dap::make_info_field(kSerial),
-        daplink::cmsis_dap::make_info_field(kFw)
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbManufacturer),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbProduct),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbSerial),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kFwVersion)
     };
 
-#if (CHARM_DAP_USB_PROFILE != 0)
     ring_buffer uart_tx{};
     ring_buffer uart_rx{};
     daplink::usb_minimal::cdc_line_config last_line = daplink::usb_minimal::cdc_line();
-    daplink::board::cdc_uart_apply_line(
-        last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
-#endif
+    if constexpr (kEnableCdc) {
+        daplink::board::cdc_uart_apply_line(
+            last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
+    }
 
     while (true) {
         if (daplink::usb_minimal::take_reset()) {
             dap_state = {};
-#if (CHARM_DAP_USB_PROFILE != 0)
-            uart_tx = {};
-            uart_rx = {};
-#endif
-        }
-#if (CHARM_DAP_USB_PROFILE != 0)
-        const bool hid_busy = daplink::usb_minimal::out_ready();
-        if (!hid_busy) {
-            const auto line = daplink::usb_minimal::cdc_line();
-            if (line.baud != last_line.baud || line.stop_bits != last_line.stop_bits ||
-                line.parity != last_line.parity || line.data_bits != last_line.data_bits) {
-                last_line = line;
-                daplink::board::cdc_uart_apply_line(
-                    last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
+            if constexpr (kEnableCdc) {
+                uart_tx = {};
+                uart_rx = {};
             }
-            if (daplink::usb_minimal::cdc_out_ready()) {
-                const auto payload = daplink::usb_minimal::cdc_out_packet();
-                if (!payload.empty()) {
-                    for (const auto byte : payload) {
-                        if (!rb_push(uart_tx, byte)) {
-                            break;
+        }
+        if constexpr (kEnableCdc) {
+            const bool hid_busy = daplink::usb_minimal::out_ready();
+            if (!hid_busy) {
+                const auto line = daplink::usb_minimal::cdc_line();
+                if (line.baud != last_line.baud || line.stop_bits != last_line.stop_bits ||
+                    line.parity != last_line.parity || line.data_bits != last_line.data_bits) {
+                    last_line = line;
+                    daplink::board::cdc_uart_apply_line(
+                        last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
+                }
+                if (daplink::usb_minimal::cdc_out_ready()) {
+                    const auto payload = daplink::usb_minimal::cdc_out_packet();
+                    if (!payload.empty()) {
+                        for (const auto byte : payload) {
+                            if (!rb_push(uart_tx, byte)) {
+                                break;
+                            }
+                        }
+                        daplink::usb_minimal::cdc_consume_out();
+                    } else {
+                        daplink::usb_minimal::cdc_consume_out();
+                    }
+                }
+
+                if (daplink::board::cdc_uart_rx_ready()) {
+                    (void)rb_push(uart_rx, daplink::board::cdc_uart_read());
+                }
+
+                while (!rb_empty(uart_tx) && daplink::board::cdc_uart_tx_ready()) {
+                    std::uint8_t byte = 0;
+                    (void)rb_pop(uart_tx, byte);
+                    daplink::board::cdc_uart_write(byte);
+                }
+
+                if (!rb_empty(uart_rx)) {
+                    std::uint8_t temp[64] = {};
+                    const auto len = rb_peek(uart_rx, temp, static_cast<std::uint16_t>(sizeof(temp)));
+                    if (len != 0U) {
+                        const bool sent = daplink::usb_minimal::cdc_send_in(temp, len);
+                        if (sent) {
+                            rb_drop(uart_rx, len);
                         }
                     }
-                    daplink::usb_minimal::cdc_consume_out();
-                } else {
-                    daplink::usb_minimal::cdc_consume_out();
-                }
-            }
-
-            if (daplink::board::cdc_uart_rx_ready()) {
-                (void)rb_push(uart_rx, daplink::board::cdc_uart_read());
-            }
-
-            while (!rb_empty(uart_tx) && daplink::board::cdc_uart_tx_ready()) {
-                std::uint8_t byte = 0;
-                (void)rb_pop(uart_tx, byte);
-                daplink::board::cdc_uart_write(byte);
-            }
-
-            if (!rb_empty(uart_rx)) {
-                std::uint8_t temp[64] = {};
-                const auto len = rb_peek(uart_rx, temp, static_cast<std::uint16_t>(sizeof(temp)));
-                if (len != 0U) {
-                    const bool sent = daplink::usb_minimal::cdc_send_in(temp, len);
-                    if (sent) {
-                        rb_drop(uart_rx, len);
-                    }
                 }
             }
         }
-#endif
-#if (CHARM_DAP_USB_PROFILE != 1)
-        if (daplink::usb_minimal::out_ready()) {
-            auto in = daplink::usb_minimal::out_packet();
-            auto out = daplink::usb_minimal::in_packet();
-            daplink::cmsis_dap::process_packet<daplink::board::SwdBackend>(dap_state, kInfo, in, out);
-            daplink::usb_minimal::send_in_packet(static_cast<std::uint16_t>(daplink::cmsis_dap::kPacketSize));
-            daplink::usb_minimal::consume_out();
+        if constexpr (kEnableHid) {
+            if (daplink::usb_minimal::out_ready()) {
+                auto in = daplink::usb_minimal::out_packet();
+                auto out = daplink::usb_minimal::in_packet();
+                daplink::cmsis_dap::process_packet<daplink::board::SwdBackend>(dap_state, kInfo, in, out);
+                daplink::usb_minimal::send_in_packet(static_cast<std::uint16_t>(daplink::cmsis_dap::kPacketSize));
+                daplink::usb_minimal::consume_out();
+            }
         }
-#endif
     }
 }

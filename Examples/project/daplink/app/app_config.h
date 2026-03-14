@@ -1,75 +1,126 @@
 #ifndef DAPLINK_APP_CONFIG_H
 #define DAPLINK_APP_CONFIG_H
 
-// USB identifiers.
-#ifndef DAPLINK_USB_VID
-#define DAPLINK_USB_VID 0xCAFE
-#endif
-#ifndef DAPLINK_USB_PID
-#define DAPLINK_USB_PID 0x4001
+#include <cstddef>
+#include <cstdint>
+
+namespace daplink::app_config {
+    enum class UsbProfile : std::uint8_t {
+        hid = 0,
+        cdc = 1,
+        composite = 2,
+    };
+
+    inline constexpr char kUsbManufacturer[] = "Charm";
+    inline constexpr char kUsbProduct[] = "Charm CMSIS-DAP";
+    inline constexpr char kUsbSerial[] = "0001";
+    inline constexpr char kFwVersion[] = "0.1.0";
+
+    constexpr std::uint16_t kUsbVid = 0xCAFE;
+    constexpr std::uint16_t kUsbPid = 0x4001;
+
+    constexpr std::uint8_t kUsbEp0Mps = 64;
+    constexpr std::uint8_t kUsbHidEpOut = 0x01;
+    constexpr std::uint8_t kUsbHidEpIn = 0x81;
+    constexpr std::uint16_t kUsbHidEpMps = 64;
+    constexpr std::size_t kUsbHidPacketSize = 64;
+
+    constexpr std::uint8_t kUsbCdcEpCmd = 0x83;
+    constexpr std::uint8_t kUsbCdcEpOut = 0x04;
+    constexpr std::uint8_t kUsbCdcEpIn = 0x84;
+    constexpr std::uint16_t kUsbCdcEpCmdMps = 8;
+    constexpr std::uint16_t kUsbCdcEpMps = 64;
+    constexpr bool kUsbCdcHasCmdEp = true;
+
+    constexpr std::uint32_t kSwdDefaultHz = 5000000U;
+    constexpr std::uint8_t kSwdTurnaround = 1;
+    constexpr std::uint8_t kSwdIdleCycles = 0;
+    constexpr std::uint16_t kSwdRetryCount = 100;
+
+#ifdef CHARM_DAP_USB_PROFILE
+    constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(CHARM_DAP_USB_PROFILE);
+#else
+    constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(UsbProfile::composite);
 #endif
 
-// USB strings.
-#ifndef DAPLINK_USB_MANUFACTURER
-#define DAPLINK_USB_MANUFACTURER "Charm"
-#endif
-#ifndef DAPLINK_USB_PRODUCT
-#define DAPLINK_USB_PRODUCT "Charm CMSIS-DAP"
-#endif
-#ifndef DAPLINK_USB_SERIAL
-#define DAPLINK_USB_SERIAL "0001"
+#ifdef CHARM_DAP_CDC_UART
+    constexpr std::uint8_t kCdcUartIndex = static_cast<std::uint8_t>(CHARM_DAP_CDC_UART);
+#else
+    constexpr std::uint8_t kCdcUartIndex = 2;
 #endif
 
-// Firmware string for CMSIS-DAP info.
-#ifndef DAPLINK_FW_VERSION
-#define DAPLINK_FW_VERSION "0.1.0"
-#endif
+    struct UsbStrings {
+        const char* manufacturer;
+        const char* product;
+        const char* serial;
+    };
 
-// Default SWD settings.
-#ifndef DAPLINK_SWD_DEFAULT_HZ
-#define DAPLINK_SWD_DEFAULT_HZ 5000000U
-#endif
-#ifndef DAPLINK_SWD_TURNAROUND
-#define DAPLINK_SWD_TURNAROUND 1
-#endif
-#ifndef DAPLINK_SWD_IDLE_CYCLES
-#define DAPLINK_SWD_IDLE_CYCLES 0
-#endif
-#ifndef DAPLINK_SWD_RETRY_COUNT
-#define DAPLINK_SWD_RETRY_COUNT 100
-#endif
+    struct UsbConfig {
+        UsbProfile profile;
+        std::uint16_t vid;
+        std::uint16_t pid;
+        UsbStrings strings;
+        std::uint8_t ep0_mps;
+        std::uint8_t hid_ep_out;
+        std::uint8_t hid_ep_in;
+        std::uint16_t hid_ep_mps;
+        std::size_t hid_packet_size;
+        std::uint8_t cdc_ep_cmd;
+        std::uint8_t cdc_ep_out;
+        std::uint8_t cdc_ep_in;
+        std::uint16_t cdc_ep_cmd_mps;
+        std::uint16_t cdc_ep_mps;
+        bool cdc_has_cmd_ep;
+    };
 
-// HID endpoints and packet size.
-#ifndef DAPLINK_USB_HID_EP_OUT
-#define DAPLINK_USB_HID_EP_OUT 0x01
-#endif
-#ifndef DAPLINK_USB_HID_EP_IN
-#define DAPLINK_USB_HID_EP_IN 0x81
-#endif
-#ifndef DAPLINK_USB_HID_EP_MPS
-#define DAPLINK_USB_HID_EP_MPS 64
-#endif
+    struct SwdConfig {
+        std::uint32_t default_hz;
+        std::uint8_t turnaround;
+        std::uint8_t idle_cycles;
+        std::uint16_t retry_count;
+    };
 
-// CDC endpoints and packet size.
-#ifndef DAPLINK_USB_CDC_EP_CMD
-#define DAPLINK_USB_CDC_EP_CMD 0x83
-#endif
-#ifndef DAPLINK_USB_CDC_EP_OUT
-#define DAPLINK_USB_CDC_EP_OUT 0x04
-#endif
-#ifndef DAPLINK_USB_CDC_EP_IN
-#define DAPLINK_USB_CDC_EP_IN 0x84
-#endif
-#ifndef DAPLINK_USB_CDC_EP_CMD_MPS
-#define DAPLINK_USB_CDC_EP_CMD_MPS 8
-#endif
-#ifndef DAPLINK_USB_CDC_EP_MPS
-#define DAPLINK_USB_CDC_EP_MPS 64
-#endif
+    struct CdcConfig {
+        std::uint8_t uart_index;
+    };
 
-// USB endpoint zero max packet size.
-#ifndef DAPLINK_USB_EP0_MPS
-#define DAPLINK_USB_EP0_MPS 64
-#endif
+    struct AppConfig {
+        UsbConfig usb;
+        SwdConfig swd;
+        CdcConfig cdc;
+        const char* fw_version;
+    };
+
+    static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
+    static_assert(kCdcUartIndex == 1 || kCdcUartIndex == 2);
+
+    inline constexpr AppConfig kConfig{
+        UsbConfig{
+            static_cast<UsbProfile>(kUsbProfileValue),
+            kUsbVid,
+            kUsbPid,
+            UsbStrings{kUsbManufacturer, kUsbProduct, kUsbSerial},
+            kUsbEp0Mps,
+            kUsbHidEpOut,
+            kUsbHidEpIn,
+            kUsbHidEpMps,
+            kUsbHidPacketSize,
+            kUsbCdcEpCmd,
+            kUsbCdcEpOut,
+            kUsbCdcEpIn,
+            kUsbCdcEpCmdMps,
+            kUsbCdcEpMps,
+            kUsbCdcHasCmdEp,
+        },
+        SwdConfig{
+            kSwdDefaultHz,
+            kSwdTurnaround,
+            kSwdIdleCycles,
+            kSwdRetryCount,
+        },
+        CdcConfig{kCdcUartIndex},
+        kFwVersion,
+    };
+}
 
 #endif

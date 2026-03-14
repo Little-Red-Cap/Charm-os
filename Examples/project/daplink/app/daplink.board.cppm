@@ -10,12 +10,12 @@ module;
 #include <cstdint>
 #include <expected>
 
-#ifndef CHARM_DAP_CDC_UART
-#define CHARM_DAP_CDC_UART 1
-#endif
-
 export module daplink.board;
 import daplink.usb_minimal;
+
+namespace {
+    constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
+}
 
 extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
     daplink::usb_minimal::on_reset(*hpcd);
@@ -226,13 +226,13 @@ export namespace daplink::board {
 
     inline auto init_peripherals() noexcept -> std::expected<void, init_error> {
         MX_GPIO_Init();
-#if (CHARM_DAP_CDC_UART == 2)
-        MX_USART2_UART_Init();
-#else
-        MX_USART1_UART_Init();
-#endif
+        if constexpr (kCdcUartIndex == 2) {
+            MX_USART2_UART_Init();
+        } else {
+            MX_USART1_UART_Init();
+        }
         MX_USB_PCD_Init();
-        SwdBackend::set_swj_clock_hz(DAPLINK_SWD_DEFAULT_HZ);
+        SwdBackend::set_swj_clock_hz(daplink::app_config::kConfig.swd.default_hz);
         if (!daplink::usb_minimal::attach(hpcd_USB_FS)) {
             return std::unexpected(init_error::usb_pma_config_failed);
         }
@@ -244,11 +244,11 @@ export namespace daplink::board {
     }
 
     inline UART_HandleTypeDef* cdc_uart_handle() noexcept {
-#if (CHARM_DAP_CDC_UART == 2)
-        return &huart2;
-#else
-        return &huart1;
-#endif
+        if constexpr (kCdcUartIndex == 2) {
+            return &huart2;
+        } else {
+            return &huart1;
+        }
     }
 
     inline void cdc_uart_apply_line(const std::uint32_t baud,

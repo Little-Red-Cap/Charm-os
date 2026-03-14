@@ -81,7 +81,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_DAP_ENABLE_SWO=0
     CHARM_DAP_ENABLE_SWO_STREAM=0
     CHARM_DAP_ENABLE_DAP_UART=0
-    CHARM_DAP_USB_PROFILE=1
+    CHARM_DAP_USB_PROFILE=2
     STM32F103xx
     USE_HAL_DRIVER
 )
@@ -91,7 +91,7 @@ add_compile_definitions(CHARM_VIVID_ENABLE_LAYER_CACHE=0)
 add_compile_definitions(CHARM_DAP_ENABLE_SWO=0)
 add_compile_definitions(CHARM_DAP_ENABLE_SWO_STREAM=0)
 add_compile_definitions(CHARM_DAP_ENABLE_DAP_UART=0)
-add_compile_definitions(CHARM_DAP_USB_PROFILE=1)
+add_compile_definitions(CHARM_DAP_USB_PROFILE=2)
 add_compile_definitions(STM32F103xx)
 add_compile_definitions(USE_HAL_DRIVER)
 

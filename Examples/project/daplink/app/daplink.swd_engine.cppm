@@ -3,12 +3,14 @@ module;
 #include <concepts>
 export module daplink.swd_engine;
 
+import daplink.app_config;
 
 export namespace daplink::swd {
     struct Config {
-        std::uint8_t turnaround = 1;
-        std::uint8_t idle_cycles = 0;
-        std::uint16_t retry_count = 64;
+        std::uint8_t turnaround = daplink::app_config::kConfig.swd.turnaround;
+        std::uint8_t idle_cycles = daplink::app_config::kConfig.swd.idle_cycles;
+        std::uint16_t retry_count = daplink::app_config::kConfig.swd.retry_count; // CMSIS-DAP default retry count.
+        bool data_phase = false;
     };
 
     template <typename B>
@@ -118,16 +120,25 @@ export namespace daplink::swd {
                     B::swdio_write(1U);
                 }
             } else if (ack == kAckWait || ack == kAckFault) {
-                B::swdio_set_input();
-                for (int i = 0; i < (32 + 1 + 2); ++i) {
+                if (cfg.data_phase && (req_rnw != 0U)) {
+                    for (int i = 0; i < (32 + 1); ++i) {
+                        swd_cycle();
+                    }
+                }
+                for (std::uint8_t i = 0; i < cfg.turnaround; ++i) {
                     swd_cycle();
                 }
                 B::swdio_set_output();
+                if (cfg.data_phase && (req_rnw == 0U)) {
+                    B::swdio_write(0U);
+                    for (int i = 0; i < (32 + 1); ++i) {
+                        swd_cycle();
+                    }
+                }
                 B::swdio_write(1U);
             } else {
                 ack = kAckError;
-                B::swdio_set_input();
-                for (int i = 0; i < (32 + 1 + 2); ++i) {
+                for (int i = 0; i < (static_cast<int>(cfg.turnaround) + 32 + 1); ++i) {
                     swd_cycle();
                 }
                 B::swdio_set_output();
@@ -155,6 +166,7 @@ export namespace daplink::swd {
                     return ack;
                 }
                 if (retry == 0U) {
+                    line_reset();
                     return ack;
                 }
                 --retry;

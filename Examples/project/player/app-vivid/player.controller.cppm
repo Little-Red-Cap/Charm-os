@@ -524,6 +524,31 @@ export namespace player {
             set_play_mode((play_mode + 1) % 3);
         }
 
+        void focus_list() {
+            if (!kernel || !handles.list) return;
+            kernel->set_focused(handles.list, true);
+        }
+
+        void nav_list(int delta) {
+            if (!kernel || !handles.list) return;
+            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            if (count <= 0) return;
+            int selected = kernel->list_view_selected(handles.list);
+            if (selected < 0) selected = 0;
+            selected += delta;
+            if (selected < 0) selected = 0;
+            if (selected >= count) selected = count - 1;
+            kernel->set_list_view_selected(handles.list, selected);
+        }
+
+        void nav_list_activate() {
+            if (!kernel || !handles.list) return;
+            const int selected = kernel->list_view_selected(handles.list);
+            if (selected >= 0) {
+                select_track_index(selected);
+            }
+        }
+
         void sync_eq_values() {
             if (!kernel) return;
             for (std::size_t i = 0; i < kEqBands; ++i) {

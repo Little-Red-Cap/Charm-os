@@ -207,6 +207,21 @@ namespace {
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:
+            if (evt.key.key == SDLK_UP) {
+                ctx.focus_list();
+                ctx.nav_list(-1);
+                return true;
+            }
+            if (evt.key.key == SDLK_DOWN) {
+                ctx.focus_list();
+                ctx.nav_list(1);
+                return true;
+            }
+            if (evt.key.key == SDLK_RETURN) {
+                ctx.focus_list();
+                ctx.nav_list_activate();
+                return true;
+            }
             if (evt.key.key == SDLK_SPACE) {
                 if (ctx.playing) ctx.pause_playback();
                 else if (ctx.paused) ctx.resume_playback();
@@ -291,6 +306,7 @@ int main(int argc, char** argv) {
 
     g_ctx.icons = register_player_icons();
     g_ctx.handles = build_ui(g_factory, g_ctx, g_ctx.icons);
+    g_ctx.focus_list();
     g_ctx.set_time_label(0);
     g_ctx.mount_status = "Mounting VHD...";
     g_ctx.set_status("Mounting");

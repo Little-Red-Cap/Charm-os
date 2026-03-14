@@ -114,6 +114,7 @@ namespace daplink::usb_minimal::detail {
         volatile std::uint8_t cdc_out_read_index = 0;
         volatile bool cdc_out_armed = false;
         volatile bool cdc_in_busy = false;
+        std::uint32_t cdc_in_last_ms = 0;
         std::uint16_t cdc_control_line_state = 0;
         cdc_line_coding cdc_line = {};
     };
@@ -142,6 +143,7 @@ namespace daplink::usb_minimal::detail {
     };
 
     inline usb_state g_state{};
+    constexpr std::uint32_t kCdcInTimeoutMs = kConfig.cdc.in_timeout_ms;
 
     constexpr std::uint8_t kDeviceClass =
         (kUsbProfile == UsbProfile::composite) ? 0xEF : 0x00;
@@ -379,6 +381,7 @@ namespace daplink::usb_minimal::detail {
                 g_state.cdc.cdc_in[i] = data[i];
             }
             g_state.cdc.cdc_in_busy = true;
+            g_state.cdc.cdc_in_last_ms = HAL_GetTick();
             (void)HAL_PCD_EP_Transmit(&hpcd, kCdcEpIn, g_state.cdc.cdc_in, send_len);
             return true;
         }
@@ -928,6 +931,19 @@ export namespace daplink::usb_minimal {
             g_state.cdc.cdc_line.bParityType,
             g_state.cdc.cdc_line.bDataBits
         };
+    }
+
+    inline void poll() noexcept {
+        if constexpr (!kEnableCdc) {
+            return;
+        }
+        if (!g_state.cdc.cdc_in_busy) {
+            return;
+        }
+        const std::uint32_t now = HAL_GetTick();
+        if ((now - g_state.cdc.cdc_in_last_ms) > kCdcInTimeoutMs) {
+            g_state.cdc.cdc_in_busy = false;
+        }
     }
 
     inline bool take_reset() noexcept {

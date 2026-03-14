@@ -44,6 +44,7 @@ export namespace daplink::cmsis_dap {
         swd::Config swd_cfg{};
         std::uint16_t match_retry = 0;
         std::uint32_t match_mask = 0;
+        std::uint8_t error_streak = 0;
 #if CHARM_DAP_ENABLE_SWO
         std::uint32_t swo_baudrate = 0;
         std::uint8_t swo_mode = 0;
@@ -129,6 +130,22 @@ export namespace daplink::cmsis_dap {
         constexpr std::uint8_t kSwoCaptureActive = 1U << 0;
         constexpr std::uint16_t kSwoBufferSize = 256;
         constexpr std::uint16_t kUartBufferSize = 256;
+        constexpr std::uint8_t kTransferErrorResetThreshold = 8;
+
+        template <swd::Backend Backend>
+        inline void note_transfer_result(State& state, const std::uint8_t ack) noexcept {
+            if (ack == kDapTransferOk || ack == (kDapTransferOk | kDapTransferMismatch)) {
+                state.error_streak = 0;
+                return;
+            }
+            if (state.error_streak < kTransferErrorResetThreshold) {
+                ++state.error_streak;
+            }
+            if (state.error_streak >= kTransferErrorResetThreshold) {
+                swd::Engine<Backend>::line_reset();
+                state.error_streak = 0;
+            }
+        }
 
         inline std::uint32_t read_le32(const std::uint8_t* p) noexcept {
             return static_cast<std::uint32_t>(p[0]) |
@@ -172,6 +189,7 @@ export namespace daplink::cmsis_dap {
             swd::Engine<Backend>::swj_sequence(seq, 16);
             swd::Engine<Backend>::line_reset();
             state.dap_port = kDapPortSwd;
+            state.error_streak = 0;
         }
 
         template <swd::Backend Backend>
@@ -568,6 +586,7 @@ export namespace daplink::cmsis_dap {
                                     }
                                     --retries;
                                 }
+                                note_transfer_result<Backend>(state, ack);
                                 if (ack != kDapTransferOk) {
                                     response_value = ack;
                                     break;
@@ -577,6 +596,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
+                            note_transfer_result<Backend>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;
@@ -638,6 +658,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
+                            note_transfer_result<Backend>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;

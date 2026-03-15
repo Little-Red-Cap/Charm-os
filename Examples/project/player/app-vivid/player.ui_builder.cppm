@@ -114,6 +114,21 @@ export namespace player {
                                           kEqValueWidth, kEqRowHeight});
         }
 
+        const int vol_y = eq_y + kEqTitleHeight + kEqRowGap
+            + static_cast<int>(kEqBands) * (kEqRowHeight + kEqRowGap);
+        h.volume_label = factory.create_label_static("Vol");
+        anchor_rect(h.volume_label, {kUiPadding, vol_y, kEqLabelWidth, kEqRowHeight});
+        const int vol_slider_x = kUiPadding + kEqLabelWidth + kEqRowGapX;
+        const int vol_slider_w = screen_width - kUiPadding * 2
+            - kEqLabelWidth - kEqValueWidth - kEqRowGapX * 2;
+        h.volume_slider = factory.create_slider();
+        anchor_rect(h.volume_slider, {vol_slider_x, vol_y, vol_slider_w, kEqRowHeight});
+        kernel.set_range(h.volume_slider, 0, 100);
+        kernel.set_value(h.volume_slider, 80);
+        h.volume_value = factory.create_label_static("");
+        anchor_rect(h.volume_value, {vol_slider_x + vol_slider_w + kEqRowGapX, vol_y,
+                                      kEqValueWidth, kEqRowHeight});
+
         h.list_title = factory.create_label_static("");
         anchor_rect(h.list_title, {kUiPadding, list_y - kListTitleGap,
                                    screen_width - kUiPadding * 2, 18});
@@ -174,6 +189,9 @@ export namespace player {
             factory.link(content, h.eq_sliders[i]);
             factory.link(content, h.eq_values[i]);
         }
+        factory.link(content, h.volume_label);
+        factory.link(content, h.volume_slider);
+        factory.link(content, h.volume_value);
         factory.link(content, h.list_title);
         factory.link(content, h.list);
         factory.link(content, h.list_scroll);

@@ -1,6 +1,8 @@
 module;
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 
 export module player.playback;
@@ -72,6 +74,7 @@ export namespace player {
         bool paused() const noexcept { return paused_; }
         int duration_sec() const noexcept { return duration_sec_; }
         int current_sec() const noexcept { return current_sec_; }
+        int volume_percent() const noexcept { return volume_percent_; }
 
         void reset_duration() noexcept {
             duration_ready_ = false;
@@ -117,6 +120,23 @@ export namespace player {
                 out_status = "Seek unsupported";
                 return false;
             }
+            return true;
+        }
+
+        bool set_volume(int percent, std::string& out_status) {
+            if (!player_) {
+                out_status = "No player";
+                return false;
+            }
+            const int clamped = std::clamp(percent, 0, 100);
+            const auto res = player_->set_volume(static_cast<std::uint8_t>(clamped));
+            if (!res) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Volume failed (%s)", audio_err_text(res.error()));
+                out_status = buf;
+                return false;
+            }
+            volume_percent_ = clamped;
             return true;
         }
 
@@ -233,6 +253,7 @@ export namespace player {
         bool duration_ready_{false};
         int duration_sec_{180};
         int current_sec_{0};
+        int volume_percent_{80};
         std::chrono::steady_clock::time_point start_{};
     };
 }

@@ -74,6 +74,7 @@ export namespace player {
             controller.mount_status = "Mounting storage...";
             controller.set_status("Mounting storage");
             controller.update_list_placeholder();
+            controller.sync_volume_value();
         }
 
         template <typename Controller>

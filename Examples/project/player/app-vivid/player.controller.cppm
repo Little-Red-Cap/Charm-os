@@ -1,5 +1,4 @@
 ﻿module;
-#include <SDL3/SDL.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -31,6 +30,16 @@ export namespace player {
     using namespace player::fs_utils;
     using namespace player::ui;
 
+    enum class UiKey {
+        Up,
+        Down,
+        Enter,
+        PlayToggle,
+        Next,
+        Prev,
+        Mode,
+    };
+
     struct UiHandles {
         WidgetHandle root{};
         WidgetHandle cover{};
@@ -45,6 +54,9 @@ export namespace player {
         std::array<WidgetHandle, kEqBands> eq_labels{};
         std::array<WidgetHandle, kEqBands> eq_sliders{};
         std::array<WidgetHandle, kEqBands> eq_values{};
+        WidgetHandle volume_label{};
+        WidgetHandle volume_slider{};
+        WidgetHandle volume_value{};
         WidgetHandle list{};
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
@@ -76,6 +88,7 @@ export namespace player {
         int progress_drag_value{0};
         int progress_drag_sec{0};
         std::array<int, kEqBands> last_eq_values{};
+        int last_volume_value{-1};
         struct TextSlots {
             soa_detail::TextSlotId title{soa_detail::kInvalidTextSlot};
             soa_detail::TextSlotId subtitle{soa_detail::kInvalidTextSlot};
@@ -92,6 +105,7 @@ export namespace player {
                 soa_detail::kInvalidTextSlot,
                 soa_detail::kInvalidTextSlot,
             };
+            soa_detail::TextSlotId volume_value{soa_detail::kInvalidTextSlot};
         } text_slots{};
         std::string mount_status{};
         std::mt19937 rng{static_cast<unsigned int>(
@@ -118,30 +132,33 @@ export namespace player {
             playback.set_track_ready(false);
         }
 
-        void handle_key_action(SDL_Keycode key) {
+        void handle_key_action(UiKey key) {
             switch (key) {
-            case SDLK_UP:
+            case UiKey::Up:
                 focus_list();
                 nav_list(-1);
                 break;
-            case SDLK_DOWN:
+            case UiKey::Down:
                 focus_list();
                 nav_list(1);
                 break;
-            case SDLK_RETURN:
+            case UiKey::Enter:
                 focus_list();
                 nav_list_activate();
                 break;
-            case SDLK_SPACE:
+            case UiKey::PlayToggle:
                 if (is_playing()) pause_playback();
                 else if (is_paused()) resume_playback();
                 else start_playback();
                 break;
-            case SDLK_N:
+            case UiKey::Next:
                 switch_track(1);
                 break;
-            case SDLK_P:
+            case UiKey::Prev:
                 switch_track(-1);
+                break;
+            case UiKey::Mode:
+                cycle_play_mode();
                 break;
             default:
                 break;
@@ -164,6 +181,7 @@ export namespace player {
             for (auto& slot : text_slots.eq_values) {
                 slot = alloc();
             }
+            text_slots.volume_value = alloc();
         }
 
         void set_label(WidgetHandle h, const char* text) {
@@ -693,6 +711,20 @@ export namespace player {
             }
         }
 
+        void sync_volume_value() {
+            if (!kernel || !handles.volume_slider || !handles.volume_value) return;
+            const int value = kernel->value(handles.volume_slider);
+            if (value == last_volume_value) return;
+            last_volume_value = value;
+            char buf[16]{};
+            std::snprintf(buf, sizeof(buf), "%d", value);
+            set_label_slot(handles.volume_value, text_slots.volume_value, buf);
+            std::string status;
+            if (!playback.set_volume(value, status) && !status.empty()) {
+                set_status(status.c_str());
+            }
+        }
+
         void process_input_events() {
             if (!kernel) return;
             PendingActions actions{};
@@ -746,6 +778,7 @@ export namespace player {
 
             apply_actions(actions);
             sync_eq_values();
+            sync_volume_value();
         }
     };
 }

@@ -130,6 +130,21 @@ namespace {
         return std::nullopt;
     }
 
+    std::optional<player::UiKey> map_ui_key(SDL_Keycode key) noexcept {
+        switch (key) {
+        case SDLK_UP: return player::UiKey::Up;
+        case SDLK_DOWN: return player::UiKey::Down;
+        case SDLK_RETURN: return player::UiKey::Enter;
+        case SDLK_SPACE: return player::UiKey::PlayToggle;
+        case SDLK_N: return player::UiKey::Next;
+        case SDLK_P: return player::UiKey::Prev;
+        case SDLK_M: return player::UiKey::Mode;
+        default:
+            break;
+        }
+        return std::nullopt;
+    }
+
     bool dispatch_sdl_event(SoaGui& gui, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION: {
@@ -182,7 +197,9 @@ namespace {
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:
-            ctx.handle_key_action(evt.key.key);
+            if (auto k = map_ui_key(evt.key.key)) {
+                ctx.handle_key_action(*k);
+            }
             if (auto b = map_nav_button(evt.key.key)) {
                 input::RawInputEvent raw{};
                 raw.type = input::RawInputEventType::Button;

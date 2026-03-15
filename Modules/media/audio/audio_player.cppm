@@ -321,6 +321,16 @@ export namespace audio {
             return {};
         }
 
+        Result<void> set_volume(std::uint8_t percent) {
+            Command cmd{};
+            cmd.type = CommandType::set_volume;
+            cmd.volume = percent;
+            if (!queue_.push(cmd)) {
+                return unexpected(Errc::timeout);
+            }
+            return {};
+        }
+
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
                 return unexpected(Errc::bad_state);
@@ -499,7 +509,7 @@ export namespace audio {
             rng_.seed(seed);
         }
 #endif
-        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq, set_volume };
 
         struct Command {
             CommandType type{};
@@ -507,6 +517,7 @@ export namespace audio {
             std::uint64_t seek_ms{0};
             AudioFormat fmt{};
             EqConfig eq{};
+            std::uint8_t volume{100};
         };
 
         struct Biquad {
@@ -654,6 +665,9 @@ export namespace audio {
                         eq_.band_count = EqConfig::max_bands;
                     }
                     eq_dirty_ = true;
+                } else if (cmd->type == CommandType::set_volume) {
+                    volume_percent_ = std::min<std::uint8_t>(cmd->volume, 100);
+                    volume_gain_ = static_cast<float>(volume_percent_) / 100.0f;
                 }
             }
             if (eq_dirty_ && output_fmt_.rate != 0) {
@@ -1348,6 +1362,9 @@ export namespace audio {
                         static_cast<std::int64_t>(fade_total == 0 ? 1 : fade_total);
                     v = static_cast<std::int32_t>(scaled);
                 }
+                if (volume_gain_ != 1.0f) {
+                    v = static_cast<std::int32_t>(static_cast<float>(v) * volume_gain_);
+                }
                 const std::int32_t clamped = std::clamp(
                     v,
                     static_cast<std::int32_t>(-32768 << 16),
@@ -1448,6 +1465,8 @@ export namespace audio {
         std::array<Biquad, EqConfig::max_bands> eq_biquads_{};
         bool eq_ready_{false};
         bool eq_dirty_{false};
+        std::uint8_t volume_percent_{100};
+        float volume_gain_{1.0f};
 
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};

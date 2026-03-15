@@ -501,6 +501,38 @@ if queue < high_water:
 
 ---
 
+## L2.9 输出格式策略（v1/v2）
+
+### v1：S16 输出（稳定优先）
+
+当前默认链路：
+
+```
+DSP(S32) → quantize → S16 FIFO → I2S/SDL
+```
+
+理由：
+- v1 优先稳态与兼容性  
+- FIFO/带宽/缓存成本更可控  
+- sink/I2S 配置成本更低  
+
+### v2：S32 输出（高动态范围）
+
+目标链路：
+
+```
+DSP(S32) → S32 FIFO → I2S 32bit
+```
+
+适用：ES9039Q2M 等支持 32bit I2S 的场景。  
+
+落地前置条件：
+- PCM FIFO 支持 32bit 样本  
+- sink/I2S 支持 `SampleType::s32`  
+- Writer/量化路径可切换  
+
+---
+
 ## L3 Player 状态机
 
 ### 状态

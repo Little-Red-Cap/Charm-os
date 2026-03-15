@@ -405,6 +405,17 @@ export namespace player {
             return (clamped * duration_sec) / 100;
         }
 
+        struct PendingActions {
+            bool prev{false};
+            bool next{false};
+            bool toggle_play{false};
+            bool cycle_mode{false};
+            bool seek{false};
+            int seek_sec{0};
+            bool select{false};
+            int select_index{-1};
+        };
+
         void update_progress_drag(int x) {
             progress_drag_value = progress_value_from_x(x);
             progress_drag_sec = progress_sec_from_value(progress_drag_value);
@@ -412,13 +423,12 @@ export namespace player {
             set_time_label(progress_drag_sec);
         }
 
-        void end_progress_drag(bool apply_seek) {
+        void end_progress_drag(bool apply_seek, PendingActions& actions) {
             if (!progress_dragging) return;
             progress_dragging = false;
             if (apply_seek && is_seek_ready()) {
-                if (request_seek(progress_drag_sec)) {
-                    playback.set_current_sec(progress_drag_sec);
-                }
+                actions.seek = true;
+                actions.seek_sec = progress_drag_sec;
             }
         }
 
@@ -458,6 +468,32 @@ export namespace player {
             set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
+        }
+
+        void apply_actions(const PendingActions& actions) {
+            if (actions.prev) {
+                switch_track(-1);
+            } else if (actions.next) {
+                switch_track(1);
+            } else if (actions.select) {
+                select_track_index(actions.select_index);
+            }
+
+            if (actions.toggle_play) {
+                if (playback.playing()) pause_playback();
+                else if (playback.paused()) resume_playback();
+                else start_playback();
+            }
+
+            if (actions.cycle_mode) {
+                cycle_play_mode();
+            }
+
+            if (actions.seek) {
+                if (request_seek(actions.seek_sec)) {
+                    playback.set_current_sec(actions.seek_sec);
+                }
+            }
         }
 
         void set_track_labels(std::string_view vfs_path) {
@@ -610,6 +646,7 @@ export namespace player {
 
         void process_input_events() {
             if (!kernel) return;
+            PendingActions actions{};
             const std::size_t count = kernel->input_event_count();
             for (std::size_t i = 0; i < count; ++i) {
                 const auto& item = kernel->input_event(i);
@@ -627,24 +664,22 @@ export namespace player {
                     } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
                         if (progress_dragging) {
                             update_progress_drag(item.event.x);
-                            end_progress_drag(true);
+                            end_progress_drag(true, actions);
                         }
                     } else if (type == Event::Type::Cancel) {
-                        end_progress_drag(false);
+                        end_progress_drag(false, actions);
                     }
                     continue;
                 }
                 if (type == Event::Type::MouseUp) {
                     if (target == handles.btn_prev) {
-                        switch_track(-1);
+                        actions.prev = true;
                     } else if (target == handles.btn_next) {
-                        switch_track(1);
+                        actions.next = true;
                     } else if (target == handles.btn_pause) {
-                        if (playback.playing()) pause_playback();
-                        else if (playback.paused()) resume_playback();
-                        else start_playback();
+                        actions.toggle_play = true;
                     } else if (target == handles.btn_mode) {
-                        cycle_play_mode();
+                        actions.cycle_mode = true;
                     }
                 }
             }
@@ -654,11 +689,13 @@ export namespace player {
                 if (selected >= 0 && selected != last_list_selected) {
                     last_list_selected = selected;
                     if (!ignore_list_select) {
-                        select_track_index(selected);
+                        actions.select = true;
+                        actions.select_index = selected;
                     }
                 }
             }
 
+            apply_actions(actions);
             sync_eq_values();
         }
     };

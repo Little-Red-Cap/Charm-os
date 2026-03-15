@@ -77,6 +77,12 @@ export namespace player {
         int current_sec() const noexcept { return current_sec_; }
         int volume_percent() const noexcept { return volume_percent_; }
 
+        bool snapshot(audio::PlayerSnapshot& out) {
+            if (!player_) return false;
+            out = player_->snapshot(false);
+            return true;
+        }
+
         void reset_duration() noexcept {
             duration_ready_ = false;
             duration_sec_ = 180;

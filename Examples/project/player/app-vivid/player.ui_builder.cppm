@@ -149,6 +149,14 @@ export namespace player {
         h.controls = factory.create_container();
         anchor_rect(h.controls, {controls_x, controls_y, controls_w, kButtonHeight});
 
+#if CHARM_PLAYER_DEBUG_UI
+        const int debug_h = 18;
+        const int debug_y = controls_y - debug_h - 6;
+        h.debug_text = factory.create_label_static("");
+        anchor_rect(h.debug_text, {kUiPadding, debug_y,
+                                   screen_width - kUiPadding * 2, debug_h});
+#endif
+
         h.btn_prev = factory.create_button_static("Prev");
         anchor_rect(h.btn_prev, {0, 0, kButtonWidth, kButtonHeight});
         factory.set_button_icon(h.btn_prev, icons.prev);
@@ -201,6 +209,9 @@ export namespace player {
         factory.link(h.controls, h.btn_pause);
         factory.link(h.controls, h.btn_next);
         factory.link(h.controls, h.btn_mode);
+#if CHARM_PLAYER_DEBUG_UI
+        factory.link(h.root, h.debug_text);
+#endif
 
         return h;
     }

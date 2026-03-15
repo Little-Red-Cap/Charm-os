@@ -68,6 +68,7 @@ export namespace player {
         WidgetHandle btn_next{};
         WidgetHandle btn_mode{};
         WidgetHandle controls{};
+        WidgetHandle debug_text{};
     };
 
     struct PlayerController {
@@ -109,10 +110,12 @@ export namespace player {
                 soa_detail::kInvalidTextSlot,
             };
             soa_detail::TextSlotId volume_value{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId debug_text{soa_detail::kInvalidTextSlot};
         } text_slots{};
         std::string mount_status{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
+        std::chrono::steady_clock::time_point last_debug_tick{};
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
@@ -185,6 +188,7 @@ export namespace player {
                 slot = alloc();
             }
             text_slots.volume_value = alloc();
+            text_slots.debug_text = alloc();
         }
 
         void set_label(WidgetHandle h, const char* text) {
@@ -246,6 +250,7 @@ export namespace player {
             }
             update_duration_from_player();
             update_progress();
+            update_debug_overlay();
         }
 
         void set_play_button_text(bool playing_now) {
@@ -437,6 +442,37 @@ export namespace player {
             kernel->set_value(handles.progress, upd.value);
             set_time_label(upd.current_sec);
             return true;
+        }
+
+        void update_debug_overlay() {
+#if CHARM_PLAYER_DEBUG_UI
+            if (!kernel || !handles.debug_text) return;
+            const auto now = std::chrono::steady_clock::now();
+            if (last_debug_tick.time_since_epoch().count() != 0) {
+                const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_debug_tick).count();
+                if (dt < 500) return;
+            }
+            last_debug_tick = now;
+
+            audio::PlayerSnapshot snap{};
+            if (!playback.snapshot(snap)) return;
+            const auto& fmt = snap.output_fmt;
+            const std::uint64_t frame_size = fmt.frame_size();
+            const std::uint64_t bytes_per_sec = frame_size * fmt.rate;
+            const std::uint64_t water_ms = bytes_per_sec ? (snap.water_bytes * 1000 / bytes_per_sec) : 0;
+            const std::uint64_t low_ms = bytes_per_sec ? (snap.low_water * 1000 / bytes_per_sec) : 0;
+            const std::uint64_t high_ms = bytes_per_sec ? (snap.high_water * 1000 / bytes_per_sec) : 0;
+
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "water %llums (%llu..%llu) underrun %llu",
+                          static_cast<unsigned long long>(water_ms),
+                          static_cast<unsigned long long>(low_ms),
+                          static_cast<unsigned long long>(high_ms),
+                          static_cast<unsigned long long>(snap.stats.underrun_count));
+            set_label_slot(handles.debug_text, text_slots.debug_text, buf);
+#else
+            (void)this;
+#endif
         }
 
         void sync_progress_value(int value) {

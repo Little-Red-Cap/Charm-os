@@ -299,6 +299,25 @@ Graph → FifoWriter → PCM FIFO
 
 要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
 
+### 2.2) Writer 适配接口（草图）
+
+```cpp
+struct FrameWriter {
+  // 返回可写 span（S16 interleaved），按 frames 申请
+  // 若返回空，表示当前不可写（例如 FIFO 满）
+  std::span<std::int16_t> begin_write(std::uint32_t frames) noexcept;
+  void commit_write(std::uint32_t frames) noexcept;
+};
+
+// v1: BufferWriter → s16_out_
+// v1.5: FifoWriter  → PCM FIFO span(A/B)
+```
+
+约束：
+- Writer 不暴露 FIFO A/B 细节给 Graph  
+- Graph 仍只处理 S32，量化写入由 Writer 统一完成  
+- Writer 必须保证 frame 对齐与有界时间
+
 ### 2.1) 输出写入策略（v1/v1.5 预留）
 
 v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：

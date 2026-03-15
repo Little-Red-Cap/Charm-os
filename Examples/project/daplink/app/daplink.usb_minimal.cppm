@@ -103,6 +103,7 @@ namespace daplink::usb_minimal::detail {
         volatile std::uint8_t hid_out_active_index = 0;
         volatile std::uint8_t hid_out_read_index = 0;
         volatile bool hid_out_armed = false;
+        volatile bool hid_in_busy = false;
     };
 
     struct cdc_state {
@@ -330,13 +331,19 @@ namespace daplink::usb_minimal::detail {
         }
     }
 
-    inline void hid_in_send(PCD_HandleTypeDef& hpcd, const std::uint16_t len) noexcept {
+    inline bool hid_in_send(PCD_HandleTypeDef& hpcd, const std::uint16_t len) noexcept {
         if constexpr (!kEnableHid) {
             (void)hpcd;
             (void)len;
+            return false;
         } else {
+            if (g_state.hid.hid_in_busy) {
+                return false;
+            }
             const std::uint16_t send_len = (len > kHidEpMps) ? kHidEpMps : len;
+            g_state.hid.hid_in_busy = true;
             (void)HAL_PCD_EP_Transmit(&hpcd, kHidEpIn, g_state.hid.hid_in, send_len);
+            return true;
         }
     }
 
@@ -813,6 +820,11 @@ export namespace daplink::usb_minimal {
             }
             (void)HAL_PCD_EP_Receive(&hpcd, 0x00, g_state.ep0_out, kEp0Mps);
         }
+        if (epnum == (kHidEpIn & 0x7FU)) {
+            if constexpr (kEnableHid) {
+                g_state.hid.hid_in_busy = false;
+            }
+        }
         if (epnum == (kCdcEpIn & 0x7FU)) {
             if constexpr (kEnableCdc) {
                 g_state.cdc.cdc_in_busy = false;
@@ -862,15 +874,19 @@ export namespace daplink::usb_minimal {
         return std::span<std::uint8_t, kHidPacketSize>(g_state.hid.hid_in);
     }
 
-    inline void send_in_packet(const std::uint16_t len) noexcept {
+    inline bool try_send_in_packet(const std::uint16_t len) noexcept {
         if constexpr (!kEnableHid) {
             (void)len;
-            return;
+            return false;
         }
         if (g_state.hpcd == nullptr) {
-            return;
+            return false;
         }
-        hid_in_send(*g_state.hpcd, len);
+        return hid_in_send(*g_state.hpcd, len);
+    }
+
+    inline void send_in_packet(const std::uint16_t len) noexcept {
+        (void)try_send_in_packet(len);
     }
 
     inline bool cdc_out_ready() noexcept {

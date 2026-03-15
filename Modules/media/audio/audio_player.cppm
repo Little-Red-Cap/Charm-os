@@ -205,6 +205,7 @@ export namespace audio {
     struct PlayerConfig {
         PlayerProfile profile{};
         std::uint32_t preferred_period_frames{0};
+        std::uint32_t graph_block_frames{0};
         OutputMode output_mode{OutputMode::follow_input};
         std::uint32_t fixed_rate{0};
         std::uint32_t fade_in_ms{0};
@@ -557,6 +558,23 @@ export namespace audio {
             return out;
         }
 
+        static bool is_power_of_two(std::uint32_t value) noexcept {
+            return value != 0 && (value & (value - 1u)) == 0;
+        }
+
+        std::uint32_t select_graph_block_frames(std::uint32_t period_frames) const noexcept {
+            if (period_frames == 0) return 0;
+            std::uint32_t block = config_.graph_block_frames;
+            if (block == 0) {
+                block = std::min<std::uint32_t>(period_frames, 128);
+            } else if (block > period_frames) {
+                block = period_frames;
+            } else if (block < period_frames && !is_power_of_two(block)) {
+                block = std::min<std::uint32_t>(period_frames, 128);
+            }
+            return block;
+        }
+
         void push_spectrum_samples(std::span<const std::byte> data) noexcept {
             if (!spectrum_enabled_.load(std::memory_order_relaxed)) return;
             const std::size_t channels = output_fmt_.channels ? output_fmt_.channels : 1;
@@ -758,6 +776,7 @@ export namespace audio {
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
+            data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
             const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
@@ -866,6 +885,7 @@ export namespace audio {
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
+            data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
             const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();

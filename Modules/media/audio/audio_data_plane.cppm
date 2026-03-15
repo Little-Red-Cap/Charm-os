@@ -65,6 +65,9 @@ export namespace audio {
         void set_soft_clip_threshold(float threshold) noexcept {
             graph_.set_soft_clip_threshold(threshold);
         }
+        void set_graph_block_frames(std::uint32_t frames) noexcept {
+            graph_block_frames_ = frames;
+        }
 
         bool configure(std::span<std::byte> storage,
                        std::size_t fifo_capacity,
@@ -107,6 +110,7 @@ export namespace audio {
             chunk_frames_ = 0;
             chunk_bytes_ = 0;
             last_written_bytes_ = 0;
+            graph_block_frames_ = 0;
             fifo_.clear();
             pump_.reset_stats();
             frame_queue_.clear();
@@ -242,7 +246,10 @@ export namespace audio {
                 if (view.a.empty() && view.b.empty()) break;
 
                 auto consume_span = [&](std::span<std::int32_t> src) {
-                    const std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    if (graph_block_frames_ != 0 && graph_block_frames_ < frames_avail) {
+                        frames_avail = graph_block_frames_;
+                    }
                     if (frames_avail == 0) return;
                     const std::size_t samples = frames_avail * channels;
                     auto slice = src.first(samples);
@@ -293,6 +300,7 @@ export namespace audio {
         std::uint32_t chunk_frames_{0};
         std::size_t chunk_bytes_{0};
         std::size_t last_written_bytes_{0};
+        std::uint32_t graph_block_frames_{0};
 
         std::array<std::int32_t, kFrameQueueSamples> frame_queue_storage_{};
         std::array<std::int16_t, kMaxChunkFrames * kMaxChannels> s16_out_{};

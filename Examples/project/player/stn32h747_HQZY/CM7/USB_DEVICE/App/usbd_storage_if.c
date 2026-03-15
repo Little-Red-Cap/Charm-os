@@ -22,6 +22,14 @@
 #include "usbd_storage_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include <stdbool.h>
+
+bool charm_usb_storage_init(void);
+bool charm_usb_storage_is_ready(void);
+bool charm_usb_storage_is_write_protected(void);
+bool charm_usb_storage_get_capacity(uint32_t *block_num, uint16_t *block_size);
+bool charm_usb_storage_read(uint8_t *buf, uint32_t blk_addr, uint16_t blk_len);
+bool charm_usb_storage_write(const uint8_t *buf, uint32_t blk_addr, uint16_t blk_len);
 
 /* USER CODE END INCLUDE */
 
@@ -179,7 +187,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
   /* USER CODE BEGIN 2 */
  UNUSED(lun);
 
-  return (USBD_OK);
+  return charm_usb_storage_init() ? USBD_OK : USBD_FAIL;
   /* USER CODE END 2 */
 }
 
@@ -195,9 +203,10 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
   /* USER CODE BEGIN 3 */
   UNUSED(lun);
 
-  *block_num  = STORAGE_BLK_NBR;
-  *block_size = STORAGE_BLK_SIZ;
-  return (USBD_OK);
+  if (!charm_usb_storage_get_capacity(block_num, block_size)) {
+    return USBD_FAIL;
+  }
+  return USBD_OK;
   /* USER CODE END 3 */
 }
 
@@ -211,7 +220,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
   /* USER CODE BEGIN 4 */
   UNUSED(lun);
 
-  return (USBD_OK);
+  return charm_usb_storage_is_ready() ? USBD_OK : USBD_FAIL;
   /* USER CODE END 4 */
 }
 
@@ -225,7 +234,7 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
   /* USER CODE BEGIN 5 */
   UNUSED(lun);
 
-  return (USBD_OK);
+  return charm_usb_storage_is_write_protected() ? 1 : 0;
   /* USER CODE END 5 */
 }
 
@@ -241,11 +250,10 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 {
   /* USER CODE BEGIN 6 */
   UNUSED(lun);
-  UNUSED(buf);
-  UNUSED(blk_addr);
-  UNUSED(blk_len);
-
-  return (USBD_OK);
+  if (!charm_usb_storage_read(buf, blk_addr, blk_len)) {
+    return USBD_FAIL;
+  }
+  return USBD_OK;
   /* USER CODE END 6 */
 }
 
@@ -261,11 +269,10 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 {
   /* USER CODE BEGIN 7 */
   UNUSED(lun);
-  UNUSED(buf);
-  UNUSED(blk_addr);
-  UNUSED(blk_len);
-
-  return (USBD_OK);
+  if (!charm_usb_storage_write(buf, blk_addr, blk_len)) {
+    return USBD_FAIL;
+  }
+  return USBD_OK;
   /* USER CODE END 7 */
 }
 

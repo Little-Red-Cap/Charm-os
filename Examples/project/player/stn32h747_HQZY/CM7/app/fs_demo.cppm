@@ -473,10 +473,17 @@ namespace {
     };
 
     static SdBlockDevice g_sd{};
+    static bool g_sd_inited = false;
+
+    bool sd_init_once() noexcept {
+        if (g_sd_inited) return true;
+        g_sd_inited = g_sd.init();
+        return g_sd_inited;
+    }
 } // namespace
 
 export bool fs_boot_init() noexcept {
-    if (!g_sd.init()) {
+    if (!sd_init_once()) {
         log<"fs boot: sd init failed">();
         return false;
     }
@@ -490,6 +497,11 @@ export bool fs_boot_init() noexcept {
     (void)fs::add_mount("/", mount.mount_point());
     log<"fs boot: mount ok">();
     return true;
+}
+
+export fs::BlockDevice* fs_sd_block_device() noexcept {
+    if (!sd_init_once()) return nullptr;
+    return &g_sd.device();
 }
 
 export bool fs_sd_selftest(util::u32 start_lba, util::u32 blocks, util::u32 stride) noexcept {

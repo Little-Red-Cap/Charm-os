@@ -63,7 +63,7 @@ export namespace player::ui {
     inline constexpr int kOptionsGap = 10;
     inline constexpr int kOptionLabelWidth = 92;
     inline constexpr int kEqBands = 5;
-    inline constexpr int kEqPanelHeight = 148;
+    inline constexpr int kEqPanelHeight = 192;
     inline constexpr int kEqTitleHeight = 18;
     inline constexpr int kEqRowHeight = 22;
     inline constexpr int kEqRowGap = 6;
@@ -421,6 +421,7 @@ export namespace player::ui {
         preset.list_view = theme.get<ListView>();
         preset.list_view.colors.bg_color = kUiListBg;
         preset.list_view.colors.border_color = kUiListBorder;
+        preset.list_view.colors.on_accent = kUiListFont;
         preset.list_view.metrics.corner_radius = 6;
         preset.list_view.metrics.padding = 6;
         preset.list_view.colors.font_color = kUiListFont;

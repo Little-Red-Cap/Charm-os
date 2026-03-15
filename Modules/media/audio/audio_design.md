@@ -3,6 +3,8 @@
 > 目标：**PC/MCU 同构行为** + **实时路径最短**。  
 > 约束：**pipeline 内部使用 S32**，**FIFO 存 S16**，量化点固定在写入 FIFO 之前。
 
+> v1 可落地设计：`docs/audio/audio_design_v1.md`
+
 ---
 
 ## L1 接口签名（稳定 API）

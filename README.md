@@ -283,6 +283,21 @@ input-pump-win-demo
 
 ---
 
+
+## 第三方
+本项目中使用了一些开源项目，感谢以下项目：
+
+| 名字       | 路径                         | 许可       | 链接                                         |
+|----------|----------------------------|----------|--------------------------------------------|
+| etl      |                            |          |                                            |
+| freetype |                            | FreeType | https://freetype.org/                      |
+| lua      |                            | MIT      | https://www.lua.org/                       |
+| lwip     |                            | BSD      | https://savannah.nongnu.org/projects/lwip/ |
+| dr_libs  | Modules/thirdparty/dr_libs |          |                                            |
+| fatfs    | Modules/thirdparty/fatfs   |          |                                            |
+
+---
+
 <div align="center">
 
 问题反馈：[GitHub Issues](https://github.com/Little-Red-Cap/Charm-os/issues)

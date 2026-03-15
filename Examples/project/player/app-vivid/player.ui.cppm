@@ -63,13 +63,14 @@ export namespace player::ui {
     inline constexpr int kOptionsGap = 10;
     inline constexpr int kOptionLabelWidth = 92;
     inline constexpr int kEqBands = 5;
-    inline constexpr int kEqPanelHeight = 192;
+    inline constexpr int kEqPanelHeight = 248;
     inline constexpr int kEqTitleHeight = 18;
     inline constexpr int kEqRowHeight = 22;
     inline constexpr int kEqRowGap = 6;
     inline constexpr int kEqLabelWidth = 40;
     inline constexpr int kEqValueWidth = 44;
     inline constexpr int kEqRowGapX = 10;
+    inline constexpr int kDspToggleWidth = 44;
     inline constexpr int kEqPresetLabelWidth = 56;
     inline constexpr int kEqPresetWidth = 140;
     inline constexpr int kListTitleGap = 26;

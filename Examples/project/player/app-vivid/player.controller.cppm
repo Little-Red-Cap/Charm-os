@@ -58,6 +58,12 @@ export namespace player {
         WidgetHandle volume_label{};
         WidgetHandle volume_slider{};
         WidgetHandle volume_value{};
+        WidgetHandle dc_label{};
+        WidgetHandle dc_switch{};
+        WidgetHandle clip_label{};
+        WidgetHandle clip_switch{};
+        WidgetHandle clip_slider{};
+        WidgetHandle clip_value{};
         WidgetHandle list{};
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
@@ -93,6 +99,9 @@ export namespace player {
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
         int last_volume_value{-1};
+        int last_dc_enabled{-1};
+        int last_clip_enabled{-1};
+        int last_clip_threshold{-1};
         struct TextSlots {
             soa_detail::TextSlotId title{soa_detail::kInvalidTextSlot};
             soa_detail::TextSlotId subtitle{soa_detail::kInvalidTextSlot};
@@ -110,6 +119,7 @@ export namespace player {
                 soa_detail::kInvalidTextSlot,
             };
             soa_detail::TextSlotId volume_value{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId clip_value{soa_detail::kInvalidTextSlot};
             soa_detail::TextSlotId debug_text{soa_detail::kInvalidTextSlot};
         } text_slots{};
         std::string mount_status{};
@@ -188,6 +198,7 @@ export namespace player {
                 slot = alloc();
             }
             text_slots.volume_value = alloc();
+            text_slots.clip_value = alloc();
             text_slots.debug_text = alloc();
         }
 
@@ -782,6 +793,40 @@ export namespace player {
             }
         }
 
+        void sync_dsp_controls() {
+            if (!kernel) return;
+            if (handles.dc_switch) {
+                const int enabled = kernel->checked(handles.dc_switch) ? 1 : 0;
+                if (enabled != last_dc_enabled) {
+                    last_dc_enabled = enabled;
+                    std::string status;
+                    if (!playback.set_dc_block(enabled != 0, status) && !status.empty()) {
+                        set_status(status.c_str());
+                    }
+                }
+            }
+            if (!handles.clip_switch || !handles.clip_slider || !handles.clip_value) return;
+            const int enabled = kernel->checked(handles.clip_switch) ? 1 : 0;
+            const int threshold = kernel->value(handles.clip_slider);
+            bool changed = false;
+            if (enabled != last_clip_enabled) {
+                last_clip_enabled = enabled;
+                changed = true;
+            }
+            if (threshold != last_clip_threshold) {
+                last_clip_threshold = threshold;
+                char buf[16]{};
+                std::snprintf(buf, sizeof(buf), "%d", threshold);
+                set_label_slot(handles.clip_value, text_slots.clip_value, buf);
+                changed = true;
+            }
+            if (!changed) return;
+            std::string status;
+            if (!playback.set_soft_clip(enabled != 0, threshold, status) && !status.empty()) {
+                set_status(status.c_str());
+            }
+        }
+
         void process_input_events() {
             if (!kernel) return;
             PendingActions actions{};
@@ -836,6 +881,7 @@ export namespace player {
             apply_actions(actions);
             sync_eq_values();
             sync_volume_value();
+            sync_dsp_controls();
         }
     };
 }

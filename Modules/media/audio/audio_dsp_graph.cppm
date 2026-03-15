@@ -32,6 +32,10 @@ export namespace audio {
         }
 
         void enable_dc_block(bool on) noexcept { dc_block_enabled_ = on; }
+        void enable_soft_clip(bool on) noexcept { soft_clip_enabled_ = on; }
+        void set_soft_clip_threshold(float threshold) noexcept {
+            soft_clip_threshold_ = std::clamp(threshold, 0.0f, 1.0f);
+        }
 
         void reset_fade(std::uint64_t frames) noexcept {
             fade_total_frames_ = frames;

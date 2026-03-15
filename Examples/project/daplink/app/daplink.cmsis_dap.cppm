@@ -15,6 +15,7 @@ export module daplink.cmsis_dap;
 
 
 import daplink.swd_engine;
+import daplink.dap_backend;
 
 export namespace daplink::cmsis_dap {
     constexpr std::size_t kPacketSize = 64;
@@ -134,7 +135,7 @@ export namespace daplink::cmsis_dap {
         constexpr std::uint16_t kUartBufferSize = 256;
         constexpr std::uint8_t kTransferErrorResetThreshold = 8;
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline void note_transfer_result(State& state, const std::uint8_t ack) noexcept {
             if (ack == kDapTransferOk || ack == (kDapTransferOk | kDapTransferMismatch)) {
                 state.error_streak = 0;
@@ -177,7 +178,7 @@ export namespace daplink::cmsis_dap {
             return field.size;
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline std::uint8_t dap_transfer_once(const State& state, const std::uint8_t request, std::uint32_t& data) noexcept {
             if ((request & kReqRnw) != 0U && (request & kReqApndp) != 0U) {
                 std::uint32_t posted_dummy = 0;
@@ -190,7 +191,7 @@ export namespace daplink::cmsis_dap {
             return swd::Engine<Backend>::transfer(state.swd_cfg, request, data);
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline void connect_swd(State& state) noexcept {
             Backend::setup_swd_pins_active();
             if (state.current_hz != 0U) {
@@ -204,7 +205,7 @@ export namespace daplink::cmsis_dap {
             state.error_streak = 0;
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline void disconnect_swd(State& state) noexcept {
             state.dap_port = kDapPortDisabled;
             Backend::setup_swd_pins_hi_z();
@@ -216,7 +217,7 @@ export namespace daplink::cmsis_dap {
             bool ok;
         };
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline CmdResult process_single(
             State& state,
             DeviceInfo info,
@@ -704,7 +705,7 @@ export namespace daplink::cmsis_dap {
             }
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline void process_execute(
             State& state,
             DeviceInfo info,
@@ -739,7 +740,7 @@ export namespace daplink::cmsis_dap {
         }
     }
 
-    template <swd::Backend Backend>
+    template <daplink::dap_backend::SwdBackend Backend>
     inline void process_packet(
         State& state,
         DeviceInfo info,

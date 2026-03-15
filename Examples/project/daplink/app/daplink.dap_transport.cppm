@@ -8,10 +8,11 @@ export module daplink.dap_transport;
 import daplink.dap_core;
 import daplink.dap_queue;
 import daplink.swd_engine;
+import daplink.dap_backend;
 import daplink.usb_minimal;
 
 export namespace daplink::dap_transport {
-    template <daplink::swd::Backend Backend>
+    template <daplink::dap_backend::SwdBackend Backend>
     struct HidTransport {
         daplink::dap_core::State& state;
         daplink::dap_core::DeviceInfo info;

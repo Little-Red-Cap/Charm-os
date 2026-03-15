@@ -9,6 +9,7 @@ export module daplink.dap_queue;
 
 import daplink.dap_core;
 import daplink.swd_engine;
+import daplink.dap_backend;
 
 export namespace daplink::dap_queue {
     template <std::size_t Count = daplink::dap_core::kPacketCount>
@@ -37,7 +38,7 @@ export namespace daplink::dap_queue {
             return send_count != 0;
         }
 
-        template <daplink::swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         bool enqueue(daplink::dap_core::State& state,
                      daplink::dap_core::DeviceInfo info,
                      std::span<const std::uint8_t, daplink::dap_core::kPacketSize> in) noexcept {

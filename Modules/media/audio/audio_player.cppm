@@ -26,8 +26,8 @@ import audio.decoder.mp3;
 import audio.decoder.wav;
 import audio.channel.convert;
 import audio.fifo;
-import audio.pcm_buffer;
 import audio.format;
+import audio.pump;
 import audio.resampler.linear;
 import audio.result;
 import alg_fft;
@@ -545,14 +545,10 @@ export namespace audio {
             }
         };
 
-        static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
+        static std::size_t fill_from_pump(std::span<std::byte> dst, void* user) noexcept {
             auto* self = static_cast<AudioPlayer*>(user);
-            if (!self || self->fifo_capacity_ == 0) return 0;
-            const std::size_t frame = self->output_fmt_.frame_size();
-            if (frame == 0) return 0;
-
-            const std::size_t filled = read_pcm_fifo(self->fifo_, dst, frame);
-
+            if (!self) return 0;
+            const std::size_t filled = self->pump_.fill(dst);
             if (filled > 0) {
                 self->push_spectrum_samples(dst.first(filled));
             }
@@ -804,7 +800,8 @@ export namespace audio {
                 return;
             }
 
-            sink_.set_fill_callback(&AudioPlayer::fill_from_fifo, this);
+            pump_.bind(fifo_, output_fmt_);
+            sink_.set_fill_callback(&AudioPlayer::fill_from_pump, this);
 
             stats_ = {};
             stats_.min_water = fifo_capacity_;
@@ -952,7 +949,8 @@ export namespace audio {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
-            sink_.set_fill_callback(&AudioPlayer::fill_from_fifo, this);
+            pump_.bind(fifo_, output_fmt_);
+            sink_.set_fill_callback(&AudioPlayer::fill_from_pump, this);
 
             stats_.min_water = fifo_capacity_;
             stats_.max_water = 0;
@@ -1412,6 +1410,7 @@ export namespace audio {
         WavFilter wav_filter_{};
         SinkType sink_{};
         PcmFifo fifo_{};
+        AudioPump pump_{};
 
         AudioFormat input_fmt_{};
         AudioFormat output_fmt_{};

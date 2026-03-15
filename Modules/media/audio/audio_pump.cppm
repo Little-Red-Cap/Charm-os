@@ -36,6 +36,10 @@ export namespace audio {
             frame_size_ = frame_size;
         }
 
+        std::size_t fill(std::span<std::byte> dst) noexcept {
+            return on_fill(dst);
+        }
+
         FillCallback fill_callback() const noexcept { return &AudioPump::on_fill_static; }
 
         PumpStats snapshot() const noexcept {

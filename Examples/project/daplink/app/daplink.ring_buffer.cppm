@@ -11,6 +11,7 @@ export namespace daplink::ring_buffer {
     struct Buffer {
         static_assert(N > 0);
         static_assert((N & (N - 1)) == 0);
+        static constexpr std::size_t capacity = N - 1;
 
         std::array<std::uint8_t, N> data{};
         std::uint16_t head = 0;
@@ -48,6 +49,10 @@ export namespace daplink::ring_buffer {
 
         std::uint16_t count() const noexcept {
             return static_cast<std::uint16_t>((head - tail) & mask());
+        }
+
+        std::uint16_t free() const noexcept {
+            return static_cast<std::uint16_t>(capacity - count());
         }
 
         std::uint16_t peek(std::uint8_t* dst, const std::uint16_t max_len) const noexcept {

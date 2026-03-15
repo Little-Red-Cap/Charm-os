@@ -1,9 +1,9 @@
 module;
 #include <cstdint>
-#include <concepts>
 export module daplink.swd_engine;
 
 import daplink.app_config;
+import daplink.dap_backend;
 
 export namespace daplink::swd {
     struct Config {
@@ -13,22 +13,7 @@ export namespace daplink::swd {
         bool data_phase = false;
     };
 
-    template <typename B>
-    concept Backend = requires(std::uint8_t bit, std::uint8_t value, std::uint8_t select) {
-        { B::setup_swd_pins_active() } noexcept;
-        { B::setup_swd_pins_hi_z() } noexcept;
-        { B::swclk_low() } noexcept;
-        { B::swclk_high() } noexcept;
-        { B::swdio_write(bit) } noexcept;
-        { B::swdio_read() } noexcept -> std::same_as<std::uint8_t>;
-        { B::swdio_set_output() } noexcept;
-        { B::swdio_set_input() } noexcept;
-        { B::pin_delay() } noexcept;
-        { B::set_swj_clock_hz(std::uint32_t{}) } noexcept;
-        { B::swj_pins(value, select) } noexcept -> std::same_as<std::uint8_t>;
-    };
-
-    template <Backend B>
+    template <daplink::dap_backend::SwdBackend B>
     struct Engine {
         static void line_reset() noexcept {
             B::swdio_set_output();

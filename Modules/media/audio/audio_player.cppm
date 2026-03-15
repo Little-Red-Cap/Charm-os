@@ -26,6 +26,7 @@ import audio.decoder.mp3;
 import audio.decoder.wav;
 import audio.channel.convert;
 import audio.fifo;
+import audio.pcm_buffer;
 import audio.format;
 import audio.resampler.linear;
 import audio.result;
@@ -550,25 +551,7 @@ export namespace audio {
             const std::size_t frame = self->output_fmt_.frame_size();
             if (frame == 0) return 0;
 
-            std::size_t need = dst.size() - (dst.size() % frame);
-            std::size_t filled = 0;
-
-            while (filled < need) {
-                auto v = self->fifo_.readable_view();
-                if (v.a.empty() && v.b.empty()) break;
-
-                auto copy_one = [&](std::span<std::byte> src) {
-                    std::size_t n = std::min(src.size(), need - filled);
-                    n -= n % frame;
-                    if (n == 0) return;
-                    std::memcpy(dst.data() + filled, src.data(), n);
-                    self->fifo_.commit_read(n);
-                    filled += n;
-                };
-
-                if (!v.a.empty()) copy_one(v.a);
-                else if (!v.b.empty()) copy_one(v.b);
-            }
+            const std::size_t filled = read_pcm_fifo(self->fifo_, dst, frame);
 
             if (filled > 0) {
                 self->push_spectrum_samples(dst.first(filled));

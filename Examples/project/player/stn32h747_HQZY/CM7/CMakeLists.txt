@@ -67,26 +67,21 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    app/main.cpp
+#    app/main.cpp
+    app/main-usb.cpp
     app/uart_bridge.c
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
 )
 
-file(GLOB_RECURSE MODULE_INTERFACE_UNITS
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/*.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../app-ink/hqzy/*.cppm"
+set(MODULE_INTERFACE_UNITS
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo.cppm"
 )
-#list(APPEND MODULE_INTERFACE_UNITS
-#    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_app_state.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_controller.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_fs_utils.cppm"
-#    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_ui_ink.cppm"
-#)
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
     BASE_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/../.."
         "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
     FILES
         ${MODULE_INTERFACE_UNITS}

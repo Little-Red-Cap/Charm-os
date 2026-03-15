@@ -27,7 +27,7 @@ extern "C" bool charm_usb_storage_is_ready(void) {
 }
 
 extern "C" bool charm_usb_storage_is_write_protected(void) {
-    return true;
+    return false;
 }
 
 extern "C" bool charm_usb_storage_get_capacity(std::uint32_t* block_num,
@@ -52,8 +52,14 @@ extern "C" bool charm_usb_storage_read(std::uint8_t* buf,
     return static_cast<bool>(st);
 }
 
-extern "C" bool charm_usb_storage_write(const std::uint8_t*,
-                                        std::uint32_t,
-                                        std::uint16_t) {
-    return false;
+extern "C" bool charm_usb_storage_write(const std::uint8_t* buf,
+                                        std::uint32_t blk_addr,
+                                        std::uint16_t blk_len) {
+    if (!ensure_device() || !g_dev->write || !blk_len) return false;
+    const std::size_t bytes = static_cast<std::size_t>(blk_len) *
+        static_cast<std::size_t>(g_dev->block_size);
+    auto st = g_dev->write(g_dev->ctx,
+        static_cast<util::u64>(blk_addr),
+        std::span<const util::u8>(buf, bytes));
+    return static_cast<bool>(st);
 }

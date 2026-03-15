@@ -45,6 +45,8 @@ export namespace daplink::cmsis_dap {
         std::uint16_t match_retry = 0;
         std::uint32_t match_mask = 0;
         std::uint8_t error_streak = 0;
+        std::uint32_t current_hz = 0;
+        std::uint32_t min_hz = 0;
 #if CHARM_DAP_ENABLE_SWO
         std::uint32_t swo_baudrate = 0;
         std::uint8_t swo_mode = 0;
@@ -142,7 +144,14 @@ export namespace daplink::cmsis_dap {
                 ++state.error_streak;
             }
             if (state.error_streak >= kTransferErrorResetThreshold) {
-                swd::Engine<Backend>::line_reset();
+                if (state.current_hz != 0U && state.min_hz != 0U && state.current_hz > state.min_hz) {
+                    const std::uint32_t next =
+                        (state.current_hz / 2U < state.min_hz) ? state.min_hz : (state.current_hz / 2U);
+                    state.current_hz = next;
+                    Backend::set_swj_clock_hz(state.current_hz);
+                } else {
+                    swd::Engine<Backend>::line_reset();
+                }
                 state.error_streak = 0;
             }
         }
@@ -184,6 +193,9 @@ export namespace daplink::cmsis_dap {
         template <swd::Backend Backend>
         inline void connect_swd(State& state) noexcept {
             Backend::setup_swd_pins_active();
+            if (state.current_hz != 0U) {
+                Backend::set_swj_clock_hz(state.current_hz);
+            }
             swd::Engine<Backend>::line_reset();
             constexpr std::uint8_t seq[] = {0x9E, 0xE7};
             swd::Engine<Backend>::swj_sequence(seq, 16);
@@ -360,6 +372,7 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     const auto hz = read_le32(&in[1]);
+                    state.current_hz = hz;
                     Backend::set_swj_clock_hz(hz);
                     out[1] = kDapOk;
                     return {5, 2, true};

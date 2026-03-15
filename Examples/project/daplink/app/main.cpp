@@ -129,6 +129,8 @@ int main()
     daplink::board::configure_debug_pins_hi_z();
 
     daplink::cmsis_dap::State dap_state{};
+    dap_state.current_hz = daplink::app_config::kConfig.swd.default_hz;
+    dap_state.min_hz = daplink::app_config::kConfig.swd.min_hz;
     const daplink::cmsis_dap::DeviceInfo kInfo{
         daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbManufacturer),
         daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbProduct),
@@ -189,7 +191,11 @@ int main()
             }
         }
         if constexpr (kEnableCdc) {
-            if (!daplink::usb_minimal::out_ready()) {
+            const bool dap_busy =
+                daplink::usb_minimal::out_ready() ||
+                daplink::usb_minimal::hid_in_busy() ||
+                dap_queue.has_pending();
+            if (!dap_busy) {
                 const auto line = daplink::usb_minimal::cdc_line();
                 if (line.baud != last_line.baud || line.stop_bits != last_line.stop_bits ||
                     line.parity != last_line.parity || line.data_bits != last_line.data_bits) {

@@ -34,6 +34,7 @@ export namespace daplink::app_config {
     constexpr bool kUsbCdcHasCmdEp = true;
 
     constexpr std::uint32_t kSwdDefaultHz = 5000000U;
+    constexpr std::uint32_t kSwdMinHz = 200000U;
     constexpr std::uint8_t kSwdTurnaround = 1;
     constexpr std::uint8_t kSwdIdleCycles = 0;
     constexpr std::uint16_t kSwdRetryCount = 100;
@@ -92,6 +93,7 @@ export namespace daplink::app_config {
 
     struct SwdConfig {
         std::uint32_t default_hz;
+        std::uint32_t min_hz;
         std::uint8_t turnaround;
         std::uint8_t idle_cycles;
         std::uint16_t retry_count;
@@ -138,6 +140,7 @@ export namespace daplink::app_config {
         },
         SwdConfig{
             kSwdDefaultHz,
+            kSwdMinHz,
             kSwdTurnaround,
             kSwdIdleCycles,
             kSwdRetryCount,

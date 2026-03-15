@@ -874,6 +874,13 @@ export namespace daplink::usb_minimal {
         return std::span<std::uint8_t, kHidPacketSize>(g_state.hid.hid_in);
     }
 
+    inline bool hid_in_busy() noexcept {
+        if constexpr (!kEnableHid) {
+            return false;
+        }
+        return g_state.hid.hid_in_busy;
+    }
+
     inline bool try_send_in_packet(const std::uint16_t len) noexcept {
         if constexpr (!kEnableHid) {
             (void)len;

@@ -77,6 +77,12 @@ export namespace player {
         int current_sec() const noexcept { return current_sec_; }
         int volume_percent() const noexcept { return volume_percent_; }
 
+        bool snapshot(audio::PlayerSnapshot& out) {
+            if (!player_) return false;
+            out = player_->snapshot(false);
+            return true;
+        }
+
         void reset_duration() noexcept {
             duration_ready_ = false;
             duration_sec_ = 180;
@@ -150,6 +156,38 @@ export namespace player {
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "EQ failed (%s)", audio_err_text(res.error()));
+                out_status = buf;
+                return false;
+            }
+            return true;
+        }
+
+        bool set_dc_block(bool enabled, std::string& out_status) {
+            if (!player_) {
+                out_status = "No player";
+                return false;
+            }
+            const auto res = player_->set_dc_block(enabled);
+            if (!res) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "DC-block failed (%s)", audio_err_text(res.error()));
+                out_status = buf;
+                return false;
+            }
+            return true;
+        }
+
+        bool set_soft_clip(bool enabled, int threshold_percent, std::string& out_status) {
+            if (!player_) {
+                out_status = "No player";
+                return false;
+            }
+            const int clamped = std::clamp(threshold_percent, 0, 100);
+            const float threshold = static_cast<float>(clamped) / 100.0f;
+            const auto res = player_->set_soft_clip(enabled, threshold);
+            if (!res) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "Soft clip failed (%s)", audio_err_text(res.error()));
                 out_status = buf;
                 return false;
             }

@@ -18,38 +18,13 @@ export module daplink.cmsis_dap;
 export import :core;
 export import :protocol;
 export import :state;
+import daplink.dap_strategy;
 import daplink.dap_ops;
 import daplink.swd_engine;
 import daplink.dap_backend;
 
 export namespace daplink::cmsis_dap {
     namespace detail {
-        template <daplink::dap_backend::SwdBackend Backend>
-        inline void note_transfer_result(State& state, const std::uint8_t ack) noexcept {
-            if (ack == kDapTransferOk || ack == (kDapTransferOk | kDapTransferMismatch)) {
-                state.runtime.error_streak = 0;
-                return;
-            }
-            if (state.runtime.error_streak < kTransferErrorResetThreshold) {
-                ++state.runtime.error_streak;
-            }
-            if (state.runtime.error_streak >= kTransferErrorResetThreshold) {
-                if (state.config.current_hz != 0U &&
-                    state.config.min_hz != 0U &&
-                    state.config.current_hz > state.config.min_hz) {
-                    const std::uint32_t next =
-                        (state.config.current_hz / 2U < state.config.min_hz)
-                            ? state.config.min_hz
-                            : (state.config.current_hz / 2U);
-                    state.config.current_hz = next;
-                    Backend::set_swj_clock_hz(state.config.current_hz);
-                } else {
-                    swd::Engine<Backend>::line_reset();
-                }
-                state.runtime.error_streak = 0;
-            }
-        }
-
         template <daplink::dap_backend::SwdBackend Backend>
         inline std::uint8_t dap_transfer_once(const State& state, const std::uint8_t request, std::uint32_t& data) noexcept {
             if ((request & kReqRnw) != 0U && (request & kReqApndp) != 0U) {
@@ -89,7 +64,7 @@ export namespace daplink::cmsis_dap {
             bool ok;
         };
 
-        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops, typename Policy>
         inline CmdResult process_single(
             State& state,
             DeviceInfo info,
@@ -467,7 +442,7 @@ export namespace daplink::cmsis_dap {
                                     }
                                     --retries;
                                 }
-                                note_transfer_result<Backend>(state, ack);
+                                Policy::template on_transfer_result<Backend, Ops>(state, ack);
                                 if (ack != kDapTransferOk) {
                                     response_value = ack;
                                     break;
@@ -477,7 +452,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
-                            note_transfer_result<Backend>(state, ack);
+                            Policy::template on_transfer_result<Backend, Ops>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;
@@ -540,7 +515,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
-                            note_transfer_result<Backend>(state, ack);
+                            Policy::template on_transfer_result<Backend, Ops>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;
@@ -573,7 +548,7 @@ export namespace daplink::cmsis_dap {
             }
         }
 
-        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops, typename Policy>
         inline void process_execute(
             State& state,
             DeviceInfo info,
@@ -595,7 +570,7 @@ export namespace daplink::cmsis_dap {
                 if (in_idx >= kPacketSize || out_idx >= kPacketSize) {
                     break;
                 }
-                auto res = process_single<Backend, Ops>(
+                auto res = process_single<Backend, Ops, Policy>(
                     state, info, in.subspan(in_idx), out.subspan(out_idx));
                 if (res.in_used == 0 || res.out_used == 0) {
                     break;
@@ -615,7 +590,9 @@ export namespace daplink::cmsis_dap {
 
         Processor(State& s, DeviceInfo i) noexcept : state(s), info(i) {}
 
-        template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
+        template <daplink::dap_backend::SwdBackend Backend,
+                  daplink::dap_backend::DapOps Ops = DefaultOps<Backend>,
+                  typename Policy = daplink::dap_strategy::DefaultTransferPolicy<State>>
         void process_packet(
             std::span<const std::uint8_t, kPacketSize> in,
             std::span<std::uint8_t, kPacketSize> out
@@ -626,25 +603,28 @@ export namespace daplink::cmsis_dap {
 
             const std::uint8_t cmd = in[0];
             if (cmd == detail::kCmsisDapQueueCommands) {
-                detail::process_execute<Backend, Ops>(state, info, in, out, detail::kCmsisDapExecuteCommands);
+                detail::process_execute<Backend, Ops, Policy>(
+                    state, info, in, out, detail::kCmsisDapExecuteCommands);
                 return;
             }
             if (cmd == detail::kCmsisDapExecuteCommands) {
-                detail::process_execute<Backend, Ops>(state, info, in, out, cmd);
+                detail::process_execute<Backend, Ops, Policy>(state, info, in, out, cmd);
                 return;
             }
 
-            detail::process_single<Backend, Ops>(state, info, in, out);
+            detail::process_single<Backend, Ops, Policy>(state, info, in, out);
         }
     };
 
-    template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
+    template <daplink::dap_backend::SwdBackend Backend,
+              daplink::dap_backend::DapOps Ops = DefaultOps<Backend>,
+              typename Policy = daplink::dap_strategy::DefaultTransferPolicy<State>>
     inline void process_packet(
         State& state,
         DeviceInfo info,
         std::span<const std::uint8_t, kPacketSize> in,
         std::span<std::uint8_t, kPacketSize> out
     ) noexcept {
-        Processor{state, info}.template process_packet<Backend, Ops>(in, out);
+        Processor{state, info}.template process_packet<Backend, Ops, Policy>(in, out);
     }
 }

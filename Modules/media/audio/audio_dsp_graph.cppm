@@ -10,6 +10,10 @@ module;
 export module audio.dsp_graph;
 
 export namespace audio {
+#ifndef CHARM_AUDIO_MAX_CHANNELS
+#define CHARM_AUDIO_MAX_CHANNELS 2
+#endif
+
     class DspGraph {
     public:
         void reset(std::uint16_t channels) noexcept {
@@ -17,11 +21,20 @@ export namespace audio {
             fade_total_frames_ = 0;
             fade_remaining_frames_ = 0;
             gain_ = 1.0f;
+            dc_block_enabled_ = true;
+            dc_x1_.fill(0.0f);
+            dc_y1_.fill(0.0f);
             init_nodes();
         }
 
         void set_gain(float gain) noexcept {
             gain_ = std::clamp(gain, 0.0f, 1.0f);
+        }
+
+        void enable_dc_block(bool on) noexcept { dc_block_enabled_ = on; }
+        void enable_soft_clip(bool on) noexcept { soft_clip_enabled_ = on; }
+        void set_soft_clip_threshold(float threshold) noexcept {
+            soft_clip_threshold_ = std::clamp(threshold, 0.0f, 1.0f);
         }
 
         void reset_fade(std::uint64_t frames) noexcept {
@@ -48,6 +61,8 @@ export namespace audio {
         enum class NodeKind : std::uint8_t {
             fade,
             gain,
+            dc_block,
+            soft_clip,
             clip
         };
 
@@ -65,6 +80,8 @@ export namespace audio {
             node_count_ = 0;
             add_node(NodeKind::fade, &DspGraph::node_fade);
             add_node(NodeKind::gain, &DspGraph::node_gain);
+            add_node(NodeKind::dc_block, &DspGraph::node_dc_block);
+            add_node(NodeKind::soft_clip, &DspGraph::node_soft_clip);
             add_node(NodeKind::clip, &DspGraph::node_clip);
         }
 
@@ -107,6 +124,50 @@ export namespace audio {
             }
         }
 
+        static void node_dc_block(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (!self.dc_block_enabled_) return;
+            if (self.channels_ == 0 || frames == 0) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 2147483647.0f / 2147483648.0f;
+
+            std::size_t sample_index = 0;
+            for (std::size_t frame = 0; frame < frames; ++frame) {
+                for (std::size_t ch = 0; ch < self.channels_; ++ch, ++sample_index) {
+                    const float x = static_cast<float>(samples[sample_index]) * kScale;
+                    const float y = x - self.dc_x1_[ch] + self.dc_r_ * self.dc_y1_[ch];
+                    self.dc_x1_[ch] = x;
+                    self.dc_y1_[ch] = y;
+                    const float clamped = std::clamp(y, -1.0f, kClamp);
+                    samples[sample_index] = static_cast<std::int32_t>(clamped * kInvScale);
+                }
+            }
+        }
+
+        static void node_soft_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (!self.soft_clip_enabled_) return;
+            if (self.channels_ == 0 || frames == 0) return;
+            const float threshold = std::clamp(self.soft_clip_threshold_, 0.0f, 1.0f);
+            if (threshold >= 1.0f) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 2147483647.0f / 2147483648.0f;
+            const float inv_range = 1.0f / (1.0f - threshold);
+            const std::size_t total_samples = frames * self.channels_;
+            for (std::size_t i = 0; i < total_samples; ++i) {
+                float v = static_cast<float>(samples[i]) * kScale;
+                const float sign = (v < 0.0f) ? -1.0f : 1.0f;
+                const float a = std::abs(v);
+                if (a > threshold) {
+                    const float t = (a - threshold) * inv_range;
+                    const float shaped = threshold + (t / (1.0f + t));
+                    v = shaped * sign;
+                }
+                v = std::clamp(v, -1.0f, kClamp);
+                samples[i] = static_cast<std::int32_t>(v * kInvScale);
+            }
+        }
+
         static void node_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
             if (self.channels_ == 0 || frames == 0) return;
             const std::size_t total_samples = frames * self.channels_;
@@ -118,11 +179,19 @@ export namespace audio {
             }
         }
 
+        static constexpr std::size_t kMaxChannels = CHARM_AUDIO_MAX_CHANNELS;
+
         std::uint16_t channels_{0};
         float gain_{1.0f};
         std::uint64_t fade_total_frames_{0};
         std::uint64_t fade_remaining_frames_{0};
         std::array<Node, kMaxNodes> nodes_{};
         std::size_t node_count_{0};
+        bool dc_block_enabled_{true};
+        float dc_r_{0.995f};
+        std::array<float, kMaxChannels> dc_x1_{};
+        std::array<float, kMaxChannels> dc_y1_{};
+        bool soft_clip_enabled_{true};
+        float soft_clip_threshold_{0.85f};
     };
 }

@@ -9,6 +9,7 @@ export module daplink.dap_queue;
 
 import daplink.cmsis_dap;
 import daplink.dap_ops;
+import daplink.dap_strategy;
 import daplink.swd_engine;
 import daplink.dap_backend;
 
@@ -40,7 +41,8 @@ export namespace daplink::dap_queue {
         }
 
         template <daplink::dap_backend::SwdBackend Backend,
-                  daplink::dap_backend::DapOps Ops = daplink::cmsis_dap::DefaultOps<Backend>>
+                  daplink::dap_backend::DapOps Ops = daplink::cmsis_dap::DefaultOps<Backend>,
+                  typename Policy = daplink::dap_strategy::DefaultTransferPolicy<daplink::cmsis_dap::State>>
         bool enqueue(daplink::cmsis_dap::State& state,
                      daplink::cmsis_dap::DeviceInfo info,
                      std::span<const std::uint8_t, daplink::cmsis_dap::kPacketSize> in) noexcept {
@@ -49,7 +51,7 @@ export namespace daplink::dap_queue {
             }
             auto& slot = packets[recv_idx];
             auto out = std::span<std::uint8_t, daplink::cmsis_dap::kPacketSize>(slot);
-            daplink::cmsis_dap::process_packet<Backend, Ops>(state, info, in, out);
+            daplink::cmsis_dap::process_packet<Backend, Ops, Policy>(state, info, in, out);
             resp_len[recv_idx] = static_cast<std::uint16_t>(slot.size());
             recv_idx = static_cast<std::uint8_t>((recv_idx + 1) % Count);
             --free_count;

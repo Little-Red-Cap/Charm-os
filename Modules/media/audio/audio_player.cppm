@@ -314,6 +314,27 @@ export namespace audio {
             return {};
         }
 
+        Result<void> set_dc_block(bool enabled) {
+            Command cmd{};
+            cmd.type = CommandType::set_dc_block;
+            cmd.flag = enabled;
+            if (!queue_.push(cmd)) {
+                return unexpected(Errc::timeout);
+            }
+            return {};
+        }
+
+        Result<void> set_soft_clip(bool enabled, float threshold) {
+            Command cmd{};
+            cmd.type = CommandType::set_soft_clip;
+            cmd.flag = enabled;
+            cmd.value = threshold;
+            if (!queue_.push(cmd)) {
+                return unexpected(Errc::timeout);
+            }
+            return {};
+        }
+
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
                 return unexpected(Errc::bad_state);
@@ -495,7 +516,18 @@ export namespace audio {
             rng_.seed(seed);
         }
 #endif
-        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq, set_volume };
+        enum class CommandType : std::uint8_t {
+            play,
+            stop,
+            pause,
+            resume,
+            seek_ms,
+            reconfigure,
+            set_eq,
+            set_volume,
+            set_dc_block,
+            set_soft_clip
+        };
 
         struct Command {
             CommandType type{};
@@ -504,6 +536,8 @@ export namespace audio {
             AudioFormat fmt{};
             EqConfig eq{};
             std::uint8_t volume{100};
+            bool flag{false};
+            float value{0.0f};
         };
 
         void init_spectrum_window() noexcept {
@@ -573,6 +607,15 @@ export namespace audio {
             spectrum_ready_.store(true, std::memory_order_release);
         }
 
+        void apply_dsp_settings() noexcept {
+            data_plane_.set_eq(eq_);
+            data_plane_.maybe_update_eq();
+            data_plane_.set_volume_gain(volume_gain_);
+            data_plane_.enable_dc_block(dc_block_enabled_);
+            data_plane_.enable_soft_clip(soft_clip_enabled_);
+            data_plane_.set_soft_clip_threshold(soft_clip_threshold_);
+        }
+
         void process_commands() {
             for (;;) {
                 auto cmd = queue_.pop();
@@ -599,6 +642,14 @@ export namespace audio {
                     volume_percent_ = std::min<std::uint8_t>(cmd->volume, 100);
                     volume_gain_ = static_cast<float>(volume_percent_) / 100.0f;
                     data_plane_.set_volume_gain(volume_gain_);
+                } else if (cmd->type == CommandType::set_dc_block) {
+                    dc_block_enabled_ = cmd->flag;
+                    data_plane_.enable_dc_block(dc_block_enabled_);
+                } else if (cmd->type == CommandType::set_soft_clip) {
+                    soft_clip_enabled_ = cmd->flag;
+                    soft_clip_threshold_ = std::clamp(cmd->value, 0.0f, 1.0f);
+                    data_plane_.enable_soft_clip(soft_clip_enabled_);
+                    data_plane_.set_soft_clip_threshold(soft_clip_threshold_);
                 }
             }
             data_plane_.maybe_update_eq();
@@ -691,10 +742,6 @@ export namespace audio {
             input_fmt_ = data_plane_.input_format();
             output_fmt_ = data_plane_.output_format();
             total_frames_ = data_plane_.total_frames();
-            data_plane_.set_eq(eq_);
-            data_plane_.maybe_update_eq();
-            data_plane_.set_volume_gain(volume_gain_);
-
             if (!configure_buffers()) {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_config);
                 return;
@@ -718,6 +765,7 @@ export namespace audio {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
+            apply_dsp_settings();
             sink_.set_fill_callback(
                 data_plane_.pump().fill_callback(),
                 &data_plane_.pump());
@@ -797,10 +845,6 @@ export namespace audio {
             input_fmt_ = data_plane_.input_format();
             output_fmt_ = data_plane_.output_format();
             total_frames_ = data_plane_.total_frames();
-            data_plane_.set_eq(eq_);
-            data_plane_.maybe_update_eq();
-            data_plane_.set_volume_gain(volume_gain_);
-
             if (config_.fail_reconfig_step == 1) {
                 set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
                 return;
@@ -829,6 +873,7 @@ export namespace audio {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
+            apply_dsp_settings();
             sink_.set_fill_callback(
                 data_plane_.pump().fill_callback(),
                 &data_plane_.pump());
@@ -1002,6 +1047,9 @@ export namespace audio {
         EqConfig eq_{};
         std::uint8_t volume_percent_{100};
         float volume_gain_{1.0f};
+        bool dc_block_enabled_{true};
+        bool soft_clip_enabled_{true};
+        float soft_clip_threshold_{0.85f};
 
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};

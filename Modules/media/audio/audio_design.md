@@ -242,6 +242,265 @@ size_t audio_fill(std::span<std::byte> dst, void* user) noexcept {
 
 ---
 
+## L2.6 DSP Graph 骨架合同（Pull 语义 + 固定块）
+
+### 1) 外部语义：Pull 驱动
+
+系统唯一入口保持：
+
+```
+device.pull(period_frames)
+```
+
+Graph 对外只承诺：
+
+```
+graph.pull(frames)
+```
+
+> 设备时钟域驱动，避免 producer runaway，天然支持 zero-copy。
+
+### 2) 内部执行：固定块 + topo 顺序
+
+Graph 内部使用固定 block 处理（Push 执行），避免递归：
+
+```
+graph_block_frames = min(period_frames, 128)
+```
+
+建议：
+- `graph_block_frames` 优先取 2 的幂（64/128），便于 SIMD / resampler。  
+- 若 `period_frames` 小于 128，则保持 `period_frames`，避免额外拆分。
+- 若 `graph_block_frames < period_frames`，必须保持 **2 的幂**（64/128/256）。
+
+执行模型：
+
+```
+while (queue < frames) {
+  run_graph_block(graph_block_frames); // topo order
+}
+```
+
+> Pull 语义 + Push 执行，保证 MCU 友好与 DSP 友好。
+
+### 2.1) 输出写入策略（v1/v1.5 预留）
+
+v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：
+
+```
+Graph → BufferWriter → s16_out_ → PCM FIFO
+```
+
+v1.5 预留 **FifoWriter**（直接量化写入 FIFO span）：
+
+```
+Graph → FifoWriter → PCM FIFO
+```
+
+要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
+
+### 2.2) Writer 适配接口（草图）
+
+```cpp
+struct FrameWriter {
+  // 返回可写 span（S16 interleaved），按 frames 申请
+  // 若返回空，表示当前不可写（例如 FIFO 满）
+  std::span<std::int16_t> writable(std::uint32_t frames) noexcept;
+  void commit(std::uint32_t frames) noexcept;
+};
+
+// v1: BufferWriter → s16_out_
+// v1.5: FifoWriter  → PCM FIFO span(A/B)
+```
+
+约束：
+- Writer 不暴露 FIFO A/B 细节给 Graph  
+- Graph 仍只处理 S32，量化写入由 Writer 统一完成  
+- Writer 必须保证 frame 对齐与有界时间
+
+### 3) FrameSpan（v1 最小形态）
+
+```cpp
+struct FrameSpan {
+  std::int32_t* data;   // interleaved S32
+  std::uint32_t frames;
+  std::uint16_t channels;
+  std::uint16_t stride; // sample stride, v1 默认 = channels
+};
+```
+
+约定：
+- DMA/I2S buffer 使用 **interleaved LRLR**。  
+- `stride` 默认等于 `channels`，如需 planar/对齐，使用节点内部 scratch。
+
+### 4) Node 接口（去 virtual）
+
+v1 采用 type-erased 函数表，避免虚函数：
+
+```cpp
+struct NodeApi {
+  void (*pull)(void* ctx, FrameSpan out) noexcept;
+  void (*reset)(void* ctx, std::uint16_t channels) noexcept;
+};
+
+struct NodeRef {
+  void* ctx;
+  const NodeApi* api;
+};
+```
+
+### 5) 节点约束（强规则）
+
+- 节点必须 deterministic：同样输入 → 同样输出  
+- 节点不得分配内存（no malloc/new），只允许栈或预分配  
+- 节点不得阻塞、不得锁等待、不得进行 IO  
+- 节点必须在有界时间内完成  
+- 节点默认假定 `frames == graph_block_frames`  
+- 支持 in-place（输入输出可重叠）
+- 节点不得改变 frame count（输入帧数必须等于输出帧数）  
+  变速/重采样属于专用节点，不得混入普通 DSP 节点
+
+### 5.1) In-place 约束（v1）
+
+v1 采用 **in-place 线性 pipeline**：
+
+```
+buffer → node1 → node2 → node3
+```
+
+若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
+不得把 ping-pong 传导到 Graph 层。  
+Node 可使用内部 scratch memory，但 **Graph 逻辑仍然是 in-place**。
+
+---
+
+## L2.7 PCMFrameQueue（时钟域桥接）
+
+### 1) 角色定位
+
+PCMFrameQueue 不是“普通 buffer”，而是 **clock domain bridge**：
+
+```
+IO/Compute domain (Decoder burst)
+          ↓
+     PCMFrameQueue
+          ↓
+Realtime/Device domain (fixed block)
+```
+
+它负责把 **burst 解码** 与 **固定 block DSP** 解耦。
+
+### 2) 数据结构
+
+- **frame-aligned ringbuffer**  
+- **contiguous storage + head/tail**  
+- **A/B 双 span 视图**（零拷贝）
+
+访问形态：
+
+```
+read/write -> span A + span B
+```
+
+### 3) 核心契约（必须满足）
+
+1) **frame 对齐**  
+   存储单位为 frame，禁止半个 frame 读写。
+
+2) **固定容量**  
+   `reset()` 时一次性分配，运行期 **不允许动态扩容**。
+
+3) **零拷贝视图**  
+   所有读写都通过 span A/B 暴露连续内存。
+
+### 4) 容量建议
+
+推荐：
+
+```
+capacity_frames >= 2 * period_frames
+```
+
+更稳的下限：
+
+```
+capacity_frames >= 4 * graph_block_frames
+```
+
+用于吸收 decoder burst（如 MP3 1152 frames）。
+
+### 5) 并发语义（v1 / v2）
+
+v1：单线程 data-plane 内部使用。  
+v2：可升级为 **SPSC ringbuffer**（head/tail 原子 + acq/rel）。
+
+### 5.1) 双队列并发模型（必须区分）
+
+```
+PCMFrameQueue  → compute-domain transport（单线程，无原子）
+PCM FIFO       → realtime-domain transport（SPSC atomic）
+```
+
+PCMFrameQueue 只服务 Decoder/DSP，不与 ISR 并发。  
+PCM FIFO 负责 task ↔ ISR 的实时交互。
+
+### 6) 数据格式约束
+
+v1 仅承载 **S32 interleaved PCM**，用于：
+
+```
+Decoder → PCMFrameQueue → DSP Graph
+```
+
+未来如需 DSD/float，可引入 **AudioFrameQueue** 或在队列上层加 format tag，  
+但 v1 不扩展格式，避免污染实时域契约。
+
+**PCMFrameQueue 是实时域 PCM 传输组件，而不是通用音频帧队列。**  
+原则：**不要过早泛化实时数据通道。**
+
+---
+
+## L2.8 Realtime ISR 约束与水位策略
+
+### 1) ISR 约束（必须遵守）
+
+DMA ISR **不得**：
+- 运行 DSP Graph / Decoder  
+- 进行存储 IO  
+- 分配内存（malloc/new）  
+
+DMA ISR **只允许**：
+- 从 PCM FIFO 读取  
+- 拷贝到 DMA buffer  
+- 不足补零  
+- 计数/标志位更新
+
+### 2) 生产/消费模型
+
+```
+ISR（消费） ← PCM FIFO ← Audio Task（生产）
+```
+
+PCMFrameQueue 仍在 data-plane 内部使用，不与 ISR 并发。  
+
+### 3) 水位策略（推荐）
+
+```
+capacity_frames >= 2 * period_frames
+low_water  < high_water
+```
+
+Audio Task 逻辑：
+
+```
+if queue < high_water:
+  run_graph_block(...)
+```
+
+目的：Graph 批量运行，提升 cache locality，降低调度开销。
+
+---
+
 ## L3 Player 状态机
 
 ### 状态

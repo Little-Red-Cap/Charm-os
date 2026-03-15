@@ -129,6 +129,32 @@ export namespace player {
         anchor_rect(h.volume_value, {vol_slider_x + vol_slider_w + kEqRowGapX, vol_y,
                                       kEqValueWidth, kEqRowHeight});
 
+        const int dc_y = vol_y + kEqRowHeight + kEqRowGap;
+        h.dc_label = factory.create_label_static("DC");
+        anchor_rect(h.dc_label, {kUiPadding, dc_y, kEqLabelWidth, kEqRowHeight});
+        h.dc_switch = factory.create_switch();
+        anchor_rect(h.dc_switch, {kUiPadding + kEqLabelWidth + kEqRowGapX, dc_y,
+                                  kDspToggleWidth, kEqRowHeight});
+        kernel.set_checked(h.dc_switch, true);
+
+        const int clip_y = dc_y + kEqRowHeight + kEqRowGap;
+        h.clip_label = factory.create_label_static("Clip");
+        anchor_rect(h.clip_label, {kUiPadding, clip_y, kEqLabelWidth, kEqRowHeight});
+        h.clip_switch = factory.create_switch();
+        anchor_rect(h.clip_switch, {kUiPadding + kEqLabelWidth + kEqRowGapX, clip_y,
+                                    kDspToggleWidth, kEqRowHeight});
+        kernel.set_checked(h.clip_switch, true);
+        const int clip_slider_x = kUiPadding + kEqLabelWidth + kEqRowGapX + kDspToggleWidth + kEqRowGapX;
+        const int clip_slider_w = screen_width - kUiPadding * 2
+            - kEqLabelWidth - kDspToggleWidth - kEqValueWidth - kEqRowGapX * 3;
+        h.clip_slider = factory.create_slider();
+        anchor_rect(h.clip_slider, {clip_slider_x, clip_y, clip_slider_w, kEqRowHeight});
+        kernel.set_range(h.clip_slider, 60, 100);
+        kernel.set_value(h.clip_slider, 85);
+        h.clip_value = factory.create_label_static("");
+        anchor_rect(h.clip_value, {clip_slider_x + clip_slider_w + kEqRowGapX, clip_y,
+                                   kEqValueWidth, kEqRowHeight});
+
         h.list_title = factory.create_label_static("");
         anchor_rect(h.list_title, {kUiPadding, list_y - kListTitleGap,
                                    screen_width - kUiPadding * 2, 18});
@@ -148,6 +174,14 @@ export namespace player {
 
         h.controls = factory.create_container();
         anchor_rect(h.controls, {controls_x, controls_y, controls_w, kButtonHeight});
+
+#if CHARM_PLAYER_DEBUG_UI
+        const int debug_h = 18;
+        const int debug_y = controls_y - debug_h - 6;
+        h.debug_text = factory.create_label_static("");
+        anchor_rect(h.debug_text, {kUiPadding, debug_y,
+                                   screen_width - kUiPadding * 2, debug_h});
+#endif
 
         h.btn_prev = factory.create_button_static("Prev");
         anchor_rect(h.btn_prev, {0, 0, kButtonWidth, kButtonHeight});
@@ -192,6 +226,12 @@ export namespace player {
         factory.link(content, h.volume_label);
         factory.link(content, h.volume_slider);
         factory.link(content, h.volume_value);
+        factory.link(content, h.dc_label);
+        factory.link(content, h.dc_switch);
+        factory.link(content, h.clip_label);
+        factory.link(content, h.clip_switch);
+        factory.link(content, h.clip_slider);
+        factory.link(content, h.clip_value);
         factory.link(content, h.list_title);
         factory.link(content, h.list);
         factory.link(content, h.list_scroll);
@@ -201,6 +241,9 @@ export namespace player {
         factory.link(h.controls, h.btn_pause);
         factory.link(h.controls, h.btn_next);
         factory.link(h.controls, h.btn_mode);
+#if CHARM_PLAYER_DEBUG_UI
+        factory.link(h.root, h.debug_text);
+#endif
 
         return h;
     }

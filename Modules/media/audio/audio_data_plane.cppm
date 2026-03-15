@@ -201,6 +201,59 @@ export namespace audio {
         std::size_t chunk_bytes() const noexcept { return chunk_bytes_; }
 
     private:
+        std::size_t consume_queue_frames(std::size_t frames,
+                                         std::uint16_t channels,
+                                         FifoWriter& writer) noexcept {
+            if (frames == 0 || channels == 0) return 0;
+            std::size_t remaining = frames;
+
+            bool writer_full = false;
+            while (remaining > 0 && !writer_full) {
+                auto view = frame_queue_.readable_view();
+                if (view.a.empty() && view.b.empty()) break;
+
+                auto consume_span = [&](std::span<std::int32_t> src) {
+                    std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    if (graph_block_frames_ != 0 && graph_block_frames_ < frames_avail) {
+                        frames_avail = graph_block_frames_;
+                    }
+                    if (frames_avail == 0) return;
+                    const std::size_t samples = frames_avail * channels;
+                    auto slice = src.first(samples);
+                    graph_.process(slice, frames_avail);
+                    auto segments = writer.writable_segments(frames_avail);
+                    if (segments.a.empty() && segments.b.empty()) {
+                        writer_full = true;
+                        return;
+                    }
+                    const std::size_t a_samples = segments.a.size();
+                    const std::size_t b_samples = segments.b.size();
+                    if (a_samples + b_samples < samples) {
+                        writer_full = true;
+                        return;
+                    }
+                    if (a_samples > 0) {
+                        quantize_s32(slice.first(a_samples), segments.a);
+                    }
+                    if (b_samples > 0) {
+                        quantize_s32(slice.subspan(a_samples, b_samples), segments.b);
+                    }
+                    const std::size_t written_frames = (a_samples + b_samples) / channels;
+                    writer.commit(written_frames);
+                    remaining -= written_frames;
+                    frame_queue_.commit_read_frames(written_frames);
+                };
+
+                if (!view.a.empty()) {
+                    consume_span(view.a);
+                } else if (!view.b.empty()) {
+                    consume_span(view.b);
+                }
+            }
+
+            return writer.written_frames();
+        }
+
         bool prepare_frame_queue(std::uint16_t channels) noexcept {
             if (channels == 0) return false;
             if (chunk_frames_ == 0) return false;

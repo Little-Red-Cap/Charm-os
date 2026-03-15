@@ -77,7 +77,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set(MODULE_INTERFACE_UNITS
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
 )
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC

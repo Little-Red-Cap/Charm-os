@@ -4,7 +4,7 @@
 
 import util.core;
 import fs_block;
-import player.stm32h7.fs_demo;
+import player.stm32h7.fs_demo_mmc;
 
 namespace {
     fs::BlockDevice* g_dev = nullptr;

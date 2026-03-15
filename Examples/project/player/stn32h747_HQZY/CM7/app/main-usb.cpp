@@ -6,7 +6,7 @@
 #include "usart.h"
 #include "usb_device.h"
 
-import player.stm32h7.fs_demo;
+import player.stm32h7.fs_demo_mmc;
 
 extern "C" {
 void SystemClock_Config(void);
@@ -14,6 +14,7 @@ void MX_GPIO_Init(void);
 void MX_DMA_Init(void);
 void MX_USART1_UART_Init(void);
 void MX_SDMMC1_SD_Init(void);
+void MX_SDMMC1_MMC_Init(void);
 void Error_Handler(void);
 extern UART_HandleTypeDef huart1;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -46,7 +47,8 @@ int main() {
     MX_USART1_UART_Init();
     uart_write("boot: uart ok\n");
 
-    MX_SDMMC1_SD_Init();
+    // MX_SDMMC1_SD_Init();
+    MX_SDMMC1_MMC_Init();
     uart_write("boot: sdmmc ok\n");
     if (!fs_boot_init()) {
         uart_write("boot: fs mount failed\n");

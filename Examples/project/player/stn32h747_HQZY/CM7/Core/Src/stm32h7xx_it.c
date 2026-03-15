@@ -110,25 +110,6 @@ static void fault_dump_stack(const uint32_t* sp) {
   uart_hex("psr=", sp[7]);
 }
 
-void HardFault_Handler(void)
-{
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-  __disable_irq();
-  __asm volatile(
-    "tst lr, #4\n"
-    "ite eq\n"
-    "mrseq r0, msp\n"
-    "mrsne r0, psp\n"
-    "b hardfault_c\n"
-  );
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
-}
-
 void hardfault_c(uint32_t* sp)
 {
   fault_dump("boot: hardfault");
@@ -140,6 +121,7 @@ void hardfault_c(uint32_t* sp)
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_spi1_tx;
 extern I2S_HandleTypeDef hi2s1;
 extern SD_HandleTypeDef hsd1;
@@ -173,7 +155,24 @@ void NMI_Handler(void)
 /**
   * @brief This function handles Hard fault interrupt.
   */
-/* HardFault_Handler implemented above with stack dump. */
+void HardFault_Handler(void)
+{
+  /* USER CODE BEGIN HardFault_IRQn 0 */
+  __disable_irq();
+  __asm volatile(
+    "tst lr, #4\n"
+    "ite eq\n"
+    "mrseq r0, msp\n"
+    "mrsne r0, psp\n"
+    "b hardfault_c\n"
+  );
+  /* USER CODE END HardFault_IRQn 0 */
+  while (1)
+  {
+    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+    /* USER CODE END W1_HardFault_IRQn 0 */
+  }
+}
 
 /**
   * @brief This function handles Memory management fault.
@@ -380,6 +379,48 @@ void SPI5_IRQHandler(void)
   /* USER CODE BEGIN SPI5_IRQn 1 */
 
   /* USER CODE END SPI5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB On The Go FS End Point 1 Out global interrupt.
+  */
+void OTG_FS_EP1_OUT_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_EP1_OUT_IRQn 0 */
+
+  /* USER CODE END OTG_FS_EP1_OUT_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_EP1_OUT_IRQn 1 */
+
+  /* USER CODE END OTG_FS_EP1_OUT_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB On The Go FS End Point 1 In global interrupt.
+  */
+void OTG_FS_EP1_IN_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_EP1_IN_IRQn 0 */
+
+  /* USER CODE END OTG_FS_EP1_IN_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_EP1_IN_IRQn 1 */
+
+  /* USER CODE END OTG_FS_EP1_IN_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB On The Go FS global interrupt.
+  */
+void OTG_FS_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
+  /* USER CODE END OTG_FS_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_IRQn 1 */
+
+  /* USER CODE END OTG_FS_IRQn 1 */
 }
 
 /**

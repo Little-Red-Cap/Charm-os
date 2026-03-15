@@ -12,6 +12,7 @@ import daplink.dap_init;
 import daplink.ring_buffer;
 import daplink.dap_transport;
 import daplink.dap_policy;
+import daplink.dap_strategy;
 import io.channel;
 import util.core;
 
@@ -110,9 +111,11 @@ int main()
     scheduler.cdc_policy = static_cast<daplink::dap_policy::CdcPolicy>(
         daplink::app_config::kConfig.cdc.policy);
     using DapOps = daplink::board::BoardOps;
+    using DapPolicy = daplink::dap_strategy::DefaultTransferPolicy<daplink::cmsis_dap::State>;
     daplink::dap_transport::HidTransport<
         daplink::board::SwdBackend,
-        DapOps> dap_transport{dap_state, kInfo};
+        DapOps,
+        DapPolicy> dap_transport{dap_state, kInfo};
     io::Channel usb_cdc{
         nullptr,
         io::ChannelOps{usb_cdc_read, usb_cdc_write, nullptr}

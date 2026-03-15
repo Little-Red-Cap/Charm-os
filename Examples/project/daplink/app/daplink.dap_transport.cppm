@@ -10,11 +10,13 @@ import daplink.swd_engine;
 import daplink.dap_backend;
 import daplink.cmsis_dap;
 import daplink.dap_ops;
+import daplink.dap_strategy;
 import daplink.usb_minimal;
 
 export namespace daplink::dap_transport {
     template <daplink::dap_backend::SwdBackend Backend,
-              daplink::dap_backend::DapOps Ops = daplink::cmsis_dap::DefaultOps<Backend>>
+              daplink::dap_backend::DapOps Ops = daplink::cmsis_dap::DefaultOps<Backend>,
+              typename Policy = daplink::dap_strategy::DefaultTransferPolicy<daplink::cmsis_dap::State>>
     struct HidTransport {
         daplink::cmsis_dap::State& state;
         daplink::cmsis_dap::DeviceInfo info;
@@ -40,7 +42,7 @@ export namespace daplink::dap_transport {
                     break;
                 }
                 auto in = daplink::usb_minimal::out_packet();
-                if (!queue.enqueue<Backend, Ops>(state, info, in)) {
+                if (!queue.enqueue<Backend, Ops, Policy>(state, info, in)) {
                     break;
                 }
                 daplink::usb_minimal::consume_out();

@@ -58,6 +58,7 @@ export namespace audio {
             fade,
             gain,
             dc_block,
+            soft_clip,
             clip
         };
 
@@ -76,6 +77,7 @@ export namespace audio {
             add_node(NodeKind::fade, &DspGraph::node_fade);
             add_node(NodeKind::gain, &DspGraph::node_gain);
             add_node(NodeKind::dc_block, &DspGraph::node_dc_block);
+            add_node(NodeKind::soft_clip, &DspGraph::node_soft_clip);
             add_node(NodeKind::clip, &DspGraph::node_clip);
         }
 
@@ -138,6 +140,30 @@ export namespace audio {
             }
         }
 
+        static void node_soft_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (!self.soft_clip_enabled_) return;
+            if (self.channels_ == 0 || frames == 0) return;
+            const float threshold = std::clamp(self.soft_clip_threshold_, 0.0f, 1.0f);
+            if (threshold >= 1.0f) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 2147483647.0f / 2147483648.0f;
+            const float inv_range = 1.0f / (1.0f - threshold);
+            const std::size_t total_samples = frames * self.channels_;
+            for (std::size_t i = 0; i < total_samples; ++i) {
+                float v = static_cast<float>(samples[i]) * kScale;
+                const float sign = (v < 0.0f) ? -1.0f : 1.0f;
+                const float a = std::abs(v);
+                if (a > threshold) {
+                    const float t = (a - threshold) * inv_range;
+                    const float shaped = threshold + (t / (1.0f + t));
+                    v = shaped * sign;
+                }
+                v = std::clamp(v, -1.0f, kClamp);
+                samples[i] = static_cast<std::int32_t>(v * kInvScale);
+            }
+        }
+
         static void node_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
             if (self.channels_ == 0 || frames == 0) return;
             const std::size_t total_samples = frames * self.channels_;
@@ -161,5 +187,7 @@ export namespace audio {
         float dc_r_{0.995f};
         std::array<float, kMaxChannels> dc_x1_{};
         std::array<float, kMaxChannels> dc_y1_{};
+        bool soft_clip_enabled_{true};
+        float soft_clip_threshold_{0.85f};
     };
 }

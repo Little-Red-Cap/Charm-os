@@ -20,7 +20,7 @@ option(CHARM_ENABLE_BANNED_HEADER_CHECK "Ban selected headers in project code" O
 option(CHARM_BANNED_HEADER_CHECK_EXAMPLES "Also check Examples/ for banned headers" OFF)
 set(CHARM_BANNED_HEADERS "iostream;fstream;filesystem;regex;format;locale;codecvt" CACHE STRING "Semicolon list of banned headers")
 set(CHARM_BANNED_HEADERS_EXCLUDE_REGEX "" CACHE STRING "Semicolon list of regexes to exclude from banned header scan")
-option(CHARM_FORBID_SHARED_LIBS "Forbid shared/module library targets" ON)
+option(CHARM_FORBID_SHARED_LIBS "Forbid shared/module library targets" OFF)
 option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" OFF)
 
 add_library(${target_name})

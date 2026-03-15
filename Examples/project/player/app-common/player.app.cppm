@@ -10,6 +10,9 @@ import charm.system.clock;
 import player.storage;
 import player.ui;
 import player.ui_builder;
+import charm.core.soa_gui;
+import input.raw_event;
+import ui.input_adapter;
 
 export namespace player {
     struct AppConfig {
@@ -71,6 +74,15 @@ export namespace player {
             controller.mount_status = "Mounting storage...";
             controller.set_status("Mounting storage");
             controller.update_list_placeholder();
+        }
+
+        template <typename Controller>
+        void dispatch_raw_input(SoaGui& gui, Controller& controller, const input::RawInputEvent& ev) {
+            const auto bridge = input::adapter::bridge_from_raw(ev);
+            if (bridge.event) {
+                gui.dispatch_event(*bridge.event);
+                controller.process_input_events();
+            }
         }
 
     private:

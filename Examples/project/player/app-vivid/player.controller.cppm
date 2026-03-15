@@ -1,4 +1,5 @@
 ﻿module;
+#include <SDL3/SDL.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -115,6 +116,36 @@ export namespace player {
         void clear_track_state() noexcept {
             playback.set_track_path(nullptr);
             playback.set_track_ready(false);
+        }
+
+        void handle_key_action(SDL_Keycode key) {
+            switch (key) {
+            case SDLK_UP:
+                focus_list();
+                nav_list(-1);
+                break;
+            case SDLK_DOWN:
+                focus_list();
+                nav_list(1);
+                break;
+            case SDLK_RETURN:
+                focus_list();
+                nav_list_activate();
+                break;
+            case SDLK_SPACE:
+                if (is_playing()) pause_playback();
+                else if (is_paused()) resume_playback();
+                else start_playback();
+                break;
+            case SDLK_N:
+                switch_track(1);
+                break;
+            case SDLK_P:
+                switch_track(-1);
+                break;
+            default:
+                break;
+            }
         }
 
         void init_text_slots() {

@@ -117,14 +117,6 @@ namespace {
 
     }
 
-    void dispatch_raw_event(SoaGui& gui, PlayerUiContext& ctx, const input::RawInputEvent& ev) {
-        const auto bridge = input::adapter::bridge_from_raw(ev);
-        if (bridge.event) {
-            gui.dispatch_event(*bridge.event);
-            ctx.process_input_events();
-        }
-    }
-
     std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
         switch (key) {
         case SDLK_UP: return input::Button::Up;
@@ -138,7 +130,7 @@ namespace {
         return std::nullopt;
     }
 
-    bool dispatch_sdl_event(SoaGui& gui, PlayerUiContext& ctx, const SDL_Event& evt) {
+    bool dispatch_sdl_event(SoaGui& gui, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION: {
             input::RawInputEvent raw{};
@@ -149,7 +141,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.motion.y),
                                             0};
             raw.pointer_action = input::PointerAction::Move;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
@@ -162,7 +154,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Down;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_UP: {
@@ -175,7 +167,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Up;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_WHEEL:
@@ -190,46 +182,14 @@ namespace {
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:
-            if (evt.key.key == SDLK_UP) {
-                ctx.focus_list();
-                ctx.nav_list(-1);
-                return true;
-            }
-            if (evt.key.key == SDLK_DOWN) {
-                ctx.focus_list();
-                ctx.nav_list(1);
-                return true;
-            }
-            if (evt.key.key == SDLK_RETURN) {
-                ctx.focus_list();
-                ctx.nav_list_activate();
-                return true;
-            }
-            if (evt.key.key == SDLK_SPACE) {
-                if (ctx.is_playing()) ctx.pause_playback();
-                else if (ctx.is_paused()) ctx.resume_playback();
-                else ctx.start_playback();
-                return true;
-            }
-            if (evt.key.key == SDLK_N) {
-                ctx.switch_track(1);
-                return true;
-            }
-            if (evt.key.key == SDLK_P) {
-                ctx.switch_track(-1);
-                return true;
-            }
-            if (evt.key.key == SDLK_M) {
-                ctx.cycle_play_mode();
-                return true;
-            }
+            ctx.handle_key_action(evt.key.key);
             if (auto b = map_nav_button(evt.key.key)) {
                 input::RawInputEvent raw{};
                 raw.type = input::RawInputEventType::Button;
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = true;
-                dispatch_raw_event(gui, ctx, raw);
+                app.dispatch_raw_input(gui, ctx, raw);
             }
             return true;
         case SDL_EVENT_KEY_UP:
@@ -239,7 +199,7 @@ namespace {
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = false;
-                dispatch_raw_event(gui, ctx, raw);
+                app.dispatch_raw_input(gui, ctx, raw);
             }
             return true;
         default:
@@ -309,17 +269,18 @@ int main(int argc, char** argv) {
                 win_w = static_cast<int>(evt.window.data1);
                 win_h = static_cast<int>(evt.window.data2);
             }
-            dispatch_sdl_event(gui, g_ctx, evt);
+            dispatch_sdl_event(gui, g_app, g_ctx, evt);
         }
 
+        const float t_sec = static_cast<float>(SDL_GetTicks()) * 0.001f;
         g_app.tick();
         g_ctx.tick_player(g_app.player());
 
         g_framebuffer.clear(kUiBackground);
         g_canvas.begin_frame();
         gui.record_commands(cmd_buf);
-        update_spectrum(static_cast<float>(SDL_GetTicks()) * 0.001f, g_ctx.is_playing() || g_ctx.is_paused());
-        draw_player_fx(cmd_buf, g_ctx, g_kernel, static_cast<float>(SDL_GetTicks()) * 0.001f);
+        update_spectrum(t_sec, g_ctx.is_playing() || g_ctx.is_paused());
+        draw_player_fx(cmd_buf, g_ctx, g_kernel, t_sec);
         cmd_exec.execute(g_canvas, cmd_buf);
         g_canvas.end_frame();
 

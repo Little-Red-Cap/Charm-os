@@ -81,4 +81,17 @@ export namespace player {
         out.tracks = std::move(scan.tracks);
         return out;
     }
+
+    StorageConfig default_storage_config() {
+        return detail::default_storage_config();
+    }
+
+    void init_storage(StorageConfig cfg) noexcept {
+        set_storage_config(cfg);
+    }
+
+    void init_storage(fs::BlockDevice& dev) noexcept {
+        detail::g_sd_device = &dev;
+        detail::g_storage_config = StorageConfig{&detail::mount_fatfs_from_sd, nullptr};
+    }
 }

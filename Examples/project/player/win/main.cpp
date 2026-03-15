@@ -294,6 +294,7 @@ int main(int argc, char** argv) {
     g_ctx.set_status("Mounting storage");
     g_ctx.update_list_placeholder();
 
+    player::init_storage(player::default_storage_config());
     auto storage = g_app.scan_storage();
     g_ctx.apply_storage_state(std::move(storage));
     if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {

@@ -383,38 +383,33 @@ export namespace audio {
             stats_.min_water = std::min(stats_.min_water, water);
             stats_.max_water = std::max(stats_.max_water, water);
 
-            if (sink_.consume_underrun_flag()) {
+            const bool underrun_flag = sink_.consume_underrun_flag();
+            if (underrun_flag) {
                 stats_.underrun_count = sink_.underrun_count();
             }
 
             if (state_ == PlayerState::buffering) {
-                while (data_plane_.fifo_capacity() &&
-                       data_plane_.fifo().size_bytes() < data_plane_.high_water()) {
-                    refill_once();
-                    if (!running_) break;
-                    if (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() == 0) break;
-                }
-                if (data_plane_.fifo_capacity() &&
-                    data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
-                    if (!sink_.start()) {
-                        set_error(Errc::io_error, PlayerErrorStage::sink_start);
-                        return;
-                    }
-                    state_ = PlayerState::playing;
-                }
+                buffer_until_high();
                 return;
             }
 
             if (state_ == PlayerState::playing) {
-                if (water <= data_plane_.low_water() ||
-                    stats_.underrun_count != last_underrun_seen_) {
+                const bool low_water = water <= data_plane_.low_water();
+                const bool underrun_seen = underrun_flag ||
+                    (stats_.underrun_count != last_underrun_seen_);
+                if (underrun_seen) {
                     last_underrun_seen_ = stats_.underrun_count;
+                }
+                if (low_water || underrun_seen) {
 #if CHARM_AUDIO_ENABLE_STRESS
                     if (stress_ms_ > 0) {
                         stress_delay_ms(static_cast<std::uint32_t>(stress_dist_(rng_)));
                     }
 #endif
-                    refill_once();
+                    (void)sink_.stop();
+                    state_ = PlayerState::buffering;
+                    buffer_until_high();
+                    return;
                 }
             }
 
@@ -870,6 +865,23 @@ export namespace audio {
             last_err_ = code;
             last_err_stage_ = stage;
             state_ = PlayerState::error;
+        }
+
+        void buffer_until_high() {
+            while (data_plane_.fifo_capacity() &&
+                   data_plane_.fifo().size_bytes() < data_plane_.high_water()) {
+                refill_once();
+                if (!running_) break;
+                if (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() == 0) break;
+            }
+            if (data_plane_.fifo_capacity() &&
+                data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
+                if (!sink_.start()) {
+                    set_error(Errc::io_error, PlayerErrorStage::sink_start);
+                    return;
+                }
+                state_ = PlayerState::playing;
+            }
         }
 
         bool configure_buffers() {

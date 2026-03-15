@@ -25,6 +25,11 @@ export namespace player {
 
         StorageState scan_storage() { return player::scan_storage(); }
 
+        template <typename Controller>
+        void bind_player(Controller& controller) {
+            controller.bind_player(player_);
+        }
+
     private:
         audio::AudioPlayer player_;
     };

@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_ctx.bind_player(g_app.player());
+    g_app.bind_player(g_ctx);
     g_ctx.bind_kernel(g_kernel);
     g_ctx.tracks = &g_vfs_tracks;
 

@@ -461,6 +461,7 @@ export namespace audio {
 
         void enable_spectrum(bool on) noexcept {
             spectrum_enabled_.store(on, std::memory_order_relaxed);
+            data_plane_.set_capture_output(on);
             if (!on) {
                 spectrum_ready_.store(false, std::memory_order_relaxed);
             }

@@ -69,6 +69,7 @@ export namespace audio {
         void set_graph_block_frames(std::uint32_t frames) noexcept {
             graph_block_frames_ = frames;
         }
+        void set_capture_output(bool on) noexcept { capture_output_ = on; }
 
         bool configure(std::span<std::byte> storage,
                        std::size_t fifo_capacity,
@@ -112,6 +113,7 @@ export namespace audio {
             chunk_bytes_ = 0;
             last_written_bytes_ = 0;
             graph_block_frames_ = 0;
+            capture_output_ = false;
             fifo_.clear();
             pump_.reset_stats();
             frame_queue_.clear();
@@ -151,18 +153,27 @@ export namespace audio {
             const std::size_t frames_to_output = std::min(frames_needed, available_frames);
             if (frames_to_output == 0) return 0;
 
-            FrameWriter writer{s16_out_.data(), s16_out_.size() / fmt.channels, fmt.channels};
+            if (capture_output_) {
+                FrameWriter writer{s16_out_.data(), s16_out_.size() / fmt.channels, fmt.channels};
+                const std::size_t frames_written =
+                    consume_queue_frames(frames_to_output, fmt.channels, writer);
+                if (frames_written == 0) return 0;
+                const auto out = writer.written_bytes();
+                const std::size_t written = write_pcm_fifo(fifo_, out, fmt.frame_size());
+                last_written_bytes_ = written;
+                return written;
+            }
+
+            FifoWriter writer{fifo_, fmt.channels};
             const std::size_t frames_written =
                 consume_queue_frames(frames_to_output, fmt.channels, writer);
             if (frames_written == 0) return 0;
-            const auto out = writer.written_bytes();
-            const std::size_t written = write_pcm_fifo(fifo_, out, fmt.frame_size());
-            last_written_bytes_ = written;
-            return written;
+            last_written_bytes_ = 0;
+            return writer.written_bytes();
         }
 
         std::span<const std::byte> last_output() const noexcept {
-            if (last_written_bytes_ == 0) return {};
+            if (!capture_output_ || last_written_bytes_ == 0) return {};
             const std::size_t max_bytes = s16_out_.size() * sizeof(std::int16_t);
             const std::size_t count = std::min(last_written_bytes_, max_bytes);
             return std::span<const std::byte>(
@@ -235,9 +246,10 @@ export namespace audio {
             return written_frames;
         }
 
+        template <typename Writer>
         std::size_t consume_queue_frames(std::size_t frames,
                                          std::uint16_t channels,
-                                         FrameWriter& writer) noexcept {
+                                         Writer& writer) noexcept {
             if (frames == 0 || channels == 0) return 0;
             std::size_t remaining = frames;
 
@@ -307,6 +319,7 @@ export namespace audio {
         std::size_t chunk_bytes_{0};
         std::size_t last_written_bytes_{0};
         std::uint32_t graph_block_frames_{0};
+        bool capture_output_{false};
 
         std::array<std::int32_t, kFrameQueueSamples> frame_queue_storage_{};
         std::array<std::int16_t, kMaxChunkFrames * kMaxChannels> s16_out_{};

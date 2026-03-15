@@ -1,6 +1,7 @@
 module;
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -9,16 +10,31 @@ module;
 export module audio.dsp_graph;
 
 export namespace audio {
+#ifndef CHARM_AUDIO_MAX_CHANNELS
+#define CHARM_AUDIO_MAX_CHANNELS 2
+#endif
+
     class DspGraph {
     public:
         void reset(std::uint16_t channels) noexcept {
             channels_ = channels;
             fade_total_frames_ = 0;
             fade_remaining_frames_ = 0;
+            gain_ = 1.0f;
+            dc_block_enabled_ = true;
+            dc_x1_.fill(0.0f);
+            dc_y1_.fill(0.0f);
+            init_nodes();
         }
 
         void set_gain(float gain) noexcept {
             gain_ = std::clamp(gain, 0.0f, 1.0f);
+        }
+
+        void enable_dc_block(bool on) noexcept { dc_block_enabled_ = on; }
+        void enable_soft_clip(bool on) noexcept { soft_clip_enabled_ = on; }
+        void set_soft_clip_threshold(float threshold) noexcept {
+            soft_clip_threshold_ = std::clamp(threshold, 0.0f, 1.0f);
         }
 
         void reset_fade(std::uint64_t frames) noexcept {
@@ -34,49 +50,148 @@ export namespace audio {
             }
             if (frames == 0) return;
 
-            const std::uint64_t fade_total = fade_total_frames_;
-            const std::uint64_t fade_remaining_start = fade_remaining_frames_;
-            const bool use_fade = fade_total > 0 && fade_remaining_start > 0;
-            const bool use_gain = gain_ != 1.0f;
-
-            const std::int64_t min_v = std::numeric_limits<std::int32_t>::min();
-            const std::int64_t max_v = std::numeric_limits<std::int32_t>::max();
-
-            std::size_t sample_index = 0;
-            for (std::size_t frame = 0; frame < frames; ++frame) {
-                std::int64_t scale_num = 1;
-                std::int64_t scale_den = 1;
-                if (use_fade) {
-                    const std::uint64_t done = fade_total - fade_remaining_start + frame + 1;
-                    const std::uint64_t scale = std::min(done, fade_total);
-                    scale_num = static_cast<std::int64_t>(scale);
-                    scale_den = static_cast<std::int64_t>(fade_total == 0 ? 1 : fade_total);
-                }
-
-                for (std::size_t ch = 0; ch < channels_; ++ch, ++sample_index) {
-                    std::int64_t v = samples[sample_index];
-                    if (use_fade) {
-                        v = (v * scale_num) / scale_den;
-                    }
-                    if (use_gain) {
-                        v = static_cast<std::int64_t>(static_cast<float>(v) * gain_);
-                    }
-                    v = std::clamp(v, min_v, max_v);
-                    samples[sample_index] = static_cast<std::int32_t>(v);
-                }
-            }
-
-            if (use_fade) {
-                fade_remaining_frames_ = (frames >= fade_remaining_start)
-                    ? 0
-                    : (fade_remaining_start - frames);
+            for (std::size_t i = 0; i < node_count_; ++i) {
+                auto& node = nodes_[i];
+                if (!node.enabled || !node.fn) continue;
+                node.fn(*this, samples, frames);
             }
         }
 
     private:
+        enum class NodeKind : std::uint8_t {
+            fade,
+            gain,
+            dc_block,
+            soft_clip,
+            clip
+        };
+
+        using NodeFn = void(*)(DspGraph&, std::span<std::int32_t>, std::size_t);
+
+        struct Node {
+            NodeKind kind{};
+            bool enabled{false};
+            NodeFn fn{nullptr};
+        };
+
+        static constexpr std::size_t kMaxNodes = 4;
+
+        void init_nodes() noexcept {
+            node_count_ = 0;
+            add_node(NodeKind::fade, &DspGraph::node_fade);
+            add_node(NodeKind::gain, &DspGraph::node_gain);
+            add_node(NodeKind::dc_block, &DspGraph::node_dc_block);
+            add_node(NodeKind::soft_clip, &DspGraph::node_soft_clip);
+            add_node(NodeKind::clip, &DspGraph::node_clip);
+        }
+
+        void add_node(NodeKind kind, NodeFn fn) noexcept {
+            if (node_count_ >= nodes_.size()) return;
+            nodes_[node_count_] = Node{kind, true, fn};
+            ++node_count_;
+        }
+
+        static void node_fade(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            const std::uint64_t fade_total = self.fade_total_frames_;
+            const std::uint64_t fade_remaining = self.fade_remaining_frames_;
+            if (self.channels_ == 0 || frames == 0) return;
+            if (fade_total == 0 || fade_remaining == 0) return;
+
+            std::size_t sample_index = 0;
+            for (std::size_t frame = 0; frame < frames; ++frame) {
+                const std::uint64_t done = fade_total - fade_remaining + frame + 1;
+                const std::uint64_t scale = std::min(done, fade_total);
+                const std::int64_t scale_num = static_cast<std::int64_t>(scale);
+                const std::int64_t scale_den = static_cast<std::int64_t>(fade_total == 0 ? 1 : fade_total);
+                for (std::size_t ch = 0; ch < self.channels_; ++ch, ++sample_index) {
+                    const std::int64_t v = samples[sample_index];
+                    samples[sample_index] = static_cast<std::int32_t>((v * scale_num) / scale_den);
+                }
+            }
+
+            self.fade_remaining_frames_ = (frames >= fade_remaining)
+                ? 0
+                : (fade_remaining - frames);
+        }
+
+        static void node_gain(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (self.channels_ == 0 || frames == 0) return;
+            if (self.gain_ == 1.0f) return;
+            const std::size_t total_samples = frames * self.channels_;
+            for (std::size_t i = 0; i < total_samples; ++i) {
+                const float v = static_cast<float>(samples[i]) * self.gain_;
+                samples[i] = static_cast<std::int32_t>(v);
+            }
+        }
+
+        static void node_dc_block(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (!self.dc_block_enabled_) return;
+            if (self.channels_ == 0 || frames == 0) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 2147483647.0f / 2147483648.0f;
+
+            std::size_t sample_index = 0;
+            for (std::size_t frame = 0; frame < frames; ++frame) {
+                for (std::size_t ch = 0; ch < self.channels_; ++ch, ++sample_index) {
+                    const float x = static_cast<float>(samples[sample_index]) * kScale;
+                    const float y = x - self.dc_x1_[ch] + self.dc_r_ * self.dc_y1_[ch];
+                    self.dc_x1_[ch] = x;
+                    self.dc_y1_[ch] = y;
+                    const float clamped = std::clamp(y, -1.0f, kClamp);
+                    samples[sample_index] = static_cast<std::int32_t>(clamped * kInvScale);
+                }
+            }
+        }
+
+        static void node_soft_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (!self.soft_clip_enabled_) return;
+            if (self.channels_ == 0 || frames == 0) return;
+            const float threshold = std::clamp(self.soft_clip_threshold_, 0.0f, 1.0f);
+            if (threshold >= 1.0f) return;
+            constexpr float kInvScale = 2147483648.0f;
+            constexpr float kScale = 1.0f / kInvScale;
+            constexpr float kClamp = 2147483647.0f / 2147483648.0f;
+            const float inv_range = 1.0f / (1.0f - threshold);
+            const std::size_t total_samples = frames * self.channels_;
+            for (std::size_t i = 0; i < total_samples; ++i) {
+                float v = static_cast<float>(samples[i]) * kScale;
+                const float sign = (v < 0.0f) ? -1.0f : 1.0f;
+                const float a = std::abs(v);
+                if (a > threshold) {
+                    const float t = (a - threshold) * inv_range;
+                    const float shaped = threshold + (t / (1.0f + t));
+                    v = shaped * sign;
+                }
+                v = std::clamp(v, -1.0f, kClamp);
+                samples[i] = static_cast<std::int32_t>(v * kInvScale);
+            }
+        }
+
+        static void node_clip(DspGraph& self, std::span<std::int32_t> samples, std::size_t frames) noexcept {
+            if (self.channels_ == 0 || frames == 0) return;
+            const std::size_t total_samples = frames * self.channels_;
+            const std::int64_t min_v = std::numeric_limits<std::int32_t>::min();
+            const std::int64_t max_v = std::numeric_limits<std::int32_t>::max();
+            for (std::size_t i = 0; i < total_samples; ++i) {
+                const std::int64_t v = samples[i];
+                samples[i] = static_cast<std::int32_t>(std::clamp(v, min_v, max_v));
+            }
+        }
+
+        static constexpr std::size_t kMaxChannels = CHARM_AUDIO_MAX_CHANNELS;
+
         std::uint16_t channels_{0};
         float gain_{1.0f};
         std::uint64_t fade_total_frames_{0};
         std::uint64_t fade_remaining_frames_{0};
+        std::array<Node, kMaxNodes> nodes_{};
+        std::size_t node_count_{0};
+        bool dc_block_enabled_{true};
+        float dc_r_{0.995f};
+        std::array<float, kMaxChannels> dc_x1_{};
+        std::array<float, kMaxChannels> dc_y1_{};
+        bool soft_clip_enabled_{true};
+        float soft_clip_threshold_{0.85f};
     };
 }

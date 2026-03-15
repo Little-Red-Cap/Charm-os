@@ -60,6 +60,11 @@ export namespace audio {
         void maybe_update_eq() noexcept { decode_.maybe_update_eq(); }
         void set_volume_gain(float gain) noexcept { graph_.set_gain(gain); }
         void reset_fade(std::uint64_t frames) noexcept { graph_.reset_fade(frames); }
+        void enable_dc_block(bool on) noexcept { graph_.enable_dc_block(on); }
+        void enable_soft_clip(bool on) noexcept { graph_.enable_soft_clip(on); }
+        void set_soft_clip_threshold(float threshold) noexcept {
+            graph_.set_soft_clip_threshold(threshold);
+        }
 
         bool configure(std::span<std::byte> storage,
                        std::size_t fifo_capacity,

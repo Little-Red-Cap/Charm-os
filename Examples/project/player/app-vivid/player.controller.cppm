@@ -58,6 +58,12 @@ export namespace player {
         WidgetHandle volume_label{};
         WidgetHandle volume_slider{};
         WidgetHandle volume_value{};
+        WidgetHandle dc_label{};
+        WidgetHandle dc_switch{};
+        WidgetHandle clip_label{};
+        WidgetHandle clip_switch{};
+        WidgetHandle clip_slider{};
+        WidgetHandle clip_value{};
         WidgetHandle list{};
         WidgetHandle list_title{};
         WidgetHandle list_hint{};
@@ -68,6 +74,7 @@ export namespace player {
         WidgetHandle btn_next{};
         WidgetHandle btn_mode{};
         WidgetHandle controls{};
+        WidgetHandle debug_text{};
     };
 
     struct PlayerController {
@@ -92,6 +99,9 @@ export namespace player {
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
         int last_volume_value{-1};
+        int last_dc_enabled{-1};
+        int last_clip_enabled{-1};
+        int last_clip_threshold{-1};
         struct TextSlots {
             soa_detail::TextSlotId title{soa_detail::kInvalidTextSlot};
             soa_detail::TextSlotId subtitle{soa_detail::kInvalidTextSlot};
@@ -109,10 +119,13 @@ export namespace player {
                 soa_detail::kInvalidTextSlot,
             };
             soa_detail::TextSlotId volume_value{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId clip_value{soa_detail::kInvalidTextSlot};
+            soa_detail::TextSlotId debug_text{soa_detail::kInvalidTextSlot};
         } text_slots{};
         std::string mount_status{};
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
+        std::chrono::steady_clock::time_point last_debug_tick{};
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
@@ -185,6 +198,8 @@ export namespace player {
                 slot = alloc();
             }
             text_slots.volume_value = alloc();
+            text_slots.clip_value = alloc();
+            text_slots.debug_text = alloc();
         }
 
         void set_label(WidgetHandle h, const char* text) {
@@ -246,6 +261,7 @@ export namespace player {
             }
             update_duration_from_player();
             update_progress();
+            update_debug_overlay();
         }
 
         void set_play_button_text(bool playing_now) {
@@ -437,6 +453,37 @@ export namespace player {
             kernel->set_value(handles.progress, upd.value);
             set_time_label(upd.current_sec);
             return true;
+        }
+
+        void update_debug_overlay() {
+#if CHARM_PLAYER_DEBUG_UI
+            if (!kernel || !handles.debug_text) return;
+            const auto now = std::chrono::steady_clock::now();
+            if (last_debug_tick.time_since_epoch().count() != 0) {
+                const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_debug_tick).count();
+                if (dt < 500) return;
+            }
+            last_debug_tick = now;
+
+            audio::PlayerSnapshot snap{};
+            if (!playback.snapshot(snap)) return;
+            const auto& fmt = snap.output_fmt;
+            const std::uint64_t frame_size = fmt.frame_size();
+            const std::uint64_t bytes_per_sec = frame_size * fmt.rate;
+            const std::uint64_t water_ms = bytes_per_sec ? (snap.water_bytes * 1000 / bytes_per_sec) : 0;
+            const std::uint64_t low_ms = bytes_per_sec ? (snap.low_water * 1000 / bytes_per_sec) : 0;
+            const std::uint64_t high_ms = bytes_per_sec ? (snap.high_water * 1000 / bytes_per_sec) : 0;
+
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "water %llums (%llu..%llu) underrun %llu",
+                          static_cast<unsigned long long>(water_ms),
+                          static_cast<unsigned long long>(low_ms),
+                          static_cast<unsigned long long>(high_ms),
+                          static_cast<unsigned long long>(snap.stats.underrun_count));
+            set_label_slot(handles.debug_text, text_slots.debug_text, buf);
+#else
+            (void)this;
+#endif
         }
 
         void sync_progress_value(int value) {
@@ -746,6 +793,40 @@ export namespace player {
             }
         }
 
+        void sync_dsp_controls() {
+            if (!kernel) return;
+            if (handles.dc_switch) {
+                const int enabled = kernel->checked(handles.dc_switch) ? 1 : 0;
+                if (enabled != last_dc_enabled) {
+                    last_dc_enabled = enabled;
+                    std::string status;
+                    if (!playback.set_dc_block(enabled != 0, status) && !status.empty()) {
+                        set_status(status.c_str());
+                    }
+                }
+            }
+            if (!handles.clip_switch || !handles.clip_slider || !handles.clip_value) return;
+            const int enabled = kernel->checked(handles.clip_switch) ? 1 : 0;
+            const int threshold = kernel->value(handles.clip_slider);
+            bool changed = false;
+            if (enabled != last_clip_enabled) {
+                last_clip_enabled = enabled;
+                changed = true;
+            }
+            if (threshold != last_clip_threshold) {
+                last_clip_threshold = threshold;
+                char buf[16]{};
+                std::snprintf(buf, sizeof(buf), "%d", threshold);
+                set_label_slot(handles.clip_value, text_slots.clip_value, buf);
+                changed = true;
+            }
+            if (!changed) return;
+            std::string status;
+            if (!playback.set_soft_clip(enabled != 0, threshold, status) && !status.empty()) {
+                set_status(status.c_str());
+            }
+        }
+
         void process_input_events() {
             if (!kernel) return;
             PendingActions actions{};
@@ -800,6 +881,7 @@ export namespace player {
             apply_actions(actions);
             sync_eq_values();
             sync_volume_value();
+            sync_dsp_controls();
         }
     };
 }

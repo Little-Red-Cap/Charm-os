@@ -41,6 +41,7 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kDapBurstLimit = 4;
 
     constexpr std::uint32_t kCdcInTimeoutMs = 250;
+    constexpr std::uint8_t kCdcPolicy = 0;
 
 #ifdef CHARM_DAP_USB_PROFILE
     constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(CHARM_DAP_USB_PROFILE);
@@ -65,6 +66,12 @@ export namespace daplink::app_config {
         static_cast<std::uint32_t>(CHARM_DAP_CDC_IN_TIMEOUT_MS);
 #else
     constexpr std::uint32_t kCdcInTimeoutMsValue = kCdcInTimeoutMs;
+#endif
+
+#ifdef CHARM_DAP_CDC_POLICY
+    constexpr std::uint8_t kCdcPolicyValue = static_cast<std::uint8_t>(CHARM_DAP_CDC_POLICY);
+#else
+    constexpr std::uint8_t kCdcPolicyValue = kCdcPolicy;
 #endif
 
     struct UsbStrings {
@@ -106,6 +113,7 @@ export namespace daplink::app_config {
     struct CdcConfig {
         std::uint8_t uart_index;
         std::uint32_t in_timeout_ms;
+        std::uint8_t policy;
     };
 
     struct AppConfig {
@@ -119,6 +127,7 @@ export namespace daplink::app_config {
     static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
     static_assert(kCdcUartIndex == 1 || kCdcUartIndex == 2);
     static_assert(kDapBurstLimitValue > 0);
+    static_assert(kCdcPolicyValue <= 1);
 
     inline constexpr AppConfig kConfig{
         UsbConfig{
@@ -146,7 +155,8 @@ export namespace daplink::app_config {
             kSwdRetryCount,
         },
         DapConfig{kDapBurstLimitValue},
-        CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue},
+        CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue, kCdcPolicyValue},
         kFwVersion,
     };
+
 }

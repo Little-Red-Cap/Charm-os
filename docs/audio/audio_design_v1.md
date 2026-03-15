@@ -21,8 +21,8 @@
 flowchart LR
   SRC[Source/IO] --> CBUF[CompressedBuffer]
   CBUF --> DEC[Decoder]
-  DEC --> DSP[DSP Graph (S32)]
-  DSP --> PCM[PCMBuffer (S16 FIFO)]
+  DEC --> DSP[DSP Graph 'S32']
+  DSP --> PCM[PCMBuffer 'S16 FIFO']
   PCM --> DEV[Device/Sink]
   DEV --> DMA[Callback/ISR]
 ```

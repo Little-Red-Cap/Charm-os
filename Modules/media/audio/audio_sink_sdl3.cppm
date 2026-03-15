@@ -14,6 +14,7 @@ export module audio.sink.sdl3;
 
 import audio.format;
 import audio.result;
+import audio.sink.common;
 import charm.system.clock;
 import media.stream.sink;
 import media.stream.types;
@@ -188,13 +189,11 @@ export namespace audio {
             while (remaining > 0) {
                 const std::size_t chunk = std::min(remaining, self->scratch_size_);
                 if (chunk == 0) break;
-                std::size_t written = 0;
-                if (self->fill_cb_) {
-                    written = self->fill_cb_(std::span<std::byte>(self->scratch_.data(), chunk), self->fill_user_);
-                }
-
-                if (written < chunk) {
-                    std::memset(self->scratch_.data() + written, 0, chunk - written);
+                const auto res = fill_and_pad(
+                    self->fill_cb_,
+                    self->fill_user_,
+                    std::span<std::byte>(self->scratch_.data(), chunk));
+                if (res.underrun) {
                     self->underrun_flag_.store(1, std::memory_order_relaxed);
                     self->underrun_count_.fetch_add(1, std::memory_order_relaxed);
                 }

@@ -12,6 +12,7 @@ export module audio.sink.i2s;
 
 import audio.format;
 import audio.result;
+import audio.sink.common;
 import charm.system.clock;
 import media.stream.sink;
 import media.stream.types;
@@ -141,12 +142,8 @@ export namespace audio {
         }
 
         void fill_block(std::span<std::byte> block) noexcept {
-            std::size_t written = 0;
-            if (fill_cb_) {
-                written = fill_cb_(block, fill_user_);
-            }
-            if (written < block.size()) {
-                std::memset(block.data() + written, 0, block.size() - written);
+            const auto res = fill_and_pad(fill_cb_, fill_user_, block);
+            if (res.underrun) {
                 underrun_flag_ = 1;
                 ++underrun_count_;
             }

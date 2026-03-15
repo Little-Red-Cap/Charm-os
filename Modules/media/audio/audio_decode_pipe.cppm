@@ -169,8 +169,7 @@ export namespace audio {
         bool configure_buffers(std::uint32_t chunk_frames, std::size_t chunk_bytes) noexcept {
             chunk_frames_ = chunk_frames;
             chunk_bytes_ = chunk_bytes;
-            const std::size_t out_samples = chunk_bytes / sizeof(std::int16_t);
-            if (!s16_out_.resize(out_samples)) return false;
+            const std::size_t out_samples = static_cast<std::size_t>(chunk_frames_) * output_fmt_.channels;
             if (!s32_out_.resize(out_samples)) return false;
 
             if (resample_enabled_) {
@@ -213,17 +212,8 @@ export namespace audio {
             }
         }
 
-        void set_volume_gain(float gain) noexcept {
-            volume_gain_ = std::clamp(gain, 0.0f, 1.0f);
-        }
-
-        void reset_fade(std::uint64_t frames) noexcept {
-            fade_in_total_frames_ = frames;
-            fade_in_remaining_frames_ = frames;
-        }
-
         std::size_t decode_frames(std::size_t frames_needed) noexcept {
-            last_output_bytes_ = 0;
+            last_output_frames_ = 0;
             if (!has_more_data_) return 0;
             if (frames_needed == 0) return 0;
 
@@ -245,29 +235,29 @@ export namespace audio {
             }
 
             const std::size_t conv_frames = convert_channels(decoded_frames);
-            std::size_t bytes_written = 0;
+            std::size_t out_frames = 0;
             if (resample_enabled_) {
-                const std::size_t out_frames = resample(conv_frames, frames_needed);
+                out_frames = resample(conv_frames, frames_needed);
                 if (out_frames > 0) {
-                    bytes_written = quantize_s32(out_frames);
+                    apply_eq_s32(out_frames);
                 }
             } else {
                 if (conv_frames > 0) {
                     const std::size_t samples = conv_frames * output_fmt_.channels;
                     std::memcpy(s32_out_.data(), s32_conv_.data(), samples * sizeof(std::int32_t));
-                    bytes_written = quantize_s32(conv_frames);
+                    out_frames = conv_frames;
+                    apply_eq_s32(out_frames);
                 }
             }
 
-            last_output_bytes_ = bytes_written;
-            return bytes_written;
+            last_output_frames_ = out_frames;
+            return out_frames;
         }
 
-        std::span<const std::byte> output_bytes() const noexcept {
-            if (last_output_bytes_ == 0) return {};
-            return std::span<const std::byte>(
-                reinterpret_cast<const std::byte*>(s16_out_.data()),
-                last_output_bytes_);
+        std::span<const std::int32_t> output_frames() const noexcept {
+            if (last_output_frames_ == 0 || output_fmt_.channels == 0) return {};
+            const std::size_t samples = last_output_frames_ * output_fmt_.channels;
+            return std::span<const std::int32_t>(s32_out_.data(), samples);
         }
 
         bool has_more_data() const noexcept { return has_more_data_; }
@@ -523,43 +513,6 @@ export namespace audio {
             }
         }
 
-        std::size_t quantize_s32(std::size_t frames) {
-            apply_eq_s32(frames);
-            const std::size_t samples = frames * output_fmt_.channels;
-            const std::uint64_t fade_total = fade_in_total_frames();
-            const std::uint64_t fade_remaining = fade_in_remaining_frames_;
-            for (std::size_t i = 0; i < samples; ++i) {
-                std::int32_t v = s32_out_[i];
-                if (fade_remaining > 0) {
-                    const std::size_t frame_index = i / output_fmt_.channels;
-                    const std::uint64_t done = fade_total - fade_remaining + frame_index + 1;
-                    const std::uint64_t scale = fade_total == 0 ? 0 : std::min(done, fade_total);
-                    const std::int64_t scaled = (static_cast<std::int64_t>(v) * static_cast<std::int64_t>(scale)) /
-                        static_cast<std::int64_t>(fade_total == 0 ? 1 : fade_total);
-                    v = static_cast<std::int32_t>(scaled);
-                }
-                if (volume_gain_ != 1.0f) {
-                    v = static_cast<std::int32_t>(static_cast<float>(v) * volume_gain_);
-                }
-                const std::int32_t clamped = std::clamp(
-                    v,
-                    static_cast<std::int32_t>(-32768 << 16),
-                    static_cast<std::int32_t>(32767 << 16));
-                s16_out_[i] = static_cast<std::int16_t>(clamped >> 16);
-            }
-            if (fade_in_remaining_frames_ > 0) {
-                fade_in_remaining_frames_ = (frames >= fade_in_remaining_frames_)
-                    ? 0
-                    : (fade_in_remaining_frames_ - frames);
-            }
-            return samples * sizeof(std::int16_t);
-        }
-
-        std::uint64_t fade_in_total_frames() const {
-            if (fade_in_total_frames_ == 0) return 0;
-            return fade_in_total_frames_;
-        }
-
         media::StreamSourceRef src_{};
         SourceKind kind_{SourceKind::wav};
         FlacFilter flac_filter_{};
@@ -573,7 +526,7 @@ export namespace audio {
         std::size_t input_chunk_frames_{0};
         std::uint32_t chunk_frames_{0};
         std::size_t chunk_bytes_{0};
-        std::size_t last_output_bytes_{0};
+        std::size_t last_output_frames_{0};
 
         std::size_t data_offset_{0};
         std::size_t data_size_{0};
@@ -587,13 +540,8 @@ export namespace audio {
         bool eq_ready_{false};
         bool eq_dirty_{false};
 
-        float volume_gain_{1.0f};
-        std::uint64_t fade_in_total_frames_{0};
-        std::uint64_t fade_in_remaining_frames_{0};
-
         StaticBuffer<std::byte, kMaxInputFrames * kMaxChannels * sizeof(std::int16_t)> raw_{};
         StaticBuffer<std::int16_t, kMaxInputFrames * kMaxChannels> s16_in_{};
-        StaticBuffer<std::int16_t, kMaxChunkFrames * kMaxChannels> s16_out_{};
         StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_in_{};
         StaticBuffer<std::int32_t, kMaxChunkFrames * kMaxChannels> s32_out_{};
         StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_conv_{};

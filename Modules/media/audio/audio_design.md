@@ -271,6 +271,7 @@ graph_block_frames = min(period_frames, 128)
 建议：
 - `graph_block_frames` 优先取 2 的幂（64/128），便于 SIMD / resampler。  
 - 若 `period_frames` 小于 128，则保持 `period_frames`，避免额外拆分。
+- 若 `graph_block_frames < period_frames`，必须保持 **2 的幂**（64/128/256）。
 
 执行模型：
 
@@ -281,6 +282,38 @@ while (queue < frames) {
 ```
 
 > Pull 语义 + Push 执行，保证 MCU 友好与 DSP 友好。
+
+### 2.1) 输出写入策略（v1/v1.5 预留）
+
+v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：
+
+```
+Graph → BufferWriter → s16_out_ → PCM FIFO
+```
+
+v1.5 预留 **FifoWriter**（直接量化写入 FIFO span）：
+
+```
+Graph → FifoWriter → PCM FIFO
+```
+
+要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
+
+### 2.1) 输出写入策略（v1/v1.5 预留）
+
+v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：
+
+```
+Graph → BufferWriter → s16_out_ → PCM FIFO
+```
+
+v1.5 预留 **FifoWriter**（直接量化写入 FIFO span）：
+
+```
+Graph → FifoWriter → PCM FIFO
+```
+
+要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
 
 ### 3) FrameSpan（v1 最小形态）
 
@@ -317,8 +350,31 @@ struct NodeRef {
 
 - 节点必须 deterministic：同样输入 → 同样输出  
 - 节点不得分配内存（no malloc/new），只允许栈或预分配  
+- 节点不得阻塞、不得锁等待、不得进行 IO  
+- 节点必须在有界时间内完成  
 - 节点默认假定 `frames == graph_block_frames`  
 - 支持 in-place（输入输出可重叠）
+
+### 5.1) In-place 约束（v1）
+
+v1 采用 **in-place 线性 pipeline**：
+
+```
+buffer → node1 → node2 → node3
+```
+
+若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
+不得把 ping-pong 传导到 Graph 层。
+
+### 5.1) In-place 约束（v1）
+
+v1 采用 **in-place 线性 pipeline**：
+
+```
+buffer → node1 → node2 → node3
+```
+
+若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
 
 ---
 
@@ -381,6 +437,16 @@ capacity_frames >= 4 * graph_block_frames
 
 v1：单线程 data-plane 内部使用。  
 v2：可升级为 **SPSC ringbuffer**（head/tail 原子 + acq/rel）。
+
+### 5.1) 双队列并发模型（必须区分）
+
+```
+PCMFrameQueue  → compute-domain transport（单线程，无原子）
+PCM FIFO       → realtime-domain transport（SPSC atomic）
+```
+
+PCMFrameQueue 只服务 Decoder/DSP，不与 ISR 并发。  
+PCM FIFO 负责 task ↔ ISR 的实时交互。
 
 ### 6) 数据格式约束
 

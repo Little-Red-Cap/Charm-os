@@ -305,8 +305,8 @@ Graph → FifoWriter → PCM FIFO
 struct FrameWriter {
   // 返回可写 span（S16 interleaved），按 frames 申请
   // 若返回空，表示当前不可写（例如 FIFO 满）
-  std::span<std::int16_t> begin_write(std::uint32_t frames) noexcept;
-  void commit_write(std::uint32_t frames) noexcept;
+  std::span<std::int16_t> writable(std::uint32_t frames) noexcept;
+  void commit(std::uint32_t frames) noexcept;
 };
 
 // v1: BufferWriter → s16_out_
@@ -317,22 +317,6 @@ struct FrameWriter {
 - Writer 不暴露 FIFO A/B 细节给 Graph  
 - Graph 仍只处理 S32，量化写入由 Writer 统一完成  
 - Writer 必须保证 frame 对齐与有界时间
-
-### 2.1) 输出写入策略（v1/v1.5 预留）
-
-v1 使用 **BufferWriter**（写入临时 S16 输出缓冲）：
-
-```
-Graph → BufferWriter → s16_out_ → PCM FIFO
-```
-
-v1.5 预留 **FifoWriter**（直接量化写入 FIFO span）：
-
-```
-Graph → FifoWriter → PCM FIFO
-```
-
-要求：Graph API 不绑定 FIFO 布局，输出方式由 Writer 适配，避免污染 DSP contract。
 
 ### 3) FrameSpan（v1 最小形态）
 
@@ -373,6 +357,8 @@ struct NodeRef {
 - 节点必须在有界时间内完成  
 - 节点默认假定 `frames == graph_block_frames`  
 - 支持 in-place（输入输出可重叠）
+- 节点不得改变 frame count（输入帧数必须等于输出帧数）  
+  变速/重采样属于专用节点，不得混入普通 DSP 节点
 
 ### 5.1) In-place 约束（v1）
 
@@ -383,17 +369,8 @@ buffer → node1 → node2 → node3
 ```
 
 若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
-不得把 ping-pong 传导到 Graph 层。
-
-### 5.1) In-place 约束（v1）
-
-v1 采用 **in-place 线性 pipeline**：
-
-```
-buffer → node1 → node2 → node3
-```
-
-若节点不支持 in-place，**必须在节点内部使用 scratch 并写回**，  
+不得把 ping-pong 传导到 Graph 层。  
+Node 可使用内部 scratch memory，但 **Graph 逻辑仍然是 in-place**。
 
 ---
 

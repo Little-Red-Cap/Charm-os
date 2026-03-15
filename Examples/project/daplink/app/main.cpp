@@ -5,10 +5,10 @@
 
 import daplink.board;
 import daplink.usb_minimal;
-import daplink.cmsis_dap;
+import daplink.dap_core;
 import daplink.app_config;
 import daplink.ring_buffer;
-import daplink.dap_queue;
+import daplink.dap_transport;
 import io.channel;
 import util.core;
 
@@ -21,7 +21,7 @@ namespace {
         (kUsbProfile == daplink::app_config::UsbProfile::hid) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
 
-    static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize));
+    static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::dap_core::kPacketSize));
 }
 
 extern "C" void SystemClock_Config(void);
@@ -128,19 +128,19 @@ int main()
     }
     daplink::board::configure_debug_pins_hi_z();
 
-    daplink::cmsis_dap::State dap_state{};
+    daplink::dap_core::State dap_state{};
     dap_state.current_hz = daplink::app_config::kConfig.swd.default_hz;
     dap_state.min_hz = daplink::app_config::kConfig.swd.min_hz;
-    const daplink::cmsis_dap::DeviceInfo kInfo{
-        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbManufacturer),
-        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbProduct),
-        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbSerial),
-        daplink::cmsis_dap::make_info_field(daplink::app_config::kFwVersion)
+    const daplink::dap_core::DeviceInfo kInfo{
+        daplink::dap_core::make_info_field(daplink::app_config::kUsbManufacturer),
+        daplink::dap_core::make_info_field(daplink::app_config::kUsbProduct),
+        daplink::dap_core::make_info_field(daplink::app_config::kUsbSerial),
+        daplink::dap_core::make_info_field(daplink::app_config::kFwVersion)
     };
 
     UartRing uart_tx{};
     UartRing uart_rx{};
-    daplink::dap_queue::Queue<> dap_queue{};
+    daplink::dap_transport::HidTransport<daplink::board::SwdBackend> dap_transport{dap_state, kInfo};
     io::Channel usb_cdc{
         nullptr,
         io::ChannelOps{usb_cdc_read, usb_cdc_write, nullptr}
@@ -158,7 +158,7 @@ int main()
     while (true) {
         if (daplink::usb_minimal::take_reset()) {
             dap_state = {};
-            dap_queue.reset();
+            dap_transport.reset();
             if constexpr (kEnableCdc) {
                 uart_tx = {};
                 uart_rx = {};
@@ -166,35 +166,11 @@ int main()
         }
         daplink::usb_minimal::poll();
         if constexpr (kEnableHid) {
-            std::uint8_t processed = 0;
-            while (daplink::usb_minimal::out_ready() && processed < kDapBurstLimit) {
-                if (!dap_queue.can_accept()) {
-                    break;
-                }
-                auto in = daplink::usb_minimal::out_packet();
-                if (!dap_queue.enqueue<daplink::board::SwdBackend>(dap_state, kInfo, in)) {
-                    break;
-                }
-                daplink::usb_minimal::consume_out();
-                ++processed;
-            }
-            if (dap_queue.has_pending()) {
-                auto pending = dap_queue.peek();
-                auto out = daplink::usb_minimal::in_packet();
-                const auto len = dap_queue.peek_len();
-                for (std::uint16_t i = 0; i < len; ++i) {
-                    out[i] = pending[i];
-                }
-                if (daplink::usb_minimal::try_send_in_packet(len)) {
-                    dap_queue.consume();
-                }
-            }
+            dap_transport.poll_in(kDapBurstLimit);
+            dap_transport.poll_out();
         }
         if constexpr (kEnableCdc) {
-            const bool dap_busy =
-                daplink::usb_minimal::out_ready() ||
-                daplink::usb_minimal::hid_in_busy() ||
-                dap_queue.has_pending();
+            const bool dap_busy = dap_transport.busy();
             if (!dap_busy) {
                 const auto line = daplink::usb_minimal::cdc_line();
                 if (line.baud != last_line.baud || line.stop_bits != last_line.stop_bits ||

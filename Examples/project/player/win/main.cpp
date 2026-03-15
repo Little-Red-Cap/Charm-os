@@ -3,6 +3,7 @@ import audio.result;
 import player.app;
 import player.controller;
 import player.fs_utils;
+import player.platform;
 import player.storage;
 import player.playback;
 import player.ui_builder;
@@ -13,9 +14,6 @@ import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
 import ui.input_adapter;
-import charm.gfx.canvas;
-import charm.gfx.draw_cmd;
-import charm.gfx.framebuffer;
 import charm.gfx.color;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
@@ -56,8 +54,7 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static DefaultFrameBuffer g_framebuffer{};
-    static DefaultCanvas g_canvas(g_framebuffer);
+    static player::PlayerPlatform g_platform{};
     static SoaKernel g_kernel{};
     static SoaFactory g_factory{g_kernel};
     static audio::PlayerConfig g_player_cfg{};
@@ -115,6 +112,23 @@ namespace {
             }
         }
 
+    }
+
+    void run_frame(player::App& app,
+                   player::PlayerPlatform& platform,
+                   PlayerUiContext& ctx,
+                   SoaKernel& kernel,
+                   float t_sec) {
+        app.tick();
+        ctx.tick_player(app.player());
+
+        platform.framebuffer_ref().clear(kUiBackground);
+        platform.begin_frame();
+        platform.record();
+        update_spectrum(t_sec, ctx.is_playing() || ctx.is_paused());
+        draw_player_fx(platform.commands(), ctx, kernel, t_sec);
+        platform.execute();
+        platform.end_frame();
     }
 
     std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
@@ -268,9 +282,7 @@ int main(int argc, char** argv) {
         g_ctx.set_status("Fs seek selftest failed");
     }
 
-    SoaGui gui(g_canvas, g_kernel, g_ctx.handles.root);
-    ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf{};
-    ui::draw_cmd::DrawCmdExecutor cmd_exec{};
+    g_platform.bind_gui(g_kernel, g_ctx.handles.root);
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -286,22 +298,14 @@ int main(int argc, char** argv) {
                 win_w = static_cast<int>(evt.window.data1);
                 win_h = static_cast<int>(evt.window.data2);
             }
-            dispatch_sdl_event(gui, g_app, g_ctx, evt);
+            dispatch_sdl_event(*g_platform.gui, g_app, g_ctx, evt);
         }
 
         const float t_sec = static_cast<float>(SDL_GetTicks()) * 0.001f;
-        g_app.tick();
-        g_ctx.tick_player(g_app.player());
+        run_frame(g_app, g_platform, g_ctx, g_kernel, t_sec);
 
-        g_framebuffer.clear(kUiBackground);
-        g_canvas.begin_frame();
-        gui.record_commands(cmd_buf);
-        update_spectrum(t_sec, g_ctx.is_playing() || g_ctx.is_paused());
-        draw_player_fx(cmd_buf, g_ctx, g_kernel, t_sec);
-        cmd_exec.execute(g_canvas, cmd_buf);
-        g_canvas.end_frame();
-
-        SDL_UpdateTexture(texture, nullptr, g_canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
+        SDL_UpdateTexture(texture, nullptr, g_platform.canvas_ref().data(),
+                          static_cast<int>(g_platform.stride_bytes()));
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);

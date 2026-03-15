@@ -12,10 +12,19 @@ class SoaFactory {
 public:
     explicit SoaFactory(SoaKernel& kernel) noexcept : kernel_(kernel) {}
 
+    soa_detail::TextSlotId alloc_text_slot() noexcept { return kernel_.alloc_text_slot(); }
+    void free_text_slot(soa_detail::TextSlotId slot) noexcept { kernel_.free_text_slot(slot); }
+
     WidgetHandle create_container() noexcept { return kernel_.create(WidgetKind::Container); }
     WidgetHandle create_label(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::Label);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_label_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::Label);
+        kernel_.set_text_static(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }
@@ -30,9 +39,21 @@ public:
         kernel_.set_hit_testable(h, false);
         return h;
     }
+    WidgetHandle create_text_input_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextInput);
+        kernel_.set_text_static(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
     WidgetHandle create_text_area(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::TextArea);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_text_area_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextArea);
+        kernel_.set_text_static(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }
@@ -42,9 +63,21 @@ public:
         kernel_.set_hit_testable(h, false);
         return h;
     }
+    WidgetHandle create_number_input_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::NumberInput);
+        kernel_.set_text_static(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
     WidgetHandle create_text_box(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::TextBox);
         kernel_.set_text(h, text);
+        kernel_.set_hit_testable(h, false);
+        return h;
+    }
+    WidgetHandle create_text_box_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::TextBox);
+        kernel_.set_text_static(h, text);
         kernel_.set_hit_testable(h, false);
         return h;
     }
@@ -75,6 +108,11 @@ public:
     WidgetHandle create_button(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::Button);
         kernel_.set_text(h, text);
+        return h;
+    }
+    WidgetHandle create_button_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::Button);
+        kernel_.set_text_static(h, text);
         return h;
     }
     WidgetHandle create_icon_button() noexcept {
@@ -147,9 +185,21 @@ public:
         kernel_.set_focusable(h, true);
         return h;
     }
+    WidgetHandle create_checkbox_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::Checkbox);
+        kernel_.set_text_static(h, text);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
     WidgetHandle create_radio(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::Radio);
         kernel_.set_text(h, text);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
+    WidgetHandle create_radio_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::Radio);
+        kernel_.set_text_static(h, text);
         kernel_.set_focusable(h, true);
         return h;
     }
@@ -191,6 +241,12 @@ public:
         kernel_.set_focusable(h, true);
         return h;
     }
+    WidgetHandle create_list_item_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::ListItem);
+        kernel_.set_text_static(h, text);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
     WidgetHandle create_menu() noexcept {
         auto h = kernel_.create(WidgetKind::Menu);
         kernel_.set_clip_children(h, true);
@@ -199,6 +255,12 @@ public:
     WidgetHandle create_menu_item(const char* text) noexcept {
         auto h = kernel_.create(WidgetKind::MenuItem);
         kernel_.set_text(h, text);
+        kernel_.set_focusable(h, true);
+        return h;
+    }
+    WidgetHandle create_menu_item_static(const char* text) noexcept {
+        auto h = kernel_.create(WidgetKind::MenuItem);
+        kernel_.set_text_static(h, text);
         kernel_.set_focusable(h, true);
         return h;
     }
@@ -246,6 +308,13 @@ public:
         kernel_.set_roller_row_height(h, 24);
         kernel_.set_roller_wheel_step(h, 24);
         return h;
+    }
+
+    void set_text_static(WidgetHandle h, const char* text) noexcept {
+        kernel_.set_text_static(h, text);
+    }
+    void set_text_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) noexcept {
+        kernel_.set_text_slot(h, slot, text);
     }
 
     void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept {

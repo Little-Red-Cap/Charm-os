@@ -1,7 +1,11 @@
 ﻿import audio.player;
 import audio.result;
+import player.app;
 import player.controller;
 import player.fs_utils;
+import player.platform;
+import player.storage;
+import player.playback;
 import player.ui_builder;
 import player.ui;
 import charm.core.config;
@@ -10,9 +14,6 @@ import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
 import ui.input_adapter;
-import charm.gfx.canvas;
-import charm.gfx.draw_cmd;
-import charm.gfx.framebuffer;
 import charm.gfx.color;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
@@ -46,7 +47,6 @@ import platform.win.time_source;
 #include <vector>
 
 namespace {
-    constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     using namespace player::fs_utils;
     using namespace player::ui;
 
@@ -54,13 +54,12 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static DefaultFrameBuffer g_framebuffer{};
-    static DefaultCanvas g_canvas(g_framebuffer);
+    static player::PlayerPlatform g_platform{};
     static SoaKernel g_kernel{};
     static SoaFactory g_factory{g_kernel};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static audio::AudioPlayer g_player(g_player_cfg, g_clock);
+    static player::App g_app{{g_player_cfg}, g_clock};
     static std::vector<std::string> g_vfs_tracks{};
 
     using PlayerUiContext = player::PlayerController;
@@ -68,26 +67,6 @@ namespace {
 
     static PlayerUiContext g_ctx{};
     static std::array<float, 24> g_spectrum{};
-
-    const char* audio_stage_text(audio::PlayerErrorStage stage) {
-        switch (stage) {
-        case audio::PlayerErrorStage::none: return "none";
-        case audio::PlayerErrorStage::open_source: return "open_source";
-        case audio::PlayerErrorStage::unsupported_format: return "unsupported_format";
-        case audio::PlayerErrorStage::decode_open: return "decode_open";
-        case audio::PlayerErrorStage::wav_parse: return "wav_parse";
-        case audio::PlayerErrorStage::wav_bits: return "wav_bits";
-        case audio::PlayerErrorStage::channel_convert: return "channel_convert";
-        case audio::PlayerErrorStage::buffer_config: return "buffer_config";
-        case audio::PlayerErrorStage::sink_open: return "sink_open";
-        case audio::PlayerErrorStage::buffer_alloc: return "buffer_alloc";
-        case audio::PlayerErrorStage::sink_start: return "sink_start";
-        case audio::PlayerErrorStage::seek: return "seek";
-        case audio::PlayerErrorStage::resume: return "resume";
-        case audio::PlayerErrorStage::reconfigure: return "reconfigure";
-        }
-        return "unknown";
-    }
 
     void update_spectrum(float t_sec, bool active) {
         const float base_speed = 2.2f;
@@ -107,7 +86,7 @@ namespace {
         const int cover_radius = 18;
         out.fill_round_rect(cover, cover_radius, kUiCover);
         rgba cover_ring = kUiOk;
-        if (ctx.playing) {
+        if (ctx.is_playing()) {
             const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
             cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
         } else {
@@ -132,14 +111,24 @@ namespace {
                 x += bar_w + gap;
             }
         }
+
     }
 
-    void dispatch_raw_event(SoaGui& gui, PlayerUiContext& ctx, const input::RawInputEvent& ev) {
-        const auto bridge = input::adapter::bridge_from_raw(ev);
-        if (bridge.event) {
-            gui.dispatch_event(*bridge.event);
-            ctx.process_input_events();
-        }
+    void run_frame(player::App& app,
+                   player::PlayerPlatform& platform,
+                   PlayerUiContext& ctx,
+                   SoaKernel& kernel,
+                   float t_sec) {
+        app.tick();
+        ctx.tick_player(app.player());
+
+        platform.framebuffer_ref().clear(kUiBackground);
+        platform.begin_frame();
+        platform.record();
+        update_spectrum(t_sec, ctx.is_playing() || ctx.is_paused());
+        draw_player_fx(platform.commands(), ctx, kernel, t_sec);
+        platform.execute();
+        platform.end_frame();
     }
 
     std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
@@ -155,7 +144,22 @@ namespace {
         return std::nullopt;
     }
 
-    bool dispatch_sdl_event(SoaGui& gui, PlayerUiContext& ctx, const SDL_Event& evt) {
+    std::optional<player::UiKey> map_ui_key(SDL_Keycode key) noexcept {
+        switch (key) {
+        case SDLK_UP: return player::UiKey::Up;
+        case SDLK_DOWN: return player::UiKey::Down;
+        case SDLK_RETURN: return player::UiKey::Enter;
+        case SDLK_SPACE: return player::UiKey::PlayToggle;
+        case SDLK_N: return player::UiKey::Next;
+        case SDLK_P: return player::UiKey::Prev;
+        case SDLK_M: return player::UiKey::Mode;
+        default:
+            break;
+        }
+        return std::nullopt;
+    }
+
+    bool dispatch_sdl_event(SoaGui& gui, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION: {
             input::RawInputEvent raw{};
@@ -166,7 +170,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.motion.y),
                                             0};
             raw.pointer_action = input::PointerAction::Move;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
@@ -179,7 +183,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Down;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_UP: {
@@ -192,7 +196,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Up;
-            dispatch_raw_event(gui, ctx, raw);
+            app.dispatch_raw_input(gui, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_WHEEL:
@@ -207,23 +211,8 @@ namespace {
             ctx.process_input_events();
             return true;
         case SDL_EVENT_KEY_DOWN:
-            if (evt.key.key == SDLK_SPACE) {
-                if (ctx.playing) ctx.pause_playback();
-                else if (ctx.paused) ctx.resume_playback();
-                else ctx.start_playback();
-                return true;
-            }
-            if (evt.key.key == SDLK_N) {
-                ctx.switch_track(1);
-                return true;
-            }
-            if (evt.key.key == SDLK_P) {
-                ctx.switch_track(-1);
-                return true;
-            }
-            if (evt.key.key == SDLK_M) {
-                ctx.cycle_play_mode();
-                return true;
+            if (auto k = map_ui_key(evt.key.key)) {
+                ctx.handle_key_action(*k);
             }
             if (auto b = map_nav_button(evt.key.key)) {
                 input::RawInputEvent raw{};
@@ -231,7 +220,7 @@ namespace {
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = true;
-                dispatch_raw_event(gui, ctx, raw);
+                app.dispatch_raw_input(gui, ctx, raw);
             }
             return true;
         case SDL_EVENT_KEY_UP:
@@ -241,7 +230,7 @@ namespace {
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = false;
-                dispatch_raw_event(gui, ctx, raw);
+                app.dispatch_raw_input(gui, ctx, raw);
             }
             return true;
         default:
@@ -253,7 +242,6 @@ namespace {
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
-    const char* vhd_path = kDefaultVhdPath;
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -282,96 +270,19 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_ctx.player = &g_player;
+    g_app.bind_player(g_ctx);
     g_ctx.bind_kernel(g_kernel);
-    g_ctx.track_path = nullptr;
     g_ctx.tracks = &g_vfs_tracks;
 
-    apply_player_theme();
+    g_app.bind_ui(g_factory, g_ctx);
 
-    g_ctx.icons = register_player_icons();
-    g_ctx.handles = build_ui(g_factory, g_ctx, g_ctx.icons);
-    g_ctx.set_time_label(0);
-    g_ctx.mount_status = "Mounting VHD...";
-    g_ctx.set_status("Mounting");
-    g_ctx.update_list_placeholder();
-
-    const auto mount_st = mount_fatfs_from_vhd(vhd_path);
-    g_ctx.fs_ready = static_cast<bool>(mount_st);
-    if (!g_ctx.fs_ready) {
-        char buf[64]{};
-        std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_err_text(mount_st.err));
-        g_ctx.set_status(buf);
-        g_ctx.mount_status = std::string(buf) + ". Unmount VHD in Windows";
-        g_vfs_tracks.clear();
-        g_ctx.rebuild_track_labels();
-        g_ctx.refresh_list_view();
-        g_ctx.track_ready = false;
-        g_ctx.track_path = nullptr;
-        g_ctx.set_play_button_text(false);
-        g_ctx.set_time_label(0);
-        g_ctx.sync_progress_value(0);
-        g_ctx.reset_duration();
-        g_ctx.update_list_placeholder();
-    } else {
-        g_ctx.mount_status = "Mounted";
-        g_ctx.update_list_placeholder();
-        g_vfs_tracks.clear();
-        fs::Status list_st{fs::Errc::ok};
-        g_ctx.mount_status = "Scanning /music...";
-        if (!collect_tracks_from_dir("/music", g_vfs_tracks, nullptr, list_st)) {
-            std::vector<std::string> subdirs;
-            g_ctx.mount_status = "Scanning /...";
-            const bool root_has = collect_tracks_from_dir("/", g_vfs_tracks, &subdirs, list_st);
-            if (list_st) {
-                for (const auto& dir : subdirs) {
-                    collect_tracks_from_dir(dir, g_vfs_tracks, nullptr, list_st);
-                }
-            }
-            if (!list_st) {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_err_text(list_st.err));
-                g_ctx.set_status(buf);
-                g_ctx.mount_status = buf;
-            } else if (!root_has && g_vfs_tracks.empty()) {
-                g_ctx.set_status("No tracks found");
-                g_ctx.mount_status = "No tracks in /music or /";
-            }
-        }
-        bool should_load = true;
-        if (g_vfs_tracks.empty()) {
-            char buf[64]{};
-            std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_err_text(list_st.err));
-            g_ctx.set_status(buf);
-            if (g_ctx.mount_status == "Mounted") {
-                g_ctx.mount_status = "No tracks in /music or /";
-            }
-            should_load = false;
-        }
-        g_ctx.rebuild_track_labels();
-        g_ctx.refresh_list_view();
-        if (should_load) {
-            g_ctx.load_track_index(0);
-            if (g_ctx.track_ready && !fs_seek_selftest(g_ctx.track_path)) {
-                g_ctx.set_status("Fs seek selftest failed");
-            }
-            if (g_ctx.track_ready) {
-                g_ctx.mount_status = "Ready";
-            }
-        } else {
-            g_ctx.track_ready = false;
-            g_ctx.track_path = nullptr;
-            g_ctx.set_play_button_text(false);
-            g_ctx.set_time_label(0);
-            g_ctx.sync_progress_value(0);
-            g_ctx.reset_duration();
-        }
-        g_ctx.update_list_placeholder();
+    player::init_storage(player::default_storage_config());
+    const bool has_track = g_app.bootstrap_player(g_ctx, g_vfs_tracks, 0, false);
+    if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
+        g_ctx.set_status("Fs seek selftest failed");
     }
 
-    SoaGui gui(g_canvas, g_kernel, g_ctx.handles.root);
-    ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf{};
-    ui::draw_cmd::DrawCmdExecutor cmd_exec{};
+    g_platform.bind_gui(g_kernel, g_ctx.handles.root);
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -387,53 +298,14 @@ int main(int argc, char** argv) {
                 win_w = static_cast<int>(evt.window.data1);
                 win_h = static_cast<int>(evt.window.data2);
             }
-            dispatch_sdl_event(gui, g_ctx, evt);
+            dispatch_sdl_event(*g_platform.gui, g_app, g_ctx, evt);
         }
 
-        g_player.tick();
-        if (g_ctx.playing && !g_player.is_running()) {
-            if (g_player.state() == audio::PlayerState::error) {
-                g_ctx.playing = false;
-                g_ctx.paused = false;
-                g_ctx.set_status("Stopped");
-                g_ctx.set_play_button_text(false);
-            } else {
-                g_ctx.handle_track_end();
-            }
-        }
-        if (!g_ctx.paused) {
-            const auto st = g_player.state();
-            if (st == audio::PlayerState::opening) {
-                g_ctx.set_status("Opening");
-            } else if (st == audio::PlayerState::buffering) {
-                g_ctx.set_status("Buffering");
-            } else if (st == audio::PlayerState::playing) {
-                g_ctx.set_status("Playing");
-            }
-        }
-        if (g_player.state() == audio::PlayerState::error) {
-            g_ctx.playing = false;
-            g_ctx.paused = false;
-            const auto err = g_player.last_error();
-            const auto stage = g_player.last_error_stage();
-            char buf[96]{};
-            std::snprintf(buf, sizeof(buf), "Player error (%s/%s)",
-                          player::audio_err_text(err), audio_stage_text(stage));
-            g_ctx.set_status(buf);
-            g_ctx.set_play_button_text(false);
-        }
-        g_ctx.update_duration_from_player();
-        g_ctx.update_progress();
+        const float t_sec = static_cast<float>(SDL_GetTicks()) * 0.001f;
+        run_frame(g_app, g_platform, g_ctx, g_kernel, t_sec);
 
-        g_framebuffer.clear(kUiBackground);
-        g_canvas.begin_frame();
-        gui.record_commands(cmd_buf);
-        update_spectrum(static_cast<float>(SDL_GetTicks()) * 0.001f, g_ctx.playing);
-        draw_player_fx(cmd_buf, g_ctx, g_kernel, static_cast<float>(SDL_GetTicks()) * 0.001f);
-        cmd_exec.execute(g_canvas, cmd_buf);
-        g_canvas.end_frame();
-
-        SDL_UpdateTexture(texture, nullptr, g_canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
+        SDL_UpdateTexture(texture, nullptr, g_platform.canvas_ref().data(),
+                          static_cast<int>(g_platform.stride_bytes()));
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);

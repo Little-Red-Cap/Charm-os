@@ -21,17 +21,13 @@ module;
 
 export module audio.player;
 
-import audio.decoder.flac;
-import audio.decoder.mp3;
-import audio.decoder.wav;
-import audio.channel.convert;
-import audio.fifo;
+import audio.decode_pipe;
+import audio.data_plane;
+import audio.eq;
 import audio.format;
-import audio.resampler.linear;
 import audio.result;
 import alg_fft;
 import charm.system.clock;
-import media.stream.filter;
 import media.stream.sink;
 import media.stream.source;
 import media.stream.types;
@@ -216,19 +212,6 @@ export namespace audio {
         std::uint8_t fail_reconfig_step{0};
     };
 
-    struct EqBand {
-        std::uint32_t freq_hz{1000};
-        float gain_db{0.0f};
-        float q{1.0f};
-    };
-
-    struct EqConfig {
-        static constexpr std::size_t max_bands = 8;
-        bool enabled{false};
-        std::uint8_t band_count{0};
-        std::array<EqBand, max_bands> bands{};
-    };
-
     struct PlayerStats {
         std::uint64_t underrun_count{0};
         std::size_t min_water{0};
@@ -321,6 +304,16 @@ export namespace audio {
             return {};
         }
 
+        Result<void> set_volume(std::uint8_t percent) {
+            Command cmd{};
+            cmd.type = CommandType::set_volume;
+            cmd.volume = percent;
+            if (!queue_.push(cmd)) {
+                return unexpected(Errc::timeout);
+            }
+            return {};
+        }
+
         Result<void> seek_ms(std::uint64_t ms) {
             if (state_ == PlayerState::idle || state_ == PlayerState::opening) {
                 return unexpected(Errc::bad_state);
@@ -384,43 +377,44 @@ export namespace audio {
                 return;
             }
 
-            const std::size_t water = fifo_capacity_ ? fifo_.size_bytes() : 0;
+            const std::size_t water = data_plane_.fifo_capacity()
+                ? data_plane_.fifo().size_bytes()
+                : 0;
             stats_.min_water = std::min(stats_.min_water, water);
             stats_.max_water = std::max(stats_.max_water, water);
 
-            if (sink_.consume_underrun_flag()) {
+            const bool underrun_flag = sink_.consume_underrun_flag();
+            if (underrun_flag) {
                 stats_.underrun_count = sink_.underrun_count();
             }
 
             if (state_ == PlayerState::buffering) {
-                while (fifo_capacity_ && fifo_.size_bytes() < high_water_) {
-                    refill_once();
-                    if (!running_) break;
-                    if (!has_more_data_ && fifo_.size_bytes() == 0) break;
-                }
-                if (fifo_capacity_ && fifo_.size_bytes() >= high_water_) {
-                    if (!sink_.start()) {
-                        set_error(Errc::io_error, PlayerErrorStage::sink_start);
-                        return;
-                    }
-                    state_ = PlayerState::playing;
-                }
+                buffer_until_high();
                 return;
             }
 
             if (state_ == PlayerState::playing) {
-                if (water <= low_water_ || stats_.underrun_count != last_underrun_seen_) {
+                const bool low_water = water <= data_plane_.low_water();
+                const bool underrun_seen = underrun_flag ||
+                    (stats_.underrun_count != last_underrun_seen_);
+                if (underrun_seen) {
                     last_underrun_seen_ = stats_.underrun_count;
+                }
+                if (low_water || underrun_seen) {
 #if CHARM_AUDIO_ENABLE_STRESS
                     if (stress_ms_ > 0) {
                         stress_delay_ms(static_cast<std::uint32_t>(stress_dist_(rng_)));
                     }
 #endif
-                    refill_once();
+                    (void)sink_.stop();
+                    state_ = PlayerState::buffering;
+                    buffer_until_high();
+                    return;
                 }
             }
 
-            if (!has_more_data_ && fifo_capacity_ && fifo_.size_bytes() == 0) {
+            if (!data_plane_.has_more_data() && data_plane_.fifo_capacity() &&
+                data_plane_.fifo().size_bytes() == 0) {
                 stop_internal();
             }
         }
@@ -466,15 +460,17 @@ export namespace audio {
             snap.callback = sink_.callback_stats();
             snap.input_fmt = input_fmt_;
             snap.output_fmt = output_fmt_;
-            snap.water_bytes = fifo_capacity_ ? fifo_.size_bytes() : 0;
-            snap.low_water = low_water_;
-            snap.high_water = high_water_;
-            snap.fifo_capacity = fifo_capacity_;
-            snap.period_frames = period_frames_;
-            snap.chunk_frames = chunk_frames_;
+            snap.water_bytes = data_plane_.fifo_capacity()
+                ? data_plane_.fifo().size_bytes()
+                : 0;
+            snap.low_water = data_plane_.low_water();
+            snap.high_water = data_plane_.high_water();
+            snap.fifo_capacity = data_plane_.fifo_capacity();
+            snap.period_frames = data_plane_.period_frames();
+            snap.chunk_frames = data_plane_.chunk_frames();
 
             if (reset_window) {
-                stats_.min_water = fifo_capacity_;
+                stats_.min_water = data_plane_.fifo_capacity();
                 stats_.max_water = 0;
             }
             return snap;
@@ -499,7 +495,7 @@ export namespace audio {
             rng_.seed(seed);
         }
 #endif
-        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq };
+        enum class CommandType : std::uint8_t { play, stop, pause, resume, seek_ms, reconfigure, set_eq, set_volume };
 
         struct Command {
             CommandType type{};
@@ -507,63 +503,8 @@ export namespace audio {
             std::uint64_t seek_ms{0};
             AudioFormat fmt{};
             EqConfig eq{};
+            std::uint8_t volume{100};
         };
-
-        struct Biquad {
-            float b0{1.0f};
-            float b1{0.0f};
-            float b2{0.0f};
-            float a1{0.0f};
-            float a2{0.0f};
-            std::array<float, kMaxChannels> z1{};
-            std::array<float, kMaxChannels> z2{};
-            bool enabled{false};
-
-            void reset() noexcept {
-                z1.fill(0.0f);
-                z2.fill(0.0f);
-            }
-
-            float process(float x, std::size_t ch) noexcept {
-                if (!enabled || ch >= z1.size()) return x;
-                const float y = b0 * x + z1[ch];
-                z1[ch] = b1 * x + z2[ch] - a1 * y;
-                z2[ch] = b2 * x - a2 * y;
-                return y;
-            }
-        };
-
-        static std::size_t fill_from_fifo(std::span<std::byte> dst, void* user) noexcept {
-            auto* self = static_cast<AudioPlayer*>(user);
-            if (!self || self->fifo_capacity_ == 0) return 0;
-            const std::size_t frame = self->output_fmt_.frame_size();
-            if (frame == 0) return 0;
-
-            std::size_t need = dst.size() - (dst.size() % frame);
-            std::size_t filled = 0;
-
-            while (filled < need) {
-                auto v = self->fifo_.readable_view();
-                if (v.a.empty() && v.b.empty()) break;
-
-                auto copy_one = [&](std::span<std::byte> src) {
-                    std::size_t n = std::min(src.size(), need - filled);
-                    n -= n % frame;
-                    if (n == 0) return;
-                    std::memcpy(dst.data() + filled, src.data(), n);
-                    self->fifo_.commit_read(n);
-                    filled += n;
-                };
-
-                if (!v.a.empty()) copy_one(v.a);
-                else if (!v.b.empty()) copy_one(v.b);
-            }
-
-            if (filled > 0) {
-                self->push_spectrum_samples(dst.first(filled));
-            }
-            return filled;
-        }
 
         void init_spectrum_window() noexcept {
             constexpr float kPi = 3.14159265358979323846f;
@@ -653,12 +594,14 @@ export namespace audio {
                     if (eq_.band_count > EqConfig::max_bands) {
                         eq_.band_count = EqConfig::max_bands;
                     }
-                    eq_dirty_ = true;
+                    data_plane_.set_eq(eq_);
+                } else if (cmd->type == CommandType::set_volume) {
+                    volume_percent_ = std::min<std::uint8_t>(cmd->volume, 100);
+                    volume_gain_ = static_cast<float>(volume_percent_) / 100.0f;
+                    data_plane_.set_volume_gain(volume_gain_);
                 }
             }
-            if (eq_dirty_ && output_fmt_.rate != 0) {
-                update_eq_filters();
-            }
+            data_plane_.maybe_update_eq();
         }
 
         void handle_play(const char* path) {
@@ -672,9 +615,7 @@ export namespace audio {
                 return;
             }
             src_iface_ = media::make_stream_source_ref(src_);
-            wav_filter_.close();
-            flac_filter_.close();
-            mp3_filter_.close();
+            data_plane_.close_source();
 
             is_flac_ = ends_with_icase(path, ".flac");
             is_wav_ = ends_with_icase(path, ".wav");
@@ -717,72 +658,42 @@ export namespace audio {
                 set_error(Errc::not_supported, PlayerErrorStage::unsupported_format);
                 return;
             }
-
+            SourceKind kind = SourceKind::wav;
             if (is_flac_) {
-                const auto info = flac_filter_.open(src_iface_);
-                if (!info) {
-                    set_error(Errc::decode_error, PlayerErrorStage::decode_open);
-                    return;
-                }
-                const auto fmt = flac_filter_.format();
-                input_fmt_.rate = fmt.rate;
-                input_fmt_.channels = fmt.channels;
-                input_fmt_.sample_type = SampleType::s16;
-                has_more_data_ = true;
-                total_frames_ = flac_filter_.total_frames();
+                kind = SourceKind::flac;
             } else if (is_mp3_) {
-                const auto info = mp3_filter_.open(src_iface_);
-                if (!info) {
-                    set_error(Errc::decode_error, PlayerErrorStage::decode_open);
-                    return;
-                }
-                const auto fmt = mp3_filter_.format();
-                input_fmt_.rate = fmt.rate;
-                input_fmt_.channels = fmt.channels;
-                input_fmt_.sample_type = SampleType::s16;
-                has_more_data_ = true;
-                total_frames_ = mp3_filter_.total_frames();
-            } else {
-                const auto info = wav_filter_.open(src_iface_);
-                if (!info) {
-                    set_error(Errc::decode_error, PlayerErrorStage::wav_parse);
-                    return;
-                }
-                const auto fmt = wav_filter_.format();
-                if (fmt.bits_per_sample != 16) {
+                kind = SourceKind::mp3;
+            }
+
+            const auto opened = data_plane_.open_source(src_iface_, kind);
+            if (!opened) {
+                if (kind == SourceKind::wav && opened.error() == Errc::not_supported) {
                     set_error(Errc::not_supported, PlayerErrorStage::wav_bits);
-                    return;
+                } else if (kind == SourceKind::wav) {
+                    set_error(opened.error(), PlayerErrorStage::wav_parse);
+                } else {
+                    set_error(opened.error(), PlayerErrorStage::decode_open);
                 }
-                input_fmt_.rate = fmt.rate;
-                input_fmt_.channels = fmt.channels;
-                input_fmt_.sample_type = SampleType::s16;
-                data_offset_ = wav_filter_.data_offset();
-                data_size_ = wav_filter_.data_size();
-                remaining_bytes_ = data_size_;
-                has_more_data_ = remaining_bytes_ > 0;
-                total_frames_ = data_size_ / input_fmt_.frame_size();
+                return;
             }
 
-            output_fmt_ = input_fmt_;
-            if (config_.force_channels != 0) {
-                output_fmt_.channels = config_.force_channels;
-            }
+            input_fmt_ = data_plane_.input_format();
+            output_fmt_ = data_plane_.output_format();
+            total_frames_ = data_plane_.total_frames();
 
-            if (!configure_channel_convert()) {
+            if (!data_plane_.configure_output(
+                    config_.force_channels,
+                    config_.output_mode == OutputMode::fixed_rate,
+                    config_.fixed_rate)) {
                 set_error(Errc::bad_state, PlayerErrorStage::channel_convert);
                 return;
             }
-            resample_enabled_ = false;
-            if (config_.output_mode == OutputMode::fixed_rate && config_.fixed_rate > 0) {
-                output_fmt_.rate = config_.fixed_rate;
-                if (output_fmt_.rate != input_fmt_.rate) {
-                    resampler_.configure(input_fmt_.rate, output_fmt_.rate, output_fmt_.channels);
-                    resampler_.reset();
-                    resample_cache_frames_ = 0;
-                    resample_enabled_ = true;
-                }
-            }
-            update_eq_filters();
+            input_fmt_ = data_plane_.input_format();
+            output_fmt_ = data_plane_.output_format();
+            total_frames_ = data_plane_.total_frames();
+            data_plane_.set_eq(eq_);
+            data_plane_.maybe_update_eq();
+            data_plane_.set_volume_gain(volume_gain_);
 
             if (!configure_buffers()) {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_config);
@@ -796,32 +707,26 @@ export namespace audio {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
-            period_frames_ = sink_.actual_period_frames();
-            if (period_frames_ == 0) {
-                period_frames_ = output_fmt_.rate / 100;
+            std::uint32_t period_frames = sink_.actual_period_frames();
+            if (period_frames == 0) {
+                period_frames = output_fmt_.rate / 100;
             }
-            chunk_frames_ = period_frames_ * config_.profile.chunk_mult;
-            chunk_bytes_ = static_cast<std::size_t>(chunk_frames_) * output_fmt_.frame_size();
-            if (!allocate_buffers(chunk_bytes_)) {
+            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            const std::size_t chunk_bytes =
+                static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
+            if (!data_plane_.update_period(period_frames, chunk_frames, chunk_bytes, output_fmt_)) {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
-
-            sink_.set_fill_callback(&AudioPlayer::fill_from_fifo, this);
+            sink_.set_fill_callback(
+                data_plane_.pump().fill_callback(),
+                &data_plane_.pump());
 
             stats_ = {};
-            stats_.min_water = fifo_capacity_;
+            stats_.min_water = data_plane_.fifo_capacity();
             stats_.max_water = 0;
             last_underrun_seen_ = 0;
-            fade_in_remaining_frames_ = fade_in_total_frames();
-
-            if (is_wav_) {
-                auto seek = src_iface_.seek(static_cast<std::int64_t>(data_offset_), media::SeekWhence::set);
-                if (!seek) {
-                    set_error(Errc::io_error, PlayerErrorStage::seek);
-                    return;
-                }
-            }
+            data_plane_.reset_fade(fade_in_total_frames());
 
             running_ = true;
             state_ = PlayerState::buffering;
@@ -830,49 +735,22 @@ export namespace audio {
         void handle_seek(std::uint64_t ms) {
             if (state_ == PlayerState::idle) return;
             (void)sink_.stop();
-            if (fifo_capacity_) fifo_.clear();
+            if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
-            std::uint64_t clamped_frames = (total_frames_ > 0) ? std::min(frames, total_frames_) : frames;
-            if (total_frames_ > 0 && clamped_frames >= total_frames_) {
-                clamped_frames = total_frames_ - 1;
+            const std::uint64_t total = data_plane_.total_frames();
+            std::uint64_t clamped_frames = (total > 0) ? std::min(frames, total) : frames;
+            if (total > 0 && clamped_frames >= total) {
+                clamped_frames = total - 1;
             }
-            if (is_wav_) {
-                const std::uint64_t offset = clamped_frames * input_fmt_.frame_size();
-                const std::uint64_t clamped = std::min<std::uint64_t>(offset, data_size_);
-                remaining_bytes_ = static_cast<std::size_t>(data_size_ - clamped);
-                has_more_data_ = remaining_bytes_ > 0;
-                auto res = src_iface_.seek(static_cast<std::int64_t>(data_offset_ + clamped), media::SeekWhence::set);
-                if (!res) {
-                    set_error(Errc::io_error, PlayerErrorStage::seek);
-                    return;
-                }
-            } else if (is_flac_) {
-                auto res = flac_filter_.seek_pcm_frame(clamped_frames);
-                if (!res) {
-                    set_error(Errc::decode_error, PlayerErrorStage::seek);
-                    running_ = false;
-                    return;
-                }
-                has_more_data_ = true;
-            } else if (is_mp3_) {
-                auto res = mp3_filter_.seek_pcm_frame(clamped_frames);
-                if (!res) {
-                    set_error(Errc::io_error, PlayerErrorStage::seek);
-                    running_ = false;
-                    return;
-                }
-                has_more_data_ = true;
-            } else {
+            auto res = data_plane_.seek_frames(clamped_frames);
+            if (!res) {
+                set_error(res.error(), PlayerErrorStage::seek);
+                running_ = false;
                 return;
             }
-            stats_.min_water = fifo_capacity_;
+            stats_.min_water = data_plane_.fifo_capacity();
             stats_.max_water = 0;
-            if (resample_enabled_) {
-                resampler_.reset();
-                resample_cache_frames_ = 0;
-            }
-            last_decode_eos_ = false;
-            fade_in_remaining_frames_ = fade_in_total_frames();
+            data_plane_.reset_fade(fade_in_total_frames());
             state_ = PlayerState::buffering;
         }
 
@@ -888,7 +766,8 @@ export namespace audio {
             if (state_ != PlayerState::paused) return;
             running_ = true;
             state_ = PlayerState::buffering;
-            if (fifo_capacity_ && fifo_.size_bytes() >= high_water_) {
+            if (data_plane_.fifo_capacity() &&
+                data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
                 if (!sink_.start()) {
                     set_error(Errc::io_error, PlayerErrorStage::resume);
                     return;
@@ -905,28 +784,22 @@ export namespace audio {
             (void)sink_.stop();
             sink_.clear_underrun_flag();
             sink_.close();
-            if (fifo_capacity_) fifo_.clear();
+            if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
 
             input_fmt_ = input_fmt;
-            output_fmt_ = input_fmt_;
-            if (config_.force_channels != 0) {
-                output_fmt_.channels = config_.force_channels;
-            }
-            if (!configure_channel_convert()) {
+            if (!data_plane_.configure_output(
+                    config_.force_channels,
+                    config_.output_mode == OutputMode::fixed_rate,
+                    config_.fixed_rate)) {
                 set_error(Errc::bad_state, PlayerErrorStage::channel_convert);
                 return;
             }
-            resample_enabled_ = false;
-            if (config_.output_mode == OutputMode::fixed_rate && config_.fixed_rate > 0) {
-                output_fmt_.rate = config_.fixed_rate;
-                if (output_fmt_.rate != input_fmt_.rate) {
-                    resampler_.configure(input_fmt_.rate, output_fmt_.rate, output_fmt_.channels);
-                    resampler_.reset();
-                    resample_cache_frames_ = 0;
-                    resample_enabled_ = true;
-                }
-            }
-            update_eq_filters();
+            input_fmt_ = data_plane_.input_format();
+            output_fmt_ = data_plane_.output_format();
+            total_frames_ = data_plane_.total_frames();
+            data_plane_.set_eq(eq_);
+            data_plane_.maybe_update_eq();
+            data_plane_.set_volume_gain(volume_gain_);
 
             if (config_.fail_reconfig_step == 1) {
                 set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
@@ -945,22 +818,25 @@ export namespace audio {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
-            period_frames_ = sink_.actual_period_frames();
-            if (period_frames_ == 0) {
-                period_frames_ = output_fmt_.rate / 100;
+            std::uint32_t period_frames = sink_.actual_period_frames();
+            if (period_frames == 0) {
+                period_frames = output_fmt_.rate / 100;
             }
-            chunk_frames_ = period_frames_ * config_.profile.chunk_mult;
-            chunk_bytes_ = static_cast<std::size_t>(chunk_frames_) * output_fmt_.frame_size();
-            if (!allocate_buffers(chunk_bytes_)) {
+            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            const std::size_t chunk_bytes =
+                static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
+            if (!data_plane_.update_period(period_frames, chunk_frames, chunk_bytes, output_fmt_)) {
                 set_error(Errc::bad_state, PlayerErrorStage::buffer_alloc);
                 return;
             }
-            sink_.set_fill_callback(&AudioPlayer::fill_from_fifo, this);
+            sink_.set_fill_callback(
+                data_plane_.pump().fill_callback(),
+                &data_plane_.pump());
 
-            stats_.min_water = fifo_capacity_;
+            stats_.min_water = data_plane_.fifo_capacity();
             stats_.max_water = 0;
             last_underrun_seen_ = sink_.underrun_count();
-            fade_in_remaining_frames_ = fade_in_total_frames();
+            data_plane_.reset_fade(fade_in_total_frames());
             state_ = PlayerState::buffering;
         }
 
@@ -969,32 +845,17 @@ export namespace audio {
             state_ = PlayerState::stopping;
             (void)sink_.stop();
             sink_.close();
-            flac_filter_.close();
-            mp3_filter_.close();
-            wav_filter_.close();
+            data_plane_.close_source();
             src_.close();
             src_iface_ = {};
-            if (fifo_capacity_) fifo_.clear();
+            if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             running_ = false;
-            has_more_data_ = false;
             is_flac_ = false;
             is_wav_ = false;
             is_mp3_ = false;
-            data_offset_ = 0;
-            data_size_ = 0;
-            remaining_bytes_ = 0;
             total_frames_ = 0;
-            resample_enabled_ = false;
-            resample_cache_frames_ = 0;
-            last_decode_eos_ = false;
             last_err_ = Errc::ok;
             last_err_stage_ = PlayerErrorStage::none;
-            for (auto& biquad : eq_biquads_) {
-                biquad.enabled = false;
-                biquad.reset();
-            }
-            eq_ready_ = false;
-            eq_dirty_ = false;
             spectrum_pos_ = 0;
             spectrum_ready_.store(false, std::memory_order_relaxed);
             state_ = PlayerState::idle;
@@ -1006,61 +867,60 @@ export namespace audio {
             state_ = PlayerState::error;
         }
 
+        void buffer_until_high() {
+            while (data_plane_.fifo_capacity() &&
+                   data_plane_.fifo().size_bytes() < data_plane_.high_water()) {
+                refill_once();
+                if (!running_) break;
+                if (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() == 0) break;
+            }
+            if (data_plane_.fifo_capacity() &&
+                data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
+                if (!sink_.start()) {
+                    set_error(Errc::io_error, PlayerErrorStage::sink_start);
+                    return;
+                }
+                state_ = PlayerState::playing;
+            }
+        }
+
         bool configure_buffers() {
             if (output_fmt_.rate > kMaxRate || input_fmt_.rate > kMaxRate) return false;
             if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) return false;
             if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) return false;
             if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) return false;
             if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) return false;
-            fifo_capacity_ = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
-            if (fifo_capacity_ > kMaxFifoBytes) return false;
-            if (!fifo_storage_.resize(fifo_capacity_)) return false;
-            fifo_.reset(std::span<std::byte>(fifo_storage_.data(), fifo_capacity_));
-            low_water_ = ms_to_bytes(config_.profile.low_ms, output_fmt_);
-            high_water_ = ms_to_bytes(config_.profile.high_ms, output_fmt_);
-            period_frames_ = config_.preferred_period_frames != 0
+            const std::size_t fifo_capacity = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
+            if (fifo_capacity > kMaxFifoBytes) return false;
+            if (!fifo_storage_.resize(fifo_capacity)) return false;
+            const std::size_t low_water = ms_to_bytes(config_.profile.low_ms, output_fmt_);
+            const std::size_t high_water = ms_to_bytes(config_.profile.high_ms, output_fmt_);
+            std::uint32_t period_frames = config_.preferred_period_frames != 0
                 ? config_.preferred_period_frames
                 : (output_fmt_.rate / 100);
-            if (period_frames_ > kMaxPeriodFrames) return false;
-            chunk_frames_ = period_frames_ * config_.profile.chunk_mult;
-            chunk_bytes_ = static_cast<std::size_t>(chunk_frames_) * output_fmt_.frame_size();
-            return allocate_buffers(chunk_bytes_);
-        }
-
-        bool allocate_buffers(std::size_t chunk_bytes) {
-            const std::size_t out_samples = chunk_bytes / sizeof(std::int16_t);
-            if (!s16_out_.resize(out_samples)) return false;
-            if (!s32_out_.resize(out_samples)) return false;
-            if (resample_enabled_) {
-                input_chunk_frames_ = static_cast<std::size_t>(
-                    (static_cast<std::uint64_t>(chunk_frames_) * input_fmt_.rate) / output_fmt_.rate) + 2;
-                if (input_chunk_frames_ < 2) input_chunk_frames_ = 2;
-                if (input_chunk_frames_ > kMaxInputFrames) return false;
-                const std::size_t in_samples = input_chunk_frames_ * input_fmt_.channels;
-                const std::size_t conv_samples = input_chunk_frames_ * output_fmt_.channels;
-                if (!raw_.resize(in_samples * sizeof(std::int16_t))) return false;
-                if (!s16_in_.resize(in_samples)) return false;
-                if (!s32_in_.resize(in_samples)) return false;
-                if (!s32_conv_.resize(conv_samples)) return false;
-                if (!s32_work_.resize(conv_samples + output_fmt_.channels)) return false;
-                if (!resample_cache_.resize(conv_samples + output_fmt_.channels)) return false;
-            } else {
-                input_chunk_frames_ = chunk_frames_;
-                if (input_chunk_frames_ > kMaxInputFrames) return false;
-                const std::size_t in_samples = input_chunk_frames_ * input_fmt_.channels;
-                const std::size_t conv_samples = input_chunk_frames_ * output_fmt_.channels;
-                if (!raw_.resize(in_samples * sizeof(std::int16_t))) return false;
-                if (!s16_in_.resize(in_samples)) return false;
-                if (!s32_in_.resize(in_samples)) return false;
-                if (!s32_conv_.resize(conv_samples)) return false;
+            if (period_frames > kMaxPeriodFrames) return false;
+            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            const std::size_t chunk_bytes =
+                static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
+            if (!data_plane_.configure(
+                    std::span<std::byte>(fifo_storage_.data(), fifo_capacity),
+                    fifo_capacity,
+                    low_water,
+                    high_water,
+                    period_frames,
+                    chunk_frames,
+                    chunk_bytes,
+                    output_fmt_)) {
+                return false;
             }
             return true;
         }
 
         void refill_once() {
-            if (!fifo_capacity_) return;
-            if (!has_more_data_) return;
-            std::size_t writable = std::min(fifo_.free_bytes(), chunk_bytes_);
+            if (!data_plane_.fifo_capacity()) return;
+            if (!data_plane_.has_more_data()) return;
+            auto& fifo = data_plane_.fifo();
+            std::size_t writable = std::min(fifo.free_bytes(), data_plane_.chunk_bytes());
             writable = (writable / output_fmt_.frame_size()) * output_fmt_.frame_size();
             if (writable == 0) {
                 stats_.overrun_count++;
@@ -1068,296 +928,17 @@ export namespace audio {
             }
 
             const auto t0 = clock_.now_us();
-            std::size_t bytes_written = 0;
-
-            const std::size_t frames_needed = writable / output_fmt_.frame_size();
-            const std::size_t input_target = resample_enabled_ ? input_chunk_frames_ : frames_needed;
-            std::size_t decoded_frames = 0;
-
-            if (is_flac_) {
-                decoded_frames = read_flac(input_target);
-            } else if (is_mp3_) {
-                decoded_frames = read_mp3(input_target);
-            } else {
-                decoded_frames = read_wav(input_target);
-            }
-
-            if (decoded_frames == 0) {
-                if (last_decode_eos_ && (!resample_enabled_ || resample_cache_frames_ == 0)) {
-                    has_more_data_ = false;
-                }
-            }
-
-            const std::size_t conv_frames = convert_channels(decoded_frames);
-            if (resample_enabled_) {
-                const std::size_t out_frames = resample(conv_frames, frames_needed);
-                if (out_frames > 0) {
-                    bytes_written = quantize_s32(out_frames);
-                }
-            } else {
-                if (conv_frames > 0) {
-                    const std::size_t samples = conv_frames * output_fmt_.channels;
-                    std::memcpy(s32_out_.data(), s32_conv_.data(), samples * sizeof(std::int32_t));
-                    bytes_written = quantize_s32(conv_frames);
-                }
-            }
-
+            const std::size_t bytes_written = data_plane_.refill();
             if (bytes_written > 0) {
-            auto view = fifo_.writable_view();
-            bytes_written = std::min(bytes_written, view.a.size() + view.b.size());
-
-                std::size_t written = 0;
-                const std::size_t a = std::min(view.a.size(), bytes_written);
-                std::memcpy(view.a.data(), reinterpret_cast<std::byte*>(s16_out_.data()), a);
-                written += a;
-
-                if (written < bytes_written && !view.b.empty()) {
-                    const std::size_t b = std::min(view.b.size(), bytes_written - written);
-                    std::memcpy(view.b.data(), reinterpret_cast<std::byte*>(s16_out_.data()) + written, b);
-                    written += b;
+                const auto out = data_plane_.last_output();
+                if (!out.empty()) {
+                    push_spectrum_samples(out);
                 }
-                fifo_.commit_write(written);
             }
 
             const auto t1 = clock_.now_us();
             const double dt_ms = static_cast<double>(t1 - t0) / 1000.0;
             update_refill_stats(dt_ms);
-        }
-
-        std::size_t read_flac(std::size_t frames) {
-            if (frames == 0) return 0;
-            const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int32_t);
-            const std::size_t out_frames = std::min(frames, s32_in_.size() / input_fmt_.channels);
-            const std::size_t out_bytes = out_frames * frame_bytes;
-            auto res = flac_filter_.process(std::span<const std::byte>{},
-                std::span<std::byte>(reinterpret_cast<std::byte*>(s32_in_.data()), out_bytes));
-            if (!res) {
-                state_ = PlayerState::error;
-                running_ = false;
-                return 0;
-            }
-            last_decode_eos_ = res->end_of_stream;
-            const std::size_t produced = res->produced - (res->produced % frame_bytes);
-            return produced / frame_bytes;
-        }
-
-        std::size_t read_wav(std::size_t frames) {
-            if (frames == 0) return 0;
-            const std::size_t bytes_per_frame = input_fmt_.frame_size();
-            const std::size_t max_bytes = std::min(frames * bytes_per_frame, raw_.size());
-            const auto res = wav_filter_.process(std::span<const std::byte>{},
-                std::span<std::byte>(raw_.data(), max_bytes));
-            if (!res) {
-                state_ = PlayerState::error;
-                running_ = false;
-                return 0;
-            }
-            last_decode_eos_ = res->end_of_stream;
-            const std::size_t produced = res->produced - (res->produced % bytes_per_frame);
-            if (produced == 0) {
-                if (last_decode_eos_) {
-                    remaining_bytes_ = 0;
-                }
-                return 0;
-            }
-            if (remaining_bytes_ > 0) {
-                remaining_bytes_ = (produced >= remaining_bytes_) ? 0 : (remaining_bytes_ - produced);
-            }
-
-            const std::size_t samples = produced / sizeof(std::int16_t);
-            std::memcpy(s16_in_.data(), raw_.data(), samples * sizeof(std::int16_t));
-            for (std::size_t i = 0; i < samples; ++i) {
-                s32_in_[i] = static_cast<std::int32_t>(s16_in_[i]) << 16;
-            }
-            return samples / input_fmt_.channels;
-        }
-
-        std::size_t read_mp3(std::size_t frames) {
-            if (frames == 0) return 0;
-            const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int16_t);
-            const std::size_t out_frames = std::min(frames, s16_in_.size() / input_fmt_.channels);
-            const std::size_t out_bytes = out_frames * frame_bytes;
-            auto res = mp3_filter_.process(std::span<const std::byte>{},
-                std::span<std::byte>(reinterpret_cast<std::byte*>(s16_in_.data()), out_bytes));
-            if (!res) {
-                state_ = PlayerState::error;
-                running_ = false;
-                return 0;
-            }
-            last_decode_eos_ = res->end_of_stream;
-            const std::size_t produced = res->produced - (res->produced % frame_bytes);
-            if (produced == 0) {
-                return 0;
-            }
-            const std::size_t read_samples = produced / sizeof(std::int16_t);
-            for (std::size_t i = 0; i < read_samples; ++i) {
-                s32_in_[i] = static_cast<std::int32_t>(s16_in_[i]) << 16;
-            }
-            return produced / frame_bytes;
-        }
-
-        std::size_t convert_channels(std::size_t frames) {
-            if (frames == 0) return 0;
-            const std::size_t out_samples = frames * output_fmt_.channels;
-            if (out_samples > s32_conv_.size()) {
-                if (!s32_conv_.resize(out_samples)) {
-                    state_ = PlayerState::error;
-                    running_ = false;
-                    return 0;
-                }
-            }
-            const auto res = channel_conv_.process(
-                std::span<const std::int32_t>(s32_in_.data(), frames * input_fmt_.channels),
-                std::span<std::int32_t>(s32_conv_.data(), out_samples));
-            return res;
-        }
-
-        bool configure_channel_convert() {
-            const ChannelConvertConfig cfg{
-                input_fmt_.channels,
-                output_fmt_.channels
-            };
-            auto res = channel_conv_.init(cfg);
-            if (!res) return false;
-            return true;
-        }
-
-        std::size_t resample(std::size_t conv_frames, std::size_t out_frames_cap) {
-            const std::size_t channels = output_fmt_.channels;
-            std::size_t total_frames = resample_cache_frames_ + conv_frames;
-
-            if (total_frames == 0) return 0;
-
-            if (!s32_work_.resize((total_frames + 1) * channels)) {
-                state_ = PlayerState::error;
-                running_ = false;
-                return 0;
-            }
-            if (resample_cache_frames_ > 0) {
-                std::memcpy(
-                    s32_work_.data(),
-                    resample_cache_.data(),
-                    resample_cache_frames_ * channels * sizeof(std::int32_t));
-            }
-            if (conv_frames > 0) {
-                std::memcpy(
-                    s32_work_.data() + (resample_cache_frames_ * channels),
-                    s32_conv_.data(),
-                    conv_frames * channels * sizeof(std::int32_t));
-            }
-
-            auto result = resampler_.process(
-                std::span<const std::int32_t>(s32_work_.data(), total_frames * channels),
-                total_frames,
-                std::span<std::int32_t>(s32_out_.data(), out_frames_cap * channels),
-                out_frames_cap);
-
-            const std::size_t used = std::min(result.in_used, total_frames);
-            const std::size_t remaining = total_frames - used;
-            if (remaining > 0) {
-                if (!resample_cache_.resize(remaining * channels)) {
-                    state_ = PlayerState::error;
-                    running_ = false;
-                    return 0;
-                }
-                std::memcpy(
-                    resample_cache_.data(),
-                    s32_work_.data() + (used * channels),
-                    remaining * channels * sizeof(std::int32_t));
-            }
-            resample_cache_frames_ = remaining;
-            return result.out_frames;
-        }
-
-        void update_eq_filters() {
-            eq_dirty_ = false;
-            for (auto& biquad : eq_biquads_) {
-                biquad.enabled = false;
-                biquad.reset();
-            }
-            if (!eq_.enabled || eq_.band_count == 0 || output_fmt_.rate == 0) {
-                eq_ready_ = false;
-                return;
-            }
-            const float fs = static_cast<float>(output_fmt_.rate);
-            const float nyquist = fs * 0.5f - 1.0f;
-            const float min_freq = 10.0f;
-            for (std::size_t i = 0; i < eq_.band_count && i < eq_biquads_.size(); ++i) {
-                const auto& band = eq_.bands[i];
-                if (std::abs(band.gain_db) < 0.01f) {
-                    continue;
-                }
-                const float freq = std::clamp(static_cast<float>(band.freq_hz), min_freq, nyquist);
-                const float q = (band.q > 0.05f) ? band.q : 0.707f;
-                const float a = std::pow(10.0f, band.gain_db / 40.0f);
-                const float w0 = static_cast<float>(2.0 * 3.14159265358979323846) * freq / fs;
-                const float cosw = std::cos(w0);
-                const float sinw = std::sin(w0);
-                const float alpha = sinw / (2.0f * q);
-
-                const float b0 = 1.0f + alpha * a;
-                const float b1 = -2.0f * cosw;
-                const float b2 = 1.0f - alpha * a;
-                const float a0 = 1.0f + alpha / a;
-                const float a1 = -2.0f * cosw;
-                const float a2 = 1.0f - alpha / a;
-
-                auto& biquad = eq_biquads_[i];
-                const float inv_a0 = (a0 != 0.0f) ? (1.0f / a0) : 1.0f;
-                biquad.b0 = b0 * inv_a0;
-                biquad.b1 = b1 * inv_a0;
-                biquad.b2 = b2 * inv_a0;
-                biquad.a1 = a1 * inv_a0;
-                biquad.a2 = a2 * inv_a0;
-                biquad.enabled = true;
-            }
-            eq_ready_ = true;
-        }
-
-        void apply_eq_s32(std::size_t frames) {
-            if (!eq_ready_ || !eq_.enabled || eq_.band_count == 0) return;
-            const std::size_t channels = output_fmt_.channels;
-            if (channels == 0) return;
-            constexpr float kInvScale = 2147483648.0f;
-            constexpr float kScale = 1.0f / kInvScale;
-            constexpr float kClamp = 32767.0f / 32768.0f;
-            const std::size_t samples = frames * channels;
-            for (std::size_t i = 0; i < samples; ++i) {
-                const std::size_t ch = i % channels;
-                float v = static_cast<float>(s32_out_[i]) * kScale;
-                for (std::size_t b = 0; b < eq_.band_count && b < eq_biquads_.size(); ++b) {
-                    v = eq_biquads_[b].process(v, ch);
-                }
-                v = std::clamp(v, -1.0f, kClamp);
-                s32_out_[i] = static_cast<std::int32_t>(v * kInvScale);
-            }
-        }
-
-        std::size_t quantize_s32(std::size_t frames) {
-            apply_eq_s32(frames);
-            const std::size_t samples = frames * output_fmt_.channels;
-            const std::uint64_t fade_total = fade_in_total_frames();
-            const std::uint64_t fade_remaining = fade_in_remaining_frames_;
-            for (std::size_t i = 0; i < samples; ++i) {
-                std::int32_t v = s32_out_[i];
-                if (fade_remaining > 0) {
-                    const std::size_t frame_index = i / output_fmt_.channels;
-                    const std::uint64_t done = fade_total - fade_remaining + frame_index + 1;
-                    const std::uint64_t scale = fade_total == 0 ? 0 : std::min(done, fade_total);
-                    const std::int64_t scaled = (static_cast<std::int64_t>(v) * static_cast<std::int64_t>(scale)) /
-                        static_cast<std::int64_t>(fade_total == 0 ? 1 : fade_total);
-                    v = static_cast<std::int32_t>(scaled);
-                }
-                const std::int32_t clamped = std::clamp(
-                    v,
-                    static_cast<std::int32_t>(-32768 << 16),
-                    static_cast<std::int32_t>(32767 << 16));
-                s16_out_[i] = static_cast<std::int16_t>(clamped >> 16);
-            }
-            if (fade_in_remaining_frames_ > 0) {
-                fade_in_remaining_frames_ = (frames >= fade_in_remaining_frames_) ? 0 : (fade_in_remaining_frames_ - frames);
-            }
-            return samples * sizeof(std::int16_t);
         }
 
         std::uint64_t fade_in_total_frames() const {
@@ -1407,47 +988,20 @@ export namespace audio {
         FileDataSource src_{};
 #endif
         media::StreamSourceRef src_iface_{};
-        FlacFilter flac_filter_{};
-        Mp3Filter mp3_filter_{};
-        WavFilter wav_filter_{};
         SinkType sink_{};
-        PcmFifo fifo_{};
+        AudioDataPlane data_plane_{};
 
         AudioFormat input_fmt_{};
         AudioFormat output_fmt_{};
-        std::size_t fifo_capacity_{0};
-        std::size_t low_water_{0};
-        std::size_t high_water_{0};
-        std::uint32_t period_frames_{0};
-        std::uint32_t chunk_frames_{0};
-        std::size_t chunk_bytes_{0};
-        std::size_t input_chunk_frames_{0};
 
         StaticBuffer<std::byte, kMaxFifoBytes> fifo_storage_{};
-        StaticBuffer<std::byte, kMaxInputFrames * kMaxChannels * sizeof(std::int16_t)> raw_{};
-        StaticBuffer<std::int16_t, kMaxInputFrames * kMaxChannels> s16_in_{};
-        StaticBuffer<std::int16_t, kMaxChunkFrames * kMaxChannels> s16_out_{};
-        StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_in_{};
-        StaticBuffer<std::int32_t, kMaxChunkFrames * kMaxChannels> s32_out_{};
-        StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_conv_{};
-        StaticBuffer<std::int32_t, (kMaxInputFrames + 1) * kMaxChannels> s32_work_{};
-        StaticBuffer<std::int32_t, (kMaxInputFrames + 1) * kMaxChannels> resample_cache_{};
-        std::size_t resample_cache_frames_{0};
-        LinearResamplerS32 resampler_{};
-        bool resample_enabled_{false};
-        std::uint64_t fade_in_remaining_frames_{0};
-        ChannelConverterS32 channel_conv_{};
 
-        std::size_t data_offset_{0};
-        std::size_t data_size_{0};
-        std::size_t remaining_bytes_{0};
         std::uint64_t total_frames_{0};
         Errc last_err_{Errc::ok};
         PlayerErrorStage last_err_stage_{PlayerErrorStage::none};
         EqConfig eq_{};
-        std::array<Biquad, EqConfig::max_bands> eq_biquads_{};
-        bool eq_ready_{false};
-        bool eq_dirty_{false};
+        std::uint8_t volume_percent_{100};
+        float volume_gain_{1.0f};
 
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};
@@ -1462,9 +1016,7 @@ export namespace audio {
         bool is_wav_{false};
         bool is_mp3_{false};
         bool running_{false};
-        bool has_more_data_{false};
         std::uint64_t last_underrun_seen_{0};
-        bool last_decode_eos_{false};
 
         std::uint32_t stress_ms_{0};
         charm::system::ClockRef clock_{};

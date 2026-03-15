@@ -1,4 +1,5 @@
 module;
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -11,173 +12,75 @@ module;
 #ifndef CHARM_DAP_ENABLE_DAP_UART
 #define CHARM_DAP_ENABLE_DAP_UART 0
 #endif
+
 export module daplink.cmsis_dap;
 
-
+export import :core;
+export import :protocol;
+export import :state;
+import daplink.dap_ops;
 import daplink.swd_engine;
+import daplink.dap_backend;
 
 export namespace daplink::cmsis_dap {
-    constexpr std::size_t kPacketSize = 64;
-    constexpr std::uint8_t kPacketCount = 4;
-
-    struct InfoField {
-        const char* data;
-        std::uint8_t size;
-    };
-
-    struct DeviceInfo {
-        InfoField vendor;
-        InfoField product;
-        InfoField serial;
-        InfoField fw_version;
-    };
-
-    template <std::size_t N>
-    constexpr InfoField make_info_field(const char (&text)[N]) noexcept {
-        static_assert(N > 0);
-        static_assert((N - 1) <= 255);
-        return {text, static_cast<std::uint8_t>(N - 1)};
-    }
-
-    struct State {
-        std::uint8_t dap_port = 0;
-        swd::Config swd_cfg{};
-        std::uint16_t match_retry = 0;
-        std::uint32_t match_mask = 0;
-#if CHARM_DAP_ENABLE_SWO
-        std::uint32_t swo_baudrate = 0;
-        std::uint8_t swo_mode = 0;
-        std::uint8_t swo_transport = 1;
-        std::uint8_t swo_status = 0;
-#endif
-    };
-
     namespace detail {
-        constexpr std::uint8_t kCmsisDapInfo = 0x00;
-        constexpr std::uint8_t kCmsisDapHostStatus = 0x01;
-        constexpr std::uint8_t kCmsisDapConnect = 0x02;
-        constexpr std::uint8_t kCmsisDapDisconnect = 0x03;
-        constexpr std::uint8_t kCmsisDapTransferConfigure = 0x04;
-        constexpr std::uint8_t kCmsisDapTransfer = 0x05;
-        constexpr std::uint8_t kCmsisDapTransferBlock = 0x06;
-        constexpr std::uint8_t kCmsisDapWriteAbort = 0x08;
-        constexpr std::uint8_t kCmsisDapDelay = 0x09;
-        constexpr std::uint8_t kCmsisDapResetTarget = 0x0A;
-        constexpr std::uint8_t kCmsisDapSwjPins = 0x10;
-        constexpr std::uint8_t kCmsisDapSwjClock = 0x11;
-        constexpr std::uint8_t kCmsisDapSwjSequence = 0x12;
-        constexpr std::uint8_t kCmsisDapSwdConfigure = 0x13;
-        constexpr std::uint8_t kCmsisDapSwoTransport = 0x17;
-        constexpr std::uint8_t kCmsisDapSwoMode = 0x18;
-        constexpr std::uint8_t kCmsisDapSwoBaudrate = 0x19;
-        constexpr std::uint8_t kCmsisDapSwoControl = 0x1A;
-        constexpr std::uint8_t kCmsisDapSwoStatus = 0x1B;
-        constexpr std::uint8_t kCmsisDapSwoData = 0x1C;
-        constexpr std::uint8_t kCmsisDapSwoExtendedStatus = 0x1E;
-        constexpr std::uint8_t kCmsisDapUartTransport = 0x1F;
-        constexpr std::uint8_t kCmsisDapUartConfigure = 0x20;
-        constexpr std::uint8_t kCmsisDapUartTransfer = 0x21;
-        constexpr std::uint8_t kCmsisDapUartControl = 0x22;
-        constexpr std::uint8_t kCmsisDapUartStatus = 0x23;
-        constexpr std::uint8_t kCmsisDapQueueCommands = 0x7E;
-        constexpr std::uint8_t kCmsisDapExecuteCommands = 0x7F;
-        constexpr std::uint8_t kCmsisDapInvalid = 0xFF;
-
-        constexpr std::uint8_t kDapInfoVendor = 1;
-        constexpr std::uint8_t kDapInfoProduct = 2;
-        constexpr std::uint8_t kDapInfoSerial = 3;
-        constexpr std::uint8_t kDapInfoFwVersion = 4;
-        constexpr std::uint8_t kDapInfoCapabilities = 0xF0;
-        constexpr std::uint8_t kDapInfoUartRxBufferSize = 0xFB;
-        constexpr std::uint8_t kDapInfoUartTxBufferSize = 0xFC;
-        constexpr std::uint8_t kDapInfoSwoBufferSize = 0xFD;
-        constexpr std::uint8_t kDapInfoPacketCount = 0xFE;
-        constexpr std::uint8_t kDapInfoPacketSize = 0xFF;
-
-        constexpr std::uint8_t kCapSwd = 1U << 0;
-        constexpr std::uint8_t kCapJtag = 1U << 1;
-        constexpr std::uint8_t kCapSwoUart = 1U << 2;
-        constexpr std::uint8_t kCapSwoManchester = 1U << 3;
-        constexpr std::uint8_t kCapAtomic = 1U << 4;
-        constexpr std::uint8_t kCapTimestamp = 1U << 5;
-        constexpr std::uint8_t kCapSwoStreaming = 1U << 6;
-        constexpr std::uint8_t kCapDapUart = 1U << 7;
-
-        constexpr std::uint8_t kCapabilities =
-            kCapSwd |
-            kCapAtomic |
-            (CHARM_DAP_ENABLE_SWO ? kCapSwoUart : 0U) |
-            (CHARM_DAP_ENABLE_SWO_STREAM ? kCapSwoStreaming : 0U) |
-            (CHARM_DAP_ENABLE_DAP_UART ? kCapDapUart : 0U);
-
-        constexpr std::uint8_t kDapOk = 0x00;
-        constexpr std::uint8_t kDapError = 0xFF;
-        constexpr std::uint8_t kDapPortDisabled = 0x00;
-        constexpr std::uint8_t kDapPortSwd = 0x01;
-        constexpr std::uint8_t kDapTransferOk = 0x01;
-        constexpr std::uint8_t kDapTransferError = 0x08;
-        constexpr std::uint8_t kDapTransferMismatch = 0x10;
-        constexpr std::uint8_t kReqApndp = 1U << 0;
-        constexpr std::uint8_t kReqRnw = 1U << 1;
-        constexpr std::uint8_t kReqMatchValue = 1U << 4;
-        constexpr std::uint8_t kReqMatchMask = 1U << 5;
-        constexpr std::uint8_t kReqDpRdbuff = kReqRnw | (1U << 2) | (1U << 3);
-
-        constexpr std::uint8_t kSwoModeOff = 0;
-        constexpr std::uint8_t kSwoModeUart = 1;
-        constexpr std::uint8_t kSwoModeManchester = 2;
-        constexpr std::uint8_t kSwoCaptureActive = 1U << 0;
-        constexpr std::uint16_t kSwoBufferSize = 256;
-        constexpr std::uint16_t kUartBufferSize = 256;
-
-        inline std::uint32_t read_le32(const std::uint8_t* p) noexcept {
-            return static_cast<std::uint32_t>(p[0]) |
-                   (static_cast<std::uint32_t>(p[1]) << 8) |
-                   (static_cast<std::uint32_t>(p[2]) << 16) |
-                   (static_cast<std::uint32_t>(p[3]) << 24);
-        }
-
-        inline void write_le32(std::uint8_t* p, const std::uint32_t v) noexcept {
-            p[0] = static_cast<std::uint8_t>(v & 0xFFU);
-            p[1] = static_cast<std::uint8_t>((v >> 8) & 0xFFU);
-            p[2] = static_cast<std::uint8_t>((v >> 16) & 0xFFU);
-            p[3] = static_cast<std::uint8_t>((v >> 24) & 0xFFU);
-        }
-
-        inline std::uint8_t fill_info(const InfoField& field, std::uint8_t* out) noexcept {
-            for (std::uint8_t i = 0; i < field.size; ++i) {
-                out[i] = static_cast<std::uint8_t>(field.data[i]);
+        template <daplink::dap_backend::SwdBackend Backend>
+        inline void note_transfer_result(State& state, const std::uint8_t ack) noexcept {
+            if (ack == kDapTransferOk || ack == (kDapTransferOk | kDapTransferMismatch)) {
+                state.runtime.error_streak = 0;
+                return;
             }
-            return field.size;
+            if (state.runtime.error_streak < kTransferErrorResetThreshold) {
+                ++state.runtime.error_streak;
+            }
+            if (state.runtime.error_streak >= kTransferErrorResetThreshold) {
+                if (state.config.current_hz != 0U &&
+                    state.config.min_hz != 0U &&
+                    state.config.current_hz > state.config.min_hz) {
+                    const std::uint32_t next =
+                        (state.config.current_hz / 2U < state.config.min_hz)
+                            ? state.config.min_hz
+                            : (state.config.current_hz / 2U);
+                    state.config.current_hz = next;
+                    Backend::set_swj_clock_hz(state.config.current_hz);
+                } else {
+                    swd::Engine<Backend>::line_reset();
+                }
+                state.runtime.error_streak = 0;
+            }
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend>
         inline std::uint8_t dap_transfer_once(const State& state, const std::uint8_t request, std::uint32_t& data) noexcept {
             if ((request & kReqRnw) != 0U && (request & kReqApndp) != 0U) {
                 std::uint32_t posted_dummy = 0;
-                auto ack = swd::Engine<Backend>::transfer(state.swd_cfg, request, posted_dummy);
+                auto ack = swd::Engine<Backend>::transfer(state.config.swd, request, posted_dummy);
                 if (ack != kDapTransferOk) {
                     return ack;
                 }
-                return swd::Engine<Backend>::transfer(state.swd_cfg, kReqDpRdbuff, data);
+                return swd::Engine<Backend>::transfer(state.config.swd, kReqDpRdbuff, data);
             }
-            return swd::Engine<Backend>::transfer(state.swd_cfg, request, data);
+            return swd::Engine<Backend>::transfer(state.config.swd, request, data);
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void connect_swd(State& state) noexcept {
-            Backend::setup_swd_pins_active();
+            Ops::setup_swd_pins_active();
+            if (state.config.current_hz != 0U) {
+                Ops::set_swj_clock_hz(state.config.current_hz);
+            }
             swd::Engine<Backend>::line_reset();
             constexpr std::uint8_t seq[] = {0x9E, 0xE7};
             swd::Engine<Backend>::swj_sequence(seq, 16);
             swd::Engine<Backend>::line_reset();
-            state.dap_port = kDapPortSwd;
+            state.runtime.dap_port = kDapPortSwd;
+            state.runtime.error_streak = 0;
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void disconnect_swd(State& state) noexcept {
-            state.dap_port = kDapPortDisabled;
-            Backend::setup_swd_pins_hi_z();
+            state.runtime.dap_port = kDapPortDisabled;
+            Ops::setup_swd_pins_hi_z();
         }
 
         struct CmdResult {
@@ -186,7 +89,7 @@ export namespace daplink::cmsis_dap {
             bool ok;
         };
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline CmdResult process_single(
             State& state,
             DeviceInfo info,
@@ -276,13 +179,9 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     if (in[1] == 0) {
-                        if constexpr (requires { Backend::set_connected_led(true); }) {
-                            Backend::set_connected_led(in[2] != 0U);
-                        }
+                        Ops::set_connected_led(in[2] != 0U);
                     } else if (in[1] == 1) {
-                        if constexpr (requires { Backend::set_running_led(true); }) {
-                            Backend::set_running_led(in[2] != 0U);
-                        }
+                        Ops::set_running_led(in[2] != 0U);
                     }
                     out[1] = kDapOk;
                     return {3, 2, true};
@@ -292,7 +191,7 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     if (in[1] == 0 || in[1] == kDapPortSwd) {
-                        connect_swd<Backend>(state);
+                        connect_swd<Backend, Ops>(state);
                         out[1] = kDapPortSwd;
                     } else {
                         out[1] = kDapPortDisabled;
@@ -303,7 +202,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    disconnect_swd<Backend>(state);
+                    disconnect_swd<Backend, Ops>(state);
                     out[1] = kDapOk;
                     return {1, 2, true};
                 case kCmsisDapTransferConfigure:
@@ -311,9 +210,9 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    state.swd_cfg.idle_cycles = in[1];
-                    state.swd_cfg.retry_count = static_cast<std::uint16_t>(in[2] | (in[3] << 8));
-                    state.match_retry = static_cast<std::uint16_t>(in[4] | (in[5] << 8));
+                    state.config.swd.idle_cycles = in[1];
+                    state.config.swd.retry_count = static_cast<std::uint16_t>(in[2] | (in[3] << 8));
+                    state.config.match_retry = static_cast<std::uint16_t>(in[4] | (in[5] << 8));
                     out[1] = kDapOk;
                     return {6, 2, true};
                 case kCmsisDapWriteAbort:
@@ -329,10 +228,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    std::uint8_t done = 0;
-                    if constexpr (requires { Backend::reset_target(); }) {
-                        done = static_cast<std::uint8_t>(Backend::reset_target());
-                    }
+                    const std::uint8_t done = static_cast<std::uint8_t>(Ops::reset_target());
                     out[1] = done;
                     return {1, 2, true};
                 }
@@ -342,7 +238,8 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     const auto hz = read_le32(&in[1]);
-                    Backend::set_swj_clock_hz(hz);
+                    state.config.current_hz = hz;
+                    Ops::set_swj_clock_hz(hz);
                     out[1] = kDapOk;
                     return {5, 2, true};
                 }
@@ -351,7 +248,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    out[1] = Backend::swj_pins(in[1], in[2]);
+                    out[1] = Ops::swj_pins(in[1], in[2]);
                     return {3, 2, true};
                 case kCmsisDapSwjSequence: {
                     if (in_size < 2 || out_size < 2) {
@@ -377,8 +274,8 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    state.swd_cfg.turnaround = static_cast<std::uint8_t>((in[1] & 0x3U) + 1U);
-                    state.swd_cfg.data_phase = (in[1] & 0x4U) != 0U;
+                    state.config.swd.turnaround = static_cast<std::uint8_t>((in[1] & 0x3U) + 1U);
+                    state.config.swd.data_phase = (in[1] & 0x4U) != 0U;
                     out[1] = kDapOk;
                     return {2, 2, true};
 #if CHARM_DAP_ENABLE_SWO
@@ -389,12 +286,12 @@ export namespace daplink::cmsis_dap {
                     }
                     const auto transport = in[1];
                     bool ok = false;
-                    if ((state.swo_status & kSwoCaptureActive) == 0U) {
+                    if ((state.runtime.swo_status & kSwoCaptureActive) == 0U) {
                         if (transport == 0U || transport == 1U) {
-                            state.swo_transport = transport;
+                            state.runtime.swo_transport = transport;
                             ok = true;
                         } else if (CHARM_DAP_ENABLE_SWO_STREAM && transport == 2U) {
-                            state.swo_transport = transport;
+                            state.runtime.swo_transport = transport;
                             ok = true;
                         }
                     }
@@ -409,11 +306,11 @@ export namespace daplink::cmsis_dap {
                     const auto mode = in[1];
                     bool ok = false;
                     if (mode == kSwoModeOff) {
-                        state.swo_mode = kSwoModeOff;
-                        state.swo_status = 0;
+                        state.runtime.swo_mode = kSwoModeOff;
+                        state.runtime.swo_status = 0;
                         ok = true;
                     } else if (mode == kSwoModeUart) {
-                        state.swo_mode = kSwoModeUart;
+                        state.runtime.swo_mode = kSwoModeUart;
                         ok = true;
                     }
                     out[1] = ok ? kDapOk : kDapError;
@@ -425,8 +322,8 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     const auto baud = read_le32(&in[1]);
-                    if (state.swo_mode == kSwoModeUart && baud != 0U) {
-                        state.swo_baudrate = baud;
+                    if (state.runtime.swo_mode == kSwoModeUart && baud != 0U) {
+                        state.runtime.swo_baudrate = baud;
                         write_le32(&out[1], baud);
                         return {5, 5, true};
                     }
@@ -440,11 +337,13 @@ export namespace daplink::cmsis_dap {
                     }
                     const bool active = (in[1] & kSwoCaptureActive) != 0U;
                     bool ok = false;
-                    if (state.swo_mode != kSwoModeOff) {
+                    if (state.runtime.swo_mode != kSwoModeOff) {
                         if (active) {
-                            state.swo_status = static_cast<std::uint8_t>(state.swo_status | kSwoCaptureActive);
+                            state.runtime.swo_status =
+                                static_cast<std::uint8_t>(state.runtime.swo_status | kSwoCaptureActive);
                         } else {
-                            state.swo_status = static_cast<std::uint8_t>(state.swo_status & ~kSwoCaptureActive);
+                            state.runtime.swo_status =
+                                static_cast<std::uint8_t>(state.runtime.swo_status & ~kSwoCaptureActive);
                         }
                         ok = true;
                     }
@@ -456,7 +355,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    out[1] = state.swo_status;
+                    out[1] = state.runtime.swo_status;
                     write_le32(&out[2], 0U);
                     return {1, 6, true};
                 }
@@ -472,7 +371,7 @@ export namespace daplink::cmsis_dap {
                             out[0] = kCmsisDapInvalid;
                             return {1, 1, false};
                         }
-                        out[out_idx++] = state.swo_status;
+                        out[out_idx++] = state.runtime.swo_status;
                     }
                     if ((mask & 0x02U) != 0U) {
                         if ((out_idx + 3U) >= out_size) {
@@ -491,7 +390,7 @@ export namespace daplink::cmsis_dap {
                     }
                     const std::uint16_t max_count = static_cast<std::uint16_t>(in[1] | (in[2] << 8));
                     (void)max_count;
-                    out[1] = state.swo_status;
+                    out[1] = state.runtime.swo_status;
                     out[2] = 0;
                     out[3] = 0;
                     return {3, 4, true};
@@ -521,7 +420,7 @@ export namespace daplink::cmsis_dap {
                     std::uint16_t out_idx = 3;
                     const auto transfer_count = in[2];
 
-                    if (state.dap_port != kDapPortSwd) {
+                    if (state.runtime.dap_port != kDapPortSwd) {
                         response_value = kDapTransferError;
                     } else {
                         for (std::uint8_t i = 0; i < transfer_count; ++i) {
@@ -545,7 +444,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             if (is_match_mask) {
-                                state.match_mask = data;
+                                state.config.match_mask = data;
                                 response_count = static_cast<std::uint8_t>(response_count + 1);
                                 continue;
                             }
@@ -553,13 +452,13 @@ export namespace daplink::cmsis_dap {
                             if (is_match_value) {
                                 std::uint32_t sampled = 0;
                                 std::uint8_t ack = kDapTransferError;
-                                std::uint16_t retries = state.match_retry;
+                                std::uint16_t retries = state.config.match_retry;
                                 while (true) {
                                     ack = dap_transfer_once<Backend>(state, request, sampled);
                                     if (ack != kDapTransferOk) {
                                         break;
                                     }
-                                    if ((sampled & state.match_mask) == data) {
+                                    if ((sampled & state.config.match_mask) == data) {
                                         break;
                                     }
                                     if (retries == 0U) {
@@ -568,6 +467,7 @@ export namespace daplink::cmsis_dap {
                                     }
                                     --retries;
                                 }
+                                note_transfer_result<Backend>(state, ack);
                                 if (ack != kDapTransferOk) {
                                     response_value = ack;
                                     break;
@@ -577,6 +477,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
+                            note_transfer_result<Backend>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;
@@ -612,11 +513,12 @@ export namespace daplink::cmsis_dap {
                     const bool is_read = (request & kReqRnw) != 0U;
                     const bool is_ap = (request & kReqApndp) != 0U;
                     const std::uint16_t max_read_words = static_cast<std::uint16_t>((out_size - 4U) / 4U);
-                    const std::uint16_t max_write_words = static_cast<std::uint16_t>((in_size > in_idx) ? ((in_size - in_idx) / 4U) : 0U);
+                    const std::uint16_t max_write_words =
+                        static_cast<std::uint16_t>((in_size > in_idx) ? ((in_size - in_idx) / 4U) : 0U);
                     std::uint16_t max_words = is_read ? max_read_words : max_write_words;
                     std::uint16_t exec_words = transfer_count;
 
-                    if (state.dap_port != kDapPortSwd) {
+                    if (state.runtime.dap_port != kDapPortSwd) {
                         response_value = kDapTransferError;
                     } else if ((request & (kReqMatchValue | kReqMatchMask)) != 0U) {
                         response_value = kDapTransferError;
@@ -638,6 +540,7 @@ export namespace daplink::cmsis_dap {
                             }
 
                             const auto ack = dap_transfer_once<Backend>(state, request, data);
+                            note_transfer_result<Backend>(state, ack);
                             if (ack != kDapTransferOk) {
                                 response_value = ack;
                                 break;
@@ -670,7 +573,7 @@ export namespace daplink::cmsis_dap {
             }
         }
 
-        template <swd::Backend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void process_execute(
             State& state,
             DeviceInfo info,
@@ -692,7 +595,8 @@ export namespace daplink::cmsis_dap {
                 if (in_idx >= kPacketSize || out_idx >= kPacketSize) {
                     break;
                 }
-                auto res = process_single<Backend>(state, info, in.subspan(in_idx), out.subspan(out_idx));
+                auto res = process_single<Backend, Ops>(
+                    state, info, in.subspan(in_idx), out.subspan(out_idx));
                 if (res.in_used == 0 || res.out_used == 0) {
                     break;
                 }
@@ -705,27 +609,42 @@ export namespace daplink::cmsis_dap {
         }
     }
 
-    template <swd::Backend Backend>
+    struct Processor {
+        State& state;
+        DeviceInfo info;
+
+        Processor(State& s, DeviceInfo i) noexcept : state(s), info(i) {}
+
+        template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
+        void process_packet(
+            std::span<const std::uint8_t, kPacketSize> in,
+            std::span<std::uint8_t, kPacketSize> out
+        ) noexcept {
+            for (std::size_t i = 0; i < kPacketSize; ++i) {
+                out[i] = 0;
+            }
+
+            const std::uint8_t cmd = in[0];
+            if (cmd == detail::kCmsisDapQueueCommands) {
+                detail::process_execute<Backend, Ops>(state, info, in, out, detail::kCmsisDapExecuteCommands);
+                return;
+            }
+            if (cmd == detail::kCmsisDapExecuteCommands) {
+                detail::process_execute<Backend, Ops>(state, info, in, out, cmd);
+                return;
+            }
+
+            detail::process_single<Backend, Ops>(state, info, in, out);
+        }
+    };
+
+    template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
     inline void process_packet(
         State& state,
         DeviceInfo info,
         std::span<const std::uint8_t, kPacketSize> in,
         std::span<std::uint8_t, kPacketSize> out
     ) noexcept {
-        for (std::size_t i = 0; i < kPacketSize; ++i) {
-            out[i] = 0;
-        }
-
-        const std::uint8_t cmd = in[0];
-        if (cmd == detail::kCmsisDapQueueCommands) {
-            detail::process_execute<Backend>(state, info, in, out, detail::kCmsisDapExecuteCommands);
-            return;
-        }
-        if (cmd == detail::kCmsisDapExecuteCommands) {
-            detail::process_execute<Backend>(state, info, in, out, cmd);
-            return;
-        }
-
-        detail::process_single<Backend>(state, info, in, out);
+        Processor{state, info}.template process_packet<Backend, Ops>(in, out);
     }
 }

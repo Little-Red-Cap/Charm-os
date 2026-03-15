@@ -5,8 +5,8 @@ module;
 export module daplink.board_config;
 
 export namespace daplink::board_config {
-    inline constexpr auto kTClkPin = GPIO_PIN_5;
-    inline GPIO_TypeDef* const kTClkPort = GPIOA;
+    inline constexpr auto kTClkPin = GPIO_PIN_4;
+    inline GPIO_TypeDef* const kTClkPort = GPIOB;
     inline constexpr auto kTRstPin = GPIO_PIN_0;
     inline GPIO_TypeDef* const kTRstPort = GPIOB;
     inline constexpr auto kDbgLedPin = GPIO_PIN_9;

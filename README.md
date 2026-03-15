@@ -213,7 +213,7 @@ Charm 可以在 PC 与 MCU 上运行。
 * [CMake 4.1.2]() （CMake版本会影响构建行为，过低版本对C++ Module支持不好）
 * [Ninja]()
 * [PC 编译器 Clang/MinGW]() （未测试MSVC）
-* [MCU 编译器 GCC-ARM-None 15.2]() （若只运行PC端可不用）
+* [MCU 编译器 arm-none-ebi 15.2](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) （若只运行PC端可不用）
 * 代码依赖：无第三方依赖，已集成到源码
 
 </details>

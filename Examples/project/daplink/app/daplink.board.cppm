@@ -198,6 +198,7 @@ export namespace daplink::board {
         }
     };
 
+
     inline void configure_debug_pins_hi_z() noexcept {
         SwdBackend::setup_swd_pins_hi_z();
 

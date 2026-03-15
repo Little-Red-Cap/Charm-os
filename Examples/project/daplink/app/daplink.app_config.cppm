@@ -34,9 +34,14 @@ export namespace daplink::app_config {
     constexpr bool kUsbCdcHasCmdEp = true;
 
     constexpr std::uint32_t kSwdDefaultHz = 5000000U;
+    constexpr std::uint32_t kSwdMinHz = 200000U;
     constexpr std::uint8_t kSwdTurnaround = 1;
     constexpr std::uint8_t kSwdIdleCycles = 0;
     constexpr std::uint16_t kSwdRetryCount = 100;
+    constexpr std::uint8_t kDapBurstLimit = 4;
+
+    constexpr std::uint32_t kCdcInTimeoutMs = 250;
+    constexpr std::uint8_t kCdcPolicy = 0;
 
 #ifdef CHARM_DAP_USB_PROFILE
     constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(CHARM_DAP_USB_PROFILE);
@@ -48,6 +53,25 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kCdcUartIndex = static_cast<std::uint8_t>(CHARM_DAP_CDC_UART);
 #else
     constexpr std::uint8_t kCdcUartIndex = 2;
+#endif
+
+#ifdef CHARM_DAP_BURST_LIMIT
+    constexpr std::uint8_t kDapBurstLimitValue = static_cast<std::uint8_t>(CHARM_DAP_BURST_LIMIT);
+#else
+    constexpr std::uint8_t kDapBurstLimitValue = kDapBurstLimit;
+#endif
+
+#ifdef CHARM_DAP_CDC_IN_TIMEOUT_MS
+    constexpr std::uint32_t kCdcInTimeoutMsValue =
+        static_cast<std::uint32_t>(CHARM_DAP_CDC_IN_TIMEOUT_MS);
+#else
+    constexpr std::uint32_t kCdcInTimeoutMsValue = kCdcInTimeoutMs;
+#endif
+
+#ifdef CHARM_DAP_CDC_POLICY
+    constexpr std::uint8_t kCdcPolicyValue = static_cast<std::uint8_t>(CHARM_DAP_CDC_POLICY);
+#else
+    constexpr std::uint8_t kCdcPolicyValue = kCdcPolicy;
 #endif
 
     struct UsbStrings {
@@ -76,24 +100,34 @@ export namespace daplink::app_config {
 
     struct SwdConfig {
         std::uint32_t default_hz;
+        std::uint32_t min_hz;
         std::uint8_t turnaround;
         std::uint8_t idle_cycles;
         std::uint16_t retry_count;
     };
 
+    struct DapConfig {
+        std::uint8_t burst_limit;
+    };
+
     struct CdcConfig {
         std::uint8_t uart_index;
+        std::uint32_t in_timeout_ms;
+        std::uint8_t policy;
     };
 
     struct AppConfig {
         UsbConfig usb;
         SwdConfig swd;
+        DapConfig dap;
         CdcConfig cdc;
         const char* fw_version;
     };
 
     static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
     static_assert(kCdcUartIndex == 1 || kCdcUartIndex == 2);
+    static_assert(kDapBurstLimitValue > 0);
+    static_assert(kCdcPolicyValue <= 1);
 
     inline constexpr AppConfig kConfig{
         UsbConfig{
@@ -115,11 +149,14 @@ export namespace daplink::app_config {
         },
         SwdConfig{
             kSwdDefaultHz,
+            kSwdMinHz,
             kSwdTurnaround,
             kSwdIdleCycles,
             kSwdRetryCount,
         },
-        CdcConfig{kCdcUartIndex},
+        DapConfig{kDapBurstLimitValue},
+        CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue, kCdcPolicyValue},
         kFwVersion,
     };
+
 }

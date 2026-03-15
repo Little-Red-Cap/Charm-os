@@ -2,7 +2,7 @@
 import audio.result;
 import player.controller;
 import player.fs_utils;
-import player.media_scan;
+import player.storage;
 import player.playback;
 import player.ui_builder;
 import player.ui;
@@ -48,7 +48,6 @@ import platform.win.time_source;
 #include <vector>
 
 namespace {
-    constexpr const char* kDefaultVhdPath = "G:/Project/dev.vhd";
     using namespace player::fs_utils;
     using namespace player::ui;
 
@@ -249,9 +248,9 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    (void)argc;
-    (void)argv;
-    const char* vhd_path = kDefaultVhdPath;
+    if (argc > 1 && argv && argv[1] && argv[1][0]) {
+        player::set_storage_config({&player::fs_utils::mount_fatfs_from_vhd, argv[1]});
+    }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -295,7 +294,7 @@ int main(int argc, char** argv) {
     g_ctx.set_status("Mounting storage");
     g_ctx.update_list_placeholder();
 
-    auto scan = player::scan_tracks(&player::fs_utils::mount_fatfs_from_vhd, vhd_path);
+    auto scan = player::scan_tracks_default();
     g_ctx.fs_ready = scan.fs_ready;
     g_vfs_tracks = std::move(scan.tracks);
     g_ctx.mount_status = scan.mount_status;

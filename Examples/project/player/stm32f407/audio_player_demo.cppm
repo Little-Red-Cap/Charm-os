@@ -105,7 +105,9 @@ namespace {
 
 export void audio_player_demo_start() noexcept {
     static charm::system::Clock clock{nullptr, {.now_ms = &now_ms}};
-    static audio::AudioPlayer player{audio::PlayerConfig{}, clock};
+    audio::PlayerConfig config{};
+    config.capture_output = false;
+    static audio::AudioPlayer player{config, clock};
     g_player = &player;
 
     FindAudioCtx ctx{};

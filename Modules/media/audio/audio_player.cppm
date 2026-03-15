@@ -210,6 +210,7 @@ export namespace audio {
         std::uint32_t fixed_rate{0};
         std::uint32_t fade_in_ms{0};
         std::uint16_t force_channels{0};
+        bool capture_output{true};
         std::uint8_t fail_reconfig_step{0};
     };
 
@@ -243,6 +244,9 @@ export namespace audio {
             : config_(config) {
             set_clock(clock);
             init_spectrum_window();
+            if (!config_.capture_output) {
+                data_plane_.set_capture_output(false);
+            }
         }
 
         ~AudioPlayer() { stop_internal(); }
@@ -460,6 +464,12 @@ export namespace audio {
         static constexpr std::size_t spectrum_fft_size = 256;
 
         void enable_spectrum(bool on) noexcept {
+            if (!config_.capture_output) {
+                spectrum_enabled_.store(false, std::memory_order_relaxed);
+                data_plane_.set_capture_output(false);
+                spectrum_ready_.store(false, std::memory_order_relaxed);
+                return;
+            }
             spectrum_enabled_.store(on, std::memory_order_relaxed);
             data_plane_.set_capture_output(on);
             if (!on) {

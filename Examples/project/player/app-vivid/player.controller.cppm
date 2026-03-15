@@ -12,6 +12,7 @@
 
 export module player.controller;
 
+import audio.eq;
 import audio.player;
 import audio.result;
 import charm.core.event;
@@ -87,6 +88,8 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+        audio::EqConfig eq_config{};
+        std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
         int last_volume_value{-1};
         struct TextSlots {
@@ -700,14 +703,32 @@ export namespace player {
 
         void sync_eq_values() {
             if (!kernel) return;
+            bool changed = false;
             for (std::size_t i = 0; i < kEqBands; ++i) {
                 if (!handles.eq_sliders[i] || !handles.eq_values[i]) continue;
                 const int value = kernel->value(handles.eq_sliders[i]);
                 if (value == last_eq_values[i]) continue;
                 last_eq_values[i] = value;
+                eq_values[i] = value;
+                changed = true;
                 char buf[16]{};
                 std::snprintf(buf, sizeof(buf), "%+d", value);
                 set_label_slot(handles.eq_values[i], text_slots.eq_values[i], buf);
+            }
+            if (!changed) return;
+            static constexpr std::array<std::uint32_t, kEqBands> kEqFreqs{
+                60, 250, 1000, 4000, 16000
+            };
+            eq_config.enabled = true;
+            eq_config.band_count = static_cast<std::uint8_t>(kEqBands);
+            for (std::size_t i = 0; i < kEqBands; ++i) {
+                eq_config.bands[i].freq_hz = kEqFreqs[i];
+                eq_config.bands[i].gain_db = static_cast<float>(eq_values[i]);
+                eq_config.bands[i].q = 1.0f;
+            }
+            std::string status;
+            if (!playback.set_eq(eq_config, status) && !status.empty()) {
+                set_status(status.c_str());
             }
         }
 

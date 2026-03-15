@@ -7,6 +7,7 @@ module;
 
 export module player.playback;
 
+import audio.eq;
 import audio.player;
 import audio.result;
 
@@ -140,6 +141,21 @@ export namespace player {
             return true;
         }
 
+        bool set_eq(const audio::EqConfig& eq, std::string& out_status) {
+            if (!player_) {
+                out_status = "No player";
+                return false;
+            }
+            const auto res = player_->set_eq(eq);
+            if (!res) {
+                char buf[64]{};
+                std::snprintf(buf, sizeof(buf), "EQ failed (%s)", audio_err_text(res.error()));
+                out_status = buf;
+                return false;
+            }
+            return true;
+        }
+
         bool apply_action(PlaybackAction action, int seek_sec, std::string& out_status) {
             switch (action) {
             case PlaybackAction::toggle:
@@ -169,6 +185,7 @@ export namespace player {
                     return false;
                 }
                 current_sec_ = seek_sec;
+                start_ = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec_);
                 out_status = "Playing";
                 return true;
             }

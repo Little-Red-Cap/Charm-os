@@ -21,6 +21,8 @@ target_sources(${target_name}
         ../../../Modules/media/audio/audio_result.cppm
         ../../../Modules/media/audio/audio_format.cppm
         ../../../Modules/media/audio/audio_fifo.cppm
+        ../../../Modules/media/audio/audio_eq.cppm
+        ../../../Modules/media/audio/audio_decode_pipe.cppm
         ../../../Modules/media/audio/audio_data_plane.cppm
         ../../../Modules/media/audio/audio_pcm_buffer.cppm
         ../../../Modules/media/audio/audio_pump.cppm

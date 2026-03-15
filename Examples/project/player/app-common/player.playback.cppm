@@ -49,6 +49,15 @@ export namespace player {
         int current_sec{0};
     };
 
+    enum class PlaybackAction {
+        start,
+        pause,
+        resume,
+        stop,
+        seek,
+        toggle,
+    };
+
     class PlaybackEngine {
     public:
         void set_player(audio::AudioPlayer& p) noexcept { player_ = &p; }
@@ -109,6 +118,41 @@ export namespace player {
                 return false;
             }
             return true;
+        }
+
+        bool apply_action(PlaybackAction action, int seek_sec, std::string& out_status) {
+            switch (action) {
+            case PlaybackAction::toggle:
+                if (playing_) {
+                    return pause_playback(out_status);
+                }
+                if (paused_) {
+                    return resume_playback(out_status);
+                }
+                return start_playback(out_status);
+            case PlaybackAction::start:
+                return start_playback(out_status);
+            case PlaybackAction::pause:
+                return pause_playback(out_status);
+            case PlaybackAction::resume:
+                return resume_playback(out_status);
+            case PlaybackAction::stop:
+                stop_playback();
+                out_status = "Stopped";
+                return true;
+            case PlaybackAction::seek:
+                if (!is_seek_ready()) {
+                    out_status = "Seek not ready";
+                    return false;
+                }
+                if (!request_seek(seek_sec, out_status)) {
+                    return false;
+                }
+                current_sec_ = seek_sec;
+                out_status = "Playing";
+                return true;
+            }
+            return false;
         }
 
         bool start_playback(std::string& out_status) {

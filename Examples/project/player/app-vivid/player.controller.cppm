@@ -376,20 +376,6 @@ export namespace player {
             kernel->set_value(handles.progress, value);
         }
 
-        bool is_seek_ready() const {
-            return playback.is_seek_ready();
-        }
-
-        bool request_seek(int target_sec) {
-            std::string status;
-            if (!playback.request_seek(target_sec, status)) {
-                if (!status.empty()) set_status(status.c_str());
-                return false;
-            }
-            set_status("Playing");
-            return true;
-        }
-
         int progress_value_from_x(int x) const {
             if (!kernel) return 0;
             const Rect r = kernel->world_rect(handles.progress);
@@ -426,7 +412,7 @@ export namespace player {
         void end_progress_drag(bool apply_seek, PendingActions& actions) {
             if (!progress_dragging) return;
             progress_dragging = false;
-            if (apply_seek && is_seek_ready()) {
+            if (apply_seek) {
                 actions.seek = true;
                 actions.seek_sec = progress_drag_sec;
             }
@@ -438,7 +424,7 @@ export namespace player {
                 return;
             }
             std::string status;
-            if (!playback.start_playback(status)) {
+            if (!playback.apply_action(PlaybackAction::start, 0, status)) {
                 set_status(status.c_str());
                 return;
             }
@@ -450,21 +436,25 @@ export namespace player {
 
         void pause_playback() {
             std::string status;
-            if (!playback.pause_playback(status)) return;
+            if (!playback.apply_action(PlaybackAction::pause, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(false);
         }
 
         void resume_playback() {
             std::string status;
-            if (!playback.resume_playback(status)) return;
+            if (!playback.apply_action(PlaybackAction::resume, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(true);
         }
 
         void stop_playback() {
-            playback.stop_playback();
-            set_status("Stopped");
+            std::string status;
+            if (playback.apply_action(PlaybackAction::stop, 0, status)) {
+                set_status(status.c_str());
+            } else {
+                set_status("Stopped");
+            }
             set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
@@ -480,9 +470,18 @@ export namespace player {
             }
 
             if (actions.toggle_play) {
-                if (playback.playing()) pause_playback();
-                else if (playback.paused()) resume_playback();
-                else start_playback();
+                std::string status;
+                if (playback.apply_action(PlaybackAction::toggle, 0, status)) {
+                    if (!status.empty()) set_status(status.c_str());
+                    const bool playing_now = playback.playing();
+                    set_play_button_text(playing_now);
+                    if (status == "Opening") {
+                        set_time_label(0);
+                        sync_progress_value(0);
+                    }
+                } else if (!status.empty()) {
+                    set_status(status.c_str());
+                }
             }
 
             if (actions.cycle_mode) {
@@ -490,8 +489,11 @@ export namespace player {
             }
 
             if (actions.seek) {
-                if (request_seek(actions.seek_sec)) {
-                    playback.set_current_sec(actions.seek_sec);
+                std::string status;
+                if (playback.apply_action(PlaybackAction::seek, actions.seek_sec, status)) {
+                    if (!status.empty()) set_status(status.c_str());
+                } else if (!status.empty()) {
+                    set_status(status.c_str());
                 }
             }
         }

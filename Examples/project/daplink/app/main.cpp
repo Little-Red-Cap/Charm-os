@@ -5,7 +5,7 @@
 
 import daplink.board;
 import daplink.usb_minimal;
-import daplink.dap_core;
+import daplink.cmsis_dap;
 import daplink.app_config;
 import daplink.ring_buffer;
 import daplink.dap_transport;
@@ -21,7 +21,7 @@ namespace {
         (kUsbProfile == daplink::app_config::UsbProfile::hid) ||
         (kUsbProfile == daplink::app_config::UsbProfile::composite);
 
-    static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::dap_core::kPacketSize));
+    static_assert(!kEnableHid || (daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize));
 }
 
 extern "C" void SystemClock_Config(void);
@@ -128,14 +128,14 @@ int main()
     }
     daplink::board::configure_debug_pins_hi_z();
 
-    daplink::dap_core::State dap_state{};
+    daplink::cmsis_dap::State dap_state{};
     dap_state.current_hz = daplink::app_config::kConfig.swd.default_hz;
     dap_state.min_hz = daplink::app_config::kConfig.swd.min_hz;
-    const daplink::dap_core::DeviceInfo kInfo{
-        daplink::dap_core::make_info_field(daplink::app_config::kUsbManufacturer),
-        daplink::dap_core::make_info_field(daplink::app_config::kUsbProduct),
-        daplink::dap_core::make_info_field(daplink::app_config::kUsbSerial),
-        daplink::dap_core::make_info_field(daplink::app_config::kFwVersion)
+    const daplink::cmsis_dap::DeviceInfo kInfo{
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbManufacturer),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbProduct),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kUsbSerial),
+        daplink::cmsis_dap::make_info_field(daplink::app_config::kFwVersion)
     };
 
     UartRing uart_tx{};

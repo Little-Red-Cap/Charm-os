@@ -5,20 +5,20 @@ module;
 
 export module daplink.dap_transport;
 
-import daplink.dap_core;
 import daplink.dap_queue;
 import daplink.swd_engine;
 import daplink.dap_backend;
+import daplink.cmsis_dap;
 import daplink.usb_minimal;
 
 export namespace daplink::dap_transport {
     template <daplink::dap_backend::SwdBackend Backend>
     struct HidTransport {
-        daplink::dap_core::State& state;
-        daplink::dap_core::DeviceInfo info;
+        daplink::cmsis_dap::State& state;
+        daplink::cmsis_dap::DeviceInfo info;
         daplink::dap_queue::Queue<> queue{};
 
-        HidTransport(daplink::dap_core::State& s, daplink::dap_core::DeviceInfo i) noexcept
+        HidTransport(daplink::cmsis_dap::State& s, daplink::cmsis_dap::DeviceInfo i) noexcept
             : state(s), info(i) {}
 
         void reset() noexcept {

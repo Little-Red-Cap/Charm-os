@@ -7,14 +7,14 @@ module;
 
 export module daplink.dap_queue;
 
-import daplink.dap_core;
+import daplink.cmsis_dap;
 import daplink.swd_engine;
 import daplink.dap_backend;
 
 export namespace daplink::dap_queue {
-    template <std::size_t Count = daplink::dap_core::kPacketCount>
+    template <std::size_t Count = daplink::cmsis_dap::kPacketCount>
     struct Queue {
-        using Packet = std::array<std::uint8_t, daplink::dap_core::kPacketSize>;
+        using Packet = std::array<std::uint8_t, daplink::cmsis_dap::kPacketSize>;
 
         std::array<Packet, Count> packets{};
         std::array<std::uint16_t, Count> resp_len{};
@@ -39,15 +39,15 @@ export namespace daplink::dap_queue {
         }
 
         template <daplink::dap_backend::SwdBackend Backend>
-        bool enqueue(daplink::dap_core::State& state,
-                     daplink::dap_core::DeviceInfo info,
-                     std::span<const std::uint8_t, daplink::dap_core::kPacketSize> in) noexcept {
+        bool enqueue(daplink::cmsis_dap::State& state,
+                     daplink::cmsis_dap::DeviceInfo info,
+                     std::span<const std::uint8_t, daplink::cmsis_dap::kPacketSize> in) noexcept {
             if (free_count == 0) {
                 return false;
             }
             auto& slot = packets[recv_idx];
-            auto out = std::span<std::uint8_t, daplink::dap_core::kPacketSize>(slot);
-            daplink::dap_core::process_packet<Backend>(state, info, in, out);
+            auto out = std::span<std::uint8_t, daplink::cmsis_dap::kPacketSize>(slot);
+            daplink::cmsis_dap::process_packet<Backend>(state, info, in, out);
             resp_len[recv_idx] = static_cast<std::uint16_t>(slot.size());
             recv_idx = static_cast<std::uint8_t>((recv_idx + 1) % Count);
             --free_count;
@@ -55,8 +55,8 @@ export namespace daplink::dap_queue {
             return true;
         }
 
-        std::span<std::uint8_t, daplink::dap_core::kPacketSize> peek() noexcept {
-            return std::span<std::uint8_t, daplink::dap_core::kPacketSize>(packets[send_idx]);
+        std::span<std::uint8_t, daplink::cmsis_dap::kPacketSize> peek() noexcept {
+            return std::span<std::uint8_t, daplink::cmsis_dap::kPacketSize>(packets[send_idx]);
         }
 
         std::uint16_t peek_len() const noexcept {

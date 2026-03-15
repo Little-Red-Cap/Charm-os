@@ -1,5 +1,6 @@
 ﻿import audio.player;
 import audio.result;
+import player.app;
 import player.controller;
 import player.fs_utils;
 import player.storage;
@@ -61,7 +62,7 @@ namespace {
     static SoaFactory g_factory{g_kernel};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static audio::AudioPlayer g_player(g_player_cfg, g_clock);
+    static player::App g_app{{g_player_cfg}, g_clock};
     static std::vector<std::string> g_vfs_tracks{};
 
     using PlayerUiContext = player::PlayerController;
@@ -248,9 +249,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 1 && argv && argv[1] && argv[1][0]) {
-        player::set_storage_config({&player::fs_utils::mount_fatfs_from_vhd, argv[1]});
-    }
+    (void)argc;
+    (void)argv;
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_ctx.bind_player(g_player);
+    g_ctx.bind_player(g_app.player());
     g_ctx.bind_kernel(g_kernel);
     g_ctx.tracks = &g_vfs_tracks;
 
@@ -294,7 +294,7 @@ int main(int argc, char** argv) {
     g_ctx.set_status("Mounting storage");
     g_ctx.update_list_placeholder();
 
-    auto storage = player::scan_storage();
+    auto storage = g_app.scan_storage();
     g_ctx.apply_storage_state(std::move(storage));
     if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {
         g_ctx.load_track_index(0);
@@ -331,8 +331,8 @@ int main(int argc, char** argv) {
             dispatch_sdl_event(gui, g_ctx, evt);
         }
 
-        g_player.tick();
-        g_ctx.tick_player(g_player);
+        g_app.tick();
+        g_ctx.tick_player(g_app.player());
 
         g_framebuffer.clear(kUiBackground);
         g_canvas.begin_frame();

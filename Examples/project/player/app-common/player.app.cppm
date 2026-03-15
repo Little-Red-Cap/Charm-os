@@ -3,6 +3,7 @@
 import audio.player;
 import audio.result;
 import charm.system.clock;
+import player.storage;
 
 export namespace player {
     struct AppConfig {
@@ -19,6 +20,10 @@ export namespace player {
 
         void tick() { player_.tick(); }
         bool is_running() const noexcept { return player_.is_running(); }
+        audio::AudioPlayer& player() noexcept { return player_; }
+        const audio::AudioPlayer& player() const noexcept { return player_; }
+
+        StorageState scan_storage() { return player::scan_storage(); }
 
     private:
         audio::AudioPlayer player_;

@@ -8,6 +8,8 @@ import audio.player;
 import audio.result;
 import charm.system.clock;
 import player.storage;
+import player.ui;
+import player.ui_builder;
 
 export namespace player {
     struct AppConfig {
@@ -56,6 +58,19 @@ export namespace player {
             controller.reset_duration();
             controller.update_list_placeholder();
             return controller.track_ready();
+        }
+
+        template <typename Controller, typename Factory>
+        void bind_ui(Factory& factory, Controller& controller) {
+            apply_player_theme();
+            controller.icons = register_player_icons();
+            controller.handles = build_ui(factory, controller, controller.icons);
+            controller.init_text_slots();
+            controller.focus_list();
+            controller.set_time_label(0);
+            controller.mount_status = "Mounting storage...";
+            controller.set_status("Mounting storage");
+            controller.update_list_placeholder();
         }
 
     private:

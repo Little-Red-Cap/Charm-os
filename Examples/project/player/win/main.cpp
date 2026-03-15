@@ -283,16 +283,7 @@ int main(int argc, char** argv) {
     g_ctx.bind_kernel(g_kernel);
     g_ctx.tracks = &g_vfs_tracks;
 
-    apply_player_theme();
-
-    g_ctx.icons = register_player_icons();
-    g_ctx.handles = build_ui(g_factory, g_ctx, g_ctx.icons);
-    g_ctx.init_text_slots();
-    g_ctx.focus_list();
-    g_ctx.set_time_label(0);
-    g_ctx.mount_status = "Mounting storage...";
-    g_ctx.set_status("Mounting storage");
-    g_ctx.update_list_placeholder();
+    g_app.bind_ui(g_factory, g_ctx);
 
     player::init_storage(player::default_storage_config());
     const bool has_track = g_app.bootstrap_player(g_ctx, g_vfs_tracks, 0, false);

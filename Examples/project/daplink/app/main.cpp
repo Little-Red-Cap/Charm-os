@@ -4,6 +4,7 @@
 #include <cstdint>
 
 import daplink.board;
+import daplink.board_ops;
 import daplink.usb_minimal;
 import daplink.cmsis_dap;
 import daplink.app_config;
@@ -108,7 +109,10 @@ int main()
     daplink::dap_policy::UsbScheduler scheduler{};
     scheduler.cdc_policy = static_cast<daplink::dap_policy::CdcPolicy>(
         daplink::app_config::kConfig.cdc.policy);
-    daplink::dap_transport::HidTransport<daplink::board::SwdBackend> dap_transport{dap_state, kInfo};
+    using DapOps = daplink::board::BoardOps;
+    daplink::dap_transport::HidTransport<
+        daplink::board::SwdBackend,
+        DapOps> dap_transport{dap_state, kInfo};
     io::Channel usb_cdc{
         nullptr,
         io::ChannelOps{usb_cdc_read, usb_cdc_write, nullptr}

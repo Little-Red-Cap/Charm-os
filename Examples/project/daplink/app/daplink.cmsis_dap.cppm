@@ -18,6 +18,7 @@ export module daplink.cmsis_dap;
 export import :core;
 export import :protocol;
 export import :state;
+import daplink.dap_ops;
 import daplink.swd_engine;
 import daplink.dap_backend;
 
@@ -62,11 +63,11 @@ export namespace daplink::cmsis_dap {
             return swd::Engine<Backend>::transfer(state.config.swd, request, data);
         }
 
-        template <daplink::dap_backend::SwdBackend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void connect_swd(State& state) noexcept {
-            Backend::setup_swd_pins_active();
+            Ops::setup_swd_pins_active();
             if (state.config.current_hz != 0U) {
-                Backend::set_swj_clock_hz(state.config.current_hz);
+                Ops::set_swj_clock_hz(state.config.current_hz);
             }
             swd::Engine<Backend>::line_reset();
             constexpr std::uint8_t seq[] = {0x9E, 0xE7};
@@ -76,10 +77,10 @@ export namespace daplink::cmsis_dap {
             state.runtime.error_streak = 0;
         }
 
-        template <daplink::dap_backend::SwdBackend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void disconnect_swd(State& state) noexcept {
             state.runtime.dap_port = kDapPortDisabled;
-            Backend::setup_swd_pins_hi_z();
+            Ops::setup_swd_pins_hi_z();
         }
 
         struct CmdResult {
@@ -88,7 +89,7 @@ export namespace daplink::cmsis_dap {
             bool ok;
         };
 
-        template <daplink::dap_backend::SwdBackend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline CmdResult process_single(
             State& state,
             DeviceInfo info,
@@ -178,13 +179,9 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     if (in[1] == 0) {
-                        if constexpr (requires { Backend::set_connected_led(true); }) {
-                            Backend::set_connected_led(in[2] != 0U);
-                        }
+                        Ops::set_connected_led(in[2] != 0U);
                     } else if (in[1] == 1) {
-                        if constexpr (requires { Backend::set_running_led(true); }) {
-                            Backend::set_running_led(in[2] != 0U);
-                        }
+                        Ops::set_running_led(in[2] != 0U);
                     }
                     out[1] = kDapOk;
                     return {3, 2, true};
@@ -194,7 +191,7 @@ export namespace daplink::cmsis_dap {
                         return {1, 1, false};
                     }
                     if (in[1] == 0 || in[1] == kDapPortSwd) {
-                        connect_swd<Backend>(state);
+                        connect_swd<Backend, Ops>(state);
                         out[1] = kDapPortSwd;
                     } else {
                         out[1] = kDapPortDisabled;
@@ -205,7 +202,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    disconnect_swd<Backend>(state);
+                    disconnect_swd<Backend, Ops>(state);
                     out[1] = kDapOk;
                     return {1, 2, true};
                 case kCmsisDapTransferConfigure:
@@ -231,10 +228,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    std::uint8_t done = 0;
-                    if constexpr (requires { Backend::reset_target(); }) {
-                        done = static_cast<std::uint8_t>(Backend::reset_target());
-                    }
+                    const std::uint8_t done = static_cast<std::uint8_t>(Ops::reset_target());
                     out[1] = done;
                     return {1, 2, true};
                 }
@@ -245,7 +239,7 @@ export namespace daplink::cmsis_dap {
                     }
                     const auto hz = read_le32(&in[1]);
                     state.config.current_hz = hz;
-                    Backend::set_swj_clock_hz(hz);
+                    Ops::set_swj_clock_hz(hz);
                     out[1] = kDapOk;
                     return {5, 2, true};
                 }
@@ -254,7 +248,7 @@ export namespace daplink::cmsis_dap {
                         out[0] = kCmsisDapInvalid;
                         return {1, 1, false};
                     }
-                    out[1] = Backend::swj_pins(in[1], in[2]);
+                    out[1] = Ops::swj_pins(in[1], in[2]);
                     return {3, 2, true};
                 case kCmsisDapSwjSequence: {
                     if (in_size < 2 || out_size < 2) {
@@ -579,7 +573,7 @@ export namespace daplink::cmsis_dap {
             }
         }
 
-        template <daplink::dap_backend::SwdBackend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, typename Ops>
         inline void process_execute(
             State& state,
             DeviceInfo info,
@@ -601,7 +595,8 @@ export namespace daplink::cmsis_dap {
                 if (in_idx >= kPacketSize || out_idx >= kPacketSize) {
                     break;
                 }
-                auto res = process_single<Backend>(state, info, in.subspan(in_idx), out.subspan(out_idx));
+                auto res = process_single<Backend, Ops>(
+                    state, info, in.subspan(in_idx), out.subspan(out_idx));
                 if (res.in_used == 0 || res.out_used == 0) {
                     break;
                 }
@@ -620,7 +615,7 @@ export namespace daplink::cmsis_dap {
 
         Processor(State& s, DeviceInfo i) noexcept : state(s), info(i) {}
 
-        template <daplink::dap_backend::SwdBackend Backend>
+        template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
         void process_packet(
             std::span<const std::uint8_t, kPacketSize> in,
             std::span<std::uint8_t, kPacketSize> out
@@ -631,25 +626,25 @@ export namespace daplink::cmsis_dap {
 
             const std::uint8_t cmd = in[0];
             if (cmd == detail::kCmsisDapQueueCommands) {
-                detail::process_execute<Backend>(state, info, in, out, detail::kCmsisDapExecuteCommands);
+                detail::process_execute<Backend, Ops>(state, info, in, out, detail::kCmsisDapExecuteCommands);
                 return;
             }
             if (cmd == detail::kCmsisDapExecuteCommands) {
-                detail::process_execute<Backend>(state, info, in, out, cmd);
+                detail::process_execute<Backend, Ops>(state, info, in, out, cmd);
                 return;
             }
 
-            detail::process_single<Backend>(state, info, in, out);
+            detail::process_single<Backend, Ops>(state, info, in, out);
         }
     };
 
-    template <daplink::dap_backend::SwdBackend Backend>
+    template <daplink::dap_backend::SwdBackend Backend, daplink::dap_backend::DapOps Ops = DefaultOps<Backend>>
     inline void process_packet(
         State& state,
         DeviceInfo info,
         std::span<const std::uint8_t, kPacketSize> in,
         std::span<std::uint8_t, kPacketSize> out
     ) noexcept {
-        Processor{state, info}.template process_packet<Backend>(in, out);
+        Processor{state, info}.template process_packet<Backend, Ops>(in, out);
     }
 }

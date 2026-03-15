@@ -31,6 +31,49 @@ export namespace audio {
 #define CHARM_AUDIO_MAX_CHUNK_MULT 10
 #endif
 
+    struct FrameWriter {
+        FrameWriter(std::int16_t* data,
+                    std::size_t capacity_frames,
+                    std::uint16_t channels) noexcept
+            : data_(data),
+              capacity_frames_(capacity_frames),
+              channels_(channels) {}
+
+        std::span<std::int16_t> writable(std::size_t frames) noexcept {
+            if (!data_ || channels_ == 0) return {};
+            if (frames == 0) return {};
+            const std::size_t remaining = (capacity_frames_ > written_frames_)
+                ? (capacity_frames_ - written_frames_)
+                : 0;
+            if (frames > remaining) return {};
+            const std::size_t samples = frames * channels_;
+            return std::span<std::int16_t>(data_ + written_frames_ * channels_, samples);
+        }
+
+        void commit(std::size_t frames) noexcept {
+            const std::size_t remaining = (capacity_frames_ > written_frames_)
+                ? (capacity_frames_ - written_frames_)
+                : 0;
+            const std::size_t clamped = std::min(frames, remaining);
+            written_frames_ += clamped;
+        }
+
+        std::size_t written_frames() const noexcept { return written_frames_; }
+
+        std::span<const std::byte> written_bytes() const noexcept {
+            const std::size_t samples = written_frames_ * channels_;
+            return std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(data_),
+                samples * sizeof(std::int16_t));
+        }
+
+    private:
+        std::int16_t* data_{nullptr};
+        std::size_t capacity_frames_{0};
+        std::size_t written_frames_{0};
+        std::uint16_t channels_{0};
+    };
+
     class AudioDataPlane {
     public:
         Result<void> open_source(media::StreamSourceRef src, SourceKind kind) noexcept {
@@ -150,13 +193,11 @@ export namespace audio {
             const std::size_t frames_to_output = std::min(frames_needed, available_frames);
             if (frames_to_output == 0) return 0;
 
-            const std::size_t frames_written = consume_queue_frames(frames_to_output, fmt.channels);
+            FrameWriter writer{s16_out_.data(), s16_out_.size() / fmt.channels, fmt.channels};
+            const std::size_t frames_written =
+                consume_queue_frames(frames_to_output, fmt.channels, writer);
             if (frames_written == 0) return 0;
-            const std::size_t sample_count = frames_written * fmt.channels;
-            const std::size_t bytes_to_write = sample_count * sizeof(std::int16_t);
-            const auto out = std::span<const std::byte>(
-                reinterpret_cast<const std::byte*>(s16_out_.data()),
-                bytes_to_write);
+            const auto out = writer.written_bytes();
             const std::size_t written = write_pcm_fifo(fifo_, out, fmt.frame_size());
             last_written_bytes_ = written;
             return written;
@@ -236,12 +277,14 @@ export namespace audio {
             return written_frames;
         }
 
-        std::size_t consume_queue_frames(std::size_t frames, std::uint16_t channels) noexcept {
+        std::size_t consume_queue_frames(std::size_t frames,
+                                         std::uint16_t channels,
+                                         FrameWriter& writer) noexcept {
             if (frames == 0 || channels == 0) return 0;
             std::size_t remaining = frames;
-            std::size_t out_samples = 0;
 
-            while (remaining > 0) {
+            bool writer_full = false;
+            while (remaining > 0 && !writer_full) {
                 auto view = frame_queue_.readable_view();
                 if (view.a.empty() && view.b.empty()) break;
 
@@ -254,8 +297,13 @@ export namespace audio {
                     const std::size_t samples = frames_avail * channels;
                     auto slice = src.first(samples);
                     graph_.process(slice, frames_avail);
-                    quantize_s32(slice, std::span<std::int16_t>(s16_out_.data() + out_samples, samples));
-                    out_samples += samples;
+                    auto dst = writer.writable(frames_avail);
+                    if (dst.empty()) {
+                        writer_full = true;
+                        return;
+                    }
+                    quantize_s32(slice, dst);
+                    writer.commit(frames_avail);
                     remaining -= frames_avail;
                     frame_queue_.commit_read_frames(frames_avail);
                 };
@@ -267,7 +315,7 @@ export namespace audio {
                 }
             }
 
-            return out_samples / channels;
+            return writer.written_frames();
         }
 
         static void quantize_s32(std::span<const std::int32_t> src,

@@ -295,21 +295,10 @@ int main(int argc, char** argv) {
     g_ctx.update_list_placeholder();
 
     player::init_storage(player::default_storage_config());
-    auto storage = g_app.scan_storage();
-    g_ctx.apply_storage_state(std::move(storage));
-    if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {
-        g_ctx.load_track_index(0);
-        if (g_ctx.track_ready() && !fs_seek_selftest(g_ctx.track_path())) {
-            g_ctx.set_status("Fs seek selftest failed");
-        }
-    } else {
-        g_ctx.clear_track_state();
+    const bool has_track = g_app.bootstrap_player(g_ctx, g_vfs_tracks, 0, false);
+    if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
+        g_ctx.set_status("Fs seek selftest failed");
     }
-    g_ctx.set_play_button_text(false);
-    g_ctx.set_time_label(0);
-    g_ctx.sync_progress_value(0);
-    g_ctx.reset_duration();
-    g_ctx.update_list_placeholder();
 
     SoaGui gui(g_canvas, g_kernel, g_ctx.handles.root);
     ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf{};

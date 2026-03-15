@@ -23,6 +23,7 @@ import fs_core;
 import fs_vfs;
 import player.playback;
 import player.fs_utils;
+import player.storage;
 import player.ui;
 
 export namespace player {
@@ -281,6 +282,21 @@ export namespace player {
                 last_list_selected = -1;
             }
             update_list_title();
+            update_list_placeholder();
+        }
+
+        void apply_storage_state(StorageState&& state) {
+            fs_ready = state.fs_ready;
+            mount_status = std::move(state.mount_status);
+            const std::string status = state.status;
+            if (tracks) {
+                *tracks = std::move(state.tracks);
+            }
+            if (!status.empty()) {
+                set_status(status.c_str());
+            }
+            rebuild_track_labels();
+            refresh_list_view();
             update_list_placeholder();
         }
 

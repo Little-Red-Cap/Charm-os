@@ -294,16 +294,8 @@ int main(int argc, char** argv) {
     g_ctx.set_status("Mounting storage");
     g_ctx.update_list_placeholder();
 
-    auto scan = player::scan_tracks_default();
-    g_ctx.fs_ready = scan.fs_ready;
-    g_vfs_tracks = std::move(scan.tracks);
-    g_ctx.mount_status = scan.mount_status;
-    if (!scan.status.empty()) {
-        g_ctx.set_status(scan.status.c_str());
-    }
-
-    g_ctx.rebuild_track_labels();
-    g_ctx.refresh_list_view();
+    auto storage = player::scan_storage();
+    g_ctx.apply_storage_state(std::move(storage));
     if (g_ctx.fs_ready && !g_vfs_tracks.empty()) {
         g_ctx.load_track_index(0);
         if (g_ctx.track_ready() && !fs_seek_selftest(g_ctx.track_path())) {

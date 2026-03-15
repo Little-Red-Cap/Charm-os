@@ -1,5 +1,7 @@
 module;
 #include <cstddef>
+#include <string>
+#include <vector>
 
 export module player.storage;
 
@@ -16,6 +18,14 @@ export namespace player {
     struct StorageConfig {
         MountFn mount{nullptr};
         const char* path{nullptr};
+    };
+
+    struct StorageState {
+        bool fs_ready{false};
+        bool has_tracks{false};
+        std::string status{};
+        std::string mount_status{};
+        std::vector<std::string> tracks{};
     };
 
     namespace detail {
@@ -59,5 +69,16 @@ export namespace player {
             cfg = detail::default_storage_config();
         }
         return scan_tracks(cfg.mount, cfg.path);
+    }
+
+    StorageState scan_storage() {
+        auto scan = scan_tracks_default();
+        StorageState out{};
+        out.fs_ready = scan.fs_ready;
+        out.has_tracks = scan.has_tracks;
+        out.status = std::move(scan.status);
+        out.mount_status = std::move(scan.mount_status);
+        out.tracks = std::move(scan.tracks);
+        return out;
     }
 }

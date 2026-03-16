@@ -501,6 +501,78 @@ if queue < high_water:
 
 ---
 
+## L2.9 输出格式策略（v1/v2）
+
+### v1：S16 输出（稳定优先）
+
+当前默认链路：
+
+```
+DSP(S32) → quantize → S16 FIFO → I2S/SDL
+```
+
+理由：
+- v1 优先稳态与兼容性  
+- FIFO/带宽/缓存成本更可控  
+- sink/I2S 配置成本更低  
+
+### v2：S32 输出（高动态范围）
+
+目标链路：
+
+```
+DSP(S32) → S32 FIFO → I2S 32bit
+```
+
+适用：ES9039Q2M 等支持 32bit I2S 的场景。  
+
+落地前置条件：
+- PCM FIFO 支持 32bit 样本  
+- sink/I2S 支持 `SampleType::s32`  
+- Writer/量化路径可切换  
+
+---
+
+## L2.10 PCM FIFO 与 Sink 的格式协商
+
+### 1) 协商原则
+
+- **输出格式由 Sink 能力决定**，Graph 不做格式协商  
+- Data-plane 负责 **量化/格式转换**，保证 FIFO 与 Sink 匹配  
+- v1 仅支持 `S16 interleaved`，v2 才引入 `S32`
+
+### 2) v1 协商流程（S16 固定）
+
+```
+InputFmt → (Decode/Resample/EQ) → S32 DSP
+S32 → quantize → S16 FIFO
+Sink.open(S16)
+```
+
+### 3) v2 协商流程（S16/S32 可切换）
+
+```
+Sink.capabilities() → choose SampleType
+DSP outputs S32
+
+if SampleType == s16:
+    quantize → S16 FIFO
+else if SampleType == s32:
+    direct → S32 FIFO
+```
+
+### 4) 量化点归属
+
+**量化只允许发生在 realtime 输出边界**（FIFO 写入前）。  
+禁止在 Graph 节点内部做量化，以免污染 DSP contract。
+
+### 5) 失败策略
+
+- Sink 不支持请求格式 → 回退至 S16  
+- FIFO 不支持请求格式 → 回退至 S16  
+
+---
+
 ## L3 Player 状态机
 
 ### 状态

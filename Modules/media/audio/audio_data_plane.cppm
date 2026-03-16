@@ -13,6 +13,7 @@ import audio.decode_pipe;
 import audio.dsp_graph;
 import audio.eq;
 import audio.fifo;
+import audio.frame_writer;
 import audio.frame_queue;
 import audio.format;
 import audio.pcm_buffer;
@@ -65,6 +66,10 @@ export namespace audio {
         void set_soft_clip_threshold(float threshold) noexcept {
             graph_.set_soft_clip_threshold(threshold);
         }
+        void set_graph_block_frames(std::uint32_t frames) noexcept {
+            graph_block_frames_ = frames;
+        }
+        void set_capture_output(bool on) noexcept { capture_output_ = on; }
 
         bool configure(std::span<std::byte> storage,
                        std::size_t fifo_capacity,
@@ -107,6 +112,8 @@ export namespace audio {
             chunk_frames_ = 0;
             chunk_bytes_ = 0;
             last_written_bytes_ = 0;
+            graph_block_frames_ = 0;
+            capture_output_ = false;
             fifo_.clear();
             pump_.reset_stats();
             frame_queue_.clear();
@@ -146,20 +153,27 @@ export namespace audio {
             const std::size_t frames_to_output = std::min(frames_needed, available_frames);
             if (frames_to_output == 0) return 0;
 
-            const std::size_t frames_written = consume_queue_frames(frames_to_output, fmt.channels);
+            if (capture_output_) {
+                FrameWriter writer{s16_out_.data(), s16_out_.size() / fmt.channels, fmt.channels};
+                const std::size_t frames_written =
+                    consume_queue_frames(frames_to_output, fmt.channels, writer);
+                if (frames_written == 0) return 0;
+                const auto out = writer.written_bytes();
+                const std::size_t written = write_pcm_fifo(fifo_, out, fmt.frame_size());
+                last_written_bytes_ = written;
+                return written;
+            }
+
+            FifoWriter writer{fifo_, fmt.channels};
+            const std::size_t frames_written =
+                consume_queue_frames(frames_to_output, fmt.channels, writer);
             if (frames_written == 0) return 0;
-            const std::size_t sample_count = frames_written * fmt.channels;
-            const std::size_t bytes_to_write = sample_count * sizeof(std::int16_t);
-            const auto out = std::span<const std::byte>(
-                reinterpret_cast<const std::byte*>(s16_out_.data()),
-                bytes_to_write);
-            const std::size_t written = write_pcm_fifo(fifo_, out, fmt.frame_size());
-            last_written_bytes_ = written;
-            return written;
+            last_written_bytes_ = 0;
+            return writer.written_bytes();
         }
 
         std::span<const std::byte> last_output() const noexcept {
-            if (last_written_bytes_ == 0) return {};
+            if (!capture_output_ || last_written_bytes_ == 0) return {};
             const std::size_t max_bytes = s16_out_.size() * sizeof(std::int16_t);
             const std::size_t count = std::min(last_written_bytes_, max_bytes);
             return std::span<const std::byte>(
@@ -187,6 +201,59 @@ export namespace audio {
         std::size_t chunk_bytes() const noexcept { return chunk_bytes_; }
 
     private:
+        std::size_t consume_queue_frames(std::size_t frames,
+                                         std::uint16_t channels,
+                                         FifoWriter& writer) noexcept {
+            if (frames == 0 || channels == 0) return 0;
+            std::size_t remaining = frames;
+
+            bool writer_full = false;
+            while (remaining > 0 && !writer_full) {
+                auto view = frame_queue_.readable_view();
+                if (view.a.empty() && view.b.empty()) break;
+
+                auto consume_span = [&](std::span<std::int32_t> src) {
+                    std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    if (graph_block_frames_ != 0 && graph_block_frames_ < frames_avail) {
+                        frames_avail = graph_block_frames_;
+                    }
+                    if (frames_avail == 0) return;
+                    const std::size_t samples = frames_avail * channels;
+                    auto slice = src.first(samples);
+                    graph_.process(slice, frames_avail);
+                    auto segments = writer.writable_segments(frames_avail);
+                    if (segments.a.empty() && segments.b.empty()) {
+                        writer_full = true;
+                        return;
+                    }
+                    const std::size_t a_samples = segments.a.size();
+                    const std::size_t b_samples = segments.b.size();
+                    if (a_samples + b_samples < samples) {
+                        writer_full = true;
+                        return;
+                    }
+                    if (a_samples > 0) {
+                        quantize_s32(slice.first(a_samples), segments.a);
+                    }
+                    if (b_samples > 0) {
+                        quantize_s32(slice.subspan(a_samples, b_samples), segments.b);
+                    }
+                    const std::size_t written_frames = (a_samples + b_samples) / channels;
+                    writer.commit(written_frames);
+                    remaining -= written_frames;
+                    frame_queue_.commit_read_frames(written_frames);
+                };
+
+                if (!view.a.empty()) {
+                    consume_span(view.a);
+                } else if (!view.b.empty()) {
+                    consume_span(view.b);
+                }
+            }
+
+            return writer.written_frames();
+        }
+
         bool prepare_frame_queue(std::uint16_t channels) noexcept {
             if (channels == 0) return false;
             if (chunk_frames_ == 0) return false;
@@ -232,23 +299,34 @@ export namespace audio {
             return written_frames;
         }
 
-        std::size_t consume_queue_frames(std::size_t frames, std::uint16_t channels) noexcept {
+        template <typename Writer>
+        std::size_t consume_queue_frames(std::size_t frames,
+                                         std::uint16_t channels,
+                                         Writer& writer) noexcept {
             if (frames == 0 || channels == 0) return 0;
             std::size_t remaining = frames;
-            std::size_t out_samples = 0;
 
-            while (remaining > 0) {
+            bool writer_full = false;
+            while (remaining > 0 && !writer_full) {
                 auto view = frame_queue_.readable_view();
                 if (view.a.empty() && view.b.empty()) break;
 
                 auto consume_span = [&](std::span<std::int32_t> src) {
-                    const std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    std::size_t frames_avail = std::min(remaining, src.size() / channels);
+                    if (graph_block_frames_ != 0 && graph_block_frames_ < frames_avail) {
+                        frames_avail = graph_block_frames_;
+                    }
                     if (frames_avail == 0) return;
                     const std::size_t samples = frames_avail * channels;
                     auto slice = src.first(samples);
                     graph_.process(slice, frames_avail);
-                    quantize_s32(slice, std::span<std::int16_t>(s16_out_.data() + out_samples, samples));
-                    out_samples += samples;
+                    auto dst = writer.writable(frames_avail);
+                    if (dst.empty()) {
+                        writer_full = true;
+                        return;
+                    }
+                    quantize_s32(slice, dst);
+                    writer.commit(frames_avail);
                     remaining -= frames_avail;
                     frame_queue_.commit_read_frames(frames_avail);
                 };
@@ -260,7 +338,7 @@ export namespace audio {
                 }
             }
 
-            return out_samples / channels;
+            return writer.written_frames();
         }
 
         static void quantize_s32(std::span<const std::int32_t> src,
@@ -293,6 +371,8 @@ export namespace audio {
         std::uint32_t chunk_frames_{0};
         std::size_t chunk_bytes_{0};
         std::size_t last_written_bytes_{0};
+        std::uint32_t graph_block_frames_{0};
+        bool capture_output_{false};
 
         std::array<std::int32_t, kFrameQueueSamples> frame_queue_storage_{};
         std::array<std::int16_t, kMaxChunkFrames * kMaxChannels> s16_out_{};

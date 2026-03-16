@@ -205,10 +205,12 @@ export namespace audio {
     struct PlayerConfig {
         PlayerProfile profile{};
         std::uint32_t preferred_period_frames{0};
+        std::uint32_t graph_block_frames{0};
         OutputMode output_mode{OutputMode::follow_input};
         std::uint32_t fixed_rate{0};
         std::uint32_t fade_in_ms{0};
         std::uint16_t force_channels{0};
+        bool capture_output{true};
         std::uint8_t fail_reconfig_step{0};
     };
 
@@ -242,6 +244,9 @@ export namespace audio {
             : config_(config) {
             set_clock(clock);
             init_spectrum_window();
+            if (!config_.capture_output) {
+                data_plane_.set_capture_output(false);
+            }
         }
 
         ~AudioPlayer() { stop_internal(); }
@@ -459,7 +464,14 @@ export namespace audio {
         static constexpr std::size_t spectrum_fft_size = 256;
 
         void enable_spectrum(bool on) noexcept {
+            if (!config_.capture_output) {
+                spectrum_enabled_.store(false, std::memory_order_relaxed);
+                data_plane_.set_capture_output(false);
+                spectrum_ready_.store(false, std::memory_order_relaxed);
+                return;
+            }
             spectrum_enabled_.store(on, std::memory_order_relaxed);
+            data_plane_.set_capture_output(on);
             if (!on) {
                 spectrum_ready_.store(false, std::memory_order_relaxed);
             }
@@ -555,6 +567,23 @@ export namespace audio {
             out.channels = fmt.channels;
             out.bits_per_sample = static_cast<std::uint16_t>(fmt.bytes_per_sample() * 8u);
             return out;
+        }
+
+        static bool is_power_of_two(std::uint32_t value) noexcept {
+            return value != 0 && (value & (value - 1u)) == 0;
+        }
+
+        std::uint32_t select_graph_block_frames(std::uint32_t period_frames) const noexcept {
+            if (period_frames == 0) return 0;
+            std::uint32_t block = config_.graph_block_frames;
+            if (block == 0) {
+                block = std::min<std::uint32_t>(period_frames, 128);
+            } else if (block > period_frames) {
+                block = period_frames;
+            } else if (block < period_frames && !is_power_of_two(block)) {
+                block = std::min<std::uint32_t>(period_frames, 128);
+            }
+            return block;
         }
 
         void push_spectrum_samples(std::span<const std::byte> data) noexcept {
@@ -758,6 +787,7 @@ export namespace audio {
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
+            data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
             const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
@@ -866,6 +896,7 @@ export namespace audio {
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
+            data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
             const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();

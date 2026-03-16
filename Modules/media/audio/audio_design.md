@@ -82,6 +82,7 @@ using FillCallback = size_t(*)(std::span<std::byte> dst, void* user) noexcept;
 - `filled_bytes % frame_size == 0`
 - `dst.size()` 由 sink 保证是 `frame_size` 的整数倍
 - 若 FIFO 数据不足，只读取“最后一个完整 frame”，其余交给补零
+- 回调可能运行在 ISR/实时线程：禁止调用 decoder/graph/storage、禁止分配与加锁
 
 struct SinkConfig {
   AudioFormat fmt;

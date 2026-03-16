@@ -1018,7 +1018,7 @@ export namespace audio {
             if (!data_plane_.fifo_capacity()) return;
             if (!data_plane_.has_more_data()) return;
             auto& fifo = data_plane_.fifo();
-            std::size_t writable = std::min(fifo.free_bytes(), data_plane_.chunk_bytes());
+            std::size_t writable = std::min(fifo.producer_free_bytes(), data_plane_.chunk_bytes());
             writable = (writable / output_fmt_.frame_size()) * output_fmt_.frame_size();
             if (writable == 0) {
                 stats_.overrun_count++;

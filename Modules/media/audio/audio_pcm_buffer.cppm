@@ -37,7 +37,7 @@ export namespace audio {
         std::size_t filled = 0;
 
         while (filled < need) {
-            auto view = fifo.readable_view();
+            auto view = fifo.consumer_readable_view();
             if (view.a.empty() && view.b.empty()) break;
 
             auto copy_one = [&](std::span<std::byte> src) {
@@ -45,7 +45,7 @@ export namespace audio {
                 n -= n % frame_size;
                 if (n == 0) return;
                 std::memcpy(dst.data() + filled, src.data(), n);
-                fifo.commit_read(n);
+                fifo.consumer_commit_read(n);
                 filled += n;
             };
 
@@ -69,7 +69,7 @@ export namespace audio {
         std::size_t written = 0;
 
         while (written < need) {
-            auto view = fifo.writable_view();
+            auto view = fifo.producer_writable_view();
             if (view.a.empty() && view.b.empty()) break;
 
             auto copy_one = [&](std::span<std::byte> dst) {
@@ -77,7 +77,7 @@ export namespace audio {
                 n -= n % frame_size;
                 if (n == 0) return;
                 std::memcpy(dst.data(), src.data() + written, n);
-                fifo.commit_write(n);
+                fifo.producer_commit_write(n);
                 written += n;
             };
 

@@ -96,7 +96,8 @@ export namespace audio {
                 return 0;
             }
 
-            update_water(fifo_->size_bytes());
+            // Realtime path: only consume from FIFO; avoid blocking work here.
+            update_water(fifo_->consumer_size_bytes());
             const std::size_t filled = read_pcm_fifo(*fifo_, dst, frame_size_);
             if (filled < dst.size()) {
                 underrun_count_.fetch_add(1, std::memory_order_relaxed);

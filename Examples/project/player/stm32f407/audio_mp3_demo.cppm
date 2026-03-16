@@ -655,6 +655,7 @@ namespace {
 static volatile bool g_half_ready = false;
     static volatile bool g_full_ready = false;
 static volatile std::uint32_t g_underruns = 0;
+static volatile std::uint32_t g_isr_underruns = 0;
 static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
     static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer{};
     constexpr std::size_t kTestFrames = 512;
@@ -666,6 +667,10 @@ extern "C" void charm_audio_i2s_half_notify() {
 
 extern "C" void charm_audio_i2s_full_notify() {
     g_full_ready = true;
+}
+
+extern "C" void charm_audio_i2s_underrun_notify() {
+    g_isr_underruns = g_isr_underruns + 1;
 }
 
 export void audio_mp3_demo_set_sink(void* ctx, log_write_fn fn) noexcept {
@@ -840,6 +845,7 @@ export void i2s_dma_selftest() noexcept {
     g_half_ready = false;
     g_full_ready = false;
     g_underruns = 0;
+    g_isr_underruns = 0;
 
     const auto ok = reinit_i2s(44100);
     if (!ok) {
@@ -896,8 +902,8 @@ export void i2s_dma_selftest() noexcept {
         }
     }
     HAL_I2S_DMAStop(&hi2s2);
-    out::println<"i2s test: half={} full={} underrun={} err={}">(g_log_sink, 
-        half_cnt, full_cnt, g_underruns, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
+    out::println<"i2s test: half={} full={} underrun={} isr_underrun={} err={}">(g_log_sink, 
+        half_cnt, full_cnt, g_underruns, g_isr_underruns, static_cast<int>(HAL_I2S_GetError(&hi2s2)));
     out::println<"i2s test: stress={}">(g_log_sink, 
         stress_cnt);
 }

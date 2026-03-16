@@ -477,12 +477,23 @@ export namespace player {
             const std::uint64_t low_ms = bytes_per_sec ? (snap.low_water * 1000 / bytes_per_sec) : 0;
             const std::uint64_t high_ms = bytes_per_sec ? (snap.high_water * 1000 / bytes_per_sec) : 0;
 
-            char buf[96]{};
-            std::snprintf(buf, sizeof(buf), "water %llums (%llu..%llu) underrun %llu",
+            const auto pump_min_ms = (snap.pump.has_water && bytes_per_sec)
+                ? (snap.pump.water_min * 1000 / bytes_per_sec)
+                : 0;
+            const auto pump_max_ms = (snap.pump.has_water && bytes_per_sec)
+                ? (snap.pump.water_max * 1000 / bytes_per_sec)
+                : 0;
+
+            char buf[160]{};
+            std::snprintf(buf, sizeof(buf),
+                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu",
                           static_cast<unsigned long long>(water_ms),
                           static_cast<unsigned long long>(low_ms),
                           static_cast<unsigned long long>(high_ms),
-                          static_cast<unsigned long long>(snap.stats.underrun_count));
+                          static_cast<unsigned long long>(pump_min_ms),
+                          static_cast<unsigned long long>(pump_max_ms),
+                          static_cast<unsigned long long>(snap.stats.underrun_count),
+                          static_cast<unsigned long long>(snap.pump.underrun_count));
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);
 #else
             (void)this;

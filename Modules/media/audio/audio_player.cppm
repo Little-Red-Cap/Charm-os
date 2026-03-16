@@ -25,6 +25,7 @@ import audio.decode_pipe;
 import audio.data_plane;
 import audio.eq;
 import audio.format;
+import audio.pump;
 import audio.result;
 import alg_fft;
 import charm.system.clock;
@@ -228,6 +229,7 @@ export namespace audio {
     struct PlayerSnapshot {
         PlayerStats stats{};
         CallbackStats callback{};
+        PumpStats pump{};
         AudioFormat input_fmt{};
         AudioFormat output_fmt{};
         std::size_t water_bytes{0};
@@ -493,6 +495,7 @@ export namespace audio {
             PlayerSnapshot snap{};
             snap.stats = stats_;
             snap.callback = sink_.callback_stats();
+            snap.pump = data_plane_.pump().snapshot();
             snap.input_fmt = input_fmt_;
             snap.output_fmt = output_fmt_;
             snap.water_bytes = data_plane_.fifo_capacity()

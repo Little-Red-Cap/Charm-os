@@ -66,12 +66,17 @@ void uart_write(const char* msg) {
 constexpr uint32_t kAudioBufBytes = 32768;
 alignas(4) uint8_t g_audio_buf[kAudioBufBytes];
 volatile bool g_i2s_started = false;
+volatile bool g_i2s_active = false;
 constexpr uint32_t kRingLowWater = 24576;
 constexpr uint32_t kRingHighWater = 98304;
 alignas(4) uint8_t g_last_frame[kAudioBufBytes / 2];
 alignas(4) uint8_t g_discard_buf[2048];
 
 void fill_audio_half(uint32_t half_index) {
+    if (!g_i2s_active) {
+        (void)memset(g_audio_buf + (half_index * (kAudioBufBytes / 2)), 0, kAudioBufBytes / 2);
+        return;
+    }
     uint8_t* dst = g_audio_buf + (half_index * (kAudioBufBytes / 2));
     const uint32_t want = kAudioBufBytes / 2;
     uint32_t available = usb_audio_ring_available();
@@ -183,6 +188,14 @@ int main(void) {
             last_log = now;
         }
         const uint32_t ring_avail = usb_audio_ring_available();
+        const bool streaming = (usb_audio_last_alt_setting() == 1);
+        if (!streaming && g_i2s_started) {
+            g_i2s_active = false;
+            (void)HAL_I2S_DMAStop(&hi2s1);
+            g_i2s_started = false;
+            usb_audio_rx_reset();
+            (void)memset(g_last_frame, 0, sizeof(g_last_frame));
+        }
         if (!g_i2s_started && ring_avail >= kAudioBufBytes) {
             fill_audio_half(0);
             fill_audio_half(1);
@@ -190,6 +203,7 @@ int main(void) {
                     reinterpret_cast<uint16_t*>(g_audio_buf),
                     kAudioBufBytes / 2) == HAL_OK) {
                 g_i2s_started = true;
+                g_i2s_active = true;
             }
         }
         HAL_Delay(1000);

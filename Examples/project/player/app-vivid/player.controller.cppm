@@ -126,6 +126,7 @@ export namespace player {
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
         std::chrono::steady_clock::time_point last_debug_tick{};
+        bool last_running{false};
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
@@ -234,13 +235,15 @@ export namespace player {
         }
 
         void tick_player(const audio::AudioPlayer& player) {
-            if (playback.playing() && !player.is_running()) {
+            const bool running_now = player.is_running();
+            if (last_running && !running_now) {
                 if (player.state() == audio::PlayerState::error) {
                     on_player_stopped();
-                } else {
+                } else if (playback.playing() || playback.paused()) {
                     handle_track_end();
                 }
             }
+            last_running = running_now;
             if (!playback.paused()) {
                 const auto st = player.state();
                 if (st == audio::PlayerState::opening) {
@@ -669,10 +672,13 @@ export namespace player {
             }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
+            reset_duration();
+            if (track_ready) {
+                (void)playback.probe_duration_from_path(track_path);
+            }
             set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
-            reset_duration();
             last_time_sec = -1;
             sync_list_selection();
             return playback.track_ready();

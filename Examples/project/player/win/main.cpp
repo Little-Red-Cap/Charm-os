@@ -125,7 +125,8 @@ namespace {
         platform.framebuffer_ref().clear(kUiBackground);
         platform.begin_frame();
         platform.record();
-        update_spectrum(t_sec, ctx.is_playing() || ctx.is_paused());
+        const bool spectrum_active = ctx.is_playing();
+        update_spectrum(t_sec, spectrum_active);
         draw_player_fx(platform.commands(), ctx, kernel, t_sec);
         platform.execute();
         platform.end_frame();
@@ -314,6 +315,7 @@ int main(int argc, char** argv) {
         (void)win_h;
     }
 
+    g_app.shutdown();
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

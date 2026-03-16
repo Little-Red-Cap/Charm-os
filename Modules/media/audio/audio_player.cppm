@@ -387,6 +387,8 @@ export namespace audio {
             return reconfigure_format(input_fmt_);
         }
 
+        void shutdown() noexcept { stop_internal(); }
+
         void set_stress_ms(std::uint32_t ms) {
             stress_ms_ = ms;
 #if CHARM_AUDIO_ENABLE_STRESS
@@ -944,14 +946,31 @@ export namespace audio {
         }
 
         void buffer_until_high() {
+            constexpr std::size_t kMaxRefillLoops = 8;
+            std::size_t loops = 0;
+            std::size_t last_size = data_plane_.fifo().size_bytes();
             while (data_plane_.fifo_capacity() &&
                    data_plane_.fifo().size_bytes() < data_plane_.high_water()) {
                 refill_once();
                 if (!running_) break;
-                if (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() == 0) break;
+                const std::size_t size = data_plane_.fifo().size_bytes();
+                if (!data_plane_.has_more_data()) break;
+                if (size == last_size) {
+                    if (++loops >= kMaxRefillLoops) break;
+                } else {
+                    loops = 0;
+                    last_size = size;
+                }
             }
             if (data_plane_.fifo_capacity() &&
-                data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
+                !data_plane_.has_more_data() &&
+                data_plane_.fifo().size_bytes() == 0) {
+                stop_internal();
+                return;
+            }
+            if (data_plane_.fifo_capacity() &&
+                (data_plane_.fifo().size_bytes() >= data_plane_.high_water() ||
+                 (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() > 0))) {
                 if (!sink_.start()) {
                     set_error(Errc::io_error, PlayerErrorStage::sink_start);
                     return;
@@ -969,8 +988,11 @@ export namespace audio {
             const std::size_t fifo_capacity = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
             if (fifo_capacity > kMaxFifoBytes) return false;
             if (!fifo_storage_.resize(fifo_capacity)) return false;
-            const std::size_t low_water = ms_to_bytes(config_.profile.low_ms, output_fmt_);
-            const std::size_t high_water = ms_to_bytes(config_.profile.high_ms, output_fmt_);
+            const std::size_t low_water = std::min(
+                ms_to_bytes(config_.profile.low_ms, output_fmt_), fifo_capacity);
+            std::size_t high_water = std::min(
+                ms_to_bytes(config_.profile.high_ms, output_fmt_), fifo_capacity);
+            if (high_water < low_water) high_water = low_water;
             std::uint32_t period_frames = config_.preferred_period_frames != 0
                 ? config_.preferred_period_frames
                 : (output_fmt_.rate / 100);

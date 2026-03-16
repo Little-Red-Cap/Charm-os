@@ -1,27 +1,53 @@
 module;
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <string>
 
 export module player.playback;
 
+import audio.decode_pipe;
 import audio.eq;
 import audio.player;
 import audio.result;
+#if defined(CHARM_AUDIO_USE_VFS)
+import audio.source.fs;
+#else
+import audio.source.file;
+#endif
+import media.stream.source;
 
 export namespace player {
     const char* audio_err_text(audio::Errc err) {
         switch (err) {
         case audio::Errc::ok: return "ok";
-        case audio::Errc::invalid_arg: return "invalid_arg";
-        case audio::Errc::not_supported: return "not_supported";
-        case audio::Errc::io_error: return "io_error";
-        case audio::Errc::decode_error: return "decode_error";
-        case audio::Errc::bad_state: return "bad_state";
+        case audio::Errc::perm: return "perm";
+        case audio::Errc::noent: return "noent";
+        case audio::Errc::io: return "io_error";
+        case audio::Errc::again: return "again";
+        case audio::Errc::nomem: return "nomem";
+        case audio::Errc::busy: return "busy";
+        case audio::Errc::exist: return "exist";
+        case audio::Errc::inval: return "invalid_arg";
+        case audio::Errc::rofs: return "rofs";
+        case audio::Errc::nametoolong: return "nametoolong";
+        case audio::Errc::nosys: return "nosys";
+        case audio::Errc::notsup: return "not_supported";
         case audio::Errc::timeout: return "timeout";
         case audio::Errc::end_of_stream: return "end_of_stream";
+        case audio::Errc::decode_error: return "decode_error";
+        case audio::Errc::bad_state: return "bad_state";
+        case audio::Errc::crc_error: return "crc_error";
+        case audio::Errc::format_error: return "format_error";
+        case audio::Errc::canceled: return "canceled";
+        case audio::Errc::closed: return "closed";
+        case audio::Errc::buffer_overflow: return "buffer_overflow";
+        case audio::Errc::invalid_format: return "invalid_format";
         }
         return "unknown";
     }
@@ -86,6 +112,68 @@ export namespace player {
         void reset_duration() noexcept {
             duration_ready_ = false;
             duration_sec_ = 180;
+        }
+
+        bool probe_duration_from_path(const char* path) {
+            if (!path || !*path) return false;
+#if defined(CHARM_AUDIO_USE_VFS)
+            audio::FsDataSource src{};
+#else
+            audio::FileDataSource src{};
+#endif
+            if (!src.open(path)) return false;
+            auto ref = media::make_stream_source_ref(src);
+            audio::SourceKind kind = audio::SourceKind::wav;
+            if (ends_with_icase(path, ".flac")) {
+                kind = audio::SourceKind::flac;
+            } else if (ends_with_icase(path, ".mp3")) {
+                kind = audio::SourceKind::mp3;
+            } else if (ends_with_icase(path, ".wav")) {
+                kind = audio::SourceKind::wav;
+            } else {
+                std::array<std::byte, 12> header{};
+                auto pos = ref.tell();
+                auto read = ref.read(std::span<std::byte>(header.data(), header.size()));
+                if (read && *read >= 4) {
+                    const auto b0 = static_cast<unsigned char>(header[0]);
+                    const auto b1 = static_cast<unsigned char>(header[1]);
+                    const auto b2 = static_cast<unsigned char>(header[2]);
+                    const auto b3 = static_cast<unsigned char>(header[3]);
+                    if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
+                        kind = audio::SourceKind::flac;
+                    } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
+                        kind = audio::SourceKind::mp3;
+                    } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
+                        kind = audio::SourceKind::mp3;
+                    } else if (read && *read >= 12) {
+                        const auto b8 = static_cast<unsigned char>(header[8]);
+                        const auto b9 = static_cast<unsigned char>(header[9]);
+                        const auto b10 = static_cast<unsigned char>(header[10]);
+                        const auto b11 = static_cast<unsigned char>(header[11]);
+                        if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F' &&
+                            b8 == 'W' && b9 == 'A' && b10 == 'V' && b11 == 'E') {
+                            kind = audio::SourceKind::wav;
+                        }
+                    }
+                }
+                if (pos) {
+                    (void)ref.seek(*pos, media::SeekWhence::set);
+                } else {
+                    (void)ref.seek(0, media::SeekWhence::set);
+                }
+            }
+
+            audio::AudioDecodePipe probe{};
+            auto opened = probe.open(ref, kind);
+            if (!opened) return false;
+            const auto total = probe.total_frames();
+            const auto fmt = probe.input_format();
+            if (total == 0 || fmt.rate == 0) return false;
+            const auto secs = static_cast<int>(total / fmt.rate);
+            duration_sec_ = (secs > 0) ? secs : 1;
+            duration_ready_ = true;
+            current_sec_ = 0;
+            return true;
         }
 
         bool update_duration_from_player() {
@@ -300,6 +388,20 @@ export namespace player {
         }
 
     private:
+        bool ends_with_icase(const char* text, const char* suffix) const {
+            if (!text || !suffix) return false;
+            const std::size_t value_len = std::strlen(text);
+            const std::size_t suf_len = std::strlen(suffix);
+            if (value_len < suf_len) return false;
+            const std::size_t start = value_len - suf_len;
+            for (std::size_t i = 0; i < suf_len; ++i) {
+                const char a = static_cast<char>(std::tolower(text[start + i]));
+                const char b = static_cast<char>(std::tolower(suffix[i]));
+                if (a != b) return false;
+            }
+            return true;
+        }
+
         audio::AudioPlayer* player_{nullptr};
         const char* track_path_{nullptr};
         bool track_ready_{false};

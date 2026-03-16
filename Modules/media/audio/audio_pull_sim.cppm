@@ -4,6 +4,7 @@ module;
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <random>
 #include <span>
 #include <vector>
 
@@ -31,6 +32,10 @@ export namespace audio {
     class AudioPullSimulator {
     public:
         void set_clock(charm::system::Clock& clock) noexcept { clock_.reset(clock); }
+        void set_jitter_ms(std::uint32_t ms) noexcept {
+            jitter_ms_ = ms;
+            jitter_dist_ = std::uniform_int_distribution<std::uint32_t>(0, jitter_ms_);
+        }
 
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
@@ -45,6 +50,7 @@ export namespace audio {
             }
             buffer_.assign(period_bytes_, std::byte{0});
             reset_stats();
+            seed_rng();
             return {};
         }
 
@@ -108,6 +114,11 @@ export namespace audio {
             underrun_count_.store(0, std::memory_order_relaxed);
         }
 
+        std::uint64_t next_jitter_us() noexcept {
+            if (jitter_ms_ == 0) return 0;
+            return static_cast<std::uint64_t>(jitter_dist_(rng_)) * 1000u;
+        }
+
         bool step_once() noexcept {
             if (!running_ || !fill_cb_ || buffer_.empty()) return false;
 
@@ -139,6 +150,11 @@ export namespace audio {
         std::uint64_t now_ns() const noexcept {
             const auto now_us = clock_.now_us();
             return static_cast<std::uint64_t>(now_us) * 1000u;
+        }
+
+        void seed_rng() noexcept {
+            const auto seed = static_cast<std::uint32_t>(clock_.now_us());
+            rng_.seed(seed);
         }
 
         static void update_min(std::atomic<std::uint64_t>& dst, std::uint64_t value) {
@@ -186,6 +202,9 @@ export namespace audio {
         std::vector<std::byte> buffer_{};
         bool running_{false};
         std::uint64_t last_tick_ns_{0};
+        std::uint32_t jitter_ms_{0};
+        std::minstd_rand rng_{};
+        std::uniform_int_distribution<std::uint32_t> jitter_dist_{0, 0};
 
         std::atomic<std::uint8_t> underrun_flag_{0};
         std::atomic<std::uint64_t> underrun_count_{0};

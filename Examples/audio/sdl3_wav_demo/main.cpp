@@ -61,7 +61,8 @@ static double bytes_to_ms(std::size_t bytes, const audio::AudioFormat& fmt) {
 }
 
 static void print_usage() {
-    std::printf("usage: sdl3-wav-demo [--tone[=HZ]] [--pull-sim] [--tone-gain G] [--tone-fifo-ms N] [--tone-period-frames N]\n");
+    std::printf("usage: sdl3-wav-demo [--tone[=HZ]] [--pull-sim] [--pull-jitter-ms N]\n");
+    std::printf("                      [--tone-gain G] [--tone-fifo-ms N] [--tone-period-frames N]\n");
     std::printf("                      [--profile lowlat|stable] [--seconds N] [--stress[=ms]] [--fixed-rate N] [--force-mono 1|2]\n");
     std::printf("                      [--reconfig-at SEC] [--reconfig-fixed-rate N] [--reconfig-fade-in MS] [--fail-reconfig-open]\n");
     std::printf("                      <file.wav|file.flac|file.mp3>\n");
@@ -73,6 +74,7 @@ struct ToneConfig {
     std::uint32_t period_frames{0};
     float freq_hz{440.0f};
     float gain{0.2f};
+    std::uint32_t pull_jitter_ms{0};
 };
 
 static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
@@ -103,6 +105,7 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
 
     AudioPullSimulator sim{};
     sim.set_clock(clock);
+    sim.set_jitter_ms(cfg.pull_jitter_ms);
 
     media::StreamFormat stream_fmt{};
     stream_fmt.kind = media::StreamKind::audio;
@@ -131,7 +134,7 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
 
     const auto start_time = std::chrono::steady_clock::now();
     auto last_log = start_time;
-    auto next_tick = start_time;
+    auto next_tick = start_time + std::chrono::microseconds(sim.next_jitter_us());
     const auto period_us = static_cast<std::uint64_t>(
         (static_cast<double>(period) * 1000000.0) / static_cast<double>(fmt.rate));
     if (period_us == 0) {
@@ -153,7 +156,7 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
 
         while (now >= next_tick) {
             sim.step_once();
-            next_tick += period_duration;
+            next_tick += period_duration + std::chrono::microseconds(sim.next_jitter_us());
         }
 
         if (now - last_log >= std::chrono::seconds(1)) {
@@ -162,7 +165,7 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
             const double water_min_ms = stats.has_water ? bytes_to_ms(stats.water_min, fmt) : 0.0;
             const double water_max_ms = stats.has_water ? bytes_to_ms(stats.water_max, fmt) : 0.0;
             const double water_now_ms = bytes_to_ms(fifo.size_bytes(), fmt);
-            std::printf("[sim] cb=%llu underrun=%llu water(ms)=%.0f now=%.0f..%.0f dt(ms)=%.2f/%.2f/%.2f\n",
+            std::printf("[sim] cb=%llu underrun=%llu water(ms)=%.0f now=%.0f..%.0f dt(ms)=%.2f/%.2f/%.2f jitter_ms=%u\n",
                 static_cast<unsigned long long>(stats.callback_count),
                 static_cast<unsigned long long>(stats.underrun_count),
                 water_now_ms,
@@ -170,7 +173,8 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
                 water_max_ms,
                 sim_stats.dt_min_ns ? (static_cast<double>(sim_stats.dt_min_ns) / 1e6) : 0.0,
                 sim_stats.dt_avg_ms,
-                sim_stats.dt_max_ns ? (static_cast<double>(sim_stats.dt_max_ns) / 1e6) : 0.0);
+                sim_stats.dt_max_ns ? (static_cast<double>(sim_stats.dt_max_ns) / 1e6) : 0.0,
+                cfg.pull_jitter_ms);
             last_log = now;
         }
 
@@ -298,6 +302,10 @@ int main(int argc, char** argv) {
         } else if (arg == "--pull-sim") {
             use_pull_sim = true;
             use_tone = true;
+        } else if (arg == "--pull-jitter-ms" && i + 1 < argc) {
+            tone_cfg.pull_jitter_ms = parse_u32(argv[++i], tone_cfg.pull_jitter_ms);
+        } else if (arg.rfind("--pull-jitter-ms=", 0) == 0) {
+            tone_cfg.pull_jitter_ms = parse_u32(arg.c_str() + std::strlen("--pull-jitter-ms="), tone_cfg.pull_jitter_ms);
         } else if (arg.rfind("--tone=", 0) == 0) {
             use_tone = true;
             tone_cfg.freq_hz = static_cast<float>(parse_f64(arg.c_str() + std::strlen("--tone="), tone_cfg.freq_hz));

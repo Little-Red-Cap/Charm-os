@@ -243,6 +243,49 @@ size_t audio_fill(std::span<std::byte> dst, void* user) noexcept {
 
 ---
 
+## L2.5 Pull-Sim（PC 无硬件拉取仿真）
+
+> 目标：在 **不依赖硬件/SDL 实际音频输出** 的情况下，复现 I2S DMA 的 pull 语义，
+> 观察水位与 underrun 行为，并做可复现的压力测试。
+
+### 1) 入口与用法
+
+使用 `AudioPullSimulator` 替代真实 Sink，调用同一套 `FillCallback`：
+
+```
+AudioPullSimulator sim;
+sim.open(cfg);
+sim.set_fill_callback(pump.fill_callback(), &pump);
+sim.start();
+sim.step_once(); // 模拟一次 period 拉取
+```
+
+示例（SDL3 demo）：
+
+```
+sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
+```
+
+### 2) 观测指标（与真实路径对齐）
+
+建议关注三类指标（与 Player 调试面板口径一致）：
+
+- `water(ms)`：FIFO 水位的 now/min/max
+- `underrun`：sink 侧与 pump 侧计数
+- `cb_dt(ms)`：回调间隔的 min/avg/max
+
+### 3) Jitter 注入（压力测试）
+
+`pull-jitter-ms` 用于注入回调抖动（0..N ms），
+并支持 **seed / pattern** 以便可复现：
+
+- `pull-jitter-seed`：固定随机序列
+- `pull-jitter-pattern`：`uniform` / `burst`
+
+> Pull‑Sim 不替代真实硬件，只用于 **水位策略/underrun 行为** 的快速回归验证。
+
+---
+
 ## L2.6 DSP Graph 骨架合同（Pull 语义 + 固定块）
 
 ### 1) 外部语义：Pull 驱动

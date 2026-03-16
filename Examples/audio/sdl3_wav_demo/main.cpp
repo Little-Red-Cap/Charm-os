@@ -171,17 +171,17 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
         }
 
         if (now - last_log >= std::chrono::seconds(1)) {
-            const auto stats = pump.snapshot();
+            const auto pump_stats = pump.snapshot();
             const auto sim_stats = sim.callback_stats();
-            const double water_min_ms = stats.has_water ? bytes_to_ms(stats.water_min, fmt) : 0.0;
-            const double water_max_ms = stats.has_water ? bytes_to_ms(stats.water_max, fmt) : 0.0;
+            const double water_min_ms = pump_stats.has_water ? bytes_to_ms(pump_stats.water_min, fmt) : 0.0;
+            const double water_max_ms = pump_stats.has_water ? bytes_to_ms(pump_stats.water_max, fmt) : 0.0;
             const double water_now_ms = bytes_to_ms(fifo.size_bytes(), fmt);
-            std::printf("[sim] cb=%llu underrun=%llu water(ms)=%.0f now=%.0f..%.0f dt(ms)=%.2f/%.2f/%.2f jitter_ms=%u\n",
-                static_cast<unsigned long long>(stats.callback_count),
-                static_cast<unsigned long long>(stats.underrun_count),
+            std::printf("[sim] water(ms)=%.0f now=%.0f..%.0f underrun=%llu/%llu cb_dt(ms)=%.2f/%.2f/%.2f jitter_ms=%u\n",
                 water_now_ms,
                 water_min_ms,
                 water_max_ms,
+                static_cast<unsigned long long>(sim.underrun_count()),
+                static_cast<unsigned long long>(pump_stats.underrun_count),
                 sim_stats.dt_min_ns ? (static_cast<double>(sim_stats.dt_min_ns) / 1e6) : 0.0,
                 sim_stats.dt_avg_ms,
                 sim_stats.dt_max_ns ? (static_cast<double>(sim_stats.dt_max_ns) / 1e6) : 0.0,

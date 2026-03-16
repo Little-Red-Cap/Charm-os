@@ -17,7 +17,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include
 )
@@ -27,7 +27,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ./USB_DEVICE/Target/usbd_conf.c
     ./USB_DEVICE/App/usb_device.c
     ./USB_DEVICE/App/usbd_desc.c
-    ./USB_DEVICE/App/usbd_storage_if.c
+    ./USB_DEVICE/App/usbd_audio_if.c
     ./Core/Src/main.c
     ./Core/Src/gpio.c
     ./Core/Src/dma.c
@@ -78,10 +78,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c
     ../Common/Src/system_stm32h7xx_dualcore_boot_cm4_cm7.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc_bot.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc_data.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Src/usbd_msc_scsi.c
+    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Src/usbd_audio.c
     ./Core/Src/sysmem.c
     ./Core/Src/syscalls.c
     ./Core/Startup/startup_stm32h747xx_CM7.s

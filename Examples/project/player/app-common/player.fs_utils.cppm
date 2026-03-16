@@ -2,6 +2,7 @@ module;
 #include <array>
 #include <cctype>
 #include <cstdint>
+#include <cstdio>
 #include <span>
 #include <string>
 #include <string_view>
@@ -21,6 +22,13 @@ import fs_vfs;
 import util.core;
 
 export namespace player::fs_utils {
+    namespace detail {
+        void dump_indent(int depth) {
+            for (int i = 0; i < depth; ++i) {
+                std::printf("  ");
+            }
+        }
+    }
     namespace detail {
         struct MbrPartition {
             std::uint8_t status;
@@ -167,6 +175,43 @@ export namespace player::fs_utils {
         detail::TrackListContext ctx{dir, &out, subdirs};
         out_status = fs::vfs_list(dir, &ctx, &detail::collect_track);
         return out_status && !out.empty();
+    }
+
+    bool dump_fs_tree(std::string_view dir, int depth, int max_depth) {
+        if (depth > max_depth) return true;
+        struct DumpCtx {
+            std::string_view dir;
+            std::vector<std::string>* subdirs;
+            int depth;
+        };
+        std::vector<std::string> subdirs;
+        DumpCtx ctx{dir, &subdirs, depth};
+        fs::Status st = fs::vfs_list(dir, &ctx, [](void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+            auto* info = static_cast<DumpCtx*>(ctx);
+            if (!info || !info->subdirs) return fs::Status{fs::Errc::inval};
+            detail::dump_indent(info->depth);
+            std::printf("%.*s%s\n",
+                        static_cast<int>(entry.name.size()),
+                        entry.name.data(),
+                        entry.type == fs::NodeType::dir ? "/" : "");
+            if (entry.type == fs::NodeType::dir) {
+                std::string path;
+                if (info->dir.empty() || info->dir == "/") {
+                    path = "/";
+                } else {
+                    path.assign(info->dir.begin(), info->dir.end());
+                    if (!path.empty() && path.back() != '/') path.push_back('/');
+                }
+                path.append(entry.name.begin(), entry.name.end());
+                info->subdirs->push_back(path);
+            }
+            return fs::Status{fs::Errc::ok};
+        });
+        if (!st) return false;
+        for (const auto& sub : subdirs) {
+            if (!dump_fs_tree(sub, depth + 1, max_depth)) return false;
+        }
+        return true;
     }
 
     fs::Status mount_fatfs_from_vhd(const char* path) {

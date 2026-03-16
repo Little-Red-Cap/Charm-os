@@ -40,6 +40,10 @@ export namespace player {
         }
 
         out.mount_status = "Mounted";
+#if defined(_WIN32)
+        std::printf("[fs] mount ok, dump tree:\n");
+        (void)fs_utils::dump_fs_tree("/", 0, 4);
+#endif
         fs::Status list_st{fs::Errc::ok};
         if (!fs_utils::collect_tracks_from_dir("/music", out.tracks, nullptr, list_st)) {
             std::vector<std::string> subdirs;

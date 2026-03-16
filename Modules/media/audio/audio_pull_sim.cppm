@@ -29,6 +29,11 @@ export namespace audio {
         std::uint32_t last_request_frames{0};
     };
 
+    enum class JitterPattern : std::uint8_t {
+        uniform,
+        burst
+    };
+
     class AudioPullSimulator {
     public:
         void set_clock(charm::system::Clock& clock) noexcept { clock_.reset(clock); }
@@ -36,6 +41,11 @@ export namespace audio {
             jitter_ms_ = ms;
             jitter_dist_ = std::uniform_int_distribution<std::uint32_t>(0, jitter_ms_);
         }
+        void set_jitter_seed(std::uint32_t seed) noexcept {
+            jitter_seed_ = seed;
+            rng_.seed(seed);
+        }
+        void set_jitter_pattern(JitterPattern pattern) noexcept { jitter_pattern_ = pattern; }
 
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
@@ -50,7 +60,9 @@ export namespace audio {
             }
             buffer_.assign(period_bytes_, std::byte{0});
             reset_stats();
-            seed_rng();
+            if (jitter_seed_ == 0) {
+                seed_rng();
+            }
             return {};
         }
 
@@ -116,6 +128,19 @@ export namespace audio {
 
         std::uint64_t next_jitter_us() noexcept {
             if (jitter_ms_ == 0) return 0;
+            if (jitter_pattern_ == JitterPattern::burst) {
+                if (jitter_burst_remaining_ > 0) {
+                    --jitter_burst_remaining_;
+                    return static_cast<std::uint64_t>(jitter_ms_) * 1000u;
+                }
+                if (jitter_burst_gap_ > 0) {
+                    --jitter_burst_gap_;
+                    return 0;
+                }
+                jitter_burst_gap_ = jitter_dist_(rng_);
+                jitter_burst_remaining_ = 1 + (jitter_ms_ / 2);
+                return static_cast<std::uint64_t>(jitter_ms_) * 1000u;
+            }
             return static_cast<std::uint64_t>(jitter_dist_(rng_)) * 1000u;
         }
 
@@ -203,8 +228,12 @@ export namespace audio {
         bool running_{false};
         std::uint64_t last_tick_ns_{0};
         std::uint32_t jitter_ms_{0};
+        std::uint32_t jitter_seed_{0};
+        JitterPattern jitter_pattern_{JitterPattern::uniform};
         std::minstd_rand rng_{};
         std::uniform_int_distribution<std::uint32_t> jitter_dist_{0, 0};
+        std::uint32_t jitter_burst_gap_{0};
+        std::uint32_t jitter_burst_remaining_{0};
 
         std::atomic<std::uint8_t> underrun_flag_{0};
         std::atomic<std::uint64_t> underrun_count_{0};

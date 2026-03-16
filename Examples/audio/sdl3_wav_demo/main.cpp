@@ -62,6 +62,7 @@ static double bytes_to_ms(std::size_t bytes, const audio::AudioFormat& fmt) {
 
 static void print_usage() {
     std::printf("usage: sdl3-wav-demo [--tone[=HZ]] [--pull-sim] [--pull-jitter-ms N]\n");
+    std::printf("                      [--pull-jitter-seed N] [--pull-jitter-pattern uniform|burst]\n");
     std::printf("                      [--tone-gain G] [--tone-fifo-ms N] [--tone-period-frames N]\n");
     std::printf("                      [--profile lowlat|stable] [--seconds N] [--stress[=ms]] [--fixed-rate N] [--force-mono 1|2]\n");
     std::printf("                      [--reconfig-at SEC] [--reconfig-fixed-rate N] [--reconfig-fade-in MS] [--fail-reconfig-open]\n");
@@ -75,6 +76,8 @@ struct ToneConfig {
     float freq_hz{440.0f};
     float gain{0.2f};
     std::uint32_t pull_jitter_ms{0};
+    std::uint32_t pull_jitter_seed{0};
+    std::string pull_jitter_pattern{"uniform"};
 };
 
 static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
@@ -106,6 +109,14 @@ static int run_pull_sim(const ToneConfig& cfg, charm::system::Clock& clock) {
     AudioPullSimulator sim{};
     sim.set_clock(clock);
     sim.set_jitter_ms(cfg.pull_jitter_ms);
+    if (cfg.pull_jitter_seed != 0) {
+        sim.set_jitter_seed(cfg.pull_jitter_seed);
+    }
+    if (cfg.pull_jitter_pattern == "burst") {
+        sim.set_jitter_pattern(audio::JitterPattern::burst);
+    } else {
+        sim.set_jitter_pattern(audio::JitterPattern::uniform);
+    }
 
     media::StreamFormat stream_fmt{};
     stream_fmt.kind = media::StreamKind::audio;
@@ -306,6 +317,14 @@ int main(int argc, char** argv) {
             tone_cfg.pull_jitter_ms = parse_u32(argv[++i], tone_cfg.pull_jitter_ms);
         } else if (arg.rfind("--pull-jitter-ms=", 0) == 0) {
             tone_cfg.pull_jitter_ms = parse_u32(arg.c_str() + std::strlen("--pull-jitter-ms="), tone_cfg.pull_jitter_ms);
+        } else if (arg == "--pull-jitter-seed" && i + 1 < argc) {
+            tone_cfg.pull_jitter_seed = parse_u32(argv[++i], tone_cfg.pull_jitter_seed);
+        } else if (arg.rfind("--pull-jitter-seed=", 0) == 0) {
+            tone_cfg.pull_jitter_seed = parse_u32(arg.c_str() + std::strlen("--pull-jitter-seed="), tone_cfg.pull_jitter_seed);
+        } else if (arg == "--pull-jitter-pattern" && i + 1 < argc) {
+            tone_cfg.pull_jitter_pattern = argv[++i];
+        } else if (arg.rfind("--pull-jitter-pattern=", 0) == 0) {
+            tone_cfg.pull_jitter_pattern = arg.substr(std::strlen("--pull-jitter-pattern="));
         } else if (arg.rfind("--tone=", 0) == 0) {
             use_tone = true;
             tone_cfg.freq_hz = static_cast<float>(parse_f64(arg.c_str() + std::strlen("--tone="), tone_cfg.freq_hz));

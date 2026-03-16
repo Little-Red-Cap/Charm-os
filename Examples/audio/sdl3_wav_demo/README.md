@@ -18,7 +18,7 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo sample.flac
 
 ```bash
 # Pull simulator (no SDL audio output)
-Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --tone=440 --seconds=10
+Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
 ```
 
 ## Notes
@@ -26,3 +26,5 @@ Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo --pull-sim --pull-jitter-ms=5 -
 - `--pull-sim` forces tone mode and runs `AudioPullSimulator` to exercise
   pull timing, underrun, and water-level behavior without hardware.
 - `--pull-jitter-ms` injects random callback jitter (0..N ms) for stress testing.
+- `--pull-jitter-seed` makes the jitter sequence repeatable.
+- `--pull-jitter-pattern` selects `uniform` or `burst`.

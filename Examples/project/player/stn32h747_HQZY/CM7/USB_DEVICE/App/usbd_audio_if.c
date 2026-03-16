@@ -22,6 +22,8 @@
 #include "usbd_audio_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include <string.h>
+#include "stm32h7xx.h"
 
 /* USER CODE END INCLUDE */
 
@@ -31,6 +33,21 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+static volatile uint32_t g_audio_rx_bytes = 0;
+static volatile uint32_t g_audio_rx_pkts = 0;
+static volatile uint32_t g_audio_rx_last_size = 0;
+static volatile uint32_t g_audio_rx_overflows = 0;
+static volatile uint32_t g_audio_freq = 0;
+static volatile uint32_t g_audio_cmd = 0;
+static volatile uint32_t g_audio_init_calls = 0;
+static volatile uint32_t g_audio_cmd_calls = 0;
+static volatile uint32_t g_audio_ring_overflows = 0;
+
+// static uint8_t g_audio_ring[524288];
+static uint8_t g_audio_ring[409600];
+static volatile uint32_t g_audio_ring_wr = 0;
+static volatile uint32_t g_audio_ring_rd = 0;
+static volatile uint32_t g_audio_ring_used = 0;
 
 /* USER CODE END PV */
 
@@ -153,9 +170,10 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options)
 {
   /* USER CODE BEGIN 0 */
-  UNUSED(AudioFreq);
   UNUSED(Volume);
   UNUSED(options);
+  g_audio_freq = AudioFreq;
+  g_audio_init_calls++;
   return (USBD_OK);
   /* USER CODE END 0 */
 }
@@ -183,6 +201,8 @@ static int8_t AUDIO_DeInit_FS(uint32_t options)
 static int8_t AUDIO_AudioCmd_FS(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 {
   /* USER CODE BEGIN 2 */
+  g_audio_cmd = cmd;
+  g_audio_cmd_calls++;
   switch(cmd)
   {
     case AUDIO_CMD_START:
@@ -233,7 +253,47 @@ static int8_t AUDIO_PeriodicTC_FS(uint8_t *pbuf, uint32_t size, uint8_t cmd)
 {
   /* USER CODE BEGIN 5 */
   UNUSED(pbuf);
-  UNUSED(size);
+  if (size > 0)
+  {
+    uint32_t next = g_audio_rx_bytes + size;
+    if (next < g_audio_rx_bytes)
+    {
+      g_audio_rx_overflows++;
+    }
+    g_audio_rx_bytes = next;
+    g_audio_rx_pkts++;
+    g_audio_rx_last_size = size;
+  }
+  if (size > 0)
+  {
+    if ((g_audio_ring_used + size) > sizeof(g_audio_ring))
+    {
+      g_audio_ring_overflows++;
+    }
+    else
+    {
+      uint32_t wr = g_audio_ring_wr;
+      uint32_t remaining = sizeof(g_audio_ring) - wr;
+      const uint8_t* src = pbuf;
+      if (size <= remaining)
+      {
+        (void)memcpy(&g_audio_ring[wr], src, size);
+        wr += size;
+        if (wr >= sizeof(g_audio_ring))
+        {
+          wr = 0;
+        }
+      }
+      else
+      {
+        (void)memcpy(&g_audio_ring[wr], src, remaining);
+        (void)memcpy(&g_audio_ring[0], src + remaining, size - remaining);
+        wr = size - remaining;
+      }
+      g_audio_ring_wr = wr;
+      g_audio_ring_used += size;
+    }
+  }
   UNUSED(cmd);
   return (USBD_OK);
   /* USER CODE END 5 */
@@ -273,6 +333,109 @@ void HalfTransfer_CallBack_FS(void)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+uint32_t usb_audio_rx_bytes(void)
+{
+  return g_audio_rx_bytes;
+}
+
+uint32_t usb_audio_rx_pkts(void)
+{
+  return g_audio_rx_pkts;
+}
+
+uint32_t usb_audio_rx_last_size(void)
+{
+  return g_audio_rx_last_size;
+}
+
+uint32_t usb_audio_rx_overflows(void)
+{
+  return g_audio_rx_overflows;
+}
+
+uint32_t usb_audio_rx_freq(void)
+{
+  return g_audio_freq;
+}
+
+uint32_t usb_audio_rx_cmd(void)
+{
+  return g_audio_cmd;
+}
+
+uint32_t usb_audio_rx_init_calls(void)
+{
+  return g_audio_init_calls;
+}
+
+uint32_t usb_audio_rx_cmd_calls(void)
+{
+  return g_audio_cmd_calls;
+}
+
+void usb_audio_rx_reset(void)
+{
+  g_audio_rx_bytes = 0;
+  g_audio_rx_pkts = 0;
+  g_audio_rx_last_size = 0;
+  g_audio_rx_overflows = 0;
+  g_audio_init_calls = 0;
+  g_audio_cmd_calls = 0;
+  g_audio_ring_overflows = 0;
+  g_audio_ring_wr = 0;
+  g_audio_ring_rd = 0;
+  g_audio_ring_used = 0;
+}
+
+uint32_t usb_audio_ring_available(void)
+{
+  return g_audio_ring_used;
+}
+
+uint32_t usb_audio_ring_overflows(void)
+{
+  return g_audio_ring_overflows;
+}
+
+uint32_t usb_audio_ring_read(uint8_t* dst, uint32_t size)
+{
+  if (!dst || size == 0)
+  {
+    return 0;
+  }
+  __disable_irq();
+  uint32_t available = g_audio_ring_used;
+  if (size > available)
+  {
+    size = available;
+  }
+  if (size == 0)
+  {
+    __enable_irq();
+    return 0;
+  }
+  uint32_t rd = g_audio_ring_rd;
+  uint32_t remaining = sizeof(g_audio_ring) - rd;
+  if (size <= remaining)
+  {
+    (void)memcpy(dst, &g_audio_ring[rd], size);
+    rd += size;
+    if (rd >= sizeof(g_audio_ring))
+    {
+      rd = 0;
+    }
+  }
+  else
+  {
+    (void)memcpy(dst, &g_audio_ring[rd], remaining);
+    (void)memcpy(dst + remaining, &g_audio_ring[0], size - remaining);
+    rd = size - remaining;
+  }
+  g_audio_ring_rd = rd;
+  g_audio_ring_used -= size;
+  __enable_irq();
+  return size;
+}
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 

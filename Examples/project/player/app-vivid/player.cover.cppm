@@ -44,6 +44,17 @@ export namespace player {
             return a == 'f' && b == 'l' && c == 'a' && d == 'c';
         }
 
+        bool is_mp3_path(std::string_view path) noexcept {
+            const auto dot = path.find_last_of('.');
+            if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
+            const auto ext = path.substr(dot + 1);
+            if (ext.size() != 3) return false;
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            return a == 'm' && b == 'p' && c == '3';
+        }
+
         bool decode_image_from_memory(const std::byte* data,
                                       std::size_t size,
                                       CoverImage& out,
@@ -96,6 +107,33 @@ export namespace player {
             const auto b2 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[2]));
             const auto b3 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[3]));
             return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+        }
+
+        inline std::uint32_t read_synchsafe_u32(const std::byte* data) noexcept {
+            const auto b0 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[0]) & 0x7F);
+            const auto b1 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[1]) & 0x7F);
+            const auto b2 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[2]) & 0x7F);
+            const auto b3 = static_cast<std::uint32_t>(static_cast<unsigned char>(data[3]) & 0x7F);
+            return (b0 << 21) | (b1 << 14) | (b2 << 7) | b3;
+        }
+
+        std::vector<std::byte> id3_unsync(std::vector<std::byte> in) {
+            std::vector<std::byte> out;
+            out.reserve(in.size());
+            for (std::size_t i = 0; i < in.size(); ++i) {
+                const auto cur = static_cast<unsigned char>(in[i]);
+                if (cur == 0xFF && i + 1 < in.size()) {
+                    const auto next = static_cast<unsigned char>(in[i + 1]);
+                    out.push_back(in[i]);
+                    if (next == 0x00) {
+                        ++i;
+                        continue;
+                    }
+                    continue;
+                }
+                out.push_back(in[i]);
+            }
+            return out;
         }
 
         inline bool starts_with_ci(std::string_view s, std::string_view prefix) noexcept {
@@ -468,6 +506,230 @@ export namespace player {
             }
             return decode_image_from_memory(meta.cover.picture.data(), meta.cover.picture.size(), out, path);
         }
+
+        bool load_mp3_cover(std::string_view path, CoverImage& out) {
+            fs::File f{};
+            auto st = fs::vfs_open(path, f);
+            if (!st) return false;
+            if (f.node.size <= 0) {
+                (void)fs::vfs_close(f);
+                return false;
+            }
+            (void)fs::vfs_seek(f, 0);
+            std::array<std::byte, 10> head{};
+            if (!fs::read(f, std::span<util::u8>(
+                    reinterpret_cast<util::u8*>(head.data()), head.size()))) {
+                (void)fs::vfs_close(f);
+                return false;
+            }
+            const bool is_id3 = head[0] == std::byte{'I'} && head[1] == std::byte{'D'}
+                && head[2] == std::byte{'3'};
+            if (!is_id3) {
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                std::printf("[cover] mp3 no id3: %.*s\n",
+                            static_cast<int>(path.size()), path.data());
+#endif
+                (void)fs::vfs_close(f);
+                return false;
+            }
+            const auto ver = static_cast<unsigned char>(head[3]);
+            const auto flags = static_cast<unsigned char>(head[5]);
+            const std::uint32_t tag_size = read_synchsafe_u32(head.data() + 6);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] mp3 id3 v2.%u flags=0x%02x tag=%u\n",
+                        static_cast<unsigned int>(ver),
+                        static_cast<unsigned int>(flags),
+                        static_cast<unsigned int>(tag_size));
+#endif
+            if (tag_size == 0 || tag_size > (8u * 1024u * 1024u)) {
+                (void)fs::vfs_close(f);
+                return false;
+            }
+            std::vector<std::byte> tag;
+            tag.resize(tag_size);
+            std::size_t offset = 0;
+            while (offset < tag.size()) {
+                const std::size_t chunk = std::min<std::size_t>(tag.size() - offset, 64 * 1024);
+                const auto before = f.node.offset;
+                auto st_read = fs::read(f, std::span<util::u8>(
+                    reinterpret_cast<util::u8*>(tag.data() + offset), chunk));
+                if (!st_read) {
+                    (void)fs::vfs_close(f);
+                    return false;
+                }
+                const auto after = f.node.offset;
+                if (after <= before) break;
+                const std::size_t read = static_cast<std::size_t>(after - before);
+                offset += read;
+            }
+            (void)fs::vfs_close(f);
+            if (offset == 0) return false;
+            if (offset < tag.size()) tag.resize(offset);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] mp3 id3 bytes=%zu\n", offset);
+#endif
+
+            if ((flags & 0x80) != 0) {
+                tag = id3_unsync(std::move(tag));
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                std::printf("[cover] mp3 id3 unsync applied\n");
+#endif
+            }
+
+            std::size_t off = 0;
+            if (flags & 0x40) {
+                if (ver == 4 && off + 4 <= tag.size()) {
+                    const std::uint32_t ext_size = read_synchsafe_u32(tag.data() + off);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    std::printf("[cover] mp3 id3 ext v2.4 size=%u\n",
+                                static_cast<unsigned int>(ext_size));
+#endif
+                    off += std::min<std::size_t>(ext_size, tag.size() - off);
+                } else if (ver == 3 && off + 4 <= tag.size()) {
+                    const std::uint32_t ext_size = read_be_u32(tag.data() + off);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    std::printf("[cover] mp3 id3 ext v2.3 size=%u\n",
+                                static_cast<unsigned int>(ext_size));
+#endif
+                    off += std::min<std::size_t>(ext_size, tag.size() - off);
+                }
+            }
+
+            auto read_frame_size = [&](const std::byte* ptr) -> std::uint32_t {
+                if (ver == 4) return read_synchsafe_u32(ptr);
+                return read_be_u32(ptr);
+            };
+
+            std::uint32_t frame_count = 0;
+            if (ver == 2) {
+                while (off + 6 <= tag.size()) {
+                    const auto* frame = tag.data() + off;
+                    const char id0 = static_cast<char>(frame[0]);
+                    const char id1 = static_cast<char>(frame[1]);
+                    const char id2 = static_cast<char>(frame[2]);
+                    if (id0 == 0 || id1 == 0 || id2 == 0) {
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        std::printf("[cover] mp3 frame v2.2 zero id at off=%zu\n", off);
+#endif
+                        break;
+                    }
+                    const std::uint32_t size = (static_cast<std::uint32_t>(static_cast<unsigned char>(frame[3])) << 16)
+                        | (static_cast<std::uint32_t>(static_cast<unsigned char>(frame[4])) << 8)
+                        | static_cast<std::uint32_t>(static_cast<unsigned char>(frame[5]));
+                    if (size == 0) break;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    if (frame_count < 8) {
+                        std::printf("[cover] mp3 frame v2.2 %c%c%c size=%u\n",
+                                    id0, id1, id2,
+                                    static_cast<unsigned int>(size));
+                    }
+#endif
+                    ++frame_count;
+                    const std::size_t frame_end = off + 6 + size;
+                    if (frame_end > tag.size()) break;
+                    const bool is_pic = id0 == 'P' && id1 == 'I' && id2 == 'C';
+                    if (is_pic) {
+                        const auto* data = frame + 6;
+                        std::size_t pos = 0;
+                        if (size < 5) break;
+                        const unsigned char encoding = static_cast<unsigned char>(data[pos++]);
+                        pos += 3; // image format
+                        if (pos >= size) break;
+                        const unsigned char pic_type = static_cast<unsigned char>(data[pos++]);
+                        if (encoding == 0 || encoding == 3) {
+                            while (pos < size && data[pos] != std::byte{0}) ++pos;
+                            if (pos < size) ++pos;
+                        } else {
+                            while (pos + 1 < size) {
+                                if (data[pos] == std::byte{0} && data[pos + 1] == std::byte{0}) {
+                                    pos += 2;
+                                    break;
+                                }
+                                pos += 2;
+                            }
+                        }
+                        if (pos >= size) break;
+                        const auto img_size = size - pos;
+                        if (img_size == 0 || img_size > (8u * 1024u * 1024u)) break;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        std::printf("[cover] mp3 pic type=%u size=%zu\n",
+                                    static_cast<unsigned int>(pic_type),
+                                    static_cast<std::size_t>(img_size));
+#endif
+                        return decode_image_from_memory(data + pos, img_size, out, path);
+                    }
+                    off = frame_end;
+                }
+            } else {
+                while (off + 10 <= tag.size()) {
+                    const auto* frame = tag.data() + off;
+                    const char id0 = static_cast<char>(frame[0]);
+                    const char id1 = static_cast<char>(frame[1]);
+                    const char id2 = static_cast<char>(frame[2]);
+                    const char id3 = static_cast<char>(frame[3]);
+                    if (id0 == 0 || id1 == 0 || id2 == 0 || id3 == 0) {
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        std::printf("[cover] mp3 frame v2.%u zero id at off=%zu\n",
+                                    static_cast<unsigned int>(ver), off);
+#endif
+                        break;
+                    }
+                    const std::uint32_t size = read_frame_size(frame + 4);
+                    if (size == 0) break;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    if (frame_count < 8) {
+                        std::printf("[cover] mp3 frame v2.%u %c%c%c%c size=%u\n",
+                                    static_cast<unsigned int>(ver),
+                                    id0, id1, id2, id3,
+                                    static_cast<unsigned int>(size));
+                    }
+#endif
+                    ++frame_count;
+                    const std::size_t frame_end = off + 10 + size;
+                    if (frame_end > tag.size()) break;
+                    const bool is_apic = id0 == 'A' && id1 == 'P' && id2 == 'I' && id3 == 'C';
+                    if (is_apic) {
+                        const auto* data = frame + 10;
+                        std::size_t pos = 0;
+                        if (size < 4) break;
+                        const unsigned char encoding = static_cast<unsigned char>(data[pos++]);
+                        while (pos < size && data[pos] != std::byte{0}) ++pos;
+                        if (pos >= size) break;
+                        ++pos;
+                        if (pos >= size) break;
+                        const unsigned char pic_type = static_cast<unsigned char>(data[pos++]);
+                        if (encoding == 0 || encoding == 3) {
+                            while (pos < size && data[pos] != std::byte{0}) ++pos;
+                            if (pos < size) ++pos;
+                        } else {
+                            while (pos + 1 < size) {
+                                if (data[pos] == std::byte{0} && data[pos + 1] == std::byte{0}) {
+                                    pos += 2;
+                                    break;
+                                }
+                                pos += 2;
+                            }
+                        }
+                        if (pos >= size) break;
+                        const auto img_size = size - pos;
+                        if (img_size == 0 || img_size > (8u * 1024u * 1024u)) break;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        std::printf("[cover] mp3 apic type=%u size=%zu\n",
+                                    static_cast<unsigned int>(pic_type),
+                                    static_cast<std::size_t>(img_size));
+#endif
+                        return decode_image_from_memory(data + pos, img_size, out, path);
+                    }
+                    off = frame_end;
+                }
+            }
+
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] mp3 apic not found: %.*s\n",
+                        static_cast<int>(path.size()), path.data());
+#endif
+            return false;
+        }
     } // namespace detail
 
     void release_cover_image(CoverImage& img) {
@@ -482,6 +744,9 @@ export namespace player {
         if (path.empty()) return false;
         if (detail::is_flac_path(path)) {
             return detail::load_flac_cover(path, out);
+        }
+        if (detail::is_mp3_path(path)) {
+            return detail::load_mp3_cover(path, out);
         }
 
         fs::File f{};

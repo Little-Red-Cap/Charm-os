@@ -42,6 +42,13 @@ export namespace player {
         Mode,
     };
 
+    enum class CoverStrategy : std::uint8_t {
+        embedded_first,
+        folder_first,
+        embedded_only,
+        folder_only,
+    };
+
     struct UiHandles {
         WidgetHandle root{};
         WidgetHandle cover{};
@@ -90,8 +97,11 @@ export namespace player {
         std::string title_text{};
         std::string subtitle_text{};
         std::string cover_path{};
+        std::string cover_embedded_path{};
+        std::string cover_folder_path{};
         CoverImage cover_image{};
         bool cover_ready{false};
+        CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         bool fs_ready{false};
         int play_mode{0};
         bool ignore_list_select{false};
@@ -242,6 +252,8 @@ export namespace player {
         void reset_cover_image() noexcept {
             cover_ready = false;
             cover_path.clear();
+            cover_embedded_path.clear();
+            cover_folder_path.clear();
             release_cover_image(cover_image);
             if (kernel && handles.cover && kernel->kind(handles.cover) == WidgetKind::Image) {
                 kernel->set_image(handles.cover, soa_detail::invalid_image_id());
@@ -250,7 +262,7 @@ export namespace player {
 
         void update_cover_image() {
             if (!kernel || !handles.cover) return;
-            if (!cover_ready || cover_path.empty()) {
+            if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
                 if (kernel->kind(handles.cover) == WidgetKind::Image) {
                     kernel->set_image(handles.cover, soa_detail::invalid_image_id());
@@ -260,15 +272,45 @@ export namespace player {
 #endif
                 return;
             }
-            if (cover_image.path == cover_path && soa_detail::image_id_valid(cover_image.image_id)) {
-                return;
-            }
-            if (load_cover_image(cover_path, cover_image)) {
-                if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                    kernel->set_image(handles.cover, cover_image.image_id);
+            auto try_load = [&](std::string_view candidate) -> bool {
+                if (candidate.empty()) return false;
+                if (cover_image.path == candidate && soa_detail::image_id_valid(cover_image.image_id)) {
+                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                        kernel->set_image(handles.cover, cover_image.image_id);
+                    }
+                    cover_path.assign(candidate.begin(), candidate.end());
+                    return true;
                 }
-                return;
+                if (load_cover_image(candidate, cover_image)) {
+                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                        kernel->set_image(handles.cover, cover_image.image_id);
+                    }
+                    cover_path.assign(candidate.begin(), candidate.end());
+                    return true;
+                }
+                return false;
+            };
+
+            bool loaded = false;
+            switch (cover_strategy) {
+            case CoverStrategy::embedded_only:
+                loaded = try_load(cover_embedded_path);
+                break;
+            case CoverStrategy::folder_only:
+                loaded = try_load(cover_folder_path);
+                break;
+            case CoverStrategy::folder_first:
+                loaded = try_load(cover_folder_path);
+                if (!loaded) loaded = try_load(cover_embedded_path);
+                break;
+            case CoverStrategy::embedded_first:
+            default:
+                loaded = try_load(cover_embedded_path);
+                if (!loaded) loaded = try_load(cover_folder_path);
+                break;
             }
+
+            if (loaded) return;
             if (kernel->kind(handles.cover) == WidgetKind::Image) {
                 kernel->set_image(handles.cover, soa_detail::invalid_image_id());
             }
@@ -739,14 +781,31 @@ export namespace player {
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
             if (track_ready) {
-                cover_ready = fs_utils::find_cover_for_track(vfs_path, cover_path);
-                if (!cover_ready && is_flac_path(vfs_path)) {
-                    cover_ready = true;
-                    cover_path = vfs_path;
+                cover_embedded_path = vfs_path;
+                cover_folder_path.clear();
+                const bool has_folder = fs_utils::find_cover_for_track(vfs_path, cover_folder_path);
+                cover_ready = true;
+                switch (cover_strategy) {
+                case CoverStrategy::embedded_only:
+                    cover_path = cover_embedded_path;
+                    break;
+                case CoverStrategy::folder_only:
+                    cover_path = has_folder ? cover_folder_path : std::string{};
+                    cover_ready = has_folder;
+                    break;
+                case CoverStrategy::folder_first:
+                    cover_path = has_folder ? cover_folder_path : cover_embedded_path;
+                    break;
+                case CoverStrategy::embedded_first:
+                default:
+                    cover_path = cover_embedded_path;
+                    break;
                 }
             } else {
                 cover_ready = false;
                 cover_path.clear();
+                cover_embedded_path.clear();
+                cover_folder_path.clear();
             }
             update_cover_image();
             reset_duration();

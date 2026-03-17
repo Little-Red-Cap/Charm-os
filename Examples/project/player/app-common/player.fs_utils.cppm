@@ -28,6 +28,16 @@ export namespace player::fs_utils {
                 std::printf("  ");
             }
         }
+
+        void dump_name_escaped(std::string_view name) {
+            for (unsigned char ch : name) {
+                if (std::isprint(ch)) {
+                    std::printf("%c", static_cast<char>(ch));
+                } else {
+                    std::printf("\\x%02X", static_cast<unsigned int>(ch));
+                }
+            }
+        }
     }
     namespace detail {
         struct MbrPartition {
@@ -96,7 +106,23 @@ export namespace player::fs_utils {
                 return fs::Status{fs::Errc::ok};
             }
             if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
-            if (!has_audio_ext(entry.name)) return fs::Status{fs::Errc::ok};
+            if (!has_audio_ext(entry.name)) {
+#if defined(_WIN32)
+                bool has_non_ascii = false;
+                for (unsigned char ch : entry.name) {
+                    if (ch >= 0x80u || !std::isprint(ch)) {
+                        has_non_ascii = true;
+                        break;
+                    }
+                }
+                if (has_non_ascii) {
+                    std::printf("[fs] skip non-audio file: ");
+                    detail::dump_name_escaped(entry.name);
+                    std::printf("\n");
+                }
+#endif
+                return fs::Status{fs::Errc::ok};
+            }
 
             std::string path;
             if (info->dir.empty() || info->dir == "/") {
@@ -190,10 +216,8 @@ export namespace player::fs_utils {
             auto* info = static_cast<DumpCtx*>(ctx);
             if (!info || !info->subdirs) return fs::Status{fs::Errc::inval};
             detail::dump_indent(info->depth);
-            std::printf("%.*s%s\n",
-                        static_cast<int>(entry.name.size()),
-                        entry.name.data(),
-                        entry.type == fs::NodeType::dir ? "/" : "");
+            detail::dump_name_escaped(entry.name);
+            std::printf("%s\n", entry.type == fs::NodeType::dir ? "/" : "");
             if (entry.type == fs::NodeType::dir) {
                 std::string path;
                 if (info->dir.empty() || info->dir == "/") {

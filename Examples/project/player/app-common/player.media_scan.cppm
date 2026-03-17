@@ -1,4 +1,5 @@
 module;
+#include <cctype>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -79,6 +80,20 @@ export namespace player {
         }
 
         out.has_tracks = !out.tracks.empty();
+#if defined(_WIN32)
+        std::printf("[fs] tracks=%zu\n", out.tracks.size());
+        for (const auto& path_str : out.tracks) {
+            std::printf("[fs] track: ");
+            for (unsigned char ch : path_str) {
+                if (std::isprint(ch)) {
+                    std::printf("%c", static_cast<char>(ch));
+                } else {
+                    std::printf("\\x%02X", static_cast<unsigned int>(ch));
+                }
+            }
+            std::printf("\n");
+        }
+#endif
         return out;
     }
 }

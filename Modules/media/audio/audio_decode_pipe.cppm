@@ -174,7 +174,7 @@ export namespace audio {
 
             if (resample_enabled_) {
                 input_chunk_frames_ = static_cast<std::size_t>(
-                    (static_cast<std::uint64_t>(chunk_frames_) * input_fmt_.rate) / output_fmt_.rate) + 2;
+                    (static_cast<std::uint64_t>(chunk_frames_) * input_fmt_.rate) / output_fmt_.rate) + 1;
                 if (input_chunk_frames_ < 2) input_chunk_frames_ = 2;
                 if (input_chunk_frames_ > kMaxInputFrames) return false;
                 const std::size_t in_samples = input_chunk_frames_ * input_fmt_.channels;
@@ -411,8 +411,12 @@ export namespace audio {
             if (total_frames == 0) return 0;
 
             if (!s32_work_.resize((total_frames + 1) * channels)) {
-                has_more_data_ = false;
-                return 0;
+                resample_cache_frames_ = 0;
+                total_frames = conv_frames;
+                if (!s32_work_.resize((total_frames + 1) * channels)) {
+                    has_more_data_ = false;
+                    return 0;
+                }
             }
             if (resample_cache_frames_ > 0) {
                 std::memcpy(
@@ -545,8 +549,9 @@ export namespace audio {
         StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_in_{};
         StaticBuffer<std::int32_t, kMaxChunkFrames * kMaxChannels> s32_out_{};
         StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_conv_{};
-        StaticBuffer<std::int32_t, (kMaxInputFrames + 1) * kMaxChannels> s32_work_{};
-        StaticBuffer<std::int32_t, (kMaxInputFrames + 1) * kMaxChannels> resample_cache_{};
+        static constexpr std::size_t kResampleCacheSlack = 16;
+        StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> s32_work_{};
+        StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> resample_cache_{};
 
         LinearResamplerS32 resampler_{};
         ChannelConverterS32 channel_conv_{};

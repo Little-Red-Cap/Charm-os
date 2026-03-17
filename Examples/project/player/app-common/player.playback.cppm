@@ -22,6 +22,22 @@ import audio.source.file;
 #endif
 import media.stream.source;
 
+namespace {
+    void dump_path_escaped(const char* path) {
+        if (!path) {
+            std::printf("(null)");
+            return;
+        }
+        for (const unsigned char ch : std::string_view{path}) {
+            if (std::isprint(ch)) {
+                std::printf("%c", static_cast<char>(ch));
+            } else {
+                std::printf("\\x%02X", static_cast<unsigned int>(ch));
+            }
+        }
+    }
+}
+
 export namespace player {
     const char* audio_err_text(audio::Errc err) {
         switch (err) {
@@ -329,14 +345,29 @@ export namespace player {
             }
             if (!track_ready_) {
                 out_status = "Track not ready";
+#if defined(_WIN32)
+                std::printf("[player] track not ready: ");
+                dump_path_escaped(track_path_);
+                std::printf("\n");
+#endif
                 return false;
             }
             (void)player_->stop();
+#if defined(_WIN32)
+            std::printf("[player] play: ");
+            dump_path_escaped(track_path_);
+            std::printf("\n");
+#endif
             auto res = player_->play(track_path_);
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
                 out_status = buf;
+#if defined(_WIN32)
+                std::printf("[player] play failed (%s): ", audio_err_text(res.error()));
+                dump_path_escaped(track_path_);
+                std::printf("\n");
+#endif
                 return false;
             }
             playing_ = true;

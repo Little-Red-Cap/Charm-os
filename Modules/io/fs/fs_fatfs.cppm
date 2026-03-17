@@ -10,6 +10,12 @@
 #include <string_view>
 
 #if CHARM_USE_FATFS
+#ifdef _INC_TCHAR
+#undef _INC_TCHAR
+#endif
+#ifdef TCHAR
+#undef TCHAR
+#endif
 #include "ff.h"
 #include "diskio.h"
 #endif
@@ -334,18 +340,33 @@ export namespace fs {
                     src = info.lfname;
                 }
     #endif
-                const auto written = utf16_to_utf8(src, fname_utf8.data(), fname_utf8.size());
+                const auto written = (sizeof(TCHAR) == 2)
+                    ? utf16_to_utf8(src, fname_utf8.data(), fname_utf8.size())
+                    : oem_to_utf8(reinterpret_cast<const char*>(src), fname_utf8.data(), fname_utf8.size());
                 if (written > 0) {
                     fname_utf8[(std::min)(written, fname_utf8.size() - 1)] = '\0';
                     name = fname_utf8.data();
                 }
 #else
-                name = info.fname;
+                constexpr util::usize lfn_utf8_cap =
+#if defined(_MAX_LFN)
+                    static_cast<util::usize>(_MAX_LFN) * 4 + 1;
+#else
+                    256 * 4 + 1;
+#endif
+                std::array<char, lfn_utf8_cap> fname_utf8{};
+                const TCHAR* src = info.fname;
     #if defined(_USE_LFN) && _USE_LFN
                 if (info.lfname && info.lfname[0] != 0) {
-                    name = info.lfname;
+                    src = info.lfname;
                 }
     #endif
+                const auto written = oem_to_utf8(reinterpret_cast<const char*>(src),
+                    fname_utf8.data(), fname_utf8.size());
+                if (written > 0) {
+                    fname_utf8[(std::min)(written, fname_utf8.size() - 1)] = '\0';
+                    name = fname_utf8.data();
+                }
 #endif
                 MountOps::ListEntry entry{};
                 entry.name = std::string_view{name};
@@ -438,7 +459,6 @@ export namespace fs {
         static constexpr util::usize max_path = 256;
 #endif
 
-#if defined(_LFN_UNICODE) && _LFN_UNICODE
         static bool append_utf8(util::u32 cp, char* out, util::usize cap, util::usize& pos) noexcept {
             if (cap == 0) return false;
             if (cp <= 0x7F) {
@@ -487,6 +507,46 @@ export namespace fs {
                 } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
                     cp = 0xFFFD;
                 }
+                if (!append_utf8(cp, out, cap, pos)) break;
+            }
+            if (pos < cap) out[pos] = '\0';
+            return pos;
+        }
+
+        static bool is_dbcs1(unsigned char ch) noexcept {
+#if defined(_CODE_PAGE) && _CODE_PAGE == 936
+            return (ch >= 0x81 && ch <= 0xFE);
+#else
+            (void)ch;
+            return false;
+#endif
+        }
+
+        static bool is_dbcs2(unsigned char ch) noexcept {
+#if defined(_CODE_PAGE) && _CODE_PAGE == 936
+            return ((ch >= 0x40 && ch <= 0x7E) || (ch >= 0x80 && ch <= 0xFE));
+#else
+            (void)ch;
+            return false;
+#endif
+        }
+
+        static util::usize oem_to_utf8(const char* in, char* out, util::usize cap) noexcept {
+            if (!in || !out || cap == 0) return 0;
+            util::usize pos = 0;
+            util::usize idx = 0;
+            while (in[idx] != 0) {
+                const unsigned char b0 = static_cast<unsigned char>(in[idx++]);
+                util::u32 oem = b0;
+                if (is_dbcs1(b0) && in[idx] != 0) {
+                    const unsigned char b1 = static_cast<unsigned char>(in[idx]);
+                    if (is_dbcs2(b1)) {
+                        oem = (static_cast<util::u32>(b0) << 8) | b1;
+                        ++idx;
+                    }
+                }
+                const WCHAR uni = ff_convert(static_cast<WCHAR>(oem), 1);
+                const util::u32 cp = uni ? static_cast<util::u32>(uni) : 0xFFFD;
                 if (!append_utf8(cp, out, cap, pos)) break;
             }
             if (pos < cap) out[pos] = '\0';
@@ -551,8 +611,66 @@ export namespace fs {
             if (pos < cap) out[pos] = 0;
             return pos + 1 < cap;
         }
-#endif
 
+        static bool utf8_to_oem(std::string_view in, TCHAR* out, util::usize cap) noexcept {
+            if (!out || cap == 0) return false;
+            util::usize pos = 0;
+            util::usize i = 0;
+            while (i < in.size()) {
+                util::u32 cp = 0xFFFD;
+                const auto c0 = static_cast<unsigned char>(in[i]);
+                if (c0 < 0x80) {
+                    cp = c0;
+                    i += 1;
+                } else if ((c0 & 0xE0) == 0xC0 && i + 1 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    if ((c1 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x1F) << 6) | (c1 & 0x3F);
+                        if (cp < 0x80) cp = 0xFFFD;
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                } else if ((c0 & 0xF0) == 0xE0 && i + 2 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    const auto c2 = static_cast<unsigned char>(in[i + 2]);
+                    if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F);
+                        if (cp < 0x800) cp = 0xFFFD;
+                        i += 3;
+                    } else {
+                        i += 1;
+                    }
+                } else if ((c0 & 0xF8) == 0xF0 && i + 3 < in.size()) {
+                    const auto c1 = static_cast<unsigned char>(in[i + 1]);
+                    const auto c2 = static_cast<unsigned char>(in[i + 2]);
+                    const auto c3 = static_cast<unsigned char>(in[i + 3]);
+                    if ((c1 & 0xC0) == 0x80 && (c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80) {
+                        cp = ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) |
+                             ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+                        if (cp < 0x10000 || cp > 0x10FFFF) cp = 0xFFFD;
+                        i += 4;
+                    } else {
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+
+                const WCHAR oem = ff_convert(static_cast<WCHAR>(cp), 0);
+                if (!oem) return false;
+                if (oem >= 0x100) {
+                    if (pos + 2 >= cap) return false;
+                    out[pos++] = static_cast<TCHAR>(oem >> 8);
+                    out[pos++] = static_cast<TCHAR>(oem & 0xFF);
+                } else {
+                    if (pos + 1 >= cap) return false;
+                    out[pos++] = static_cast<TCHAR>(oem & 0xFF);
+                }
+            }
+            if (pos < cap) out[pos] = 0;
+            return pos + 1 < cap;
+        }
         std::optional<std::span<TCHAR>> build_path(std::string_view path) noexcept {
             auto norm = normalize(path);
             std::string_view p{norm.data, norm.size};
@@ -560,20 +678,14 @@ export namespace fs {
             auto buf = next_path_buf();
             if (buf.empty()) return std::nullopt;
 #if defined(_LFN_UNICODE) && _LFN_UNICODE
-#if (_LFN_UNICODE == 1)
-            if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
-#else
-            if (p.size() + 1 > buf.size()) return std::nullopt;
-            for (util::usize i = 0; i < p.size(); ++i) {
-                buf[i] = static_cast<TCHAR>(p[i]);
+            if (sizeof(TCHAR) == 2) {
+                if (!utf8_to_utf16(p, buf.data(), buf.size())) return std::nullopt;
+            } else {
+                if (!utf8_to_oem(p, buf.data(), buf.size())) return std::nullopt;
             }
-            buf[p.size()] = 0;
-#endif
             return buf;
 #else
-            if (p.size() + 1 > buf.size()) return std::nullopt;
-            std::memcpy(buf.data(), p.data(), p.size());
-            buf[p.size()] = '\0';
+            if (!utf8_to_oem(p, buf.data(), buf.size())) return std::nullopt;
             return buf;
 #endif
         }

@@ -71,7 +71,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 #    app/main.cpp
     app/main-system.cpp
     app/uart_bridge.c
-    app/boot_shim.c
     app/port_impl.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c

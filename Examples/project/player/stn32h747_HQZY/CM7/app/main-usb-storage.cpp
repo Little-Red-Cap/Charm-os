@@ -1,72 +1,46 @@
 #include <cstdint>
-#include <cstring>
 
-#include "stm32h7xx_hal.h"
 #include "sdmmc.h"
-#include "usart.h"
 #include "usb_device.h"
 
+import out.api;
+import charm.port;
+import charm.system.clock;
+import charm.system.time;
 import player.stm32h7.fs_demo_mmc;
-import usb.msc_storage_bridge;
+import player.stm32h7.usb_system;
 
 extern "C" {
-void SystemClock_Config(void);
-void MX_GPIO_Init(void);
-void MX_DMA_Init(void);
-void MX_USART1_UART_Init(void);
-void MX_SDMMC1_SD_Init(void);
 void MX_SDMMC1_MMC_Init(void);
 void Error_Handler(void);
-extern UART_HandleTypeDef huart1;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 }
 
-extern "C" void app_usb_setup_sniff(const uint8_t[8]) {
-}
-
-extern "C" void charm_audio_dma_irq_notify(void) {
-}
-
-namespace {
-void uart_write(const char* msg) {
-    if (!msg) return;
-    const std::size_t len = std::strlen(msg);
-    if (len == 0) return;
-    (void)HAL_UART_Transmit(&huart1,
-        reinterpret_cast<uint8_t*>(const_cast<char*>(msg)),
-        static_cast<uint16_t>(len),
-        100);
-}
-}
-
 int main() {
-    HAL_Init();
-    SystemClock_Config();
+    auto kit = charm::port::init();
+    charm::system::Clock clock{nullptr, charm::system::ClockOps{&charm::port::now_ms, nullptr}};
+    charm::system::time::bind(clock);
+    out::Scope scope{kit.console};
+    out::println<"boot: uart ok">();
 
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    MX_USART1_UART_Init();
-    uart_write("boot: uart ok\n");
-
-    // MX_SDMMC1_SD_Init();
     MX_SDMMC1_MMC_Init();
-    uart_write("boot: sdmmc ok\n");
+    out::println<"boot: sdmmc ok">();
     if (!fs_boot_init()) {
-        uart_write("boot: fs mount failed\n");
+        out::println<"boot: fs mount failed">();
     } else {
-        uart_write("boot: fs mount ok\n");
+        out::println<"boot: fs mount ok">();
     }
-    usb::msc::bridge::set_block_device(fs_sd_block_device(), false);
+    usb_system_init(fs_sd_block_device(), false);
 
     MX_USB_DEVICE_Init();
-    uart_write("usb: device init ok\n");
+    out::println<"usb: device init ok">();
     if (HAL_PCD_Start(&hpcd_USB_OTG_FS) != HAL_OK) {
-        uart_write("usb: start failed\n");
+        out::println<"usb: start failed">();
         Error_Handler();
     }
-    uart_write("usb: pcd start ok\n");
+    out::println<"usb: pcd start ok">();
 
     while (true) {
-        HAL_Delay(1000);
+        charm::system::time::sleep_ms(1000);
     }
 }

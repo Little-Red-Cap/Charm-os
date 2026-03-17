@@ -2,12 +2,8 @@
 #include <cstdio>
 #include <cstring>
 
-#include "main.h"
-#include "dma.h"
-#include "gpio.h"
 #include "i2s.h"
 #include "sdmmc.h"
-#include "usart.h"
 #include "usb_device.h"
 #include "stm32h7xx_hal_rcc_ex.h"
 #include "usbd_audio.h"
@@ -15,16 +11,16 @@
 #include "usbd_storage_if.h"
 #include "usbd_def.h"
 
+import out.api;
+import charm.port;
+import charm.system.clock;
+import charm.system.time;
 import player.stm32h7.fs_demo_mmc;
 import player.stm32h7.usb_system;
 
 extern "C" {
-void SystemClock_Config(void);
-void MX_GPIO_Init(void);
-void MX_DMA_Init(void);
 void MX_I2S1_Init(void);
 void MX_SDMMC1_MMC_Init(void);
-void MX_USART1_UART_Init(void);
 void Error_Handler(void);
 uint32_t usb_out_ep_hits(uint8_t epnum);
 uint32_t usb_audio_out_calls(void);
@@ -32,14 +28,15 @@ uint32_t usb_audio_out_last_ep(void);
 uint32_t usb_audio_iso_out_incomplete(void);
 uint32_t usb_audio_out_ep(void);
 uint32_t usb_audio_last_set_if_index(void);
-extern UART_HandleTypeDef huart1;
 extern I2S_HandleTypeDef hi2s1;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern USBD_HandleTypeDef hUsbDeviceFS;
+int charm_port_console_write(void* uart, const uint8_t* data, uint16_t len);
 }
 
 namespace {
 void uart_write(const char* msg);
+void* g_console_ctx = nullptr;
 volatile uint32_t g_msc_get_max_lun = 0;
 volatile uint32_t g_msc_bot_reset = 0;
 volatile uint32_t g_msc_cbw = 0;
@@ -208,10 +205,10 @@ void uart_write(const char* msg) {
     if (!msg) return;
     const std::size_t len = std::strlen(msg);
     if (len == 0) return;
-    (void)HAL_UART_Transmit(&huart1,
-        reinterpret_cast<uint8_t*>(const_cast<char*>(msg)),
-        static_cast<uint16_t>(len),
-        100);
+    (void)charm_port_console_write(
+        g_console_ctx,
+        reinterpret_cast<const uint8_t*>(msg),
+        static_cast<uint16_t>(len));
 }
 
 void dump_cfg_summary(const uint8_t* cfg, uint16_t total) {
@@ -363,12 +360,12 @@ extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
 }
 
 int main(void) {
-    HAL_Init();
-    SystemClock_Config();
-    MX_GPIO_Init();
-    MX_DMA_Init();
+    auto kit = charm::port::init();
+    g_console_ctx = kit.console.ctx;
+    charm::system::Clock clock{nullptr, charm::system::ClockOps{&charm::port::now_ms, nullptr}};
+    charm::system::time::bind(clock);
+    out::Scope scope{kit.console};
     MX_I2S1_Init();
-    MX_USART1_UART_Init();
     uart_write("boot: uart ok\n");
 
     MX_SDMMC1_MMC_Init();
@@ -433,7 +430,7 @@ int main(void) {
 
     while (1) {
         static uint32_t last_log = 0;
-        const uint32_t now = HAL_GetTick();
+        const uint32_t now = charm::port::now_ms(nullptr);
         if ((now - last_log) >= 3000) {
             char buf[200];
             if (kLogAudioStats) {
@@ -589,6 +586,6 @@ int main(void) {
                 g_i2s_active = true;
             }
         }
-        HAL_Delay(10);
+        charm::system::time::sleep_ms(10);
     }
 }

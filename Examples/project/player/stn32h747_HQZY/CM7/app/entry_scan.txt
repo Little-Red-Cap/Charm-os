@@ -1,0 +1,6 @@
+entry_scan
+- app/main-system.cpp: port_kit
+- app/main-usb-storage.cpp: port_kit
+- app/main-usb-audio.cpp: port_kit
+- app/main-usb-as.cpp: port_kit
+- app/main.cpp: legacy (bringup)

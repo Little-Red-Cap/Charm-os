@@ -15,6 +15,7 @@ import charm.font;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
+import player.font_cache;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.cloudy_glass;
@@ -397,7 +398,9 @@ export namespace player::ui {
         set_default_font(FontId::Normal, &font_noto_ascii_16);
         set_default_font(FontId::Large, &font_noto_ascii_16);
         set_default_font(FontId::Mono, &font_noto_ascii_16);
-        set_default_fallback_font(&font_noto_sc_16);
+        if (!player::font_cache::init()) {
+            set_default_fallback_font(&font_noto_sc_16);
+        }
 
         auto& theme = Theme::instance();
         theme.set_default_font(player_default_font());

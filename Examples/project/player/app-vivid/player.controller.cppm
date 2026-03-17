@@ -27,6 +27,7 @@ import player.fs_utils;
 import player.storage;
 import player.ui;
 import player.cover;
+import player.font_cache;
 
 export namespace player {
     using namespace player::fs_utils;
@@ -232,11 +233,13 @@ export namespace player {
 
         void set_label(WidgetHandle h, const char* text) {
             if (!kernel || !h) return;
+            player::font_cache::ensure_text(text);
             kernel->set_text(h, text);
         }
 
         void set_label_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) {
             if (!kernel || !h) return;
+            player::font_cache::ensure_text(text);
             if (slot != soa_detail::kInvalidTextSlot) {
                 kernel->set_text_slot(h, slot, text);
                 return;
@@ -423,6 +426,7 @@ export namespace player {
                 const auto pos = base.find_last_of("/\\");
                 if (pos != std::string_view::npos) base = base.substr(pos + 1);
                 track_labels.emplace_back(base);
+                player::font_cache::ensure_text(track_labels.back().c_str());
             }
         }
 
@@ -464,6 +468,13 @@ export namespace player {
                 set_status(status.c_str());
             }
             rebuild_track_labels();
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            if (player::font_cache::ready()) {
+                set_status("FontCache: OK");
+            } else {
+                set_status("FontCache: OFF");
+            }
+#endif
             refresh_list_view();
             update_list_placeholder();
         }

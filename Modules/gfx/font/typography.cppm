@@ -59,7 +59,7 @@ inline FontId font_id_from_ptr(const Font* font) noexcept {
 export
 inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_t code) noexcept {
     const auto resolved = resolve_glyph(font, code);
-    if (resolved.glyph) {
+    if (resolved.glyph && resolved.glyph != font.fallback_glyph) {
         return resolved;
     }
     if (const auto* fallback = fallback_for(font)) {

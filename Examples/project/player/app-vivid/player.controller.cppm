@@ -102,11 +102,18 @@ export namespace player {
         FixedString<260> cover_path{};
         FixedString<260> cover_embedded_path{};
         FixedString<260> cover_folder_path{};
+        FixedString<128> last_status_text{};
+        FixedString<48> last_mode_text{};
+        FixedString<64> last_list_title_text{};
+        FixedString<128> last_list_hint_text{};
+        FixedString<128> last_debug_text{};
         CoverImage cover_image{};
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         bool fs_ready{false};
         int play_mode{0};
+        int last_play_button_state{-1};
+        int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
         bool progress_dragging{false};
@@ -248,7 +255,12 @@ export namespace player {
             kernel->set_text(h, text);
         }
 
-        void set_status(const char* text) { set_label_slot(handles.status, text_slots.status, text); }
+        void set_status(const char* text) {
+            const char* value = text ? text : "";
+            if (last_status_text.view() == value) return;
+            last_status_text.assign(value);
+            set_label_slot(handles.status, text_slots.status, value);
+        }
 
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
@@ -370,6 +382,9 @@ export namespace player {
 
         void set_play_button_text(bool playing_now) {
             if (!kernel) return;
+            const int state = playing_now ? 1 : 0;
+            if (last_play_button_state == state) return;
+            last_play_button_state = state;
             kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
             set_label_slot(handles.btn_pause, text_slots.btn_pause, playing_now ? "Pause" : "Play");
         }
@@ -403,6 +418,8 @@ export namespace player {
         void update_play_mode_label() {
             char buf[32]{};
             std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
+            if (last_mode_text.view() == buf) return;
+            last_mode_text.assign(buf);
             set_label_slot(handles.mode_hint, text_slots.mode_hint, buf);
             if (!kernel) return;
             auto icon = icons.loop;
@@ -482,10 +499,15 @@ export namespace player {
             char buf[64]{};
             if (count > 0) {
                 std::snprintf(buf, sizeof(buf), "Tracks (%d)", count);
+                if (last_list_title_text.view() == buf) return;
+                last_list_title_text.assign(buf);
                 set_label_slot(handles.list_title, text_slots.list_title, buf);
             } else {
+                if (last_list_title_text.view() == "Tracks") return;
+                last_list_title_text.assign("Tracks");
                 set_label_slot(handles.list_title, text_slots.list_title, "Tracks");
             }
+            last_list_count = count;
         }
 
         void update_list_placeholder() {
@@ -496,11 +518,15 @@ export namespace player {
             kernel->set_visible(handles.list_hint, show);
             if (!show) return;
             if (!mount_status.empty()) {
+                if (last_list_hint_text.view() == mount_status.view()) return;
+                last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
                 return;
             }
-            set_label_slot(handles.list_hint, text_slots.list_hint,
-                           fs_ready ? "No tracks in /music or /" : "FS not ready");
+            const char* hint = fs_ready ? "No tracks in /music or /" : "FS not ready";
+            if (last_list_hint_text.view() == hint) return;
+            last_list_hint_text.assign(hint);
+            set_label_slot(handles.list_hint, text_slots.list_hint, hint);
         }
 
         int resolve_next_track() {
@@ -601,6 +627,8 @@ export namespace player {
                           static_cast<unsigned long long>(pump_max_ms),
                           static_cast<unsigned long long>(snap.stats.underrun_count),
                           static_cast<unsigned long long>(snap.pump.underrun_count));
+            if (last_debug_text.view() == buf) return;
+            last_debug_text.assign(buf);
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);
 #else
             (void)this;

@@ -1,17 +1,17 @@
 ﻿module;
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
-#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
 
 export module player.controller;
 
+import player.fixed_string;
+import player.mcu_policy;
 import audio.eq;
 import audio.player;
 import audio.result;
@@ -20,13 +20,17 @@ import charm.core.geometry;
 import charm.core.handle;
 import charm.core.soa_kernel;
 import charm.core.soa_payload;
-import fs_core;
-import fs_vfs;
+import charm.system.clock;
 import player.playback;
 import player.fs_utils;
 import player.storage;
+import player.track_probe;
 import player.ui;
 import player.cover;
+import player.font_cache;
+
+inline constexpr bool kPlayerControllerMcuGuard =
+    (player::mcu_policy::guard("player.controller uses std::string/std::vector; port before MCU build."), true);
 
 export namespace player {
     using namespace player::fs_utils;
@@ -40,6 +44,13 @@ export namespace player {
         Next,
         Prev,
         Mode,
+    };
+
+    enum class CoverStrategy : std::uint8_t {
+        embedded_first,
+        folder_first,
+        embedded_only,
+        folder_only,
     };
 
     struct UiHandles {
@@ -84,14 +95,16 @@ export namespace player {
         UiHandles handles{};
         PlayerIconIds icons{};
         int last_time_sec{-1};
-        std::vector<std::string>* tracks{nullptr};
-        std::vector<std::string> track_labels{};
+        StorageView storage{};
         int track_index{0};
-        std::string title_text{};
-        std::string subtitle_text{};
-        std::string cover_path{};
+        FixedString<192> title_text{};
+        FixedString<64> subtitle_text{};
+        FixedString<260> cover_path{};
+        FixedString<260> cover_embedded_path{};
+        FixedString<260> cover_folder_path{};
         CoverImage cover_image{};
         bool cover_ready{false};
+        CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         bool fs_ready{false};
         int play_mode{0};
         bool ignore_list_select{false};
@@ -126,11 +139,22 @@ export namespace player {
             soa_detail::TextSlotId clip_value{soa_detail::kInvalidTextSlot};
             soa_detail::TextSlotId debug_text{soa_detail::kInvalidTextSlot};
         } text_slots{};
-        std::string mount_status{};
-        std::mt19937 rng{static_cast<unsigned int>(
-            std::chrono::high_resolution_clock::now().time_since_epoch().count())};
-        std::chrono::steady_clock::time_point last_debug_tick{};
+        FixedString<128> mount_status{};
+        std::uint32_t rng_state{0};
+        std::uint64_t last_debug_tick_ms{0};
         bool last_running{false};
+
+        static bool is_flac_path(std::string_view path) noexcept {
+            const auto dot = path.find_last_of('.');
+            if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
+            std::string_view ext = path.substr(dot + 1);
+            if (ext.size() != 4) return false;
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
+            return a == 'f' && b == 'l' && c == 'a' && d == 'c';
+        }
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
@@ -210,11 +234,13 @@ export namespace player {
 
         void set_label(WidgetHandle h, const char* text) {
             if (!kernel || !h) return;
+            player::font_cache::ensure_text(text);
             kernel->set_text(h, text);
         }
 
         void set_label_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) {
             if (!kernel || !h) return;
+            player::font_cache::ensure_text(text);
             if (slot != soa_detail::kInvalidTextSlot) {
                 kernel->set_text_slot(h, slot, text);
                 return;
@@ -230,6 +256,8 @@ export namespace player {
         void reset_cover_image() noexcept {
             cover_ready = false;
             cover_path.clear();
+            cover_embedded_path.clear();
+            cover_folder_path.clear();
             release_cover_image(cover_image);
             if (kernel && handles.cover && kernel->kind(handles.cover) == WidgetKind::Image) {
                 kernel->set_image(handles.cover, soa_detail::invalid_image_id());
@@ -238,7 +266,7 @@ export namespace player {
 
         void update_cover_image() {
             if (!kernel || !handles.cover) return;
-            if (!cover_ready || cover_path.empty()) {
+            if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
                 if (kernel->kind(handles.cover) == WidgetKind::Image) {
                     kernel->set_image(handles.cover, soa_detail::invalid_image_id());
@@ -248,15 +276,45 @@ export namespace player {
 #endif
                 return;
             }
-            if (cover_image.path == cover_path && soa_detail::image_id_valid(cover_image.image_id)) {
-                return;
-            }
-            if (load_cover_image(cover_path, cover_image)) {
-                if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                    kernel->set_image(handles.cover, cover_image.image_id);
+            auto try_load = [&](std::string_view candidate) -> bool {
+                if (candidate.empty()) return false;
+                if (cover_image.path == candidate && soa_detail::image_id_valid(cover_image.image_id)) {
+                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                        kernel->set_image(handles.cover, cover_image.image_id);
+                    }
+                    cover_path.assign(candidate);
+                    return true;
                 }
-                return;
+                if (load_cover_image(candidate, cover_image)) {
+                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                        kernel->set_image(handles.cover, cover_image.image_id);
+                    }
+                    cover_path.assign(candidate);
+                    return true;
+                }
+                return false;
+            };
+
+            bool loaded = false;
+            switch (cover_strategy) {
+            case CoverStrategy::embedded_only:
+                loaded = try_load(cover_embedded_path.view());
+                break;
+            case CoverStrategy::folder_only:
+                loaded = try_load(cover_folder_path.view());
+                break;
+            case CoverStrategy::folder_first:
+                loaded = try_load(cover_folder_path.view());
+                if (!loaded) loaded = try_load(cover_embedded_path.view());
+                break;
+            case CoverStrategy::embedded_first:
+            default:
+                loaded = try_load(cover_embedded_path.view());
+                if (!loaded) loaded = try_load(cover_folder_path.view());
+                break;
             }
+
+            if (loaded) return;
             if (kernel->kind(handles.cover) == WidgetKind::Image) {
                 kernel->set_image(handles.cover, soa_detail::invalid_image_id());
             }
@@ -356,25 +414,25 @@ export namespace player {
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            if (index >= self->track_labels.size()) return "";
-            return self->track_labels[index].c_str();
+            const auto* labels = self->storage.track_labels;
+            if (!labels) return "";
+            if (index >= labels->size()) return "";
+            return (*labels)[index].c_str();
         }
 
-        void rebuild_track_labels() {
-            track_labels.clear();
-            if (!tracks) return;
-            track_labels.reserve(tracks->size());
-            for (const auto& path : *tracks) {
-                auto base = std::string_view{path};
-                const auto pos = base.find_last_of("/\\");
-                if (pos != std::string_view::npos) base = base.substr(pos + 1);
-                track_labels.emplace_back(base);
+        void refresh_track_labels() {
+            const auto* labels = storage.track_labels;
+            if (!labels) return;
+            for (const auto& label : *labels) {
+                player::font_cache::ensure_text(label.c_str());
             }
         }
 
         void sync_list_selection() {
             if (!kernel || !handles.list) return;
-            if (track_index < 0 || track_index >= static_cast<int>(track_labels.size())) return;
+            const auto* labels = storage.track_labels;
+            if (!labels) return;
+            if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
             ignore_list_select = true;
             kernel->set_list_view_selected(handles.list, track_index);
             last_list_selected = track_index;
@@ -383,6 +441,7 @@ export namespace player {
 
         void refresh_list_view() {
             if (!kernel || !handles.list) return;
+            const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             kernel->set_list_view_source(handles.list,
                                          static_cast<std::uint16_t>(count),
@@ -399,23 +458,26 @@ export namespace player {
             update_list_placeholder();
         }
 
-        void apply_storage_state(StorageState&& state) {
-            fs_ready = state.fs_ready;
-            mount_status = std::move(state.mount_status);
-            const std::string status = state.status;
-            if (tracks) {
-                *tracks = std::move(state.tracks);
+        void apply_storage_view(StorageView view) {
+            storage = view;
+            fs_ready = storage.fs_ready;
+            mount_status.assign(storage.mount_status);
+            refresh_track_labels();
+            if (!storage.status.empty()) { set_status(storage.status.data()); }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            if (player::font_cache::ready()) {
+                set_status("FontCache: OK");
+            } else {
+                set_status("FontCache: OFF");
             }
-            if (!status.empty()) {
-                set_status(status.c_str());
-            }
-            rebuild_track_labels();
+#endif
             refresh_list_view();
             update_list_placeholder();
         }
 
         void update_list_title() {
             if (!kernel) return;
+            const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             char buf[64]{};
             if (count > 0) {
@@ -428,6 +490,7 @@ export namespace player {
 
         void update_list_placeholder() {
             if (!kernel || !handles.list_hint) return;
+            const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             const bool show = (count == 0);
             kernel->set_visible(handles.list_hint, show);
@@ -441,6 +504,7 @@ export namespace player {
         }
 
         int resolve_next_track() {
+            const auto* tracks = storage.tracks;
             if (!tracks || tracks->empty()) return -1;
             const int count = static_cast<int>(tracks->size());
             if (play_mode == 1) {
@@ -448,10 +512,9 @@ export namespace player {
             }
             if (play_mode == 2) {
                 if (count <= 1) return track_index;
-                std::uniform_int_distribution<int> dist(0, count - 1);
                 int next = track_index;
                 for (int i = 0; i < 4 && next == track_index; ++i) {
-                    next = dist(rng);
+                    next = rand_index(count);
                 }
                 if (next == track_index) {
                     next = (track_index + 1) % count;
@@ -464,6 +527,7 @@ export namespace player {
         }
 
         void handle_track_end() {
+            const auto* tracks = storage.tracks;
             if (!fs_ready || !tracks || tracks->empty()) {
                 stop_playback();
                 return;
@@ -504,12 +568,12 @@ export namespace player {
         void update_debug_overlay() {
 #if CHARM_PLAYER_DEBUG_UI
             if (!kernel || !handles.debug_text) return;
-            const auto now = std::chrono::steady_clock::now();
-            if (last_debug_tick.time_since_epoch().count() != 0) {
-                const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_debug_tick).count();
+            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+            if (last_debug_tick_ms != 0) {
+                const auto dt = now_ms - last_debug_tick_ms;
                 if (dt < 500) return;
             }
-            last_debug_tick = now;
+            last_debug_tick_ms = now_ms;
 
             audio::PlayerSnapshot snap{};
             if (!playback.snapshot(snap)) return;
@@ -595,7 +659,7 @@ export namespace player {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return;
             }
-            std::string status;
+            FixedString<128> status;
             if (!playback.apply_action(PlaybackAction::start, 0, status)) {
                 set_status(status.c_str());
                 return;
@@ -607,21 +671,21 @@ export namespace player {
         }
 
         void pause_playback() {
-            std::string status;
+            FixedString<128> status;
             if (!playback.apply_action(PlaybackAction::pause, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(false);
         }
 
         void resume_playback() {
-            std::string status;
+            FixedString<128> status;
             if (!playback.apply_action(PlaybackAction::resume, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(true);
         }
 
         void stop_playback() {
-            std::string status;
+            FixedString<128> status;
             if (playback.apply_action(PlaybackAction::stop, 0, status)) {
                 set_status(status.c_str());
             } else {
@@ -642,18 +706,16 @@ export namespace player {
             }
 
             if (actions.toggle_play) {
-                std::string status;
+                FixedString<128> status;
                 if (playback.apply_action(PlaybackAction::toggle, 0, status)) {
                     if (!status.empty()) set_status(status.c_str());
                     const bool playing_now = playback.playing();
                     set_play_button_text(playing_now);
-                    if (status == "Opening") {
+                    if (status.view() == "Opening") {
                         set_time_label(0);
                         sync_progress_value(0);
                     }
-                } else if (!status.empty()) {
-                    set_status(status.c_str());
-                }
+                } else if (!status.empty()) { set_status(status.c_str()); }
             }
 
             if (actions.cycle_mode) {
@@ -661,81 +723,77 @@ export namespace player {
             }
 
             if (actions.seek) {
-                std::string status;
+                FixedString<128> status;
                 if (playback.apply_action(PlaybackAction::seek, actions.seek_sec, status)) {
                     if (!status.empty()) set_status(status.c_str());
-                } else if (!status.empty()) {
-                    set_status(status.c_str());
-                }
+                } else if (!status.empty()) { set_status(status.c_str()); }
             }
         }
 
-        void set_track_labels(std::string_view vfs_path) {
-            auto base = vfs_path;
-            const auto pos = vfs_path.find_last_of("/\\");
-            if (pos != std::string_view::npos) base = vfs_path.substr(pos + 1);
-            title_text.assign(base.begin(), base.end());
-            if (title_text.empty()) title_text = "Unknown Track";
-
-            std::string_view ext{};
-            const auto dot = base.find_last_of('.');
-            if (dot != std::string_view::npos && dot + 1 < base.size()) {
-                ext = base.substr(dot + 1);
-            }
-            subtitle_text.clear();
-            if (!ext.empty()) {
-                subtitle_text.assign(ext.begin(), ext.end());
-                for (auto& ch : subtitle_text) {
-                    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-                }
-            } else {
-                subtitle_text = "UNKNOWN";
-            }
-
+        void set_track_labels(int idx) {
+            if (!storage.track_titles || !storage.track_subtitles) return;
+            if (idx < 0 || idx >= static_cast<int>(storage.track_titles->size())) return;
+            title_text.assign((*storage.track_titles)[idx]);
+            subtitle_text.assign((*storage.track_subtitles)[idx]);
             set_label_slot(handles.title, text_slots.title, title_text.c_str());
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
         }
-
         bool load_track_index(int idx) {
             if (!fs_ready) {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return false;
             }
+            const auto* tracks = storage.tracks;
+            const auto* labels = storage.track_labels;
             if (!tracks || tracks->empty()) return false;
+            if (!labels) return false;
             if (idx < 0) idx = 0;
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
             track_index = idx;
             const auto& vfs_path = (*tracks)[track_index];
             const char* track_path = vfs_path.c_str();
-            set_track_labels(vfs_path);
-            fs::File f{};
-            auto st = fs::vfs_open(vfs_path, f);
-            bool track_ready = false;
-            if (st) {
-                (void)fs::vfs_close(f);
-                track_ready = true;
-            } else {
-                track_ready = false;
-            }
-            if (track_ready) {
-                set_status("Ready");
-            } else {
-                char buf[64]{};
-                std::snprintf(buf, sizeof(buf), "Load failed (%s)", fs_err_text(st.err));
-                set_status(buf);
-            }
+            set_track_labels(track_index);
+            FixedString<128> status;
+            const bool track_ready = player::check_track_ready(vfs_path, status);
+            if (!status.empty()) { set_status(status.c_str()); }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
             if (track_ready) {
-                cover_ready = fs_utils::find_cover_for_track(vfs_path, cover_path);
+                cover_embedded_path.assign(vfs_path);
+                cover_folder_path.clear();
+                std::string folder_path;
+                const bool has_folder = fs_utils::find_cover_for_track(vfs_path, folder_path);
+                cover_folder_path.assign(folder_path);
+                cover_ready = true;
+                switch (cover_strategy) {
+                case CoverStrategy::embedded_only:
+                    cover_path.assign(cover_embedded_path.c_str());
+                    break;
+                case CoverStrategy::folder_only:
+                    cover_path.assign(has_folder ? cover_folder_path.c_str() : "");
+                    cover_ready = has_folder;
+                    break;
+                case CoverStrategy::folder_first:
+                    cover_path.assign(has_folder ? cover_folder_path.c_str() : cover_embedded_path.c_str());
+                    break;
+                case CoverStrategy::embedded_first:
+                default:
+                    cover_path.assign(cover_embedded_path.c_str());
+                    break;
+                }
             } else {
                 cover_ready = false;
                 cover_path.clear();
+                cover_embedded_path.clear();
+                cover_folder_path.clear();
             }
             update_cover_image();
             reset_duration();
             if (track_ready) {
-                (void)playback.probe_duration_from_path(track_path);
+                int secs = 0;
+                if (player::probe_duration_seconds(track_path, secs)) {
+                    playback.set_duration_from_probe(secs);
+                }
             }
             set_play_button_text(false);
             set_time_label(0);
@@ -750,6 +808,7 @@ export namespace player {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return;
             }
+            const auto* tracks = storage.tracks;
             if (!tracks || tracks->empty()) return;
             const int count = static_cast<int>(tracks->size());
             int next = track_index + delta;
@@ -768,6 +827,7 @@ export namespace player {
                 set_status(mount_status.empty() ? "Mount not ready" : mount_status.c_str());
                 return;
             }
+            const auto* tracks = storage.tracks;
             if (!tracks || tracks->empty()) return;
             const bool was_playing = playback.playing();
             const bool was_paused = playback.paused();
@@ -797,6 +857,7 @@ export namespace player {
 
         void nav_list(int delta) {
             if (!kernel || !handles.list) return;
+            const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             if (count <= 0) return;
             int selected = kernel->list_view_selected(handles.list);
@@ -840,7 +901,7 @@ export namespace player {
                 eq_config.bands[i].gain_db = static_cast<float>(eq_values[i]);
                 eq_config.bands[i].q = 1.0f;
             }
-            std::string status;
+            FixedString<128> status;
             if (!playback.set_eq(eq_config, status) && !status.empty()) {
                 set_status(status.c_str());
             }
@@ -854,7 +915,7 @@ export namespace player {
             char buf[16]{};
             std::snprintf(buf, sizeof(buf), "%d", value);
             set_label_slot(handles.volume_value, text_slots.volume_value, buf);
-            std::string status;
+            FixedString<128> status;
             if (!playback.set_volume(value, status) && !status.empty()) {
                 set_status(status.c_str());
             }
@@ -866,7 +927,7 @@ export namespace player {
                 const int enabled = kernel->checked(handles.dc_switch) ? 1 : 0;
                 if (enabled != last_dc_enabled) {
                     last_dc_enabled = enabled;
-                    std::string status;
+                    FixedString<128> status;
                     if (!playback.set_dc_block(enabled != 0, status) && !status.empty()) {
                         set_status(status.c_str());
                     }
@@ -888,7 +949,7 @@ export namespace player {
                 changed = true;
             }
             if (!changed) return;
-            std::string status;
+            FixedString<128> status;
             if (!playback.set_soft_clip(enabled != 0, threshold, status) && !status.empty()) {
                 set_status(status.c_str());
             }
@@ -949,6 +1010,28 @@ export namespace player {
             sync_eq_values();
             sync_volume_value();
             sync_dsp_controls();
+        }
+
+        void seed_rng() {
+            if (rng_state != 0) return;
+            auto seed = static_cast<std::uint32_t>(charm::system::ClockCaps::TimeSource::now());
+            if (seed == 0) seed = 0xA341316Cu;
+            rng_state = seed;
+        }
+
+        std::uint32_t next_rng() {
+            seed_rng();
+            std::uint32_t x = rng_state;
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            rng_state = x;
+            return x;
+        }
+
+        int rand_index(int max) {
+            if (max <= 0) return 0;
+            return static_cast<int>(next_rng() % static_cast<std::uint32_t>(max));
         }
     };
 }

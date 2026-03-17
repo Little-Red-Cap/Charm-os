@@ -1,9 +1,11 @@
 ﻿module;
+
 #include <string>
 #include <vector>
 
 export module player.app;
 
+import player.mcu_policy;
 import audio.player;
 import audio.result;
 import charm.system.clock;
@@ -14,6 +16,9 @@ import charm.core.soa_gui;
 import input.raw_event;
 import ui.input_adapter;
 
+inline constexpr bool kPlayerAppMcuGuard =
+    (player::mcu_policy::guard("player.app uses std::string/std::vector; port before MCU build."), true);
+
 export namespace player {
     struct AppConfig {
         audio::PlayerConfig player_config{};
@@ -22,7 +27,8 @@ export namespace player {
     class App {
     public:
         App(AppConfig config, charm::system::Clock& clock)
-            : player_(config.player_config, clock) {}
+            : config_(std::move(config)),
+              player_(config_.player_config, clock) {}
 
         audio::Result<void> play(const char* path) { return player_.play(path); }
         audio::Result<void> stop() { return player_.stop(); }
@@ -33,7 +39,13 @@ export namespace player {
         audio::AudioPlayer& player() noexcept { return player_; }
         const audio::AudioPlayer& player() const noexcept { return player_; }
 
-        StorageState scan_storage() { return player::scan_storage(); }
+        StorageState scan_storage() {
+            last_storage_ = player::scan_storage();
+            return last_storage_;
+        }
+
+        const StorageState& storage_state() const noexcept { return last_storage_; }
+        StorageView storage_view() const noexcept { return make_storage_view(last_storage_); }
 
         template <typename Controller>
         void bind_player(Controller& controller) {
@@ -42,12 +54,11 @@ export namespace player {
 
         template <typename Controller>
         bool bootstrap_player(Controller& controller,
-                              std::vector<std::string>& tracks,
                               int initial_index,
                               bool auto_start) {
             auto storage = scan_storage();
-            controller.apply_storage_state(std::move(storage));
-            if (controller.fs_ready && !tracks.empty()) {
+            controller.apply_storage_view(storage_view());
+            if (controller.fs_ready && !last_storage_.tracks.empty()) {
                 if (!controller.load_track_index(initial_index)) {
                     controller.clear_track_state();
                 } else if (auto_start) {
@@ -72,7 +83,7 @@ export namespace player {
             controller.init_text_slots();
             controller.focus_list();
             controller.set_time_label(0);
-            controller.mount_status = "Mounting storage...";
+            controller.mount_status.assign("Mounting storage...");
             controller.set_status("Mounting storage");
             controller.update_list_placeholder();
             controller.sync_volume_value();
@@ -88,6 +99,8 @@ export namespace player {
         }
 
     private:
+        AppConfig config_{};
         audio::AudioPlayer player_;
+        StorageState last_storage_{};
     };
 }

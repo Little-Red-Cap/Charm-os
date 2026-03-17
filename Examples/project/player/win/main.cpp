@@ -61,7 +61,6 @@ namespace {
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     static std::optional<player::App> g_app{};
-    static std::vector<std::string> g_vfs_tracks{};
 
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
@@ -281,12 +280,10 @@ int main(int argc, char** argv) {
 
     g_app->bind_player(g_ctx);
     g_ctx.bind_kernel(g_kernel);
-    g_ctx.tracks = &g_vfs_tracks;
-
     g_app->bind_ui(g_factory, g_ctx);
 
     player::init_storage(player::default_storage_config());
-    const bool has_track = g_app->bootstrap_player(g_ctx, g_vfs_tracks, 0, false);
+    const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }

@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <cctype>
 #include <cstdio>
 #include <string>
@@ -6,6 +6,7 @@ module;
 
 export module player.media_scan;
 
+import player.fixed_string;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -17,17 +18,17 @@ export namespace player {
     struct TrackScanResult {
         bool fs_ready{false};
         bool has_tracks{false};
-        std::string status{};
-        std::string mount_status{};
+        FixedString<128> status{};
+        FixedString<128> mount_status{};
         std::vector<std::string> tracks{};
     };
 
     TrackScanResult scan_tracks(MountFn mount, const char* path) {
         TrackScanResult out{};
-        out.mount_status = "Mounting storage...";
+        out.mount_status.assign("Mounting storage...");
         if (!mount) {
-            out.status = "Mount not configured";
-            out.mount_status = out.status;
+            out.status.assign("Mount not configured");
+            out.mount_status.assign(out.status.c_str());
             return out;
         }
         const auto mount_st = mount(path);
@@ -35,12 +36,12 @@ export namespace player {
         if (!out.fs_ready) {
             char buf[64]{};
             std::snprintf(buf, sizeof(buf), "Mount failed (%s)", fs_utils::fs_err_text(mount_st.err));
-            out.status = buf;
-            out.mount_status = std::string(buf) + ". Unmount VHD in Windows";
+            out.status.assign(buf);
+            out.mount_status.assign("Mount failed. Unmount VHD in Windows");
             return out;
         }
 
-        out.mount_status = "Mounted";
+        out.mount_status.assign("Mounted");
 #if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] mount ok, dump tree:\n");
         (void)fs_utils::dump_fs_tree("/", 0, 4);
@@ -48,7 +49,7 @@ export namespace player {
         fs::Status list_st{fs::Errc::ok};
         if (!fs_utils::collect_tracks_from_dir("/music", out.tracks, nullptr, list_st)) {
             std::vector<std::string> subdirs;
-            out.mount_status = "Scanning /...";
+            out.mount_status.assign("Scanning /...");
             const bool root_has = fs_utils::collect_tracks_from_dir("/", out.tracks, &subdirs, list_st);
             if (list_st) {
                 for (const auto& dir : subdirs) {
@@ -58,25 +59,25 @@ export namespace player {
             if (!list_st) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_utils::fs_err_text(list_st.err));
-                out.status = buf;
-                out.mount_status = out.status;
+                out.status.assign(buf);
+                out.mount_status.assign(out.status.c_str());
                 return out;
             }
             if (!root_has && out.tracks.empty()) {
-                out.status = "No tracks found";
-                out.mount_status = "No tracks in /music or /";
+                out.status.assign("No tracks found");
+                out.mount_status.assign("No tracks in /music or /");
             }
         }
 
         if (out.tracks.empty()) {
             char buf[64]{};
             std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_utils::fs_err_text(list_st.err));
-            out.status = buf;
-            if (out.mount_status == "Mounted") {
-                out.mount_status = "No tracks in /music or /";
+            out.status.assign(buf);
+            if (out.mount_status.view() == "Mounted") {
+                out.mount_status.assign("No tracks in /music or /");
             }
-        } else if (out.mount_status == "Mounted") {
-            out.mount_status = "Ready";
+        } else if (out.mount_status.view() == "Mounted") {
+            out.mount_status.assign("Ready");
         }
 
         out.has_tracks = !out.tracks.empty();

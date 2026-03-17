@@ -1,26 +1,19 @@
-module;
+﻿module;
 #include <algorithm>
-#include <array>
-#include <chrono>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 #include <string>
+#include <string_view>
 
 export module player.playback;
 
-import audio.decode_pipe;
 import audio.eq;
 import audio.player;
 import audio.result;
-#if defined(CHARM_AUDIO_USE_VFS)
-import audio.source.fs;
-#else
-import audio.source.file;
-#endif
-import media.stream.source;
+import charm.system.clock;
+import player.fixed_string;
 
 namespace {
     void dump_path_escaped(const char* path) {
@@ -130,68 +123,6 @@ export namespace player {
             duration_sec_ = 180;
         }
 
-        bool probe_duration_from_path(const char* path) {
-            if (!path || !*path) return false;
-#if defined(CHARM_AUDIO_USE_VFS)
-            audio::FsDataSource src{};
-#else
-            audio::FileDataSource src{};
-#endif
-            if (!src.open(path)) return false;
-            auto ref = media::make_stream_source_ref(src);
-            audio::SourceKind kind = audio::SourceKind::wav;
-            if (ends_with_icase(path, ".flac")) {
-                kind = audio::SourceKind::flac;
-            } else if (ends_with_icase(path, ".mp3")) {
-                kind = audio::SourceKind::mp3;
-            } else if (ends_with_icase(path, ".wav")) {
-                kind = audio::SourceKind::wav;
-            } else {
-                std::array<std::byte, 12> header{};
-                auto pos = ref.tell();
-                auto read = ref.read(std::span<std::byte>(header.data(), header.size()));
-                if (read && *read >= 4) {
-                    const auto b0 = static_cast<unsigned char>(header[0]);
-                    const auto b1 = static_cast<unsigned char>(header[1]);
-                    const auto b2 = static_cast<unsigned char>(header[2]);
-                    const auto b3 = static_cast<unsigned char>(header[3]);
-                    if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
-                        kind = audio::SourceKind::flac;
-                    } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
-                        kind = audio::SourceKind::mp3;
-                    } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
-                        kind = audio::SourceKind::mp3;
-                    } else if (read && *read >= 12) {
-                        const auto b8 = static_cast<unsigned char>(header[8]);
-                        const auto b9 = static_cast<unsigned char>(header[9]);
-                        const auto b10 = static_cast<unsigned char>(header[10]);
-                        const auto b11 = static_cast<unsigned char>(header[11]);
-                        if (b0 == 'R' && b1 == 'I' && b2 == 'F' && b3 == 'F' &&
-                            b8 == 'W' && b9 == 'A' && b10 == 'V' && b11 == 'E') {
-                            kind = audio::SourceKind::wav;
-                        }
-                    }
-                }
-                if (pos) {
-                    (void)ref.seek(*pos, media::SeekWhence::set);
-                } else {
-                    (void)ref.seek(0, media::SeekWhence::set);
-                }
-            }
-
-            audio::AudioDecodePipe probe{};
-            auto opened = probe.open(ref, kind);
-            if (!opened) return false;
-            const auto total = probe.total_frames();
-            const auto fmt = probe.input_format();
-            if (total == 0 || fmt.rate == 0) return false;
-            const auto secs = static_cast<int>(total / fmt.rate);
-            duration_sec_ = (secs > 0) ? secs : 1;
-            duration_ready_ = true;
-            current_sec_ = 0;
-            return true;
-        }
-
         bool update_duration_from_player() {
             if (duration_ready_ || !player_) return false;
             const auto total = player_->total_frames();
@@ -203,11 +134,18 @@ export namespace player {
             return true;
         }
 
+        void set_duration_from_probe(int seconds) noexcept {
+            duration_sec_ = (seconds > 0) ? seconds : 1;
+            duration_ready_ = true;
+            current_sec_ = 0;
+        }
+
         ProgressUpdate update_progress() {
             ProgressUpdate out{};
             if (!playing_ || !player_) return out;
-            const auto now = std::chrono::steady_clock::now();
-            const int elapsed = static_cast<int>(std::chrono::duration_cast<std::chrono::seconds>(now - start_).count());
+            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+            const std::uint64_t elapsed_ms = now_ms - start_ms_;
+            const int elapsed = static_cast<int>(elapsed_ms / 1000);
             const int clamped = (elapsed > duration_sec_) ? duration_sec_ : elapsed;
             out.current_sec = clamped;
             out.value = (duration_sec_ > 0) ? static_cast<int>((clamped * 100) / duration_sec_) : 0;
@@ -224,19 +162,19 @@ export namespace player {
             return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
         }
 
-        bool request_seek(int target_sec, std::string& out_status) {
+        bool request_seek(int target_sec, FixedString<128>& out_status) {
             if (!player_ || target_sec < 0) return false;
             const auto res = player_->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
             if (!res) {
-                out_status = "Seek unsupported";
+                out_status.assign("Seek unsupported");
                 return false;
             }
             return true;
         }
 
-        bool set_volume(int percent, std::string& out_status) {
+        bool set_volume(int percent, FixedString<128>& out_status) {
             if (!player_) {
-                out_status = "No player";
+                out_status.assign("No player");
                 return false;
             }
             const int clamped = std::clamp(percent, 0, 100);
@@ -244,46 +182,46 @@ export namespace player {
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Volume failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             volume_percent_ = clamped;
             return true;
         }
 
-        bool set_eq(const audio::EqConfig& eq, std::string& out_status) {
+        bool set_eq(const audio::EqConfig& eq, FixedString<128>& out_status) {
             if (!player_) {
-                out_status = "No player";
+                out_status.assign("No player");
                 return false;
             }
             const auto res = player_->set_eq(eq);
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "EQ failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             return true;
         }
 
-        bool set_dc_block(bool enabled, std::string& out_status) {
+        bool set_dc_block(bool enabled, FixedString<128>& out_status) {
             if (!player_) {
-                out_status = "No player";
+                out_status.assign("No player");
                 return false;
             }
             const auto res = player_->set_dc_block(enabled);
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "DC-block failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             return true;
         }
 
-        bool set_soft_clip(bool enabled, int threshold_percent, std::string& out_status) {
+        bool set_soft_clip(bool enabled, int threshold_percent, FixedString<128>& out_status) {
             if (!player_) {
-                out_status = "No player";
+                out_status.assign("No player");
                 return false;
             }
             const int clamped = std::clamp(threshold_percent, 0, 100);
@@ -292,13 +230,13 @@ export namespace player {
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Soft clip failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             return true;
         }
 
-        bool apply_action(PlaybackAction action, int seek_sec, std::string& out_status) {
+        bool apply_action(PlaybackAction action, int seek_sec, FixedString<128>& out_status) {
             switch (action) {
             case PlaybackAction::toggle:
                 if (playing_) {
@@ -316,35 +254,36 @@ export namespace player {
                 return resume_playback(out_status);
             case PlaybackAction::stop:
                 stop_playback();
-                out_status = "Stopped";
+                out_status.assign("Stopped");
                 return true;
             case PlaybackAction::seek:
                 if (!is_seek_ready()) {
-                    out_status = "Seek not ready";
+                    out_status.assign("Seek not ready");
                     return false;
                 }
                 if (!request_seek(seek_sec, out_status)) {
                     return false;
                 }
                 current_sec_ = seek_sec;
-                start_ = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec_);
-                out_status = "Playing";
+                start_ms_ = charm::system::ClockCaps::TimeSource::now()
+                    - static_cast<std::uint64_t>(current_sec_) * 1000;
+                out_status.assign("Playing");
                 return true;
             }
             return false;
         }
 
-        bool start_playback(std::string& out_status) {
+        bool start_playback(FixedString<128>& out_status) {
             if (!player_) {
-                out_status = "No player";
+                out_status.assign("No player");
                 return false;
             }
             if (!track_path_) {
-                out_status = "No track";
+                out_status.assign("No track");
                 return false;
             }
             if (!track_ready_) {
-                out_status = "Track not ready";
+                out_status.assign("Track not ready");
 #if defined(_WIN32)
                 std::printf("[player] track not ready: ");
                 dump_path_escaped(track_path_);
@@ -362,7 +301,7 @@ export namespace player {
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
 #if defined(_WIN32)
                 std::printf("[player] play failed (%s): ", audio_err_text(res.error()));
                 dump_path_escaped(track_path_);
@@ -372,40 +311,41 @@ export namespace player {
             }
             playing_ = true;
             paused_ = false;
-            start_ = std::chrono::steady_clock::now();
+            start_ms_ = charm::system::ClockCaps::TimeSource::now();
             current_sec_ = 0;
-            out_status = "Opening";
+            out_status.assign("Opening");
             return true;
         }
 
-        bool pause_playback(std::string& out_status) {
+        bool pause_playback(FixedString<128>& out_status) {
             if (!player_ || !playing_) return false;
             auto res = player_->pause();
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Pause failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             playing_ = false;
             paused_ = true;
-            out_status = "Paused";
+            out_status.assign("Paused");
             return true;
         }
 
-        bool resume_playback(std::string& out_status) {
+        bool resume_playback(FixedString<128>& out_status) {
             if (!player_ || !paused_) return false;
             auto res = player_->resume();
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Resume failed (%s)", audio_err_text(res.error()));
-                out_status = buf;
+                out_status.assign(buf);
                 return false;
             }
             paused_ = false;
             playing_ = true;
-            start_ = std::chrono::steady_clock::now() - std::chrono::seconds(current_sec_);
-            out_status = "Playing";
+            start_ms_ = charm::system::ClockCaps::TimeSource::now()
+                - static_cast<std::uint64_t>(current_sec_) * 1000;
+            out_status.assign("Playing");
             return true;
         }
 
@@ -419,20 +359,6 @@ export namespace player {
         }
 
     private:
-        bool ends_with_icase(const char* text, const char* suffix) const {
-            if (!text || !suffix) return false;
-            const std::size_t value_len = std::strlen(text);
-            const std::size_t suf_len = std::strlen(suffix);
-            if (value_len < suf_len) return false;
-            const std::size_t start = value_len - suf_len;
-            for (std::size_t i = 0; i < suf_len; ++i) {
-                const char a = static_cast<char>(std::tolower(text[start + i]));
-                const char b = static_cast<char>(std::tolower(suffix[i]));
-                if (a != b) return false;
-            }
-            return true;
-        }
-
         audio::AudioPlayer* player_{nullptr};
         const char* track_path_{nullptr};
         bool track_ready_{false};
@@ -442,6 +368,6 @@ export namespace player {
         int duration_sec_{180};
         int current_sec_{0};
         int volume_percent_{80};
-        std::chrono::steady_clock::time_point start_{};
+        std::uint64_t start_ms_{0};
     };
 }

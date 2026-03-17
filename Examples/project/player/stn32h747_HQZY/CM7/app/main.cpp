@@ -66,8 +66,10 @@ SD NAND W25Q256
 
 import charm.system.bringup;
 import charm.system.clock;
+import charm.system.time;
 import charm.system.reactor_pump;
 import charm.system.init_usb;
+import charm.port;
 import driver.usart_channel;
 import io.channel;
 import io.registry;
@@ -93,9 +95,6 @@ import util.core;
 import util.error;
 
 extern "C" {
-    void SystemClock_Config(void);
-    void MX_GPIO_Init(void);
-    void MX_DMA_Init(void);
     void MX_FMC_Init(void);
     void MX_I2S1_Init(void);
     void MX_SDMMC1_SD_Init(void);
@@ -122,6 +121,7 @@ namespace {
     constexpr bool kUseDmaConsole = false;
     constexpr bool kEncoderTestOnBoot = false;
     constexpr util::u32 kEncoderTestMs = 5000;
+    charm::port::ConsoleSink g_console_sink{};
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
     usb::driver::DcdDeviceAdapter g_usb_adapter{};
     usb::driver::DcdOps g_usb_dcd_ops{};
@@ -300,7 +300,7 @@ namespace {
 
         void check_timeout() noexcept {
             if (dma_failed || !dma_busy) return;
-            const util::u32 now = HAL_GetTick();
+            const util::u32 now = static_cast<util::u32>(charm::port::now_ms(nullptr));
             if ((now - dma_start_ms) <= kDmaTimeoutMs) return;
             __disable_irq();
             dma_failed = true;
@@ -350,7 +350,7 @@ namespace {
                 dma_failed = true;
                 __enable_irq();
             }
-            dma_start_ms = HAL_GetTick();
+            dma_start_ms = static_cast<util::u32>(charm::port::now_ms(nullptr));
         }
 
         void on_complete() noexcept {
@@ -531,10 +531,12 @@ namespace {
         if (!msg) return;
         const std::size_t len = std::strlen(msg);
         if (len == 0) return;
-        (void)HAL_UART_Transmit(&huart1,
-            reinterpret_cast<uint8_t*>(const_cast<char*>(msg)),
-            static_cast<uint16_t>(len),
-            100);
+        if (!g_console_sink.ctx) return;
+        const out::bytes view{
+            reinterpret_cast<const std::byte*>(msg),
+            static_cast<std::size_t>(len)
+        };
+        (void)g_console_sink.write(view);
     }
 
     void early_uart_print_err(const char* tag, util::Errc err) noexcept {
@@ -604,12 +606,12 @@ namespace {
         if (!kBringupWaitKey) return;
         const auto active = key_active();
         while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == active) {
-            HAL_Delay(10);
+            charm::system::time::sleep_ms(10);
         }
         while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) != active) {
-            HAL_Delay(10);
+            charm::system::time::sleep_ms(10);
         }
-        HAL_Delay(20);
+        charm::system::time::sleep_ms(20);
     }
 
     void encoder_test() noexcept {
@@ -628,14 +630,14 @@ namespace {
         }
         early_uart_print("encoder: start ok\n");
 
-        const util::u32 start_ms = HAL_GetTick();
+        const util::u32 start_ms = static_cast<util::u32>(charm::port::now_ms(nullptr));
         std::uint16_t last = static_cast<std::uint16_t>(__HAL_TIM_GET_COUNTER(&htim8));
         util::u32 last_print = start_ms;
         GPIO_PinState last_key = HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_8);
         while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == GPIO_PIN_RESET) {
             const std::uint16_t now = static_cast<std::uint16_t>(__HAL_TIM_GET_COUNTER(&htim8));
             const GPIO_PinState key = HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_8);
-            const util::u32 tick = HAL_GetTick();
+            const util::u32 tick = static_cast<util::u32>(charm::port::now_ms(nullptr));
             if (now != last || key != last_key || (tick - last_print) >= 200u) {
                 char buf[80]{};
                 const int n = std::snprintf(
@@ -669,7 +671,7 @@ namespace {
         cmd.CommandMode = FMC_SDRAM_CMD_CLK_ENABLE;
         early_uart_print("sdram: seq clk\n");
         if (HAL_SDRAM_SendCommand(&hsdram1, &cmd, 100) != HAL_OK) return false;
-        HAL_Delay(1);
+        charm::system::time::sleep_ms(1);
 
         cmd.CommandMode = FMC_SDRAM_CMD_PALL;
         early_uart_print("sdram: seq pall\n");
@@ -795,18 +797,17 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
 }
 
 int main() {
-    HAL_Init();
+    auto kit = charm::port::init();
     allow_unaligned_access();
-    SystemClock_Config();
+    g_console_sink = kit.console;
+    charm::system::Clock clock{
+        kit.time_ctx,
+        charm::system::ClockOps{&charm::port::now_ms, nullptr}
+    };
+    charm::system::time::bind(clock);
+    out::Scope scope{kit.console};
 
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    MX_USART1_UART_Init();
-    const char early_msg[] = "boot: uart ok\n";
-    (void)HAL_UART_Transmit(&huart1,
-        reinterpret_cast<uint8_t*>(const_cast<char*>(early_msg)),
-        static_cast<uint16_t>(sizeof(early_msg) - 1),
-        100);
+    early_uart_print("boot: uart ok\n");
     {
         char buf[64]{};
         const int n = std::snprintf(buf, sizeof(buf), "boot: ccr=0x%08lX\n",

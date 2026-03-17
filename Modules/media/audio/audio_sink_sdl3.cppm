@@ -50,11 +50,9 @@ export namespace audio {
 
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
-            const std::uint32_t period = cfg.period_frames != 0
-                ? cfg.period_frames
-                : (fmt_.rate / 100);
-            callback_bytes_ = static_cast<std::size_t>(period) * fmt_.frame_size();
-            period_frames_ = period;
+            const auto pull = resolve_pull_spec(cfg, fmt_.frame_size());
+            callback_bytes_ = pull.period_bytes;
+            period_frames_ = pull.period_frames;
             if (callback_bytes_ > scratch_.size()) {
                 return unexpected(Errc::invalid_arg);
             }

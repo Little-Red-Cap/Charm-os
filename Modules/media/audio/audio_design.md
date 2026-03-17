@@ -82,6 +82,7 @@ using FillCallback = size_t(*)(std::span<std::byte> dst, void* user) noexcept;
 - `filled_bytes % frame_size == 0`
 - `dst.size()` 由 sink 保证是 `frame_size` 的整数倍
 - 若 FIFO 数据不足，只读取“最后一个完整 frame”，其余交给补零
+- 回调可能运行在 ISR/实时线程：禁止调用 decoder/graph/storage、禁止分配与加锁
 
 struct SinkConfig {
   AudioFormat fmt;
@@ -239,6 +240,49 @@ size_t audio_fill(std::span<std::byte> dst, void* user) noexcept {
   return filled; // 仅返回实际从 FIFO 读取的字节数
 }
 ```
+
+---
+
+## L2.5 Pull-Sim（PC 无硬件拉取仿真）
+
+> 目标：在 **不依赖硬件/SDL 实际音频输出** 的情况下，复现 I2S DMA 的 pull 语义，
+> 观察水位与 underrun 行为，并做可复现的压力测试。
+
+### 1) 入口与用法
+
+使用 `AudioPullSimulator` 替代真实 Sink，调用同一套 `FillCallback`：
+
+```
+AudioPullSimulator sim;
+sim.open(cfg);
+sim.set_fill_callback(pump.fill_callback(), &pump);
+sim.start();
+sim.step_once(); // 模拟一次 period 拉取
+```
+
+示例（SDL3 demo）：
+
+```
+sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
+```
+
+### 2) 观测指标（与真实路径对齐）
+
+建议关注三类指标（与 Player 调试面板口径一致）：
+
+- `water(ms)`：FIFO 水位的 now/min/max
+- `underrun`：sink 侧与 pump 侧计数
+- `cb_dt(ms)`：回调间隔的 min/avg/max
+
+### 3) Jitter 注入（压力测试）
+
+`pull-jitter-ms` 用于注入回调抖动（0..N ms），
+并支持 **seed / pattern** 以便可复现：
+
+- `pull-jitter-seed`：固定随机序列
+- `pull-jitter-pattern`：`uniform` / `burst`
+
+> Pull‑Sim 不替代真实硬件，只用于 **水位策略/underrun 行为** 的快速回归验证。
 
 ---
 
@@ -1396,6 +1440,25 @@ Decoder(S32 @ in_rate, in_ch)
 ```
 
 注：MVP 先固定此顺序，避免组合爆炸；未来引入 Mixer 后再讨论放置位置。
+
+#### FixedRate 的 chunk 策略（v1 规则）
+
+- 目标：在 `in_rate > out_rate` 时保证 resample 缓冲不越界，同时不改变外部水位策略。
+- 计算：
+  - `chunk_frames = period_frames * chunk_mult`
+  - 当 `fixed_rate` 且 `in_rate > out_rate` 时，做上限收敛：
+    - `max_input_frames = kMaxChunkFrames + 2`
+    - `max_out_frames = floor((max_input_frames - 2) * out_rate / in_rate)`
+    - `chunk_frames = min(chunk_frames, max_out_frames)`
+- 结果：高采样率（如 96k）会自动缩小单次补给尺寸，但水位与 period 仍然按输出侧计算。
+
+#### Resample 缓冲策略（v1 规则）
+
+- resample 内部允许缓存少量残留帧（cache），以适配分数步长。
+- 若 `s32_work` 临时缓冲因缓存叠加超出容量：
+  - 先清空 cache 再重试；
+  - 若仍失败则停止输出并返回错误。
+- 该策略仅影响 resample 内部，不改变外部 FIFO/水位契约。
 
 ---
 

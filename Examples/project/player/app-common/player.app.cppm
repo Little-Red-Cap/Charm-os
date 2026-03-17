@@ -28,6 +28,7 @@ export namespace player {
         audio::Result<void> stop() { return player_.stop(); }
 
         void tick() { player_.tick(); }
+        void shutdown() noexcept { player_.shutdown(); }
         bool is_running() const noexcept { return player_.is_running(); }
         audio::AudioPlayer& player() noexcept { return player_; }
         const audio::AudioPlayer& player() const noexcept { return player_; }

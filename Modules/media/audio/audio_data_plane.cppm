@@ -131,7 +131,7 @@ export namespace audio {
             if (fifo_capacity_ == 0 || chunk_bytes_ == 0) return 0;
             const auto& fmt = decode_.output_format();
             if (fmt.frame_size() == 0 || fmt.channels == 0) return 0;
-            std::size_t writable = std::min(fifo_.free_bytes(), chunk_bytes_);
+            std::size_t writable = std::min(fifo_.producer_free_bytes(), chunk_bytes_);
             writable = (writable / fmt.frame_size()) * fmt.frame_size();
             if (writable == 0) return 0;
             std::size_t frames_needed = writable / fmt.frame_size();

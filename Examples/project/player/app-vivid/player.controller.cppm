@@ -26,6 +26,7 @@ import player.playback;
 import player.fs_utils;
 import player.storage;
 import player.ui;
+import player.cover;
 
 export namespace player {
     using namespace player::fs_utils;
@@ -88,6 +89,9 @@ export namespace player {
         int track_index{0};
         std::string title_text{};
         std::string subtitle_text{};
+        std::string cover_path{};
+        CoverImage cover_image{};
+        bool cover_ready{false};
         bool fs_ready{false};
         int play_mode{0};
         bool ignore_list_select{false};
@@ -126,6 +130,7 @@ export namespace player {
         std::mt19937 rng{static_cast<unsigned int>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count())};
         std::chrono::steady_clock::time_point last_debug_tick{};
+        bool last_running{false};
 
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
@@ -146,6 +151,7 @@ export namespace player {
         void clear_track_state() noexcept {
             playback.set_track_path(nullptr);
             playback.set_track_ready(false);
+            reset_cover_image();
         }
 
         void handle_key_action(UiKey key) {
@@ -221,6 +227,44 @@ export namespace player {
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
 
+        void reset_cover_image() noexcept {
+            cover_ready = false;
+            cover_path.clear();
+            release_cover_image(cover_image);
+            if (kernel && handles.cover && kernel->kind(handles.cover) == WidgetKind::Image) {
+                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            }
+        }
+
+        void update_cover_image() {
+            if (!kernel || !handles.cover) return;
+            if (!cover_ready || cover_path.empty()) {
+                release_cover_image(cover_image);
+                if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                    kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+                }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                std::printf("[cover] no cover for track\n");
+#endif
+                return;
+            }
+            if (cover_image.path == cover_path && soa_detail::image_id_valid(cover_image.image_id)) {
+                return;
+            }
+            if (load_cover_image(cover_path, cover_image)) {
+                if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                    kernel->set_image(handles.cover, cover_image.image_id);
+                }
+                return;
+            }
+            if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] load failed: %s\n", cover_path.c_str());
+#endif
+        }
+
         void on_player_stopped() {
             playback.stop_playback();
             set_status("Stopped");
@@ -234,13 +278,15 @@ export namespace player {
         }
 
         void tick_player(const audio::AudioPlayer& player) {
-            if (playback.playing() && !player.is_running()) {
+            const bool running_now = player.is_running();
+            if (last_running && !running_now) {
                 if (player.state() == audio::PlayerState::error) {
                     on_player_stopped();
-                } else {
+                } else if (playback.playing() || playback.paused()) {
                     handle_track_end();
                 }
             }
+            last_running = running_now;
             if (!playback.paused()) {
                 const auto st = player.state();
                 if (st == audio::PlayerState::opening) {
@@ -474,12 +520,23 @@ export namespace player {
             const std::uint64_t low_ms = bytes_per_sec ? (snap.low_water * 1000 / bytes_per_sec) : 0;
             const std::uint64_t high_ms = bytes_per_sec ? (snap.high_water * 1000 / bytes_per_sec) : 0;
 
-            char buf[96]{};
-            std::snprintf(buf, sizeof(buf), "water %llums (%llu..%llu) underrun %llu",
+            const auto pump_min_ms = (snap.pump.has_water && bytes_per_sec)
+                ? (snap.pump.water_min * 1000 / bytes_per_sec)
+                : 0;
+            const auto pump_max_ms = (snap.pump.has_water && bytes_per_sec)
+                ? (snap.pump.water_max * 1000 / bytes_per_sec)
+                : 0;
+
+            char buf[160]{};
+            std::snprintf(buf, sizeof(buf),
+                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu",
                           static_cast<unsigned long long>(water_ms),
                           static_cast<unsigned long long>(low_ms),
                           static_cast<unsigned long long>(high_ms),
-                          static_cast<unsigned long long>(snap.stats.underrun_count));
+                          static_cast<unsigned long long>(pump_min_ms),
+                          static_cast<unsigned long long>(pump_max_ms),
+                          static_cast<unsigned long long>(snap.stats.underrun_count),
+                          static_cast<unsigned long long>(snap.pump.underrun_count));
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);
 #else
             (void)this;
@@ -669,10 +726,20 @@ export namespace player {
             }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
+            if (track_ready) {
+                cover_ready = fs_utils::find_cover_for_track(vfs_path, cover_path);
+            } else {
+                cover_ready = false;
+                cover_path.clear();
+            }
+            update_cover_image();
+            reset_duration();
+            if (track_ready) {
+                (void)playback.probe_duration_from_path(track_path);
+            }
             set_play_button_text(false);
             set_time_label(0);
             sync_progress_value(0);
-            reset_duration();
             last_time_sec = -1;
             sync_list_selection();
             return playback.track_ready();

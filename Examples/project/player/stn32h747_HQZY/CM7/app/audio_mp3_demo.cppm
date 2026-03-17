@@ -137,6 +137,7 @@ namespace {
 
     extern "C" void charm_audio_i2s_half_notify();
     extern "C" void charm_audio_i2s_full_notify();
+    extern "C" void charm_audio_i2s_underrun_notify();
 
     inline void poll_i2s_dma_flags() noexcept {
 #if defined(DMA1)
@@ -773,6 +774,7 @@ namespace {
   static volatile bool g_half_ready = false;
   static volatile bool g_full_ready = false;
   static volatile std::uint32_t g_underruns = 0;
+  static volatile std::uint32_t g_isr_underruns = 0;
   static volatile std::uint32_t g_i2s_half_count = 0;
   static volatile std::uint32_t g_i2s_full_count = 0;
   static volatile std::uint32_t g_dma_irq_count = 0;
@@ -795,6 +797,10 @@ namespace {
       extern "C" void charm_audio_i2s_full_notify() {
           g_full_ready = true;
           g_i2s_full_count = g_i2s_full_count + 1;
+      }
+
+      extern "C" void charm_audio_i2s_underrun_notify() {
+          g_isr_underruns = g_isr_underruns + 1;
       }
 
       extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
@@ -1104,8 +1110,8 @@ namespace {
                 const auto ndtr = dma_inst ? static_cast<int>(dma_inst->NDTR) : -1;
                 const auto dstate = static_cast<int>(hdma_spi1_tx.State);
                 const auto derr = static_cast<int>(hdma_spi1_tx.ErrorCode);
-                log<"mp3 demo: playing... ndtr={} dma_state={} dma_err={} i2s_state={} underrun={} half_ok={} full_ok={}">(
-                    ndtr, dstate, derr, static_cast<int>(hi2s1.State), g_underruns,
+                log<"mp3 demo: playing... ndtr={} dma_state={} dma_err={} i2s_state={} underrun={} isr_underrun={} half_ok={} full_ok={}">(
+                    ndtr, dstate, derr, static_cast<int>(hi2s1.State), g_underruns, g_isr_underruns,
                     static_cast<int>(half_filled), static_cast<int>(full_filled));
             }
         }
@@ -1514,6 +1520,7 @@ namespace {
           g_half_ready = false;
           g_full_ready = false;
           g_underruns = 0;
+          g_isr_underruns = 0;
           g_i2s_half_count = 0;
           g_i2s_full_count = 0;
           g_poll_start_ms = HAL_GetTick();
@@ -1703,8 +1710,8 @@ namespace {
               const util::u32 df = full - last_full;
               last_half = half;
               last_full = full;
-              log<"mp3 demo: run ms={} half={} full={} dh={} df={} underrun={} active={} kind={} ended={} i2s_state={} i2s_err={} ndtr={} dma_state={} dma_err={}">(
-                  now_ms, half, full, dh, df, g_underruns,
+              log<"mp3 demo: run ms={} half={} full={} dh={} df={} underrun={} isr_underrun={} active={} kind={} ended={} i2s_state={} i2s_err={} ndtr={} dma_state={} dma_err={}">(
+                  now_ms, half, full, dh, df, g_underruns, g_isr_underruns,
                   static_cast<int>(g_player.active),
                   static_cast<int>(g_player.kind),
                   static_cast<int>(session.ended),

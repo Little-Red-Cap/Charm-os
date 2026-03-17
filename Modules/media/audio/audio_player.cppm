@@ -25,6 +25,7 @@ import audio.decode_pipe;
 import audio.data_plane;
 import audio.eq;
 import audio.format;
+import audio.pump;
 import audio.result;
 import alg_fft;
 import charm.system.clock;
@@ -44,6 +45,22 @@ import audio.source.fs;
 #else
 import audio.source.file;
 #endif
+
+namespace {
+    void dump_path_escaped(const char* path) {
+        if (!path) {
+            std::printf("(null)");
+            return;
+        }
+        for (const unsigned char ch : std::string_view{path}) {
+            if (std::isprint(ch)) {
+                std::printf("%c", static_cast<char>(ch));
+            } else {
+                std::printf("\\x%02X", static_cast<unsigned int>(ch));
+            }
+        }
+    }
+}
 
 export namespace audio {
 #if !defined(CHARM_ENABLE_SDL3) && !defined(CHARM_AUDIO_SINK_I2S)
@@ -228,6 +245,7 @@ export namespace audio {
     struct PlayerSnapshot {
         PlayerStats stats{};
         CallbackStats callback{};
+        PumpStats pump{};
         AudioFormat input_fmt{};
         AudioFormat output_fmt{};
         std::size_t water_bytes{0};
@@ -387,6 +405,8 @@ export namespace audio {
             return reconfigure_format(input_fmt_);
         }
 
+        void shutdown() noexcept { stop_internal(); }
+
         void set_stress_ms(std::uint32_t ms) {
             stress_ms_ = ms;
 #if CHARM_AUDIO_ENABLE_STRESS
@@ -491,6 +511,7 @@ export namespace audio {
             PlayerSnapshot snap{};
             snap.stats = stats_;
             snap.callback = sink_.callback_stats();
+            snap.pump = data_plane_.pump().snapshot();
             snap.input_fmt = input_fmt_;
             snap.output_fmt = output_fmt_;
             snap.water_bytes = data_plane_.fifo_capacity()
@@ -551,6 +572,23 @@ export namespace audio {
             bool flag{false};
             float value{0.0f};
         };
+
+        std::uint32_t compute_chunk_frames(std::uint32_t period_frames) const noexcept {
+            std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            if (config_.output_mode == OutputMode::fixed_rate &&
+                output_fmt_.rate > 0 &&
+                input_fmt_.rate > output_fmt_.rate) {
+                const std::uint32_t max_input_frames = static_cast<std::uint32_t>(kMaxChunkFrames + 2);
+                const std::uint64_t max_out_frames = (static_cast<std::uint64_t>(max_input_frames - 2)
+                    * output_fmt_.rate) / input_fmt_.rate;
+                const std::uint32_t capped = static_cast<std::uint32_t>(
+                    std::max<std::uint64_t>(1, max_out_frames));
+                if (chunk_frames > capped) {
+                    chunk_frames = capped;
+                }
+            }
+            return chunk_frames;
+        }
 
         void init_spectrum_window() noexcept {
             constexpr float kPi = 3.14159265358979323846f;
@@ -685,12 +723,21 @@ export namespace audio {
         }
 
         void handle_play(const char* path) {
+            (void)last_path_.assign("");
+            if (path) {
+                (void)last_path_.assign(path);
+            }
             stop_internal();
             state_ = PlayerState::opening;
             last_err_ = Errc::ok;
             last_err_stage_ = PlayerErrorStage::none;
 
             if (!src_.open(path)) {
+#if defined(_WIN32)
+                std::printf("[audio] open failed: ");
+                dump_path_escaped(path);
+                std::printf("\n");
+#endif
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
             }
@@ -747,6 +794,11 @@ export namespace audio {
 
             const auto opened = data_plane_.open_source(src_iface_, kind);
             if (!opened) {
+#if defined(_WIN32)
+                std::printf("[audio] decode open failed (%d): ", static_cast<int>(opened.error()));
+                dump_path_escaped(path);
+                std::printf("\n");
+#endif
                 if (kind == SourceKind::wav && opened.error() == Errc::not_supported) {
                     set_error(Errc::not_supported, PlayerErrorStage::wav_bits);
                 } else if (kind == SourceKind::wav) {
@@ -788,7 +840,7 @@ export namespace audio {
                 period_frames = output_fmt_.rate / 100;
             }
             data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
-            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            const std::uint32_t chunk_frames = compute_chunk_frames(period_frames);
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
             if (!data_plane_.update_period(period_frames, chunk_frames, chunk_bytes, output_fmt_)) {
@@ -897,7 +949,7 @@ export namespace audio {
                 period_frames = output_fmt_.rate / 100;
             }
             data_plane_.set_graph_block_frames(select_graph_block_frames(period_frames));
-            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            const std::uint32_t chunk_frames = compute_chunk_frames(period_frames);
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
             if (!data_plane_.update_period(period_frames, chunk_frames, chunk_bytes, output_fmt_)) {
@@ -941,17 +993,41 @@ export namespace audio {
             last_err_ = code;
             last_err_stage_ = stage;
             state_ = PlayerState::error;
+#if defined(_WIN32)
+            std::printf("[audio] error stage=%u err=%u path=",
+                static_cast<unsigned int>(stage),
+                static_cast<unsigned int>(code));
+            dump_path_escaped(last_path_.c_str());
+            std::printf("\n");
+#endif
         }
 
         void buffer_until_high() {
+            constexpr std::size_t kMaxRefillLoops = 8;
+            std::size_t loops = 0;
+            std::size_t last_size = data_plane_.fifo().size_bytes();
             while (data_plane_.fifo_capacity() &&
                    data_plane_.fifo().size_bytes() < data_plane_.high_water()) {
                 refill_once();
                 if (!running_) break;
-                if (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() == 0) break;
+                const std::size_t size = data_plane_.fifo().size_bytes();
+                if (!data_plane_.has_more_data()) break;
+                if (size == last_size) {
+                    if (++loops >= kMaxRefillLoops) break;
+                } else {
+                    loops = 0;
+                    last_size = size;
+                }
             }
             if (data_plane_.fifo_capacity() &&
-                data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
+                !data_plane_.has_more_data() &&
+                data_plane_.fifo().size_bytes() == 0) {
+                stop_internal();
+                return;
+            }
+            if (data_plane_.fifo_capacity() &&
+                (data_plane_.fifo().size_bytes() >= data_plane_.high_water() ||
+                 (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() > 0))) {
                 if (!sink_.start()) {
                     set_error(Errc::io_error, PlayerErrorStage::sink_start);
                     return;
@@ -961,21 +1037,81 @@ export namespace audio {
         }
 
         bool configure_buffers() {
-            if (output_fmt_.rate > kMaxRate || input_fmt_.rate > kMaxRate) return false;
-            if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) return false;
-            if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) return false;
-            if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) return false;
-            if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) return false;
+            if (output_fmt_.rate > kMaxRate ||
+                (config_.output_mode == OutputMode::follow_input && input_fmt_.rate > kMaxRate)) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config rate in=%u out=%u max=%u\n",
+                    static_cast<unsigned int>(input_fmt_.rate),
+                    static_cast<unsigned int>(output_fmt_.rate),
+                    static_cast<unsigned int>(kMaxRate));
+#endif
+                return false;
+            }
+            if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config out channels=%u max=%u\n",
+                    static_cast<unsigned int>(output_fmt_.channels),
+                    static_cast<unsigned int>(kMaxChannels));
+#endif
+                return false;
+            }
+            if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config in channels=%u max=%u\n",
+                    static_cast<unsigned int>(input_fmt_.channels),
+                    static_cast<unsigned int>(kMaxChannels));
+#endif
+                return false;
+            }
+            if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config chunk_mult=%u max=%u\n",
+                    static_cast<unsigned int>(config_.profile.chunk_mult),
+                    static_cast<unsigned int>(kMaxChunkMult));
+#endif
+                return false;
+            }
+            if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config fifo_ms=%u max=%u\n",
+                    static_cast<unsigned int>(config_.profile.fifo_ms),
+                    static_cast<unsigned int>(kMaxFifoMs));
+#endif
+                return false;
+            }
             const std::size_t fifo_capacity = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
-            if (fifo_capacity > kMaxFifoBytes) return false;
-            if (!fifo_storage_.resize(fifo_capacity)) return false;
-            const std::size_t low_water = ms_to_bytes(config_.profile.low_ms, output_fmt_);
-            const std::size_t high_water = ms_to_bytes(config_.profile.high_ms, output_fmt_);
+            if (fifo_capacity > kMaxFifoBytes) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config fifo_bytes=%zu max=%zu\n",
+                    fifo_capacity, static_cast<std::size_t>(kMaxFifoBytes));
+#endif
+                return false;
+            }
+            if (!fifo_storage_.resize(fifo_capacity)) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config fifo_storage resize failed\n");
+#endif
+                return false;
+            }
+            const std::size_t low_water = std::min(
+                ms_to_bytes(config_.profile.low_ms, output_fmt_), fifo_capacity);
+            std::size_t high_water = std::min(
+                ms_to_bytes(config_.profile.high_ms, output_fmt_), fifo_capacity);
+            if (high_water < low_water) high_water = low_water;
             std::uint32_t period_frames = config_.preferred_period_frames != 0
                 ? config_.preferred_period_frames
                 : (output_fmt_.rate / 100);
-            if (period_frames > kMaxPeriodFrames) return false;
-            const std::uint32_t chunk_frames = period_frames * config_.profile.chunk_mult;
+            if (period_frames > kMaxPeriodFrames) {
+#if defined(_WIN32)
+                std::printf("[audio] buffer_config period_frames=%u max=%u\n",
+                    static_cast<unsigned int>(period_frames),
+                    static_cast<unsigned int>(kMaxPeriodFrames));
+#endif
+                return false;
+            }
+            const std::uint32_t requested_chunk_frames = period_frames * config_.profile.chunk_mult;
+            std::uint32_t chunk_frames = compute_chunk_frames(period_frames);
+            (void)requested_chunk_frames;
             const std::size_t chunk_bytes =
                 static_cast<std::size_t>(chunk_frames) * output_fmt_.frame_size();
             if (!data_plane_.configure(
@@ -996,7 +1132,7 @@ export namespace audio {
             if (!data_plane_.fifo_capacity()) return;
             if (!data_plane_.has_more_data()) return;
             auto& fifo = data_plane_.fifo();
-            std::size_t writable = std::min(fifo.free_bytes(), data_plane_.chunk_bytes());
+            std::size_t writable = std::min(fifo.producer_free_bytes(), data_plane_.chunk_bytes());
             writable = (writable / output_fmt_.frame_size()) * output_fmt_.frame_size();
             if (writable == 0) {
                 stats_.overrun_count++;
@@ -1063,6 +1199,7 @@ export namespace audio {
 #else
         FileDataSource src_{};
 #endif
+        FixedString<kMaxPath> last_path_{};
         media::StreamSourceRef src_iface_{};
         SinkType sink_{};
         AudioDataPlane data_plane_{};

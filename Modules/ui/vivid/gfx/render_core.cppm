@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #ifndef CHARM_ENABLE_FLOAT_ARC
 #define CHARM_ENABLE_FLOAT_ARC 1
 #endif
@@ -496,6 +497,94 @@ export inline void draw_image(CanvasBase& cvs,
     }
 }
 
+namespace detail {
+inline std::uint8_t round_rect_alpha(int x, int y, const Rect& r, int radius) noexcept {
+    if (radius <= 0) return 255;
+    const int rad = (radius * 2 > r.w) ? (r.w / 2) : ((radius * 2 > r.h) ? (r.h / 2) : radius);
+    if (rad <= 0) return 255;
+    const int left = r.x + rad;
+    const int right = r.x + r.w - rad - 1;
+    const int top = r.y + rad;
+    const int bottom = r.y + r.h - rad - 1;
+    if (x >= left && x <= right) return 255;
+    if (y >= top && y <= bottom) return 255;
+    const int cx = (x < left) ? left : right;
+    const int cy = (y < top) ? top : bottom;
+    const int dx = x - cx;
+    const int dy = y - cy;
+    const int dist2 = dx * dx + dy * dy;
+    const int r2 = rad * rad;
+    if (dist2 <= r2) return 255;
+    const int r_aa = rad + 1;
+    const int r_aa2 = r_aa * r_aa;
+    if (dist2 >= r_aa2) return 0;
+    const float dist = std::sqrt(static_cast<float>(dist2));
+    const float alpha = static_cast<float>(r_aa) - dist;
+    const int out = static_cast<int>(alpha * 255.0f);
+    if (out <= 0) return 0;
+    if (out >= 255) return 255;
+    return static_cast<std::uint8_t>(out);
+}
+} // namespace detail
+
+export inline void draw_image_round_rect(CanvasBase& cvs,
+                                         int dst_x, int dst_y,
+                                         const ImageView& img,
+                                         int radius) noexcept
+{
+    if (!img.data || img.w <= 0 || img.h <= 0) return;
+    const int eff_radius = (radius > 0) ? (radius + 1) : 0;
+    Rect rect{dst_x, dst_y, img.w, img.h};
+    int x0 = rect.x;
+    int y0 = rect.y;
+    int x1 = rect.x + rect.w;
+    int y1 = rect.y + rect.h;
+    if (x1 <= 0 || y1 <= 0) return;
+    int sx = 0;
+    int sy = 0;
+    if (x0 < 0) { sx = -x0; x0 = 0; }
+    if (y0 < 0) { sy = -y0; y0 = 0; }
+    for (int y = y0; y < y1; ++y) {
+        const std::byte* row = img.data + (sy + (y - y0)) * img.stride_bytes;
+        for (int x = x0; x < x1; ++x) {
+            const int ix = sx + (x - x0);
+            if (!cvs.in_clip(x, y)) continue;
+            const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
+            if (mask == 0) continue;
+            if (img.format == PixelFormat::RGB565) {
+                const std::byte* p = row + ix * 2;
+                uint16_t px{};
+                std::memcpy(&px, p, sizeof(px));
+                const rgb rgbv = unpack_rgb565(px);
+                rgba src{rgbv.r, rgbv.g, rgbv.b, mask};
+                cvs.set_pixel(x, y, src);
+            } else if (img.format == PixelFormat::RGB888) {
+                const std::byte* p = row + ix * 3;
+                rgba src{
+                    static_cast<std::uint8_t>(p[0]),
+                    static_cast<std::uint8_t>(p[1]),
+                    static_cast<std::uint8_t>(p[2]),
+                    mask
+                };
+                cvs.set_pixel(x, y, src);
+            } else if (img.format == PixelFormat::ARGB8888) {
+                const std::byte* p = row + ix * 4;
+                rgba src{
+                    static_cast<std::uint8_t>(p[1]),
+                    static_cast<std::uint8_t>(p[2]),
+                    static_cast<std::uint8_t>(p[3]),
+                    static_cast<std::uint8_t>(p[0])
+                };
+                if (img.force_opaque) {
+                    src.a = 255;
+                }
+                src.a = static_cast<std::uint8_t>((static_cast<int>(src.a) * mask) / 255);
+                detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
+            }
+        }
+    }
+}
+
 export template<PixelFormat PF, std::size_t W, std::size_t H>
 void draw_image_scaled(Canvas<PF, W, H>& cvs,
                        int dst_x, int dst_y,
@@ -551,6 +640,39 @@ export inline void draw_image_scaled(CanvasBase& cvs,
             const int sx = sx0 + (x - x0) * img.w / dst_w;
             const rgba src = detail::decode_pixel(img, sx, sy);
             detail::blend_pixel(cvs, x, y, src, img.premultiplied_alpha);
+        }
+    }
+}
+
+export inline void draw_image_scaled_round_rect(CanvasBase& cvs,
+                                                int dst_x, int dst_y,
+                                                int dst_w, int dst_h,
+                                                const ImageView& img,
+                                                int radius) noexcept
+{
+    if (!img.data || img.w <= 0 || img.h <= 0 || dst_w <= 0 || dst_h <= 0) return;
+    const int eff_radius = (radius > 0) ? (radius + 1) : 0;
+    Rect rect{dst_x, dst_y, dst_w, dst_h};
+    int x0 = rect.x;
+    int y0 = rect.y;
+    int x1 = rect.x + rect.w;
+    int y1 = rect.y + rect.h;
+    if (x1 <= 0 || y1 <= 0) return;
+    int sx0 = 0;
+    int sy0 = 0;
+    if (x0 < 0) { sx0 = (-x0 * img.w) / dst_w; x0 = 0; }
+    if (y0 < 0) { sy0 = (-y0 * img.h) / dst_h; y0 = 0; }
+    for (int y = y0; y < y1; ++y) {
+        const int sy = sy0 + (y - y0) * img.h / dst_h;
+        for (int x = x0; x < x1; ++x) {
+            if (!cvs.in_clip(x, y)) continue;
+            const std::uint8_t mask = detail::round_rect_alpha(x, y, rect, eff_radius);
+            if (mask == 0) continue;
+            const int sx = sx0 + (x - x0) * img.w / dst_w;
+            const rgba src = detail::decode_pixel(img, sx, sy);
+            rgba out = src;
+            out.a = static_cast<std::uint8_t>((static_cast<int>(out.a) * mask) / 255);
+            detail::blend_pixel(cvs, x, y, out, img.premultiplied_alpha);
         }
     }
 }

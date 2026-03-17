@@ -13,6 +13,7 @@ import charm.core.event;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
+import charm.core.soa_payload;
 import ui.input_adapter;
 import charm.gfx.color;
 import charm.font.font_noto_ascii_16;
@@ -59,7 +60,7 @@ namespace {
     static SoaFactory g_factory{g_kernel};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static player::App g_app{{g_player_cfg}, g_clock};
+    static std::optional<player::App> g_app{};
     static std::vector<std::string> g_vfs_tracks{};
 
     using PlayerUiContext = player::PlayerController;
@@ -84,7 +85,10 @@ namespace {
                         float t_sec) {
         const Rect cover = kernel.world_rect(ctx.handles.cover);
         const int cover_radius = 18;
-        out.fill_round_rect(cover, cover_radius, kUiCover);
+        const auto cover_image = ctx.cover_image.image_id;
+        if (!soa_detail::image_id_valid(cover_image)) {
+            out.fill_round_rect(cover, cover_radius, kUiCover);
+        }
         rgba cover_ring = kUiOk;
         if (ctx.is_playing()) {
             const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
@@ -125,7 +129,8 @@ namespace {
         platform.framebuffer_ref().clear(kUiBackground);
         platform.begin_frame();
         platform.record();
-        update_spectrum(t_sec, ctx.is_playing() || ctx.is_paused());
+        const bool spectrum_active = ctx.is_playing();
+        update_spectrum(t_sec, spectrum_active);
         draw_player_fx(platform.commands(), ctx, kernel, t_sec);
         platform.execute();
         platform.end_frame();
@@ -270,14 +275,18 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_app.bind_player(g_ctx);
+    g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
+    g_player_cfg.fixed_rate = 48000;
+    g_app.emplace(player::AppConfig{g_player_cfg}, g_clock);
+
+    g_app->bind_player(g_ctx);
     g_ctx.bind_kernel(g_kernel);
     g_ctx.tracks = &g_vfs_tracks;
 
-    g_app.bind_ui(g_factory, g_ctx);
+    g_app->bind_ui(g_factory, g_ctx);
 
     player::init_storage(player::default_storage_config());
-    const bool has_track = g_app.bootstrap_player(g_ctx, g_vfs_tracks, 0, false);
+    const bool has_track = g_app->bootstrap_player(g_ctx, g_vfs_tracks, 0, false);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }
@@ -298,11 +307,11 @@ int main(int argc, char** argv) {
                 win_w = static_cast<int>(evt.window.data1);
                 win_h = static_cast<int>(evt.window.data2);
             }
-            dispatch_sdl_event(*g_platform.gui, g_app, g_ctx, evt);
+            dispatch_sdl_event(*g_platform.gui, *g_app, g_ctx, evt);
         }
 
         const float t_sec = static_cast<float>(SDL_GetTicks()) * 0.001f;
-        run_frame(g_app, g_platform, g_ctx, g_kernel, t_sec);
+        run_frame(*g_app, g_platform, g_ctx, g_kernel, t_sec);
 
         SDL_UpdateTexture(texture, nullptr, g_platform.canvas_ref().data(),
                           static_cast<int>(g_platform.stride_bytes()));
@@ -314,6 +323,7 @@ int main(int argc, char** argv) {
         (void)win_h;
     }
 
+    g_app->shutdown();
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

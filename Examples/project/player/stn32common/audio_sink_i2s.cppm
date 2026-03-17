@@ -18,6 +18,7 @@ import media.stream.sink;
 import media.stream.types;
 
 export namespace audio {
+    extern "C" void charm_audio_i2s_underrun_notify();
 #ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
 #define CHARM_AUDIO_MAX_PERIOD_FRAMES 480
 #endif
@@ -55,11 +56,9 @@ export namespace audio {
 
         Result<void> open(const SinkConfig& cfg) noexcept {
             fmt_ = from_stream_format(cfg.format);
-            const std::uint32_t period = cfg.period_frames != 0
-                ? cfg.period_frames
-                : (fmt_.rate / 100);
-            period_frames_ = period;
-            period_bytes_ = static_cast<std::size_t>(period_frames_) * fmt_.frame_size();
+            const auto pull = resolve_pull_spec(cfg, fmt_.frame_size());
+            period_frames_ = pull.period_frames;
+            period_bytes_ = pull.period_bytes;
             buffer_bytes_ = period_bytes_ * 2;
             if (buffer_bytes_ > buffer_.size()) {
                 return unexpected(Errc::invalid_arg);
@@ -142,10 +141,12 @@ export namespace audio {
         }
 
         void fill_block(std::span<std::byte> block) noexcept {
+            cb_last_request_frames_ = period_frames_;
             const auto res = fill_and_pad(fill_cb_, fill_user_, block);
             if (res.underrun) {
                 underrun_flag_ = 1;
                 ++underrun_count_;
+                charm_audio_i2s_underrun_notify();
             }
             ++cb_count_;
         }
@@ -223,4 +224,8 @@ extern "C" void charm_audio_i2s_half_notify() {
 
 extern "C" void charm_audio_i2s_full_notify() __attribute__((weak));
 extern "C" void charm_audio_i2s_full_notify() {
+}
+
+extern "C" void charm_audio_i2s_underrun_notify() __attribute__((weak));
+extern "C" void charm_audio_i2s_underrun_notify() {
 }

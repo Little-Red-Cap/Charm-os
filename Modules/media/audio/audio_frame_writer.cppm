@@ -69,7 +69,7 @@ export namespace audio {
         std::span<std::int16_t> writable(std::size_t frames) noexcept {
             if (channels_ == 0 || bytes_per_frame_ == 0) return {};
             if (has_pending_) return {};
-            const auto view = fifo_.writable_view();
+            const auto view = fifo_.producer_writable_view();
             if (view.a.empty()) return {};
             const std::size_t a_frames = view.a.size() / bytes_per_frame_;
             if (frames == 0 || frames > a_frames) return {};
@@ -82,7 +82,7 @@ export namespace audio {
         FifoWriteSegments writable_segments(std::size_t frames) noexcept {
             if (channels_ == 0 || bytes_per_frame_ == 0) return {};
             if (has_pending_) return {};
-            const auto view = fifo_.writable_view();
+            const auto view = fifo_.producer_writable_view();
             if (view.a.empty() && view.b.empty()) return {};
             const std::size_t cap_bytes = view.a.size() + view.b.size();
             const std::size_t max_frames = cap_bytes / bytes_per_frame_;
@@ -108,7 +108,7 @@ export namespace audio {
                 return;
             }
             const std::size_t bytes = clamped * bytes_per_frame_;
-            fifo_.commit_write(bytes);
+            fifo_.producer_commit_write(bytes);
             written_frames_ += clamped;
             has_pending_ = false;
         }

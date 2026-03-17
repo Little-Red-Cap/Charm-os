@@ -15,6 +15,10 @@ module;
 #define CHARM_AUDIO_ENABLE_STRESS 1
 #endif
 
+#ifndef CHARM_AUDIO_LOG
+#define CHARM_AUDIO_LOG 0
+#endif
+
 #if CHARM_AUDIO_ENABLE_STRESS
 #include <random>
 #endif
@@ -47,7 +51,12 @@ import audio.source.file;
 #endif
 
 namespace {
+    constexpr bool kAudioLogEnabled = CHARM_AUDIO_LOG != 0;
+
     void dump_path_escaped(const char* path) {
+        if (!kAudioLogEnabled) {
+            return;
+        }
         if (!path) {
             std::printf("(null)");
             return;
@@ -734,9 +743,11 @@ export namespace audio {
 
             if (!src_.open(path)) {
 #if defined(_WIN32)
-                std::printf("[audio] open failed: ");
-                dump_path_escaped(path);
-                std::printf("\n");
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] open failed: ");
+                    dump_path_escaped(path);
+                    std::printf("\n");
+                }
 #endif
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
@@ -795,9 +806,11 @@ export namespace audio {
             const auto opened = data_plane_.open_source(src_iface_, kind);
             if (!opened) {
 #if defined(_WIN32)
-                std::printf("[audio] decode open failed (%d): ", static_cast<int>(opened.error()));
-                dump_path_escaped(path);
-                std::printf("\n");
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] decode open failed (%d): ", static_cast<int>(opened.error()));
+                    dump_path_escaped(path);
+                    std::printf("\n");
+                }
 #endif
                 if (kind == SourceKind::wav && opened.error() == Errc::not_supported) {
                     set_error(Errc::not_supported, PlayerErrorStage::wav_bits);
@@ -994,11 +1007,13 @@ export namespace audio {
             last_err_stage_ = stage;
             state_ = PlayerState::error;
 #if defined(_WIN32)
-            std::printf("[audio] error stage=%u err=%u path=",
-                static_cast<unsigned int>(stage),
-                static_cast<unsigned int>(code));
-            dump_path_escaped(last_path_.c_str());
-            std::printf("\n");
+            if (kAudioLogEnabled) {
+                std::printf("[audio] error stage=%u err=%u path=",
+                    static_cast<unsigned int>(stage),
+                    static_cast<unsigned int>(code));
+                dump_path_escaped(last_path_.c_str());
+                std::printf("\n");
+            }
 #endif
         }
 
@@ -1040,56 +1055,70 @@ export namespace audio {
             if (output_fmt_.rate > kMaxRate ||
                 (config_.output_mode == OutputMode::follow_input && input_fmt_.rate > kMaxRate)) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config rate in=%u out=%u max=%u\n",
-                    static_cast<unsigned int>(input_fmt_.rate),
-                    static_cast<unsigned int>(output_fmt_.rate),
-                    static_cast<unsigned int>(kMaxRate));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config rate in=%u out=%u max=%u\n",
+                        static_cast<unsigned int>(input_fmt_.rate),
+                        static_cast<unsigned int>(output_fmt_.rate),
+                        static_cast<unsigned int>(kMaxRate));
+                }
 #endif
                 return false;
             }
             if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config out channels=%u max=%u\n",
-                    static_cast<unsigned int>(output_fmt_.channels),
-                    static_cast<unsigned int>(kMaxChannels));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config out channels=%u max=%u\n",
+                        static_cast<unsigned int>(output_fmt_.channels),
+                        static_cast<unsigned int>(kMaxChannels));
+                }
 #endif
                 return false;
             }
             if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config in channels=%u max=%u\n",
-                    static_cast<unsigned int>(input_fmt_.channels),
-                    static_cast<unsigned int>(kMaxChannels));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config in channels=%u max=%u\n",
+                        static_cast<unsigned int>(input_fmt_.channels),
+                        static_cast<unsigned int>(kMaxChannels));
+                }
 #endif
                 return false;
             }
             if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config chunk_mult=%u max=%u\n",
-                    static_cast<unsigned int>(config_.profile.chunk_mult),
-                    static_cast<unsigned int>(kMaxChunkMult));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config chunk_mult=%u max=%u\n",
+                        static_cast<unsigned int>(config_.profile.chunk_mult),
+                        static_cast<unsigned int>(kMaxChunkMult));
+                }
 #endif
                 return false;
             }
             if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config fifo_ms=%u max=%u\n",
-                    static_cast<unsigned int>(config_.profile.fifo_ms),
-                    static_cast<unsigned int>(kMaxFifoMs));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config fifo_ms=%u max=%u\n",
+                        static_cast<unsigned int>(config_.profile.fifo_ms),
+                        static_cast<unsigned int>(kMaxFifoMs));
+                }
 #endif
                 return false;
             }
             const std::size_t fifo_capacity = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
             if (fifo_capacity > kMaxFifoBytes) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config fifo_bytes=%zu max=%zu\n",
-                    fifo_capacity, static_cast<std::size_t>(kMaxFifoBytes));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config fifo_bytes=%zu max=%zu\n",
+                        fifo_capacity, static_cast<std::size_t>(kMaxFifoBytes));
+                }
 #endif
                 return false;
             }
             if (!fifo_storage_.resize(fifo_capacity)) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config fifo_storage resize failed\n");
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config fifo_storage resize failed\n");
+                }
 #endif
                 return false;
             }
@@ -1103,9 +1132,11 @@ export namespace audio {
                 : (output_fmt_.rate / 100);
             if (period_frames > kMaxPeriodFrames) {
 #if defined(_WIN32)
-                std::printf("[audio] buffer_config period_frames=%u max=%u\n",
-                    static_cast<unsigned int>(period_frames),
-                    static_cast<unsigned int>(kMaxPeriodFrames));
+                if (kAudioLogEnabled) {
+                    std::printf("[audio] buffer_config period_frames=%u max=%u\n",
+                        static_cast<unsigned int>(period_frames),
+                        static_cast<unsigned int>(kMaxPeriodFrames));
+                }
 #endif
                 return false;
             }

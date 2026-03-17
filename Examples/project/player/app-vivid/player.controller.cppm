@@ -694,7 +694,6 @@ export namespace player {
             }
             set_status(status.c_str());
             set_play_button_text(true);
-            set_time_label(0);
             sync_progress_value(0);
         }
 
@@ -740,7 +739,6 @@ export namespace player {
                     const bool playing_now = playback.playing();
                     set_play_button_text(playing_now);
                     if (status.view() == "Opening") {
-                        set_time_label(0);
                         sync_progress_value(0);
                     }
                 } else if (!status.empty()) { set_status(status.c_str()); }

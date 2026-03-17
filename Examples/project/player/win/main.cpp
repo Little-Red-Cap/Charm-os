@@ -276,6 +276,7 @@ int main(int argc, char** argv) {
 
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
+    charm::system::ClockCaps::TimeSource::bind(g_clock);
     g_app.emplace(player::AppConfig{g_player_cfg}, g_clock);
 
     g_app->bind_player(g_ctx);

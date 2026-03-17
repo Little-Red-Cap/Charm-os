@@ -336,6 +336,10 @@ __ALIGN_BEGIN static uint8_t USBD_AUDIO_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIE
 static uint8_t AUDIOOutEpAdd = AUDIO_OUT_EP;
 static uint32_t g_set_interface_calls = 0;
 static uint8_t g_last_alt_setting = 0;
+static volatile uint32_t g_audio_out_calls = 0;
+static volatile uint8_t g_audio_out_last_ep = 0;
+static volatile uint32_t g_audio_iso_out_incomplete = 0;
+static volatile uint8_t g_last_set_if_index = 0;
 /**
   * @}
   */
@@ -534,7 +538,17 @@ static uint8_t USBD_AUDIO_Setup(USBD_HandleTypeDef *pdev,
             {
               haudio->alt_setting = (uint8_t)(req->wValue);
               g_last_alt_setting = haudio->alt_setting;
+              g_last_set_if_index = (uint8_t)(req->wIndex);
               g_set_interface_calls++;
+              if (haudio->alt_setting == 1U)
+              {
+                haudio->offset = AUDIO_OFFSET_UNKNOWN;
+                haudio->wr_ptr = 0U;
+                haudio->rd_ptr = 0U;
+                haudio->rd_enable = 0U;
+                (void)USBD_LL_PrepareReceive(pdev, AUDIOOutEpAdd, haudio->buffer,
+                                             AUDIO_OUT_PACKET);
+              }
             }
             else
             {
@@ -754,6 +768,7 @@ static uint8_t USBD_AUDIO_IsoOutIncomplete(USBD_HandleTypeDef *pdev, uint8_t epn
   }
 
   haudio = (USBD_AUDIO_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
+  g_audio_iso_out_incomplete++;
 
   /* Prepare Out endpoint to receive next audio packet */
   (void)USBD_LL_PrepareReceive(pdev, epnum,
@@ -785,6 +800,9 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
   {
     return (uint8_t)USBD_FAIL;
   }
+
+  g_audio_out_calls++;
+  g_audio_out_last_ep = epnum;
 
   if (epnum == AUDIOOutEpAdd)
   {
@@ -827,6 +845,31 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
   }
 
   return (uint8_t)USBD_OK;
+}
+
+uint32_t usb_audio_out_calls(void)
+{
+  return g_audio_out_calls;
+}
+
+uint32_t usb_audio_out_last_ep(void)
+{
+  return g_audio_out_last_ep;
+}
+
+uint32_t usb_audio_iso_out_incomplete(void)
+{
+  return g_audio_iso_out_incomplete;
+}
+
+uint32_t usb_audio_out_ep(void)
+{
+  return AUDIOOutEpAdd;
+}
+
+uint32_t usb_audio_last_set_if_index(void)
+{
+  return g_last_set_if_index;
 }
 
 /**

@@ -16,7 +16,7 @@
 #include "usbd_def.h"
 
 import player.stm32h7.fs_demo_mmc;
-import usb.msc_storage_bridge;
+import player.stm32h7.usb_system;
 
 extern "C" {
 void SystemClock_Config(void);
@@ -378,7 +378,7 @@ int main(void) {
     } else {
         uart_write("boot: fs mount ok\n");
     }
-    usb::msc::bridge::set_block_device(fs_sd_block_device(), false);
+    usb_system_init(fs_sd_block_device(), false);
 
 #if defined(RCC_PERIPHCLK_SPI123)
     const uint32_t i2s_clk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI123);
@@ -402,7 +402,6 @@ int main(void) {
         }
     }
 
-    MX_USB_DEVICE_Init();
     uart_write("usb: device init ok\n");
     if (hUsbDeviceFS.pConfDesc) {
         const auto* cfg = reinterpret_cast<const uint8_t*>(hUsbDeviceFS.pConfDesc);

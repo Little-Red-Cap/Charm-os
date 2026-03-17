@@ -69,8 +69,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
 #    app/main.cpp
-    app/main-usb-as.cpp
+    app/main-system.cpp
     app/uart_bridge.c
+    app/boot_shim.c
+    app/port_impl.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
@@ -84,6 +86,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 set(MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/system_entry.cppm"
 )
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC

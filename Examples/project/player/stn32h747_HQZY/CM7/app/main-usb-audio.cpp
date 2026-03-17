@@ -2,30 +2,28 @@
 #include <cstdio>
 #include <cstring>
 
-#include "main.h"
-#include "dma.h"
-#include "gpio.h"
 #include "i2s.h"
-#include "usart.h"
 #include "usb_device.h"
 #include "stm32h7xx_hal_rcc_ex.h"
 #include "usbd_audio.h"
 #include "usbd_audio_if.h"
 
+import out.api;
+import charm.port;
+import charm.system.clock;
+import charm.system.time;
+
 extern "C" {
-void SystemClock_Config(void);
-void MX_GPIO_Init(void);
-void MX_DMA_Init(void);
 void MX_I2S1_Init(void);
-void MX_USART1_UART_Init(void);
 void Error_Handler(void);
-extern UART_HandleTypeDef huart1;
 extern I2S_HandleTypeDef hi2s1;
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+int charm_port_console_write(void* uart, const uint8_t* data, uint16_t len);
 }
 
 namespace {
 void uart_write(const char* msg);
+void* g_console_ctx = nullptr;
 }
 
 extern "C" void app_usb_setup_sniff(const uint8_t setup[8]) {
@@ -57,10 +55,10 @@ void uart_write(const char* msg) {
     if (!msg) return;
     const std::size_t len = std::strlen(msg);
     if (len == 0) return;
-    (void)HAL_UART_Transmit(&huart1,
-        reinterpret_cast<uint8_t*>(const_cast<char*>(msg)),
-        static_cast<uint16_t>(len),
-        100);
+    (void)charm_port_console_write(
+        g_console_ctx,
+        reinterpret_cast<const uint8_t*>(msg),
+        static_cast<uint16_t>(len));
 }
 
 constexpr uint32_t kAudioBufBytes = 32768;
@@ -112,12 +110,12 @@ extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
 }
 
 int main(void) {
-    HAL_Init();
-    SystemClock_Config();
-    MX_GPIO_Init();
-    MX_DMA_Init();
+    auto kit = charm::port::init();
+    g_console_ctx = kit.console.ctx;
+    charm::system::Clock clock{nullptr, charm::system::ClockOps{&charm::port::now_ms, nullptr}};
+    charm::system::time::bind(clock);
+    out::Scope scope{kit.console};
     MX_I2S1_Init();
-    MX_USART1_UART_Init();
     uart_write("boot: uart ok\n");
 #if defined(RCC_PERIPHCLK_SPI123)
     const uint32_t i2s_clk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI123);
@@ -151,7 +149,7 @@ int main(void) {
 
     while (1) {
         static uint32_t last_log = 0;
-        const uint32_t now = HAL_GetTick();
+        const uint32_t now = charm::port::now_ms(nullptr);
         if ((now - last_log) >= 3000) {
             const uint32_t bytes = usb_audio_rx_bytes();
             const uint32_t pkts = usb_audio_rx_pkts();
@@ -206,6 +204,6 @@ int main(void) {
                 g_i2s_active = true;
             }
         }
-        HAL_Delay(10);
+        charm::system::time::sleep_ms(10);
     }
 }

@@ -63,7 +63,19 @@
   */
 
 /*---------- -----------*/
-#define USBD_MAX_NUM_INTERFACES     2U
+#define USE_USBD_COMPOSITE          1U
+#define USBD_COMPOSITE_USE_IAD      1U
+#define USBD_CMPSIT_ACTIVATE_AUDIO  1U
+#define USBD_CMPSIT_ACTIVATE_MSC    1U
+#define USBD_SUPPORT_USER_STRING_DESC 1U
+#define USBD_CLASS_USER_STRING_DESC   1U
+#define USBD_CMPST_MAX_CONFDESC_SZ  512U
+#define USBD_MAX_SUPPORTED_CLASS    3U
+#define MSC_EPIN_ADDR               0x82U
+#define MSC_EPOUT_ADDR              0x02U
+
+/*---------- -----------*/
+#define USBD_MAX_NUM_INTERFACES     4U
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1U
 /*---------- -----------*/
@@ -71,9 +83,9 @@
 /*---------- -----------*/
 #define USBD_DEBUG_LEVEL     0U
 /*---------- -----------*/
-#define USBD_LPM_ENABLED     1U
+#define USBD_LPM_ENABLED     0U
 /*---------- -----------*/
-#define USBD_SELF_POWERED     1U
+#define USBD_SELF_POWERED     0U
 /*---------- -----------*/
 #define USBD_AUDIO_FREQ     48000U
 

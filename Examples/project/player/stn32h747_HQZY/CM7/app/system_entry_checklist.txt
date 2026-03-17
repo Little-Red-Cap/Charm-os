@@ -1,0 +1,4 @@
+system_entry quick check
+- usb storage: windows read/write, msc read counter increases
+- audio: windows test sound, audio bytes/pkts increase
+- fs: mount ok on boot

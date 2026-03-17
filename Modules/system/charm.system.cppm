@@ -1,6 +1,7 @@
 export module charm.system;
 
 export import charm.system.clock;
+export import charm.system.time;
 export import charm.system.caps;
 export import charm.system.init_core;
 export import charm.system.init_block;

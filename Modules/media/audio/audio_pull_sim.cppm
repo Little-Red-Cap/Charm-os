@@ -18,7 +18,6 @@ import media.stream.sink;
 import media.stream.types;
 
 export namespace audio {
-    using FillCallback = media::FillCallback;
     using SinkConfig = media::SinkConfig;
 
     struct PullSimStats {

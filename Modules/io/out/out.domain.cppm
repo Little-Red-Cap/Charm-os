@@ -31,6 +31,8 @@ export namespace out {
 
     // Domain tag: compile-time filter per module (type tag only).
     struct default_domain {};
+    // Domain tag: raw output (print/println) gate.
+    struct raw_domain {};
 
     // template <class T>
     // struct domain_t { using type = T; };

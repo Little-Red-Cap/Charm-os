@@ -65,7 +65,6 @@ namespace {
 export namespace audio {
 #if !defined(CHARM_ENABLE_SDL3) && !defined(CHARM_AUDIO_SINK_I2S)
     using SinkConfig = media::SinkConfig;
-    using FillCallback = media::FillCallback;
 
     struct CallbackStats {
         std::uint64_t count{0};

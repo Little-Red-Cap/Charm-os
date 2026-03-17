@@ -41,7 +41,7 @@ export namespace player {
         }
 
         out.mount_status = "Mounted";
-#if defined(_WIN32)
+#if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] mount ok, dump tree:\n");
         (void)fs_utils::dump_fs_tree("/", 0, 4);
 #endif
@@ -80,7 +80,7 @@ export namespace player {
         }
 
         out.has_tracks = !out.tracks.empty();
-#if defined(_WIN32)
+#if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] tracks=%zu\n", out.tracks.size());
         for (const auto& path_str : out.tracks) {
             std::printf("[fs] track: ");

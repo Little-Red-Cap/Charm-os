@@ -26,6 +26,7 @@ import player.playback;
 import player.fs_utils;
 import player.storage;
 import player.ui;
+import player.cover;
 
 export namespace player {
     using namespace player::fs_utils;
@@ -88,6 +89,9 @@ export namespace player {
         int track_index{0};
         std::string title_text{};
         std::string subtitle_text{};
+        std::string cover_path{};
+        CoverImage cover_image{};
+        bool cover_ready{false};
         bool fs_ready{false};
         int play_mode{0};
         bool ignore_list_select{false};
@@ -147,6 +151,7 @@ export namespace player {
         void clear_track_state() noexcept {
             playback.set_track_path(nullptr);
             playback.set_track_ready(false);
+            reset_cover_image();
         }
 
         void handle_key_action(UiKey key) {
@@ -221,6 +226,44 @@ export namespace player {
 
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
+
+        void reset_cover_image() noexcept {
+            cover_ready = false;
+            cover_path.clear();
+            release_cover_image(cover_image);
+            if (kernel && handles.cover && kernel->kind(handles.cover) == WidgetKind::Image) {
+                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            }
+        }
+
+        void update_cover_image() {
+            if (!kernel || !handles.cover) return;
+            if (!cover_ready || cover_path.empty()) {
+                release_cover_image(cover_image);
+                if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                    kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+                }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                std::printf("[cover] no cover for track\n");
+#endif
+                return;
+            }
+            if (cover_image.path == cover_path && soa_detail::image_id_valid(cover_image.image_id)) {
+                return;
+            }
+            if (load_cover_image(cover_path, cover_image)) {
+                if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                    kernel->set_image(handles.cover, cover_image.image_id);
+                }
+                return;
+            }
+            if (kernel->kind(handles.cover) == WidgetKind::Image) {
+                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] load failed: %s\n", cover_path.c_str());
+#endif
+        }
 
         void on_player_stopped() {
             playback.stop_playback();
@@ -683,6 +726,13 @@ export namespace player {
             }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
+            if (track_ready) {
+                cover_ready = fs_utils::find_cover_for_track(vfs_path, cover_path);
+            } else {
+                cover_ready = false;
+                cover_path.clear();
+            }
+            update_cover_image();
             reset_duration();
             if (track_ready) {
                 (void)playback.probe_duration_from_path(track_path);

@@ -15,6 +15,7 @@ import fs_core;
 import fs_errno;
 import fs_block;
 import fs_stream;
+import fs_path;
 import fs_mal_block;
 import fs_mal_file;
 import fs_fatfs;
@@ -81,6 +82,33 @@ export namespace player::fs_utils {
                 if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
             }
             return false;
+        }
+
+        constexpr std::array<std::string_view, 6> kCoverNames{
+            "cover.jpg",
+            "cover.png",
+            "cover.bmp",
+            "folder.jpg",
+            "folder.png",
+            "folder.bmp",
+        };
+
+        int match_cover_name(std::string_view name) {
+            for (std::size_t i = 0; i < kCoverNames.size(); ++i) {
+                const auto cand = kCoverNames[i];
+                if (name.size() != cand.size()) continue;
+                bool eq = true;
+                for (std::size_t j = 0; j < cand.size(); ++j) {
+                    const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(name[j])));
+                    const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(cand[j])));
+                    if (a != b) {
+                        eq = false;
+                        break;
+                    }
+                }
+                if (eq) return static_cast<int>(i);
+            }
+            return -1;
         }
 
         struct TrackListContext {
@@ -201,6 +229,59 @@ export namespace player::fs_utils {
         detail::TrackListContext ctx{dir, &out, subdirs};
         out_status = fs::vfs_list(dir, &ctx, &detail::collect_track);
         return out_status && !out.empty();
+    }
+
+    bool find_cover_for_track(std::string_view track_path, std::string& out_path) {
+        out_path.clear();
+        auto norm = fs::normalize(track_path);
+        fs::PathView p{norm.data, norm.size};
+        auto parts = fs::split_last(p);
+        fs::PathView dir = parts.first;
+        if (!dir.data) return false;
+
+        std::string dir_path;
+        dir_path.assign(dir.data, dir.data + dir.size);
+        if (dir_path.empty()) {
+            dir_path = "/";
+        }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+        std::printf("[cover] scan dir: %.*s\n", static_cast<int>(dir_path.size()), dir_path.data());
+#endif
+
+        struct CoverCtx {
+            std::string_view dir;
+            std::string* out;
+            int best_index;
+        };
+
+        struct CoverCollector {
+            static fs::Status collect(void* ctx_ptr, const fs::MountOps::ListEntry& entry) noexcept {
+                auto* info = static_cast<CoverCtx*>(ctx_ptr);
+                if (!info || !info->out) return fs::Status{fs::Errc::inval};
+                if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
+                const int idx = detail::match_cover_name(entry.name);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                if (idx >= 0) {
+                    std::printf("[cover] candidate: ");
+                    detail::dump_name_escaped(entry.name);
+                    std::printf(" idx=%d\n", idx);
+                }
+#endif
+                if (idx < 0) return fs::Status{fs::Errc::ok};
+                if (info->best_index >= 0 && idx >= info->best_index) return fs::Status{fs::Errc::ok};
+                std::string path;
+                path.assign(info->dir.begin(), info->dir.end());
+                if (!path.empty() && path.back() != '/') path.push_back('/');
+                path.append(entry.name.begin(), entry.name.end());
+                *info->out = std::move(path);
+                info->best_index = idx;
+                return fs::Status{fs::Errc::ok};
+            }
+        };
+
+        CoverCtx ctx{dir_path, &out_path, -1};
+        fs::Status st = fs::vfs_list(dir_path, &ctx, &CoverCollector::collect);
+        return st && !out_path.empty();
     }
 
     bool dump_fs_tree(std::string_view dir, int depth, int max_depth) {

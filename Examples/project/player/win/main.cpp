@@ -13,6 +13,7 @@ import charm.core.event;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
+import charm.core.soa_payload;
 import ui.input_adapter;
 import charm.gfx.color;
 import charm.font.font_noto_ascii_16;
@@ -84,7 +85,10 @@ namespace {
                         float t_sec) {
         const Rect cover = kernel.world_rect(ctx.handles.cover);
         const int cover_radius = 18;
-        out.fill_round_rect(cover, cover_radius, kUiCover);
+        const auto cover_image = ctx.cover_image.image_id;
+        if (!soa_detail::image_id_valid(cover_image)) {
+            out.fill_round_rect(cover, cover_radius, kUiCover);
+        }
         rgba cover_ring = kUiOk;
         if (ctx.is_playing()) {
             const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);

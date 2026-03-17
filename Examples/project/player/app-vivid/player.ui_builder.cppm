@@ -48,7 +48,7 @@ export namespace player {
 
         const WidgetHandle content = factory.create_container();
         anchor_rect(content, {0, 0, screen_width, content_h});
-        h.cover = factory.create_container();
+        h.cover = factory.create_image();
         anchor_rect(h.cover, {(screen_width - kCoverSize) / 2, cover_top, kCoverSize, kCoverSize});
 
         h.title = factory.create_label_static("");

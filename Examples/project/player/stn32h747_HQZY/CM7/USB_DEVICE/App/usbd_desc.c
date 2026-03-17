@@ -65,10 +65,10 @@
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "STMicroelectronics"
-#define USBD_PID_FS     22337
-#define USBD_PRODUCT_STRING_FS     "STM32 Audio Class"
-#define USBD_CONFIGURATION_STRING_FS     "AUDIO Config"
-#define USBD_INTERFACE_STRING_FS     "AUDIO Interface"
+#define USBD_PID_FS     22338
+#define USBD_PRODUCT_STRING_FS     "STM32 Audio+Storage"
+#define USBD_CONFIGURATION_STRING_FS     "AUDIO+MSC Config"
+#define USBD_INTERFACE_STRING_FS     "Composite Interface"
 
 #define USB_SIZ_BOS_DESC            0x0C
 
@@ -121,6 +121,9 @@ uint8_t * USBD_FS_ProductStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length
 uint8_t * USBD_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
 uint8_t * USBD_FS_ConfigStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
 uint8_t * USBD_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+#if (USBD_CLASS_USER_STRING_DESC == 1)
+uint8_t * USBD_FS_UserStrDescriptor(USBD_SpeedTypeDef speed, uint8_t idx, uint16_t *length);
+#endif /* (USBD_CLASS_USER_STRING_DESC == 1) */
 
 /**
   * @}
@@ -140,6 +143,9 @@ USBD_DescriptorsTypeDef FS_Desc =
 , USBD_FS_SerialStrDescriptor
 , USBD_FS_ConfigStrDescriptor
 , USBD_FS_InterfaceStrDescriptor
+#if (USBD_CLASS_USER_STRING_DESC == 1)
+, USBD_FS_UserStrDescriptor
+#endif /* (USBD_CLASS_USER_STRING_DESC == 1) */
 };
 
 #if defined ( __ICCARM__ ) /* IAR Compiler */
@@ -152,15 +158,15 @@ __ALIGN_BEGIN uint8_t USBD_FS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
   USB_DESC_TYPE_DEVICE,       /*bDescriptorType*/
   0x00,                       /*bcdUSB */
   0x02,
-  0x00,                       /*bDeviceClass*/
-  0x00,                       /*bDeviceSubClass*/
-  0x00,                       /*bDeviceProtocol*/
+  0xEF,                       /*bDeviceClass*/
+  0x02,                       /*bDeviceSubClass*/
+  0x01,                       /*bDeviceProtocol*/
   USB_MAX_EP0_SIZE,           /*bMaxPacketSize*/
   LOBYTE(USBD_VID),           /*idVendor*/
   HIBYTE(USBD_VID),           /*idVendor*/
   LOBYTE(USBD_PID_FS),        /*idProduct*/
   HIBYTE(USBD_PID_FS),        /*idProduct*/
-  0x00,                       /*bcdDevice rel. 2.00*/
+  0x03,                       /*bcdDevice rel. 2.03*/
   0x02,
   USBD_IDX_MFC_STR,           /*Index of manufacturer  string*/
   USBD_IDX_PRODUCT_STR,       /*Index of product string*/
@@ -212,6 +218,19 @@ __ALIGN_BEGIN uint8_t USBD_LangIDDesc[USB_LEN_LANGID_STR_DESC] __ALIGN_END =
      USB_DESC_TYPE_STRING,
      LOBYTE(USBD_LANGID_STRING),
      HIBYTE(USBD_LANGID_STRING)
+};
+
+#define USBD_MS_OS_DESC_STR_INDEX 0xEE
+#define USBD_MS_OS_DESC_STR_LEN   0x12
+
+__ALIGN_BEGIN static uint8_t USBD_MS_OS_StringDescriptor[USBD_MS_OS_DESC_STR_LEN] __ALIGN_END =
+{
+  0x12, /* bLength */
+  USB_DESC_TYPE_STRING, /* bDescriptorType */
+  'M', 0x00, 'S', 0x00, 'F', 0x00, 'T', 0x00,
+  '1', 0x00, '0', 0x00, '0', 0x00,
+  0x01, /* Vendor code */
+  0x00  /* Reserved */
 };
 
 #if defined ( __ICCARM__ ) /* IAR Compiler */
@@ -352,6 +371,20 @@ uint8_t * USBD_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *leng
   }
   return USBD_StrDesc;
 }
+
+#if (USBD_CLASS_USER_STRING_DESC == 1)
+uint8_t * USBD_FS_UserStrDescriptor(USBD_SpeedTypeDef speed, uint8_t idx, uint16_t *length)
+{
+  UNUSED(speed);
+  if (idx == USBD_MS_OS_DESC_STR_INDEX)
+  {
+    *length = (uint16_t)sizeof(USBD_MS_OS_StringDescriptor);
+    return USBD_MS_OS_StringDescriptor;
+  }
+  *length = 0;
+  return NULL;
+}
+#endif /* (USBD_CLASS_USER_STRING_DESC == 1) */
 
 /**
   * @brief  Create the serial number string descriptor

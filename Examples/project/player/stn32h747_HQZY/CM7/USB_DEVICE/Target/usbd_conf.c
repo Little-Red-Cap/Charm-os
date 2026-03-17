@@ -35,6 +35,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+static volatile uint32_t g_usb_out_ep_hits[8] = {0};
 
 /* USER CODE END PV */
 
@@ -57,6 +58,14 @@ void app_usb_setup_sniff(const uint8_t setup[8]);
 /* Private functions ---------------------------------------------------------*/
 
 /* USER CODE BEGIN 1 */
+uint32_t usb_out_ep_hits(uint8_t epnum)
+{
+  if (epnum >= (uint8_t)(sizeof(g_usb_out_ep_hits) / sizeof(g_usb_out_ep_hits[0])))
+  {
+    return 0;
+  }
+  return g_usb_out_ep_hits[epnum];
+}
 /* USER CODE END 1 */
 
 /*******************************************************************************
@@ -178,6 +187,10 @@ static void PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (epnum < (uint8_t)(sizeof(g_usb_out_ep_hits) / sizeof(g_usb_out_ep_hits[0])))
+  {
+    g_usb_out_ep_hits[epnum]++;
+  }
   USBD_LL_DataOutStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->OUT_ep[epnum].xfer_buff);
 }
 
@@ -365,7 +378,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
   hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.Sof_enable = ENABLE;
   hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.battery_charging_enable = DISABLE;
@@ -392,9 +405,11 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   HAL_PCD_RegisterIsoInIncpltCallback(&hpcd_USB_OTG_FS, PCD_ISOINIncompleteCallback);
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
   /* USER CODE BEGIN TxRx_Configuration */
+  /* Keep total FIFO within FS core budget: RX + TX0 + TX1 + TX2 <= 320 words */
   HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80);
   HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40);
-  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80);
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x20);
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 2, 0x40);
   /* USER CODE END TxRx_Configuration */
   }
   return USBD_OK;

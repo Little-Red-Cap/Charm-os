@@ -7,6 +7,7 @@
 #include "usb_device.h"
 
 import player.stm32h7.fs_demo_mmc;
+import usb.msc_storage_bridge;
 
 extern "C" {
 void SystemClock_Config(void);
@@ -55,6 +56,7 @@ int main() {
     } else {
         uart_write("boot: fs mount ok\n");
     }
+    usb::msc::bridge::set_block_device(fs_sd_block_device(), false);
 
     MX_USB_DEVICE_Init();
     uart_write("usb: device init ok\n");

@@ -1441,6 +1441,25 @@ Decoder(S32 @ in_rate, in_ch)
 
 注：MVP 先固定此顺序，避免组合爆炸；未来引入 Mixer 后再讨论放置位置。
 
+#### FixedRate 的 chunk 策略（v1 规则）
+
+- 目标：在 `in_rate > out_rate` 时保证 resample 缓冲不越界，同时不改变外部水位策略。
+- 计算：
+  - `chunk_frames = period_frames * chunk_mult`
+  - 当 `fixed_rate` 且 `in_rate > out_rate` 时，做上限收敛：
+    - `max_input_frames = kMaxChunkFrames + 2`
+    - `max_out_frames = floor((max_input_frames - 2) * out_rate / in_rate)`
+    - `chunk_frames = min(chunk_frames, max_out_frames)`
+- 结果：高采样率（如 96k）会自动缩小单次补给尺寸，但水位与 period 仍然按输出侧计算。
+
+#### Resample 缓冲策略（v1 规则）
+
+- resample 内部允许缓存少量残留帧（cache），以适配分数步长。
+- 若 `s32_work` 临时缓冲因缓存叠加超出容量：
+  - 先清空 cache 再重试；
+  - 若仍失败则停止输出并返回错误。
+- 该策略仅影响 resample 内部，不改变外部 FIFO/水位契约。
+
 ---
 
 ### 最小实现规则（S32 interleaved）

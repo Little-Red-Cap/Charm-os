@@ -19,6 +19,10 @@ module;
 #define CHARM_AUDIO_LOG 0
 #endif
 
+#ifndef CHARM_AUDIO_REFILL_STATS
+#define CHARM_AUDIO_REFILL_STATS 1
+#endif
+
 #if CHARM_AUDIO_ENABLE_STRESS
 #include <random>
 #endif
@@ -1169,7 +1173,9 @@ export namespace audio {
                 return;
             }
 
+#if CHARM_AUDIO_REFILL_STATS
             const auto t0 = clock_.now_us();
+#endif
             const std::size_t bytes_written = data_plane_.refill();
             if (bytes_written > 0) {
                 const auto out = data_plane_.last_output();
@@ -1178,9 +1184,11 @@ export namespace audio {
                 }
             }
 
+#if CHARM_AUDIO_REFILL_STATS
             const auto t1 = clock_.now_us();
             const double dt_ms = static_cast<double>(t1 - t0) / 1000.0;
             update_refill_stats(dt_ms);
+#endif
         }
 
         std::uint64_t fade_in_total_frames() const {

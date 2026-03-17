@@ -17,8 +17,10 @@ export namespace player {
         }
 
         bool empty() const noexcept { return size_ == 0; }
+        std::size_t size() const noexcept { return size_; }
 
         const char* c_str() const noexcept { return buffer_.data(); }
+        char back() const noexcept { return size_ ? buffer_[size_ - 1] : '\0'; }
 
         std::string_view view() const noexcept {
             return std::string_view(buffer_.data(), size_);
@@ -39,6 +41,19 @@ export namespace player {
                 return;
             }
             assign(std::string_view(value));
+        }
+
+        bool append(std::string_view value) noexcept {
+            if (value.empty()) return true;
+            if (size_ >= Capacity - 1) return false;
+            const std::size_t avail = (Capacity - 1) - size_;
+            const std::size_t count = (value.size() < avail) ? value.size() : avail;
+            for (std::size_t i = 0; i < count; ++i) {
+                buffer_[size_ + i] = value[i];
+            }
+            size_ += count;
+            buffer_[size_] = '\0';
+            return count == value.size();
         }
 
     private:

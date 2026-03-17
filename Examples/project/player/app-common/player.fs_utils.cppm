@@ -10,6 +10,7 @@ module;
 
 export module player.fs_utils;
 
+import player.fixed_string;
 import audio.source.fs;
 import fs_core;
 import fs_errno;
@@ -23,14 +24,29 @@ import fs_vfs;
 import util.core;
 
 export namespace player::fs_utils {
+#ifndef CHARM_PLAYER_FS_LOG
+#define CHARM_PLAYER_FS_LOG 0
+#endif
+
+    namespace detail {
+        constexpr bool kFsLogEnabled = CHARM_PLAYER_FS_LOG != 0;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+        constexpr bool kCoverLogEnabled = true;
+#else
+        constexpr bool kCoverLogEnabled = false;
+#endif
+    }
+
     namespace detail {
         void dump_indent(int depth) {
+            if (!kFsLogEnabled) return;
             for (int i = 0; i < depth; ++i) {
                 std::printf("  ");
             }
         }
 
         void dump_name_escaped(std::string_view name) {
+            if (!kFsLogEnabled && !kCoverLogEnabled) return;
             for (unsigned char ch : name) {
                 if (std::isprint(ch)) {
                     std::printf("%c", static_cast<char>(ch));
@@ -38,6 +54,21 @@ export namespace player::fs_utils {
                     std::printf("\\x%02X", static_cast<unsigned int>(ch));
                 }
             }
+        }
+
+        bool join_path(FixedString<260>& out,
+                       std::string_view dir,
+                       std::string_view name) noexcept {
+            out.clear();
+            if (dir.empty() || dir == "/") {
+                out.assign("/");
+            } else {
+                out.assign(dir);
+                if (out.back() != '/') {
+                    out.append("/");
+                }
+            }
+            return out.append(name);
         }
     }
     namespace detail {
@@ -122,45 +153,37 @@ export namespace player::fs_utils {
             if (!info || !info->out) return fs::Status{fs::Errc::inval};
             if (entry.type == fs::NodeType::dir) {
                 if (!info->subdirs) return fs::Status{fs::Errc::ok};
-                std::string path;
-                if (info->dir.empty() || info->dir == "/") {
-                    path = "/";
-                } else {
-                    path.assign(info->dir.begin(), info->dir.end());
-                    if (!path.empty() && path.back() != '/') path.push_back('/');
+                FixedString<260> path;
+                if (detail::join_path(path, info->dir, entry.name)) {
+                    info->subdirs->emplace_back(path.view());
                 }
-                path.append(entry.name.begin(), entry.name.end());
-                info->subdirs->push_back(path);
                 return fs::Status{fs::Errc::ok};
             }
             if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
             if (!has_audio_ext(entry.name)) {
 #if defined(_WIN32)
-                bool has_non_ascii = false;
-                for (unsigned char ch : entry.name) {
-                    if (ch >= 0x80u || !std::isprint(ch)) {
-                        has_non_ascii = true;
-                        break;
+                if (detail::kFsLogEnabled) {
+                    bool has_non_ascii = false;
+                    for (unsigned char ch : entry.name) {
+                        if (ch >= 0x80u || !std::isprint(ch)) {
+                            has_non_ascii = true;
+                            break;
+                        }
                     }
-                }
-                if (has_non_ascii) {
-                    std::printf("[fs] skip non-audio file: ");
-                    detail::dump_name_escaped(entry.name);
-                    std::printf("\n");
+                    if (has_non_ascii) {
+                        std::printf("[fs] skip non-audio file: ");
+                        detail::dump_name_escaped(entry.name);
+                        std::printf("\n");
+                    }
                 }
 #endif
                 return fs::Status{fs::Errc::ok};
             }
 
-            std::string path;
-            if (info->dir.empty() || info->dir == "/") {
-                path = "/";
-            } else {
-                path.assign(info->dir.begin(), info->dir.end());
-                if (!path.empty() && path.back() != '/') path.push_back('/');
+            FixedString<260> path;
+            if (detail::join_path(path, info->dir, entry.name)) {
+                info->out->emplace_back(path.view());
             }
-            path.append(entry.name.begin(), entry.name.end());
-            info->out->push_back(path);
             return fs::Status{fs::Errc::ok};
         }
 
@@ -239,14 +262,15 @@ export namespace player::fs_utils {
         fs::PathView dir = parts.first;
         if (!dir.data) return false;
 
-        std::string dir_path;
-        dir_path.assign(dir.data, dir.data + dir.size);
+        FixedString<260> dir_path;
+        dir_path.assign(std::string_view(dir.data, dir.size));
         if (dir_path.empty()) {
-            dir_path = "/";
+            dir_path.assign("/");
         }
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-        std::printf("[cover] scan dir: %.*s\n", static_cast<int>(dir_path.size()), dir_path.data());
-#endif
+        if (detail::kCoverLogEnabled) {
+            std::printf("[cover] scan dir: %.*s\n",
+                        static_cast<int>(dir_path.size()), dir_path.c_str());
+        }
 
         struct CoverCtx {
             std::string_view dir;
@@ -260,31 +284,31 @@ export namespace player::fs_utils {
                 if (!info || !info->out) return fs::Status{fs::Errc::inval};
                 if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
                 const int idx = detail::match_cover_name(entry.name);
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-                if (idx >= 0) {
+                if (detail::kCoverLogEnabled && idx >= 0) {
                     std::printf("[cover] candidate: ");
                     detail::dump_name_escaped(entry.name);
                     std::printf(" idx=%d\n", idx);
                 }
-#endif
                 if (idx < 0) return fs::Status{fs::Errc::ok};
                 if (info->best_index >= 0 && idx >= info->best_index) return fs::Status{fs::Errc::ok};
-                std::string path;
-                path.assign(info->dir.begin(), info->dir.end());
-                if (!path.empty() && path.back() != '/') path.push_back('/');
-                path.append(entry.name.begin(), entry.name.end());
-                *info->out = std::move(path);
+                FixedString<260> path;
+                if (!detail::join_path(path, info->dir, entry.name)) {
+                    return fs::Status{fs::Errc::ok};
+                }
+                info->out->assign(path.view().data(), path.view().size());
                 info->best_index = idx;
                 return fs::Status{fs::Errc::ok};
             }
         };
 
-        CoverCtx ctx{dir_path, &out_path, -1};
-        fs::Status st = fs::vfs_list(dir_path, &ctx, &CoverCollector::collect);
+        const auto dir_view = dir_path.view();
+        CoverCtx ctx{dir_view, &out_path, -1};
+        fs::Status st = fs::vfs_list(dir_view, &ctx, &CoverCollector::collect);
         return st && !out_path.empty();
     }
 
     bool dump_fs_tree(std::string_view dir, int depth, int max_depth) {
+        if (!detail::kFsLogEnabled) return true;
         if (depth > max_depth) return true;
         struct DumpCtx {
             std::string_view dir;
@@ -300,15 +324,10 @@ export namespace player::fs_utils {
             detail::dump_name_escaped(entry.name);
             std::printf("%s\n", entry.type == fs::NodeType::dir ? "/" : "");
             if (entry.type == fs::NodeType::dir) {
-                std::string path;
-                if (info->dir.empty() || info->dir == "/") {
-                    path = "/";
-                } else {
-                    path.assign(info->dir.begin(), info->dir.end());
-                    if (!path.empty() && path.back() != '/') path.push_back('/');
+                FixedString<260> path;
+                if (detail::join_path(path, info->dir, entry.name)) {
+                    info->subdirs->emplace_back(path.view());
                 }
-                path.append(entry.name.begin(), entry.name.end());
-                info->subdirs->push_back(path);
             }
             return fs::Status{fs::Errc::ok};
         });

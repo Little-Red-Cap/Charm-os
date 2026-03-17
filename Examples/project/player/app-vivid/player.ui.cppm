@@ -27,6 +27,7 @@ import charm.widgets.dynamic_nebula;
 import charm.widgets.crt_screen;
 import charm.widgets.spectrum_view;
 import charm.widgets.spinning_wheel;
+import charm.widgets.image;
 import charm.widgets.image_box;
 import charm.widgets.label;
 import charm.widgets.meter_pointer;
@@ -574,6 +575,11 @@ export namespace player::ui {
         dropdown_patch.has_font_color = true;
         dropdown_patch.font_color = kUiListFont;
         theme.patch<Dropdown>(dropdown_patch);
+
+        StylePatch image_patch{};
+        image_patch.has_corner_radius = true;
+        image_patch.corner_radius = 18;
+        theme.patch<Image>(image_patch);
 
         StylePatch image_box_patch = chart_patch;
         theme.patch<ImageBox>(image_box_patch);

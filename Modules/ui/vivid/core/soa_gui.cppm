@@ -147,7 +147,7 @@ private:
                               const ResolvedMetrics& metrics, const StyleState& state, const char* text,
                               ui::draw_cmd::ImageId icon, std::uint8_t icon_size);
     static void record_image(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
-                             ui::draw_cmd::ImageId image);
+                             ui::draw_cmd::ImageId image, int corner_radius);
     static void record_text_box(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                 const ResolvedMetrics& metrics, const StyleState& state, const char* text,
                                 TextAlignV align_v, TextWrap wrap);
@@ -428,7 +428,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Image:
-        record_image(out, world_rect, kernel_.image(h));
+        record_image(out, world_rect, kernel_.image(h), metrics.corner_radius);
         break;
     case WidgetKind::Label:
         record_label(out, world_rect, colors, metrics, state, kernel_.text(h));
@@ -741,8 +741,12 @@ void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& 
 }
 
 void SoaGui::record_image(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
-                          ui::draw_cmd::ImageId image) {
+                          ui::draw_cmd::ImageId image, int corner_radius) {
     if (!ui::draw_cmd::image_id_valid(image)) return;
+    if (corner_radius > 0) {
+        out.draw_image_round_rect(r, image, corner_radius);
+        return;
+    }
     out.draw_image(r, image);
 }
 

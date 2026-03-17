@@ -132,6 +132,18 @@ export namespace player {
         std::chrono::steady_clock::time_point last_debug_tick{};
         bool last_running{false};
 
+        static bool is_flac_path(std::string_view path) noexcept {
+            const auto dot = path.find_last_of('.');
+            if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
+            std::string_view ext = path.substr(dot + 1);
+            if (ext.size() != 4) return false;
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
+            return a == 'f' && b == 'l' && c == 'a' && d == 'c';
+        }
+
         void bind_kernel(SoaKernel& k) {
             kernel = &k;
         }
@@ -728,6 +740,10 @@ export namespace player {
             playback.set_track_ready(track_ready);
             if (track_ready) {
                 cover_ready = fs_utils::find_cover_for_track(vfs_path, cover_path);
+                if (!cover_ready && is_flac_path(vfs_path)) {
+                    cover_ready = true;
+                    cover_path = vfs_path;
+                }
             } else {
                 cover_ready = false;
                 cover_path.clear();

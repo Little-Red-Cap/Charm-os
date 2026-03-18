@@ -754,6 +754,61 @@ export namespace ui::draw_cmd {
                     || type == CmdType::StrokeCircle;
             };
 
+            auto exec_image_like = [&](const DrawCmd& cur) noexcept {
+                switch (cur.type) {
+                case CmdType::DrawImage: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    if (cur.rect.w > 0 && cur.rect.h > 0) {
+                        ui::render::draw_image_scaled(canvas, cur.rect.x, cur.rect.y,
+                                                      cur.rect.w, cur.rect.h, *image);
+                    } else {
+                        ui::render::draw_image(canvas, cur.rect.x, cur.rect.y, *image);
+                    }
+                    break;
+                }
+                case CmdType::DrawImageRoundRect: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    if (cur.rect.w > 0 && cur.rect.h > 0) {
+                        ui::render::draw_image_scaled_round_rect(canvas, cur.rect.x, cur.rect.y,
+                                                                  cur.rect.w, cur.rect.h, *image, cur.p0);
+                    } else {
+                        ui::render::draw_image_round_rect(canvas, cur.rect.x, cur.rect.y,
+                                                          *image, cur.p0);
+                    }
+                    break;
+                }
+                case CmdType::DrawImageNineSlice: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    ui::render::draw_image_nine_slice(canvas,
+                                                      cur.rect.x, cur.rect.y,
+                                                      cur.rect.w, cur.rect.h,
+                                                      *image,
+                                                      cur.p0, cur.p1, cur.p2, cur.p3);
+                    break;
+                }
+                default:
+                    break;
+                }
+            };
+
+            auto is_image_like = [](CmdType type) noexcept {
+                return type == CmdType::DrawImage
+                    || type == CmdType::DrawImageRoundRect
+                    || type == CmdType::DrawImageNineSlice;
+            };
+
             while (i < count) {
                 const auto& cmd = cmds[i];
                 if (is_rect_like(cmd.type)) {
@@ -781,6 +836,17 @@ export namespace ui::draw_cmd {
                         const Font& font = get_font(cur.font);
                         draw_text_box(canvas, cur.rect, text, cur.color, font,
                                       cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+                        ++i;
+                    }
+                    stats.batch_flushes++;
+                    continue;
+                }
+                if (is_image_like(cmd.type)) {
+                    stats.dispatch_groups++;
+                    while (i < count) {
+                        const auto& cur = cmds[i];
+                        if (!is_image_like(cur.type)) break;
+                        exec_image_like(cur);
                         ++i;
                     }
                     stats.batch_flushes++;
@@ -834,48 +900,6 @@ export namespace ui::draw_cmd {
                 case CmdType::StrokeCircle:
                 case CmdType::DrawTextBox:
                     break;
-                case CmdType::DrawImage: {
-                    const auto* image = resolve_image(cmd.image);
-                    if (!image || !(*image)) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    if (cmd.rect.w > 0 && cmd.rect.h > 0) {
-                        ui::render::draw_image_scaled(canvas, cmd.rect.x, cmd.rect.y,
-                                                      cmd.rect.w, cmd.rect.h, *image);
-                    } else {
-                        ui::render::draw_image(canvas, cmd.rect.x, cmd.rect.y, *image);
-                    }
-                    break;
-                }
-                case CmdType::DrawImageRoundRect: {
-                    const auto* image = resolve_image(cmd.image);
-                    if (!image || !(*image)) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    if (cmd.rect.w > 0 && cmd.rect.h > 0) {
-                        ui::render::draw_image_scaled_round_rect(canvas, cmd.rect.x, cmd.rect.y,
-                                                                  cmd.rect.w, cmd.rect.h, *image, cmd.p0);
-                    } else {
-                        ui::render::draw_image_round_rect(canvas, cmd.rect.x, cmd.rect.y,
-                                                          *image, cmd.p0);
-                    }
-                    break;
-                }
-                case CmdType::DrawImageNineSlice: {
-                    const auto* image = resolve_image(cmd.image);
-                    if (!image || !(*image)) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    ui::render::draw_image_nine_slice(canvas,
-                                                      cmd.rect.x, cmd.rect.y,
-                                                      cmd.rect.w, cmd.rect.h,
-                                                      *image,
-                                                      cmd.p0, cmd.p1, cmd.p2, cmd.p3);
-                    break;
-                }
                 case CmdType::FocusRing:
                     ui::render::draw_focus_ring(canvas, cmd.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
                     break;

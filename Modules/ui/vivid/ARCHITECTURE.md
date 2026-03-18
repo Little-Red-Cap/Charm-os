@@ -91,7 +91,7 @@ sequenceDiagram
 ### 2.1 命令缓冲 + Tile/PFB 执行（R1）
 
 - SoA 渲染改为 **record/execute**：控件只记录命令，不直接绘制。
-- `DrawCmdBuffer` 固定容量、无堆分配；命令只包含 POD（坐标/颜色/半径/文字索引）。
+- `DrawCmdBuffer` 固定容量、无堆分配；命令使用 `CmdHeader + payload` 的线性 **arena** 存储（变长、顺序遍历），统计以 `cmd_count/cmd_bytes` 为准。
 - `DrawCmdExecutor` 是唯一“画像素”的入口，支持：
   - **FullFrame**：直接执行到 `CanvasBase`（全屏缓冲）。
   - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
@@ -122,6 +122,7 @@ flowchart LR
 - 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawImageNineSlice` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
+- dump/replay 使用 vcmd v2：写入 **arena cmd_bytes**（而非固定 struct 数组），回放按 `CmdHeader` 解码执行。
 
 ### 2.3 Tile 命中裁剪（R3）
 

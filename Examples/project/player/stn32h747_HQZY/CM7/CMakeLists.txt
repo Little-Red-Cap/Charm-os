@@ -69,7 +69,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
 #    app/main.cpp
-    app/main-system.cpp
+#    app/main-system.cpp
+    app/main-usb-as.cpp
     app/uart_bridge.c
     app/port_impl.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c

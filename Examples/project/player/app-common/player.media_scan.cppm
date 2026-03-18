@@ -15,8 +15,12 @@ import player.fs_utils;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
-constexpr std::size_t kMaxTracks = 256;
-constexpr std::size_t kMaxScanDirs = 64;
+#ifndef CHARM_PLAYER_FS_LOG
+#define CHARM_PLAYER_FS_LOG 0
+#endif
+
+    constexpr std::size_t kMaxTracks = 256;
+    constexpr std::size_t kMaxScanDirs = 64;
     using TrackPath = FixedString<260>;
     using TrackList = service::FixedVector<TrackPath, kMaxTracks>;
     using DirList = service::FixedVector<TrackPath, kMaxScanDirs>;
@@ -48,7 +52,7 @@ constexpr std::size_t kMaxScanDirs = 64;
         }
 
         out.mount_status.assign("Mounted");
-#if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
+#if CHARM_PLAYER_FS_LOG && defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] mount ok, dump tree:\n");
         (void)fs_utils::dump_fs_tree("/", 0, 4);
 #endif
@@ -87,7 +91,7 @@ constexpr std::size_t kMaxScanDirs = 64;
         }
 
         out.has_tracks = out.tracks.size() > 0;
-#if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
+#if CHARM_PLAYER_FS_LOG && defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] tracks=%zu\n", out.tracks.size());
         for (std::size_t i = 0; i < out.tracks.size(); ++i) {
             const auto view = out.tracks[i].view();

@@ -45,7 +45,10 @@ export namespace player {
         }
 
         const StorageState& storage_state() const noexcept { return last_storage_; }
-        StorageView storage_view() const noexcept { return make_storage_view(last_storage_); }
+        StorageView storage_view() noexcept {
+            player::ensure_track_labels(last_storage_);
+            return make_storage_view(last_storage_);
+        }
 
         template <typename Controller>
         void bind_player(Controller& controller) {

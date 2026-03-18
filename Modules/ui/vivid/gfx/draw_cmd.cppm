@@ -51,6 +51,10 @@ export namespace ui::draw_cmd {
         DrawTextBox,
         FocusRing,
         FillRectBatch,
+        FillRoundRectBatch,
+        StrokeRoundRectBatch,
+        FillCircleBatch,
+        StrokeCircleBatch,
         GlyphRun,
         DrawImageBatch,
     };
@@ -154,7 +158,7 @@ export namespace ui::draw_cmd {
         int tile_flush_count{0};
     };
 
-    struct FillRectBatchItem {
+    struct RectBatchItem {
         Rect rect{};
     };
 
@@ -498,7 +502,7 @@ export namespace ui::draw_cmd {
             std::size_t i = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
-            std::array<FillRectBatchItem, kMaxBatchItems> rect_items{};
+            std::array<RectBatchItem, kMaxBatchItems> rect_items{};
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
@@ -533,8 +537,8 @@ export namespace ui::draw_cmd {
                             }
                         }
                         const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                             batch * sizeof(FillRectBatchItem),
-                                                             alignof(FillRectBatchItem));
+                                                             batch * sizeof(RectBatchItem),
+                                                             alignof(RectBatchItem));
                         if (blob.length != 0) {
                             DrawCmd batch_cmd{};
                             batch_cmd.type = CmdType::FillRectBatch;
@@ -542,6 +546,63 @@ export namespace ui::draw_cmd {
                             batch_cmd.color = cmd.color;
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = static_cast<std::int16_t>(batch);
+                            cmds_[out++] = batch_cmd;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
+                } else if (allow_batch
+                    && (cmd.type == CmdType::FillRoundRect
+                        || cmd.type == CmdType::StrokeRoundRect
+                        || cmd.type == CmdType::FillCircle
+                        || cmd.type == CmdType::StrokeCircle)) {
+                    std::size_t run = 1;
+                    while ((i + run) < count_) {
+                        const DrawCmd& next = cmds_[i + run];
+                        if (next.type != cmd.type) break;
+                        if (!rgba_equal(next.color, cmd.color)) break;
+                        if (next.p0 != cmd.p0) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = cmd.rect;
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            rect_items[j].rect = cmds_[i + j].rect;
+                            if (j == 0) {
+                                bounds = rect_items[j].rect;
+                            } else {
+                                bounds = rect_union(bounds, rect_items[j].rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(rect_items.data(),
+                                                             batch * sizeof(RectBatchItem),
+                                                             alignof(RectBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            switch (cmd.type) {
+                            case CmdType::FillRoundRect:
+                                batch_cmd.type = CmdType::FillRoundRectBatch;
+                                break;
+                            case CmdType::StrokeRoundRect:
+                                batch_cmd.type = CmdType::StrokeRoundRectBatch;
+                                break;
+                            case CmdType::FillCircle:
+                                batch_cmd.type = CmdType::FillCircleBatch;
+                                break;
+                            case CmdType::StrokeCircle:
+                                batch_cmd.type = CmdType::StrokeCircleBatch;
+                                break;
+                            default:
+                                batch_cmd.type = CmdType::FillRoundRectBatch;
+                                break;
+                            }
+                            batch_cmd.rect = bounds;
+                            batch_cmd.color = cmd.color;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = cmd.p0;
+                            batch_cmd.p1 = static_cast<std::int16_t>(batch);
                             cmds_[out++] = batch_cmd;
                             i += batch;
                             continue;
@@ -910,17 +971,65 @@ export namespace ui::draw_cmd {
                         break;
                     }
                     const auto blob = buf.blob_at(cmd.blob);
-                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(FillRectBatchItem)) {
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                         stats.failed_cmds++;
                         break;
                     }
-                    const auto items = std::span<const FillRectBatchItem>(
-                        reinterpret_cast<const FillRectBatchItem*>(blob.data()), count);
+                    const auto items = std::span<const RectBatchItem>(
+                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                     for (const auto& item : items) {
                         ui::render::draw_rect(canvas,
                                               item.rect.x, item.rect.y,
                                               item.rect.w, item.rect.h,
                                               cmd.color, true);
+                    }
+                    break;
+                }
+                case CmdType::FillRoundRectBatch:
+                case CmdType::StrokeRoundRectBatch: {
+                    const int count = cmd.p1;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const RectBatchItem>(
+                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                    const bool fill = (cmd.type == CmdType::FillRoundRectBatch);
+                    for (const auto& item : items) {
+                        ui::render::draw_round_rect(canvas,
+                                                    item.rect.x, item.rect.y,
+                                                    item.rect.w, item.rect.h,
+                                                    cmd.p0,
+                                                    cmd.color,
+                                                    fill);
+                    }
+                    break;
+                }
+                case CmdType::FillCircleBatch:
+                case CmdType::StrokeCircleBatch: {
+                    const int count = cmd.p1;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const RectBatchItem>(
+                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                    const bool fill = (cmd.type == CmdType::FillCircleBatch);
+                    const int radius = cmd.p0;
+                    for (const auto& item : items) {
+                        const int cx = item.rect.x + item.rect.w / 2;
+                        const int cy = item.rect.y + item.rect.h / 2;
+                        ui::render::draw_circle(canvas, cx, cy, radius, cmd.color, fill);
                     }
                     break;
                 }

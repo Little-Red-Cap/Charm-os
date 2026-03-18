@@ -4,9 +4,7 @@ module;
 #include <cstdint>
 #include <cstdio>
 #include <span>
-#include <string>
 #include <string_view>
-#include <vector>
 
 export module player.fs_utils;
 

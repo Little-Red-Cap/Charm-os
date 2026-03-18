@@ -1743,7 +1743,8 @@ namespace {
         const Rect table_root_r = kernel.rect(table_root);
         const Rect table_r = kernel.rect(table_view);
         const int table_hit_x = table_root_r.x + table_r.x + 8;
-        const int table_hit_y = table_root_r.y + table_r.y + 8;
+        const int header_h = kernel.table_view_header_height(table_view);
+        const int table_hit_y = table_root_r.y + table_r.y + header_h + 8;
 
         kernel.layout_trace_reset();
         const int table_before = kernel.scroll_y(table_view);

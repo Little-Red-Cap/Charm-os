@@ -2595,6 +2595,7 @@ int main(int argc, char** argv) {
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
         append_path_icon(compare_buf, screen_width);
+        compare_buf.compact();
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
@@ -2684,11 +2685,12 @@ int main(int argc, char** argv) {
     }
 
     bool dump_ok = true;
-    if (run_dump) {
-        if (!has_recorded) {
-            gui.record_commands(compare_buf);
-            append_path_icon(compare_buf, screen_width);
-        }
+        if (run_dump) {
+            if (!has_recorded) {
+                gui.record_commands(compare_buf);
+                append_path_icon(compare_buf, screen_width);
+                compare_buf.compact();
+            }
         const auto dump_stats = compare_buf.stats();
         if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
             dump_ok = false;
@@ -2879,6 +2881,7 @@ int main(int argc, char** argv) {
             snap_buf.clear();
             gui.record_commands(snap_buf);
             append_path_icon(snap_buf, screen_width);
+            snap_buf.compact();
             fb.clear(kDemoBg);
             canvas.begin_frame();
             exec.execute(canvas, snap_buf);
@@ -3045,6 +3048,7 @@ int main(int argc, char** argv) {
 
         gui.record_commands(cmd_buf);
         append_path_icon(cmd_buf, screen_width);
+        cmd_buf.compact();
         const auto cmd_stats = cmd_buf.stats();
 
         ui::draw_cmd::DrawCmdTileStats tile_stats{};

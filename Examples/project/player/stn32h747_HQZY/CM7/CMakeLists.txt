@@ -86,6 +86,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 set(MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/system_entry.cppm"
 )

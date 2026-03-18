@@ -2623,6 +2623,8 @@ int main(int argc, char** argv) {
     std::size_t compare_cmd_count = 0;
     std::size_t compare_cmd_capacity = 0;
     std::size_t compare_cmd_bytes = 0;
+    std::size_t compare_cmd_saved = 0;
+    std::uint8_t compare_cmd_saved_pct = 0;
     std::size_t compare_dispatch_groups = 0;
     std::size_t compare_batch_flushes = 0;
     int compare_tile_flushes = 0;
@@ -2635,6 +2637,13 @@ int main(int argc, char** argv) {
         compare_cmd_count = cmp_stats.cmd_count;
         compare_cmd_capacity = cmp_stats.cmd_capacity;
         compare_cmd_bytes = cmp_stats.cmd_bytes;
+        if (compare_cmd_count_raw >= compare_cmd_count) {
+            compare_cmd_saved = compare_cmd_count_raw - compare_cmd_count;
+        }
+        if (compare_cmd_count_raw > 0) {
+            compare_cmd_saved_pct = static_cast<std::uint8_t>(
+                (compare_cmd_saved * 100u) / compare_cmd_count_raw);
+        }
 
         fb.clear(kDemoBg);
         canvas.begin_frame();
@@ -2819,7 +2828,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_raw={} cmd_count={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -2835,6 +2844,8 @@ int main(int argc, char** argv) {
             ui_ok ? 1u : 0u,
             static_cast<unsigned>(compare_cmd_count_raw),
             static_cast<unsigned>(compare_cmd_count),
+            static_cast<unsigned>(compare_cmd_saved),
+            static_cast<unsigned>(compare_cmd_saved_pct),
             static_cast<unsigned>(cmd_budget),
             static_cast<unsigned>(compare_dispatch_groups),
             static_cast<unsigned>(compare_batch_flushes),

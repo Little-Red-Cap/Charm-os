@@ -51,6 +51,7 @@ export namespace ui::draw_cmd {
         DrawTextBox,
         FocusRing,
         FillRectBatch,
+        StrokeRectBatch,
         FillRoundRectBatch,
         StrokeRoundRectBatch,
         FillCircleBatch,
@@ -518,11 +519,11 @@ export namespace ui::draw_cmd {
 
             while (i < count_) {
                 const DrawCmd cmd = cmds_[i];
-                if (allow_batch && cmd.type == CmdType::FillRect) {
+                if (allow_batch && (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect)) {
                     std::size_t run = 1;
                     while ((i + run) < count_) {
                         const DrawCmd& next = cmds_[i + run];
-                        if (next.type != CmdType::FillRect || !rgba_equal(next.color, cmd.color)) break;
+                        if (next.type != cmd.type || !rgba_equal(next.color, cmd.color)) break;
                         ++run;
                     }
                     if (run >= 2) {
@@ -541,7 +542,9 @@ export namespace ui::draw_cmd {
                                                              alignof(RectBatchItem));
                         if (blob.length != 0) {
                             DrawCmd batch_cmd{};
-                            batch_cmd.type = CmdType::FillRectBatch;
+                            batch_cmd.type = (cmd.type == CmdType::StrokeRect)
+                                ? CmdType::StrokeRectBatch
+                                : CmdType::FillRectBatch;
                             batch_cmd.rect = bounds;
                             batch_cmd.color = cmd.color;
                             batch_cmd.blob = blob;
@@ -982,6 +985,27 @@ export namespace ui::draw_cmd {
                                               item.rect.x, item.rect.y,
                                               item.rect.w, item.rect.h,
                                               cmd.color, true);
+                    }
+                    break;
+                }
+                case CmdType::StrokeRectBatch: {
+                    const int count = cmd.p0;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const RectBatchItem>(
+                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        ui::render::draw_rect(canvas,
+                                              item.rect.x, item.rect.y,
+                                              item.rect.w, item.rect.h,
+                                              cmd.color, false);
                     }
                     break;
                 }

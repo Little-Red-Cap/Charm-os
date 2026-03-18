@@ -2569,6 +2569,7 @@ int main(int argc, char** argv) {
     bool img_growth_ok = true;
     std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
+    std::size_t compare_cmd_count_raw = 0;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         reset_font_ptr_map_count();
@@ -2595,6 +2596,7 @@ int main(int argc, char** argv) {
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
         append_path_icon(compare_buf, screen_width);
+        compare_cmd_count_raw = compare_buf.stats().cmd_count;
         compare_buf.compact();
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
@@ -2689,6 +2691,7 @@ int main(int argc, char** argv) {
             if (!has_recorded) {
                 gui.record_commands(compare_buf);
                 append_path_icon(compare_buf, screen_width);
+                compare_cmd_count_raw = compare_buf.stats().cmd_count;
                 compare_buf.compact();
             }
         const auto dump_stats = compare_buf.stats();
@@ -2816,7 +2819,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_count={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_raw={} cmd_count={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -2830,6 +2833,7 @@ int main(int argc, char** argv) {
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,
             ui_ok ? 1u : 0u,
+            static_cast<unsigned>(compare_cmd_count_raw),
             static_cast<unsigned>(compare_cmd_count),
             static_cast<unsigned>(cmd_budget),
             static_cast<unsigned>(compare_dispatch_groups),

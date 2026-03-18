@@ -355,7 +355,7 @@ namespace {
             | (static_cast<std::uint32_t>('D') << 24);
     }
 
-    constexpr std::uint32_t kVcmdVersion = 1;
+    constexpr std::uint32_t kVcmdVersion = 2;
     constexpr std::uint32_t kVcmdEndian = 0x01020304u;
     constexpr std::uint32_t kVcmdFlagHasImages = 1u << 0;
 
@@ -447,7 +447,7 @@ namespace {
         header.font_count = 0;
 
         bool ok = write_block(file, &header, sizeof(header));
-        ok = ok && write_block(file, buf.data(), header.cmd_bytes);
+        ok = ok && write_block(file, buf.cmd_data(), header.cmd_bytes);
         ok = ok && write_block(file, buf.text_data(), header.text_bytes);
         ok = ok && write_block(file, buf.blob_data(), header.blob_bytes);
         for (std::size_t i = 0; ok && i < image_headers.size(); ++i) {
@@ -498,16 +498,11 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.cmd_bytes != header.cmd_count * sizeof(ui::draw_cmd::DrawCmd)) {
-            std::fclose(file);
-            return false;
-        }
-
-        std::vector<ui::draw_cmd::DrawCmd> cmds(header.cmd_count);
+        std::vector<std::byte> cmd_bytes(header.cmd_bytes);
         std::vector<char> text(header.text_bytes);
         std::vector<std::byte> blob(header.blob_bytes);
 
-        if (!read_block(file, cmds.data(), header.cmd_bytes)) {
+        if (!read_block(file, cmd_bytes.data(), header.cmd_bytes)) {
             std::fclose(file);
             return false;
         }
@@ -558,7 +553,21 @@ namespace {
             ui::draw_cmd::set_image_registry_locked(true);
         }
 
-        for (const auto& cmd : cmds) {
+        std::fclose(file);
+
+        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
+        if (!buf.load(cmd_bytes.data(),
+                      cmd_bytes.size(),
+                      header.cmd_count,
+                      text.data(),
+                      text.size(),
+                      blob.data(),
+                      blob.size())) {
+            return false;
+        }
+        ui::draw_cmd::DrawCmd cmd{};
+        for (std::size_t i = 0; i < buf.size(); ++i) {
+            if (!buf.read_cmd(i, cmd)) return false;
             if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
                 const std::size_t end = static_cast<std::size_t>(cmd.text.offset) + cmd.text.length;
                 if (end > text.size()) {
@@ -576,18 +585,6 @@ namespace {
                 && !ui::draw_cmd::image_id_valid(cmd.image)) {
                 return false;
             }
-        }
-
-        std::fclose(file);
-
-        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
-        if (!buf.load(cmds.data(),
-                      cmds.size(),
-                      text.data(),
-                      text.size(),
-                      blob.data(),
-                      blob.size())) {
-            return false;
         }
 
         ui::draw_cmd::DrawCmdExecutor exec{};

@@ -5,6 +5,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <type_traits>
 
@@ -93,6 +94,107 @@ export namespace ui::draw_cmd {
     using ui::gfx::image_registry_first_after_lock_tag;
     using ui::gfx::image_registry_first_after_lock_reason;
 
+    struct CmdHeader {
+        CmdType type{CmdType::FillRect};
+        std::uint8_t flags{0};
+        std::uint16_t size{0};
+        Rect rect{};
+    };
+
+    struct CmdColor {
+        rgba color{};
+    };
+
+    struct CmdColorP0 {
+        rgba color{};
+        std::int16_t p0{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdColorP0P1P2 {
+        rgba color{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdColorP0P1P2P3 {
+        rgba color{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t p3{0};
+    };
+
+    struct CmdTextBox {
+        rgba color{};
+        TextSpan text{};
+        FontId font{FontId::Normal};
+        TextAlignH align_h{TextAlignH::Left};
+        TextAlignV align_v{TextAlignV::Top};
+        TextWrap wrap{TextWrap::None};
+        TextEllipsis ellipsis{TextEllipsis::None};
+    };
+
+    struct CmdPath {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t closed{0};
+    };
+
+    struct CmdImage {
+        ImageId image{};
+    };
+
+    struct CmdImageP0 {
+        ImageId image{};
+        std::int16_t p0{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdImageP0P1P2P3 {
+        ImageId image{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t p3{0};
+    };
+
+    struct CmdBatchRect {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdBatchRectP0 {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t count{0};
+    };
+
+    struct CmdGlyphRun {
+        rgba color{};
+        BlobRef blob{};
+        FontId font{FontId::Normal};
+        TextAlignH align_h{TextAlignH::Left};
+        TextAlignV align_v{TextAlignV::Top};
+        TextWrap wrap{TextWrap::None};
+        TextEllipsis ellipsis{TextEllipsis::None};
+        std::uint16_t count{0};
+        std::uint16_t pad{0};
+    };
+
+    struct CmdImageBatch {
+        ImageId image{};
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t pad{0};
+    };
+
     struct DrawCmd {
         CmdType type{CmdType::FillRect};
         Rect rect{};
@@ -111,10 +213,13 @@ export namespace ui::draw_cmd {
         TextEllipsis ellipsis{TextEllipsis::None};
     };
 
-    constexpr std::uint32_t kDrawCmdBinaryVersion = 1;
+    constexpr std::size_t kCmdAlign = alignof(std::uint32_t);
+    static_assert(sizeof(CmdHeader) % kCmdAlign == 0);
+
+    constexpr std::uint32_t kDrawCmdBinaryVersion = 2;
 
     constexpr std::uint32_t draw_cmd_binary_size() noexcept {
-        return static_cast<std::uint32_t>(sizeof(DrawCmd));
+        return static_cast<std::uint32_t>(sizeof(CmdHeader));
     }
 
     static_assert(sizeof(ImageId) == 4);
@@ -192,6 +297,157 @@ export namespace ui::draw_cmd {
         return (value + mask) & ~mask;
     }
 
+    constexpr std::size_t cmd_stride(std::size_t size) noexcept {
+        return align_up(size, kCmdAlign);
+    }
+
+    inline bool payload_fits(const CmdHeader* header, std::size_t payload_size) noexcept {
+        if (!header) return false;
+        const std::size_t required = sizeof(CmdHeader) + payload_size;
+        return header->size >= required;
+    }
+
+    template <typename Payload>
+    inline Payload read_payload(const CmdHeader* header) noexcept {
+        Payload payload{};
+        if (!header) return payload;
+        const auto* base = reinterpret_cast<const std::byte*>(header);
+        std::memcpy(&payload, base + sizeof(CmdHeader), sizeof(Payload));
+        return payload;
+    }
+
+    inline bool decode_cmd(const CmdHeader* header, DrawCmd& out) noexcept {
+        if (!header) return false;
+        out = DrawCmd{};
+        out.type = header->type;
+        out.rect = header->rect;
+        switch (header->type) {
+        case CmdType::PushClip:
+        case CmdType::PopClip:
+            return true;
+        case CmdType::DrawLine: {
+            if (!payload_fits(header, sizeof(CmdColor))) return false;
+            const auto payload = read_payload<CmdColor>(header);
+            out.color = payload.color;
+            return true;
+        }
+        case CmdType::DrawPath: {
+            if (!payload_fits(header, sizeof(CmdPath))) return false;
+            const auto payload = read_payload<CmdPath>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.count;
+            out.p1 = payload.closed;
+            return true;
+        }
+        case CmdType::FillRect:
+        case CmdType::StrokeRect: {
+            if (!payload_fits(header, sizeof(CmdColor))) return false;
+            const auto payload = read_payload<CmdColor>(header);
+            out.color = payload.color;
+            return true;
+        }
+        case CmdType::FillRoundRect:
+        case CmdType::StrokeRoundRect:
+        case CmdType::FillCircle:
+        case CmdType::StrokeCircle: {
+            if (!payload_fits(header, sizeof(CmdColorP0))) return false;
+            const auto payload = read_payload<CmdColorP0>(header);
+            out.color = payload.color;
+            out.p0 = payload.p0;
+            return true;
+        }
+        case CmdType::DrawImage: {
+            if (!payload_fits(header, sizeof(CmdImage))) return false;
+            const auto payload = read_payload<CmdImage>(header);
+            out.image = payload.image;
+            return true;
+        }
+        case CmdType::DrawImageRoundRect: {
+            if (!payload_fits(header, sizeof(CmdImageP0))) return false;
+            const auto payload = read_payload<CmdImageP0>(header);
+            out.image = payload.image;
+            out.p0 = payload.p0;
+            return true;
+        }
+        case CmdType::DrawImageNineSlice: {
+            if (!payload_fits(header, sizeof(CmdImageP0P1P2P3))) return false;
+            const auto payload = read_payload<CmdImageP0P1P2P3>(header);
+            out.image = payload.image;
+            out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            out.p3 = payload.p3;
+            return true;
+        }
+        case CmdType::DrawTextBox: {
+            if (!payload_fits(header, sizeof(CmdTextBox))) return false;
+            const auto payload = read_payload<CmdTextBox>(header);
+            out.color = payload.color;
+            out.text = payload.text;
+            out.font = payload.font;
+            out.align_h = payload.align_h;
+            out.align_v = payload.align_v;
+            out.wrap = payload.wrap;
+            out.ellipsis = payload.ellipsis;
+            return true;
+        }
+        case CmdType::FocusRing: {
+            if (!payload_fits(header, sizeof(CmdColorP0P1P2))) return false;
+            const auto payload = read_payload<CmdColorP0P1P2>(header);
+            out.color = payload.color;
+            out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            return true;
+        }
+        case CmdType::FillRectBatch:
+        case CmdType::StrokeRectBatch: {
+            if (!payload_fits(header, sizeof(CmdBatchRect))) return false;
+            const auto payload = read_payload<CmdBatchRect>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.count;
+            return true;
+        }
+        case CmdType::FillRoundRectBatch:
+        case CmdType::StrokeRoundRectBatch:
+        case CmdType::FillCircleBatch:
+        case CmdType::StrokeCircleBatch: {
+            if (!payload_fits(header, sizeof(CmdBatchRectP0))) return false;
+            const auto payload = read_payload<CmdBatchRectP0>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.p0;
+            out.p1 = payload.count;
+            return true;
+        }
+        case CmdType::GlyphRun: {
+            if (!payload_fits(header, sizeof(CmdGlyphRun))) return false;
+            const auto payload = read_payload<CmdGlyphRun>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.font = payload.font;
+            out.align_h = payload.align_h;
+            out.align_v = payload.align_v;
+            out.wrap = payload.wrap;
+            out.ellipsis = payload.ellipsis;
+            out.p0 = static_cast<std::int16_t>(payload.count);
+            return true;
+        }
+        case CmdType::DrawImageBatch: {
+            if (!payload_fits(header, sizeof(CmdImageBatch))) return false;
+            const auto payload = read_payload<CmdImageBatch>(header);
+            out.image = payload.image;
+            out.blob = payload.blob;
+            out.p0 = payload.count;
+            return true;
+        }
+        default:
+            return false;
+        }
+    }
+
     template <std::size_t Capacity>
     class BlobArena {
     public:
@@ -249,9 +505,11 @@ export namespace ui::draw_cmd {
         static constexpr std::size_t kMaxCommands = MaxCmds;
         static constexpr std::size_t kTextCapacity = TextBytes;
         static constexpr std::size_t kBlobCapacity = BlobBytes;
+        static constexpr std::size_t kCmdBytesCapacity = kMaxCommands * sizeof(DrawCmd);
 
         void clear() noexcept {
             count_ = 0;
+            cmd_bytes_used_ = 0;
             cmd_overflowed_ = false;
             text_overflowed_ = false;
             text_used_ = 1;
@@ -260,7 +518,8 @@ export namespace ui::draw_cmd {
         }
 
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
-        [[nodiscard]] const DrawCmd* data() const noexcept { return cmds_.data(); }
+        [[nodiscard]] const std::byte* cmd_data() const noexcept { return cmd_bytes_.data(); }
+        [[nodiscard]] std::size_t cmd_bytes() const noexcept { return cmd_bytes_used_; }
         [[nodiscard]] const char* text_data() const noexcept { return text_.data(); }
         [[nodiscard]] std::size_t text_used() const noexcept { return text_used_; }
         [[nodiscard]] const std::byte* blob_data() const noexcept { return blob_.data(); }
@@ -283,26 +542,51 @@ export namespace ui::draw_cmd {
             const std::size_t end = static_cast<std::size_t>(span.offset) + span.length;
             return end <= text_used_;
         }
+        [[nodiscard]] const CmdHeader* cmd_header(std::size_t index) const noexcept {
+            if (index >= count_) return nullptr;
+            const std::size_t offset = cmd_offsets_[index];
+            if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return nullptr;
+            const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+            if (header->size < sizeof(CmdHeader)) return nullptr;
+            const std::size_t stride = cmd_stride(header->size);
+            if (offset + stride > cmd_bytes_used_) return nullptr;
+            return header;
+        }
+        [[nodiscard]] bool read_cmd(std::size_t index, DrawCmd& out) const noexcept {
+            const CmdHeader* header = cmd_header(index);
+            if (!header) return false;
+            return decode_cmd(header, out);
+        }
 
-        bool load(const DrawCmd* cmds,
+        bool load(const std::byte* cmd_bytes,
+                  std::size_t cmd_bytes_len,
                   std::size_t cmd_count,
                   const char* text,
                   std::size_t text_bytes,
                   const std::byte* blob,
                   std::size_t blob_bytes) noexcept {
             clear();
-            if (!cmds && cmd_count != 0) {
+            if (!cmd_bytes && cmd_bytes_len != 0) {
                 cmd_overflowed_ = true;
                 return false;
+            }
+            if (cmd_bytes_len > kCmdBytesCapacity) {
+                cmd_overflowed_ = true;
+                cmd_bytes_len = kCmdBytesCapacity;
             }
             if (cmd_count > kMaxCommands) {
                 cmd_overflowed_ = true;
                 cmd_count = kMaxCommands;
             }
-            if (cmd_count > 0) {
-                std::memcpy(cmds_.data(), cmds, cmd_count * sizeof(DrawCmd));
+            if (cmd_bytes_len > 0) {
+                std::memcpy(cmd_bytes_.data(), cmd_bytes, cmd_bytes_len);
             }
+            cmd_bytes_used_ = cmd_bytes_len;
             count_ = cmd_count;
+            if (!rebuild_offsets()) {
+                cmd_overflowed_ = true;
+                return false;
+            }
             if (!text || text_bytes == 0) {
                 text_[0] = '\0';
                 text_used_ = 1;
@@ -326,7 +610,7 @@ export namespace ui::draw_cmd {
             return DrawCmdStats{
                 count_,
                 kMaxCommands,
-                count_ * sizeof(DrawCmd),
+                cmd_bytes_used_,
                 text_used_,
                 kTextCapacity,
                 blob_.used(),
@@ -472,8 +756,9 @@ export namespace ui::draw_cmd {
 
         bool any_draw_hits(const Rect& rect) const noexcept {
             Rect out{};
+            DrawCmd cmd{};
             for (std::size_t i = 0; i < count_; ++i) {
-                const auto& cmd = cmds_[i];
+                if (!read_cmd(i, cmd)) continue;
                 if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
                     continue;
                 }
@@ -499,7 +784,12 @@ export namespace ui::draw_cmd {
 
         bool compact() noexcept {
             if (count_ == 0) return true;
-            std::size_t out = 0;
+            const std::size_t input_count = count_;
+            const std::size_t input_bytes = cmd_bytes_used_;
+            std::array<std::uint32_t, kMaxCommands> input_offsets = cmd_offsets_;
+            std::array<std::uint32_t, kMaxCommands> output_offsets{};
+            std::size_t out_bytes = 0;
+            std::size_t out_count = 0;
             std::size_t i = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
@@ -507,6 +797,27 @@ export namespace ui::draw_cmd {
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
+
+            auto read_cmd_at = [&](std::size_t index, DrawCmd& out_cmd) noexcept -> bool {
+                if (index >= input_count) return false;
+                const std::size_t offset = input_offsets[index];
+                if (offset + sizeof(CmdHeader) > input_bytes) return false;
+                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+                return decode_cmd(header, out_cmd);
+            };
+
+            auto emit_cmd = [&](const DrawCmd& out_cmd) noexcept -> bool {
+                if (!encode_cmd(out_cmd,
+                                cmd_bytes_.data(),
+                                kCmdBytesCapacity,
+                                out_bytes,
+                                out_count,
+                                output_offsets.data())) {
+                    cmd_overflowed_ = true;
+                    return false;
+                }
+                return true;
+            };
 
             auto can_merge_text = [](const DrawCmd& a, const DrawCmd& b) noexcept {
                 return rgba_equal(a.color, b.color)
@@ -517,12 +828,17 @@ export namespace ui::draw_cmd {
                     && a.ellipsis == b.ellipsis;
             };
 
-            while (i < count_) {
-                const DrawCmd cmd = cmds_[i];
+            while (i < input_count) {
+                DrawCmd cmd{};
+                if (!read_cmd_at(i, cmd)) {
+                    ok = false;
+                    break;
+                }
                 if (allow_batch && (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect)) {
                     std::size_t run = 1;
-                    while ((i + run) < count_) {
-                        const DrawCmd& next = cmds_[i + run];
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
                         if (next.type != cmd.type || !rgba_equal(next.color, cmd.color)) break;
                         ++run;
                     }
@@ -530,7 +846,9 @@ export namespace ui::draw_cmd {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
                         for (std::size_t j = 0; j < batch; ++j) {
-                            rect_items[j].rect = cmds_[i + j].rect;
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            rect_items[j].rect = next.rect;
                             if (j == 0) {
                                 bounds = rect_items[j].rect;
                             } else {
@@ -549,7 +867,7 @@ export namespace ui::draw_cmd {
                             batch_cmd.color = cmd.color;
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = static_cast<std::int16_t>(batch);
-                            cmds_[out++] = batch_cmd;
+                            if (!emit_cmd(batch_cmd)) ok = false;
                             i += batch;
                             continue;
                         }
@@ -561,8 +879,9 @@ export namespace ui::draw_cmd {
                         || cmd.type == CmdType::FillCircle
                         || cmd.type == CmdType::StrokeCircle)) {
                     std::size_t run = 1;
-                    while ((i + run) < count_) {
-                        const DrawCmd& next = cmds_[i + run];
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
                         if (next.type != cmd.type) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         if (next.p0 != cmd.p0) break;
@@ -572,7 +891,9 @@ export namespace ui::draw_cmd {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
                         for (std::size_t j = 0; j < batch; ++j) {
-                            rect_items[j].rect = cmds_[i + j].rect;
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            rect_items[j].rect = next.rect;
                             if (j == 0) {
                                 bounds = rect_items[j].rect;
                             } else {
@@ -606,7 +927,7 @@ export namespace ui::draw_cmd {
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = cmd.p0;
                             batch_cmd.p1 = static_cast<std::int16_t>(batch);
-                            cmds_[out++] = batch_cmd;
+                            if (!emit_cmd(batch_cmd)) ok = false;
                             i += batch;
                             continue;
                         }
@@ -614,13 +935,14 @@ export namespace ui::draw_cmd {
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawTextBox) {
                     if (!text_span_valid(cmd.text)) {
-                        cmds_[out++] = cmd;
+                        if (!emit_cmd(cmd)) ok = false;
                         ++i;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < count_) {
-                        const DrawCmd& next = cmds_[i + run];
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
                         if (next.type != CmdType::DrawTextBox) break;
                         if (!can_merge_text(cmd, next)) break;
                         if (!text_span_valid(next.text)) break;
@@ -630,8 +952,10 @@ export namespace ui::draw_cmd {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
                         for (std::size_t j = 0; j < batch; ++j) {
-                            text_items[j].rect = cmds_[i + j].rect;
-                            text_items[j].text = cmds_[i + j].text;
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            text_items[j].rect = next.rect;
+                            text_items[j].text = next.text;
                             if (j == 0) {
                                 bounds = text_items[j].rect;
                             } else {
@@ -653,7 +977,7 @@ export namespace ui::draw_cmd {
                             batch_cmd.ellipsis = cmd.ellipsis;
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = static_cast<std::int16_t>(batch);
-                            cmds_[out++] = batch_cmd;
+                            if (!emit_cmd(batch_cmd)) ok = false;
                             i += batch;
                             continue;
                         }
@@ -661,13 +985,14 @@ export namespace ui::draw_cmd {
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawImage) {
                     if (!image_id_valid(cmd.image)) {
-                        cmds_[out++] = cmd;
+                        if (!emit_cmd(cmd)) ok = false;
                         ++i;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < count_) {
-                        const DrawCmd& next = cmds_[i + run];
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
                         if (next.type != CmdType::DrawImage) break;
                         if (next.image != cmd.image) break;
                         ++run;
@@ -676,7 +1001,9 @@ export namespace ui::draw_cmd {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
                         for (std::size_t j = 0; j < batch; ++j) {
-                            image_items[j].rect = cmds_[i + j].rect;
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            image_items[j].rect = next.rect;
                             if (j == 0) {
                                 bounds = image_items[j].rect;
                             } else {
@@ -693,19 +1020,26 @@ export namespace ui::draw_cmd {
                             batch_cmd.image = cmd.image;
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = static_cast<std::int16_t>(batch);
-                            cmds_[out++] = batch_cmd;
+                            if (!emit_cmd(batch_cmd)) ok = false;
                             i += batch;
                             continue;
                         }
                         ok = false;
                     }
                 }
-                cmds_[out++] = cmd;
+                if (!emit_cmd(cmd)) ok = false;
                 ++i;
             }
 
-            if (out < count_) {
-                count_ = out;
+            if (out_count == 0) {
+                count_ = 0;
+                cmd_bytes_used_ = 0;
+            } else {
+                count_ = out_count;
+                cmd_bytes_used_ = out_bytes;
+                std::memcpy(cmd_offsets_.data(),
+                            output_offsets.data(),
+                            out_count * sizeof(std::uint32_t));
             }
             return ok && !blob_.overflowed();
         }
@@ -733,18 +1067,199 @@ export namespace ui::draw_cmd {
         }
 
         bool push_cmd(const DrawCmd& cmd) noexcept {
-            if (count_ >= kMaxCommands) {
+            if (!encode_cmd(cmd,
+                            cmd_bytes_.data(),
+                            kCmdBytesCapacity,
+                            cmd_bytes_used_,
+                            count_,
+                            cmd_offsets_.data())) {
                 cmd_overflowed_ = true;
                 return false;
             }
-            cmds_[count_++] = cmd;
             return true;
         }
 
-        std::array<DrawCmd, kMaxCommands> cmds_{};
+        bool rebuild_offsets() noexcept {
+            std::size_t offset = 0;
+            for (std::size_t i = 0; i < count_; ++i) {
+                if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
+                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+                if (header->size < sizeof(CmdHeader)) return false;
+                cmd_offsets_[i] = static_cast<std::uint32_t>(offset);
+                const std::size_t stride = cmd_stride(header->size);
+                if (stride == 0) return false;
+                if (offset + stride > cmd_bytes_used_) return false;
+                offset += stride;
+            }
+            return true;
+        }
+
+        static bool write_cmd(std::byte* base,
+                              std::size_t capacity,
+                              std::size_t& out_bytes,
+                              std::size_t& out_count,
+                              std::uint32_t* offsets,
+                              CmdType type,
+                              const Rect& rect,
+                              const void* payload,
+                              std::size_t payload_size) noexcept {
+            if (out_count >= kMaxCommands) return false;
+            const std::size_t cmd_size = sizeof(CmdHeader) + payload_size;
+            if (cmd_size > std::numeric_limits<std::uint16_t>::max()) return false;
+            const std::size_t stride = cmd_stride(cmd_size);
+            if ((out_bytes + stride) > capacity) return false;
+            offsets[out_count] = static_cast<std::uint32_t>(out_bytes);
+            CmdHeader header{};
+            header.type = type;
+            header.size = static_cast<std::uint16_t>(cmd_size);
+            header.rect = rect;
+            std::byte* dst = base + out_bytes;
+            std::memcpy(dst, &header, sizeof(CmdHeader));
+            if (payload_size > 0 && payload) {
+                std::memcpy(dst + sizeof(CmdHeader), payload, payload_size);
+            }
+            out_bytes += stride;
+            ++out_count;
+            return true;
+        }
+
+        static bool encode_cmd(const DrawCmd& cmd,
+                               std::byte* base,
+                               std::size_t capacity,
+                               std::size_t& out_bytes,
+                               std::size_t& out_count,
+                               std::uint32_t* offsets) noexcept {
+            switch (cmd.type) {
+            case CmdType::PushClip:
+            case CmdType::PopClip:
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, nullptr, 0);
+            case CmdType::DrawLine: {
+                CmdColor payload{cmd.color};
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawPath: {
+                CmdPath payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.count = cmd.p0;
+                payload.closed = cmd.p1;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FillRect:
+            case CmdType::StrokeRect: {
+                CmdColor payload{cmd.color};
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FillRoundRect:
+            case CmdType::StrokeRoundRect:
+            case CmdType::FillCircle:
+            case CmdType::StrokeCircle: {
+                CmdColorP0 payload{};
+                payload.color = cmd.color;
+                payload.p0 = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImage: {
+                CmdImage payload{cmd.image};
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImageRoundRect: {
+                CmdImageP0 payload{};
+                payload.image = cmd.image;
+                payload.p0 = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImageNineSlice: {
+                CmdImageP0P1P2P3 payload{};
+                payload.image = cmd.image;
+                payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                payload.p3 = cmd.p3;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawTextBox: {
+                CmdTextBox payload{};
+                payload.color = cmd.color;
+                payload.text = cmd.text;
+                payload.font = cmd.font;
+                payload.align_h = cmd.align_h;
+                payload.align_v = cmd.align_v;
+                payload.wrap = cmd.wrap;
+                payload.ellipsis = cmd.ellipsis;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FocusRing: {
+                CmdColorP0P1P2 payload{};
+                payload.color = cmd.color;
+                payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FillRectBatch:
+            case CmdType::StrokeRectBatch: {
+                CmdBatchRect payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FillRoundRectBatch:
+            case CmdType::StrokeRoundRectBatch:
+            case CmdType::FillCircleBatch:
+            case CmdType::StrokeCircleBatch: {
+                CmdBatchRectP0 payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.p0 = cmd.p0;
+                payload.count = cmd.p1;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::GlyphRun: {
+                CmdGlyphRun payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.font = cmd.font;
+                payload.align_h = cmd.align_h;
+                payload.align_v = cmd.align_v;
+                payload.wrap = cmd.wrap;
+                payload.ellipsis = cmd.ellipsis;
+                payload.count = static_cast<std::uint16_t>(cmd.p0);
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImageBatch: {
+                CmdImageBatch payload{};
+                payload.image = cmd.image;
+                payload.blob = cmd.blob;
+                payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            default:
+                return false;
+            }
+        }
+
+        alignas(kCmdAlign) std::array<std::byte, kCmdBytesCapacity> cmd_bytes_{};
+        std::array<std::uint32_t, kMaxCommands> cmd_offsets_{};
         std::array<char, kTextCapacity> text_{};
         BlobArena<kBlobCapacity> blob_{};
         std::size_t count_{0};
+        std::size_t cmd_bytes_used_{0};
         std::size_t text_used_{1};
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
@@ -763,7 +1278,7 @@ export namespace ui::draw_cmd {
                                  const Rect* initial_clip = nullptr) noexcept {
             DrawCmdExecStats stats{};
             stats.cmd_count = buf.size();
-            stats.cmd_bytes = buf.size() * sizeof(DrawCmd);
+            stats.cmd_bytes = buf.cmd_bytes();
             stats.overflowed = buf.overflowed();
 
             std::array<CanvasBase::ClipState, 64> clip_stack{};
@@ -773,9 +1288,11 @@ export namespace ui::draw_cmd {
                 canvas.set_clip(*initial_clip);
             }
 
-            const DrawCmd* cmds = buf.data();
             const std::size_t count = buf.size();
             std::size_t i = 0;
+            auto read_cmd_at = [&](std::size_t index, DrawCmd& out) noexcept -> bool {
+                return buf.read_cmd(index, out);
+            };
             auto exec_rect_like = [&](const DrawCmd& cur) noexcept {
                 switch (cur.type) {
                 case CmdType::FillRect:
@@ -874,11 +1391,21 @@ export namespace ui::draw_cmd {
             };
 
             while (i < count) {
-                const auto& cmd = cmds[i];
+                DrawCmd cmd{};
+                if (!read_cmd_at(i, cmd)) {
+                    stats.failed_cmds++;
+                    ++i;
+                    continue;
+                }
                 if (is_rect_like(cmd.type)) {
                     stats.dispatch_groups++;
                     while (i < count) {
-                        const auto& cur = cmds[i];
+                        DrawCmd cur{};
+                        if (!read_cmd_at(i, cur)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
                         if (!is_rect_like(cur.type)) break;
                         exec_rect_like(cur);
                         ++i;
@@ -889,7 +1416,12 @@ export namespace ui::draw_cmd {
                 if (cmd.type == CmdType::DrawTextBox) {
                     stats.dispatch_groups++;
                     while (i < count) {
-                        const auto& cur = cmds[i];
+                        DrawCmd cur{};
+                        if (!read_cmd_at(i, cur)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
                         if (cur.type != CmdType::DrawTextBox) break;
                         if (!buf.text_span_valid(cur.text)) {
                             stats.failed_cmds++;
@@ -908,7 +1440,12 @@ export namespace ui::draw_cmd {
                 if (is_image_like(cmd.type)) {
                     stats.dispatch_groups++;
                     while (i < count) {
-                        const auto& cur = cmds[i];
+                        DrawCmd cur{};
+                        if (!read_cmd_at(i, cur)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
                         if (!is_image_like(cur.type)) break;
                         exec_image_like(cur);
                         ++i;
@@ -1128,7 +1665,7 @@ export namespace ui::draw_cmd {
                                        const DrawCmdTileConfig& config) noexcept {
             DrawCmdTileStats stats{};
             stats.cmd_count = buf.size();
-            stats.cmd_bytes = buf.size() * sizeof(DrawCmd);
+            stats.cmd_bytes = buf.cmd_bytes();
             if (!tile_buffer.data) return stats;
             if (config.tile_width <= 0 || config.tile_height <= 0) return stats;
 
@@ -1159,10 +1696,10 @@ export namespace ui::draw_cmd {
             if (use_hit_cache) {
                 Rect screen_rect{0, 0, screen_w, screen_h};
                 Rect clipped{};
-                const DrawCmd* cmds = buf.data();
                 const std::size_t count = buf.size();
+                DrawCmd cmd{};
                 for (std::size_t i = 0; i < count; ++i) {
-                    const auto& cmd = cmds[i];
+                    if (!buf.read_cmd(i, cmd)) continue;
                     if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
                         continue;
                     }

@@ -131,6 +131,8 @@ export namespace ui::draw_cmd {
         std::size_t clip_pushes{0};
         std::size_t clip_pops{0};
         std::size_t failed_cmds{0};
+        std::size_t dispatch_groups{0};
+        std::size_t batch_flushes{0};
         bool overflowed{false};
     };
 
@@ -525,8 +527,42 @@ export namespace ui::draw_cmd {
 
             const DrawCmd* cmds = buf.data();
             const std::size_t count = buf.size();
-            for (std::size_t i = 0; i < count; ++i) {
+            std::size_t i = 0;
+            while (i < count) {
                 const auto& cmd = cmds[i];
+                if (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect) {
+                    stats.dispatch_groups++;
+                    while (i < count) {
+                        const auto& cur = cmds[i];
+                        if (cur.type != CmdType::FillRect && cur.type != CmdType::StrokeRect) break;
+                        const bool fill = (cur.type == CmdType::FillRect);
+                        ui::render::draw_rect(canvas, cur.rect.x, cur.rect.y, cur.rect.w, cur.rect.h, cur.color, fill);
+                        ++i;
+                    }
+                    stats.batch_flushes++;
+                    continue;
+                }
+                if (cmd.type == CmdType::DrawTextBox) {
+                    stats.dispatch_groups++;
+                    while (i < count) {
+                        const auto& cur = cmds[i];
+                        if (cur.type != CmdType::DrawTextBox) break;
+                        if (!buf.text_span_valid(cur.text)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
+                        const char* text = buf.text_at(cur.text.offset);
+                        const Font& font = get_font(cur.font);
+                        draw_text_box(canvas, cur.rect, text, cur.color, font,
+                                      cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+                        ++i;
+                    }
+                    stats.batch_flushes++;
+                    continue;
+                }
+
+                stats.dispatch_groups++;
                 switch (cmd.type) {
                 case CmdType::PushClip:
                     if (sp < clip_stack.size()) {
@@ -566,10 +602,8 @@ export namespace ui::draw_cmd {
                     break;
                 }
                 case CmdType::FillRect:
-                    ui::render::draw_rect(canvas, cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h, cmd.color, true);
-                    break;
                 case CmdType::StrokeRect:
-                    ui::render::draw_rect(canvas, cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h, cmd.color, false);
+                case CmdType::DrawTextBox:
                     break;
                 case CmdType::FillRoundRect:
                     ui::render::draw_round_rect(canvas, cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h, cmd.p0, cmd.color, true);
@@ -633,21 +667,12 @@ export namespace ui::draw_cmd {
                                                       cmd.p0, cmd.p1, cmd.p2, cmd.p3);
                     break;
                 }
-                case CmdType::DrawTextBox: {
-                    if (!buf.text_span_valid(cmd.text)) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    const char* text = buf.text_at(cmd.text.offset);
-                    const Font& font = get_font(cmd.font);
-                    draw_text_box(canvas, cmd.rect, text, cmd.color, font,
-                                  cmd.align_h, cmd.align_v, cmd.wrap, cmd.ellipsis);
-                    break;
-                }
                 case CmdType::FocusRing:
                     ui::render::draw_focus_ring(canvas, cmd.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
                     break;
                 }
+                stats.batch_flushes++;
+                ++i;
             }
 
             if (initial_clip) {

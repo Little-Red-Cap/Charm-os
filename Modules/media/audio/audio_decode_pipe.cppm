@@ -42,6 +42,31 @@ export namespace audio {
 #define CHARM_AUDIO_MAX_CHUNK_MULT 10
 #endif
 
+    namespace detail {
+        template <typename T, std::size_t Capacity>
+        class StaticBuffer {
+        public:
+            bool resize(std::size_t n) noexcept {
+                if (n > Capacity) return false;
+                size_ = n;
+                return true;
+            }
+
+            [[nodiscard]] std::size_t size() const noexcept { return size_; }
+            [[nodiscard]] constexpr std::size_t capacity() const noexcept { return Capacity; }
+            [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
+
+            [[nodiscard]] T* data() noexcept { return data_.data(); }
+            [[nodiscard]] const T* data() const noexcept { return data_.data(); }
+            T& operator[](std::size_t idx) noexcept { return data_[idx]; }
+            const T& operator[](std::size_t idx) const noexcept { return data_[idx]; }
+
+        private:
+            std::array<T, Capacity> data_{};
+            std::size_t size_{0};
+        };
+    }
+
     class AudioDecodePipe {
     public:
         Result<void> open(media::StreamSourceRef src, SourceKind kind) noexcept {
@@ -272,29 +297,6 @@ export namespace audio {
         static constexpr std::size_t kMaxChunkMult = CHARM_AUDIO_MAX_CHUNK_MULT;
         static constexpr std::size_t kMaxChunkFrames = kMaxPeriodFrames * kMaxChunkMult;
         static constexpr std::size_t kMaxInputFrames = kMaxChunkFrames + 2;
-
-        template <typename T, std::size_t Capacity>
-        class StaticBuffer {
-        public:
-            bool resize(std::size_t n) noexcept {
-                if (n > Capacity) return false;
-                size_ = n;
-                return true;
-            }
-
-            [[nodiscard]] std::size_t size() const noexcept { return size_; }
-            [[nodiscard]] constexpr std::size_t capacity() const noexcept { return Capacity; }
-            [[nodiscard]] bool empty() const noexcept { return size_ == 0; }
-
-            [[nodiscard]] T* data() noexcept { return data_.data(); }
-            [[nodiscard]] const T* data() const noexcept { return data_.data(); }
-            T& operator[](std::size_t idx) noexcept { return data_[idx]; }
-            const T& operator[](std::size_t idx) const noexcept { return data_[idx]; }
-
-        private:
-            std::array<T, Capacity> data_{};
-            std::size_t size_{0};
-        };
 
         struct Biquad {
             float b0{1.0f};
@@ -544,14 +546,14 @@ export namespace audio {
         bool eq_ready_{false};
         bool eq_dirty_{false};
 
-        StaticBuffer<std::byte, kMaxInputFrames * kMaxChannels * sizeof(std::int16_t)> raw_{};
-        StaticBuffer<std::int16_t, kMaxInputFrames * kMaxChannels> s16_in_{};
-        StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_in_{};
-        StaticBuffer<std::int32_t, kMaxChunkFrames * kMaxChannels> s32_out_{};
-        StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_conv_{};
+        detail::StaticBuffer<std::byte, kMaxInputFrames * kMaxChannels * sizeof(std::int16_t)> raw_{};
+        detail::StaticBuffer<std::int16_t, kMaxInputFrames * kMaxChannels> s16_in_{};
+        detail::StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_in_{};
+        detail::StaticBuffer<std::int32_t, kMaxChunkFrames * kMaxChannels> s32_out_{};
+        detail::StaticBuffer<std::int32_t, kMaxInputFrames * kMaxChannels> s32_conv_{};
         static constexpr std::size_t kResampleCacheSlack = 16;
-        StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> s32_work_{};
-        StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> resample_cache_{};
+        detail::StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> s32_work_{};
+        detail::StaticBuffer<std::int32_t, (kMaxInputFrames + kResampleCacheSlack) * kMaxChannels> resample_cache_{};
 
         LinearResamplerS32 resampler_{};
         ChannelConverterS32 channel_conv_{};

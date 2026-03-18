@@ -554,6 +554,9 @@ namespace {
                 return false;
             }
         }
+        if (!ui::draw_cmd::image_registry_locked()) {
+            ui::draw_cmd::set_image_registry_locked(true);
+        }
 
         for (const auto& cmd : cmds) {
             if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
@@ -2204,6 +2207,9 @@ int main(int argc, char** argv) {
     auto menu_item_c = factory.create_menu_item("Save");
 
     ensure_demo_images();
+    if (!ui::draw_cmd::image_registry_locked()) {
+        ui::draw_cmd::set_image_registry_locked(true);
+    }
     factory.set_button_icon(btn, g_test_icon_id);
     factory.set_button_icon_size(btn, 18);
     factory.set_button_icon(icon_btn, g_test_icon_id);
@@ -2591,11 +2597,11 @@ int main(int argc, char** argv) {
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
-        if (img_stats_after_record.register_after_lock >= img_stats_before_record.register_after_lock) {
-            img_growth_count = img_stats_after_record.register_after_lock
-                - img_stats_before_record.register_after_lock;
+        if (img_stats_after_record.register_new_after_lock >= img_stats_before_record.register_new_after_lock) {
+            img_growth_count = img_stats_after_record.register_new_after_lock
+                - img_stats_before_record.register_new_after_lock;
         } else {
-            img_growth_count = img_stats_after_record.register_after_lock;
+            img_growth_count = img_stats_after_record.register_new_after_lock;
         }
         img_growth_ok = (img_growth_count == 0);
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -2613,6 +2619,8 @@ int main(int argc, char** argv) {
     std::size_t compare_cmd_count = 0;
     std::size_t compare_cmd_capacity = 0;
     std::size_t compare_cmd_bytes = 0;
+    std::size_t compare_dispatch_groups = 0;
+    std::size_t compare_batch_flushes = 0;
     int compare_tile_flushes = 0;
     std::uint8_t compare_tile_hit_pct = 0;
     bool compare_ok = true;
@@ -2634,6 +2642,8 @@ int main(int argc, char** argv) {
         const auto tile_stats = exec.execute_tiles(tile_backend, tile_view, compare_buf, tile_config);
         compare_hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
         compare_failed_cmds = exec_stats.failed_cmds;
+        compare_dispatch_groups = exec_stats.dispatch_groups;
+        compare_batch_flushes = exec_stats.batch_flushes;
         compare_tile_flushes = tile_stats.tile_flush_count;
         if (tile_stats.tiles_total > 0) {
             compare_tile_hit_pct = static_cast<std::uint8_t>(
@@ -2775,7 +2785,7 @@ int main(int argc, char** argv) {
                 ui::draw_cmd::image_register_reason_name(reason),
                 tag ? tag : "-");
 #endif
-            ci_mark_fail("img_growth");
+            ci_mark_fail("img_growth_after_lock");
         }
         if (!img_overflow_ok) {
             ci_mark_fail("img_overflow");
@@ -2803,7 +2813,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_count={} cmd_budget={} tile_flushes={} tile_hit_pct={} img_new={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_count={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -2819,9 +2829,12 @@ int main(int argc, char** argv) {
             ui_ok ? 1u : 0u,
             static_cast<unsigned>(compare_cmd_count),
             static_cast<unsigned>(cmd_budget),
+            static_cast<unsigned>(compare_dispatch_groups),
+            static_cast<unsigned>(compare_batch_flushes),
             static_cast<unsigned>(compare_tile_flushes),
             static_cast<unsigned>(compare_tile_hit_pct),
-            static_cast<unsigned>(img_stats.count),
+            static_cast<unsigned>(img_stats.register_new_total),
+            static_cast<unsigned>(img_stats.register_new_after_lock),
             static_cast<unsigned>(img_stats.bytes_total),
             static_cast<unsigned>(img_stats.dedup_hits),
             static_cast<unsigned>(img_growth_count),

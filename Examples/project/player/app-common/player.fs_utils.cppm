@@ -273,7 +273,7 @@ export namespace player::fs_utils {
         return collect_tracks_from_dir<OutList, OutList>(dir, out, static_cast<OutList*>(nullptr), out_status);
     }
 
-    bool find_cover_for_track(std::string_view track_path, std::string& out_path) {
+    bool find_cover_for_track(std::string_view track_path, FixedString<260>& out_path) {
         out_path.clear();
         auto norm = fs::normalize(track_path);
         fs::PathView p{norm.data, norm.size};
@@ -293,7 +293,7 @@ export namespace player::fs_utils {
 
         struct CoverCtx {
             std::string_view dir;
-            std::string* out;
+            FixedString<260>* out;
             int best_index;
         };
 
@@ -314,7 +314,7 @@ export namespace player::fs_utils {
                 if (!detail::join_path(path, info->dir, entry.name)) {
                     return fs::Status{fs::Errc::ok};
                 }
-                info->out->assign(path.view().data(), path.view().size());
+                info->out->assign(path.view());
                 info->best_index = idx;
                 return fs::Status{fs::Errc::ok};
             }

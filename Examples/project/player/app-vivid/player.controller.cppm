@@ -787,9 +787,9 @@ export namespace player {
             if (track_ready) {
                 cover_embedded_path.assign(vfs_path.view());
                 cover_folder_path.clear();
-                std::string folder_path;
+                FixedString<260> folder_path;
                 const bool has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
-                cover_folder_path.assign(folder_path);
+                cover_folder_path.assign(folder_path.view());
                 cover_ready = true;
                 switch (cover_strategy) {
                 case CoverStrategy::embedded_only:

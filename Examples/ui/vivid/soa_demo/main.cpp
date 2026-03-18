@@ -2630,8 +2630,40 @@ int main(int argc, char** argv) {
     int compare_tile_flushes = 0;
     std::uint8_t compare_tile_hit_pct = 0;
     bool compare_ok = true;
+    bool compact_ok = true;
+    std::size_t compact_saved = 0;
 
     if (run_compare) {
+        {
+            ui::draw_cmd::DefaultDrawCmdBuffer compact_probe{};
+            compact_probe.fill_rect({8, 8, 24, 6}, kDemoPanel);
+            compact_probe.fill_rect({8, 16, 24, 6}, kDemoPanel);
+            compact_probe.stroke_rect({40, 8, 24, 6}, kDemoPanelBorder);
+            compact_probe.stroke_rect({40, 16, 24, 6}, kDemoPanelBorder);
+            compact_probe.fill_round_rect({8, 28, 24, 8}, 4, kDemoPanel);
+            compact_probe.fill_round_rect({8, 38, 24, 8}, 4, kDemoPanel);
+            compact_probe.stroke_round_rect({40, 28, 24, 8}, 4, kDemoPanelBorder);
+            compact_probe.stroke_round_rect({40, 38, 24, 8}, 4, kDemoPanelBorder);
+            compact_probe.fill_circle(20, 60, 6, kDemoPanel);
+            compact_probe.fill_circle(36, 60, 6, kDemoPanel);
+            compact_probe.stroke_circle(54, 60, 6, kDemoPanelBorder);
+            compact_probe.stroke_circle(70, 60, 6, kDemoPanelBorder);
+            compact_probe.draw_text_box({8, 72, 64, 16}, "compact", kDemoPath,
+                                        get_font(FontId::Normal),
+                                        TextAlignH::Left, TextAlignV::Center,
+                                        TextWrap::None, TextEllipsis::None);
+            compact_probe.draw_text_box({8, 88, 64, 16}, "compact", kDemoPath,
+                                        get_font(FontId::Normal),
+                                        TextAlignH::Left, TextAlignV::Center,
+                                        TextWrap::None, TextEllipsis::None);
+            const auto before = compact_probe.stats().cmd_count;
+            compact_probe.compact();
+            const auto after = compact_probe.stats().cmd_count;
+            compact_saved = (before > after) ? (before - after) : 0;
+            if (compact_saved == 0) {
+                compact_ok = false;
+            }
+        }
         ui::draw_cmd::DrawCmdExecutor exec{};
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;
@@ -2693,16 +2725,19 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+        if (run_ci && !compact_ok) {
+            ci_mark_fail("compact");
+        }
     }
 
     bool dump_ok = true;
-        if (run_dump) {
-            if (!has_recorded) {
-                gui.record_commands(compare_buf);
-                append_path_icon(compare_buf, screen_width);
-                compare_cmd_count_raw = compare_buf.stats().cmd_count;
-                compare_buf.compact();
-            }
+    if (run_dump) {
+        if (!has_recorded) {
+            gui.record_commands(compare_buf);
+            append_path_icon(compare_buf, screen_width);
+            compare_cmd_count_raw = compare_buf.stats().cmd_count;
+            compare_buf.compact();
+        }
         const auto dump_stats = compare_buf.stats();
         if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
             dump_ok = false;
@@ -2809,9 +2844,9 @@ int main(int argc, char** argv) {
             ci_mark_fail("cmd_budget");
         }
         const bool ok = ci_ok
-            && compare_ok
-            && dump_ok
-            && replay_ok
+              && compare_ok
+              && dump_ok
+              && replay_ok
             && payload_ok
             && text_ok
             && blob_ok
@@ -2828,7 +2863,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -2842,6 +2877,7 @@ int main(int argc, char** argv) {
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,
             ui_ok ? 1u : 0u,
+            static_cast<unsigned>(compact_saved),
             static_cast<unsigned>(compare_cmd_count_raw),
             static_cast<unsigned>(compare_cmd_count),
             static_cast<unsigned>(compare_cmd_saved),

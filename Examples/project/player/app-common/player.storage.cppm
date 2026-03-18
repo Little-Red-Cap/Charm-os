@@ -1,13 +1,13 @@
 ﻿module;
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cctype>
-#include <string>
 #include <string_view>
-#include <vector>
 
 export module player.storage;
 
+import service.fixed_vector;
 import player.fixed_string;
 import fs_block;
 import fs_core;
@@ -19,6 +19,13 @@ import player.fs_utils;
 import player.media_scan;
 
 export namespace player {
+    using TrackLabel = FixedString<192>;
+    using TrackTitle = FixedString<192>;
+    using TrackSubtitle = FixedString<32>;
+    using TrackLabelList = service::FixedVector<TrackLabel, kMaxTracks>;
+    using TrackTitleList = service::FixedVector<TrackTitle, kMaxTracks>;
+    using TrackSubtitleList = service::FixedVector<TrackSubtitle, kMaxTracks>;
+
     struct StorageConfig {
         MountFn mount{nullptr};
         const char* path{nullptr};
@@ -29,10 +36,10 @@ export namespace player {
         bool has_tracks{false};
         FixedString<128> status{};
         FixedString<128> mount_status{};
-        std::vector<std::string> tracks{};
-        std::vector<std::string> track_labels{};
-        std::vector<std::string> track_titles{};
-        std::vector<std::string> track_subtitles{};
+        TrackList tracks{};
+        TrackLabelList track_labels{};
+        TrackTitleList track_titles{};
+        TrackSubtitleList track_subtitles{};
     };
 
     struct StorageView {
@@ -40,10 +47,10 @@ export namespace player {
         bool has_tracks{false};
         std::string_view status{};
         std::string_view mount_status{};
-        const std::vector<std::string>* tracks{nullptr};
-        const std::vector<std::string>* track_labels{nullptr};
-        const std::vector<std::string>* track_titles{nullptr};
-        const std::vector<std::string>* track_subtitles{nullptr};
+        const TrackList* tracks{nullptr};
+        const TrackLabelList* track_labels{nullptr};
+        const TrackTitleList* track_titles{nullptr};
+        const TrackSubtitleList* track_subtitles{nullptr};
     };
 
     namespace detail {
@@ -96,32 +103,39 @@ export namespace player {
         out.has_tracks = scan.has_tracks;
         out.status.assign(scan.status.c_str());
         out.mount_status.assign(scan.mount_status.c_str());
-        out.tracks = std::move(scan.tracks);
-        out.track_labels.reserve(out.tracks.size());
-        out.track_titles.reserve(out.tracks.size());
-        out.track_subtitles.reserve(out.tracks.size());
-        for (const auto& path : out.tracks) {
-            std::string_view base{path};
+        out.tracks = scan.tracks;
+        for (std::size_t i = 0; i < out.tracks.size(); ++i) {
+            const auto path_view = out.tracks[i].view();
+            std::string_view base{path_view};
             const auto pos = base.find_last_of("/\\");
             if (pos != std::string_view::npos) base = base.substr(pos + 1);
-            out.track_labels.emplace_back(base);
+            TrackLabel label{};
+            label.assign(base);
+            if (!out.track_labels.push_back(label)) break;
             std::string_view ext{};
             const auto dot = base.find_last_of('.');
             if (dot != std::string_view::npos && dot + 1 < base.size()) {
                 ext = base.substr(dot + 1);
             }
-            out.track_titles.emplace_back(base);
-            if (out.track_titles.back().empty()) {
-                out.track_titles.back() = "Unknown Track";
+            TrackTitle title{};
+            title.assign(base);
+            if (title.empty()) {
+                title.assign("Unknown Track");
             }
+            if (!out.track_titles.push_back(title)) break;
             if (!ext.empty()) {
-                std::string upper(ext);
-                for (auto& ch : upper) {
-                    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+                char upper_buf[32]{};
+                const std::size_t count = std::min<std::size_t>(ext.size(), sizeof(upper_buf) - 1);
+                for (std::size_t j = 0; j < count; ++j) {
+                    upper_buf[j] = static_cast<char>(std::toupper(static_cast<unsigned char>(ext[j])));
                 }
-                out.track_subtitles.emplace_back(std::move(upper));
+                TrackSubtitle subtitle{};
+                subtitle.assign(std::string_view(upper_buf, count));
+                if (!out.track_subtitles.push_back(subtitle)) break;
             } else {
-                out.track_subtitles.emplace_back("UNKNOWN");
+                TrackSubtitle subtitle{};
+                subtitle.assign("UNKNOWN");
+                if (!out.track_subtitles.push_back(subtitle)) break;
             }
         }
         return out;

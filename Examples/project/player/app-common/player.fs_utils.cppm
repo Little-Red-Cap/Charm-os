@@ -10,6 +10,7 @@ module;
 
 export module player.fs_utils;
 
+import service.fixed_vector;
 import player.fixed_string;
 import audio.source.fs;
 import fs_core;
@@ -29,6 +30,7 @@ export namespace player::fs_utils {
 #endif
 
     namespace detail {
+        constexpr std::size_t kMaxScanDirs = 64;
         constexpr bool kFsLogEnabled = CHARM_PLAYER_FS_LOG != 0;
 #if defined(CHARM_PLAYER_COVER_DEBUG)
         constexpr bool kCoverLogEnabled = true;
@@ -142,20 +144,26 @@ export namespace player::fs_utils {
             return -1;
         }
 
+        template <typename OutList, typename SubList>
         struct TrackListContext {
             std::string_view dir{};
-            std::vector<std::string>* out{nullptr};
-            std::vector<std::string>* subdirs{nullptr};
+            OutList* out{nullptr};
+            SubList* subdirs{nullptr};
         };
 
+        template <typename OutList, typename SubList>
         fs::Status collect_track(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
-            auto* info = static_cast<TrackListContext*>(ctx);
-            if (!info || !info->out) return fs::Status{fs::Errc::inval};
+            auto* info = static_cast<TrackListContext<OutList, SubList>*>(ctx);
+            auto* out_list = info ? info->out : nullptr;
+            auto* subdirs_list = info ? info->subdirs : nullptr;
+            if (!info || !out_list) return fs::Status{fs::Errc::inval};
             if (entry.type == fs::NodeType::dir) {
-                if (!info->subdirs) return fs::Status{fs::Errc::ok};
+                if (!subdirs_list) return fs::Status{fs::Errc::ok};
                 FixedString<260> path;
                 if (detail::join_path(path, info->dir, entry.name)) {
-                    info->subdirs->emplace_back(path.view());
+                    if (!subdirs_list->push_back(path)) {
+                        return fs::Status{fs::Errc::nomem};
+                    }
                 }
                 return fs::Status{fs::Errc::ok};
             }
@@ -182,7 +190,9 @@ export namespace player::fs_utils {
 
             FixedString<260> path;
             if (detail::join_path(path, info->dir, entry.name)) {
-                info->out->emplace_back(path.view());
+                if (!out_list->push_back(path)) {
+                    return fs::Status{fs::Errc::nomem};
+                }
             }
             return fs::Status{fs::Errc::ok};
         }
@@ -245,13 +255,22 @@ export namespace player::fs_utils {
         return "unknown";
     }
 
+    template <typename OutList, typename SubList>
     bool collect_tracks_from_dir(std::string_view dir,
-                                 std::vector<std::string>& out,
-                                 std::vector<std::string>* subdirs,
+                                 OutList& out,
+                                 SubList* subdirs,
                                  fs::Status& out_status) {
-        detail::TrackListContext ctx{dir, &out, subdirs};
-        out_status = fs::vfs_list(dir, &ctx, &detail::collect_track);
-        return out_status && !out.empty();
+        detail::TrackListContext<OutList, SubList> ctx{dir, &out, subdirs};
+        out_status = fs::vfs_list(dir, &ctx, &detail::collect_track<OutList, SubList>);
+        return out_status && out.size() > 0;
+    }
+
+    template <typename OutList>
+    bool collect_tracks_from_dir(std::string_view dir,
+                                 OutList& out,
+                                 std::nullptr_t,
+                                 fs::Status& out_status) {
+        return collect_tracks_from_dir<OutList, OutList>(dir, out, static_cast<OutList*>(nullptr), out_status);
     }
 
     bool find_cover_for_track(std::string_view track_path, std::string& out_path) {
@@ -312,10 +331,10 @@ export namespace player::fs_utils {
         if (depth > max_depth) return true;
         struct DumpCtx {
             std::string_view dir;
-            std::vector<std::string>* subdirs;
+            service::FixedVector<FixedString<260>, detail::kMaxScanDirs>* subdirs;
             int depth;
         };
-        std::vector<std::string> subdirs;
+        service::FixedVector<FixedString<260>, detail::kMaxScanDirs> subdirs;
         DumpCtx ctx{dir, &subdirs, depth};
         fs::Status st = fs::vfs_list(dir, &ctx, [](void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
             auto* info = static_cast<DumpCtx*>(ctx);
@@ -326,14 +345,14 @@ export namespace player::fs_utils {
             if (entry.type == fs::NodeType::dir) {
                 FixedString<260> path;
                 if (detail::join_path(path, info->dir, entry.name)) {
-                    info->subdirs->emplace_back(path.view());
+                    (void)info->subdirs->push_back(path);
                 }
             }
             return fs::Status{fs::Errc::ok};
         });
         if (!st) return false;
-        for (const auto& sub : subdirs) {
-            if (!dump_fs_tree(sub, depth + 1, max_depth)) return false;
+        for (std::size_t i = 0; i < subdirs.size(); ++i) {
+            if (!dump_fs_tree(subdirs[i].view(), depth + 1, max_depth)) return false;
         }
         return true;
     }

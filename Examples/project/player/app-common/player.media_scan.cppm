@@ -1,11 +1,12 @@
 ﻿module;
 #include <cctype>
 #include <cstdio>
-#include <string>
-#include <vector>
+#include <cstddef>
+#include <string_view>
 
 export module player.media_scan;
 
+import service.fixed_vector;
 import player.fixed_string;
 import fs_core;
 import fs_errno;
@@ -14,13 +15,18 @@ import player.fs_utils;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
+constexpr std::size_t kMaxTracks = 256;
+constexpr std::size_t kMaxScanDirs = 64;
+    using TrackPath = FixedString<260>;
+    using TrackList = service::FixedVector<TrackPath, kMaxTracks>;
+    using DirList = service::FixedVector<TrackPath, kMaxScanDirs>;
 
     struct TrackScanResult {
         bool fs_ready{false};
         bool has_tracks{false};
         FixedString<128> status{};
         FixedString<128> mount_status{};
-        std::vector<std::string> tracks{};
+        TrackList tracks{};
     };
 
     TrackScanResult scan_tracks(MountFn mount, const char* path) {
@@ -48,12 +54,12 @@ export namespace player {
 #endif
         fs::Status list_st{fs::Errc::ok};
         if (!fs_utils::collect_tracks_from_dir("/music", out.tracks, nullptr, list_st)) {
-            std::vector<std::string> subdirs;
+            DirList subdirs;
             out.mount_status.assign("Scanning /...");
             const bool root_has = fs_utils::collect_tracks_from_dir("/", out.tracks, &subdirs, list_st);
             if (list_st) {
-                for (const auto& dir : subdirs) {
-                    fs_utils::collect_tracks_from_dir(dir, out.tracks, nullptr, list_st);
+                for (std::size_t i = 0; i < subdirs.size(); ++i) {
+                    fs_utils::collect_tracks_from_dir(subdirs[i].view(), out.tracks, nullptr, list_st);
                 }
             }
             if (!list_st) {
@@ -63,29 +69,30 @@ export namespace player {
                 out.mount_status.assign(out.status.c_str());
                 return out;
             }
-            if (!root_has && out.tracks.empty()) {
+            if (!root_has && out.tracks.size() == 0) {
                 out.status.assign("No tracks found");
                 out.mount_status.assign("No tracks in /music or /");
             }
         }
 
-        if (out.tracks.empty()) {
+        if (out.tracks.size() == 0) {
             char buf[64]{};
             std::snprintf(buf, sizeof(buf), "No tracks (%s)", fs_utils::fs_err_text(list_st.err));
             out.status.assign(buf);
-            if (out.mount_status.view() == "Mounted") {
+            if (out.mount_status.view() == std::string_view("Mounted")) {
                 out.mount_status.assign("No tracks in /music or /");
             }
-        } else if (out.mount_status.view() == "Mounted") {
+        } else if (out.mount_status.view() == std::string_view("Mounted")) {
             out.mount_status.assign("Ready");
         }
 
-        out.has_tracks = !out.tracks.empty();
+        out.has_tracks = out.tracks.size() > 0;
 #if defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
         std::printf("[fs] tracks=%zu\n", out.tracks.size());
-        for (const auto& path_str : out.tracks) {
+        for (std::size_t i = 0; i < out.tracks.size(); ++i) {
+            const auto view = out.tracks[i].view();
             std::printf("[fs] track: ");
-            for (unsigned char ch : path_str) {
+            for (unsigned char ch : view) {
                 if (std::isprint(ch)) {
                     std::printf("%c", static_cast<char>(ch));
                 } else {

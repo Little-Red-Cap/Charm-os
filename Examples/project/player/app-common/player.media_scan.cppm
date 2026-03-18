@@ -19,8 +19,15 @@ export namespace player {
 #define CHARM_PLAYER_FS_LOG 0
 #endif
 
-    constexpr std::size_t kMaxTracks = 256;
-    constexpr std::size_t kMaxScanDirs = 64;
+#ifndef CHARM_PLAYER_MAX_TRACKS
+#define CHARM_PLAYER_MAX_TRACKS 256
+#endif
+#ifndef CHARM_PLAYER_MAX_SCAN_DIRS
+#define CHARM_PLAYER_MAX_SCAN_DIRS 64
+#endif
+
+    constexpr std::size_t kMaxTracks = CHARM_PLAYER_MAX_TRACKS;
+    constexpr std::size_t kMaxScanDirs = CHARM_PLAYER_MAX_SCAN_DIRS;
     using TrackPath = FixedString<260>;
     using TrackList = service::FixedVector<TrackPath, kMaxTracks>;
     using DirList = service::FixedVector<TrackPath, kMaxScanDirs>;

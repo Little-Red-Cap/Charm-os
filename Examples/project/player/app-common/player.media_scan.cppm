@@ -58,15 +58,26 @@ export namespace player {
 #endif
         fs::Status list_st{fs::Errc::ok};
         if (!fs_utils::collect_tracks_from_dir("/music", out.tracks, nullptr, list_st)) {
+            if (!list_st && list_st.err == fs::Errc::nomem) {
+                out.status.assign("Track list full");
+                out.mount_status.assign(out.status.c_str());
+                return out;
+            }
             DirList subdirs;
             out.mount_status.assign("Scanning /...");
             const bool root_has = fs_utils::collect_tracks_from_dir("/", out.tracks, &subdirs, list_st);
             if (list_st) {
                 for (std::size_t i = 0; i < subdirs.size(); ++i) {
                     fs_utils::collect_tracks_from_dir(subdirs[i].view(), out.tracks, nullptr, list_st);
+                    if (!list_st) break;
                 }
             }
             if (!list_st) {
+                if (list_st.err == fs::Errc::nomem) {
+                    out.status.assign("Track list full");
+                    out.mount_status.assign(out.status.c_str());
+                    return out;
+                }
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "List failed (%s)", fs_utils::fs_err_text(list_st.err));
                 out.status.assign(buf);

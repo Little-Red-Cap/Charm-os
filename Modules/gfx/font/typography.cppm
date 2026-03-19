@@ -6,6 +6,8 @@ export module charm.font.typography;
 export import charm.font;
 
 export constexpr std::uint32_t k_utf8_replacement = static_cast<std::uint32_t>('?');
+std::uint32_t g_utf8_replacement = k_utf8_replacement;
+bool g_utf8_replacement_enabled = true;
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 std::uint32_t g_missing_glyph_count = 0;
@@ -24,7 +26,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
     }
     if ((c >> 5) == 0x6) {
         if (p + 1 >= end) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -33,7 +35,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
         }
         const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
         if ((c1 & 0xC0) != 0x80) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -46,7 +48,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
     }
     if ((c >> 4) == 0xE) {
         if (p + 2 >= end) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -56,7 +58,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
         const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
         const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
         if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -71,7 +73,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
     }
     if ((c >> 3) == 0x1E) {
         if (p + 3 >= end) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -82,7 +84,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
         const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
         const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
         if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
-            out = k_utf8_replacement;
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
             ++g_utf8_replace_count;
 #endif
@@ -96,7 +98,7 @@ inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& 
         p += 4;
         return true;
     }
-    out = k_utf8_replacement;
+    out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
 #if defined(VIVID_SOA_TRACE_INPUT)
     ++g_utf8_replace_count;
 #endif
@@ -129,6 +131,10 @@ const Font k_empty_font{};
 export void set_default_font(const FontId id, const Font* font) noexcept;
 
 export void set_default_fallback_font(const Font* font) noexcept;
+export void set_utf8_replacement_char(std::uint32_t codepoint) noexcept;
+export std::uint32_t utf8_replacement_char() noexcept;
+export void set_utf8_replacement_enabled(bool enabled) noexcept;
+export bool utf8_replacement_enabled() noexcept;
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 std::uint32_t g_font_ptr_map_count = 0;
@@ -210,6 +216,26 @@ void set_default_font(const FontId id, const Font* font) noexcept {
 export
 void set_default_fallback_font(const Font* font) noexcept {
     g_default_fallback = font;
+}
+
+export
+void set_utf8_replacement_char(std::uint32_t codepoint) noexcept {
+    g_utf8_replacement = codepoint;
+}
+
+export
+std::uint32_t utf8_replacement_char() noexcept {
+    return g_utf8_replacement;
+}
+
+export
+void set_utf8_replacement_enabled(bool enabled) noexcept {
+    g_utf8_replacement_enabled = enabled;
+}
+
+export
+bool utf8_replacement_enabled() noexcept {
+    return g_utf8_replacement_enabled;
 }
 
 #if defined(VIVID_SOA_TRACE_INPUT)

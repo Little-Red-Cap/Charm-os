@@ -124,6 +124,11 @@ void draw_text_baseline_range(CanvasBase& cvs,
     while (p < end) {
         std::uint32_t cp = 0;
         if (!next_utf8_codepoint(p, end, cp)) break;
+        if (cp == 0) {
+            prev_gid = 0;
+            prev_font = nullptr;
+            continue;
+        }
         if (cp == '\n') {
             prev_gid = 0;
             prev_font = nullptr;
@@ -213,6 +218,11 @@ void draw_text_baseline(CanvasBase& cvs,
     while (p < end) {
         std::uint32_t cp = 0;
         if (!next_utf8_codepoint(p, end, cp)) break;
+        if (cp == 0) {
+            prev_gid = 0;
+            prev_font = nullptr;
+            continue;
+        }
         if (cp == '\n') {
             prev_gid = 0;
             prev_font = nullptr;

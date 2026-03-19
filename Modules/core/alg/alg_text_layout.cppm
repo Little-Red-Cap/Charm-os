@@ -63,6 +63,11 @@ export namespace alg::text_layout {
         while (p < end) {
             std::uint32_t cp = 0;
             if (!next_codepoint(p, end, cp)) break;
+            if (cp == 0) {
+                prev_gid = 0;
+                prev_font = nullptr;
+                continue;
+            }
             if (cp == '\n') {
                 prev_gid = 0;
                 prev_font = nullptr;
@@ -111,6 +116,10 @@ export namespace alg::text_layout {
                 std::uint32_t cp = 0;
                 const char* before = q;
                 if (!next_codepoint(q, end, cp)) break;
+                if (cp == 0) {
+                    line_len += static_cast<int>(q - before);
+                    continue;
+                }
                 if (cp == '\n') break;
                 const auto resolved = resolve_glyph_fallback(font, cp);
                 const int adv = resolved.glyph ? resolved.glyph->x_advance : 8;
@@ -156,6 +165,10 @@ export namespace alg::text_layout {
                 const char* next = p;
                 std::uint32_t cp = 0;
                 if (next_codepoint(next, end, cp)) {
+                    if (cp == 0) {
+                        p = next;
+                        continue;
+                    }
                     p = next;
                 } else {
                     ++p;

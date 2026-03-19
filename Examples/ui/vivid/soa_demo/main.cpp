@@ -329,6 +329,8 @@ namespace {
         EinkPolicy eink_policy{};
         RefreshKind last_refresh{RefreshKind::None};
         int partial_count{0};
+        int total_partial_count{0};
+        int total_full_count{0};
         std::uint32_t last_full_ms{0};
         int last_dirty_pct{0};
         bool dirty_set{false};
@@ -450,9 +452,11 @@ namespace {
                 last_refresh = RefreshKind::Full;
                 partial_count = 0;
                 last_full_ms = now_ms;
+                ++total_full_count;
             } else {
                 last_refresh = RefreshKind::Partial;
                 ++partial_count;
+                ++total_partial_count;
             }
         }
 
@@ -3382,6 +3386,15 @@ int main(int argc, char** argv) {
         SDL_RenderTexture(renderer, texture, nullptr, &dst);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
+    }
+
+    if (use_eink && tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+        (void)out::println<"[soa] eink summary full={} partial={} last_refresh={} last_dirty_pct={}">(
+            g_console,
+            tile_backend.total_full_count,
+            tile_backend.total_partial_count,
+            tile_backend.last_refresh_name(),
+            tile_backend.last_dirty_pct);
     }
 
     SDL_DestroyTexture(texture);

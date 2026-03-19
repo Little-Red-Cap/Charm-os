@@ -912,6 +912,7 @@ export namespace ui::draw_cmd {
             std::size_t i = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
+            constexpr std::int64_t kPathUnionMaxFactor = 4;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
             std::array<LineBatchItem, kMaxBatchItems> line_items{};
             std::array<PathBatchItem, kMaxBatchItems> path_items{};
@@ -947,6 +948,14 @@ export namespace ui::draw_cmd {
                     && a.align_v == b.align_v
                     && a.wrap == b.wrap
                     && a.ellipsis == b.ellipsis;
+            };
+            auto rect_area = [](const Rect& r) noexcept -> std::int64_t {
+                const Rect n = rect_normalized(r);
+                if (n.w <= 0 || n.h <= 0) return 0;
+                return static_cast<std::int64_t>(n.w) * static_cast<std::int64_t>(n.h);
+            };
+            auto is_scaled_image = [](const DrawCmd& c) noexcept {
+                return c.rect.w > 0 && c.rect.h > 0;
             };
 
             while (i < input_count) {
@@ -1008,6 +1017,7 @@ export namespace ui::draw_cmd {
                     if (run >= 2) {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
+                        std::int64_t sum_area = 0;
                         for (std::size_t j = 0; j < batch; ++j) {
                             DrawCmd next{};
                             (void)read_cmd_at(i + j, next);
@@ -1019,6 +1029,17 @@ export namespace ui::draw_cmd {
                             } else {
                                 bounds = rect_union(bounds, next.rect);
                             }
+                            sum_area += rect_area(next.rect);
+                        }
+                        const std::int64_t union_area = rect_area(bounds);
+                        const bool area_ok = (sum_area == 0)
+                            ? true
+                            : (union_area <= (sum_area * kPathUnionMaxFactor));
+                        if (!area_ok) {
+                            // Skip batching when union blows up tile hits too much.
+                            if (!emit_cmd(cmd)) ok = false;
+                            ++i;
+                            continue;
                         }
                         const BlobRef blob = blob_.add_bytes(path_items.data(),
                                                              batch * sizeof(PathBatchItem),
@@ -1191,12 +1212,14 @@ export namespace ui::draw_cmd {
                         ++i;
                         continue;
                     }
+                    const bool scaled = is_scaled_image(cmd);
                     std::size_t run = 1;
                     while ((i + run) < input_count) {
                         DrawCmd next{};
                         if (!read_cmd_at(i + run, next)) break;
                         if (next.type != CmdType::DrawImage) break;
                         if (next.image != cmd.image) break;
+                        if (is_scaled_image(next) != scaled) break;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1234,6 +1257,7 @@ export namespace ui::draw_cmd {
                         ++i;
                         continue;
                     }
+                    const bool scaled = is_scaled_image(cmd);
                     std::size_t run = 1;
                     while ((i + run) < input_count) {
                         DrawCmd next{};
@@ -1241,6 +1265,7 @@ export namespace ui::draw_cmd {
                         if (next.type != CmdType::DrawImageRoundRect) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0) break;
+                        if (is_scaled_image(next) != scaled) break;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1774,11 +1799,68 @@ export namespace ui::draw_cmd {
                     || type == CmdType::DrawImageNineSlice;
             };
 
+            auto exec_draw_line = [&](const DrawCmd& cur) noexcept {
+                ui::render::draw_line(canvas,
+                                      cur.rect.x,
+                                      cur.rect.y,
+                                      cur.rect.w,
+                                      cur.rect.h,
+                                      cur.color);
+            };
+
+            auto exec_draw_path = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p0;
+                if (count < 2) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                const auto points = ui::gfx::path::decode_points(blob, count);
+                if (points.empty()) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const bool closed = (cur.p1 != 0);
+                ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
+            };
+
             while (i < count) {
                 DrawCmd cmd{};
                 if (!read_cmd_at(i, cmd)) {
                     stats.failed_cmds++;
                     ++i;
+                    continue;
+                }
+                if (cmd.type == CmdType::DrawLine) {
+                    stats.dispatch_groups++;
+                    while (i < count) {
+                        DrawCmd cur{};
+                        if (!read_cmd_at(i, cur)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
+                        if (cur.type != CmdType::DrawLine) break;
+                        exec_draw_line(cur);
+                        ++i;
+                    }
+                    stats.batch_flushes++;
+                    continue;
+                }
+                if (cmd.type == CmdType::DrawPath) {
+                    stats.dispatch_groups++;
+                    while (i < count) {
+                        DrawCmd cur{};
+                        if (!read_cmd_at(i, cur)) {
+                            stats.failed_cmds++;
+                            ++i;
+                            continue;
+                        }
+                        if (cur.type != CmdType::DrawPath) break;
+                        exec_draw_path(cur);
+                        ++i;
+                    }
+                    stats.batch_flushes++;
                     continue;
                 }
                 if (is_rect_like(cmd.type)) {
@@ -1854,12 +1936,7 @@ export namespace ui::draw_cmd {
                     }
                     break;
                 case CmdType::DrawLine:
-                    ui::render::draw_line(canvas,
-                                          cmd.rect.x,
-                                          cmd.rect.y,
-                                          cmd.rect.w,
-                                          cmd.rect.h,
-                                          cmd.color);
+                    exec_draw_line(cmd);
                     break;
                 case CmdType::DrawLineBatch: {
                     const int count = cmd.p0;
@@ -1880,19 +1957,7 @@ export namespace ui::draw_cmd {
                     break;
                 }
                 case CmdType::DrawPath: {
-                    const int count = cmd.p0;
-                    if (count < 2) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    const auto blob = buf.blob_at(cmd.blob);
-                    const auto points = ui::gfx::path::decode_points(blob, count);
-                    if (points.empty()) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    const bool closed = (cmd.p1 != 0);
-                    ui::gfx::path::stroke_path(canvas, points, closed, cmd.color);
+                    exec_draw_path(cmd);
                     break;
                 }
                 case CmdType::DrawPathBatch: {

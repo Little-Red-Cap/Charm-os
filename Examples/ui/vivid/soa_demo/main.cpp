@@ -2298,6 +2298,9 @@ int main(int argc, char** argv) {
     bool run_replay = false;
     bool run_ci = false;
     bool selftest_dedup = false;
+    int max_missing_glyphs = 0;
+    int max_fallback_glyphs = 0;
+    int max_utf8_replacements = 0;
     bool replay_use_tiles = false;
     bool replay_backend_set = false;
     bool run_screenshot = false;
@@ -2378,6 +2381,12 @@ int main(int argc, char** argv) {
             } else {
                 gray2_curve = SdlTileBackend::Gray2Curve::Linear;
             }
+        } else if (arg.rfind("--max-missing-glyphs=", 0) == 0) {
+            max_missing_glyphs = std::atoi(std::string(arg.substr(21)).c_str());
+        } else if (arg.rfind("--max-fallback-glyphs=", 0) == 0) {
+            max_fallback_glyphs = std::atoi(std::string(arg.substr(22)).c_str());
+        } else if (arg.rfind("--max-utf8-replace=", 0) == 0) {
+            max_utf8_replacements = std::atoi(std::string(arg.substr(20)).c_str());
         } else if (arg == "--eink") {
             use_eink = true;
             use_tiles = true;
@@ -3182,6 +3191,15 @@ int main(int argc, char** argv) {
         }
         if (!img_overflow_ok) {
             ci_mark_fail("img_overflow");
+        }
+        if (max_missing_glyphs >= 0 && static_cast<int>(missing_glyphs) > max_missing_glyphs) {
+            ci_mark_fail("missing_glyphs");
+        }
+        if (max_fallback_glyphs >= 0 && static_cast<int>(missing_glyph_fallbacks) > max_fallback_glyphs) {
+            ci_mark_fail("fallback_glyphs");
+        }
+        if (max_utf8_replacements >= 0 && static_cast<int>(utf8_replacements) > max_utf8_replacements) {
+            ci_mark_fail("utf8_replace");
         }
         if (!cmd_budget_ok) {
             ci_mark_fail("cmd_budget");

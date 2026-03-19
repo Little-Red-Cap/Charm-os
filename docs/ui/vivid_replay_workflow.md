@@ -48,6 +48,22 @@ g:\Project\Codex\Charm-os\Examples\ui\vivid\soa_demo\cmake-build-debug\Debug\viv
 g:\Project\Codex\Charm-os\Examples\ui\vivid\soa_demo\cmake-build-debug\Debug\vivid-soa-demo.exe --replay-cmd=soa_ci.vcmd --backend=tile
 ```
 
+## 2.1 单色/灰度后端调试
+
+BW1（阈值可调，强制走 tile 路径）：
+
+```powershell
+g:\Project\Codex\Charm-os\Examples\ui\vivid\soa_demo\cmake-build-debug\Debug\vivid-soa-demo.exe --bw1 --bw1-threshold=140 --soa-tile
+```
+
+2bit 灰度（可调抖动强度，强制走 tile 路径）：
+
+```powershell
+g:\Project\Codex\Charm-os\Examples\ui\vivid\soa_demo\cmake-build-debug\Debug\vivid-soa-demo.exe --gray2 --gray2-strength=12 --soa-tile
+```
+
+注意：`--bw1/--gray2` 在 `--soa-ci/--regress-*` 等 headless 模式下会自动禁用。
+
 ## 3. 最小复现包建议
 
 提交或传递以下三项即可复现 UI：

@@ -25,6 +25,7 @@ import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
 import charm.gfx.image;
 import charm.gfx.snapshot;
+import charm.gfx.pixel_ops;
 import charm.font.typography;
 import charm.widgets.menu_tree;
 import out.api;
@@ -297,6 +298,10 @@ namespace {
 
     struct SdlTileBackend {
         DefaultFrameBuffer& fb;
+        PixelFormat src_format{screen_pixel_format};
+        std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
+        bool mono{false};
+        std::uint8_t mono_threshold{128};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -318,7 +323,67 @@ namespace {
             if (bytes > max_bytes) bytes = max_bytes;
             auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
                 + static_cast<std::size_t>(x) * bpp;
-            std::memcpy(dst, src, bytes);
+            if (!mono) {
+                std::memcpy(dst, src, bytes);
+                return;
+            }
+            if (src_bpp == 0) return;
+            const std::size_t count = bytes / src_bpp;
+            const auto read_rgb = [&](const std::byte* p) noexcept -> rgb {
+                switch (src_format) {
+                case PixelFormat::RGB565: {
+                    std::uint16_t px{};
+                    std::memcpy(&px, p, sizeof(px));
+                    return unpack_rgb565(px);
+                }
+                case PixelFormat::RGB888:
+                    return rgb{
+                        static_cast<std::uint8_t>(p[0]),
+                        static_cast<std::uint8_t>(p[1]),
+                        static_cast<std::uint8_t>(p[2])
+                    };
+                case PixelFormat::ARGB8888: {
+                    std::uint32_t px{};
+                    std::memcpy(&px, p, sizeof(px));
+                    const rgba c = unpack_argb8888(px);
+                    return rgb{c.r, c.g, c.b};
+                }
+                default:
+                    return rgb{0, 0, 0};
+                }
+            };
+            const auto write_bw = [&](std::byte* p, std::uint8_t v) noexcept {
+                switch (screen_pixel_format) {
+                case PixelFormat::RGB565: {
+                    const std::uint16_t px = pack_rgb565(rgb{v, v, v});
+                    std::memcpy(p, &px, sizeof(px));
+                    break;
+                }
+                case PixelFormat::RGB888:
+                    p[0] = std::byte{v};
+                    p[1] = std::byte{v};
+                    p[2] = std::byte{v};
+                    break;
+                case PixelFormat::ARGB8888: {
+                    const std::uint32_t px = pack_argb8888(rgba{v, v, v, 255});
+                    std::memcpy(p, &px, sizeof(px));
+                    break;
+                }
+                }
+            };
+            const std::byte* s = src;
+            std::byte* d = dst;
+            for (std::size_t i = 0; i < count; ++i) {
+                const rgb c = read_rgb(s);
+                const std::uint8_t lum = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(c.r) * 77u
+                        + static_cast<std::uint32_t>(c.g) * 150u
+                        + static_cast<std::uint32_t>(c.b) * 29u) >> 8u);
+                const std::uint8_t v = (lum >= mono_threshold) ? 255u : 0u;
+                write_bw(d, v);
+                s += src_bpp;
+                d += bpp;
+            }
         }
 
         void mark_dirty(int x, int y, int w, int h) noexcept {
@@ -2019,6 +2084,7 @@ int main(int argc, char** argv) {
     bool run_regress_layout = false;
     bool run_regress_ui = false;
     bool use_tiles = false;
+    bool use_bw1 = false;
     bool print_stats = false;
     bool run_compare = false;
     bool run_dump = false;
@@ -2081,6 +2147,9 @@ int main(int argc, char** argv) {
             gif_frames = std::atoi(std::string(arg.substr(13)).c_str());
         } else if (arg.rfind("--gif-delay=", 0) == 0) {
             gif_delay_cs = static_cast<std::uint16_t>(std::atoi(std::string(arg.substr(12)).c_str()));
+        } else if (arg == "--bw1") {
+            use_bw1 = true;
+            use_tiles = true;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2140,6 +2209,10 @@ int main(int argc, char** argv) {
     const bool run_headless =
         run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay
         || run_screenshot || run_gif;
+    if (run_headless && use_bw1) {
+        (void)out::println<"[soa] bw1 disabled for headless runs">(g_console);
+        use_bw1 = false;
+    }
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -2153,6 +2226,12 @@ int main(int argc, char** argv) {
         kTileStride
     };
     SdlTileBackend tile_backend{fb};
+    tile_backend.src_format = tile_view.format;
+    tile_backend.src_bpp = (tile_view.format == PixelFormat::RGB565) ? 2u
+        : (tile_view.format == PixelFormat::RGB888) ? 3u
+        : (tile_view.format == PixelFormat::ARGB8888) ? 4u
+        : 0u;
+    tile_backend.mono = use_bw1;
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;

@@ -103,6 +103,8 @@ sequenceDiagram
 - compaction 仅在 record 结束后执行，保证回放与哈希一致性。
 - 已覆盖的 batch：
   - `FillRect/StrokeRect`
+  - `DrawLine`
+  - `DrawPath`
   - `FillRoundRect/StrokeRoundRect`
   - `FillCircle/StrokeCircle`
   - `DrawTextBox` -> `GlyphRun`

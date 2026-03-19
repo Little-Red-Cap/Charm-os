@@ -62,6 +62,7 @@ export namespace ui::draw_cmd {
         DrawImageRoundRectBatch,
         DrawImageNineSliceBatch,
         DrawLineBatch,
+        DrawPathBatch,
     };
 
     struct TextSpan {
@@ -173,6 +174,13 @@ export namespace ui::draw_cmd {
     };
 
     struct CmdBatchLine {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdBatchPath {
         rgba color{};
         BlobRef blob{};
         std::int16_t count{0};
@@ -300,6 +308,12 @@ export namespace ui::draw_cmd {
         int y0{0};
         int x1{0};
         int y1{0};
+    };
+
+    struct PathBatchItem {
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t closed{0};
     };
 
     struct GlyphRunItem {
@@ -455,6 +469,14 @@ export namespace ui::draw_cmd {
         case CmdType::DrawLineBatch: {
             if (!payload_fits(header, sizeof(CmdBatchLine))) return false;
             const auto payload = read_payload<CmdBatchLine>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.count;
+            return true;
+        }
+        case CmdType::DrawPathBatch: {
+            if (!payload_fits(header, sizeof(CmdBatchPath))) return false;
+            const auto payload = read_payload<CmdBatchPath>(header);
             out.color = payload.color;
             out.blob = payload.blob;
             out.p0 = payload.count;
@@ -871,6 +893,7 @@ export namespace ui::draw_cmd {
             constexpr std::size_t kMaxBatchItems = 64;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
             std::array<LineBatchItem, kMaxBatchItems> line_items{};
+            std::array<PathBatchItem, kMaxBatchItems> path_items{};
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
@@ -942,6 +965,46 @@ export namespace ui::draw_cmd {
                         if (blob.length != 0) {
                             DrawCmd batch_cmd{};
                             batch_cmd.type = CmdType::DrawLineBatch;
+                            batch_cmd.rect = bounds;
+                            batch_cmd.color = cmd.color;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = static_cast<std::int16_t>(batch);
+                            if (!emit_cmd(batch_cmd)) ok = false;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
+                } else if (allow_batch && cmd.type == CmdType::DrawPath) {
+                    std::size_t run = 1;
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
+                        if (next.type != CmdType::DrawPath) break;
+                        if (!rgba_equal(next.color, cmd.color)) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = cmd.rect;
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            path_items[j].blob = next.blob;
+                            path_items[j].count = next.p0;
+                            path_items[j].closed = next.p1;
+                            if (j == 0) {
+                                bounds = next.rect;
+                            } else {
+                                bounds = rect_union(bounds, next.rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(path_items.data(),
+                                                             batch * sizeof(PathBatchItem),
+                                                             alignof(PathBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            batch_cmd.type = CmdType::DrawPathBatch;
                             batch_cmd.rect = bounds;
                             batch_cmd.color = cmd.color;
                             batch_cmd.blob = blob;
@@ -1435,6 +1498,14 @@ export namespace ui::draw_cmd {
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
+            case CmdType::DrawPathBatch: {
+                CmdBatchPath payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
             case CmdType::FillRoundRectBatch:
             case CmdType::StrokeRoundRectBatch:
             case CmdType::FillCircleBatch:
@@ -1748,6 +1819,35 @@ export namespace ui::draw_cmd {
                     }
                     const bool closed = (cmd.p1 != 0);
                     ui::gfx::path::stroke_path(canvas, points, closed, cmd.color);
+                    break;
+                }
+                case CmdType::DrawPathBatch: {
+                    const int count = cmd.p0;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const PathBatchItem>(
+                        reinterpret_cast<const PathBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        if (item.count < 2) {
+                            stats.failed_cmds++;
+                            continue;
+                        }
+                        const auto path_blob = buf.blob_at(item.blob);
+                        const auto points = ui::gfx::path::decode_points(path_blob, item.count);
+                        if (points.empty()) {
+                            stats.failed_cmds++;
+                            continue;
+                        }
+                        const bool closed = (item.closed != 0);
+                        ui::gfx::path::stroke_path(canvas, points, closed, cmd.color);
+                    }
                     break;
                 }
                 case CmdType::FillRect:

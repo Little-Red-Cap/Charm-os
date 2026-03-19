@@ -297,17 +297,23 @@ namespace {
     }
 
     struct SdlTileBackend {
+        enum class DisplayMode : std::uint8_t {
+            Color,
+            BW1,
+            Gray2,
+            Eink
+        };
+
+        struct DisplayConfig {
+            DisplayMode mode{DisplayMode::Color};
+            std::uint8_t bw1_threshold{128};
+            std::uint8_t gray2_strength{8};
+        };
+
         DefaultFrameBuffer& fb;
         PixelFormat src_format{screen_pixel_format};
         std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
-        enum class MonoMode : std::uint8_t {
-            None,
-            BW1,
-            Gray2
-        };
-        MonoMode mono_mode{MonoMode::None};
-        std::uint8_t mono_threshold{128};
-        std::uint8_t gray2_strength{8};
+        DisplayConfig display{};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -329,7 +335,7 @@ namespace {
             if (bytes > max_bytes) bytes = max_bytes;
             auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
                 + static_cast<std::size_t>(x) * bpp;
-            if (mono_mode == MonoMode::None) {
+            if (display.mode == DisplayMode::Color) {
                 std::memcpy(dst, src, bytes);
                 return;
             }
@@ -392,12 +398,12 @@ namespace {
                         + static_cast<std::uint32_t>(c.g) * 150u
                         + static_cast<std::uint32_t>(c.b) * 29u) >> 8u);
                 std::uint8_t v = 0u;
-                if (mono_mode == MonoMode::BW1) {
-                    v = (lum >= mono_threshold) ? 255u : 0u;
+                if (display.mode == DisplayMode::BW1) {
+                    v = (lum >= display.bw1_threshold) ? 255u : 0u;
                 } else {
                     const int px_x = x + static_cast<int>(i);
                     const std::uint8_t dither = kBayer4[y & 3][px_x & 3];
-                    const int strength = static_cast<int>(gray2_strength);
+                    const int strength = static_cast<int>(display.gray2_strength);
                     int lum_d = static_cast<int>(lum) + (static_cast<int>(dither) - 8) * strength;
                     if (lum_d < 0) lum_d = 0;
                     if (lum_d > 255) lum_d = 255;
@@ -2272,14 +2278,14 @@ int main(int argc, char** argv) {
         : (tile_view.format == PixelFormat::ARGB8888) ? 4u
         : 0u;
     if (use_gray2) {
-        tile_backend.mono_mode = SdlTileBackend::MonoMode::Gray2;
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Gray2;
     } else if (use_bw1) {
-        tile_backend.mono_mode = SdlTileBackend::MonoMode::BW1;
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::BW1;
     } else {
-        tile_backend.mono_mode = SdlTileBackend::MonoMode::None;
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Color;
     }
-    tile_backend.mono_threshold = static_cast<std::uint8_t>(bw1_threshold);
-    tile_backend.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
+    tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(bw1_threshold);
+    tile_backend.display.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;

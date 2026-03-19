@@ -41,81 +41,11 @@ export namespace alg::text_layout {
     inline int measure_text_width(const char* text, int len, const Font& font) noexcept;
 
     inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) noexcept {
-        if (p >= end) return false;
-        const std::uint8_t c = static_cast<std::uint8_t>(*p);
-        if (c < 0x80) {
-            out = c;
-            ++p;
-            return true;
-        }
-        if ((c >> 5) == 0x6) {
-            if (p + 1 >= end) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-            if ((c1 & 0xC0) != 0x80) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
-            p += 2;
-            return true;
-        }
-        if ((c >> 4) == 0xE) {
-            if (p + 2 >= end) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-            const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
-            if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            out = ((c & 0x0F) << 12)
-                | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
-                | (static_cast<std::uint8_t>(p[2]) & 0x3F);
-            p += 3;
-            return true;
-        }
-        if ((c >> 3) == 0x1E) {
-            if (p + 3 >= end) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-            const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
-            const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
-            if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
-                out = '?';
-                ++p;
-                return true;
-            }
-            out = ((c & 0x07) << 18)
-                | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
-                | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
-                | (static_cast<std::uint8_t>(p[3]) & 0x3F);
-            p += 4;
-            return true;
-        }
-        out = '?';
-        ++p;
-        return true;
+        return next_utf8_codepoint(p, end, out);
     }
 
     inline const char* prev_codepoint_start(const char* start, const char* p) noexcept {
-        if (p <= start) return start;
-        const char* q = p - 1;
-        while (q > start && (static_cast<std::uint8_t>(*q) & 0xC0u) == 0x80u) {
-            --q;
-        }
-        return q;
+        return prev_utf8_start(start, p);
     }
 
     inline int measure_text_width(const char* text, const Font& font) noexcept {

@@ -2895,10 +2895,14 @@ int main(int argc, char** argv) {
     bool img_growth_ok = true;
     std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
+    std::uint32_t missing_glyphs = 0;
+    std::uint32_t missing_glyph_fallbacks = 0;
+    std::uint32_t utf8_replacements = 0;
     std::size_t compare_cmd_count_raw = 0;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         reset_font_ptr_map_count();
+        reset_missing_glyph_stats();
 #endif
         if (selftest_dedup) {
             ensure_demo_images();
@@ -2937,8 +2941,21 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         const auto font_ptr_maps = static_cast<unsigned>(font_ptr_map_count());
         (void)out::println<"[soa] font ptr map count={}">(g_console, font_ptr_maps);
+        missing_glyphs = missing_glyph_count();
+        missing_glyph_fallbacks = missing_glyph_fallback_count();
+        utf8_replacements = utf8_replacement_count();
+        (void)out::println<"[soa] glyph missing={} fallback={} utf8_replace={}">(
+            g_console,
+            static_cast<unsigned>(missing_glyphs),
+            static_cast<unsigned>(missing_glyph_fallbacks),
+            static_cast<unsigned>(utf8_replacements));
         if (g_regress_log) {
             std::fprintf(g_regress_log, "[soa] font_ptr_map_count=%u\n", font_ptr_maps);
+            std::fprintf(g_regress_log,
+                         "[soa] glyph_missing=%u glyph_fallback=%u utf8_replace=%u\n",
+                         static_cast<unsigned>(missing_glyphs),
+                         static_cast<unsigned>(missing_glyph_fallbacks),
+                         static_cast<unsigned>(utf8_replacements));
         }
 #endif
     }
@@ -3189,7 +3206,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={}">(
+        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={}">(
             g_console,
             tile_backend.display_mode_name(),
             static_cast<unsigned>(tile_backend.display.bw1_threshold),
@@ -3197,7 +3214,10 @@ int main(int argc, char** argv) {
             tile_backend.gray2_curve_name(),
             tile_backend.eink_policy.max_partial_count,
             tile_backend.eink_policy.min_full_interval_ms,
-            tile_backend.eink_policy.partial_area_ratio_pct);
+            tile_backend.eink_policy.partial_area_ratio_pct,
+            static_cast<unsigned>(missing_glyphs),
+            static_cast<unsigned>(missing_glyph_fallbacks),
+            static_cast<unsigned>(utf8_replacements));
 
         (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,

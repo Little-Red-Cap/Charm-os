@@ -65,75 +65,6 @@ inline void blend_pixel(CanvasBase& cvs, int x, int y, const rgba& color, std::u
     cvs.set_pixel(x, y, out);
 }
 
-inline bool next_codepoint(const char*& p, const char* end, std::uint32_t& out) noexcept {
-    if (p >= end) return false;
-    const std::uint8_t c = static_cast<std::uint8_t>(*p);
-    if (c < 0x80) {
-        out = c;
-        ++p;
-        return true;
-    }
-    if ((c >> 5) == 0x6) {
-        if (p + 1 >= end) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-        if ((c1 & 0xC0) != 0x80) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
-        p += 2;
-        return true;
-    }
-    if ((c >> 4) == 0xE) {
-        if (p + 2 >= end) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
-        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        out = ((c & 0x0F) << 12)
-            | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
-            | (static_cast<std::uint8_t>(p[2]) & 0x3F);
-        p += 3;
-        return true;
-    }
-    if ((c >> 3) == 0x1E) {
-        if (p + 3 >= end) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
-        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
-        const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
-        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
-            out = '?';
-            ++p;
-            return true;
-        }
-        out = ((c & 0x07) << 18)
-            | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
-            | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
-            | (static_cast<std::uint8_t>(p[3]) & 0x3F);
-        p += 4;
-        return true;
-    }
-    out = '?';
-    ++p;
-    return true;
-}
-
 export
 inline int measure_text_width(const char* text, const Font& font) noexcept {
     return alg::text_layout::measure_text_width(text, font);
@@ -192,7 +123,7 @@ void draw_text_baseline_range(CanvasBase& cvs,
     const char* end = text + len;
     while (p < end) {
         std::uint32_t cp = 0;
-        if (!next_codepoint(p, end, cp)) break;
+        if (!next_utf8_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
             prev_font = nullptr;
@@ -281,7 +212,7 @@ void draw_text_baseline(CanvasBase& cvs,
     const char* end = text + std::strlen(text);
     while (p < end) {
         std::uint32_t cp = 0;
-        if (!next_codepoint(p, end, cp)) break;
+        if (!next_utf8_codepoint(p, end, cp)) break;
         if (cp == '\n') {
             prev_gid = 0;
             prev_font = nullptr;

@@ -2302,6 +2302,9 @@ int main(int argc, char** argv) {
     int max_missing_glyphs = 0;
     int max_fallback_glyphs = 0;
     int max_utf8_replacements = 0;
+    int max_text_draw = -1;
+    int max_text_glyphs = -1;
+    int max_text_pixels = -1;
     bool replay_use_tiles = false;
     bool replay_backend_set = false;
     bool run_screenshot = false;
@@ -2388,6 +2391,12 @@ int main(int argc, char** argv) {
             max_fallback_glyphs = std::atoi(std::string(arg.substr(22)).c_str());
         } else if (arg.rfind("--max-utf8-replace=", 0) == 0) {
             max_utf8_replacements = std::atoi(std::string(arg.substr(20)).c_str());
+        } else if (arg.rfind("--max-text-draw=", 0) == 0) {
+            max_text_draw = std::atoi(std::string(arg.substr(16)).c_str());
+        } else if (arg.rfind("--max-text-glyphs=", 0) == 0) {
+            max_text_glyphs = std::atoi(std::string(arg.substr(18)).c_str());
+        } else if (arg.rfind("--max-text-pixels=", 0) == 0) {
+            max_text_pixels = std::atoi(std::string(arg.substr(18)).c_str());
         } else if (arg == "--eink") {
             use_eink = true;
             use_tiles = true;
@@ -2941,7 +2950,6 @@ int main(int argc, char** argv) {
         compare_cmd_count_raw = compare_buf.stats().cmd_count;
         compare_buf.compact();
         has_recorded = true;
-        text_profile = text_profile_sample();
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
         if (img_stats_after_record.register_new_after_lock >= img_stats_before_record.register_new_after_lock) {
@@ -3043,10 +3051,12 @@ int main(int argc, char** argv) {
                 (compare_cmd_saved * 100u) / compare_cmd_count_raw);
         }
 
+        text_profile_reset();
         fb.clear(kDemoBg);
         canvas.begin_frame();
         const auto exec_stats = exec.execute(canvas, compare_buf);
         canvas.end_frame();
+        text_profile = text_profile_sample();
         compare_hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
         fb.clear(kDemoBg);
@@ -3214,6 +3224,15 @@ int main(int argc, char** argv) {
         }
         if (max_utf8_replacements >= 0 && static_cast<int>(utf8_replacements) > max_utf8_replacements) {
             ci_mark_fail("utf8_replace");
+        }
+        if (max_text_draw >= 0 && static_cast<int>(text_profile.draw_calls) > max_text_draw) {
+            ci_mark_fail("text_draw");
+        }
+        if (max_text_glyphs >= 0 && static_cast<int>(text_profile.glyphs) > max_text_glyphs) {
+            ci_mark_fail("text_glyphs");
+        }
+        if (max_text_pixels >= 0 && static_cast<int>(text_profile.pixels) > max_text_pixels) {
+            ci_mark_fail("text_pixels");
         }
         if (!cmd_budget_ok) {
             ci_mark_fail("cmd_budget");

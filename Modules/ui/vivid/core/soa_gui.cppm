@@ -245,6 +245,7 @@ WidgetHandle SoaGui::root() const noexcept {
         ui::draw_cmd::set_image_registry_locked(false);
         (void)cmd_buffer_.compact();
         last_cmd_stats_ = cmd_buffer_.stats();
+        text_profile_reset();
         canvas_.begin_frame();
         last_exec_stats_ = cmd_exec_.execute(canvas_, cmd_buffer_);
         canvas_.end_frame();
@@ -274,6 +275,7 @@ ui::draw_cmd::DrawCmdTileStats SoaGui::render_tiles(Backend& backend,
     ui::draw_cmd::set_image_registry_locked(false);
     (void)cmd_buffer_.compact();
     last_cmd_stats_ = cmd_buffer_.stats();
+    text_profile_reset();
     return cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buffer_, config);
 }
 

@@ -60,6 +60,7 @@ export namespace ui::draw_cmd {
         GlyphRun,
         DrawImageBatch,
         DrawImageRoundRectBatch,
+        DrawImageNineSliceBatch,
     };
 
     struct TextSpan {
@@ -201,6 +202,15 @@ export namespace ui::draw_cmd {
         BlobRef blob{};
         std::int16_t p0{0};
         std::int16_t count{0};
+    };
+
+    struct CmdImageBatchP0P1P2P3 {
+        ImageId image{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
+        std::int16_t p3{0};
     };
 
 
@@ -459,6 +469,17 @@ export namespace ui::draw_cmd {
             out.blob = payload.blob;
             out.p0 = payload.p0;
             out.p1 = payload.count;
+            return true;
+        }
+        case CmdType::DrawImageNineSliceBatch: {
+            if (!payload_fits(header, sizeof(CmdImageBatchP0P1P2P3))) return false;
+            const auto payload = read_payload<CmdImageBatchP0P1P2P3>(header);
+            out.image = payload.image;
+            out.blob = payload.blob;
+            out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            out.p3 = payload.p3;
             return true;
         }
         default:
@@ -1089,6 +1110,54 @@ export namespace ui::draw_cmd {
                         }
                         ok = false;
                     }
+                } else if (allow_batch && cmd.type == CmdType::DrawImageNineSlice) {
+                    if (!image_id_valid(cmd.image)) {
+                        if (!emit_cmd(cmd)) ok = false;
+                        ++i;
+                        continue;
+                    }
+                    std::size_t run = 1;
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
+                        if (next.type != CmdType::DrawImageNineSlice) break;
+                        if (next.image != cmd.image) break;
+                        if (next.p0 != cmd.p0 || next.p1 != cmd.p1
+                            || next.p2 != cmd.p2 || next.p3 != cmd.p3) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = cmd.rect;
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            image_items[j].rect = next.rect;
+                            if (j == 0) {
+                                bounds = image_items[j].rect;
+                            } else {
+                                bounds = rect_union(bounds, image_items[j].rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(image_items.data(),
+                                                             batch * sizeof(ImageBatchItem),
+                                                             alignof(ImageBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            batch_cmd.type = CmdType::DrawImageNineSliceBatch;
+                            batch_cmd.rect = bounds;
+                            batch_cmd.image = cmd.image;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = cmd.p0;
+                            batch_cmd.p1 = cmd.p1;
+                            batch_cmd.p2 = cmd.p2;
+                            batch_cmd.p3 = cmd.p3;
+                            if (!emit_cmd(batch_cmd)) ok = false;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
                 }
                 if (!emit_cmd(cmd)) ok = false;
                 ++i;
@@ -1318,6 +1387,17 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.p0 = cmd.p0;
                 payload.count = cmd.p1;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImageNineSliceBatch: {
+                CmdImageBatchP0P1P2P3 payload{};
+                payload.image = cmd.image;
+                payload.blob = cmd.blob;
+                payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                payload.p3 = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -1745,6 +1825,30 @@ export namespace ui::draw_cmd {
                             ui::render::draw_image_round_rect(canvas, item.rect.x, item.rect.y,
                                                               *image, cmd.p0);
                         }
+                    }
+                    break;
+                }
+                case CmdType::DrawImageNineSliceBatch: {
+                    const auto* image = resolve_image(cmd.image);
+                    if (!image || !(*image)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < sizeof(ImageBatchItem)
+                        || (blob.size() % sizeof(ImageBatchItem)) != 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto count = static_cast<int>(blob.size() / sizeof(ImageBatchItem));
+                    const auto items = std::span<const ImageBatchItem>(
+                        reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        ui::render::draw_image_nine_slice(canvas,
+                                                          item.rect.x, item.rect.y,
+                                                          item.rect.w, item.rect.h,
+                                                          *image,
+                                                          cmd.p0, cmd.p1, cmd.p2, cmd.p3);
                     }
                     break;
                 }

@@ -27,6 +27,7 @@ import charm.gfx.draw_cmd;
 import charm.gfx.image;
 import charm.gfx.snapshot;
 import charm.gfx.pixel_ops;
+import charm.gfx.text_box;
 import charm.font.typography;
 import charm.widgets.menu_tree;
 import out.api;
@@ -2907,11 +2908,13 @@ int main(int argc, char** argv) {
     std::uint32_t missing_glyphs = 0;
     std::uint32_t missing_glyph_fallbacks = 0;
     std::uint32_t utf8_replacements = 0;
+    TextProfileSample text_profile{};
     std::size_t compare_cmd_count_raw = 0;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         reset_font_ptr_map_count();
         reset_missing_glyph_stats();
+        text_profile_reset();
 #endif
         if (selftest_dedup) {
             ensure_demo_images();
@@ -2938,6 +2941,7 @@ int main(int argc, char** argv) {
         compare_cmd_count_raw = compare_buf.stats().cmd_count;
         compare_buf.compact();
         has_recorded = true;
+        text_profile = text_profile_sample();
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
         if (img_stats_after_record.register_new_after_lock >= img_stats_before_record.register_new_after_lock) {
@@ -2958,6 +2962,11 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(missing_glyphs),
             static_cast<unsigned>(missing_glyph_fallbacks),
             static_cast<unsigned>(utf8_replacements));
+        (void)out::println<"[soa] text draw={} glyphs={} pixels={}">(
+            g_console,
+            static_cast<unsigned long long>(text_profile.draw_calls),
+            static_cast<unsigned long long>(text_profile.glyphs),
+            static_cast<unsigned long long>(text_profile.pixels));
         if (g_regress_log) {
             std::fprintf(g_regress_log, "[soa] font_ptr_map_count=%u\n", font_ptr_maps);
             std::fprintf(g_regress_log,
@@ -2965,6 +2974,11 @@ int main(int argc, char** argv) {
                          static_cast<unsigned>(missing_glyphs),
                          static_cast<unsigned>(missing_glyph_fallbacks),
                          static_cast<unsigned>(utf8_replacements));
+            std::fprintf(g_regress_log,
+                         "[soa] text_draw=%llu text_glyphs=%llu text_pixels=%llu\n",
+                         static_cast<unsigned long long>(text_profile.draw_calls),
+                         static_cast<unsigned long long>(text_profile.glyphs),
+                         static_cast<unsigned long long>(text_profile.pixels));
         }
 #endif
     }
@@ -3224,7 +3238,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={}">(
+        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
             g_console,
             tile_backend.display_mode_name(),
             static_cast<unsigned>(tile_backend.display.bw1_threshold),
@@ -3235,7 +3249,10 @@ int main(int argc, char** argv) {
             tile_backend.eink_policy.partial_area_ratio_pct,
             static_cast<unsigned>(missing_glyphs),
             static_cast<unsigned>(missing_glyph_fallbacks),
-            static_cast<unsigned>(utf8_replacements));
+            static_cast<unsigned>(utf8_replacements),
+            static_cast<unsigned long long>(text_profile.draw_calls),
+            static_cast<unsigned long long>(text_profile.glyphs),
+            static_cast<unsigned long long>(text_profile.pixels));
 
         (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,

@@ -20,6 +20,7 @@ import charm.core.geometry;
 import charm.core.handle;
 import charm.core.soa_kernel;
 import charm.core.soa_payload;
+import charm.font.typography;
 import charm.system.clock;
 import player.playback;
 import player.fs_utils;
@@ -622,8 +623,11 @@ export namespace player {
                 ? player::font_cache::stats()
                 : player::font_cache::Stats{};
             const bool font_on = player::font_cache::ready();
+            const auto missing_glyphs = missing_glyph_count();
+            const auto missing_fallbacks = missing_glyph_fallback_count();
+            const auto utf8_replaces = utf8_replacement_count();
             std::snprintf(buf, sizeof(buf),
-                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu font %s %u/%u/%u",
+                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu font %s %u/%u/%u glyph %u/%u/%u",
                           static_cast<unsigned long long>(water_ms),
                           static_cast<unsigned long long>(low_ms),
                           static_cast<unsigned long long>(high_ms),
@@ -634,7 +638,10 @@ export namespace player {
                           font_on ? "on" : "off",
                           static_cast<unsigned>(font_stats.requests),
                           static_cast<unsigned>(font_stats.cached),
-                          static_cast<unsigned>(font_stats.missing));
+                          static_cast<unsigned>(font_stats.missing),
+                          static_cast<unsigned>(missing_glyphs),
+                          static_cast<unsigned>(missing_fallbacks),
+                          static_cast<unsigned>(utf8_replaces));
             if (last_debug_text.view() == buf) return;
             last_debug_text.assign(buf);
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);

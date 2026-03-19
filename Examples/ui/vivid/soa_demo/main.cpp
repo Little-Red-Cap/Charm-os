@@ -3428,6 +3428,50 @@ int main(int argc, char** argv) {
         tile_backend.eink_policy.min_full_interval_ms = next;
         (void)out::println<"[soa] eink min_full_ms={}">(g_console, next);
     };
+    const auto handle_display_hotkey = [&](SDL_Keycode key) noexcept {
+        switch (key) {
+        case SDLK_KP_PLUS:
+        case SDLK_EQUALS:
+        case SDLK_PLUS:
+        case SDLK_RIGHTBRACKET:
+            adjust_gray2_strength(1);
+            break;
+        case SDLK_KP_MINUS:
+        case SDLK_MINUS:
+        case SDLK_LEFTBRACKET:
+            adjust_gray2_strength(-1);
+            break;
+        case SDLK_G:
+            cycle_gray2_curve();
+            break;
+        case SDLK_PERIOD:
+            adjust_bw1_threshold(1);
+            break;
+        case SDLK_COMMA:
+            adjust_bw1_threshold(-1);
+            break;
+        case SDLK_1:
+            adjust_eink_ratio(-1);
+            break;
+        case SDLK_2:
+            adjust_eink_ratio(1);
+            break;
+        case SDLK_3:
+            adjust_eink_max_partial(-1);
+            break;
+        case SDLK_4:
+            adjust_eink_max_partial(1);
+            break;
+        case SDLK_5:
+            adjust_eink_min_full(-500);
+            break;
+        case SDLK_6:
+            adjust_eink_min_full(500);
+            break;
+        default:
+            break;
+        }
+    };
 
     while (running) {
         SDL_Event evt{};
@@ -3440,49 +3484,7 @@ int main(int argc, char** argv) {
                 break;
             }
             if (evt.type == SDL_EVENT_KEY_DOWN) {
-                const SDL_Keycode key = evt.key.key;
-                switch (key) {
-                case SDLK_KP_PLUS:
-                case SDLK_EQUALS:
-                case SDLK_PLUS:
-                case SDLK_RIGHTBRACKET:
-                    adjust_gray2_strength(1);
-                    break;
-                case SDLK_KP_MINUS:
-                case SDLK_MINUS:
-                case SDLK_LEFTBRACKET:
-                    adjust_gray2_strength(-1);
-                    break;
-                case SDLK_G:
-                    cycle_gray2_curve();
-                    break;
-                case SDLK_PERIOD:
-                    adjust_bw1_threshold(1);
-                    break;
-                case SDLK_COMMA:
-                    adjust_bw1_threshold(-1);
-                    break;
-                case SDLK_1:
-                    adjust_eink_ratio(-1);
-                    break;
-                case SDLK_2:
-                    adjust_eink_ratio(1);
-                    break;
-                case SDLK_3:
-                    adjust_eink_max_partial(-1);
-                    break;
-                case SDLK_4:
-                    adjust_eink_max_partial(1);
-                    break;
-                case SDLK_5:
-                    adjust_eink_min_full(-500);
-                    break;
-                case SDLK_6:
-                    adjust_eink_min_full(500);
-                    break;
-                default:
-                    break;
-                }
+                handle_display_hotkey(evt.key.key);
             } else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, mouse_x, mouse_y)) {
                     gui.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));

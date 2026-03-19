@@ -506,11 +506,21 @@ namespace {
 
     void append_display_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf,
                                 const SdlTileBackend& backend) noexcept {
-        if (backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
-        char label[64]{};
-        const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
-        (void)std::snprintf(label, sizeof(label), "gray2 str=%u", strength);
-        const Rect panel{8, 8, 128, 18};
+        char label[96]{};
+        Rect panel{8, 8, 160, 18};
+        if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
+            const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
+            (void)std::snprintf(label, sizeof(label), "gray2 str=%u", strength);
+        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+            const auto ratio = static_cast<unsigned>(backend.eink_policy.partial_area_ratio_pct);
+            const auto max_partial = static_cast<unsigned>(backend.eink_policy.max_partial_count);
+            const auto min_full = static_cast<unsigned>(backend.eink_policy.min_full_interval_ms);
+            (void)std::snprintf(label, sizeof(label), "eink pct=%u max=%u min=%ums",
+                                ratio, max_partial, min_full);
+            panel.w = 220;
+        } else {
+            return;
+        }
         buf.fill_round_rect(panel, 4, kDemoPanel);
         buf.stroke_round_rect(panel, 4, kDemoPanelBorder);
         buf.draw_text_box(panel, label, kDemoPath,
@@ -3318,6 +3328,30 @@ int main(int argc, char** argv) {
         gray2_strength = next;
         (void)out::println<"[soa] gray2 strength={}">(g_console, next);
     };
+    const auto adjust_eink_ratio = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.partial_area_ratio_pct + delta;
+        next = std::clamp(next, 1, 100);
+        if (next == tile_backend.eink_policy.partial_area_ratio_pct) return;
+        tile_backend.eink_policy.partial_area_ratio_pct = next;
+        (void)out::println<"[soa] eink partial_pct={}">(g_console, next);
+    };
+    const auto adjust_eink_max_partial = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.max_partial_count + delta;
+        next = std::clamp(next, 1, 200);
+        if (next == tile_backend.eink_policy.max_partial_count) return;
+        tile_backend.eink_policy.max_partial_count = next;
+        (void)out::println<"[soa] eink max_partial={}">(g_console, next);
+    };
+    const auto adjust_eink_min_full = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.min_full_interval_ms + delta;
+        next = std::clamp(next, 0, 120000);
+        if (next == tile_backend.eink_policy.min_full_interval_ms) return;
+        tile_backend.eink_policy.min_full_interval_ms = next;
+        (void)out::println<"[soa] eink min_full_ms={}">(g_console, next);
+    };
 
     while (running) {
         SDL_Event evt{};
@@ -3342,6 +3376,24 @@ int main(int argc, char** argv) {
                 case SDLK_MINUS:
                 case SDLK_LEFTBRACKET:
                     adjust_gray2_strength(-1);
+                    break;
+                case SDLK_1:
+                    adjust_eink_ratio(-1);
+                    break;
+                case SDLK_2:
+                    adjust_eink_ratio(1);
+                    break;
+                case SDLK_3:
+                    adjust_eink_max_partial(-1);
+                    break;
+                case SDLK_4:
+                    adjust_eink_max_partial(1);
+                    break;
+                case SDLK_5:
+                    adjust_eink_min_full(-500);
+                    break;
+                case SDLK_6:
+                    adjust_eink_min_full(500);
                     break;
                 default:
                     break;

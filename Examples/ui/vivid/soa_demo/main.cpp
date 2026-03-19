@@ -468,6 +468,15 @@ namespace {
             }
         }
 
+        const char* display_mode_name() const noexcept {
+            switch (display.mode) {
+            case DisplayMode::BW1: return "bw1";
+            case DisplayMode::Gray2: return "gray2";
+            case DisplayMode::Eink: return "eink";
+            default: return "color";
+            }
+        }
+
         void mark_dirty(int x, int y, int w, int h) noexcept {
             if (w <= 0 || h <= 0) return;
             const int left = x;
@@ -517,9 +526,10 @@ namespace {
             | (static_cast<std::uint32_t>('D') << 24);
     }
 
-    constexpr std::uint32_t kVcmdVersion = 2;
+    constexpr std::uint32_t kVcmdVersion = 3;
     constexpr std::uint32_t kVcmdEndian = 0x01020304u;
     constexpr std::uint32_t kVcmdFlagHasImages = 1u << 0;
+    constexpr std::uint32_t kVcmdFlagHasDisplayConfig = 1u << 1;
 
     struct VcmdHeader {
         std::uint32_t magic{vcmd_magic()};
@@ -552,6 +562,17 @@ namespace {
         std::uint32_t data_bytes{0};
     };
 
+    struct VcmdDisplayConfig {
+        std::uint8_t display_mode{0};
+        std::uint8_t bw1_threshold{128};
+        std::uint8_t gray2_strength{8};
+        std::uint8_t reserved{0};
+        std::int32_t eink_max_partial{20};
+        std::int32_t eink_min_full_ms{30000};
+        std::int32_t eink_partial_ratio_pct{35};
+        std::int32_t reserved2{0};
+    };
+
     bool write_block(std::FILE* file, const void* data, std::size_t bytes) noexcept {
         if (!file) return false;
         if (bytes == 0) return true;
@@ -564,7 +585,9 @@ namespace {
         return std::fread(data, 1, bytes, file) == bytes;
     }
 
-    bool dump_cmd_file(const char* path, const ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept {
+    bool dump_cmd_file(const char* path,
+                       const ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                       const SdlTileBackend* backend) noexcept {
         if (!path || !path[0]) return false;
         std::FILE* file = std::fopen(path, "wb");
         if (!file) return false;
@@ -608,7 +631,21 @@ namespace {
         header.image_count = static_cast<std::uint32_t>(image_headers.size());
         header.font_count = 0;
 
+        VcmdDisplayConfig config{};
+        if (backend) {
+            config.display_mode = static_cast<std::uint8_t>(backend->display.mode);
+            config.bw1_threshold = backend->display.bw1_threshold;
+            config.gray2_strength = backend->display.gray2_strength;
+            config.eink_max_partial = backend->eink_policy.max_partial_count;
+            config.eink_min_full_ms = backend->eink_policy.min_full_interval_ms;
+            config.eink_partial_ratio_pct = backend->eink_policy.partial_area_ratio_pct;
+            header.flags |= kVcmdFlagHasDisplayConfig;
+        }
+
         bool ok = write_block(file, &header, sizeof(header));
+        if (ok && (header.flags & kVcmdFlagHasDisplayConfig) != 0u) {
+            ok = write_block(file, &config, sizeof(config));
+        }
         ok = ok && write_block(file, buf.cmd_data(), header.cmd_bytes);
         ok = ok && write_block(file, buf.text_data(), header.text_bytes);
         ok = ok && write_block(file, buf.blob_data(), header.blob_bytes);
@@ -638,7 +675,7 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.magic != vcmd_magic() || header.version != kVcmdVersion) {
+        if (header.magic != vcmd_magic() || (header.version != 2 && header.version != kVcmdVersion)) {
             std::fclose(file);
             return false;
         }
@@ -659,6 +696,19 @@ namespace {
             || header.cmd_struct_version != ui::draw_cmd::kDrawCmdBinaryVersion) {
             std::fclose(file);
             return false;
+        }
+        if ((header.flags & kVcmdFlagHasDisplayConfig) != 0u) {
+            VcmdDisplayConfig config{};
+            if (!read_block(file, &config, sizeof(config))) {
+                std::fclose(file);
+                return false;
+            }
+            tile_backend.display.mode = static_cast<SdlTileBackend::DisplayMode>(config.display_mode);
+            tile_backend.display.bw1_threshold = config.bw1_threshold;
+            tile_backend.display.gray2_strength = config.gray2_strength;
+            tile_backend.eink_policy.max_partial_count = config.eink_max_partial;
+            tile_backend.eink_policy.min_full_interval_ms = config.eink_min_full_ms;
+            tile_backend.eink_policy.partial_area_ratio_pct = config.eink_partial_ratio_pct;
         }
         std::vector<std::byte> cmd_bytes(header.cmd_bytes);
         std::vector<char> text(header.text_bytes);
@@ -1792,7 +1842,7 @@ namespace {
             } else {
                 std::snprintf(dump_path, sizeof(dump_path), "soa_iconlist.vcmd");
             }
-            if (!dump_cmd_file(dump_path, dump_buf)) {
+            if (!dump_cmd_file(dump_path, dump_buf, &tile_backend)) {
                 expect_true(false, "listview: dump_cmd_file failed", fails);
             } else if (!replay_cmd_file(dump_path, fb, canvas, tile_backend, tile_view, tile_config, false, nullptr)) {
                 expect_true(false, "listview: replay full failed", fails);
@@ -2949,7 +2999,7 @@ int main(int argc, char** argv) {
         if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
             dump_ok = false;
         }
-        if (dump_ok && !dump_cmd_file(dump_cmd_path.c_str(), compare_buf)) {
+        if (dump_ok && !dump_cmd_file(dump_cmd_path.c_str(), compare_buf, &tile_backend)) {
             dump_ok = false;
         }
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3069,6 +3119,15 @@ int main(int argc, char** argv) {
             && img_overflow_ok
             && img_dedup_ok
             && cmd_budget_ok;
+
+        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={}">(
+            g_console,
+            tile_backend.display_mode_name(),
+            static_cast<unsigned>(tile_backend.display.bw1_threshold),
+            static_cast<unsigned>(tile_backend.display.gray2_strength),
+            tile_backend.eink_policy.max_partial_count,
+            tile_backend.eink_policy.min_full_interval_ms,
+            tile_backend.eink_policy.partial_area_ratio_pct);
 
         (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,

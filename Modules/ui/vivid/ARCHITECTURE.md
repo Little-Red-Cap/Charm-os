@@ -308,6 +308,13 @@ flowchart TB
 - 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
 - RichText/CodeBlock 走独立控件，避免复杂样式侵入基础文本。
 - SoA 路径使用 `TextArena + TextId` 存储文本，payload 不再保存指针；溢出时置位 `text_overflowed` 并回退到空文本或占位串。
+- 可选接入 VFS 字体提供器（只做接口，不依赖 FreeType）：
+  - 模块：`Modules/gfx/font/font_provider_vfs.cppm`
+  - 用法：
+    1. 实现 `VfsFontLoaderApi`（`load/reset`），负责从 VFS 读取字体并填充 `Font`。
+    2. 配置 `VfsFontProviderConfig` 的路径（small/normal/large/mono/fallback）。
+    3. `set_font_provider(provider.provider())` 注入字体提供器。
+  - 约束：`Font` 指针在 provider 生命周期内必须稳定；loader 不得在渲染热路径做阻塞 IO。
 
 ## 6. 主题与样式
 

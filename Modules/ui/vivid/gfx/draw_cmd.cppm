@@ -61,6 +61,7 @@ export namespace ui::draw_cmd {
         DrawImageBatch,
         DrawImageRoundRectBatch,
         DrawImageNineSliceBatch,
+        DrawLineBatch,
     };
 
     struct TextSpan {
@@ -165,6 +166,13 @@ export namespace ui::draw_cmd {
     };
 
     struct CmdBatchRect {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t count{0};
+        std::int16_t pad{0};
+    };
+
+    struct CmdBatchLine {
         rgba color{};
         BlobRef blob{};
         std::int16_t count{0};
@@ -287,6 +295,13 @@ export namespace ui::draw_cmd {
         Rect rect{};
     };
 
+    struct LineBatchItem {
+        int x0{0};
+        int y0{0};
+        int x1{0};
+        int y1{0};
+    };
+
     struct GlyphRunItem {
         Rect rect{};
         TextSpan text{};
@@ -304,6 +319,14 @@ export namespace ui::draw_cmd {
         const int right = ((ra.x + ra.w) > (rb.x + rb.w)) ? (ra.x + ra.w) : (rb.x + rb.w);
         const int bottom = ((ra.y + ra.h) > (rb.y + rb.h)) ? (ra.y + ra.h) : (rb.y + rb.h);
         return Rect{left, top, right - left, bottom - top};
+    }
+
+    constexpr Rect line_bounds(int x0, int y0, int x1, int y1) noexcept {
+        const int left = (x0 < x1) ? x0 : x1;
+        const int top = (y0 < y1) ? y0 : y1;
+        const int w = (x0 < x1) ? (x1 - x0 + 1) : (x0 - x1 + 1);
+        const int h = (y0 < y1) ? (y1 - y0 + 1) : (y0 - y1 + 1);
+        return Rect{left, top, w, h};
     }
 
     constexpr bool rgba_equal(const rgba& a, const rgba& b) noexcept {
@@ -424,6 +447,14 @@ export namespace ui::draw_cmd {
         case CmdType::StrokeRectBatch: {
             if (!payload_fits(header, sizeof(CmdBatchRect))) return false;
             const auto payload = read_payload<CmdBatchRect>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.count;
+            return true;
+        }
+        case CmdType::DrawLineBatch: {
+            if (!payload_fits(header, sizeof(CmdBatchLine))) return false;
+            const auto payload = read_payload<CmdBatchLine>(header);
             out.color = payload.color;
             out.blob = payload.blob;
             out.p0 = payload.count;
@@ -802,17 +833,23 @@ export namespace ui::draw_cmd {
                     continue;
                 }
                 if (cmd.type == CmdType::DrawLine) {
-                    const int x0 = cmd.rect.x;
-                    const int y0 = cmd.rect.y;
-                    const int x1 = cmd.rect.w;
-                    const int y1 = cmd.rect.h;
-                    Rect bounds{
-                        (x0 < x1) ? x0 : x1,
-                        (y0 < y1) ? y0 : y1,
-                        (x0 < x1) ? (x1 - x0 + 1) : (x0 - x1 + 1),
-                        (y0 < y1) ? (y1 - y0 + 1) : (y0 - y1 + 1)
-                    };
+                    const Rect bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
                     if (rect_intersect(bounds, rect, out)) return true;
+                    continue;
+                }
+                if (cmd.type == CmdType::DrawLineBatch) {
+                    const int count = cmd.p0;
+                    if (count <= 0) continue;
+                    const auto blob = blob_.bytes(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                        continue;
+                    }
+                    const auto items = std::span<const LineBatchItem>(
+                        reinterpret_cast<const LineBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        const Rect bounds = line_bounds(item.x0, item.y0, item.x1, item.y1);
+                        if (rect_intersect(bounds, rect, out)) return true;
+                    }
                     continue;
                 }
                 if (!rect_valid(cmd.rect)) continue;
@@ -833,6 +870,7 @@ export namespace ui::draw_cmd {
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
+            std::array<LineBatchItem, kMaxBatchItems> line_items{};
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
@@ -873,7 +911,48 @@ export namespace ui::draw_cmd {
                     ok = false;
                     break;
                 }
-                if (allow_batch && (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect)) {
+                if (allow_batch && cmd.type == CmdType::DrawLine) {
+                    std::size_t run = 1;
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
+                        if (next.type != CmdType::DrawLine) break;
+                        if (!rgba_equal(next.color, cmd.color)) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            line_items[j] = LineBatchItem{next.rect.x, next.rect.y, next.rect.w, next.rect.h};
+                            if (j == 0) {
+                                bounds = line_bounds(line_items[j].x0, line_items[j].y0,
+                                                     line_items[j].x1, line_items[j].y1);
+                            } else {
+                                const Rect line_rect = line_bounds(line_items[j].x0, line_items[j].y0,
+                                                                   line_items[j].x1, line_items[j].y1);
+                                bounds = rect_union(bounds, line_rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(line_items.data(),
+                                                             batch * sizeof(LineBatchItem),
+                                                             alignof(LineBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            batch_cmd.type = CmdType::DrawLineBatch;
+                            batch_cmd.rect = bounds;
+                            batch_cmd.color = cmd.color;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = static_cast<std::int16_t>(batch);
+                            if (!emit_cmd(batch_cmd)) ok = false;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
+                } else if (allow_batch && (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect)) {
                     std::size_t run = 1;
                     while ((i + run) < input_count) {
                         DrawCmd next{};
@@ -1348,6 +1427,14 @@ export namespace ui::draw_cmd {
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
+            case CmdType::DrawLineBatch: {
+                CmdBatchLine payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
             case CmdType::FillRoundRectBatch:
             case CmdType::StrokeRoundRectBatch:
             case CmdType::FillCircleBatch:
@@ -1629,6 +1716,24 @@ export namespace ui::draw_cmd {
                                           cmd.rect.h,
                                           cmd.color);
                     break;
+                case CmdType::DrawLineBatch: {
+                    const int count = cmd.p0;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const LineBatchItem>(
+                        reinterpret_cast<const LineBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        ui::render::draw_line(canvas, item.x0, item.y0, item.x1, item.y1, cmd.color);
+                    }
+                    break;
+                }
                 case CmdType::DrawPath: {
                     const int count = cmd.p0;
                     if (count < 2) {

@@ -508,7 +508,10 @@ namespace {
                                 const SdlTileBackend& backend) noexcept {
         char label[96]{};
         Rect panel{8, 8, 160, 18};
-        if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
+        if (backend.display.mode == SdlTileBackend::DisplayMode::BW1) {
+            const auto threshold = static_cast<unsigned>(backend.display.bw1_threshold);
+            (void)std::snprintf(label, sizeof(label), "bw1 thr=%u", threshold);
+        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
             const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
             (void)std::snprintf(label, sizeof(label), "gray2 str=%u", strength);
         } else if (backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
@@ -3328,6 +3331,15 @@ int main(int argc, char** argv) {
         gray2_strength = next;
         (void)out::println<"[soa] gray2 strength={}">(g_console, next);
     };
+    const auto adjust_bw1_threshold = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::BW1) return;
+        int next = static_cast<int>(tile_backend.display.bw1_threshold) + delta;
+        next = std::clamp(next, 0, 255);
+        if (next == tile_backend.display.bw1_threshold) return;
+        tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(next);
+        bw1_threshold = next;
+        (void)out::println<"[soa] bw1 threshold={}">(g_console, next);
+    };
     const auto adjust_eink_ratio = [&](int delta) noexcept {
         if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
         int next = tile_backend.eink_policy.partial_area_ratio_pct + delta;
@@ -3376,6 +3388,12 @@ int main(int argc, char** argv) {
                 case SDLK_MINUS:
                 case SDLK_LEFTBRACKET:
                     adjust_gray2_strength(-1);
+                    break;
+                case SDLK_PERIOD:
+                    adjust_bw1_threshold(1);
+                    break;
+                case SDLK_COMMA:
+                    adjust_bw1_threshold(-1);
                     break;
                 case SDLK_1:
                     adjust_eink_ratio(-1);

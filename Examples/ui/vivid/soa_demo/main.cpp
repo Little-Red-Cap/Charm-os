@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <cmath>
 
 import charm.core.soa_kernel;
 import charm.core.soa_factory;
@@ -304,6 +305,12 @@ namespace {
             Eink
         };
 
+        enum class Gray2Curve : std::uint8_t {
+            Linear = 0,
+            Soft = 1,
+            Contrast = 2
+        };
+
         enum class RefreshKind : std::uint8_t {
             None,
             Partial,
@@ -314,6 +321,7 @@ namespace {
             DisplayMode mode{DisplayMode::Color};
             std::uint8_t bw1_threshold{128};
             std::uint8_t gray2_strength{8};
+            Gray2Curve gray2_curve{Gray2Curve::Linear};
         };
 
         struct EinkPolicy {
@@ -333,6 +341,9 @@ namespace {
         int total_full_count{0};
         std::uint32_t last_full_ms{0};
         int last_dirty_pct{0};
+        std::array<std::uint8_t, 256> gray2_lut{};
+        Gray2Curve gray2_curve_cached{Gray2Curve::Linear};
+        bool gray2_lut_ready{false};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -344,6 +355,26 @@ namespace {
 
         void begin_frame() noexcept { dirty_set = false; }
         void end_frame() noexcept {}
+
+        void update_gray2_lut() noexcept {
+            if (gray2_lut_ready && gray2_curve_cached == display.gray2_curve) return;
+            gray2_curve_cached = display.gray2_curve;
+            gray2_lut_ready = true;
+            float gamma = 1.0f;
+            switch (display.gray2_curve) {
+            case Gray2Curve::Soft: gamma = 1.25f; break;
+            case Gray2Curve::Contrast: gamma = 0.85f; break;
+            default: break;
+            }
+            for (int i = 0; i < 256; ++i) {
+                const float x = static_cast<float>(i) / 255.0f;
+                const float y = std::pow(x, gamma);
+                int v = static_cast<int>(y * 255.0f + 0.5f);
+                if (v < 0) v = 0;
+                if (v > 255) v = 255;
+                gray2_lut[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(v);
+            }
+        }
 
         void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
             if (!src || bytes == 0) return;
@@ -358,6 +389,7 @@ namespace {
                 std::memcpy(dst, src, bytes);
                 return;
             }
+            update_gray2_lut();
             if (src_bpp == 0) return;
             const std::size_t count = bytes / src_bpp;
             const auto read_rgb = [&](const std::byte* p) noexcept -> rgb {
@@ -423,7 +455,8 @@ namespace {
                     const int px_x = x + static_cast<int>(i);
                     const std::uint8_t dither = kBayer4[y & 3][px_x & 3];
                     const int strength = static_cast<int>(display.gray2_strength);
-                    int lum_d = static_cast<int>(lum) + (static_cast<int>(dither) - 8) * strength;
+                    const std::uint8_t mapped = gray2_lut[static_cast<std::size_t>(lum)];
+                    int lum_d = static_cast<int>(mapped) + (static_cast<int>(dither) - 8) * strength;
                     if (lum_d < 0) lum_d = 0;
                     if (lum_d > 255) lum_d = 255;
                     const std::uint8_t level = static_cast<std::uint8_t>((lum_d * 4) >> 8);
@@ -477,6 +510,14 @@ namespace {
             }
         }
 
+        const char* gray2_curve_name() const noexcept {
+            switch (display.gray2_curve) {
+            case Gray2Curve::Soft: return "soft";
+            case Gray2Curve::Contrast: return "contrast";
+            default: return "linear";
+            }
+        }
+
         void mark_dirty(int x, int y, int w, int h) noexcept {
             if (w <= 0 || h <= 0) return;
             const int left = x;
@@ -513,7 +554,9 @@ namespace {
             (void)std::snprintf(label, sizeof(label), "bw1 thr=%u", threshold);
         } else if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
             const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
-            (void)std::snprintf(label, sizeof(label), "gray2 str=%u", strength);
+            (void)std::snprintf(label, sizeof(label), "gray2 str=%u curve=%s",
+                                strength, backend.gray2_curve_name());
+            panel.w = 200;
         } else if (backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
             const auto ratio = static_cast<unsigned>(backend.eink_policy.partial_area_ratio_pct);
             const auto max_partial = static_cast<unsigned>(backend.eink_policy.max_partial_count);
@@ -579,7 +622,7 @@ namespace {
         std::uint8_t display_mode{0};
         std::uint8_t bw1_threshold{128};
         std::uint8_t gray2_strength{8};
-        std::uint8_t reserved{0};
+        std::uint8_t gray2_curve{0};
         std::int32_t eink_max_partial{20};
         std::int32_t eink_min_full_ms{30000};
         std::int32_t eink_partial_ratio_pct{35};
@@ -649,6 +692,7 @@ namespace {
             config.display_mode = static_cast<std::uint8_t>(backend->display.mode);
             config.bw1_threshold = backend->display.bw1_threshold;
             config.gray2_strength = backend->display.gray2_strength;
+            config.gray2_curve = static_cast<std::uint8_t>(backend->display.gray2_curve);
             config.eink_max_partial = backend->eink_policy.max_partial_count;
             config.eink_min_full_ms = backend->eink_policy.min_full_interval_ms;
             config.eink_partial_ratio_pct = backend->eink_policy.partial_area_ratio_pct;
@@ -719,6 +763,7 @@ namespace {
             tile_backend.display.mode = static_cast<SdlTileBackend::DisplayMode>(config.display_mode);
             tile_backend.display.bw1_threshold = config.bw1_threshold;
             tile_backend.display.gray2_strength = config.gray2_strength;
+            tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(config.gray2_curve);
             tile_backend.eink_policy.max_partial_count = config.eink_max_partial;
             tile_backend.eink_policy.min_full_interval_ms = config.eink_min_full_ms;
             tile_backend.eink_policy.partial_area_ratio_pct = config.eink_partial_ratio_pct;
@@ -2259,6 +2304,7 @@ int main(int argc, char** argv) {
     bool run_gif = false;
     int bw1_threshold = 128;
     int gray2_strength = 8;
+    SdlTileBackend::Gray2Curve gray2_curve = SdlTileBackend::Gray2Curve::Linear;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
@@ -2323,6 +2369,15 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--gray2-strength=", 0) == 0) {
             const int value = std::atoi(std::string(arg.substr(17)).c_str());
             gray2_strength = (value < 0) ? 0 : (value > 64) ? 64 : value;
+        } else if (arg.rfind("--gray2-curve=", 0) == 0) {
+            const std::string_view value = std::string_view(arg).substr(14);
+            if (value == "soft") {
+                gray2_curve = SdlTileBackend::Gray2Curve::Soft;
+            } else if (value == "contrast") {
+                gray2_curve = SdlTileBackend::Gray2Curve::Contrast;
+            } else {
+                gray2_curve = SdlTileBackend::Gray2Curve::Linear;
+            }
         } else if (arg == "--eink") {
             use_eink = true;
             use_tiles = true;
@@ -2426,6 +2481,7 @@ int main(int argc, char** argv) {
     }
     tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(bw1_threshold);
     tile_backend.display.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
+    tile_backend.display.gray2_curve = gray2_curve;
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;
@@ -3133,11 +3189,12 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={}">(
+        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={}">(
             g_console,
             tile_backend.display_mode_name(),
             static_cast<unsigned>(tile_backend.display.bw1_threshold),
             static_cast<unsigned>(tile_backend.display.gray2_strength),
+            tile_backend.gray2_curve_name(),
             tile_backend.eink_policy.max_partial_count,
             tile_backend.eink_policy.min_full_interval_ms,
             tile_backend.eink_policy.partial_area_ratio_pct);
@@ -3331,6 +3388,13 @@ int main(int argc, char** argv) {
         gray2_strength = next;
         (void)out::println<"[soa] gray2 strength={}">(g_console, next);
     };
+    const auto cycle_gray2_curve = [&]() noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        const int next = (static_cast<int>(tile_backend.display.gray2_curve) + 1) % 3;
+        tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(next);
+        gray2_curve = tile_backend.display.gray2_curve;
+        (void)out::println<"[soa] gray2 curve={}">(g_console, tile_backend.gray2_curve_name());
+    };
     const auto adjust_bw1_threshold = [&](int delta) noexcept {
         if (tile_backend.display.mode != SdlTileBackend::DisplayMode::BW1) return;
         int next = static_cast<int>(tile_backend.display.bw1_threshold) + delta;
@@ -3388,6 +3452,9 @@ int main(int argc, char** argv) {
                 case SDLK_MINUS:
                 case SDLK_LEFTBRACKET:
                     adjust_gray2_strength(-1);
+                    break;
+                case SDLK_G:
+                    cycle_gray2_curve();
                     break;
                 case SDLK_PERIOD:
                     adjust_bw1_threshold(1);

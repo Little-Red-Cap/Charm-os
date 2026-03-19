@@ -63,6 +63,7 @@ export namespace ui::draw_cmd {
         DrawImageNineSliceBatch,
         DrawLineBatch,
         DrawPathBatch,
+        FocusRingBatch,
     };
 
     struct TextSpan {
@@ -191,6 +192,15 @@ export namespace ui::draw_cmd {
         rgba color{};
         BlobRef blob{};
         std::int16_t p0{0};
+        std::int16_t count{0};
+    };
+
+    struct CmdBatchRectP0P1P2 {
+        rgba color{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t p1{0};
+        std::int16_t p2{0};
         std::int16_t count{0};
     };
 
@@ -480,6 +490,17 @@ export namespace ui::draw_cmd {
             out.color = payload.color;
             out.blob = payload.blob;
             out.p0 = payload.count;
+            return true;
+        }
+        case CmdType::FocusRingBatch: {
+            if (!payload_fits(header, sizeof(CmdBatchRectP0P1P2))) return false;
+            const auto payload = read_payload<CmdBatchRectP0P1P2>(header);
+            out.color = payload.color;
+            out.blob = payload.blob;
+            out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            out.p3 = payload.count;
             return true;
         }
         case CmdType::FillRoundRectBatch:
@@ -1300,6 +1321,48 @@ export namespace ui::draw_cmd {
                         }
                         ok = false;
                     }
+                } else if (allow_batch && cmd.type == CmdType::FocusRing) {
+                    std::size_t run = 1;
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
+                        if (next.type != CmdType::FocusRing) break;
+                        if (!rgba_equal(next.color, cmd.color)) break;
+                        if (next.p0 != cmd.p0 || next.p1 != cmd.p1 || next.p2 != cmd.p2) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = cmd.rect;
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            rect_items[j].rect = next.rect;
+                            if (j == 0) {
+                                bounds = rect_items[j].rect;
+                            } else {
+                                bounds = rect_union(bounds, rect_items[j].rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(rect_items.data(),
+                                                             batch * sizeof(RectBatchItem),
+                                                             alignof(RectBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            batch_cmd.type = CmdType::FocusRingBatch;
+                            batch_cmd.rect = bounds;
+                            batch_cmd.color = cmd.color;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = cmd.p0;
+                            batch_cmd.p1 = cmd.p1;
+                            batch_cmd.p2 = cmd.p2;
+                            batch_cmd.p3 = static_cast<std::int16_t>(batch);
+                            if (!emit_cmd(batch_cmd)) ok = false;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
                 }
                 if (!emit_cmd(cmd)) ok = false;
                 ++i;
@@ -1503,6 +1566,17 @@ export namespace ui::draw_cmd {
                 payload.color = cmd.color;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FocusRingBatch: {
+                CmdBatchRectP0P1P2 payload{};
+                payload.color = cmd.color;
+                payload.blob = cmd.blob;
+                payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                payload.count = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -1861,6 +1935,24 @@ export namespace ui::draw_cmd {
                 case CmdType::FocusRing:
                     ui::render::draw_focus_ring(canvas, cmd.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
                     break;
+                case CmdType::FocusRingBatch: {
+                    const int count = cmd.p3;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const RectBatchItem>(
+                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        ui::render::draw_focus_ring(canvas, item.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
+                    }
+                    break;
+                }
                 case CmdType::FillRectBatch: {
                     const int count = cmd.p0;
                     if (count <= 0) {

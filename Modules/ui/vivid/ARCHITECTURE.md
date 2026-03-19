@@ -105,6 +105,7 @@ sequenceDiagram
   - `FillRect/StrokeRect`
   - `DrawLine`
   - `DrawPath`
+  - `FocusRing`
   - `FillRoundRect/StrokeRoundRect`
   - `FillCircle/StrokeCircle`
   - `DrawTextBox` -> `GlyphRun`

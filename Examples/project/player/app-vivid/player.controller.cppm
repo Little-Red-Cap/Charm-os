@@ -441,7 +441,7 @@ export namespace player {
             const auto* labels = storage.track_labels;
             if (!labels) return;
             for (std::size_t i = 0; i < labels->size(); ++i) {
-                player::font_cache::ensure_text((*labels)[i].c_str());
+                player::font_cache::ensure_text((*labels)[i].view());
             }
         }
 

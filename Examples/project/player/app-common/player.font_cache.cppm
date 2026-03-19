@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <array>
 #include <span>
@@ -29,6 +30,9 @@ namespace detail {
         std::vector<std::uint32_t> sparse_codes{};
         std::vector<std::uint16_t> sparse_ids{};
         Font font{};
+        std::uint32_t glyph_requests{0};
+        std::uint32_t glyph_cached{0};
+        std::uint32_t glyph_missing{0};
         bool ready{false};
     };
 
@@ -65,6 +69,7 @@ namespace detail {
     }
 
     bool ensure_glyph(Cache& c, std::uint32_t cp) {
+        ++c.glyph_requests;
         for (std::size_t i = 0; i < c.sparse_codes.size(); ++i) {
             if (c.sparse_codes[i] == cp) return true;
         }
@@ -80,9 +85,11 @@ namespace detail {
 
         std::array<WORD, 2> glyphs{0, 0};
         if (GetGlyphIndicesW(c.hdc, &ch, 1, glyphs.data(), GGI_MARK_NONEXISTING_GLYPHS) == GDI_ERROR) {
+            ++c.glyph_missing;
             return false;
         }
         if (glyphs[0] == 0xFFFF) {
+            ++c.glyph_missing;
             return false;
         }
 
@@ -95,6 +102,7 @@ namespace detail {
             nullptr,
             &mat);
         if (size == GDI_ERROR) {
+            ++c.glyph_missing;
             return false;
         }
         std::vector<std::uint8_t> buffer;
@@ -108,6 +116,7 @@ namespace detail {
                     static_cast<DWORD>(buffer.size()),
                     buffer.data(),
                     &mat) == GDI_ERROR) {
+                ++c.glyph_missing;
                 return false;
             }
         }
@@ -155,40 +164,18 @@ namespace detail {
         c.font.table = std::span<const Glyph>(c.glyphs.data(), c.glyphs.size());
         c.font.sparse_codes = std::span<const std::uint32_t>(c.sparse_codes.data(), c.sparse_codes.size());
         c.font.sparse_glyph_ids = std::span<const std::uint16_t>(c.sparse_ids.data(), c.sparse_ids.size());
+        ++c.glyph_cached;
         return true;
     }
 
-    bool ensure_text_impl(Cache& c, const char* text) {
-        if (!text) return false;
-        const char* p = text;
-        while (*p) {
-            const std::uint8_t c0 = static_cast<std::uint8_t>(*p);
+    bool ensure_text_impl(Cache& c, std::string_view text) {
+        if (text.empty()) return false;
+        const char* p = text.data();
+        const char* end = p + text.size();
+        while (p < end) {
             std::uint32_t cp = 0;
-            if (c0 < 0x80) {
-                cp = c0;
-                ++p;
-            } else if ((c0 >> 5) == 0x6) {
-                if (!p[1]) break;
-                cp = ((c0 & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
-                p += 2;
-            } else if ((c0 >> 4) == 0xE) {
-                if (!p[1] || !p[2]) break;
-                cp = ((c0 & 0x0F) << 12)
-                    | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
-                    | (static_cast<std::uint8_t>(p[2]) & 0x3F);
-                p += 3;
-            } else if ((c0 >> 3) == 0x1E) {
-                if (!p[1] || !p[2] || !p[3]) break;
-                cp = ((c0 & 0x07) << 18)
-                    | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
-                    | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
-                    | (static_cast<std::uint8_t>(p[3]) & 0x3F);
-                p += 4;
-            } else {
-                cp = '?';
-                ++p;
-            }
-            if (cp == '\n' || cp == '\r' || cp == '\t') continue;
+            if (!next_utf8_codepoint(p, end, cp)) break;
+            if (cp == 0 || cp == '\n' || cp == '\r' || cp == '\t') continue;
             (void)ensure_glyph(c, cp);
         }
         return true;
@@ -200,6 +187,9 @@ inline bool init() noexcept {
 #if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
     auto& c = detail::cache();
     if (c.ready) return true;
+    c.glyph_requests = 0;
+    c.glyph_cached = 0;
+    c.glyph_missing = 0;
     c.ready = detail::init_cache(c);
     if (c.ready) {
         detail::ensure_glyph(c, static_cast<std::uint32_t>('?'));
@@ -227,6 +217,17 @@ inline void ensure_text(const char* text) noexcept {
 #if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
     auto& c = detail::cache();
     if (!c.ready) return;
+    if (!text) return;
+    (void)detail::ensure_text_impl(c, std::string_view{text});
+#else
+    (void)text;
+#endif
+}
+
+inline void ensure_text(std::string_view text) noexcept {
+#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+    auto& c = detail::cache();
+    if (!c.ready || text.empty()) return;
     (void)detail::ensure_text_impl(c, text);
 #else
     (void)text;
@@ -238,6 +239,30 @@ inline bool ready() noexcept {
     return detail::cache().ready;
 #else
     return false;
+#endif
+}
+
+struct Stats {
+    std::uint32_t requests{};
+    std::uint32_t cached{};
+    std::uint32_t missing{};
+};
+
+inline Stats stats() noexcept {
+#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+    const auto& c = detail::cache();
+    return Stats{c.glyph_requests, c.glyph_cached, c.glyph_missing};
+#else
+    return Stats{};
+#endif
+}
+
+inline void reset_stats() noexcept {
+#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+    auto& c = detail::cache();
+    c.glyph_requests = 0;
+    c.glyph_cached = 0;
+    c.glyph_missing = 0;
 #endif
 }
 } // namespace player::font_cache

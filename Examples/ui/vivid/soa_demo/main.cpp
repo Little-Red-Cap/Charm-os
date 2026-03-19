@@ -300,7 +300,12 @@ namespace {
         DefaultFrameBuffer& fb;
         PixelFormat src_format{screen_pixel_format};
         std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
-        bool mono{false};
+        enum class MonoMode : std::uint8_t {
+            None,
+            BW1,
+            Gray2
+        };
+        MonoMode mono_mode{MonoMode::None};
         std::uint8_t mono_threshold{128};
         bool dirty_set{false};
         int dirty_left{0};
@@ -323,7 +328,7 @@ namespace {
             if (bytes > max_bytes) bytes = max_bytes;
             auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
                 + static_cast<std::size_t>(x) * bpp;
-            if (!mono) {
+            if (mono_mode == MonoMode::None) {
                 std::memcpy(dst, src, bytes);
                 return;
             }
@@ -352,7 +357,7 @@ namespace {
                     return rgb{0, 0, 0};
                 }
             };
-            const auto write_bw = [&](std::byte* p, std::uint8_t v) noexcept {
+            const auto write_gray = [&](std::byte* p, std::uint8_t v) noexcept {
                 switch (screen_pixel_format) {
                 case PixelFormat::RGB565: {
                     const std::uint16_t px = pack_rgb565(rgb{v, v, v});
@@ -371,6 +376,12 @@ namespace {
                 }
                 }
             };
+            static constexpr std::uint8_t kBayer4[4][4] = {
+                { 0,  8,  2, 10},
+                {12,  4, 14,  6},
+                { 3, 11,  1,  9},
+                {15,  7, 13,  5}
+            };
             const std::byte* s = src;
             std::byte* d = dst;
             for (std::size_t i = 0; i < count; ++i) {
@@ -379,8 +390,19 @@ namespace {
                     (static_cast<std::uint32_t>(c.r) * 77u
                         + static_cast<std::uint32_t>(c.g) * 150u
                         + static_cast<std::uint32_t>(c.b) * 29u) >> 8u);
-                const std::uint8_t v = (lum >= mono_threshold) ? 255u : 0u;
-                write_bw(d, v);
+                std::uint8_t v = 0u;
+                if (mono_mode == MonoMode::BW1) {
+                    v = (lum >= mono_threshold) ? 255u : 0u;
+                } else {
+                    const int px_x = x + static_cast<int>(i);
+                    const std::uint8_t dither = kBayer4[y & 3][px_x & 3];
+                    int lum_d = static_cast<int>(lum) + (static_cast<int>(dither) - 8) * 8;
+                    if (lum_d < 0) lum_d = 0;
+                    if (lum_d > 255) lum_d = 255;
+                    const std::uint8_t level = static_cast<std::uint8_t>((lum_d * 4) >> 8);
+                    v = static_cast<std::uint8_t>(level * 85u);
+                }
+                write_gray(d, v);
                 s += src_bpp;
                 d += bpp;
             }
@@ -2085,6 +2107,7 @@ int main(int argc, char** argv) {
     bool run_regress_ui = false;
     bool use_tiles = false;
     bool use_bw1 = false;
+    bool use_gray2 = false;
     bool print_stats = false;
     bool run_compare = false;
     bool run_dump = false;
@@ -2154,6 +2177,9 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--bw1-threshold=", 0) == 0) {
             const int value = std::atoi(std::string(arg.substr(17)).c_str());
             bw1_threshold = (value < 0) ? 0 : (value > 255) ? 255 : value;
+        } else if (arg == "--gray2") {
+            use_gray2 = true;
+            use_tiles = true;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2217,6 +2243,10 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] bw1 disabled for headless runs">(g_console);
         use_bw1 = false;
     }
+    if (run_headless && use_gray2) {
+        (void)out::println<"[soa] gray2 disabled for headless runs">(g_console);
+        use_gray2 = false;
+    }
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -2235,7 +2265,13 @@ int main(int argc, char** argv) {
         : (tile_view.format == PixelFormat::RGB888) ? 3u
         : (tile_view.format == PixelFormat::ARGB8888) ? 4u
         : 0u;
-    tile_backend.mono = use_bw1;
+    if (use_gray2) {
+        tile_backend.mono_mode = SdlTileBackend::MonoMode::Gray2;
+    } else if (use_bw1) {
+        tile_backend.mono_mode = SdlTileBackend::MonoMode::BW1;
+    } else {
+        tile_backend.mono_mode = SdlTileBackend::MonoMode::None;
+    }
     tile_backend.mono_threshold = static_cast<std::uint8_t>(bw1_threshold);
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;

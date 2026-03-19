@@ -304,16 +304,33 @@ namespace {
             Eink
         };
 
+        enum class RefreshKind : std::uint8_t {
+            None,
+            Partial,
+            Full
+        };
+
         struct DisplayConfig {
             DisplayMode mode{DisplayMode::Color};
             std::uint8_t bw1_threshold{128};
             std::uint8_t gray2_strength{8};
         };
 
+        struct EinkPolicy {
+            int max_partial_count{20};
+            int min_full_interval_ms{30000};
+            int partial_area_ratio_pct{35};
+        };
+
         DefaultFrameBuffer& fb;
         PixelFormat src_format{screen_pixel_format};
         std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
         DisplayConfig display{};
+        EinkPolicy eink_policy{};
+        RefreshKind last_refresh{RefreshKind::None};
+        int partial_count{0};
+        std::uint32_t last_full_ms{0};
+        int last_dirty_pct{0};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -413,6 +430,37 @@ namespace {
                 write_gray(d, v);
                 s += src_bpp;
                 d += bpp;
+            }
+        }
+
+        void decide_refresh(int dirty_area, int screen_area, std::uint32_t now_ms) noexcept {
+            if (dirty_area <= 0 || screen_area <= 0) {
+                last_refresh = RefreshKind::None;
+                last_dirty_pct = 0;
+                return;
+            }
+            const int dirty_pct = static_cast<int>(
+                (static_cast<std::uint64_t>(dirty_area) * 100u)
+                / static_cast<std::uint64_t>(screen_area));
+            last_dirty_pct = dirty_pct;
+            const bool want_full = dirty_pct >= eink_policy.partial_area_ratio_pct
+                || partial_count >= eink_policy.max_partial_count;
+            const std::uint32_t since_full = now_ms - last_full_ms;
+            if (want_full && since_full >= static_cast<std::uint32_t>(eink_policy.min_full_interval_ms)) {
+                last_refresh = RefreshKind::Full;
+                partial_count = 0;
+                last_full_ms = now_ms;
+            } else {
+                last_refresh = RefreshKind::Partial;
+                ++partial_count;
+            }
+        }
+
+        const char* last_refresh_name() const noexcept {
+            switch (last_refresh) {
+            case RefreshKind::Partial: return "partial";
+            case RefreshKind::Full: return "full";
+            default: return "none";
             }
         }
 
@@ -2116,6 +2164,7 @@ int main(int argc, char** argv) {
     bool use_tiles = false;
     bool use_bw1 = false;
     bool use_gray2 = false;
+    bool use_eink = false;
     bool print_stats = false;
     bool run_compare = false;
     bool run_dump = false;
@@ -2192,6 +2241,9 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--gray2-strength=", 0) == 0) {
             const int value = std::atoi(std::string(arg.substr(17)).c_str());
             gray2_strength = (value < 0) ? 0 : (value > 64) ? 64 : value;
+        } else if (arg == "--eink") {
+            use_eink = true;
+            use_tiles = true;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2259,6 +2311,10 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] gray2 disabled for headless runs">(g_console);
         use_gray2 = false;
     }
+    if (run_headless && use_eink) {
+        (void)out::println<"[soa] eink disabled for headless runs">(g_console);
+        use_eink = false;
+    }
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -2277,7 +2333,9 @@ int main(int argc, char** argv) {
         : (tile_view.format == PixelFormat::RGB888) ? 3u
         : (tile_view.format == PixelFormat::ARGB8888) ? 4u
         : 0u;
-    if (use_gray2) {
+    if (use_eink) {
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Eink;
+    } else if (use_gray2) {
         tile_backend.display.mode = SdlTileBackend::DisplayMode::Gray2;
     } else if (use_bw1) {
         tile_backend.display.mode = SdlTileBackend::DisplayMode::BW1;
@@ -3253,6 +3311,11 @@ int main(int argc, char** argv) {
                 dirty_pct = (screen_area > 0)
                     ? static_cast<std::uint8_t>((area * 100u) / screen_area)
                     : 0;
+                if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                    tile_backend.decide_refresh(static_cast<int>(dirty_area),
+                                                static_cast<int>(screen_area),
+                                                SDL_GetTicks());
+                }
                 SDL_Rect rect{dirty.x, dirty.y, dirty.w, dirty.h};
                 const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
                 const std::size_t stride = DefaultFrameBuffer::stride_bytes;
@@ -3287,6 +3350,13 @@ int main(int argc, char** argv) {
                         dirty_area,
                         static_cast<std::uint32_t>(dirty_pct),
                         static_cast<std::uint32_t>(tile_hit_pct));
+                    if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                        (void)out::println<"[soa] eink refresh={} partial_count={} dirty_pct={}">(
+                            g_console,
+                            tile_backend.last_refresh_name(),
+                            tile_backend.partial_count,
+                            tile_backend.last_dirty_pct);
+                    }
                 } else {
                     (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={}">(
                         g_console,

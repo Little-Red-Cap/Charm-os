@@ -59,6 +59,7 @@ export namespace ui::draw_cmd {
         StrokeCircleBatch,
         GlyphRun,
         DrawImageBatch,
+        DrawImageRoundRectBatch,
     };
 
     struct TextSpan {
@@ -194,6 +195,14 @@ export namespace ui::draw_cmd {
         std::int16_t count{0};
         std::int16_t pad{0};
     };
+
+    struct CmdImageBatchP0 {
+        ImageId image{};
+        BlobRef blob{};
+        std::int16_t p0{0};
+        std::int16_t count{0};
+    };
+
 
     struct DrawCmd {
         CmdType type{CmdType::FillRect};
@@ -441,6 +450,15 @@ export namespace ui::draw_cmd {
             out.image = payload.image;
             out.blob = payload.blob;
             out.p0 = payload.count;
+            return true;
+        }
+        case CmdType::DrawImageRoundRectBatch: {
+            if (!payload_fits(header, sizeof(CmdImageBatchP0))) return false;
+            const auto payload = read_payload<CmdImageBatchP0>(header);
+            out.image = payload.image;
+            out.blob = payload.blob;
+            out.p0 = payload.p0;
+            out.p1 = payload.count;
             return true;
         }
         default:
@@ -1026,6 +1044,51 @@ export namespace ui::draw_cmd {
                         }
                         ok = false;
                     }
+                } else if (allow_batch && cmd.type == CmdType::DrawImageRoundRect) {
+                    if (!image_id_valid(cmd.image)) {
+                        if (!emit_cmd(cmd)) ok = false;
+                        ++i;
+                        continue;
+                    }
+                    std::size_t run = 1;
+                    while ((i + run) < input_count) {
+                        DrawCmd next{};
+                        if (!read_cmd_at(i + run, next)) break;
+                        if (next.type != CmdType::DrawImageRoundRect) break;
+                        if (next.image != cmd.image) break;
+                        if (next.p0 != cmd.p0) break;
+                        ++run;
+                    }
+                    if (run >= 2) {
+                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        Rect bounds = cmd.rect;
+                        for (std::size_t j = 0; j < batch; ++j) {
+                            DrawCmd next{};
+                            (void)read_cmd_at(i + j, next);
+                            image_items[j].rect = next.rect;
+                            if (j == 0) {
+                                bounds = image_items[j].rect;
+                            } else {
+                                bounds = rect_union(bounds, image_items[j].rect);
+                            }
+                        }
+                        const BlobRef blob = blob_.add_bytes(image_items.data(),
+                                                             batch * sizeof(ImageBatchItem),
+                                                             alignof(ImageBatchItem));
+                        if (blob.length != 0) {
+                            DrawCmd batch_cmd{};
+                            batch_cmd.type = CmdType::DrawImageRoundRectBatch;
+                            batch_cmd.rect = bounds;
+                            batch_cmd.image = cmd.image;
+                            batch_cmd.blob = blob;
+                            batch_cmd.p0 = cmd.p0;
+                            batch_cmd.p1 = static_cast<std::int16_t>(batch);
+                            if (!emit_cmd(batch_cmd)) ok = false;
+                            i += batch;
+                            continue;
+                        }
+                        ok = false;
+                    }
                 }
                 if (!emit_cmd(cmd)) ok = false;
                 ++i;
@@ -1246,6 +1309,15 @@ export namespace ui::draw_cmd {
                 payload.image = cmd.image;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::DrawImageRoundRectBatch: {
+                CmdImageBatchP0 payload{};
+                payload.image = cmd.image;
+                payload.blob = cmd.blob;
+                payload.p0 = cmd.p0;
+                payload.count = cmd.p1;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -1643,6 +1715,35 @@ export namespace ui::draw_cmd {
                                                           item.rect.w, item.rect.h, *image);
                         } else {
                             ui::render::draw_image(canvas, item.rect.x, item.rect.y, *image);
+                        }
+                    }
+                    break;
+                }
+                case CmdType::DrawImageRoundRectBatch: {
+                    const int count = cmd.p1;
+                    if (count <= 0) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto* image = resolve_image(cmd.image);
+                    if (!image || !(*image)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto blob = buf.blob_at(cmd.blob);
+                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
+                        stats.failed_cmds++;
+                        break;
+                    }
+                    const auto items = std::span<const ImageBatchItem>(
+                        reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
+                    for (const auto& item : items) {
+                        if (item.rect.w > 0 && item.rect.h > 0) {
+                            ui::render::draw_image_scaled_round_rect(canvas, item.rect.x, item.rect.y,
+                                                                     item.rect.w, item.rect.h, *image, cmd.p0);
+                        } else {
+                            ui::render::draw_image_round_rect(canvas, item.rect.x, item.rect.y,
+                                                              *image, cmd.p0);
                         }
                     }
                     break;

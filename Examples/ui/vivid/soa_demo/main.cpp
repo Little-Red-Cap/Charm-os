@@ -307,6 +307,7 @@ namespace {
         };
         MonoMode mono_mode{MonoMode::None};
         std::uint8_t mono_threshold{128};
+        std::uint8_t gray2_strength{8};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -396,7 +397,8 @@ namespace {
                 } else {
                     const int px_x = x + static_cast<int>(i);
                     const std::uint8_t dither = kBayer4[y & 3][px_x & 3];
-                    int lum_d = static_cast<int>(lum) + (static_cast<int>(dither) - 8) * 8;
+                    const int strength = static_cast<int>(gray2_strength);
+                    int lum_d = static_cast<int>(lum) + (static_cast<int>(dither) - 8) * strength;
                     if (lum_d < 0) lum_d = 0;
                     if (lum_d > 255) lum_d = 255;
                     const std::uint8_t level = static_cast<std::uint8_t>((lum_d * 4) >> 8);
@@ -2119,6 +2121,7 @@ int main(int argc, char** argv) {
     bool run_screenshot = false;
     bool run_gif = false;
     int bw1_threshold = 128;
+    int gray2_strength = 8;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
@@ -2180,6 +2183,9 @@ int main(int argc, char** argv) {
         } else if (arg == "--gray2") {
             use_gray2 = true;
             use_tiles = true;
+        } else if (arg.rfind("--gray2-strength=", 0) == 0) {
+            const int value = std::atoi(std::string(arg.substr(17)).c_str());
+            gray2_strength = (value < 0) ? 0 : (value > 64) ? 64 : value;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2273,6 +2279,7 @@ int main(int argc, char** argv) {
         tile_backend.mono_mode = SdlTileBackend::MonoMode::None;
     }
     tile_backend.mono_threshold = static_cast<std::uint8_t>(bw1_threshold);
+    tile_backend.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;

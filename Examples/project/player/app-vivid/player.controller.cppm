@@ -617,16 +617,24 @@ export namespace player {
                 ? (snap.pump.water_max * 1000 / bytes_per_sec)
                 : 0;
 
-            char buf[160]{};
+            char buf[192]{};
+            const auto font_stats = player::font_cache::ready()
+                ? player::font_cache::stats()
+                : player::font_cache::Stats{};
+            const bool font_on = player::font_cache::ready();
             std::snprintf(buf, sizeof(buf),
-                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu",
+                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu font %s %u/%u/%u",
                           static_cast<unsigned long long>(water_ms),
                           static_cast<unsigned long long>(low_ms),
                           static_cast<unsigned long long>(high_ms),
                           static_cast<unsigned long long>(pump_min_ms),
                           static_cast<unsigned long long>(pump_max_ms),
                           static_cast<unsigned long long>(snap.stats.underrun_count),
-                          static_cast<unsigned long long>(snap.pump.underrun_count));
+                          static_cast<unsigned long long>(snap.pump.underrun_count),
+                          font_on ? "on" : "off",
+                          static_cast<unsigned>(font_stats.requests),
+                          static_cast<unsigned>(font_stats.cached),
+                          static_cast<unsigned>(font_stats.missing));
             if (last_debug_text.view() == buf) return;
             last_debug_text.assign(buf);
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);

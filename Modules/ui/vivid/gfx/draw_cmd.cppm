@@ -1931,6 +1931,11 @@ export namespace ui::draw_cmd {
                 case CmdType::DrawLine:
                     exec_draw_line(cmd);
                     break;
+                case CmdType::DrawImage:
+                case CmdType::DrawImageRoundRect:
+                case CmdType::DrawImageNineSlice:
+                    exec_image_like(cmd);
+                    break;
                 case CmdType::DrawLineBatch: {
                     const int count = cmd.p0;
                     if (count <= 0) {

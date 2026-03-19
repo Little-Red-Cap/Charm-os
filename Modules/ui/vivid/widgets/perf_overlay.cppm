@@ -81,6 +81,9 @@ public:
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::PerfOverlay, state, base, st_scratch);
         const auto r = get_rect();
+        const auto missing_glyphs = missing_glyph_count();
+        const auto missing_fallbacks = missing_glyph_fallback_count();
+        const auto utf8_replaces = utf8_replacement_count();
 
         rgba bg{};
         rgba border{};
@@ -102,6 +105,12 @@ public:
         if (!has_sample_) {
             (void)format_to<"perf: n/a">(buf, sizeof(buf));
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+            y += line_h;
+            (void)format_to<"glyph: {}/{}/{}">(buf, sizeof(buf),
+                                             static_cast<unsigned>(missing_glyphs),
+                                             static_cast<unsigned>(missing_fallbacks),
+                                             static_cast<unsigned>(utf8_replaces));
+            draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             return;
         }
 
@@ -115,6 +124,13 @@ public:
 
         (void)format_to<"nodes: {}  depth: {}  cycle: {}">(buf, sizeof(buf),
                                                          sample_.nodes, sample_.depth_hits, sample_.cycle_hits);
+        draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+        y += line_h;
+
+        (void)format_to<"glyph: {}/{}/{}">(buf, sizeof(buf),
+                                          static_cast<unsigned>(missing_glyphs),
+                                          static_cast<unsigned>(missing_fallbacks),
+                                          static_cast<unsigned>(utf8_replaces));
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
     }
 

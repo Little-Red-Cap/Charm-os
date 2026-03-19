@@ -2015,16 +2015,29 @@ export namespace ui::draw_cmd {
                     }
                     Rect bounds = cmd.rect;
                     if (cmd.type == CmdType::DrawLine) {
-                        const int x0 = cmd.rect.x;
-                        const int y0 = cmd.rect.y;
-                        const int x1 = cmd.rect.w;
-                        const int y1 = cmd.rect.h;
-                        bounds = Rect{
-                            (x0 < x1) ? x0 : x1,
-                            (y0 < y1) ? y0 : y1,
-                            (x0 < x1) ? (x1 - x0 + 1) : (x0 - x1 + 1),
-                            (y0 < y1) ? (y1 - y0 + 1) : (y0 - y1 + 1)
-                        };
+                        bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
+                    } else if (cmd.type == CmdType::DrawLineBatch) {
+                        const int count = cmd.p0;
+                        if (count <= 0) continue;
+                        const auto blob = buf.blob_at(cmd.blob);
+                        if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                            continue;
+                        }
+                        const auto items = std::span<const LineBatchItem>(
+                            reinterpret_cast<const LineBatchItem*>(blob.data()), count);
+                        bool first = true;
+                        Rect union_bounds{};
+                        for (const auto& item : items) {
+                            const Rect line_rect = line_bounds(item.x0, item.y0, item.x1, item.y1);
+                            if (first) {
+                                union_bounds = line_rect;
+                                first = false;
+                            } else {
+                                union_bounds = rect_union(union_bounds, line_rect);
+                            }
+                        }
+                        if (first) continue;
+                        bounds = union_bounds;
                     }
                     if (!rect_valid(bounds)) continue;
                     if (!rect_intersect(bounds, screen_rect, clipped)) continue;

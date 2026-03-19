@@ -98,6 +98,16 @@ sequenceDiagram
 - `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
 
+**命令合批（Compaction）：**
+
+- compaction 仅在 record 结束后执行，保证回放与哈希一致性。
+- 已覆盖的 batch：
+  - `FillRect/StrokeRect`
+  - `FillRoundRect/StrokeRoundRect`
+  - `FillCircle/StrokeCircle`
+  - `DrawTextBox` -> `GlyphRun`
+  - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
+
 ```mermaid
 flowchart LR
   A[SoaGui] --> B[DrawCmdBuffer]

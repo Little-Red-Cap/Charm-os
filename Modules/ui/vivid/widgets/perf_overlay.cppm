@@ -84,6 +84,7 @@ public:
         const auto missing_glyphs = missing_glyph_count();
         const auto missing_fallbacks = missing_glyph_fallback_count();
         const auto utf8_replaces = utf8_replacement_count();
+        const auto text_profile = text_profile_sample();
 
         rgba bg{};
         rgba border{};
@@ -106,13 +107,20 @@ public:
             (void)format_to<"perf: n/a">(buf, sizeof(buf));
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             y += line_h;
-            (void)format_to<"glyph: {}/{}/{}">(buf, sizeof(buf),
-                                             static_cast<unsigned>(missing_glyphs),
-                                             static_cast<unsigned>(missing_fallbacks),
-                                             static_cast<unsigned>(utf8_replaces));
-            draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
-            return;
-        }
+        (void)format_to<"glyph: {}/{}/{}">(buf, sizeof(buf),
+                                          static_cast<unsigned>(missing_glyphs),
+                                          static_cast<unsigned>(missing_fallbacks),
+                                          static_cast<unsigned>(utf8_replaces));
+        draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+        y += line_h;
+
+        (void)format_to<"text: {}/{}/{}">(buf, sizeof(buf),
+                                         static_cast<unsigned long long>(text_profile.draw_calls),
+                                         static_cast<unsigned long long>(text_profile.glyphs),
+                                         static_cast<unsigned long long>(text_profile.pixels));
+        draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+        return;
+    }
 
         (void)format_to<"fps: {}  draw: {} ms">(buf, sizeof(buf), sample_.fps, sample_.draw_ms);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
@@ -131,6 +139,13 @@ public:
                                           static_cast<unsigned>(missing_glyphs),
                                           static_cast<unsigned>(missing_fallbacks),
                                           static_cast<unsigned>(utf8_replaces));
+        draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+        y += line_h;
+
+        (void)format_to<"text: {}/{}/{}">(buf, sizeof(buf),
+                                         static_cast<unsigned long long>(text_profile.draw_calls),
+                                         static_cast<unsigned long long>(text_profile.glyphs),
+                                         static_cast<unsigned long long>(text_profile.pixels));
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
     }
 

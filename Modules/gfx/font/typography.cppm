@@ -124,11 +124,23 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
+export struct FontProviderApi {
+    const Font* (*get_font)(void* ctx, FontId id) noexcept;
+    const Font* (*get_fallback_font)(void* ctx) noexcept;
+};
+
+export struct FontProvider {
+    void* ctx{nullptr};
+    const FontProviderApi* api{nullptr};
+};
+
 const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
 const Font* g_default_fallback = nullptr;
 const Font k_empty_font{};
+FontProvider g_font_provider{};
 
 export void set_default_font(const FontId id, const Font* font) noexcept;
+export void set_font_provider(FontProvider provider) noexcept;
 
 export void set_default_fallback_font(const Font* font) noexcept;
 export void set_utf8_replacement_char(std::uint32_t codepoint) noexcept;
@@ -151,6 +163,12 @@ inline const Font* fallback_for(const Font& font) noexcept {
     if (font.fallback_font) {
         return font.fallback_font;
     }
+    if (g_font_provider.api && g_font_provider.api->get_fallback_font) {
+        const auto* provider_fallback = g_font_provider.api->get_fallback_font(g_font_provider.ctx);
+        if (provider_fallback && &font != provider_fallback) {
+            return provider_fallback;
+        }
+    }
     if (g_default_fallback && &font != g_default_fallback) {
         return g_default_fallback;
     }
@@ -159,6 +177,11 @@ inline const Font* fallback_for(const Font& font) noexcept {
 
 export
 const Font& get_font(const FontId id) noexcept {
+    if (g_font_provider.api && g_font_provider.api->get_font) {
+        if (const auto* font = g_font_provider.api->get_font(g_font_provider.ctx, id)) {
+            return *font;
+        }
+    }
     const auto* font = g_default_fonts[static_cast<unsigned>(id)];
     if (font) return *font;
     return k_empty_font;
@@ -211,6 +234,11 @@ inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_
 export
 void set_default_font(const FontId id, const Font* font) noexcept {
     g_default_fonts[static_cast<unsigned>(id)] = font;
+}
+
+export
+void set_font_provider(FontProvider provider) noexcept {
+    g_font_provider = provider;
 }
 
 export

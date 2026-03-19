@@ -495,6 +495,21 @@ namespace {
         }
     };
 
+    void append_display_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                                const SdlTileBackend& backend) noexcept {
+        if (backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        char label[64]{};
+        const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
+        (void)std::snprintf(label, sizeof(label), "gray2 str=%u", strength);
+        const Rect panel{8, 8, 128, 18};
+        buf.fill_round_rect(panel, 4, kDemoPanel);
+        buf.stroke_round_rect(panel, 4, kDemoPanelBorder);
+        buf.draw_text_box(panel, label, kDemoPath,
+                          get_font(FontId::Normal),
+                          TextAlignH::Left, TextAlignV::Center,
+                          TextWrap::None, TextEllipsis::None);
+    }
+
     constexpr std::uint32_t vcmd_magic() noexcept {
         return static_cast<std::uint32_t>('V')
             | (static_cast<std::uint32_t>('C') << 8)
@@ -3235,6 +3250,15 @@ int main(int argc, char** argv) {
     std::uint8_t spinner_phase = 0;
     int stat_frame = 0;
     const int stat_interval = 60;
+    const auto adjust_gray2_strength = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        int next = static_cast<int>(tile_backend.display.gray2_strength) + delta;
+        next = std::clamp(next, 0, 64);
+        if (next == tile_backend.display.gray2_strength) return;
+        tile_backend.display.gray2_strength = static_cast<std::uint8_t>(next);
+        gray2_strength = next;
+        (void)out::println<"[soa] gray2 strength={}">(g_console, next);
+    };
 
     while (running) {
         SDL_Event evt{};
@@ -3246,7 +3270,24 @@ int main(int argc, char** argv) {
                 running = false;
                 break;
             }
-            if (evt.type == SDL_EVENT_MOUSE_MOTION) {
+            if (evt.type == SDL_EVENT_KEY_DOWN) {
+                const SDL_Keycode key = evt.key.key;
+                switch (key) {
+                case SDLK_KP_PLUS:
+                case SDLK_EQUALS:
+                case SDLK_PLUS:
+                case SDLK_RIGHTBRACKET:
+                    adjust_gray2_strength(1);
+                    break;
+                case SDLK_KP_MINUS:
+                case SDLK_MINUS:
+                case SDLK_LEFTBRACKET:
+                    adjust_gray2_strength(-1);
+                    break;
+                default:
+                    break;
+                }
+            } else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, mouse_x, mouse_y)) {
                     gui.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3291,6 +3332,7 @@ int main(int argc, char** argv) {
 
         gui.record_commands(cmd_buf);
         append_path_icon(cmd_buf, screen_width);
+        append_display_overlay(cmd_buf, tile_backend);
         cmd_buf.compact();
         const auto cmd_stats = cmd_buf.stats();
 

@@ -912,7 +912,7 @@ export namespace ui::draw_cmd {
             std::size_t i = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
-            constexpr std::int64_t kPathUnionMaxFactor = 4;
+            constexpr std::int64_t kPathUnionMaxFactor = 8;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
             std::array<LineBatchItem, kMaxBatchItems> line_items{};
             std::array<PathBatchItem, kMaxBatchItems> path_items{};
@@ -953,9 +953,6 @@ export namespace ui::draw_cmd {
                 const Rect n = rect_normalized(r);
                 if (n.w <= 0 || n.h <= 0) return 0;
                 return static_cast<std::int64_t>(n.w) * static_cast<std::int64_t>(n.h);
-            };
-            auto is_scaled_image = [](const DrawCmd& c) noexcept {
-                return c.rect.w > 0 && c.rect.h > 0;
             };
 
             while (i < input_count) {
@@ -1212,14 +1209,12 @@ export namespace ui::draw_cmd {
                         ++i;
                         continue;
                     }
-                    const bool scaled = is_scaled_image(cmd);
                     std::size_t run = 1;
                     while ((i + run) < input_count) {
                         DrawCmd next{};
                         if (!read_cmd_at(i + run, next)) break;
                         if (next.type != CmdType::DrawImage) break;
                         if (next.image != cmd.image) break;
-                        if (is_scaled_image(next) != scaled) break;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1257,7 +1252,6 @@ export namespace ui::draw_cmd {
                         ++i;
                         continue;
                     }
-                    const bool scaled = is_scaled_image(cmd);
                     std::size_t run = 1;
                     while ((i + run) < input_count) {
                         DrawCmd next{};
@@ -1265,7 +1259,6 @@ export namespace ui::draw_cmd {
                         if (next.type != CmdType::DrawImageRoundRect) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0) break;
-                        if (is_scaled_image(next) != scaled) break;
                         ++run;
                     }
                     if (run >= 2) {

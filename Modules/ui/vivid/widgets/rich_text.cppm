@@ -117,8 +117,14 @@ public:
                 }
             }
 
+            const char* glyph_start = p;
             std::uint32_t cp = 0;
             if (!alg::text_layout::next_codepoint(p, end, cp)) break;
+            if (cp == 0) {
+                prev_gid = 0;
+                prev_font = nullptr;
+                continue;
+            }
             if (cp == '\n') {
                 x = r.x + st.metrics.padding;
                 y += line_height;
@@ -138,29 +144,11 @@ public:
                 if (y + line_height > r.y + r.h) break;
             }
 
-            char glyph[5]{};
-            int len = 0;
-            if (cp <= 0x7F) {
-                glyph[len++] = static_cast<char>(cp);
-            } else if (cp <= 0x7FF) {
-                glyph[len++] = static_cast<char>(0xC0 | ((cp >> 6) & 0x1F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            } else if (cp <= 0xFFFF) {
-                glyph[len++] = static_cast<char>(0xE0 | ((cp >> 12) & 0x0F));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            } else {
-                glyph[len++] = static_cast<char>(0xF0 | ((cp >> 18) & 0x07));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-                glyph[len++] = static_cast<char>(0x80 | (cp & 0x3F));
-            }
-            glyph[len] = '\0';
-
             const int baseline_y = y + font.baseline;
-            draw_text_baseline(cvs, x, baseline_y, glyph, state.color, font);
+            const int glyph_len = static_cast<int>(p - glyph_start);
+            draw_text_baseline_range(cvs, x, baseline_y, glyph_start, glyph_len, state.color, font);
             if (state.bold) {
-                draw_text_baseline(cvs, x + 1, baseline_y, glyph, state.color, font);
+                draw_text_baseline_range(cvs, x + 1, baseline_y, glyph_start, glyph_len, state.color, font);
             }
             x += adv;
         }

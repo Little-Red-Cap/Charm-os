@@ -182,6 +182,11 @@ export namespace alg::text_layout {
                              std::uint32_t cp,
                              std::uint16_t& prev_gid,
                              const Font*& prev_font) noexcept {
+        if (cp == 0) {
+            prev_gid = 0;
+            prev_font = nullptr;
+            return 0;
+        }
         const auto resolved = resolve_glyph_fallback(font, cp);
         if (!resolved.glyph) {
             prev_gid = 0;

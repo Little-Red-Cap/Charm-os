@@ -2095,6 +2095,7 @@ int main(int argc, char** argv) {
     bool replay_backend_set = false;
     bool run_screenshot = false;
     bool run_gif = false;
+    int bw1_threshold = 128;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
@@ -2150,6 +2151,9 @@ int main(int argc, char** argv) {
         } else if (arg == "--bw1") {
             use_bw1 = true;
             use_tiles = true;
+        } else if (arg.rfind("--bw1-threshold=", 0) == 0) {
+            const int value = std::atoi(std::string(arg.substr(17)).c_str());
+            bw1_threshold = (value < 0) ? 0 : (value > 255) ? 255 : value;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2232,6 +2236,7 @@ int main(int argc, char** argv) {
         : (tile_view.format == PixelFormat::ARGB8888) ? 4u
         : 0u;
     tile_backend.mono = use_bw1;
+    tile_backend.mono_threshold = static_cast<std::uint8_t>(bw1_threshold);
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;

@@ -302,6 +302,10 @@ export namespace ui::gfx {
         void unregister_image(ImageId id) noexcept {
             if (!image_id_valid(id)) return;
             if (id.slot >= views.size()) return;
+            if (locked()) {
+                (void)allow_register_new(ImageRegisterReason::Unknown, "unregister");
+                return;
+            }
             if (used[id.slot] == 0) return;
             if (generations[id.slot] != id.generation) return;
             used[id.slot] = 0;

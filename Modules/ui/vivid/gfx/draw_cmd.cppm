@@ -725,9 +725,16 @@ export namespace ui::draw_cmd {
             }
             cmd_bytes_used_ = cmd_bytes_len;
             count_ = cmd_count;
-            if (!rebuild_offsets()) {
-                cmd_overflowed_ = true;
-                return false;
+            if (cmd_bytes_used_ > 0) {
+                if (count_ == 0) {
+                    if (!rebuild_offsets_from_bytes()) {
+                        cmd_overflowed_ = true;
+                        return false;
+                    }
+                } else if (!rebuild_offsets()) {
+                    cmd_overflowed_ = true;
+                    return false;
+                }
             }
             if (!text || text_bytes == 0) {
                 text_[0] = '\0';
@@ -1620,6 +1627,28 @@ export namespace ui::draw_cmd {
                 if (offset + stride > cmd_bytes_used_) return false;
                 offset += stride;
             }
+            return true;
+        }
+
+        bool rebuild_offsets_from_bytes() noexcept {
+            std::size_t offset = 0;
+            std::size_t count = 0;
+            while (offset < cmd_bytes_used_) {
+                if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
+                if (count >= kMaxCommands) {
+                    cmd_overflowed_ = true;
+                    return false;
+                }
+                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+                if (header->size < sizeof(CmdHeader)) return false;
+                cmd_offsets_[count] = static_cast<std::uint32_t>(offset);
+                const std::size_t stride = cmd_stride(header->size);
+                if (stride == 0) return false;
+                if (offset + stride > cmd_bytes_used_) return false;
+                offset += stride;
+                ++count;
+            }
+            count_ = count;
             return true;
         }
 

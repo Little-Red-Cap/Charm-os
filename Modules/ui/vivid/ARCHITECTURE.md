@@ -101,6 +101,7 @@ sequenceDiagram
 **命令合批（Compaction）：**
 
 - compaction 仅在 record 结束后执行，保证回放与哈希一致性。
+- 合批的联合面积阈值可通过运行时参数调节（默认因子 8）。
 - 已覆盖的 batch：
   - `FillRect/StrokeRect`
   - `DrawLine`
@@ -112,6 +113,7 @@ sequenceDiagram
   - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
 - `DrawLine/DrawPath` 使用包围盒联合面积阈值控制合批，超过阈值时会逐步缩小 batch，避免过大 union 拉高 tile 命中成本。
 - `FillRect/StrokeRect/FocusRing/圆角/圆/图像` 同样采用联合面积阈值收敛 batch，降低大 union 导致的 tile 命中抖动。
+- `batch_shrink_*` 可细分统计：line/path/rect/round/image/focus，用于定位具体合批收缩来源。
 
 **执行器状态机化（State Machine Executor）：**
 
@@ -131,6 +133,7 @@ flowchart LR
 
 - `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
 - `vivid-soa-demo --soa-stats`：输出命令数、tile flush、dirty 命中率与 tile hit 率。
+- `vivid-soa-demo --compaction-union-factor=8`：调节合批联合面积阈值因子（>=1）。
 - Vivid 仅保留 **SoA 内核**：legacy 路径不再进入默认构建，统一收敛到单一内核边界。
 
 **可移植模板：**

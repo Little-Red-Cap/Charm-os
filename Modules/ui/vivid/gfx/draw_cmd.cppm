@@ -1983,6 +1983,224 @@ export namespace ui::draw_cmd {
                 ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
             };
 
+            auto exec_line_batch = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p0;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const LineBatchItem>(
+                    reinterpret_cast<const LineBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    ui::render::draw_line(canvas, item.x0, item.y0, item.x1, item.y1, cur.color);
+                }
+            };
+
+            auto exec_path_batch = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p0;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const PathBatchItem>(
+                    reinterpret_cast<const PathBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    if (item.count < 2) {
+                        stats.failed_cmds++;
+                        continue;
+                    }
+                    const auto path_blob = buf.blob_at(item.blob);
+                    const auto points = ui::gfx::path::decode_points(path_blob, item.count);
+                    if (points.empty()) {
+                        stats.failed_cmds++;
+                        continue;
+                    }
+                    const bool closed = (item.closed != 0);
+                    ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
+                }
+            };
+
+            auto exec_rect_batch = [&](const DrawCmd& cur, bool fill) noexcept {
+                const int count = cur.p0;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const RectBatchItem>(
+                    reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    ui::render::draw_rect(canvas,
+                                          item.rect.x, item.rect.y,
+                                          item.rect.w, item.rect.h,
+                                          cur.color, fill);
+                }
+            };
+
+            auto exec_round_batch = [&](const DrawCmd& cur, bool fill) noexcept {
+                const int count = cur.p1;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const RectBatchItem>(
+                    reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    ui::render::draw_round_rect(canvas,
+                                                item.rect.x, item.rect.y,
+                                                item.rect.w, item.rect.h,
+                                                cur.p0,
+                                                cur.color,
+                                                fill);
+                }
+            };
+
+            auto exec_circle_batch = [&](const DrawCmd& cur, bool fill) noexcept {
+                const int count = cur.p1;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const RectBatchItem>(
+                    reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                const int radius = cur.p0;
+                for (const auto& item : items) {
+                    const int cx = item.rect.x + item.rect.w / 2;
+                    const int cy = item.rect.y + item.rect.h / 2;
+                    ui::render::draw_circle(canvas, cx, cy, radius, cur.color, fill);
+                }
+            };
+
+            auto exec_glyph_run = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p0;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(GlyphRunItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const GlyphRunItem>(
+                    reinterpret_cast<const GlyphRunItem*>(blob.data()), count);
+                const Font& font = get_font(cur.font);
+                for (const auto& item : items) {
+                    if (!buf.text_span_valid(item.text)) {
+                        stats.failed_cmds++;
+                        continue;
+                    }
+                    const char* text = buf.text_at(item.text.offset);
+                    draw_text_box(canvas, item.rect, text, cur.color, font,
+                                  cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+                }
+            };
+
+            auto exec_image_batch = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p0;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto* image = resolve_image(cur.image);
+                if (!image || !(*image)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const ImageBatchItem>(
+                    reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    if (item.rect.w > 0 && item.rect.h > 0) {
+                        ui::render::draw_image_scaled(canvas, item.rect.x, item.rect.y,
+                                                      item.rect.w, item.rect.h, *image);
+                    } else {
+                        ui::render::draw_image(canvas, item.rect.x, item.rect.y, *image);
+                    }
+                }
+            };
+
+            auto exec_image_round_batch = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p1;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto* image = resolve_image(cur.image);
+                if (!image || !(*image)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const ImageBatchItem>(
+                    reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    if (item.rect.w > 0 && item.rect.h > 0) {
+                        ui::render::draw_image_scaled_round_rect(canvas, item.rect.x, item.rect.y,
+                                                                 item.rect.w, item.rect.h, *image, cur.p0);
+                    } else {
+                        ui::render::draw_image_round_rect(canvas, item.rect.x, item.rect.y,
+                                                          *image, cur.p0);
+                    }
+                }
+            };
+
+            auto exec_image_nine_batch = [&](const DrawCmd& cur) noexcept {
+                const auto* image = resolve_image(cur.image);
+                if (!image || !(*image)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < sizeof(ImageBatchItem)
+                    || (blob.size() % sizeof(ImageBatchItem)) != 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto count = static_cast<int>(blob.size() / sizeof(ImageBatchItem));
+                const auto items = std::span<const ImageBatchItem>(
+                    reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    ui::render::draw_image_nine_slice(canvas,
+                                                      item.rect.x, item.rect.y,
+                                                      item.rect.w, item.rect.h,
+                                                      *image,
+                                                      cur.p0, cur.p1, cur.p2, cur.p3);
+                }
+            };
+
             enum class GroupKind : std::uint8_t {
                 None,
                 RectLike,
@@ -2000,16 +2218,28 @@ export namespace ui::draw_cmd {
                 case CmdType::StrokeRoundRect:
                 case CmdType::FillCircle:
                 case CmdType::StrokeCircle:
+                case CmdType::FillRectBatch:
+                case CmdType::StrokeRectBatch:
+                case CmdType::FillRoundRectBatch:
+                case CmdType::StrokeRoundRectBatch:
+                case CmdType::FillCircleBatch:
+                case CmdType::StrokeCircleBatch:
                     return GroupKind::RectLike;
                 case CmdType::DrawTextBox:
+                case CmdType::GlyphRun:
                     return GroupKind::TextBox;
                 case CmdType::DrawImage:
                 case CmdType::DrawImageRoundRect:
                 case CmdType::DrawImageNineSlice:
+                case CmdType::DrawImageBatch:
+                case CmdType::DrawImageRoundRectBatch:
+                case CmdType::DrawImageNineSliceBatch:
                     return GroupKind::ImageLike;
                 case CmdType::DrawLine:
+                case CmdType::DrawLineBatch:
                     return GroupKind::DrawLine;
                 case CmdType::DrawPath:
+                case CmdType::DrawPathBatch:
                     return GroupKind::DrawPath;
                 default:
                     return GroupKind::None;
@@ -2019,9 +2249,42 @@ export namespace ui::draw_cmd {
             auto exec_group_cmd = [&](const DrawCmd& cur, GroupKind kind) noexcept {
                 switch (kind) {
                 case GroupKind::RectLike:
-                    exec_rect_like(cur);
+                    switch (cur.type) {
+                    case CmdType::FillRect:
+                    case CmdType::StrokeRect:
+                    case CmdType::FillRoundRect:
+                    case CmdType::StrokeRoundRect:
+                    case CmdType::FillCircle:
+                    case CmdType::StrokeCircle:
+                        exec_rect_like(cur);
+                        break;
+                    case CmdType::FillRectBatch:
+                        exec_rect_batch(cur, true);
+                        break;
+                    case CmdType::StrokeRectBatch:
+                        exec_rect_batch(cur, false);
+                        break;
+                    case CmdType::FillRoundRectBatch:
+                        exec_round_batch(cur, true);
+                        break;
+                    case CmdType::StrokeRoundRectBatch:
+                        exec_round_batch(cur, false);
+                        break;
+                    case CmdType::FillCircleBatch:
+                        exec_circle_batch(cur, true);
+                        break;
+                    case CmdType::StrokeCircleBatch:
+                        exec_circle_batch(cur, false);
+                        break;
+                    default:
+                        break;
+                    }
                     break;
                 case GroupKind::TextBox: {
+                    if (cur.type == CmdType::GlyphRun) {
+                        exec_glyph_run(cur);
+                        break;
+                    }
                     if (!buf.text_span_valid(cur.text)) {
                         stats.failed_cmds++;
                         return;
@@ -2033,13 +2296,38 @@ export namespace ui::draw_cmd {
                     break;
                 }
                 case GroupKind::ImageLike:
-                    exec_image_like(cur);
+                    switch (cur.type) {
+                    case CmdType::DrawImage:
+                    case CmdType::DrawImageRoundRect:
+                    case CmdType::DrawImageNineSlice:
+                        exec_image_like(cur);
+                        break;
+                    case CmdType::DrawImageBatch:
+                        exec_image_batch(cur);
+                        break;
+                    case CmdType::DrawImageRoundRectBatch:
+                        exec_image_round_batch(cur);
+                        break;
+                    case CmdType::DrawImageNineSliceBatch:
+                        exec_image_nine_batch(cur);
+                        break;
+                    default:
+                        break;
+                    }
                     break;
                 case GroupKind::DrawLine:
-                    exec_draw_line(cur);
+                    if (cur.type == CmdType::DrawLineBatch) {
+                        exec_line_batch(cur);
+                    } else {
+                        exec_draw_line(cur);
+                    }
                     break;
                 case GroupKind::DrawPath:
-                    exec_draw_path(cur);
+                    if (cur.type == CmdType::DrawPathBatch) {
+                        exec_path_batch(cur);
+                    } else {
+                        exec_draw_path(cur);
+                    }
                     break;
                 case GroupKind::None:
                 default:

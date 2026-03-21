@@ -3002,6 +3002,12 @@ int main(int argc, char** argv) {
     std::size_t compare_dispatch_groups = 0;
     std::size_t compare_batch_flushes = 0;
     std::size_t compare_batch_shrink = 0;
+    std::size_t compare_batch_shrink_line = 0;
+    std::size_t compare_batch_shrink_path = 0;
+    std::size_t compare_batch_shrink_rect = 0;
+    std::size_t compare_batch_shrink_round = 0;
+    std::size_t compare_batch_shrink_image = 0;
+    std::size_t compare_batch_shrink_focus = 0;
     int compare_tile_flushes = 0;
     std::uint8_t compare_tile_hit_pct = 0;
     bool compare_ok = true;
@@ -3045,6 +3051,12 @@ int main(int argc, char** argv) {
         compare_cmd_capacity = cmp_stats.cmd_capacity;
         compare_cmd_bytes = cmp_stats.cmd_bytes;
         compare_batch_shrink = cmp_stats.batch_shrink;
+        compare_batch_shrink_line = cmp_stats.batch_shrink_line;
+        compare_batch_shrink_path = cmp_stats.batch_shrink_path;
+        compare_batch_shrink_rect = cmp_stats.batch_shrink_rect;
+        compare_batch_shrink_round = cmp_stats.batch_shrink_round;
+        compare_batch_shrink_image = cmp_stats.batch_shrink_image;
+        compare_batch_shrink_focus = cmp_stats.batch_shrink_focus;
         if (compare_cmd_count_raw >= compare_cmd_count) {
             compare_cmd_saved = compare_cmd_count_raw - compare_cmd_count;
         }
@@ -3275,7 +3287,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3291,6 +3303,12 @@ int main(int argc, char** argv) {
             ui_ok ? 1u : 0u,
             static_cast<unsigned>(compact_saved),
             static_cast<unsigned>(compare_batch_shrink),
+            static_cast<unsigned>(compare_batch_shrink_line),
+            static_cast<unsigned>(compare_batch_shrink_path),
+            static_cast<unsigned>(compare_batch_shrink_rect),
+            static_cast<unsigned>(compare_batch_shrink_round),
+            static_cast<unsigned>(compare_batch_shrink_image),
+            static_cast<unsigned>(compare_batch_shrink_focus),
             static_cast<unsigned>(compare_cmd_count_raw),
             static_cast<unsigned>(compare_cmd_count),
             static_cast<unsigned>(compare_cmd_saved),
@@ -3661,20 +3679,27 @@ int main(int argc, char** argv) {
             ++stat_frame;
             if (stat_frame >= stat_interval) {
                 stat_frame = 0;
-                if (use_tiles) {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={} tiles={}/{} flushes={} dirty_area={} dirty_pct={} tile_hit_pct={}">(
-                        g_console,
-                        static_cast<std::uint32_t>(cmd_stats.cmd_count),
-                        static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
-                        cmd_stats.cmd_overflowed ? 1 : 0,
-                        cmd_stats.text_overflowed ? 1 : 0,
-                        cmd_stats.blob_overflowed ? 1 : 0,
-                        tile_stats.tiles_drawn,
-                        tile_stats.tiles_total,
-                        tile_stats.tile_flush_count,
-                        dirty_area,
-                        static_cast<std::uint32_t>(dirty_pct),
-                        static_cast<std::uint32_t>(tile_hit_pct));
+                    if (use_tiles) {
+                        (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={} batch_shrink={}({}/{}/{}/{}/{}/{}) tiles={}/{} flushes={} dirty_area={} dirty_pct={} tile_hit_pct={}">(
+                            g_console,
+                            static_cast<std::uint32_t>(cmd_stats.cmd_count),
+                            static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
+                            cmd_stats.cmd_overflowed ? 1 : 0,
+                            cmd_stats.text_overflowed ? 1 : 0,
+                            cmd_stats.blob_overflowed ? 1 : 0,
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_line),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_path),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_rect),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_round),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_image),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_focus),
+                            tile_stats.tiles_drawn,
+                            tile_stats.tiles_total,
+                            tile_stats.tile_flush_count,
+                            dirty_area,
+                            static_cast<std::uint32_t>(dirty_pct),
+                            static_cast<std::uint32_t>(tile_hit_pct));
                     if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
                         (void)out::println<"[soa] eink refresh={} partial_count={} dirty_pct={}">(
                             g_console,
@@ -3682,15 +3707,22 @@ int main(int argc, char** argv) {
                             tile_backend.partial_count,
                             tile_backend.last_dirty_pct);
                     }
-                } else {
-                    (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={}">(
-                        g_console,
-                        static_cast<std::uint32_t>(cmd_stats.cmd_count),
-                        static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
-                        cmd_stats.cmd_overflowed ? 1 : 0,
-                        cmd_stats.text_overflowed ? 1 : 0,
-                        cmd_stats.blob_overflowed ? 1 : 0);
-                }
+                    } else {
+                        (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={} batch_shrink={}({}/{}/{}/{}/{}/{})">(
+                            g_console,
+                            static_cast<std::uint32_t>(cmd_stats.cmd_count),
+                            static_cast<std::uint32_t>(cmd_stats.cmd_bytes),
+                            cmd_stats.cmd_overflowed ? 1 : 0,
+                            cmd_stats.text_overflowed ? 1 : 0,
+                            cmd_stats.blob_overflowed ? 1 : 0,
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_line),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_path),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_rect),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_round),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_image),
+                            static_cast<std::uint32_t>(cmd_stats.batch_shrink_focus));
+                    }
 #if defined(VIVID_SOA_TRACE_INPUT)
                 dump_payload_stats(kernel.payload_stats());
 #endif

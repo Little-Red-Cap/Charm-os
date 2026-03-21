@@ -280,6 +280,12 @@ export namespace ui::draw_cmd {
         std::size_t blob_used{0};
         std::size_t blob_capacity{0};
         std::size_t batch_shrink{0};
+        std::size_t batch_shrink_line{0};
+        std::size_t batch_shrink_path{0};
+        std::size_t batch_shrink_rect{0};
+        std::size_t batch_shrink_round{0};
+        std::size_t batch_shrink_image{0};
+        std::size_t batch_shrink_focus{0};
         bool cmd_overflowed{false};
         bool text_overflowed{false};
         bool blob_overflowed{false};
@@ -631,6 +637,12 @@ export namespace ui::draw_cmd {
             text_[0] = '\0';
             blob_.reset();
             batch_shrink_ = 0;
+            batch_shrink_line_ = 0;
+            batch_shrink_path_ = 0;
+            batch_shrink_rect_ = 0;
+            batch_shrink_round_ = 0;
+            batch_shrink_image_ = 0;
+            batch_shrink_focus_ = 0;
         }
 
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
@@ -732,6 +744,12 @@ export namespace ui::draw_cmd {
                 blob_.used(),
                 kBlobCapacity,
                 batch_shrink_,
+                batch_shrink_line_,
+                batch_shrink_path_,
+                batch_shrink_rect_,
+                batch_shrink_round_,
+                batch_shrink_image_,
+                batch_shrink_focus_,
                 cmd_overflowed_,
                 text_overflowed_,
                 blob_.overflowed()
@@ -924,6 +942,12 @@ export namespace ui::draw_cmd {
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
             batch_shrink_ = 0;
+            batch_shrink_line_ = 0;
+            batch_shrink_path_ = 0;
+            batch_shrink_rect_ = 0;
+            batch_shrink_round_ = 0;
+            batch_shrink_image_ = 0;
+            batch_shrink_focus_ = 0;
 
             auto read_cmd_at = [&](std::size_t index, DrawCmd& out_cmd) noexcept -> bool {
                 if (index >= input_count) return false;
@@ -1000,6 +1024,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kLineUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_line_;
                                 --batch;
                                 continue;
                             }
@@ -1057,6 +1082,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kPathUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_path_;
                                 --batch;
                                 continue;
                             }
@@ -1112,6 +1138,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kRectUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_rect_;
                                 --batch;
                                 continue;
                             }
@@ -1175,6 +1202,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kRoundUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_round_;
                                 --batch;
                                 continue;
                             }
@@ -1303,6 +1331,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kImageUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_image_;
                                 --batch;
                                 continue;
                             }
@@ -1365,6 +1394,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kImageUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_image_;
                                 --batch;
                                 continue;
                             }
@@ -1429,6 +1459,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kImageUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_image_;
                                 --batch;
                                 continue;
                             }
@@ -1489,6 +1520,7 @@ export namespace ui::draw_cmd {
                                 : (union_area <= (sum_area * kFocusUnionMaxFactor));
                             if (!area_ok) {
                                 ++batch_shrink_;
+                                ++batch_shrink_focus_;
                                 --batch;
                                 continue;
                             }
@@ -1799,6 +1831,12 @@ export namespace ui::draw_cmd {
         std::size_t cmd_bytes_used_{0};
         std::size_t text_used_{1};
         std::size_t batch_shrink_{0};
+        std::size_t batch_shrink_line_{0};
+        std::size_t batch_shrink_path_{0};
+        std::size_t batch_shrink_rect_{0};
+        std::size_t batch_shrink_round_{0};
+        std::size_t batch_shrink_image_{0};
+        std::size_t batch_shrink_focus_{0};
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
     };

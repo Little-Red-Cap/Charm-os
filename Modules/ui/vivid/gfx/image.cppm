@@ -457,6 +457,19 @@ export namespace ui::gfx {
         return image_registry().locked();
     }
 
+    struct ImageRegistryLockGuard {
+        explicit ImageRegistryLockGuard(bool enabled = true) noexcept : enabled_(enabled) {
+            if (enabled_) set_image_registry_locked(true);
+        }
+        ~ImageRegistryLockGuard() noexcept {
+            if (enabled_) set_image_registry_locked(false);
+        }
+        ImageRegistryLockGuard(const ImageRegistryLockGuard&) = delete;
+        ImageRegistryLockGuard& operator=(const ImageRegistryLockGuard&) = delete;
+    private:
+        bool enabled_{false};
+    };
+
     inline std::size_t image_registry_capacity() noexcept {
         return image_registry().views.size();
     }

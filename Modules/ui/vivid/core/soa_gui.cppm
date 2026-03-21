@@ -240,9 +240,10 @@ WidgetHandle SoaGui::root() const noexcept {
         refresh_styles();
         layout_.run_if_needed(root_);
         cmd_buffer_.clear();
-        ui::draw_cmd::set_image_registry_locked(true);
-        record_tree(cmd_buffer_);
-        ui::draw_cmd::set_image_registry_locked(false);
+        {
+            ui::draw_cmd::ImageRegistryLockGuard guard{};
+            record_tree(cmd_buffer_);
+        }
         (void)cmd_buffer_.compact();
         last_cmd_stats_ = cmd_buffer_.stats();
         text_profile_reset();
@@ -255,9 +256,10 @@ WidgetHandle SoaGui::root() const noexcept {
         refresh_styles();
         layout_.run_if_needed(root_);
         out.clear();
-        ui::draw_cmd::set_image_registry_locked(true);
-        record_tree(out);
-        ui::draw_cmd::set_image_registry_locked(false);
+        {
+            ui::draw_cmd::ImageRegistryLockGuard guard{};
+            record_tree(out);
+        }
         (void)out.compact();
         last_cmd_stats_ = out.stats();
         return last_cmd_stats_;
@@ -270,9 +272,10 @@ ui::draw_cmd::DrawCmdTileStats SoaGui::render_tiles(Backend& backend,
     refresh_styles();
     layout_.run_if_needed(root_);
     cmd_buffer_.clear();
-    ui::draw_cmd::set_image_registry_locked(true);
-    record_tree(cmd_buffer_);
-    ui::draw_cmd::set_image_registry_locked(false);
+    {
+        ui::draw_cmd::ImageRegistryLockGuard guard{};
+        record_tree(cmd_buffer_);
+    }
     (void)cmd_buffer_.compact();
     last_cmd_stats_ = cmd_buffer_.stats();
     text_profile_reset();

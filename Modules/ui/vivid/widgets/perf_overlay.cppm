@@ -81,9 +81,14 @@ public:
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::PerfOverlay, state, base, st_scratch);
         const auto r = get_rect();
-        const auto missing_glyphs = missing_glyph_count();
-        const auto missing_fallbacks = missing_glyph_fallback_count();
-        const auto utf8_replaces = utf8_replacement_count();
+        std::uint32_t missing_glyphs = 0;
+        std::uint32_t missing_fallbacks = 0;
+        std::uint32_t utf8_replaces = 0;
+#if defined(VIVID_SOA_TRACE_INPUT)
+        missing_glyphs = missing_glyph_count();
+        missing_fallbacks = missing_glyph_fallback_count();
+        utf8_replaces = utf8_replacement_count();
+#endif
         const auto text_profile = text_profile_sample();
 
         rgba bg{};

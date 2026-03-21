@@ -623,9 +623,14 @@ export namespace player {
                 ? player::font_cache::stats()
                 : player::font_cache::Stats{};
             const bool font_on = player::font_cache::ready();
-            const auto missing_glyphs = missing_glyph_count();
-            const auto missing_fallbacks = missing_glyph_fallback_count();
-            const auto utf8_replaces = utf8_replacement_count();
+            std::uint32_t missing_glyphs = 0;
+            std::uint32_t missing_fallbacks = 0;
+            std::uint32_t utf8_replaces = 0;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            missing_glyphs = missing_glyph_count();
+            missing_fallbacks = missing_glyph_fallback_count();
+            utf8_replaces = utf8_replacement_count();
+#endif
             std::snprintf(buf, sizeof(buf),
                           "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu font %s %u/%u/%u glyph %u/%u/%u",
                           static_cast<unsigned long long>(water_ms),

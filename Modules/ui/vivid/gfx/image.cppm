@@ -99,6 +99,20 @@ export namespace ui::gfx {
         bool overflowed{false};
     };
 
+    enum class ImageRegisterStatus : std::uint8_t {
+        Ok = 0,
+        InvalidView,
+        InvalidId,
+        Locked,
+        Overflow,
+    };
+
+    struct ImageRegisterResult {
+        ImageId id{};
+        ImageRegisterStatus status{ImageRegisterStatus::Ok};
+        constexpr bool ok() const noexcept { return status == ImageRegisterStatus::Ok; }
+    };
+
     struct ImageRegistry {
         std::array<ImageView, kMaxImageResources> views{};
         std::array<std::uint16_t, kMaxImageResources> generations{};
@@ -203,12 +217,14 @@ export namespace ui::gfx {
             return false;
         }
 
-        ImageId register_image(const ImageView& view,
-                               ImageRegisterReason reason = ImageRegisterReason::Unknown,
-                               const char* tag = nullptr) noexcept {
+        ImageRegisterResult register_image(const ImageView& view,
+                                           ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                           const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!view) return invalid_image_id();
-            if (!allow_register_new(reason, tag)) return invalid_image_id();
+            if (!view) return {invalid_image_id(), ImageRegisterStatus::InvalidView};
+            if (!allow_register_new(reason, tag)) {
+                return {invalid_image_id(), ImageRegisterStatus::Locked};
+            }
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
             for (std::size_t i = 0; i < views.size(); ++i) {
@@ -222,29 +238,33 @@ export namespace ui::gfx {
                     count++;
                     bytes_total += data_bytes;
                     register_new_total++;
-                    return ImageId{static_cast<std::uint16_t>(i), generations[i]};
+                    return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
+                            ImageRegisterStatus::Ok};
                 }
             }
             overflowed = true;
-            return invalid_image_id();
+            return {invalid_image_id(), ImageRegisterStatus::Overflow};
         }
 
-        ImageId register_image_key(std::uint32_t key,
-                                   const ImageView& view,
-                                   ImageRegisterReason reason = ImageRegisterReason::Unknown,
-                                   const char* tag = nullptr) noexcept {
+        ImageRegisterResult register_image_key(std::uint32_t key,
+                                               const ImageView& view,
+                                               ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                               const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!view) return invalid_image_id();
+            if (!view) return {invalid_image_id(), ImageRegisterStatus::InvalidView};
             if (key != 0) {
                 for (std::size_t i = 0; i < views.size(); ++i) {
                     if (used[i] == 0) continue;
                     if (keys[i] == key) {
                         dedup_hits++;
-                        return ImageId{static_cast<std::uint16_t>(i), generations[i]};
+                        return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
+                                ImageRegisterStatus::Ok};
                     }
                 }
             }
-            if (!allow_register_new(reason, tag)) return invalid_image_id();
+            if (!allow_register_new(reason, tag)) {
+                return {invalid_image_id(), ImageRegisterStatus::Locked};
+            }
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
             for (std::size_t i = 0; i < views.size(); ++i) {
@@ -258,18 +278,19 @@ export namespace ui::gfx {
                     count++;
                     bytes_total += data_bytes;
                     register_new_total++;
-                    return ImageId{static_cast<std::uint16_t>(i), generations[i]};
+                    return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
+                            ImageRegisterStatus::Ok};
                 }
             }
             overflowed = true;
-            return invalid_image_id();
+            return {invalid_image_id(), ImageRegisterStatus::Overflow};
         }
 
-        ImageId register_image_dedup(const ImageView& view,
-                                     ImageRegisterReason reason = ImageRegisterReason::Unknown,
-                                     const char* tag = nullptr) noexcept {
+        ImageRegisterResult register_image_dedup(const ImageView& view,
+                                                 ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                                 const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!view) return invalid_image_id();
+            if (!view) return {invalid_image_id(), ImageRegisterStatus::InvalidView};
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
             for (std::size_t i = 0; i < views.size(); ++i) {
@@ -277,10 +298,13 @@ export namespace ui::gfx {
                 if (hashes[i] != hash) continue;
                 if (image_view_equals(views[i], view, data_bytes)) {
                     dedup_hits++;
-                    return ImageId{static_cast<std::uint16_t>(i), generations[i]};
+                    return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
+                            ImageRegisterStatus::Ok};
                 }
             }
-            if (!allow_register_new(reason, tag)) return invalid_image_id();
+            if (!allow_register_new(reason, tag)) {
+                return {invalid_image_id(), ImageRegisterStatus::Locked};
+            }
             for (std::size_t i = 0; i < views.size(); ++i) {
                 if (used[i] == 0) {
                     used[i] = 1;
@@ -292,11 +316,12 @@ export namespace ui::gfx {
                     count++;
                     bytes_total += data_bytes;
                     register_new_total++;
-                    return ImageId{static_cast<std::uint16_t>(i), generations[i]};
+                    return {ImageId{static_cast<std::uint16_t>(i), generations[i]},
+                            ImageRegisterStatus::Ok};
                 }
             }
             overflowed = true;
-            return invalid_image_id();
+            return {invalid_image_id(), ImageRegisterStatus::Overflow};
         }
 
         void unregister_image(ImageId id) noexcept {
@@ -341,34 +366,34 @@ export namespace ui::gfx {
         return registry;
     }
 
-    inline ImageId register_image(const ImageView& view) noexcept {
+    inline ImageRegisterResult register_image(const ImageView& view) noexcept {
         return image_registry().register_image(view);
     }
 
-    inline ImageId register_image_key(std::uint32_t key, const ImageView& view) noexcept {
+    inline ImageRegisterResult register_image_key(std::uint32_t key, const ImageView& view) noexcept {
         return image_registry().register_image_key(key, view);
     }
 
-    inline ImageId register_image_dedup(const ImageView& view) noexcept {
+    inline ImageRegisterResult register_image_dedup(const ImageView& view) noexcept {
         return image_registry().register_image_dedup(view);
     }
 
-    inline ImageId register_image(const ImageView& view,
-                                  ImageRegisterReason reason,
-                                  const char* tag) noexcept {
+    inline ImageRegisterResult register_image(const ImageView& view,
+                                              ImageRegisterReason reason,
+                                              const char* tag) noexcept {
         return image_registry().register_image(view, reason, tag);
     }
 
-    inline ImageId register_image_key(std::uint32_t key,
-                                      const ImageView& view,
-                                      ImageRegisterReason reason,
-                                      const char* tag) noexcept {
+    inline ImageRegisterResult register_image_key(std::uint32_t key,
+                                                  const ImageView& view,
+                                                  ImageRegisterReason reason,
+                                                  const char* tag) noexcept {
         return image_registry().register_image_key(key, view, reason, tag);
     }
 
-    inline ImageId register_image_dedup(const ImageView& view,
-                                        ImageRegisterReason reason,
-                                        const char* tag) noexcept {
+    inline ImageRegisterResult register_image_dedup(const ImageView& view,
+                                                    ImageRegisterReason reason,
+                                                    const char* tag) noexcept {
         return image_registry().register_image_dedup(view, reason, tag);
     }
 
@@ -403,17 +428,24 @@ export namespace ui::gfx {
 #endif
     }
 
-    inline bool register_image_with_id(ImageId id,
-                                       const ImageView& view,
-                                       ImageRegisterReason reason = ImageRegisterReason::Unknown,
-                                       const char* tag = nullptr) noexcept {
-        if (!image_id_valid(id) || !view) return false;
+    inline ImageRegisterResult register_image_with_id(ImageId id,
+                                                      const ImageView& view,
+                                                      ImageRegisterReason reason = ImageRegisterReason::Unknown,
+                                                      const char* tag = nullptr) noexcept {
+        if (!image_id_valid(id)) {
+            return {invalid_image_id(), ImageRegisterStatus::InvalidId};
+        }
+        if (!view) {
+            return {invalid_image_id(), ImageRegisterStatus::InvalidView};
+        }
         auto& registry = image_registry();
         registry.register_calls++;
-        if (!registry.allow_register_new(reason, tag)) return false;
+        if (!registry.allow_register_new(reason, tag)) {
+            return {invalid_image_id(), ImageRegisterStatus::Locked};
+        }
         if (id.slot >= registry.views.size()) {
             registry.overflowed = true;
-            return false;
+            return {invalid_image_id(), ImageRegisterStatus::Overflow};
         }
         const bool was_used = registry.used[id.slot] != 0;
         if (registry.locked() && was_used) {
@@ -423,7 +455,7 @@ export namespace ui::gfx {
             assert(false && "ImageRegistry overwrite while locked");
 #endif
             registry.overflowed = true;
-            return false;
+            return {invalid_image_id(), ImageRegisterStatus::Locked};
         }
         const std::size_t data_bytes = ImageRegistry::image_bytes(view);
         const std::uint64_t hash = ImageRegistry::hash_image(view, data_bytes);
@@ -442,7 +474,8 @@ export namespace ui::gfx {
         registry.keys[id.slot] = 0;
         registry.bytes[id.slot] = static_cast<std::uint32_t>(data_bytes);
         registry.bytes_total += data_bytes;
-        return true;
+        return {ImageId{static_cast<std::uint16_t>(id.slot), registry.generations[id.slot]},
+                ImageRegisterStatus::Ok};
     }
 
     inline ImageRegistryStats image_registry_stats() noexcept {

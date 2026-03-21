@@ -379,13 +379,17 @@ export namespace player::ui {
 
     inline PlayerIconIds register_player_icons() noexcept {
         PlayerIconIds out{};
-        out.prev = ::ui::gfx::register_image_dedup(icon_prev());
-        out.play = ::ui::gfx::register_image_dedup(icon_play());
-        out.pause = ::ui::gfx::register_image_dedup(icon_pause());
-        out.next = ::ui::gfx::register_image_dedup(icon_next());
-        out.loop = ::ui::gfx::register_image_dedup(icon_loop());
-        out.single = ::ui::gfx::register_image_dedup(icon_single());
-        out.shuffle = ::ui::gfx::register_image_dedup(icon_shuffle());
+        auto reg = [](const ImageView& view) noexcept {
+            const auto res = ::ui::gfx::register_image_dedup(view);
+            return res.ok() ? res.id : ::ui::gfx::invalid_image_id();
+        };
+        out.prev = reg(icon_prev());
+        out.play = reg(icon_play());
+        out.pause = reg(icon_pause());
+        out.next = reg(icon_next());
+        out.loop = reg(icon_loop());
+        out.single = reg(icon_single());
+        out.shuffle = reg(icon_shuffle());
         return out;
     }
 

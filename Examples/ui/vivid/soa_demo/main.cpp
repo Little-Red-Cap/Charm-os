@@ -144,14 +144,15 @@ namespace {
 
     void ensure_demo_images() noexcept {
         if (g_demo_images_ready) return;
-        g_test_icon_id = ui::draw_cmd::register_image_dedup(
-            kTestIconView,
-            ui::draw_cmd::ImageRegisterReason::Init,
-            "demo_images");
-        g_slice_id = ui::draw_cmd::register_image_dedup(
-            kSliceView,
-            ui::draw_cmd::ImageRegisterReason::Init,
-            "demo_images");
+        const auto reg = [](const ImageView& view, const char* tag) noexcept {
+            const auto res = ui::draw_cmd::register_image_dedup(
+                view,
+                ui::draw_cmd::ImageRegisterReason::Init,
+                tag);
+            return res.ok() ? res.id : ui::draw_cmd::invalid_image_id();
+        };
+        g_test_icon_id = reg(kTestIconView, "demo_images");
+        g_slice_id = reg(kSliceView, "demo_images");
         if (g_selftest_dedup) {
             (void)ui::draw_cmd::register_image_dedup(
                 kTestIconView,
@@ -815,11 +816,12 @@ namespace {
                 img.premultiplied != 0,
                 img.force_opaque != 0);
             ui::draw_cmd::ImageId id{img.slot, img.generation};
-            if (!ui::draw_cmd::register_image_with_id(
-                    id,
-                    view,
-                    ui::draw_cmd::ImageRegisterReason::DumpReplay,
-                    "vcmd_replay")) {
+            const auto reg = ui::draw_cmd::register_image_with_id(
+                id,
+                view,
+                ui::draw_cmd::ImageRegisterReason::DumpReplay,
+                "vcmd_replay");
+            if (!reg.ok()) {
                 std::fclose(file);
                 return false;
             }

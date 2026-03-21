@@ -110,6 +110,12 @@ sequenceDiagram
   - `FillCircle/StrokeCircle`
   - `DrawTextBox` -> `GlyphRun`
   - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
+- `DrawLine/DrawPath` 使用包围盒联合面积阈值控制合批，超过阈值时会逐步缩小 batch，避免过大 union 拉高 tile 命中成本。
+
+**执行器状态机化（State Machine Executor）：**
+
+- 执行阶段对相邻同类命令做分组，减少逐条命令的分发与状态切换开销。
+- `--soa-ci` 会输出 `dispatch_groups` 与 `batch_flushes`，用于量化合批/分组的收益。
 
 ```mermaid
 flowchart LR

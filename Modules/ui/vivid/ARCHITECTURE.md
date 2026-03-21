@@ -111,7 +111,7 @@ sequenceDiagram
   - `DrawTextBox` -> `GlyphRun`
   - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
 - `DrawLine/DrawPath` 使用包围盒联合面积阈值控制合批，超过阈值时会逐步缩小 batch，避免过大 union 拉高 tile 命中成本。
-- `FillRect/StrokeRect/FocusRing/圆角/圆` 同样采用联合面积阈值收敛 batch，降低大 union 导致的 tile 命中抖动。
+- `FillRect/StrokeRect/FocusRing/圆角/圆/图像` 同样采用联合面积阈值收敛 batch，降低大 union 导致的 tile 命中抖动。
 
 **执行器状态机化（State Machine Executor）：**
 

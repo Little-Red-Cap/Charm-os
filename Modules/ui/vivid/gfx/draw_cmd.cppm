@@ -279,6 +279,7 @@ export namespace ui::draw_cmd {
         std::size_t text_capacity{0};
         std::size_t blob_used{0};
         std::size_t blob_capacity{0};
+        std::size_t batch_shrink{0};
         bool cmd_overflowed{false};
         bool text_overflowed{false};
         bool blob_overflowed{false};
@@ -629,6 +630,7 @@ export namespace ui::draw_cmd {
             text_used_ = 1;
             text_[0] = '\0';
             blob_.reset();
+            batch_shrink_ = 0;
         }
 
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
@@ -729,6 +731,7 @@ export namespace ui::draw_cmd {
                 kTextCapacity,
                 blob_.used(),
                 kBlobCapacity,
+                batch_shrink_,
                 cmd_overflowed_,
                 text_overflowed_,
                 blob_.overflowed()
@@ -920,6 +923,7 @@ export namespace ui::draw_cmd {
             std::array<GlyphRunItem, kMaxBatchItems> text_items{};
             std::array<ImageBatchItem, kMaxBatchItems> image_items{};
             const bool allow_batch = !blob_.overflowed();
+            batch_shrink_ = 0;
 
             auto read_cmd_at = [&](std::size_t index, DrawCmd& out_cmd) noexcept -> bool {
                 if (index >= input_count) return false;
@@ -995,6 +999,7 @@ export namespace ui::draw_cmd {
                                 ? true
                                 : (union_area <= (sum_area * kLineUnionMaxFactor));
                             if (!area_ok) {
+                                ++batch_shrink_;
                                 --batch;
                                 continue;
                             }
@@ -1051,6 +1056,7 @@ export namespace ui::draw_cmd {
                                 ? true
                                 : (union_area <= (sum_area * kPathUnionMaxFactor));
                             if (!area_ok) {
+                                ++batch_shrink_;
                                 --batch;
                                 continue;
                             }
@@ -1105,6 +1111,7 @@ export namespace ui::draw_cmd {
                                 ? true
                                 : (union_area <= (sum_area * kRectUnionMaxFactor));
                             if (!area_ok) {
+                                ++batch_shrink_;
                                 --batch;
                                 continue;
                             }
@@ -1167,6 +1174,7 @@ export namespace ui::draw_cmd {
                                 ? true
                                 : (union_area <= (sum_area * kRoundUnionMaxFactor));
                             if (!area_ok) {
+                                ++batch_shrink_;
                                 --batch;
                                 continue;
                             }
@@ -1273,33 +1281,51 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
-                        Rect bounds = cmd.rect;
-                        for (std::size_t j = 0; j < batch; ++j) {
-                            DrawCmd next{};
-                            (void)read_cmd_at(i + j, next);
-                            image_items[j].rect = next.rect;
-                            if (j == 0) {
-                                bounds = image_items[j].rect;
-                            } else {
-                                bounds = rect_union(bounds, image_items[j].rect);
+                        constexpr std::int64_t kImageUnionMaxFactor = 8;
+                        std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        while (batch >= 2) {
+                            Rect bounds{};
+                            std::int64_t sum_area = 0;
+                            for (std::size_t j = 0; j < batch; ++j) {
+                                DrawCmd next{};
+                                (void)read_cmd_at(i + j, next);
+                                image_items[j].rect = next.rect;
+                                if (j == 0) {
+                                    bounds = image_items[j].rect;
+                                } else {
+                                    bounds = rect_union(bounds, image_items[j].rect);
+                                }
+                                sum_area += rect_area(image_items[j].rect);
                             }
+                            const std::int64_t union_area = rect_area(bounds);
+                            const bool area_ok = (sum_area == 0)
+                                ? true
+                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                            if (!area_ok) {
+                                ++batch_shrink_;
+                                --batch;
+                                continue;
+                            }
+                            const BlobRef blob = blob_.add_bytes(image_items.data(),
+                                                                 batch * sizeof(ImageBatchItem),
+                                                                 alignof(ImageBatchItem));
+                            if (blob.length != 0) {
+                                DrawCmd batch_cmd{};
+                                batch_cmd.type = CmdType::DrawImageBatch;
+                                batch_cmd.rect = bounds;
+                                batch_cmd.image = cmd.image;
+                                batch_cmd.blob = blob;
+                                batch_cmd.p0 = static_cast<std::int16_t>(batch);
+                                if (!emit_cmd(batch_cmd)) ok = false;
+                                i += batch;
+                                break;
+                            }
+                            ok = false;
+                            break;
                         }
-                        const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                             batch * sizeof(ImageBatchItem),
-                                                             alignof(ImageBatchItem));
-                        if (blob.length != 0) {
-                            DrawCmd batch_cmd{};
-                            batch_cmd.type = CmdType::DrawImageBatch;
-                            batch_cmd.rect = bounds;
-                            batch_cmd.image = cmd.image;
-                            batch_cmd.blob = blob;
-                            batch_cmd.p0 = static_cast<std::int16_t>(batch);
-                            if (!emit_cmd(batch_cmd)) ok = false;
-                            i += batch;
+                        if (batch >= 2) {
                             continue;
                         }
-                        ok = false;
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawImageRoundRect) {
                     if (!image_id_valid(cmd.image)) {
@@ -1317,34 +1343,52 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
-                        Rect bounds = cmd.rect;
-                        for (std::size_t j = 0; j < batch; ++j) {
-                            DrawCmd next{};
-                            (void)read_cmd_at(i + j, next);
-                            image_items[j].rect = next.rect;
-                            if (j == 0) {
-                                bounds = image_items[j].rect;
-                            } else {
-                                bounds = rect_union(bounds, image_items[j].rect);
+                        constexpr std::int64_t kImageUnionMaxFactor = 8;
+                        std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        while (batch >= 2) {
+                            Rect bounds{};
+                            std::int64_t sum_area = 0;
+                            for (std::size_t j = 0; j < batch; ++j) {
+                                DrawCmd next{};
+                                (void)read_cmd_at(i + j, next);
+                                image_items[j].rect = next.rect;
+                                if (j == 0) {
+                                    bounds = image_items[j].rect;
+                                } else {
+                                    bounds = rect_union(bounds, image_items[j].rect);
+                                }
+                                sum_area += rect_area(image_items[j].rect);
                             }
+                            const std::int64_t union_area = rect_area(bounds);
+                            const bool area_ok = (sum_area == 0)
+                                ? true
+                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                            if (!area_ok) {
+                                ++batch_shrink_;
+                                --batch;
+                                continue;
+                            }
+                            const BlobRef blob = blob_.add_bytes(image_items.data(),
+                                                                 batch * sizeof(ImageBatchItem),
+                                                                 alignof(ImageBatchItem));
+                            if (blob.length != 0) {
+                                DrawCmd batch_cmd{};
+                                batch_cmd.type = CmdType::DrawImageRoundRectBatch;
+                                batch_cmd.rect = bounds;
+                                batch_cmd.image = cmd.image;
+                                batch_cmd.blob = blob;
+                                batch_cmd.p0 = cmd.p0;
+                                batch_cmd.p1 = static_cast<std::int16_t>(batch);
+                                if (!emit_cmd(batch_cmd)) ok = false;
+                                i += batch;
+                                break;
+                            }
+                            ok = false;
+                            break;
                         }
-                        const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                             batch * sizeof(ImageBatchItem),
-                                                             alignof(ImageBatchItem));
-                        if (blob.length != 0) {
-                            DrawCmd batch_cmd{};
-                            batch_cmd.type = CmdType::DrawImageRoundRectBatch;
-                            batch_cmd.rect = bounds;
-                            batch_cmd.image = cmd.image;
-                            batch_cmd.blob = blob;
-                            batch_cmd.p0 = cmd.p0;
-                            batch_cmd.p1 = static_cast<std::int16_t>(batch);
-                            if (!emit_cmd(batch_cmd)) ok = false;
-                            i += batch;
+                        if (batch >= 2) {
                             continue;
                         }
-                        ok = false;
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawImageNineSlice) {
                     if (!image_id_valid(cmd.image)) {
@@ -1363,36 +1407,54 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
-                        Rect bounds = cmd.rect;
-                        for (std::size_t j = 0; j < batch; ++j) {
-                            DrawCmd next{};
-                            (void)read_cmd_at(i + j, next);
-                            image_items[j].rect = next.rect;
-                            if (j == 0) {
-                                bounds = image_items[j].rect;
-                            } else {
-                                bounds = rect_union(bounds, image_items[j].rect);
+                        constexpr std::int64_t kImageUnionMaxFactor = 8;
+                        std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
+                        while (batch >= 2) {
+                            Rect bounds{};
+                            std::int64_t sum_area = 0;
+                            for (std::size_t j = 0; j < batch; ++j) {
+                                DrawCmd next{};
+                                (void)read_cmd_at(i + j, next);
+                                image_items[j].rect = next.rect;
+                                if (j == 0) {
+                                    bounds = image_items[j].rect;
+                                } else {
+                                    bounds = rect_union(bounds, image_items[j].rect);
+                                }
+                                sum_area += rect_area(image_items[j].rect);
                             }
+                            const std::int64_t union_area = rect_area(bounds);
+                            const bool area_ok = (sum_area == 0)
+                                ? true
+                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                            if (!area_ok) {
+                                ++batch_shrink_;
+                                --batch;
+                                continue;
+                            }
+                            const BlobRef blob = blob_.add_bytes(image_items.data(),
+                                                                 batch * sizeof(ImageBatchItem),
+                                                                 alignof(ImageBatchItem));
+                            if (blob.length != 0) {
+                                DrawCmd batch_cmd{};
+                                batch_cmd.type = CmdType::DrawImageNineSliceBatch;
+                                batch_cmd.rect = bounds;
+                                batch_cmd.image = cmd.image;
+                                batch_cmd.blob = blob;
+                                batch_cmd.p0 = cmd.p0;
+                                batch_cmd.p1 = cmd.p1;
+                                batch_cmd.p2 = cmd.p2;
+                                batch_cmd.p3 = cmd.p3;
+                                if (!emit_cmd(batch_cmd)) ok = false;
+                                i += batch;
+                                break;
+                            }
+                            ok = false;
+                            break;
                         }
-                        const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                             batch * sizeof(ImageBatchItem),
-                                                             alignof(ImageBatchItem));
-                        if (blob.length != 0) {
-                            DrawCmd batch_cmd{};
-                            batch_cmd.type = CmdType::DrawImageNineSliceBatch;
-                            batch_cmd.rect = bounds;
-                            batch_cmd.image = cmd.image;
-                            batch_cmd.blob = blob;
-                            batch_cmd.p0 = cmd.p0;
-                            batch_cmd.p1 = cmd.p1;
-                            batch_cmd.p2 = cmd.p2;
-                            batch_cmd.p3 = cmd.p3;
-                            if (!emit_cmd(batch_cmd)) ok = false;
-                            i += batch;
+                        if (batch >= 2) {
                             continue;
                         }
-                        ok = false;
                     }
                 } else if (allow_batch && cmd.type == CmdType::FocusRing) {
                     std::size_t run = 1;
@@ -1426,6 +1488,7 @@ export namespace ui::draw_cmd {
                                 ? true
                                 : (union_area <= (sum_area * kFocusUnionMaxFactor));
                             if (!area_ok) {
+                                ++batch_shrink_;
                                 --batch;
                                 continue;
                             }
@@ -1735,6 +1798,7 @@ export namespace ui::draw_cmd {
         std::size_t count_{0};
         std::size_t cmd_bytes_used_{0};
         std::size_t text_used_{1};
+        std::size_t batch_shrink_{0};
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
     };

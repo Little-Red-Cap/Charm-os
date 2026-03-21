@@ -70,7 +70,9 @@ export namespace ui::gfx {
         Init = 1,
         DumpReplay = 2,
         FrameRecord = 3,
-        SelfTest = 4
+        FrameCompact = 4,
+        FrameExecute = 5,
+        SelfTest = 6
     };
 
     inline const char* image_register_reason_name(ImageRegisterReason reason) noexcept {
@@ -81,6 +83,10 @@ export namespace ui::gfx {
             return "dump_replay";
         case ImageRegisterReason::FrameRecord:
             return "frame_record";
+        case ImageRegisterReason::FrameCompact:
+            return "frame_compact";
+        case ImageRegisterReason::FrameExecute:
+            return "frame_execute";
         case ImageRegisterReason::SelfTest:
             return "selftest";
         case ImageRegisterReason::Unknown:
@@ -95,6 +101,9 @@ export namespace ui::gfx {
         std::uint32_t register_calls{0};
         std::uint32_t register_new_total{0};
         std::uint32_t register_new_after_lock{0};
+        std::uint32_t register_new_record{0};
+        std::uint32_t register_new_compact{0};
+        std::uint32_t register_new_execute{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
     };
@@ -125,9 +134,13 @@ export namespace ui::gfx {
         std::uint32_t register_calls{0};
         std::uint32_t register_new_total{0};
         std::uint32_t register_new_after_lock{0};
+        std::uint32_t register_new_record{0};
+        std::uint32_t register_new_compact{0};
+        std::uint32_t register_new_execute{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
         std::uint16_t lock_count{0};
+        ImageRegisterReason current_phase{ImageRegisterReason::Unknown};
         bool first_after_lock_set{false};
         ImageRegisterReason first_after_lock_reason{ImageRegisterReason::Unknown};
         const char* first_after_lock_tag{nullptr};
@@ -202,6 +215,19 @@ export namespace ui::gfx {
         bool allow_register_new(ImageRegisterReason reason, const char* tag) noexcept {
             if (!locked()) return true;
             register_new_after_lock++;
+            switch (current_phase) {
+            case ImageRegisterReason::FrameRecord:
+                register_new_record++;
+                break;
+            case ImageRegisterReason::FrameCompact:
+                register_new_compact++;
+                break;
+            case ImageRegisterReason::FrameExecute:
+                register_new_execute++;
+                break;
+            default:
+                break;
+            }
             note_after_lock(reason, tag);
 #ifndef NDEBUG
             assert(false && "ImageRegistry is locked");
@@ -339,6 +365,18 @@ export namespace ui::gfx {
             }
             generations[id.slot] = static_cast<std::uint16_t>(generations[id.slot] + 1u);
         }
+
+        struct PhaseScope {
+            ImageRegistry& registry;
+            ImageRegisterReason prev{ImageRegisterReason::Unknown};
+            explicit PhaseScope(ImageRegistry& r, ImageRegisterReason phase) noexcept
+                : registry(r), prev(r.current_phase) {
+                registry.current_phase = phase;
+            }
+            ~PhaseScope() noexcept { registry.current_phase = prev; }
+            PhaseScope(const PhaseScope&) = delete;
+            PhaseScope& operator=(const PhaseScope&) = delete;
+        };
 
         const ImageView* get(ImageId id) const noexcept {
             if (!image_id_valid(id)) return nullptr;
@@ -479,10 +517,22 @@ export namespace ui::gfx {
             registry.register_calls,
             registry.register_new_total,
             registry.register_new_after_lock,
+            registry.register_new_record,
+            registry.register_new_compact,
+            registry.register_new_execute,
             registry.dedup_hits,
             registry.overflowed
         };
     }
+
+    struct ImageRegistryPhaseGuard {
+        explicit ImageRegistryPhaseGuard(ImageRegisterReason phase) noexcept
+            : scope_(image_registry(), phase) {}
+        ImageRegistryPhaseGuard(const ImageRegistryPhaseGuard&) = delete;
+        ImageRegistryPhaseGuard& operator=(const ImageRegistryPhaseGuard&) = delete;
+    private:
+        ImageRegistry::PhaseScope scope_;
+    };
 
     inline void set_image_registry_locked(bool on) noexcept {
         image_registry().set_locked(on);

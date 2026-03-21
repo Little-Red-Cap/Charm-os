@@ -2929,6 +2929,9 @@ int main(int argc, char** argv) {
     bool img_growth_ok = true;
     std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
+    std::uint32_t img_growth_record = 0;
+    std::uint32_t img_growth_compact = 0;
+    std::uint32_t img_growth_execute = 0;
     std::uint32_t missing_glyphs = 0;
     std::uint32_t missing_glyph_fallbacks = 0;
     std::uint32_t utf8_replacements = 0;
@@ -2972,6 +2975,24 @@ int main(int argc, char** argv) {
                 - img_stats_before_record.register_new_after_lock;
         } else {
             img_growth_count = img_stats_after_record.register_new_after_lock;
+        }
+        if (img_stats_after_record.register_new_record >= img_stats_before_record.register_new_record) {
+            img_growth_record = img_stats_after_record.register_new_record
+                - img_stats_before_record.register_new_record;
+        } else {
+            img_growth_record = img_stats_after_record.register_new_record;
+        }
+        if (img_stats_after_record.register_new_compact >= img_stats_before_record.register_new_compact) {
+            img_growth_compact = img_stats_after_record.register_new_compact
+                - img_stats_before_record.register_new_compact;
+        } else {
+            img_growth_compact = img_stats_after_record.register_new_compact;
+        }
+        if (img_stats_after_record.register_new_execute >= img_stats_before_record.register_new_execute) {
+            img_growth_execute = img_stats_after_record.register_new_execute
+                - img_stats_before_record.register_new_execute;
+        } else {
+            img_growth_execute = img_stats_after_record.register_new_execute;
         }
         img_growth_ok = (img_growth_count == 0);
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3230,7 +3251,7 @@ int main(int argc, char** argv) {
                 ci_mark_fail("img_dedup");
             }
         }
-        if (!img_growth_ok) {
+        if (!img_growth_ok || img_growth_record != 0 || img_growth_compact != 0 || img_growth_execute != 0) {
 #if defined(VIVID_SOA_TRACE_INPUT)
             const auto reason = ui::draw_cmd::image_registry_first_after_lock_reason();
             const char* tag = ui::draw_cmd::image_registry_first_after_lock_tag();
@@ -3302,7 +3323,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3335,6 +3356,9 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(compare_tile_hit_pct),
             static_cast<unsigned>(img_stats.register_new_total),
             static_cast<unsigned>(img_stats.register_new_after_lock),
+            static_cast<unsigned>(img_stats.register_new_record),
+            static_cast<unsigned>(img_stats.register_new_compact),
+            static_cast<unsigned>(img_stats.register_new_execute),
             static_cast<unsigned>(img_stats.bytes_total),
             static_cast<unsigned>(img_stats.dedup_hits),
             static_cast<unsigned>(img_growth_count),

@@ -99,6 +99,7 @@ export namespace ui::draw_cmd {
     using ui::gfx::image_registry_first_after_lock_tag;
     using ui::gfx::image_registry_first_after_lock_reason;
     using ui::gfx::ImageRegistryLockGuard;
+    using ui::gfx::ImageRegistryPhaseGuard;
 
     struct CmdHeader {
         CmdType type{CmdType::FillRect};

@@ -128,11 +128,9 @@ export namespace ui::gfx {
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
         std::uint16_t lock_count{0};
-#if defined(VIVID_SOA_TRACE_INPUT)
         bool first_after_lock_set{false};
         ImageRegisterReason first_after_lock_reason{ImageRegisterReason::Unknown};
         const char* first_after_lock_tag{nullptr};
-#endif
 
         static std::uint64_t hash_bytes(std::uint64_t hash, const void* data, std::size_t len) noexcept {
             const auto* bytes = static_cast<const std::uint8_t*>(data);
@@ -194,16 +192,11 @@ export namespace ui::gfx {
         }
 
         void note_after_lock(ImageRegisterReason reason, const char* tag) noexcept {
-#if defined(VIVID_SOA_TRACE_INPUT)
             if (!first_after_lock_set) {
                 first_after_lock_set = true;
                 first_after_lock_reason = reason;
                 first_after_lock_tag = tag;
             }
-#else
-            (void)reason;
-            (void)tag;
-#endif
         }
 
         bool allow_register_new(ImageRegisterReason reason, const char* tag) noexcept {
@@ -530,18 +523,10 @@ export namespace ui::gfx {
     }
 
     inline const char* image_registry_first_after_lock_tag() noexcept {
-#if defined(VIVID_SOA_TRACE_INPUT)
         return image_registry().first_after_lock_tag;
-#else
-        return nullptr;
-#endif
     }
 
     inline ImageRegisterReason image_registry_first_after_lock_reason() noexcept {
-#if defined(VIVID_SOA_TRACE_INPUT)
         return image_registry().first_after_lock_reason;
-#else
-        return ImageRegisterReason::Unknown;
-#endif
     }
 } // namespace ui::gfx

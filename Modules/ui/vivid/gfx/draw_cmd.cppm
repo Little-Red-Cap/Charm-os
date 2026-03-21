@@ -98,6 +98,7 @@ export namespace ui::draw_cmd {
     using ui::gfx::image_registry_register_after_lock;
     using ui::gfx::image_registry_first_after_lock_tag;
     using ui::gfx::image_registry_first_after_lock_reason;
+    using ui::gfx::ImageRegistryLockGuard;
 
     struct CmdHeader {
         CmdType type{CmdType::FillRect};
@@ -1728,15 +1729,6 @@ export namespace ui::draw_cmd {
                 }
             };
 
-            auto is_rect_like = [](CmdType type) noexcept {
-                return type == CmdType::FillRect
-                    || type == CmdType::StrokeRect
-                    || type == CmdType::FillRoundRect
-                    || type == CmdType::StrokeRoundRect
-                    || type == CmdType::FillCircle
-                    || type == CmdType::StrokeCircle;
-            };
-
             auto exec_image_like = [&](const DrawCmd& cur) noexcept {
                 switch (cur.type) {
                 case CmdType::DrawImage: {
@@ -1786,12 +1778,6 @@ export namespace ui::draw_cmd {
                 }
             };
 
-            auto is_image_like = [](CmdType type) noexcept {
-                return type == CmdType::DrawImage
-                    || type == CmdType::DrawImageRoundRect
-                    || type == CmdType::DrawImageNineSlice;
-            };
-
             auto exec_draw_line = [&](const DrawCmd& cur) noexcept {
                 ui::render::draw_line(canvas,
                                       cur.rect.x,
@@ -1817,6 +1803,70 @@ export namespace ui::draw_cmd {
                 ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
             };
 
+            enum class GroupKind : std::uint8_t {
+                None,
+                RectLike,
+                TextBox,
+                ImageLike,
+                DrawLine,
+                DrawPath
+            };
+
+            auto group_kind = [](CmdType type) noexcept -> GroupKind {
+                switch (type) {
+                case CmdType::FillRect:
+                case CmdType::StrokeRect:
+                case CmdType::FillRoundRect:
+                case CmdType::StrokeRoundRect:
+                case CmdType::FillCircle:
+                case CmdType::StrokeCircle:
+                    return GroupKind::RectLike;
+                case CmdType::DrawTextBox:
+                    return GroupKind::TextBox;
+                case CmdType::DrawImage:
+                case CmdType::DrawImageRoundRect:
+                case CmdType::DrawImageNineSlice:
+                    return GroupKind::ImageLike;
+                case CmdType::DrawLine:
+                    return GroupKind::DrawLine;
+                case CmdType::DrawPath:
+                    return GroupKind::DrawPath;
+                default:
+                    return GroupKind::None;
+                }
+            };
+
+            auto exec_group_cmd = [&](const DrawCmd& cur, GroupKind kind) noexcept {
+                switch (kind) {
+                case GroupKind::RectLike:
+                    exec_rect_like(cur);
+                    break;
+                case GroupKind::TextBox: {
+                    if (!buf.text_span_valid(cur.text)) {
+                        stats.failed_cmds++;
+                        return;
+                    }
+                    const char* text = buf.text_at(cur.text.offset);
+                    const Font& font = get_font(cur.font);
+                    draw_text_box(canvas, cur.rect, text, cur.color, font,
+                                  cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+                    break;
+                }
+                case GroupKind::ImageLike:
+                    exec_image_like(cur);
+                    break;
+                case GroupKind::DrawLine:
+                    exec_draw_line(cur);
+                    break;
+                case GroupKind::DrawPath:
+                    exec_draw_path(cur);
+                    break;
+                case GroupKind::None:
+                default:
+                    break;
+                }
+            };
+
             while (i < count) {
                 DrawCmd cmd{};
                 if (!read_cmd_at(i, cmd)) {
@@ -1824,7 +1874,9 @@ export namespace ui::draw_cmd {
                     ++i;
                     continue;
                 }
-                if (cmd.type == CmdType::DrawLine) {
+
+                const auto kind = group_kind(cmd.type);
+                if (kind != GroupKind::None) {
                     stats.dispatch_groups++;
                     while (i < count) {
                         DrawCmd cur{};
@@ -1833,80 +1885,8 @@ export namespace ui::draw_cmd {
                             ++i;
                             continue;
                         }
-                        if (cur.type != CmdType::DrawLine) break;
-                        exec_draw_line(cur);
-                        ++i;
-                    }
-                    stats.batch_flushes++;
-                    continue;
-                }
-                if (cmd.type == CmdType::DrawPath) {
-                    stats.dispatch_groups++;
-                    while (i < count) {
-                        DrawCmd cur{};
-                        if (!read_cmd_at(i, cur)) {
-                            stats.failed_cmds++;
-                            ++i;
-                            continue;
-                        }
-                        if (cur.type != CmdType::DrawPath) break;
-                        exec_draw_path(cur);
-                        ++i;
-                    }
-                    stats.batch_flushes++;
-                    continue;
-                }
-                if (is_rect_like(cmd.type)) {
-                    stats.dispatch_groups++;
-                    while (i < count) {
-                        DrawCmd cur{};
-                        if (!read_cmd_at(i, cur)) {
-                            stats.failed_cmds++;
-                            ++i;
-                            continue;
-                        }
-                        if (!is_rect_like(cur.type)) break;
-                        exec_rect_like(cur);
-                        ++i;
-                    }
-                    stats.batch_flushes++;
-                    continue;
-                }
-                if (cmd.type == CmdType::DrawTextBox) {
-                    stats.dispatch_groups++;
-                    while (i < count) {
-                        DrawCmd cur{};
-                        if (!read_cmd_at(i, cur)) {
-                            stats.failed_cmds++;
-                            ++i;
-                            continue;
-                        }
-                        if (cur.type != CmdType::DrawTextBox) break;
-                        if (!buf.text_span_valid(cur.text)) {
-                            stats.failed_cmds++;
-                            ++i;
-                            continue;
-                        }
-                        const char* text = buf.text_at(cur.text.offset);
-                        const Font& font = get_font(cur.font);
-                        draw_text_box(canvas, cur.rect, text, cur.color, font,
-                                      cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
-                        ++i;
-                    }
-                    stats.batch_flushes++;
-                    continue;
-                }
-                if (is_image_like(cmd.type)) {
-                    stats.dispatch_groups++;
-                    while (i < count) {
-                        DrawCmd cur{};
-                        if (!read_cmd_at(i, cur)) {
-                            stats.failed_cmds++;
-                            ++i;
-                            continue;
-                        }
-                        if (!is_image_like(cur.type)) break;
-                        exec_image_like(cur);
+                        if (group_kind(cur.type) != kind) break;
+                        exec_group_cmd(cur, kind);
                         ++i;
                     }
                     stats.batch_flushes++;

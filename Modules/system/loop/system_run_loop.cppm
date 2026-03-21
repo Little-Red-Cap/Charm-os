@@ -7,6 +7,7 @@ module;
 export module charm.system.run_loop;
 
 import charm.system.clock;
+import io.reactor;
 import util.core;
 
 export namespace charm::system {
@@ -72,4 +73,60 @@ export namespace charm::system {
         std::size_t count_{0};
         ClockTick last_us_{0};
     };
+
+    template <typename Scheduler>
+    struct SchedulerLoopStep {
+        Scheduler* scheduler{nullptr};
+        std::size_t budget{0};
+
+        static void run(void* ctx, ClockTick, ClockTick) noexcept {
+            auto* self = static_cast<SchedulerLoopStep*>(ctx);
+            if (!self || !self->scheduler) {
+                return;
+            }
+            if (self->budget == 0) {
+                (void)self->scheduler->run_once();
+            } else {
+                (void)self->scheduler->run_budget(self->budget);
+            }
+        }
+    };
+
+    template <typename Reactor>
+    struct ReactorLoopStep {
+        Reactor* reactor{nullptr};
+        std::size_t budget{8};
+
+        static void run(void* ctx, ClockTick, ClockTick) noexcept {
+            auto* self = static_cast<ReactorLoopStep*>(ctx);
+            if (!self || !self->reactor) {
+                return;
+            }
+            (void)self->reactor->drain(static_cast<util::usize>(self->budget));
+        }
+    };
+
+    template <std::size_t Capacity, typename Scheduler>
+    [[nodiscard]] inline bool add_scheduler_step(RunLoop<Capacity>& loop,
+                                                 Scheduler& scheduler,
+                                                 SchedulerLoopStep<Scheduler>& step,
+                                                 LoopPhase phase,
+                                                 std::size_t budget = 0,
+                                                 const char* name = nullptr) noexcept {
+        step.scheduler = &scheduler;
+        step.budget = budget;
+        return loop.add_step(phase, &SchedulerLoopStep<Scheduler>::run, &step, name);
+    }
+
+    template <std::size_t Capacity, typename Reactor>
+    [[nodiscard]] inline bool add_reactor_step(RunLoop<Capacity>& loop,
+                                               Reactor& reactor,
+                                               ReactorLoopStep<Reactor>& step,
+                                               LoopPhase phase,
+                                               std::size_t budget = 8,
+                                               const char* name = nullptr) noexcept {
+        step.reactor = &reactor;
+        step.budget = budget;
+        return loop.add_step(phase, &ReactorLoopStep<Reactor>::run, &step, name);
+    }
 }

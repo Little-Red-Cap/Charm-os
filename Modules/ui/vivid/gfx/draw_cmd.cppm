@@ -365,6 +365,20 @@ export namespace ui::draw_cmd {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 
+    inline std::int32_t g_compaction_union_max_factor = 8;
+
+    [[nodiscard]] inline std::int32_t clamp_union_factor(std::int32_t value) noexcept {
+        return (value < 1) ? 1 : value;
+    }
+
+    export void set_compaction_union_factor(std::int32_t factor) noexcept {
+        g_compaction_union_max_factor = clamp_union_factor(factor);
+    }
+
+    export std::int32_t compaction_union_factor() noexcept {
+        return g_compaction_union_max_factor;
+    }
+
     constexpr std::size_t align_up(std::size_t value, std::size_t alignment) noexcept {
         if (alignment == 0) return value;
         const std::size_t mask = alignment - 1;
@@ -934,7 +948,6 @@ export namespace ui::draw_cmd {
             std::size_t i = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
-            constexpr std::int64_t kPathUnionMaxFactor = 8;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
             std::array<LineBatchItem, kMaxBatchItems> line_items{};
             std::array<PathBatchItem, kMaxBatchItems> path_items{};
@@ -948,6 +961,7 @@ export namespace ui::draw_cmd {
             batch_shrink_round_ = 0;
             batch_shrink_image_ = 0;
             batch_shrink_focus_ = 0;
+            const std::int64_t union_max_factor = static_cast<std::int64_t>(compaction_union_factor());
 
             auto read_cmd_at = [&](std::size_t index, DrawCmd& out_cmd) noexcept -> bool {
                 if (index >= input_count) return false;
@@ -1000,7 +1014,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kLineUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1021,7 +1034,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kLineUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_line_;
@@ -1079,7 +1092,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kPathUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_path_;
@@ -1116,7 +1129,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kRectUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1135,7 +1147,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kRectUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_rect_;
@@ -1180,7 +1192,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kRoundUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1199,7 +1210,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kRoundUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_round_;
@@ -1309,7 +1320,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kImageUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1328,7 +1338,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_image_;
@@ -1372,7 +1382,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kImageUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1391,7 +1400,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_image_;
@@ -1437,7 +1446,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kImageUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1456,7 +1464,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kImageUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_image_;
@@ -1498,7 +1506,6 @@ export namespace ui::draw_cmd {
                         ++run;
                     }
                     if (run >= 2) {
-                        constexpr std::int64_t kFocusUnionMaxFactor = 8;
                         std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         while (batch >= 2) {
                             Rect bounds{};
@@ -1517,7 +1524,7 @@ export namespace ui::draw_cmd {
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
                                 ? true
-                                : (union_area <= (sum_area * kFocusUnionMaxFactor));
+                                : (union_area <= (sum_area * union_max_factor));
                             if (!area_ok) {
                                 ++batch_shrink_;
                                 ++batch_shrink_focus_;

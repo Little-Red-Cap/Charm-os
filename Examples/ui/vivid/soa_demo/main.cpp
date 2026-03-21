@@ -2311,6 +2311,7 @@ int main(int argc, char** argv) {
     bool run_gif = false;
     int bw1_threshold = 128;
     int gray2_strength = 8;
+    int compaction_union_factor = 8;
     SdlTileBackend::Gray2Curve gray2_curve = SdlTileBackend::Gray2Curve::Linear;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
@@ -2376,6 +2377,9 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--gray2-strength=", 0) == 0) {
             const int value = std::atoi(std::string(arg.substr(17)).c_str());
             gray2_strength = (value < 0) ? 0 : (value > 64) ? 64 : value;
+        } else if (arg.rfind("--compaction-union-factor=", 0) == 0) {
+            const int value = std::atoi(std::string(arg.substr(27)).c_str());
+            compaction_union_factor = (value < 1) ? 1 : value;
         } else if (arg.rfind("--gray2-curve=", 0) == 0) {
             const std::string_view value = std::string_view(arg).substr(14);
             if (value == "soft") {
@@ -2463,6 +2467,8 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] bw1 disabled for headless runs">(g_console);
         use_bw1 = false;
     }
+
+    ui::draw_cmd::set_compaction_union_factor(compaction_union_factor);
     if (run_headless && use_gray2) {
         (void)out::println<"[soa] gray2 disabled for headless runs">(g_console);
         use_gray2 = false;

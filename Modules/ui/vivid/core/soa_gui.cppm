@@ -236,34 +236,30 @@ WidgetHandle SoaGui::root() const noexcept {
     return root_;
 }
 
-    void SoaGui::render() {
-        refresh_styles();
-        layout_.run_if_needed(root_);
-        cmd_buffer_.clear();
-        {
-            ui::draw_cmd::ImageRegistryLockGuard guard{};
-            record_tree(cmd_buffer_);
-        }
-        (void)cmd_buffer_.compact();
-        last_cmd_stats_ = cmd_buffer_.stats();
-        text_profile_reset();
-        canvas_.begin_frame();
-        last_exec_stats_ = cmd_exec_.execute(canvas_, cmd_buffer_);
-        canvas_.end_frame();
-    }
+void SoaGui::render() {
+    refresh_styles();
+    layout_.run_if_needed(root_);
+    cmd_buffer_.clear();
+    ui::draw_cmd::ImageRegistryLockGuard guard{};
+    record_tree(cmd_buffer_);
+    (void)cmd_buffer_.compact();
+    last_cmd_stats_ = cmd_buffer_.stats();
+    text_profile_reset();
+    canvas_.begin_frame();
+    last_exec_stats_ = cmd_exec_.execute(canvas_, cmd_buffer_);
+    canvas_.end_frame();
+}
 
-    ui::draw_cmd::DrawCmdStats SoaGui::record_commands(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
-        refresh_styles();
-        layout_.run_if_needed(root_);
-        out.clear();
-        {
-            ui::draw_cmd::ImageRegistryLockGuard guard{};
-            record_tree(out);
-        }
-        (void)out.compact();
-        last_cmd_stats_ = out.stats();
-        return last_cmd_stats_;
-    }
+ui::draw_cmd::DrawCmdStats SoaGui::record_commands(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
+    refresh_styles();
+    layout_.run_if_needed(root_);
+    out.clear();
+    ui::draw_cmd::ImageRegistryLockGuard guard{};
+    record_tree(out);
+    (void)out.compact();
+    last_cmd_stats_ = out.stats();
+    return last_cmd_stats_;
+}
 
 template <ui::RenderBackend Backend>
 ui::draw_cmd::DrawCmdTileStats SoaGui::render_tiles(Backend& backend,
@@ -272,10 +268,8 @@ ui::draw_cmd::DrawCmdTileStats SoaGui::render_tiles(Backend& backend,
     refresh_styles();
     layout_.run_if_needed(root_);
     cmd_buffer_.clear();
-    {
-        ui::draw_cmd::ImageRegistryLockGuard guard{};
-        record_tree(cmd_buffer_);
-    }
+    ui::draw_cmd::ImageRegistryLockGuard guard{};
+    record_tree(cmd_buffer_);
     (void)cmd_buffer_.compact();
     last_cmd_stats_ = cmd_buffer_.stats();
     text_profile_reset();

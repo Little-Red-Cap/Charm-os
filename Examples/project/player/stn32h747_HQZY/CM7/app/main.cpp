@@ -66,12 +66,14 @@ SD NAND W25Q256
 
 import charm.system.bringup;
 import charm.system.clock;
+import charm.system.run_loop;
 import charm.system.time;
 import charm.system.reactor_pump;
 import charm.system.init_usb;
 import charm.port;
 import driver.usart_channel;
 import io.channel;
+import io.reactor;
 import io.registry;
 import block.registry;
 import kernel.capabilities;
@@ -1056,8 +1058,25 @@ int main() {
         audio_mp3_demo_run();
     }
 
+    charm::system::RunLoop<4> loop{};
+    loop.bind_clock(bringup.clock());
+    charm::system::SchedulerLoopStep<SchedulerT> sched_step{};
+    charm::system::ReactorLoopStep<io::Reactor> reactor_step{};
+    (void)charm::system::add_reactor_step(loop,
+                                          bringup.reactor(),
+                                          reactor_step,
+                                          charm::system::LoopPhase::io,
+                                          8,
+                                          "io_reactor");
+    (void)charm::system::add_scheduler_step(loop,
+                                            running,
+                                            sched_step,
+                                            charm::system::LoopPhase::update,
+                                            0,
+                                            "sched");
+
     while (true) {
-        (void)running.run_once();
+        loop.run_once();
         if (g_msc_bot && g_msc_cfg) {
             (void)usb::device::examples::send_msc_in_packet(
                 g_usb_dcd_ops, &hpcd_USB_OTG_FS, *g_msc_bot, *g_msc_cfg);

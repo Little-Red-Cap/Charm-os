@@ -2372,6 +2372,8 @@ export namespace ui::draw_cmd {
                 const auto kind = group_kind(cmd.type);
                 if (kind != GroupKind::None) {
                     stats.dispatch_groups++;
+                    exec_group_cmd(cmd, kind);
+                    ++i;
                     while (i < count) {
                         DrawCmd cur{};
                         if (!read_cmd_at(i, cur)) {

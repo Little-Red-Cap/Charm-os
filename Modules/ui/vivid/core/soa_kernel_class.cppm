@@ -999,7 +999,7 @@ private:
     WidgetHandle input_find_toggle_group_ancestor(WidgetHandle h) const noexcept ;
     void input_scroll_by(WidgetHandle h, int dy, int dx = 0) ;
     SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
-        SoaWheelAxisPolicy fallback) const noexcept ;
+        SoaWheelAxisPolicy fallback, int x, int y) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;

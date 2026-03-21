@@ -91,12 +91,25 @@ sequenceDiagram
 ### 2.1 命令缓冲 + Tile/PFB 执行（R1）
 
 - SoA 渲染改为 **record/execute**：控件只记录命令，不直接绘制。
-- `DrawCmdBuffer` 固定容量、无堆分配；命令只包含 POD（坐标/颜色/半径/文字索引）。
+- `DrawCmdBuffer` 固定容量、无堆分配；命令使用 `CmdHeader + payload` 的线性 **arena** 存储（变长、顺序遍历），统计以 `cmd_count/cmd_bytes` 为准。
 - `DrawCmdExecutor` 是唯一“画像素”的入口，支持：
   - **FullFrame**：直接执行到 `CanvasBase`（全屏缓冲）。
   - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
 - `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
+
+**命令合批（Compaction）：**
+
+- compaction 仅在 record 结束后执行，保证回放与哈希一致性。
+- 已覆盖的 batch：
+  - `FillRect/StrokeRect`
+  - `DrawLine`
+  - `DrawPath`
+  - `FocusRing`
+  - `FillRoundRect/StrokeRoundRect`
+  - `FillCircle/StrokeCircle`
+  - `DrawTextBox` -> `GlyphRun`
+  - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
 
 ```mermaid
 flowchart LR
@@ -122,6 +135,7 @@ flowchart LR
 - 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawImageNineSlice` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
+- dump/replay 使用 vcmd v2：写入 **arena cmd_bytes**（而非固定 struct 数组），回放按 `CmdHeader` 解码执行。
 
 ### 2.3 Tile 命中裁剪（R3）
 
@@ -294,6 +308,13 @@ flowchart TB
 - 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
 - RichText/CodeBlock 走独立控件，避免复杂样式侵入基础文本。
 - SoA 路径使用 `TextArena + TextId` 存储文本，payload 不再保存指针；溢出时置位 `text_overflowed` 并回退到空文本或占位串。
+- 可选接入 VFS 字体提供器（只做接口，不依赖 FreeType）：
+  - 模块：`Modules/gfx/font/font_provider_vfs.cppm`
+  - 用法：
+    1. 实现 `VfsFontLoaderApi`（`load/reset`），负责从 VFS 读取字体并填充 `Font`。
+    2. 配置 `VfsFontProviderConfig` 的路径（small/normal/large/mono/fallback）。
+    3. `set_font_provider(provider.provider())` 注入字体提供器。
+  - 约束：`Font` 指针在 provider 生命周期内必须稳定；loader 不得在渲染热路径做阻塞 IO。
 
 ## 6. 主题与样式
 

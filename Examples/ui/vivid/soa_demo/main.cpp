@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <cmath>
 
 import charm.core.soa_kernel;
 import charm.core.soa_factory;
@@ -25,6 +26,8 @@ import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
 import charm.gfx.image;
 import charm.gfx.snapshot;
+import charm.gfx.pixel_ops;
+import charm.gfx.text_box;
 import charm.font.typography;
 import charm.widgets.menu_tree;
 import out.api;
@@ -296,7 +299,52 @@ namespace {
     }
 
     struct SdlTileBackend {
+        enum class DisplayMode : std::uint8_t {
+            Color,
+            BW1,
+            Gray2,
+            Eink
+        };
+
+        enum class Gray2Curve : std::uint8_t {
+            Linear = 0,
+            Soft = 1,
+            Contrast = 2
+        };
+
+        enum class RefreshKind : std::uint8_t {
+            None,
+            Partial,
+            Full
+        };
+
+        struct DisplayConfig {
+            DisplayMode mode{DisplayMode::Color};
+            std::uint8_t bw1_threshold{128};
+            std::uint8_t gray2_strength{8};
+            Gray2Curve gray2_curve{Gray2Curve::Linear};
+        };
+
+        struct EinkPolicy {
+            int max_partial_count{20};
+            int min_full_interval_ms{30000};
+            int partial_area_ratio_pct{35};
+        };
+
         DefaultFrameBuffer& fb;
+        PixelFormat src_format{screen_pixel_format};
+        std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
+        DisplayConfig display{};
+        EinkPolicy eink_policy{};
+        RefreshKind last_refresh{RefreshKind::None};
+        int partial_count{0};
+        int total_partial_count{0};
+        int total_full_count{0};
+        std::uint32_t last_full_ms{0};
+        int last_dirty_pct{0};
+        std::array<std::uint8_t, 256> gray2_lut{};
+        Gray2Curve gray2_curve_cached{Gray2Curve::Linear};
+        bool gray2_lut_ready{false};
         bool dirty_set{false};
         int dirty_left{0};
         int dirty_top{0};
@@ -309,6 +357,26 @@ namespace {
         void begin_frame() noexcept { dirty_set = false; }
         void end_frame() noexcept {}
 
+        void update_gray2_lut() noexcept {
+            if (gray2_lut_ready && gray2_curve_cached == display.gray2_curve) return;
+            gray2_curve_cached = display.gray2_curve;
+            gray2_lut_ready = true;
+            float gamma = 1.0f;
+            switch (display.gray2_curve) {
+            case Gray2Curve::Soft: gamma = 1.25f; break;
+            case Gray2Curve::Contrast: gamma = 0.85f; break;
+            default: break;
+            }
+            for (int i = 0; i < 256; ++i) {
+                const float x = static_cast<float>(i) / 255.0f;
+                const float y = std::pow(x, gamma);
+                int v = static_cast<int>(y * 255.0f + 0.5f);
+                if (v < 0) v = 0;
+                if (v > 255) v = 255;
+                gray2_lut[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(v);
+            }
+        }
+
         void blit_span(int x, int y, const std::byte* src, std::size_t bytes) noexcept {
             if (!src || bytes == 0) return;
             if (x < 0 || y < 0 || x >= screen_width || y >= screen_height) return;
@@ -318,7 +386,137 @@ namespace {
             if (bytes > max_bytes) bytes = max_bytes;
             auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
                 + static_cast<std::size_t>(x) * bpp;
-            std::memcpy(dst, src, bytes);
+            if (display.mode == DisplayMode::Color) {
+                std::memcpy(dst, src, bytes);
+                return;
+            }
+            update_gray2_lut();
+            if (src_bpp == 0) return;
+            const std::size_t count = bytes / src_bpp;
+            const auto read_rgb = [&](const std::byte* p) noexcept -> rgb {
+                switch (src_format) {
+                case PixelFormat::RGB565: {
+                    std::uint16_t px{};
+                    std::memcpy(&px, p, sizeof(px));
+                    return unpack_rgb565(px);
+                }
+                case PixelFormat::RGB888:
+                    return rgb{
+                        static_cast<std::uint8_t>(p[0]),
+                        static_cast<std::uint8_t>(p[1]),
+                        static_cast<std::uint8_t>(p[2])
+                    };
+                case PixelFormat::ARGB8888: {
+                    std::uint32_t px{};
+                    std::memcpy(&px, p, sizeof(px));
+                    const rgba c = unpack_argb8888(px);
+                    return rgb{c.r, c.g, c.b};
+                }
+                default:
+                    return rgb{0, 0, 0};
+                }
+            };
+            const auto write_gray = [&](std::byte* p, std::uint8_t v) noexcept {
+                switch (screen_pixel_format) {
+                case PixelFormat::RGB565: {
+                    const std::uint16_t px = pack_rgb565(rgb{v, v, v});
+                    std::memcpy(p, &px, sizeof(px));
+                    break;
+                }
+                case PixelFormat::RGB888:
+                    p[0] = std::byte{v};
+                    p[1] = std::byte{v};
+                    p[2] = std::byte{v};
+                    break;
+                case PixelFormat::ARGB8888: {
+                    const std::uint32_t px = pack_argb8888(rgba{v, v, v, 255});
+                    std::memcpy(p, &px, sizeof(px));
+                    break;
+                }
+                }
+            };
+            static constexpr std::uint8_t kBayer4[4][4] = {
+                { 0,  8,  2, 10},
+                {12,  4, 14,  6},
+                { 3, 11,  1,  9},
+                {15,  7, 13,  5}
+            };
+            const std::byte* s = src;
+            std::byte* d = dst;
+            for (std::size_t i = 0; i < count; ++i) {
+                const rgb c = read_rgb(s);
+                const std::uint8_t lum = static_cast<std::uint8_t>(
+                    (static_cast<std::uint32_t>(c.r) * 77u
+                        + static_cast<std::uint32_t>(c.g) * 150u
+                        + static_cast<std::uint32_t>(c.b) * 29u) >> 8u);
+                std::uint8_t v = 0u;
+                if (display.mode == DisplayMode::BW1) {
+                    v = (lum >= display.bw1_threshold) ? 255u : 0u;
+                } else {
+                    const int px_x = x + static_cast<int>(i);
+                    const std::uint8_t dither = kBayer4[y & 3][px_x & 3];
+                    const int strength = static_cast<int>(display.gray2_strength);
+                    const std::uint8_t mapped = gray2_lut[static_cast<std::size_t>(lum)];
+                    int lum_d = static_cast<int>(mapped) + (static_cast<int>(dither) - 8) * strength;
+                    if (lum_d < 0) lum_d = 0;
+                    if (lum_d > 255) lum_d = 255;
+                    const std::uint8_t level = static_cast<std::uint8_t>((lum_d * 4) >> 8);
+                    v = static_cast<std::uint8_t>(level * 85u);
+                }
+                write_gray(d, v);
+                s += src_bpp;
+                d += bpp;
+            }
+        }
+
+        void decide_refresh(int dirty_area, int screen_area, std::uint32_t now_ms) noexcept {
+            if (dirty_area <= 0 || screen_area <= 0) {
+                last_refresh = RefreshKind::None;
+                last_dirty_pct = 0;
+                return;
+            }
+            const int dirty_pct = static_cast<int>(
+                (static_cast<std::uint64_t>(dirty_area) * 100u)
+                / static_cast<std::uint64_t>(screen_area));
+            last_dirty_pct = dirty_pct;
+            const bool want_full = dirty_pct >= eink_policy.partial_area_ratio_pct
+                || partial_count >= eink_policy.max_partial_count;
+            const std::uint32_t since_full = now_ms - last_full_ms;
+            if (want_full && since_full >= static_cast<std::uint32_t>(eink_policy.min_full_interval_ms)) {
+                last_refresh = RefreshKind::Full;
+                partial_count = 0;
+                last_full_ms = now_ms;
+                ++total_full_count;
+            } else {
+                last_refresh = RefreshKind::Partial;
+                ++partial_count;
+                ++total_partial_count;
+            }
+        }
+
+        const char* last_refresh_name() const noexcept {
+            switch (last_refresh) {
+            case RefreshKind::Partial: return "partial";
+            case RefreshKind::Full: return "full";
+            default: return "none";
+            }
+        }
+
+        const char* display_mode_name() const noexcept {
+            switch (display.mode) {
+            case DisplayMode::BW1: return "bw1";
+            case DisplayMode::Gray2: return "gray2";
+            case DisplayMode::Eink: return "eink";
+            default: return "color";
+            }
+        }
+
+        const char* gray2_curve_name() const noexcept {
+            switch (display.gray2_curve) {
+            case Gray2Curve::Soft: return "soft";
+            case Gray2Curve::Contrast: return "contrast";
+            default: return "linear";
+            }
         }
 
         void mark_dirty(int x, int y, int w, int h) noexcept {
@@ -348,6 +546,36 @@ namespace {
         }
     };
 
+    void append_display_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                                const SdlTileBackend& backend) noexcept {
+        char label[96]{};
+        Rect panel{8, 8, 160, 18};
+        if (backend.display.mode == SdlTileBackend::DisplayMode::BW1) {
+            const auto threshold = static_cast<unsigned>(backend.display.bw1_threshold);
+            (void)std::snprintf(label, sizeof(label), "bw1 thr=%u", threshold);
+        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
+            const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
+            (void)std::snprintf(label, sizeof(label), "gray2 str=%u curve=%s",
+                                strength, backend.gray2_curve_name());
+            panel.w = 200;
+        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+            const auto ratio = static_cast<unsigned>(backend.eink_policy.partial_area_ratio_pct);
+            const auto max_partial = static_cast<unsigned>(backend.eink_policy.max_partial_count);
+            const auto min_full = static_cast<unsigned>(backend.eink_policy.min_full_interval_ms);
+            (void)std::snprintf(label, sizeof(label), "eink pct=%u max=%u min=%ums",
+                                ratio, max_partial, min_full);
+            panel.w = 220;
+        } else {
+            return;
+        }
+        buf.fill_round_rect(panel, 4, kDemoPanel);
+        buf.stroke_round_rect(panel, 4, kDemoPanelBorder);
+        buf.draw_text_box(panel, label, kDemoPath,
+                          get_font(FontId::Normal),
+                          TextAlignH::Left, TextAlignV::Center,
+                          TextWrap::None, TextEllipsis::None);
+    }
+
     constexpr std::uint32_t vcmd_magic() noexcept {
         return static_cast<std::uint32_t>('V')
             | (static_cast<std::uint32_t>('C') << 8)
@@ -355,9 +583,10 @@ namespace {
             | (static_cast<std::uint32_t>('D') << 24);
     }
 
-    constexpr std::uint32_t kVcmdVersion = 1;
+    constexpr std::uint32_t kVcmdVersion = 3;
     constexpr std::uint32_t kVcmdEndian = 0x01020304u;
     constexpr std::uint32_t kVcmdFlagHasImages = 1u << 0;
+    constexpr std::uint32_t kVcmdFlagHasDisplayConfig = 1u << 1;
 
     struct VcmdHeader {
         std::uint32_t magic{vcmd_magic()};
@@ -390,6 +619,17 @@ namespace {
         std::uint32_t data_bytes{0};
     };
 
+    struct VcmdDisplayConfig {
+        std::uint8_t display_mode{0};
+        std::uint8_t bw1_threshold{128};
+        std::uint8_t gray2_strength{8};
+        std::uint8_t gray2_curve{0};
+        std::int32_t eink_max_partial{20};
+        std::int32_t eink_min_full_ms{30000};
+        std::int32_t eink_partial_ratio_pct{35};
+        std::int32_t reserved2{0};
+    };
+
     bool write_block(std::FILE* file, const void* data, std::size_t bytes) noexcept {
         if (!file) return false;
         if (bytes == 0) return true;
@@ -402,7 +642,9 @@ namespace {
         return std::fread(data, 1, bytes, file) == bytes;
     }
 
-    bool dump_cmd_file(const char* path, const ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept {
+    bool dump_cmd_file(const char* path,
+                       const ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                       const SdlTileBackend* backend) noexcept {
         if (!path || !path[0]) return false;
         std::FILE* file = std::fopen(path, "wb");
         if (!file) return false;
@@ -446,8 +688,23 @@ namespace {
         header.image_count = static_cast<std::uint32_t>(image_headers.size());
         header.font_count = 0;
 
+        VcmdDisplayConfig config{};
+        if (backend) {
+            config.display_mode = static_cast<std::uint8_t>(backend->display.mode);
+            config.bw1_threshold = backend->display.bw1_threshold;
+            config.gray2_strength = backend->display.gray2_strength;
+            config.gray2_curve = static_cast<std::uint8_t>(backend->display.gray2_curve);
+            config.eink_max_partial = backend->eink_policy.max_partial_count;
+            config.eink_min_full_ms = backend->eink_policy.min_full_interval_ms;
+            config.eink_partial_ratio_pct = backend->eink_policy.partial_area_ratio_pct;
+            header.flags |= kVcmdFlagHasDisplayConfig;
+        }
+
         bool ok = write_block(file, &header, sizeof(header));
-        ok = ok && write_block(file, buf.data(), header.cmd_bytes);
+        if (ok && (header.flags & kVcmdFlagHasDisplayConfig) != 0u) {
+            ok = write_block(file, &config, sizeof(config));
+        }
+        ok = ok && write_block(file, buf.cmd_data(), header.cmd_bytes);
         ok = ok && write_block(file, buf.text_data(), header.text_bytes);
         ok = ok && write_block(file, buf.blob_data(), header.blob_bytes);
         for (std::size_t i = 0; ok && i < image_headers.size(); ++i) {
@@ -476,7 +733,7 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.magic != vcmd_magic() || header.version != kVcmdVersion) {
+        if (header.magic != vcmd_magic() || (header.version != 2 && header.version != kVcmdVersion)) {
             std::fclose(file);
             return false;
         }
@@ -498,16 +755,25 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.cmd_bytes != header.cmd_count * sizeof(ui::draw_cmd::DrawCmd)) {
-            std::fclose(file);
-            return false;
+        if ((header.flags & kVcmdFlagHasDisplayConfig) != 0u) {
+            VcmdDisplayConfig config{};
+            if (!read_block(file, &config, sizeof(config))) {
+                std::fclose(file);
+                return false;
+            }
+            tile_backend.display.mode = static_cast<SdlTileBackend::DisplayMode>(config.display_mode);
+            tile_backend.display.bw1_threshold = config.bw1_threshold;
+            tile_backend.display.gray2_strength = config.gray2_strength;
+            tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(config.gray2_curve);
+            tile_backend.eink_policy.max_partial_count = config.eink_max_partial;
+            tile_backend.eink_policy.min_full_interval_ms = config.eink_min_full_ms;
+            tile_backend.eink_policy.partial_area_ratio_pct = config.eink_partial_ratio_pct;
         }
-
-        std::vector<ui::draw_cmd::DrawCmd> cmds(header.cmd_count);
+        std::vector<std::byte> cmd_bytes(header.cmd_bytes);
         std::vector<char> text(header.text_bytes);
         std::vector<std::byte> blob(header.blob_bytes);
 
-        if (!read_block(file, cmds.data(), header.cmd_bytes)) {
+        if (!read_block(file, cmd_bytes.data(), header.cmd_bytes)) {
             std::fclose(file);
             return false;
         }
@@ -554,8 +820,25 @@ namespace {
                 return false;
             }
         }
+        if (!ui::draw_cmd::image_registry_locked()) {
+            ui::draw_cmd::set_image_registry_locked(true);
+        }
 
-        for (const auto& cmd : cmds) {
+        std::fclose(file);
+
+        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
+        if (!buf.load(cmd_bytes.data(),
+                      cmd_bytes.size(),
+                      header.cmd_count,
+                      text.data(),
+                      text.size(),
+                      blob.data(),
+                      blob.size())) {
+            return false;
+        }
+        ui::draw_cmd::DrawCmd cmd{};
+        for (std::size_t i = 0; i < buf.size(); ++i) {
+            if (!buf.read_cmd(i, cmd)) return false;
             if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
                 const std::size_t end = static_cast<std::size_t>(cmd.text.offset) + cmd.text.length;
                 if (end > text.size()) {
@@ -573,18 +856,6 @@ namespace {
                 && !ui::draw_cmd::image_id_valid(cmd.image)) {
                 return false;
             }
-        }
-
-        std::fclose(file);
-
-        ui::draw_cmd::DefaultDrawCmdBuffer buf{};
-        if (!buf.load(cmds.data(),
-                      cmds.size(),
-                      text.data(),
-                      text.size(),
-                      blob.data(),
-                      blob.size())) {
-            return false;
         }
 
         ui::draw_cmd::DrawCmdExecutor exec{};
@@ -1630,7 +1901,7 @@ namespace {
             } else {
                 std::snprintf(dump_path, sizeof(dump_path), "soa_iconlist.vcmd");
             }
-            if (!dump_cmd_file(dump_path, dump_buf)) {
+            if (!dump_cmd_file(dump_path, dump_buf, &tile_backend)) {
                 expect_true(false, "listview: dump_cmd_file failed", fails);
             } else if (!replay_cmd_file(dump_path, fb, canvas, tile_backend, tile_view, tile_config, false, nullptr)) {
                 expect_true(false, "listview: replay full failed", fails);
@@ -1740,7 +2011,8 @@ namespace {
         const Rect table_root_r = kernel.rect(table_root);
         const Rect table_r = kernel.rect(table_view);
         const int table_hit_x = table_root_r.x + table_r.x + 8;
-        const int table_hit_y = table_root_r.y + table_r.y + 8;
+        const int header_h = kernel.table_view_header_height(table_view);
+        const int table_hit_y = table_root_r.y + table_r.y + header_h + 8;
 
         kernel.layout_trace_reset();
         const int table_before = kernel.scroll_y(table_view);
@@ -2018,16 +2290,28 @@ int main(int argc, char** argv) {
     bool run_regress_layout = false;
     bool run_regress_ui = false;
     bool use_tiles = false;
+    bool use_bw1 = false;
+    bool use_gray2 = false;
+    bool use_eink = false;
     bool print_stats = false;
     bool run_compare = false;
     bool run_dump = false;
     bool run_replay = false;
     bool run_ci = false;
     bool selftest_dedup = false;
+    int max_missing_glyphs = 0;
+    int max_fallback_glyphs = 0;
+    int max_utf8_replacements = 0;
+    int max_text_draw = -1;
+    int max_text_glyphs = -1;
+    int max_text_pixels = -1;
     bool replay_use_tiles = false;
     bool replay_backend_set = false;
     bool run_screenshot = false;
     bool run_gif = false;
+    int bw1_threshold = 128;
+    int gray2_strength = 8;
+    SdlTileBackend::Gray2Curve gray2_curve = SdlTileBackend::Gray2Curve::Linear;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
@@ -2080,6 +2364,42 @@ int main(int argc, char** argv) {
             gif_frames = std::atoi(std::string(arg.substr(13)).c_str());
         } else if (arg.rfind("--gif-delay=", 0) == 0) {
             gif_delay_cs = static_cast<std::uint16_t>(std::atoi(std::string(arg.substr(12)).c_str()));
+        } else if (arg == "--bw1") {
+            use_bw1 = true;
+            use_tiles = true;
+        } else if (arg.rfind("--bw1-threshold=", 0) == 0) {
+            const int value = std::atoi(std::string(arg.substr(17)).c_str());
+            bw1_threshold = (value < 0) ? 0 : (value > 255) ? 255 : value;
+        } else if (arg == "--gray2") {
+            use_gray2 = true;
+            use_tiles = true;
+        } else if (arg.rfind("--gray2-strength=", 0) == 0) {
+            const int value = std::atoi(std::string(arg.substr(17)).c_str());
+            gray2_strength = (value < 0) ? 0 : (value > 64) ? 64 : value;
+        } else if (arg.rfind("--gray2-curve=", 0) == 0) {
+            const std::string_view value = std::string_view(arg).substr(14);
+            if (value == "soft") {
+                gray2_curve = SdlTileBackend::Gray2Curve::Soft;
+            } else if (value == "contrast") {
+                gray2_curve = SdlTileBackend::Gray2Curve::Contrast;
+            } else {
+                gray2_curve = SdlTileBackend::Gray2Curve::Linear;
+            }
+        } else if (arg.rfind("--max-missing-glyphs=", 0) == 0) {
+            max_missing_glyphs = std::atoi(std::string(arg.substr(21)).c_str());
+        } else if (arg.rfind("--max-fallback-glyphs=", 0) == 0) {
+            max_fallback_glyphs = std::atoi(std::string(arg.substr(22)).c_str());
+        } else if (arg.rfind("--max-utf8-replace=", 0) == 0) {
+            max_utf8_replacements = std::atoi(std::string(arg.substr(20)).c_str());
+        } else if (arg.rfind("--max-text-draw=", 0) == 0) {
+            max_text_draw = std::atoi(std::string(arg.substr(16)).c_str());
+        } else if (arg.rfind("--max-text-glyphs=", 0) == 0) {
+            max_text_glyphs = std::atoi(std::string(arg.substr(18)).c_str());
+        } else if (arg.rfind("--max-text-pixels=", 0) == 0) {
+            max_text_pixels = std::atoi(std::string(arg.substr(18)).c_str());
+        } else if (arg == "--eink") {
+            use_eink = true;
+            use_tiles = true;
         } else if (arg == "--backend=tile") {
             replay_use_tiles = true;
             replay_backend_set = true;
@@ -2139,6 +2459,18 @@ int main(int argc, char** argv) {
     const bool run_headless =
         run_regress || run_regress_layout || run_regress_ui || run_compare || run_dump || run_replay
         || run_screenshot || run_gif;
+    if (run_headless && use_bw1) {
+        (void)out::println<"[soa] bw1 disabled for headless runs">(g_console);
+        use_bw1 = false;
+    }
+    if (run_headless && use_gray2) {
+        (void)out::println<"[soa] gray2 disabled for headless runs">(g_console);
+        use_gray2 = false;
+    }
+    if (run_headless && use_eink) {
+        (void)out::println<"[soa] eink disabled for headless runs">(g_console);
+        use_eink = false;
+    }
 
     // Keep the large framebuffer off the stack to avoid stack overflow.
     static DefaultFrameBuffer fb{};
@@ -2152,6 +2484,23 @@ int main(int argc, char** argv) {
         kTileStride
     };
     SdlTileBackend tile_backend{fb};
+    tile_backend.src_format = tile_view.format;
+    tile_backend.src_bpp = (tile_view.format == PixelFormat::RGB565) ? 2u
+        : (tile_view.format == PixelFormat::RGB888) ? 3u
+        : (tile_view.format == PixelFormat::ARGB8888) ? 4u
+        : 0u;
+    if (use_eink) {
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Eink;
+    } else if (use_gray2) {
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Gray2;
+    } else if (use_bw1) {
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::BW1;
+    } else {
+        tile_backend.display.mode = SdlTileBackend::DisplayMode::Color;
+    }
+    tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(bw1_threshold);
+    tile_backend.display.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
+    tile_backend.display.gray2_curve = gray2_curve;
     ui::draw_cmd::DrawCmdTileConfig tile_config{};
     tile_config.tile_width = kTileWidth;
     tile_config.tile_height = kTileHeight;
@@ -2204,6 +2553,9 @@ int main(int argc, char** argv) {
     auto menu_item_c = factory.create_menu_item("Save");
 
     ensure_demo_images();
+    if (!ui::draw_cmd::image_registry_locked()) {
+        ui::draw_cmd::set_image_registry_locked(true);
+    }
     factory.set_button_icon(btn, g_test_icon_id);
     factory.set_button_icon_size(btn, 18);
     factory.set_button_icon(icon_btn, g_test_icon_id);
@@ -2562,9 +2914,16 @@ int main(int argc, char** argv) {
     bool img_growth_ok = true;
     std::uint32_t img_growth_count = 0;
     bool img_dedup_ok = true;
+    std::uint32_t missing_glyphs = 0;
+    std::uint32_t missing_glyph_fallbacks = 0;
+    std::uint32_t utf8_replacements = 0;
+    TextProfileSample text_profile{};
+    std::size_t compare_cmd_count_raw = 0;
     if (run_compare || run_dump) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         reset_font_ptr_map_count();
+        reset_missing_glyph_stats();
+        text_profile_reset();
 #endif
         if (selftest_dedup) {
             ensure_demo_images();
@@ -2588,21 +2947,46 @@ int main(int argc, char** argv) {
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
         append_path_icon(compare_buf, screen_width);
+        compare_cmd_count_raw = compare_buf.stats().cmd_count;
+        compare_buf.compact();
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
-        if (img_stats_after_record.register_after_lock >= img_stats_before_record.register_after_lock) {
-            img_growth_count = img_stats_after_record.register_after_lock
-                - img_stats_before_record.register_after_lock;
+        if (img_stats_after_record.register_new_after_lock >= img_stats_before_record.register_new_after_lock) {
+            img_growth_count = img_stats_after_record.register_new_after_lock
+                - img_stats_before_record.register_new_after_lock;
         } else {
-            img_growth_count = img_stats_after_record.register_after_lock;
+            img_growth_count = img_stats_after_record.register_new_after_lock;
         }
         img_growth_ok = (img_growth_count == 0);
 #if defined(VIVID_SOA_TRACE_INPUT)
         const auto font_ptr_maps = static_cast<unsigned>(font_ptr_map_count());
         (void)out::println<"[soa] font ptr map count={}">(g_console, font_ptr_maps);
+        missing_glyphs = missing_glyph_count();
+        missing_glyph_fallbacks = missing_glyph_fallback_count();
+        utf8_replacements = utf8_replacement_count();
+        (void)out::println<"[soa] glyph missing={} fallback={} utf8_replace={}">(
+            g_console,
+            static_cast<unsigned>(missing_glyphs),
+            static_cast<unsigned>(missing_glyph_fallbacks),
+            static_cast<unsigned>(utf8_replacements));
+        (void)out::println<"[soa] text draw={} glyphs={} pixels={}">(
+            g_console,
+            static_cast<unsigned long long>(text_profile.draw_calls),
+            static_cast<unsigned long long>(text_profile.glyphs),
+            static_cast<unsigned long long>(text_profile.pixels));
         if (g_regress_log) {
             std::fprintf(g_regress_log, "[soa] font_ptr_map_count=%u\n", font_ptr_maps);
+            std::fprintf(g_regress_log,
+                         "[soa] glyph_missing=%u glyph_fallback=%u utf8_replace=%u\n",
+                         static_cast<unsigned>(missing_glyphs),
+                         static_cast<unsigned>(missing_glyph_fallbacks),
+                         static_cast<unsigned>(utf8_replacements));
+            std::fprintf(g_regress_log,
+                         "[soa] text_draw=%llu text_glyphs=%llu text_pixels=%llu\n",
+                         static_cast<unsigned long long>(text_profile.draw_calls),
+                         static_cast<unsigned long long>(text_profile.glyphs),
+                         static_cast<unsigned long long>(text_profile.pixels));
         }
 #endif
     }
@@ -2613,27 +2997,74 @@ int main(int argc, char** argv) {
     std::size_t compare_cmd_count = 0;
     std::size_t compare_cmd_capacity = 0;
     std::size_t compare_cmd_bytes = 0;
+    std::size_t compare_cmd_saved = 0;
+    std::uint8_t compare_cmd_saved_pct = 0;
+    std::size_t compare_dispatch_groups = 0;
+    std::size_t compare_batch_flushes = 0;
     int compare_tile_flushes = 0;
     std::uint8_t compare_tile_hit_pct = 0;
     bool compare_ok = true;
+    bool compact_ok = true;
+    std::size_t compact_saved = 0;
 
     if (run_compare) {
+        {
+            ui::draw_cmd::DefaultDrawCmdBuffer compact_probe{};
+            compact_probe.fill_rect({8, 8, 24, 6}, kDemoPanel);
+            compact_probe.fill_rect({8, 16, 24, 6}, kDemoPanel);
+            compact_probe.stroke_rect({40, 8, 24, 6}, kDemoPanelBorder);
+            compact_probe.stroke_rect({40, 16, 24, 6}, kDemoPanelBorder);
+            compact_probe.fill_round_rect({8, 28, 24, 8}, 4, kDemoPanel);
+            compact_probe.fill_round_rect({8, 38, 24, 8}, 4, kDemoPanel);
+            compact_probe.stroke_round_rect({40, 28, 24, 8}, 4, kDemoPanelBorder);
+            compact_probe.stroke_round_rect({40, 38, 24, 8}, 4, kDemoPanelBorder);
+            compact_probe.fill_circle(20, 60, 6, kDemoPanel);
+            compact_probe.fill_circle(36, 60, 6, kDemoPanel);
+            compact_probe.stroke_circle(54, 60, 6, kDemoPanelBorder);
+            compact_probe.stroke_circle(70, 60, 6, kDemoPanelBorder);
+            compact_probe.draw_text_box({8, 72, 64, 16}, "compact", kDemoPath,
+                                        get_font(FontId::Normal),
+                                        TextAlignH::Left, TextAlignV::Center,
+                                        TextWrap::None, TextEllipsis::None);
+            compact_probe.draw_text_box({8, 88, 64, 16}, "compact", kDemoPath,
+                                        get_font(FontId::Normal),
+                                        TextAlignH::Left, TextAlignV::Center,
+                                        TextWrap::None, TextEllipsis::None);
+            const auto before = compact_probe.stats().cmd_count;
+            compact_probe.compact();
+            const auto after = compact_probe.stats().cmd_count;
+            compact_saved = (before > after) ? (before - after) : 0;
+            if (compact_saved == 0) {
+                compact_ok = false;
+            }
+        }
         ui::draw_cmd::DrawCmdExecutor exec{};
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;
         compare_cmd_capacity = cmp_stats.cmd_capacity;
         compare_cmd_bytes = cmp_stats.cmd_bytes;
+        if (compare_cmd_count_raw >= compare_cmd_count) {
+            compare_cmd_saved = compare_cmd_count_raw - compare_cmd_count;
+        }
+        if (compare_cmd_count_raw > 0) {
+            compare_cmd_saved_pct = static_cast<std::uint8_t>(
+                (compare_cmd_saved * 100u) / compare_cmd_count_raw);
+        }
 
+        text_profile_reset();
         fb.clear(kDemoBg);
         canvas.begin_frame();
         const auto exec_stats = exec.execute(canvas, compare_buf);
         canvas.end_frame();
+        text_profile = text_profile_sample();
         compare_hash_full = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
 
         fb.clear(kDemoBg);
         const auto tile_stats = exec.execute_tiles(tile_backend, tile_view, compare_buf, tile_config);
         compare_hash_tile = hash_bytes(fb.data(), DefaultFrameBuffer::buffer_bytes);
         compare_failed_cmds = exec_stats.failed_cmds;
+        compare_dispatch_groups = exec_stats.dispatch_groups;
+        compare_batch_flushes = exec_stats.batch_flushes;
         compare_tile_flushes = tile_stats.tile_flush_count;
         if (tile_stats.tiles_total > 0) {
             compare_tile_hit_pct = static_cast<std::uint8_t>(
@@ -2670,6 +3101,9 @@ int main(int argc, char** argv) {
 #endif
             return 1;
         }
+        if (run_ci && !compact_ok) {
+            ci_mark_fail("compact");
+        }
     }
 
     bool dump_ok = true;
@@ -2677,12 +3111,14 @@ int main(int argc, char** argv) {
         if (!has_recorded) {
             gui.record_commands(compare_buf);
             append_path_icon(compare_buf, screen_width);
+            compare_cmd_count_raw = compare_buf.stats().cmd_count;
+            compare_buf.compact();
         }
         const auto dump_stats = compare_buf.stats();
         if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
             dump_ok = false;
         }
-        if (dump_ok && !dump_cmd_file(dump_cmd_path.c_str(), compare_buf)) {
+        if (dump_ok && !dump_cmd_file(dump_cmd_path.c_str(), compare_buf, &tile_backend)) {
             dump_ok = false;
         }
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -2775,18 +3211,36 @@ int main(int argc, char** argv) {
                 ui::draw_cmd::image_register_reason_name(reason),
                 tag ? tag : "-");
 #endif
-            ci_mark_fail("img_growth");
+            ci_mark_fail("img_growth_after_lock");
         }
         if (!img_overflow_ok) {
             ci_mark_fail("img_overflow");
+        }
+        if (max_missing_glyphs >= 0 && static_cast<int>(missing_glyphs) > max_missing_glyphs) {
+            ci_mark_fail("missing_glyphs");
+        }
+        if (max_fallback_glyphs >= 0 && static_cast<int>(missing_glyph_fallbacks) > max_fallback_glyphs) {
+            ci_mark_fail("fallback_glyphs");
+        }
+        if (max_utf8_replacements >= 0 && static_cast<int>(utf8_replacements) > max_utf8_replacements) {
+            ci_mark_fail("utf8_replace");
+        }
+        if (max_text_draw >= 0 && static_cast<int>(text_profile.draw_calls) > max_text_draw) {
+            ci_mark_fail("text_draw");
+        }
+        if (max_text_glyphs >= 0 && static_cast<int>(text_profile.glyphs) > max_text_glyphs) {
+            ci_mark_fail("text_glyphs");
+        }
+        if (max_text_pixels >= 0 && static_cast<int>(text_profile.pixels) > max_text_pixels) {
+            ci_mark_fail("text_pixels");
         }
         if (!cmd_budget_ok) {
             ci_mark_fail("cmd_budget");
         }
         const bool ok = ci_ok
-            && compare_ok
-            && dump_ok
-            && replay_ok
+              && compare_ok
+              && dump_ok
+              && replay_ok
             && payload_ok
             && text_ok
             && blob_ok
@@ -2803,7 +3257,23 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok;
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} cmd_count={} cmd_budget={} tile_flushes={} tile_hit_pct={} img_new={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
+        (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
+            g_console,
+            tile_backend.display_mode_name(),
+            static_cast<unsigned>(tile_backend.display.bw1_threshold),
+            static_cast<unsigned>(tile_backend.display.gray2_strength),
+            tile_backend.gray2_curve_name(),
+            tile_backend.eink_policy.max_partial_count,
+            tile_backend.eink_policy.min_full_interval_ms,
+            tile_backend.eink_policy.partial_area_ratio_pct,
+            static_cast<unsigned>(missing_glyphs),
+            static_cast<unsigned>(missing_glyph_fallbacks),
+            static_cast<unsigned>(utf8_replacements),
+            static_cast<unsigned long long>(text_profile.draw_calls),
+            static_cast<unsigned long long>(text_profile.glyphs),
+            static_cast<unsigned long long>(text_profile.pixels));
+
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -2817,11 +3287,18 @@ int main(int argc, char** argv) {
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,
             ui_ok ? 1u : 0u,
+            static_cast<unsigned>(compact_saved),
+            static_cast<unsigned>(compare_cmd_count_raw),
             static_cast<unsigned>(compare_cmd_count),
+            static_cast<unsigned>(compare_cmd_saved),
+            static_cast<unsigned>(compare_cmd_saved_pct),
             static_cast<unsigned>(cmd_budget),
+            static_cast<unsigned>(compare_dispatch_groups),
+            static_cast<unsigned>(compare_batch_flushes),
             static_cast<unsigned>(compare_tile_flushes),
             static_cast<unsigned>(compare_tile_hit_pct),
-            static_cast<unsigned>(img_stats.count),
+            static_cast<unsigned>(img_stats.register_new_total),
+            static_cast<unsigned>(img_stats.register_new_after_lock),
             static_cast<unsigned>(img_stats.bytes_total),
             static_cast<unsigned>(img_stats.dedup_hits),
             static_cast<unsigned>(img_growth_count),
@@ -2865,6 +3342,7 @@ int main(int argc, char** argv) {
             snap_buf.clear();
             gui.record_commands(snap_buf);
             append_path_icon(snap_buf, screen_width);
+            snap_buf.compact();
             fb.clear(kDemoBg);
             canvas.begin_frame();
             exec.execute(canvas, snap_buf);
@@ -2975,6 +3453,99 @@ int main(int argc, char** argv) {
     std::uint8_t spinner_phase = 0;
     int stat_frame = 0;
     const int stat_interval = 60;
+    const auto adjust_gray2_strength = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        int next = static_cast<int>(tile_backend.display.gray2_strength) + delta;
+        next = std::clamp(next, 0, 64);
+        if (next == tile_backend.display.gray2_strength) return;
+        tile_backend.display.gray2_strength = static_cast<std::uint8_t>(next);
+        gray2_strength = next;
+        (void)out::println<"[soa] gray2 strength={}">(g_console, next);
+    };
+    const auto cycle_gray2_curve = [&]() noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        const int next = (static_cast<int>(tile_backend.display.gray2_curve) + 1) % 3;
+        tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(next);
+        gray2_curve = tile_backend.display.gray2_curve;
+        (void)out::println<"[soa] gray2 curve={}">(g_console, tile_backend.gray2_curve_name());
+    };
+    const auto adjust_bw1_threshold = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::BW1) return;
+        int next = static_cast<int>(tile_backend.display.bw1_threshold) + delta;
+        next = std::clamp(next, 0, 255);
+        if (next == tile_backend.display.bw1_threshold) return;
+        tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(next);
+        bw1_threshold = next;
+        (void)out::println<"[soa] bw1 threshold={}">(g_console, next);
+    };
+    const auto adjust_eink_ratio = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.partial_area_ratio_pct + delta;
+        next = std::clamp(next, 1, 100);
+        if (next == tile_backend.eink_policy.partial_area_ratio_pct) return;
+        tile_backend.eink_policy.partial_area_ratio_pct = next;
+        (void)out::println<"[soa] eink partial_pct={}">(g_console, next);
+    };
+    const auto adjust_eink_max_partial = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.max_partial_count + delta;
+        next = std::clamp(next, 1, 200);
+        if (next == tile_backend.eink_policy.max_partial_count) return;
+        tile_backend.eink_policy.max_partial_count = next;
+        (void)out::println<"[soa] eink max_partial={}">(g_console, next);
+    };
+    const auto adjust_eink_min_full = [&](int delta) noexcept {
+        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        int next = tile_backend.eink_policy.min_full_interval_ms + delta;
+        next = std::clamp(next, 0, 120000);
+        if (next == tile_backend.eink_policy.min_full_interval_ms) return;
+        tile_backend.eink_policy.min_full_interval_ms = next;
+        (void)out::println<"[soa] eink min_full_ms={}">(g_console, next);
+    };
+    const auto handle_display_hotkey = [&](SDL_Keycode key) noexcept {
+        switch (key) {
+        case SDLK_KP_PLUS:
+        case SDLK_EQUALS:
+        case SDLK_PLUS:
+        case SDLK_RIGHTBRACKET:
+            adjust_gray2_strength(1);
+            break;
+        case SDLK_KP_MINUS:
+        case SDLK_MINUS:
+        case SDLK_LEFTBRACKET:
+            adjust_gray2_strength(-1);
+            break;
+        case SDLK_G:
+            cycle_gray2_curve();
+            break;
+        case SDLK_PERIOD:
+            adjust_bw1_threshold(1);
+            break;
+        case SDLK_COMMA:
+            adjust_bw1_threshold(-1);
+            break;
+        case SDLK_1:
+            adjust_eink_ratio(-1);
+            break;
+        case SDLK_2:
+            adjust_eink_ratio(1);
+            break;
+        case SDLK_3:
+            adjust_eink_max_partial(-1);
+            break;
+        case SDLK_4:
+            adjust_eink_max_partial(1);
+            break;
+        case SDLK_5:
+            adjust_eink_min_full(-500);
+            break;
+        case SDLK_6:
+            adjust_eink_min_full(500);
+            break;
+        default:
+            break;
+        }
+    };
 
     while (running) {
         SDL_Event evt{};
@@ -2986,7 +3557,9 @@ int main(int argc, char** argv) {
                 running = false;
                 break;
             }
-            if (evt.type == SDL_EVENT_MOUSE_MOTION) {
+            if (evt.type == SDL_EVENT_KEY_DOWN) {
+                handle_display_hotkey(evt.key.key);
+            } else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, mouse_x, mouse_y)) {
                     gui.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -3031,6 +3604,8 @@ int main(int argc, char** argv) {
 
         gui.record_commands(cmd_buf);
         append_path_icon(cmd_buf, screen_width);
+        append_display_overlay(cmd_buf, tile_backend);
+        cmd_buf.compact();
         const auto cmd_stats = cmd_buf.stats();
 
         ui::draw_cmd::DrawCmdTileStats tile_stats{};
@@ -3054,6 +3629,11 @@ int main(int argc, char** argv) {
                 dirty_pct = (screen_area > 0)
                     ? static_cast<std::uint8_t>((area * 100u) / screen_area)
                     : 0;
+                if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                    tile_backend.decide_refresh(static_cast<int>(dirty_area),
+                                                static_cast<int>(screen_area),
+                                                SDL_GetTicks());
+                }
                 SDL_Rect rect{dirty.x, dirty.y, dirty.w, dirty.h};
                 const std::size_t bpp = DefaultFrameBuffer::bytes_per_pixel;
                 const std::size_t stride = DefaultFrameBuffer::stride_bytes;
@@ -3088,6 +3668,13 @@ int main(int argc, char** argv) {
                         dirty_area,
                         static_cast<std::uint32_t>(dirty_pct),
                         static_cast<std::uint32_t>(tile_hit_pct));
+                    if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                        (void)out::println<"[soa] eink refresh={} partial_count={} dirty_pct={}">(
+                            g_console,
+                            tile_backend.last_refresh_name(),
+                            tile_backend.partial_count,
+                            tile_backend.last_dirty_pct);
+                    }
                 } else {
                     (void)out::println<"[soa] cmds={} bytes={} overflow={} text_overflow={} blob_overflow={}">(
                         g_console,
@@ -3113,6 +3700,15 @@ int main(int argc, char** argv) {
         SDL_RenderTexture(renderer, texture, nullptr, &dst);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
+    }
+
+    if (use_eink && tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+        (void)out::println<"[soa] eink summary full={} partial={} last_refresh={} last_dirty_pct={}">(
+            g_console,
+            tile_backend.total_full_count,
+            tile_backend.total_partial_count,
+            tile_backend.last_refresh_name(),
+            tile_backend.last_dirty_pct);
     }
 
     SDL_DestroyTexture(texture);

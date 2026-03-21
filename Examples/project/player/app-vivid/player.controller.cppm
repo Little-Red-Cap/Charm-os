@@ -20,6 +20,7 @@ import charm.core.geometry;
 import charm.core.handle;
 import charm.core.soa_kernel;
 import charm.core.soa_payload;
+import charm.font.typography;
 import charm.system.clock;
 import player.playback;
 import player.fs_utils;
@@ -440,8 +441,8 @@ export namespace player {
         void refresh_track_labels() {
             const auto* labels = storage.track_labels;
             if (!labels) return;
-            for (const auto& label : *labels) {
-                player::font_cache::ensure_text(label.c_str());
+            for (std::size_t i = 0; i < labels->size(); ++i) {
+                player::font_cache::ensure_text((*labels)[i].view());
             }
         }
 
@@ -531,7 +532,7 @@ export namespace player {
 
         int resolve_next_track() {
             const auto* tracks = storage.tracks;
-            if (!tracks || tracks->empty()) return -1;
+            if (!tracks || tracks->size() == 0) return -1;
             const int count = static_cast<int>(tracks->size());
             if (play_mode == 1) {
                 return track_index;
@@ -554,7 +555,7 @@ export namespace player {
 
         void handle_track_end() {
             const auto* tracks = storage.tracks;
-            if (!fs_ready || !tracks || tracks->empty()) {
+            if (!fs_ready || !tracks || tracks->size() == 0) {
                 stop_playback();
                 return;
             }
@@ -617,16 +618,30 @@ export namespace player {
                 ? (snap.pump.water_max * 1000 / bytes_per_sec)
                 : 0;
 
-            char buf[160]{};
+            char buf[192]{};
+            const auto font_stats = player::font_cache::ready()
+                ? player::font_cache::stats()
+                : player::font_cache::Stats{};
+            const bool font_on = player::font_cache::ready();
+            const auto missing_glyphs = missing_glyph_count();
+            const auto missing_fallbacks = missing_glyph_fallback_count();
+            const auto utf8_replaces = utf8_replacement_count();
             std::snprintf(buf, sizeof(buf),
-                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu",
+                          "water %llums (%llu..%llu) pump %llu..%llu underrun %llu/%llu font %s %u/%u/%u glyph %u/%u/%u",
                           static_cast<unsigned long long>(water_ms),
                           static_cast<unsigned long long>(low_ms),
                           static_cast<unsigned long long>(high_ms),
                           static_cast<unsigned long long>(pump_min_ms),
                           static_cast<unsigned long long>(pump_max_ms),
                           static_cast<unsigned long long>(snap.stats.underrun_count),
-                          static_cast<unsigned long long>(snap.pump.underrun_count));
+                          static_cast<unsigned long long>(snap.pump.underrun_count),
+                          font_on ? "on" : "off",
+                          static_cast<unsigned>(font_stats.requests),
+                          static_cast<unsigned>(font_stats.cached),
+                          static_cast<unsigned>(font_stats.missing),
+                          static_cast<unsigned>(missing_glyphs),
+                          static_cast<unsigned>(missing_fallbacks),
+                          static_cast<unsigned>(utf8_replaces));
             if (last_debug_text.view() == buf) return;
             last_debug_text.assign(buf);
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);
@@ -759,8 +774,8 @@ export namespace player {
         void set_track_labels(int idx) {
             if (!storage.track_titles || !storage.track_subtitles) return;
             if (idx < 0 || idx >= static_cast<int>(storage.track_titles->size())) return;
-            title_text.assign((*storage.track_titles)[idx]);
-            subtitle_text.assign((*storage.track_subtitles)[idx]);
+            title_text.assign((*storage.track_titles)[idx].view());
+            subtitle_text.assign((*storage.track_subtitles)[idx].view());
             set_label_slot(handles.title, text_slots.title, title_text.c_str());
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
         }
@@ -771,7 +786,7 @@ export namespace player {
             }
             const auto* tracks = storage.tracks;
             const auto* labels = storage.track_labels;
-            if (!tracks || tracks->empty()) return false;
+            if (!tracks || tracks->size() == 0) return false;
             if (!labels) return false;
             if (idx < 0) idx = 0;
             if (idx >= static_cast<int>(tracks->size())) idx = static_cast<int>(tracks->size()) - 1;
@@ -780,16 +795,16 @@ export namespace player {
             const char* track_path = vfs_path.c_str();
             set_track_labels(track_index);
             FixedString<128> status;
-            const bool track_ready = player::check_track_ready(vfs_path, status);
+            const bool track_ready = player::check_track_ready(vfs_path.view(), status);
             if (!status.empty()) { set_status(status.c_str()); }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
             if (track_ready) {
-                cover_embedded_path.assign(vfs_path);
+                cover_embedded_path.assign(vfs_path.view());
                 cover_folder_path.clear();
-                std::string folder_path;
-                const bool has_folder = fs_utils::find_cover_for_track(vfs_path, folder_path);
-                cover_folder_path.assign(folder_path);
+                FixedString<260> folder_path;
+                const bool has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
+                cover_folder_path.assign(folder_path.view());
                 cover_ready = true;
                 switch (cover_strategy) {
                 case CoverStrategy::embedded_only:
@@ -835,7 +850,7 @@ export namespace player {
                 return;
             }
             const auto* tracks = storage.tracks;
-            if (!tracks || tracks->empty()) return;
+            if (!tracks || tracks->size() == 0) return;
             const int count = static_cast<int>(tracks->size());
             int next = track_index + delta;
             if (next < 0) next = count - 1;
@@ -854,7 +869,7 @@ export namespace player {
                 return;
             }
             const auto* tracks = storage.tracks;
-            if (!tracks || tracks->empty()) return;
+            if (!tracks || tracks->size() == 0) return;
             const bool was_playing = playback.playing();
             const bool was_paused = playback.paused();
             stop_playback();

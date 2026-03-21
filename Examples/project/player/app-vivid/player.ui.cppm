@@ -84,7 +84,7 @@ export namespace player::ui {
     inline constexpr int kButtonGap = 10;
     inline constexpr int kModeButtonWidth = 76;
     inline constexpr int kPerfOverlayWidth = 300;
-    inline constexpr int kPerfOverlayHeight = 72;
+    inline constexpr int kPerfOverlayHeight = 96;
 
     inline constexpr rgba kUiBackground = {18, 20, 28, 255};
     inline constexpr rgba kUiCover = {32, 36, 52, 255};

@@ -93,7 +93,8 @@ export namespace ui::gfx {
         std::uint16_t count{0};
         std::uint64_t bytes_total{0};
         std::uint32_t register_calls{0};
-        std::uint32_t register_after_lock{0};
+        std::uint32_t register_new_total{0};
+        std::uint32_t register_new_after_lock{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
     };
@@ -108,7 +109,8 @@ export namespace ui::gfx {
         std::uint16_t count{0};
         std::uint64_t bytes_total{0};
         std::uint32_t register_calls{0};
-        std::uint32_t register_after_lock{0};
+        std::uint32_t register_new_total{0};
+        std::uint32_t register_new_after_lock{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
         std::uint16_t lock_count{0};
@@ -190,9 +192,9 @@ export namespace ui::gfx {
 #endif
         }
 
-        bool allow_register(ImageRegisterReason reason, const char* tag) noexcept {
+        bool allow_register_new(ImageRegisterReason reason, const char* tag) noexcept {
             if (!locked()) return true;
-            register_after_lock++;
+            register_new_after_lock++;
             note_after_lock(reason, tag);
 #ifndef NDEBUG
             assert(false && "ImageRegistry is locked");
@@ -205,8 +207,8 @@ export namespace ui::gfx {
                                ImageRegisterReason reason = ImageRegisterReason::Unknown,
                                const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
+            if (!allow_register_new(reason, tag)) return invalid_image_id();
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
             for (std::size_t i = 0; i < views.size(); ++i) {
@@ -219,6 +221,7 @@ export namespace ui::gfx {
                     if (generations[i] == 0) generations[i] = 1;
                     count++;
                     bytes_total += data_bytes;
+                    register_new_total++;
                     return ImageId{static_cast<std::uint16_t>(i), generations[i]};
                 }
             }
@@ -231,7 +234,6 @@ export namespace ui::gfx {
                                    ImageRegisterReason reason = ImageRegisterReason::Unknown,
                                    const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
             if (key != 0) {
                 for (std::size_t i = 0; i < views.size(); ++i) {
@@ -242,6 +244,7 @@ export namespace ui::gfx {
                     }
                 }
             }
+            if (!allow_register_new(reason, tag)) return invalid_image_id();
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
             for (std::size_t i = 0; i < views.size(); ++i) {
@@ -254,6 +257,7 @@ export namespace ui::gfx {
                     if (generations[i] == 0) generations[i] = 1;
                     count++;
                     bytes_total += data_bytes;
+                    register_new_total++;
                     return ImageId{static_cast<std::uint16_t>(i), generations[i]};
                 }
             }
@@ -265,7 +269,6 @@ export namespace ui::gfx {
                                      ImageRegisterReason reason = ImageRegisterReason::Unknown,
                                      const char* tag = nullptr) noexcept {
             register_calls++;
-            if (!allow_register(reason, tag)) return invalid_image_id();
             if (!view) return invalid_image_id();
             const std::size_t data_bytes = image_bytes(view);
             const std::uint64_t hash = hash_image(view, data_bytes);
@@ -277,6 +280,7 @@ export namespace ui::gfx {
                     return ImageId{static_cast<std::uint16_t>(i), generations[i]};
                 }
             }
+            if (!allow_register_new(reason, tag)) return invalid_image_id();
             for (std::size_t i = 0; i < views.size(); ++i) {
                 if (used[i] == 0) {
                     used[i] = 1;
@@ -287,6 +291,7 @@ export namespace ui::gfx {
                     if (generations[i] == 0) generations[i] = 1;
                     count++;
                     bytes_total += data_bytes;
+                    register_new_total++;
                     return ImageId{static_cast<std::uint16_t>(i), generations[i]};
                 }
             }
@@ -382,7 +387,8 @@ export namespace ui::gfx {
         registry.count = 0;
         registry.bytes_total = 0;
         registry.register_calls = 0;
-        registry.register_after_lock = 0;
+        registry.register_new_total = 0;
+        registry.register_new_after_lock = 0;
         registry.dedup_hits = 0;
         registry.overflowed = false;
         registry.lock_count = 0;
@@ -400,7 +406,7 @@ export namespace ui::gfx {
         if (!image_id_valid(id) || !view) return false;
         auto& registry = image_registry();
         registry.register_calls++;
-        if (!registry.allow_register(reason, tag)) return false;
+        if (!registry.allow_register_new(reason, tag)) return false;
         if (id.slot >= registry.views.size()) {
             registry.overflowed = true;
             return false;
@@ -410,6 +416,7 @@ export namespace ui::gfx {
         const std::uint64_t hash = ImageRegistry::hash_image(view, data_bytes);
         if (!was_used) {
             registry.count++;
+            registry.register_new_total++;
         } else {
             if (registry.bytes[id.slot] != 0) {
                 registry.bytes_total -= registry.bytes[id.slot];
@@ -431,7 +438,8 @@ export namespace ui::gfx {
             registry.count,
             registry.bytes_total,
             registry.register_calls,
-            registry.register_after_lock,
+            registry.register_new_total,
+            registry.register_new_after_lock,
             registry.dedup_hits,
             registry.overflowed
         };
@@ -459,7 +467,7 @@ export namespace ui::gfx {
     }
 
     inline std::uint32_t image_registry_register_after_lock() noexcept {
-        return image_registry().register_after_lock;
+        return image_registry().register_new_after_lock;
     }
 
     inline const char* image_registry_first_after_lock_tag() noexcept {

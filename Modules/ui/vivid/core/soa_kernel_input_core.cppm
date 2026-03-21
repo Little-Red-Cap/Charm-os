@@ -305,7 +305,7 @@ import charm.core.soa_registry;
         const WidgetHandle target = input_find_scroll_target(hit);
         if (!target) return;
         const SoaBehavior behavior = behavior_for_kind(kind(target));
-        const SoaWheelAxisPolicy axis = input_wheel_axis_override(hit, target, behavior.wheel_axis);
+        const SoaWheelAxisPolicy axis = input_wheel_axis_override(hit, target, behavior.wheel_axis, x, y);
         int dx = 0;
         int dy_out = 0;
         switch (axis) {
@@ -821,13 +821,24 @@ import charm.core.soa_registry;
     }
 
     SoaWheelAxisPolicy SoaKernel::input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
-        SoaWheelAxisPolicy fallback) const noexcept {
-        if (!hit || !target) return fallback;
-        if (kind(hit) != WidgetKind::ScrollBar) return fallback;
-        const ScrollBarOrientation orient = scrollbar_orientation(hit);
-        return (orient == ScrollBarOrientation::Horizontal)
-            ? SoaWheelAxisPolicy::PreferHorizontal
-            : SoaWheelAxisPolicy::PreferVertical;
+        SoaWheelAxisPolicy fallback, int x, int y) const noexcept {
+        if (!target) return fallback;
+        if (hit && kind(hit) == WidgetKind::ScrollBar) {
+            const ScrollBarOrientation orient = scrollbar_orientation(hit);
+            return (orient == ScrollBarOrientation::Horizontal)
+                ? SoaWheelAxisPolicy::PreferHorizontal
+                : SoaWheelAxisPolicy::PreferVertical;
+        }
+        if (kind(target) != WidgetKind::TableView) return fallback;
+        if (max_scroll_x(target) <= 0) return fallback;
+        int header_h = table_view_header_height(target);
+        if (header_h <= 0) return fallback;
+        Rect r = input_world_rect(target);
+        if (header_h > r.h) header_h = r.h;
+        if (y >= r.y && y < r.y + header_h) {
+            return SoaWheelAxisPolicy::PreferHorizontal;
+        }
+        return fallback;
     }
 
     void SoaKernel::input_apply_scroll_by(WidgetHandle h, int dy, int dx) {

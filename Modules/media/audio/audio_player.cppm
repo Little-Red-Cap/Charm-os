@@ -41,6 +41,7 @@ import media.stream.sink;
 import media.stream.source;
 import media.stream.types;
 import service.queue;
+import out.api;
 #if defined(CHARM_ENABLE_SDL3)
 import audio.sink.sdl3;
 #endif
@@ -62,14 +63,15 @@ namespace {
             return;
         }
         if (!path) {
-            std::printf("(null)");
+            (void)out::print<"(null)">();
             return;
         }
-        for (const unsigned char ch : std::string_view{path}) {
+        for (std::size_t i = 0; path[i] != '\0'; ++i) {
+            const unsigned char ch = static_cast<unsigned char>(path[i]);
             if (std::isprint(ch)) {
-                std::printf("%c", static_cast<char>(ch));
+                (void)out::print<"{}">(static_cast<char>(ch));
             } else {
-                std::printf("\\x%02X", static_cast<unsigned int>(ch));
+                (void)out::print<"\\x{:02X}">(static_cast<unsigned int>(ch));
             }
         }
     }
@@ -747,9 +749,9 @@ export namespace audio {
             if (!src_.open(path)) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] open failed: ");
+                    (void)out::print<"[audio] open failed: ">();
                     dump_path_escaped(path);
-                    std::printf("\n");
+                    (void)out::print<"\n">();
                 }
 #endif
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
@@ -810,9 +812,9 @@ export namespace audio {
             if (!opened) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] decode open failed (%d): ", static_cast<int>(opened.error()));
+                    (void)out::print<"[audio] decode open failed ({}): ">(static_cast<int>(opened.error()));
                     dump_path_escaped(path);
-                    std::printf("\n");
+                    (void)out::print<"\n">();
                 }
 #endif
                 if (kind == SourceKind::wav && opened.error() == Errc::not_supported) {
@@ -1011,11 +1013,11 @@ export namespace audio {
             state_ = PlayerState::error;
 #if defined(_WIN32)
             if (kAudioLogEnabled) {
-                std::printf("[audio] error stage=%u err=%u path=",
+                (void)out::print<"[audio] error stage={} err={} path=">(
                     static_cast<unsigned int>(stage),
                     static_cast<unsigned int>(code));
                 dump_path_escaped(last_path_.c_str());
-                std::printf("\n");
+                (void)out::print<"\n">();
             }
 #endif
         }
@@ -1059,7 +1061,7 @@ export namespace audio {
                 (config_.output_mode == OutputMode::follow_input && input_fmt_.rate > kMaxRate)) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config rate in=%u out=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config rate in={} out={} max={}">(
                         static_cast<unsigned int>(input_fmt_.rate),
                         static_cast<unsigned int>(output_fmt_.rate),
                         static_cast<unsigned int>(kMaxRate));
@@ -1070,7 +1072,7 @@ export namespace audio {
             if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config out channels=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config out channels={} max={}">(
                         static_cast<unsigned int>(output_fmt_.channels),
                         static_cast<unsigned int>(kMaxChannels));
                 }
@@ -1080,7 +1082,7 @@ export namespace audio {
             if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config in channels=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config in channels={} max={}">(
                         static_cast<unsigned int>(input_fmt_.channels),
                         static_cast<unsigned int>(kMaxChannels));
                 }
@@ -1090,7 +1092,7 @@ export namespace audio {
             if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config chunk_mult=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config chunk_mult={} max={}">(
                         static_cast<unsigned int>(config_.profile.chunk_mult),
                         static_cast<unsigned int>(kMaxChunkMult));
                 }
@@ -1100,7 +1102,7 @@ export namespace audio {
             if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config fifo_ms=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config fifo_ms={} max={}">(
                         static_cast<unsigned int>(config_.profile.fifo_ms),
                         static_cast<unsigned int>(kMaxFifoMs));
                 }
@@ -1111,7 +1113,7 @@ export namespace audio {
             if (fifo_capacity > kMaxFifoBytes) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config fifo_bytes=%zu max=%zu\n",
+                    (void)out::println<"[audio] buffer_config fifo_bytes={} max={}">(
                         fifo_capacity, static_cast<std::size_t>(kMaxFifoBytes));
                 }
 #endif
@@ -1120,7 +1122,7 @@ export namespace audio {
             if (!fifo_storage_.resize(fifo_capacity)) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config fifo_storage resize failed\n");
+                    (void)out::println<"[audio] buffer_config fifo_storage resize failed">();
                 }
 #endif
                 return false;
@@ -1136,7 +1138,7 @@ export namespace audio {
             if (period_frames > kMaxPeriodFrames) {
 #if defined(_WIN32)
                 if (kAudioLogEnabled) {
-                    std::printf("[audio] buffer_config period_frames=%u max=%u\n",
+                    (void)out::println<"[audio] buffer_config period_frames={} max={}">(
                         static_cast<unsigned int>(period_frames),
                         static_cast<unsigned int>(kMaxPeriodFrames));
                 }

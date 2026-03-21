@@ -1,8 +1,120 @@
 module;
+#include <cstddef>
 #include <cstdint>
 export module charm.font.typography;
 
 export import charm.font;
+
+export constexpr std::uint32_t k_utf8_replacement = static_cast<std::uint32_t>('?');
+std::uint32_t g_utf8_replacement = k_utf8_replacement;
+bool g_utf8_replacement_enabled = true;
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+std::uint32_t g_missing_glyph_count = 0;
+std::uint32_t g_missing_glyph_fallback_count = 0;
+std::uint32_t g_utf8_replace_count = 0;
+#endif
+
+export
+inline bool next_utf8_codepoint(const char*& p, const char* end, std::uint32_t& out) noexcept {
+    if (p >= end) return false;
+    const std::uint8_t c = static_cast<std::uint8_t>(*p);
+    if (c < 0x80) {
+        out = c;
+        ++p;
+        return true;
+    }
+    if ((c >> 5) == 0x6) {
+        if (p + 1 >= end) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        if ((c1 & 0xC0) != 0x80) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        out = ((c & 0x1F) << 6) | (static_cast<std::uint8_t>(p[1]) & 0x3F);
+        p += 2;
+        return true;
+    }
+    if ((c >> 4) == 0xE) {
+        if (p + 2 >= end) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        out = ((c & 0x0F) << 12)
+            | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 6)
+            | (static_cast<std::uint8_t>(p[2]) & 0x3F);
+        p += 3;
+        return true;
+    }
+    if ((c >> 3) == 0x1E) {
+        if (p + 3 >= end) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        const std::uint8_t c1 = static_cast<std::uint8_t>(p[1]);
+        const std::uint8_t c2 = static_cast<std::uint8_t>(p[2]);
+        const std::uint8_t c3 = static_cast<std::uint8_t>(p[3]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) {
+            out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++g_utf8_replace_count;
+#endif
+            ++p;
+            return true;
+        }
+        out = ((c & 0x07) << 18)
+            | ((static_cast<std::uint8_t>(p[1]) & 0x3F) << 12)
+            | ((static_cast<std::uint8_t>(p[2]) & 0x3F) << 6)
+            | (static_cast<std::uint8_t>(p[3]) & 0x3F);
+        p += 4;
+        return true;
+    }
+    out = g_utf8_replacement_enabled ? g_utf8_replacement : 0u;
+#if defined(VIVID_SOA_TRACE_INPUT)
+    ++g_utf8_replace_count;
+#endif
+    ++p;
+    return true;
+}
+
+export
+inline const char* prev_utf8_start(const char* start, const char* p) noexcept {
+    if (p <= start) return start;
+    const char* q = p - 1;
+    while (q > start && (static_cast<std::uint8_t>(*q) & 0xC0u) == 0x80u) {
+        --q;
+    }
+    return q;
+}
 
 
 export enum class FontId : uint8_t {
@@ -12,24 +124,50 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
+export struct FontProviderApi {
+    const Font* (*get_font)(void* ctx, FontId id) noexcept;
+    const Font* (*get_fallback_font)(void* ctx) noexcept;
+};
+
+export struct FontProvider {
+    void* ctx{nullptr};
+    const FontProviderApi* api{nullptr};
+};
+
 const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
 const Font* g_default_fallback = nullptr;
 const Font k_empty_font{};
+FontProvider g_font_provider{};
 
 export void set_default_font(const FontId id, const Font* font) noexcept;
+export void set_font_provider(FontProvider provider) noexcept;
 
 export void set_default_fallback_font(const Font* font) noexcept;
+export void set_utf8_replacement_char(std::uint32_t codepoint) noexcept;
+export std::uint32_t utf8_replacement_char() noexcept;
+export void set_utf8_replacement_enabled(bool enabled) noexcept;
+export bool utf8_replacement_enabled() noexcept;
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 std::uint32_t g_font_ptr_map_count = 0;
 
 export void reset_font_ptr_map_count() noexcept;
 export std::uint32_t font_ptr_map_count() noexcept;
+export void reset_missing_glyph_stats() noexcept;
+export std::uint32_t missing_glyph_count() noexcept;
+export std::uint32_t missing_glyph_fallback_count() noexcept;
+export std::uint32_t utf8_replacement_count() noexcept;
 #endif
 
 inline const Font* fallback_for(const Font& font) noexcept {
     if (font.fallback_font) {
         return font.fallback_font;
+    }
+    if (g_font_provider.api && g_font_provider.api->get_fallback_font) {
+        const auto* provider_fallback = g_font_provider.api->get_fallback_font(g_font_provider.ctx);
+        if (provider_fallback && &font != provider_fallback) {
+            return provider_fallback;
+        }
     }
     if (g_default_fallback && &font != g_default_fallback) {
         return g_default_fallback;
@@ -39,6 +177,11 @@ inline const Font* fallback_for(const Font& font) noexcept {
 
 export
 const Font& get_font(const FontId id) noexcept {
+    if (g_font_provider.api && g_font_provider.api->get_font) {
+        if (const auto* font = g_font_provider.api->get_font(g_font_provider.ctx, id)) {
+            return *font;
+        }
+    }
     const auto* font = g_default_fonts[static_cast<unsigned>(id)];
     if (font) return *font;
     return k_empty_font;
@@ -60,11 +203,31 @@ export
 inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_t code) noexcept {
     const auto resolved = resolve_glyph(font, code);
     if (resolved.glyph && resolved.glyph != font.fallback_glyph) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (resolved.font && resolved.font != &font) {
+            ++g_missing_glyph_fallback_count;
+        }
+#endif
         return resolved;
     }
     if (const auto* fallback = fallback_for(font)) {
-        return resolve_glyph(*fallback, code);
+        const auto fb = resolve_glyph(*fallback, code);
+#if defined(VIVID_SOA_TRACE_INPUT)
+        if (fb.glyph) {
+            ++g_missing_glyph_fallback_count;
+        } else {
+            ++g_missing_glyph_count;
+        }
+#endif
+        return fb;
     }
+#if defined(VIVID_SOA_TRACE_INPUT)
+    if (resolved.glyph == font.fallback_glyph) {
+        ++g_missing_glyph_fallback_count;
+    } else {
+        ++g_missing_glyph_count;
+    }
+#endif
     return resolved;
 }
 
@@ -74,18 +237,68 @@ void set_default_font(const FontId id, const Font* font) noexcept {
 }
 
 export
+void set_font_provider(FontProvider provider) noexcept {
+    g_font_provider = provider;
+}
+
+export
 void set_default_fallback_font(const Font* font) noexcept {
     g_default_fallback = font;
+}
+
+export
+void set_utf8_replacement_char(std::uint32_t codepoint) noexcept {
+    g_utf8_replacement = codepoint;
+}
+
+export
+std::uint32_t utf8_replacement_char() noexcept {
+    return g_utf8_replacement;
+}
+
+export
+void set_utf8_replacement_enabled(bool enabled) noexcept {
+    g_utf8_replacement_enabled = enabled;
+}
+
+export
+bool utf8_replacement_enabled() noexcept {
+    return g_utf8_replacement_enabled;
 }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 export
 void reset_font_ptr_map_count() noexcept {
     g_font_ptr_map_count = 0;
+    g_missing_glyph_count = 0;
+    g_missing_glyph_fallback_count = 0;
+    g_utf8_replace_count = 0;
 }
 
 export
 std::uint32_t font_ptr_map_count() noexcept {
     return g_font_ptr_map_count;
+}
+
+export
+void reset_missing_glyph_stats() noexcept {
+    g_missing_glyph_count = 0;
+    g_missing_glyph_fallback_count = 0;
+    g_utf8_replace_count = 0;
+}
+
+export
+std::uint32_t missing_glyph_count() noexcept {
+    return g_missing_glyph_count;
+}
+
+export
+std::uint32_t missing_glyph_fallback_count() noexcept {
+    return g_missing_glyph_fallback_count;
+}
+
+export
+std::uint32_t utf8_replacement_count() noexcept {
+    return g_utf8_replace_count;
 }
 #endif

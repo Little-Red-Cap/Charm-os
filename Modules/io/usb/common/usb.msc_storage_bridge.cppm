@@ -9,6 +9,7 @@ export module usb.msc_storage_bridge;
 import util.core;
 import block.device;
 
+// lifecycle: set_block_device() before use; caller owns device lifetime and may clear on shutdown.
 block::Device* g_dev = nullptr;
 bool g_read_only = false;
 

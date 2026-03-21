@@ -146,6 +146,7 @@ flowchart LR
 - 热路径保持 record/execute，不引入 runtime patch/派生。
 - `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
 - dump/replay 使用 vcmd v2：写入 **arena cmd_bytes**（而非固定 struct 数组），回放按 `CmdHeader` 解码执行。
+- vcmd v4 起支持 `cmd_count` 可选（置 0 并设置标志位），回放以 `cmd_bytes` 为主自动重建命令数量。
 
 ### 2.3 Tile 命中裁剪（R3）
 

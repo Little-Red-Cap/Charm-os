@@ -583,10 +583,11 @@ namespace {
             | (static_cast<std::uint32_t>('D') << 24);
     }
 
-    constexpr std::uint32_t kVcmdVersion = 3;
+    constexpr std::uint32_t kVcmdVersion = 4;
     constexpr std::uint32_t kVcmdEndian = 0x01020304u;
     constexpr std::uint32_t kVcmdFlagHasImages = 1u << 0;
     constexpr std::uint32_t kVcmdFlagHasDisplayConfig = 1u << 1;
+    constexpr std::uint32_t kVcmdFlagCmdCountOptional = 1u << 2;
 
     struct VcmdHeader {
         std::uint32_t magic{vcmd_magic()};
@@ -681,12 +682,13 @@ namespace {
         header.pixel_format = static_cast<std::uint32_t>(screen_pixel_format);
         header.cmd_struct_size = ui::draw_cmd::draw_cmd_binary_size();
         header.cmd_struct_version = ui::draw_cmd::kDrawCmdBinaryVersion;
-        header.cmd_count = static_cast<std::uint32_t>(stats.cmd_count);
+        header.cmd_count = 0;
         header.cmd_bytes = static_cast<std::uint32_t>(stats.cmd_bytes);
         header.text_bytes = static_cast<std::uint32_t>(stats.text_used);
         header.blob_bytes = static_cast<std::uint32_t>(stats.blob_used);
         header.image_count = static_cast<std::uint32_t>(image_headers.size());
         header.font_count = 0;
+        header.flags |= kVcmdFlagCmdCountOptional;
 
         VcmdDisplayConfig config{};
         if (backend) {
@@ -733,7 +735,8 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.magic != vcmd_magic() || (header.version != 2 && header.version != kVcmdVersion)) {
+        if (header.magic != vcmd_magic()
+            || (header.version != 2 && header.version != 3 && header.version != kVcmdVersion)) {
             std::fclose(file);
             return false;
         }
@@ -750,8 +753,9 @@ namespace {
             std::fclose(file);
             return false;
         }
-        if (header.cmd_struct_size != ui::draw_cmd::draw_cmd_binary_size()
-            || header.cmd_struct_version != ui::draw_cmd::kDrawCmdBinaryVersion) {
+        if (header.cmd_bytes != 0
+            && header.cmd_struct_size != ui::draw_cmd::draw_cmd_binary_size()
+            && header.version >= kVcmdVersion) {
             std::fclose(file);
             return false;
         }
@@ -827,9 +831,12 @@ namespace {
         std::fclose(file);
 
         ui::draw_cmd::DefaultDrawCmdBuffer buf{};
+        const std::size_t cmd_count = ((header.flags & kVcmdFlagCmdCountOptional) != 0u)
+            ? 0u
+            : header.cmd_count;
         if (!buf.load(cmd_bytes.data(),
                       cmd_bytes.size(),
-                      header.cmd_count,
+                      cmd_count,
                       text.data(),
                       text.size(),
                       blob.data(),

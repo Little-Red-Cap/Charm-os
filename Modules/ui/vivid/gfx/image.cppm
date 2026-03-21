@@ -416,6 +416,15 @@ export namespace ui::gfx {
             return false;
         }
         const bool was_used = registry.used[id.slot] != 0;
+        if (registry.locked() && was_used) {
+            registry.note_after_lock(reason, tag);
+            registry.register_new_after_lock++;
+#ifndef NDEBUG
+            assert(false && "ImageRegistry overwrite while locked");
+#endif
+            registry.overflowed = true;
+            return false;
+        }
         const std::size_t data_bytes = ImageRegistry::image_bytes(view);
         const std::uint64_t hash = ImageRegistry::hash_image(view, data_bytes);
         if (!was_used) {

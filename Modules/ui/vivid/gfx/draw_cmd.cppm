@@ -2095,6 +2095,24 @@ export namespace ui::draw_cmd {
                 }
             };
 
+            auto exec_focus_batch = [&](const DrawCmd& cur) noexcept {
+                const int count = cur.p3;
+                if (count <= 0) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto blob = buf.blob_at(cur.blob);
+                if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                    stats.failed_cmds++;
+                    return;
+                }
+                const auto items = std::span<const RectBatchItem>(
+                    reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                for (const auto& item : items) {
+                    ui::render::draw_focus_ring(canvas, item.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
+                }
+            };
+
             auto exec_glyph_run = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
@@ -2224,6 +2242,8 @@ export namespace ui::draw_cmd {
                 case CmdType::StrokeRoundRectBatch:
                 case CmdType::FillCircleBatch:
                 case CmdType::StrokeCircleBatch:
+                case CmdType::FocusRing:
+                case CmdType::FocusRingBatch:
                     return GroupKind::RectLike;
                 case CmdType::DrawTextBox:
                 case CmdType::GlyphRun:
@@ -2275,6 +2295,12 @@ export namespace ui::draw_cmd {
                         break;
                     case CmdType::StrokeCircleBatch:
                         exec_circle_batch(cur, false);
+                        break;
+                    case CmdType::FocusRing:
+                        ui::render::draw_focus_ring(canvas, cur.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
+                        break;
+                    case CmdType::FocusRingBatch:
+                        exec_focus_batch(cur);
                         break;
                     default:
                         break;
@@ -2443,27 +2469,6 @@ export namespace ui::draw_cmd {
                 case CmdType::StrokeCircle:
                 case CmdType::DrawTextBox:
                     break;
-                case CmdType::FocusRing:
-                    ui::render::draw_focus_ring(canvas, cmd.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
-                    break;
-                case CmdType::FocusRingBatch: {
-                    const int count = cmd.p3;
-                    if (count <= 0) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    const auto blob = buf.blob_at(cmd.blob);
-                    if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
-                        stats.failed_cmds++;
-                        break;
-                    }
-                    const auto items = std::span<const RectBatchItem>(
-                        reinterpret_cast<const RectBatchItem*>(blob.data()), count);
-                    for (const auto& item : items) {
-                        ui::render::draw_focus_ring(canvas, item.rect, cmd.color, cmd.p0, true, cmd.p1, cmd.p2);
-                    }
-                    break;
-                }
                 case CmdType::FillRectBatch: {
                     const int count = cmd.p0;
                     if (count <= 0) {

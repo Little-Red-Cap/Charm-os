@@ -23,6 +23,7 @@ import fs_errno;
 import fs_stream;
 import fs_vfs;
 import charm.system.clock;
+import charm.system.run_loop;
 import util.core;
 import input.raw_event;
 import platform.win.time_source;
@@ -117,22 +118,77 @@ namespace {
 
     }
 
-    void run_frame(player::App& app,
-                   player::PlayerPlatform& platform,
-                   PlayerUiContext& ctx,
-                   SoaKernel& kernel,
-                   float t_sec) {
-        app.tick();
-        ctx.tick_player(app.player());
+    struct PlayerLoopState {
+        player::App* app{nullptr};
+        player::PlayerPlatform* platform{nullptr};
+        PlayerUiContext* ctx{nullptr};
+        SoaKernel* kernel{nullptr};
+        SDL_Renderer* renderer{nullptr};
+        SDL_Texture* texture{nullptr};
+        bool* running{nullptr};
+        int* win_w{nullptr};
+        int* win_h{nullptr};
+        float t_sec{0.0f};
+    };
 
-        platform.framebuffer_ref().clear(kUiBackground);
-        platform.begin_frame();
-        platform.record();
-        const bool spectrum_active = ctx.is_playing();
-        update_spectrum(t_sec, spectrum_active);
-        draw_player_fx(platform.commands(), ctx, kernel, t_sec);
-        platform.execute();
-        platform.end_frame();
+    bool dispatch_sdl_event(SoaGui& gui,
+                            player::App& app,
+                            PlayerUiContext& ctx,
+                            const SDL_Event& evt);
+
+    void loop_poll_events(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
+        auto* state = static_cast<PlayerLoopState*>(ctx);
+        if (!state || !state->running || !state->app || !state->ctx || !state->platform) {
+            return;
+        }
+        SDL_Event evt{};
+        while (SDL_PollEvent(&evt)) {
+            if (evt.type == SDL_EVENT_QUIT) {
+                *state->running = false;
+                break;
+            }
+            if (evt.type == SDL_EVENT_WINDOW_RESIZED) {
+                if (state->win_w) {
+                    *state->win_w = static_cast<int>(evt.window.data1);
+                }
+                if (state->win_h) {
+                    *state->win_h = static_cast<int>(evt.window.data2);
+                }
+            }
+            dispatch_sdl_event(*state->platform->gui, *state->app, *state->ctx, evt);
+        }
+    }
+
+    void loop_update(void* ctx, charm::system::ClockTick now_us, charm::system::ClockTick) noexcept {
+        auto* state = static_cast<PlayerLoopState*>(ctx);
+        if (!state || !state->app || !state->ctx) {
+            return;
+        }
+        state->t_sec = static_cast<float>(now_us) * 0.000001f;
+        state->app->tick();
+        state->ctx->tick_player(state->app->player());
+        update_spectrum(state->t_sec, state->ctx->is_playing());
+    }
+
+    void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
+        auto* state = static_cast<PlayerLoopState*>(ctx);
+        if (!state || !state->platform || !state->ctx || !state->kernel || !state->renderer || !state->texture) {
+            return;
+        }
+        state->platform->framebuffer_ref().clear(kUiBackground);
+        state->platform->begin_frame();
+        state->platform->record();
+        draw_player_fx(state->platform->commands(), *state->ctx, *state->kernel, state->t_sec);
+        state->platform->execute();
+        state->platform->end_frame();
+
+        SDL_UpdateTexture(state->texture,
+                          nullptr,
+                          state->platform->canvas_ref().data(),
+                          static_cast<int>(state->platform->stride_bytes()));
+        SDL_RenderClear(state->renderer);
+        SDL_RenderTexture(state->renderer, state->texture, nullptr, nullptr);
+        SDL_RenderPresent(state->renderer);
     }
 
     std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
@@ -294,29 +350,24 @@ int main(int argc, char** argv) {
     int win_w = screen_width;
     int win_h = screen_height;
     bool running = true;
+    PlayerLoopState loop_state{
+        .app = &(*g_app),
+        .platform = &g_platform,
+        .ctx = &g_ctx,
+        .kernel = &g_kernel,
+        .renderer = renderer,
+        .texture = texture,
+        .running = &running,
+        .win_w = &win_w,
+        .win_h = &win_h
+    };
+    charm::system::RunLoop<4> loop{};
+    loop.bind_clock(g_clock);
+    (void)loop.add_step(charm::system::LoopPhase::io, &loop_poll_events, &loop_state, "player_io");
+    (void)loop.add_step(charm::system::LoopPhase::update, &loop_update, &loop_state, "player_update");
+    (void)loop.add_step(charm::system::LoopPhase::render, &loop_render, &loop_state, "player_render");
     while (running) {
-        SDL_Event evt{};
-        while (SDL_PollEvent(&evt)) {
-            if (evt.type == SDL_EVENT_QUIT) {
-                running = false;
-                break;
-            }
-            if (evt.type == SDL_EVENT_WINDOW_RESIZED) {
-                win_w = static_cast<int>(evt.window.data1);
-                win_h = static_cast<int>(evt.window.data2);
-            }
-            dispatch_sdl_event(*g_platform.gui, *g_app, g_ctx, evt);
-        }
-
-        const float t_sec = static_cast<float>(SDL_GetTicks()) * 0.001f;
-        run_frame(*g_app, g_platform, g_ctx, g_kernel, t_sec);
-
-        SDL_UpdateTexture(texture, nullptr, g_platform.canvas_ref().data(),
-                          static_cast<int>(g_platform.stride_bytes()));
-        SDL_RenderClear(renderer);
-        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
-        SDL_RenderPresent(renderer);
-
+        loop.run_once();
         (void)win_w;
         (void)win_h;
     }

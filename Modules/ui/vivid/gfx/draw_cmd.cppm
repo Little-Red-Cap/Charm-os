@@ -371,11 +371,11 @@ export namespace ui::draw_cmd {
         return (value < 1) ? 1 : value;
     }
 
-    export void set_compaction_union_factor(std::int32_t factor) noexcept {
+    inline void set_compaction_union_factor(std::int32_t factor) noexcept {
         g_compaction_union_max_factor = clamp_union_factor(factor);
     }
 
-    export std::int32_t compaction_union_factor() noexcept {
+    [[nodiscard]] inline std::int32_t compaction_union_factor() noexcept {
         return g_compaction_union_max_factor;
     }
 

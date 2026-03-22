@@ -577,6 +577,63 @@ namespace {
                           TextWrap::None, TextEllipsis::None);
     }
 
+    void append_perf_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                             int screen_w,
+                             const ui::draw_cmd::DrawCmdTileStats& tile_stats,
+                             const ui::draw_cmd::DrawCmdExecStats& exec_stats,
+                             bool use_tiles,
+                             bool has_stats) noexcept {
+        if (!has_stats) return;
+        const std::size_t group_rect = use_tiles ? tile_stats.group_rect : exec_stats.group_rect;
+        const std::size_t group_text = use_tiles ? tile_stats.group_text : exec_stats.group_text;
+        const std::size_t group_image = use_tiles ? tile_stats.group_image : exec_stats.group_image;
+        const std::size_t group_line = use_tiles ? tile_stats.group_line : exec_stats.group_line;
+        const std::size_t group_path = use_tiles ? tile_stats.group_path : exec_stats.group_path;
+        const std::size_t group_other = use_tiles ? tile_stats.group_other : exec_stats.group_other;
+        const std::size_t cmd_rect = use_tiles ? tile_stats.cmd_rect : exec_stats.cmd_rect;
+        const std::size_t cmd_text = use_tiles ? tile_stats.cmd_text : exec_stats.cmd_text;
+        const std::size_t cmd_image = use_tiles ? tile_stats.cmd_image : exec_stats.cmd_image;
+        const std::size_t cmd_line = use_tiles ? tile_stats.cmd_line : exec_stats.cmd_line;
+        const std::size_t cmd_path = use_tiles ? tile_stats.cmd_path : exec_stats.cmd_path;
+        const std::size_t cmd_other = use_tiles ? tile_stats.cmd_other : exec_stats.cmd_other;
+        const std::size_t dispatch_groups = use_tiles ? tile_stats.dispatch_groups : exec_stats.dispatch_groups;
+        const std::size_t batch_flushes = use_tiles ? tile_stats.batch_flushes : exec_stats.batch_flushes;
+        const std::size_t failed_cmds = use_tiles ? tile_stats.failed_cmds : exec_stats.failed_cmds;
+
+        const Font& font = get_font(FontId::Normal);
+        const int line_h = (font.line_height > 0) ? font.line_height : 12;
+        const int padding = 6;
+        const int lines = 3;
+        const int panel_w = 320;
+        const int panel_h = padding * 2 + line_h * lines;
+        const int panel_x = (screen_w > (panel_w + 8)) ? (screen_w - panel_w - 8) : 8;
+        const int panel_y = 8;
+        Rect panel{panel_x, panel_y, panel_w, panel_h};
+
+        buf.fill_round_rect(panel, 4, kDemoPanel);
+        buf.stroke_round_rect(panel, 4, kDemoPanelBorder);
+
+        char line[96]{};
+        Rect line_rect{panel_x + padding, panel_y + padding, panel_w - padding * 2, line_h};
+        (void)std::snprintf(line, sizeof(line),
+                            "grp r/t/i/l/p/o: %zu/%zu/%zu/%zu/%zu/%zu",
+                            group_rect, group_text, group_image, group_line, group_path, group_other);
+        buf.draw_text_box(line_rect, line, kDemoPath, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+        line_rect.y += line_h;
+        (void)std::snprintf(line, sizeof(line),
+                            "cmd r/t/i/l/p/o: %zu/%zu/%zu/%zu/%zu/%zu",
+                            cmd_rect, cmd_text, cmd_image, cmd_line, cmd_path, cmd_other);
+        buf.draw_text_box(line_rect, line, kDemoPath, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+        line_rect.y += line_h;
+        (void)std::snprintf(line, sizeof(line),
+                            "dispatch/batch/failed: %zu/%zu/%zu",
+                            dispatch_groups, batch_flushes, failed_cmds);
+        buf.draw_text_box(line_rect, line, kDemoPath, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+    }
+
     constexpr std::uint32_t vcmd_magic() noexcept {
         return static_cast<std::uint32_t>('V')
             | (static_cast<std::uint32_t>('C') << 8)
@@ -2303,6 +2360,7 @@ int main(int argc, char** argv) {
     bool use_gray2 = false;
     bool use_eink = false;
     bool print_stats = false;
+    bool show_perf_overlay = false;
     bool run_compare = false;
     bool run_dump = false;
     bool run_replay = false;
@@ -2344,6 +2402,7 @@ int main(int argc, char** argv) {
             use_tiles = true;
         } else if (arg == "--soa-stats") {
             print_stats = true;
+            show_perf_overlay = true;
         } else if (arg == "--soa-compare") {
             run_compare = true;
         } else if (arg == "--soa-ci") {
@@ -2380,6 +2439,8 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--bw1-threshold=", 0) == 0) {
             const int value = std::atoi(std::string(arg.substr(17)).c_str());
             bw1_threshold = (value < 0) ? 0 : (value > 255) ? 255 : value;
+        } else if (arg == "--perf-overlay") {
+            show_perf_overlay = true;
         } else if (arg == "--gray2") {
             use_gray2 = true;
             use_tiles = true;
@@ -3562,6 +3623,10 @@ int main(int argc, char** argv) {
     std::uint8_t spinner_phase = 0;
     int stat_frame = 0;
     const int stat_interval = 60;
+    ui::draw_cmd::DrawCmdTileStats last_tile_stats{};
+    ui::draw_cmd::DrawCmdExecStats last_exec_stats{};
+    bool last_stats_valid = false;
+    bool last_stats_tiles = false;
     const auto adjust_gray2_strength = [&](int delta) noexcept {
         if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
         int next = static_cast<int>(tile_backend.display.gray2_strength) + delta;
@@ -3613,6 +3678,10 @@ int main(int argc, char** argv) {
     };
     const auto handle_display_hotkey = [&](SDL_Keycode key) noexcept {
         switch (key) {
+        case SDLK_P:
+            show_perf_overlay = !show_perf_overlay;
+            (void)out::println<"[soa] perf overlay={}">(g_console, show_perf_overlay ? 1 : 0);
+            break;
         case SDLK_KP_PLUS:
         case SDLK_EQUALS:
         case SDLK_PLUS:
@@ -3714,10 +3783,19 @@ int main(int argc, char** argv) {
         gui.record_commands(cmd_buf);
         append_path_icon(cmd_buf, screen_width);
         append_display_overlay(cmd_buf, tile_backend);
+        if (show_perf_overlay) {
+            append_perf_overlay(cmd_buf,
+                                screen_width,
+                                last_tile_stats,
+                                last_exec_stats,
+                                last_stats_tiles,
+                                last_stats_valid);
+        }
         cmd_buf.compact();
         const auto cmd_stats = cmd_buf.stats();
 
         ui::draw_cmd::DrawCmdTileStats tile_stats{};
+        ui::draw_cmd::DrawCmdExecStats exec_stats{};
         std::uint32_t dirty_area = 0;
         std::uint8_t dirty_pct = 0;
         std::uint8_t tile_hit_pct = 0;
@@ -3754,9 +3832,18 @@ int main(int argc, char** argv) {
         } else {
             fb.clear(kDemoBg);
             canvas.begin_frame();
-            cmd_exec.execute(canvas, cmd_buf);
+            exec_stats = cmd_exec.execute(canvas, cmd_buf);
             canvas.end_frame();
             SDL_UpdateTexture(texture, nullptr, canvas.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
+        }
+        if (use_tiles) {
+            last_tile_stats = tile_stats;
+            last_stats_tiles = true;
+            last_stats_valid = true;
+        } else {
+            last_exec_stats = exec_stats;
+            last_stats_tiles = false;
+            last_stats_valid = true;
         }
 
         if (print_stats) {

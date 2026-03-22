@@ -3,13 +3,11 @@
 #include <cstdint>
 #include <cstdio>
 
-import charm.core.soa_gui;
-import charm.core.soa_kernel;
-import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.config;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
+import charm.ui.scene;
 import out.api;
 
 namespace {
@@ -89,32 +87,33 @@ int main() {
 
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
-    SoaKernel kernel{};
-    SoaFactory factory{kernel};
-    auto root = factory.create_container();
-    kernel.set_rect(root, {0, 0, screen_width, screen_height});
+    ::ui::scene::Scene scene{canvas};
+    auto builder = scene.begin();
+    auto root = builder.create_container();
+    builder.set_rect(root, {0, 0, screen_width, screen_height});
 
-    auto title = factory.create_label("FullFrame Dirty Demo");
-    auto btn = factory.create_button("Press");
-    auto sw = factory.create_switch();
-    auto slider = factory.create_slider();
-    auto progress = factory.create_progress();
+    auto title = builder.create_label_static("FullFrame Dirty Demo");
+    auto btn = builder.create_button_static("Press");
+    auto sw = builder.create_switch();
+    auto slider = builder.create_slider();
+    auto progress = builder.create_progress();
 
-    factory.link(root, title);
-    factory.link(root, btn);
-    factory.link(root, sw);
-    factory.link(root, slider);
-    factory.link(root, progress);
+    builder.link(root, title);
+    builder.link(root, btn);
+    builder.link(root, sw);
+    builder.link(root, slider);
+    builder.link(root, progress);
 
-    kernel.set_rect(title, {24, 16, screen_width - 48, 24});
-    kernel.set_rect(btn, {24, 60, 160, 40});
-    kernel.set_rect(sw, {24, 112, 96, 32});
-    kernel.set_rect(slider, {24, 168, 280, 24});
-    kernel.set_rect(progress, {24, 208, 280, 18});
-    kernel.set_range(slider, 0, 100);
-    kernel.set_range(progress, 0, 100);
-
-    SoaGui gui(canvas, kernel, root);
+    builder.set_rect(title, {24, 16, screen_width - 48, 24});
+    builder.set_rect(btn, {24, 60, 160, 40});
+    builder.set_rect(sw, {24, 112, 96, 32});
+    builder.set_rect(slider, {24, 168, 280, 24});
+    builder.set_rect(progress, {24, 208, 280, 18});
+    builder.set_range(slider, 0, 100);
+    builder.set_range(progress, 0, 100);
+    builder.set_root(root);
+    scene.end(builder);
+    auto access = scene.access();
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -134,32 +133,32 @@ int main() {
             }
             if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, mouse_x, mouse_y)) {
-                    gui.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));
+                    scene.dispatch_event(Event::mouse(Event::Type::MouseMove, mouse_x, mouse_y, 0));
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     if (map_mouse(vp, evt.button.x, evt.button.y, mouse_x, mouse_y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, mouse_x, mouse_y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, mouse_x, mouse_y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_UP) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     if (map_mouse(vp, evt.button.x, evt.button.y, mouse_x, mouse_y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, mouse_x, mouse_y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, mouse_x, mouse_y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_WHEEL) {
                 if (map_mouse(vp, mouse_x, mouse_y, mouse_x, mouse_y)) {
-                    gui.dispatch_event(Event::wheel(mouse_x, mouse_y, static_cast<int>(evt.wheel.y)));
+                    scene.dispatch_event(Event::wheel(mouse_x, mouse_y, static_cast<int>(evt.wheel.y)));
                 }
             }
         }
 
         progress_value = (progress_value + 1) % 101;
-        kernel.set_value(progress, progress_value);
-        kernel.set_value(slider, progress_value);
+        access.set_value(progress, progress_value);
+        access.set_value(slider, progress_value);
 
-        gui.render();
+        scene.render();
 
         SDL_UpdateTexture(texture, nullptr, fb.data(), static_cast<int>(DefaultFrameBuffer::stride_bytes));
         SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);

@@ -4,9 +4,6 @@
 #include <cstdio>
 #include <cstdint>
 
-import charm.core.soa_gui;
-import charm.core.soa_kernel;
-import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.handle;
 import charm.core.style;
@@ -14,6 +11,7 @@ import charm.core.style_sheet;
 import charm.core.theme_preset;
 import charm.core.config;
 import charm.gfx.canvas;
+import charm.ui.scene;
 
 namespace {
     struct ThemeEntry {
@@ -116,6 +114,13 @@ namespace {
         sheet.clear();
         return ok;
     }
+
+    void apply_theme_tokens(const ThemeTokens& tokens) noexcept {
+        Theme::instance().set_tokens_unsafe(tokens);
+        auto& sheet = StyleSheet::instance();
+        sheet.notify_base_style_changed();
+        sheet.rebuild_if_needed();
+    }
 }
 
 int main() {
@@ -151,34 +156,33 @@ int main() {
 
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
+    ::ui::scene::Scene scene{canvas};
+    auto builder = scene.begin();
+    auto root = builder.create_container();
+    builder.set_rect(root, {0, 0, screen_width, screen_height});
 
-    SoaKernel kernel{};
-    SoaFactory factory{kernel};
-    auto root = factory.create_container();
-    kernel.set_rect(root, {0, 0, screen_width, screen_height});
+    auto title = builder.create_label_static("Theme: Light");
+    auto subtitle = builder.create_label_static("Keys: 1 Light  2 Dark  3 High Contrast");
 
-    auto title = factory.create_label("Theme: Light");
-    auto subtitle = factory.create_label("Keys: 1 Light  2 Dark  3 High Contrast");
+    auto btn_primary = builder.create_button_static("Primary");
+    auto btn_secondary = builder.create_button_static("Secondary");
+    auto sw = builder.create_switch();
+    auto cb = builder.create_checkbox("Enable feature");
+    auto radio = builder.create_radio("Radio option");
+    auto slider = builder.create_slider();
+    auto progress = builder.create_progress();
+    auto list_item = builder.create_list_item("List item");
 
-    auto btn_primary = factory.create_button("Primary");
-    auto btn_secondary = factory.create_button("Secondary");
-    auto sw = factory.create_switch();
-    auto cb = factory.create_checkbox("Enable feature");
-    auto radio = factory.create_radio("Radio option");
-    auto slider = factory.create_slider();
-    auto progress = factory.create_progress();
-    auto list_item = factory.create_list_item("List item");
-
-    factory.link(root, title);
-    factory.link(root, subtitle);
-    factory.link(root, btn_primary);
-    factory.link(root, btn_secondary);
-    factory.link(root, sw);
-    factory.link(root, cb);
-    factory.link(root, radio);
-    factory.link(root, slider);
-    factory.link(root, progress);
-    factory.link(root, list_item);
+    builder.link(root, title);
+    builder.link(root, subtitle);
+    builder.link(root, btn_primary);
+    builder.link(root, btn_secondary);
+    builder.link(root, sw);
+    builder.link(root, cb);
+    builder.link(root, radio);
+    builder.link(root, slider);
+    builder.link(root, progress);
+    builder.link(root, list_item);
 
     const int col_x = 24;
     const int col_w = 280;
@@ -186,32 +190,36 @@ int main() {
     const int row_h = 36;
     const int gap = 12;
 
-    kernel.set_rect(title, {col_x, y, screen_width - col_x * 2, 24});
+    builder.set_rect(title, {col_x, y, screen_width - col_x * 2, 24});
     y += 28;
-    kernel.set_rect(subtitle, {col_x, y, screen_width - col_x * 2, 20});
+    builder.set_rect(subtitle, {col_x, y, screen_width - col_x * 2, 20});
     y += 36;
 
-    kernel.set_rect(btn_primary, {col_x, y, col_w, row_h});
+    builder.set_rect(btn_primary, {col_x, y, col_w, row_h});
     y += row_h + gap;
-    kernel.set_rect(btn_secondary, {col_x, y, col_w, row_h});
-    kernel.set_variant(btn_secondary, kVariantSecondary);
+    builder.set_rect(btn_secondary, {col_x, y, col_w, row_h});
+    builder.set_variant(btn_secondary, kVariantSecondary);
     y += row_h + gap;
-    kernel.set_rect(sw, {col_x, y, 64, 28});
-    kernel.set_checked(sw, true);
-    kernel.set_rect(cb, {col_x + 90, y, col_w, 28});
-    kernel.set_checked(cb, true);
+    builder.set_rect(sw, {col_x, y, 64, 28});
+    builder.set_checked(sw, true);
+    builder.set_rect(cb, {col_x + 90, y, col_w, 28});
+    builder.set_checked(cb, true);
     y += 40;
-    kernel.set_rect(radio, {col_x, y, col_w, 28});
-    kernel.set_checked(radio, true);
+    builder.set_rect(radio, {col_x, y, col_w, 28});
+    builder.set_checked(radio, true);
     y += 40;
-    kernel.set_rect(slider, {col_x, y, col_w, 24});
-    kernel.set_range(slider, 0, 100);
-    kernel.set_value(slider, 60);
+    builder.set_rect(slider, {col_x, y, col_w, 24});
+    builder.set_range(slider, 0, 100);
+    builder.set_value(slider, 60);
     y += 40;
-    kernel.set_rect(progress, {col_x, y, col_w, 16});
-    kernel.set_value(progress, 30);
+    builder.set_rect(progress, {col_x, y, col_w, 16});
+    builder.set_value(progress, 30);
     y += 32;
-    kernel.set_rect(list_item, {col_x, y, col_w, 28});
+    builder.set_rect(list_item, {col_x, y, col_w, 28});
+
+    builder.set_root(root);
+    scene.end(builder);
+    auto access = scene.access();
 
     ThemeEntry themes[] = {
         {"Light", ThemeTokens{
@@ -302,13 +310,11 @@ int main() {
 
         char buf[64];
         std::snprintf(buf, sizeof(buf), "Theme: %s", themes[index].name);
-        kernel.set_text(title, buf);
+        access.set_text(title, buf);
     };
 
     int theme_index = 0;
     apply_demo_theme(theme_index);
-
-    SoaGui gui{canvas, kernel, root};
 
     auto t0 = std::chrono::steady_clock::now();
     bool running = true;
@@ -337,7 +343,7 @@ int main() {
                 else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
                 else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
                 if (key != Event::Key::Unknown) {
-                    gui.dispatch_event(Event::key(Event::Type::KeyDown, key));
+                    scene.dispatch_event(Event::key(Event::Type::KeyDown, key));
                 }
             } else if (evt.type == SDL_EVENT_KEY_UP) {
                 Event::Key key = Event::Key::Unknown;
@@ -348,20 +354,20 @@ int main() {
                 else if (evt.key.key == SDLK_RETURN) key = Event::Key::Enter;
                 else if (evt.key.key == SDLK_SPACE) key = Event::Key::Space;
                 if (key != Event::Key::Unknown) {
-                    gui.dispatch_event(Event::key(Event::Type::KeyUp, key));
+                    scene.dispatch_event(Event::key(Event::Type::KeyUp, key));
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
                 int x = 0;
                 int y = 0;
                 if (map_mouse(vp, evt.motion.x, evt.motion.y, x, y)) {
-                    gui.dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
+                    scene.dispatch_event(Event::mouse(Event::Type::MouseMove, x, y, 0));
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 if (evt.button.button == SDL_BUTTON_LEFT) {
                     int x = 0;
                     int y = 0;
                     if (map_mouse(vp, evt.button.x, evt.button.y, x, y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseDown, x, y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_BUTTON_UP) {
@@ -369,14 +375,14 @@ int main() {
                     int x = 0;
                     int y = 0;
                     if (map_mouse(vp, evt.button.x, evt.button.y, x, y)) {
-                        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1));
+                        scene.dispatch_event(Event::mouse(Event::Type::MouseUp, x, y, 1));
                     }
                 }
             } else if (evt.type == SDL_EVENT_MOUSE_WHEEL) {
                 int x = 0;
                 int y = 0;
                 if (map_mouse(vp, evt.wheel.mouse_x, evt.wheel.mouse_y, x, y)) {
-                    gui.dispatch_event(Event::wheel(x, y, static_cast<int>(evt.wheel.y)));
+                    scene.dispatch_event(Event::wheel(x, y, static_cast<int>(evt.wheel.y)));
                 }
             }
         }
@@ -384,9 +390,9 @@ int main() {
         const auto now = std::chrono::steady_clock::now();
         const float t = std::chrono::duration<float>(now - t0).count();
         const int value = static_cast<int>((std::sin(t) * 0.5f + 0.5f) * 100.0f);
-        kernel.set_value(progress, value);
+        access.set_value(progress, value);
 
-        gui.render();
+        scene.render();
 
         SDL_UpdateTexture(texture, nullptr, canvas.data(), screen_width * 3);
         SDL_SetRenderDrawColor(renderer, 12, 12, 12, 255);

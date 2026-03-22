@@ -56,8 +56,10 @@ export namespace ui::scene {
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_->set_value(h, value); }
         int value(WidgetHandle h) const noexcept { return kernel_->value(h); }
+        void set_checked(WidgetHandle h, bool v) noexcept { kernel_->set_checked(h, v); }
         bool checked(WidgetHandle h) const noexcept { return kernel_->checked(h); }
         void set_focused(WidgetHandle h, bool v) noexcept { kernel_->set_focused(h, v); }
+        WidgetHandle input_focused() const noexcept { return kernel_->input_focused(); }
 
         std::size_t input_event_count() const noexcept { return kernel_->input_event_count(); }
         const SoaInputEvent& input_event(std::size_t index) const noexcept { return kernel_->input_event(index); }
@@ -78,6 +80,9 @@ export namespace ui::scene {
         WidgetHandle create_scroll_container() noexcept { return factory_.create_scroll_container(); }
         WidgetHandle create_image() noexcept { return factory_.create_image(); }
         WidgetHandle create_label_static(const char* text) noexcept { return factory_.create_label_static(text); }
+        WidgetHandle create_checkbox(const char* text) noexcept { return factory_.create_checkbox(text); }
+        WidgetHandle create_radio(const char* text) noexcept { return factory_.create_radio(text); }
+        WidgetHandle create_list_item(const char* text) noexcept { return factory_.create_list_item(text); }
         WidgetHandle create_progress() noexcept { return factory_.create_progress(); }
         WidgetHandle create_list_view() noexcept { return factory_.create_list_view(); }
         WidgetHandle create_scrollbar_for(WidgetHandle target) noexcept { return factory_.create_scrollbar_for(target); }
@@ -104,6 +109,7 @@ export namespace ui::scene {
         void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation o) noexcept {
             kernel_.set_scrollbar_orientation(h, o);
         }
+        void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
 
     private:
         SoaKernel& kernel_;

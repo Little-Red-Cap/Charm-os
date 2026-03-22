@@ -745,6 +745,16 @@ export namespace ui::draw_cmd {
             if (!header) return false;
             return decode_cmd(header, out);
         }
+        [[nodiscard]] bool read_cmd_at_offset(std::size_t offset,
+                                              DrawCmd& out,
+                                              std::size_t& stride) const noexcept {
+            if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
+            const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+            if (header->size < sizeof(CmdHeader)) return false;
+            stride = cmd_stride(header->size);
+            if (stride == 0 || offset + stride > cmd_bytes_used_) return false;
+            return decode_cmd(header, out);
+        }
 
         bool load(const std::byte* cmd_bytes,
                   std::size_t cmd_bytes_len,
@@ -1946,10 +1956,10 @@ export namespace ui::draw_cmd {
                 canvas.set_clip(*initial_clip);
             }
 
-            const std::size_t count = buf.size();
-            std::size_t i = 0;
-            auto read_cmd_at = [&](std::size_t index, DrawCmd& out) noexcept -> bool {
-                return buf.read_cmd(index, out);
+            const std::size_t cmd_bytes = buf.cmd_bytes();
+            std::size_t offset = 0;
+            auto read_cmd_at_offset = [&](std::size_t at, DrawCmd& out, std::size_t& stride) noexcept -> bool {
+                return buf.read_cmd_at_offset(at, out, stride);
             };
             auto fail_text = [&]() noexcept {
                 stats.failed_cmds++;
@@ -2654,11 +2664,11 @@ export namespace ui::draw_cmd {
                     && a.ellipsis == b.ellipsis;
             };
 
-            while (i < count) {
+            while (offset < cmd_bytes) {
                 DrawCmd cmd{};
-                if (!read_cmd_at(i, cmd)) {
+                std::size_t stride = 0;
+                if (!read_cmd_at_offset(offset, cmd, stride)) {
                     fail_other();
-                    ++i;
                     continue;
                 }
 
@@ -2671,34 +2681,39 @@ export namespace ui::draw_cmd {
                         std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
                         while (true) {
                             DrawCmd cur = cmd;
+                            std::size_t cur_stride = stride;
                             if (rectlike_batchable(cur.type)) {
                                 std::size_t run = 1;
                                 rect_items[0].rect = cur.rect;
-                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                std::size_t scan_offset = offset + cur_stride;
+                                while (scan_offset < cmd_bytes && run < kMaxExecBatchItems) {
                                     DrawCmd next{};
-                                    if (!read_cmd_at(i + run, next)) {
+                                    std::size_t next_stride = 0;
+                                    if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
+                                        fail_other();
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
                                     if (!rectlike_batchable(next.type)) break;
                                     if (!rectlike_params_match(cur, next)) break;
                                     rect_items[run].rect = next.rect;
+                                    scan_offset += next_stride;
                                     ++run;
                                 }
                                 for (std::size_t j = 0; j < run; ++j) {
                                     exec_rectlike_item(cur, rect_items[j].rect);
                                     count_cmd(kind);
                                 }
-                                i += run;
+                                offset = scan_offset;
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             }
-                            if (i >= count) break;
-                            if (!read_cmd_at(i, cmd)) {
+                            if (offset >= cmd_bytes) break;
+                            if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
-                                ++i;
+                                offset = cmd_bytes;
                                 continue;
                             }
                             if (group_kind(cmd.type) != kind) break;
@@ -2711,34 +2726,39 @@ export namespace ui::draw_cmd {
                         std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
                         while (true) {
                             DrawCmd cur = cmd;
+                            std::size_t cur_stride = stride;
                             if (imagelike_batchable(cur.type)) {
                                 std::size_t run = 1;
                                 rect_items[0].rect = cur.rect;
-                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                std::size_t scan_offset = offset + cur_stride;
+                                while (scan_offset < cmd_bytes && run < kMaxExecBatchItems) {
                                     DrawCmd next{};
-                                    if (!read_cmd_at(i + run, next)) {
+                                    std::size_t next_stride = 0;
+                                    if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
+                                        fail_other();
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
                                     if (!imagelike_batchable(next.type)) break;
                                     if (!imagelike_params_match(cur, next)) break;
                                     rect_items[run].rect = next.rect;
+                                    scan_offset += next_stride;
                                     ++run;
                                 }
                                 for (std::size_t j = 0; j < run; ++j) {
                                     exec_imagelike_item(cur, rect_items[j].rect);
                                     count_cmd(kind);
                                 }
-                                i += run;
+                                offset = scan_offset;
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             }
-                            if (i >= count) break;
-                            if (!read_cmd_at(i, cmd)) {
+                            if (offset >= cmd_bytes) break;
+                            if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
-                                ++i;
+                                offset = cmd_bytes;
                                 continue;
                             }
                             if (group_kind(cmd.type) != kind) break;
@@ -2750,35 +2770,43 @@ export namespace ui::draw_cmd {
                         constexpr std::size_t kMaxExecBatchItems = 64;
                         while (true) {
                             DrawCmd cur = cmd;
+                            std::size_t cur_stride = stride;
                             if (cur.type == CmdType::GlyphRun) {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             } else if (cur.type == CmdType::DrawTextBox) {
                                 if (!buf.text_span_valid(cur.text)) {
                                     fail_text();
-                                    ++i;
+                                    offset += cur_stride;
                                 } else {
                                     std::size_t run = 1;
-                                    while ((i + run) < count && run < kMaxExecBatchItems) {
+                                    std::size_t scan_offset = offset + cur_stride;
+                                    while (scan_offset < cmd_bytes && run < kMaxExecBatchItems) {
                                         DrawCmd next{};
-                                        if (!read_cmd_at(i + run, next)) {
+                                        std::size_t next_stride = 0;
+                                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
+                                            fail_other();
                                             break;
                                         }
                                         if (group_kind(next.type) != kind) break;
                                         if (next.type != CmdType::DrawTextBox) break;
                                         if (!buf.text_span_valid(next.text)) break;
                                         if (!text_params_match(cur, next)) break;
+                                        scan_offset += next_stride;
                                         ++run;
                                     }
+                                    std::size_t item_offset = offset;
                                     for (std::size_t j = 0; j < run; ++j) {
                                         DrawCmd item{};
-                                        if (!read_cmd_at(i + j, item)) {
+                                        std::size_t item_stride = 0;
+                                        if (!read_cmd_at_offset(item_offset, item, item_stride)) {
                                             fail_other();
-                                            continue;
+                                            break;
                                         }
                                         if (!buf.text_span_valid(item.text)) {
                                             fail_text();
+                                            item_offset += item_stride;
                                             continue;
                                         }
                                         const char* text = buf.text_at(item.text.offset);
@@ -2786,18 +2814,19 @@ export namespace ui::draw_cmd {
                                         draw_text_box(canvas, item.rect, text, item.color, font,
                                                       item.align_h, item.align_v, item.wrap, item.ellipsis);
                                         count_cmd(kind);
+                                        item_offset += item_stride;
                                     }
-                                    i += run;
+                                    offset = scan_offset;
                                 }
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             }
-                            if (i >= count) break;
-                            if (!read_cmd_at(i, cmd)) {
+                            if (offset >= cmd_bytes) break;
+                            if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
-                                ++i;
+                                offset = cmd_bytes;
                                 continue;
                             }
                             if (group_kind(cmd.type) != kind) break;
@@ -2809,41 +2838,49 @@ export namespace ui::draw_cmd {
                         constexpr std::size_t kMaxExecBatchItems = 64;
                         while (true) {
                             DrawCmd cur = cmd;
+                            std::size_t cur_stride = stride;
                             if (cur.type == CmdType::DrawLineBatch) {
                                 exec_line_batch(cur);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             } else if (cur.type == CmdType::DrawLine) {
                                 std::size_t run = 1;
-                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                std::size_t scan_offset = offset + cur_stride;
+                                while (scan_offset < cmd_bytes && run < kMaxExecBatchItems) {
                                     DrawCmd next{};
-                                    if (!read_cmd_at(i + run, next)) {
+                                    std::size_t next_stride = 0;
+                                    if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
+                                        fail_other();
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
                                     if (next.type != CmdType::DrawLine) break;
                                     if (!rgba_equal(next.color, cur.color)) break;
+                                    scan_offset += next_stride;
                                     ++run;
                                 }
+                                std::size_t item_offset = offset;
                                 for (std::size_t j = 0; j < run; ++j) {
                                     DrawCmd item{};
-                                    if (!read_cmd_at(i + j, item)) {
+                                    std::size_t item_stride = 0;
+                                    if (!read_cmd_at_offset(item_offset, item, item_stride)) {
                                         fail_other();
-                                        continue;
+                                        break;
                                     }
                                     exec_draw_line(item);
                                     count_cmd(kind);
+                                    item_offset += item_stride;
                                 }
-                                i += run;
+                                offset = scan_offset;
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             }
-                            if (i >= count) break;
-                            if (!read_cmd_at(i, cmd)) {
+                            if (offset >= cmd_bytes) break;
+                            if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
-                                ++i;
+                                offset = cmd_bytes;
                                 continue;
                             }
                             if (group_kind(cmd.type) != kind) break;
@@ -2855,41 +2892,49 @@ export namespace ui::draw_cmd {
                         constexpr std::size_t kMaxExecBatchItems = 64;
                         while (true) {
                             DrawCmd cur = cmd;
+                            std::size_t cur_stride = stride;
                             if (cur.type == CmdType::DrawPathBatch) {
                                 exec_path_batch(cur);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             } else if (cur.type == CmdType::DrawPath) {
                                 std::size_t run = 1;
-                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                std::size_t scan_offset = offset + cur_stride;
+                                while (scan_offset < cmd_bytes && run < kMaxExecBatchItems) {
                                     DrawCmd next{};
-                                    if (!read_cmd_at(i + run, next)) {
+                                    std::size_t next_stride = 0;
+                                    if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
+                                        fail_other();
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
                                     if (next.type != CmdType::DrawPath) break;
                                     if (!rgba_equal(next.color, cur.color)) break;
+                                    scan_offset += next_stride;
                                     ++run;
                                 }
+                                std::size_t item_offset = offset;
                                 for (std::size_t j = 0; j < run; ++j) {
                                     DrawCmd item{};
-                                    if (!read_cmd_at(i + j, item)) {
+                                    std::size_t item_stride = 0;
+                                    if (!read_cmd_at_offset(item_offset, item, item_stride)) {
                                         fail_other();
-                                        continue;
+                                        break;
                                     }
                                     exec_draw_path(item);
                                     count_cmd(kind);
+                                    item_offset += item_stride;
                                 }
-                                i += run;
+                                offset = scan_offset;
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);
-                                ++i;
+                                offset += cur_stride;
                             }
-                            if (i >= count) break;
-                            if (!read_cmd_at(i, cmd)) {
+                            if (offset >= cmd_bytes) break;
+                            if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
-                                ++i;
+                                offset = cmd_bytes;
                                 continue;
                             }
                             if (group_kind(cmd.type) != kind) break;
@@ -2899,18 +2944,19 @@ export namespace ui::draw_cmd {
                     }
                     exec_group_cmd(cmd, kind);
                     count_cmd(kind);
-                    ++i;
-                    while (i < count) {
+                    offset += stride;
+                    while (offset < cmd_bytes) {
                         DrawCmd cur{};
-                        if (!read_cmd_at(i, cur)) {
+                        std::size_t cur_stride = 0;
+                        if (!read_cmd_at_offset(offset, cur, cur_stride)) {
                             fail_other();
-                            ++i;
-                            continue;
+                            offset = cmd_bytes;
+                            break;
                         }
                         if (group_kind(cur.type) != kind) break;
                         exec_group_cmd(cur, kind);
                         count_cmd(kind);
-                        ++i;
+                        offset += cur_stride;
                     }
                     stats.batch_flushes++;
                     continue;
@@ -2946,7 +2992,7 @@ export namespace ui::draw_cmd {
                 }
                 count_cmd(GroupKind::None);
                 stats.batch_flushes++;
-                ++i;
+                offset += stride;
             }
 
             if (initial_clip) {

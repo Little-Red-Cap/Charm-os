@@ -139,6 +139,7 @@ flowchart LR
 **可移植模板：**
 
 - `Examples/ui/vivid/port_template/tile_backend_template.cppm` 提供 MCU 侧 `RenderBackend` 模板。
+- 显示策略类型：`charm.gfx.display_policy` 提供 `DisplayMode/DisplayConfig/EinkPolicy`，用于统一 BW1/Gray2/E-ink 配置入口。
 
 ### 2.2 命令集扩展与一致性校验（R2）
 

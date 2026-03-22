@@ -24,6 +24,7 @@ import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
 import charm.gfx.draw_cmd;
+import charm.gfx.display_policy;
 import charm.gfx.image;
 import charm.gfx.snapshot;
 import charm.gfx.pixel_ops;
@@ -301,43 +302,17 @@ namespace {
     }
 
     struct SdlTileBackend {
-        enum class DisplayMode : std::uint8_t {
-            Color,
-            BW1,
-            Gray2,
-            Eink
-        };
-
-        enum class Gray2Curve : std::uint8_t {
-            Linear = 0,
-            Soft = 1,
-            Contrast = 2
-        };
-
         enum class RefreshKind : std::uint8_t {
             None,
             Partial,
             Full
         };
 
-        struct DisplayConfig {
-            DisplayMode mode{DisplayMode::Color};
-            std::uint8_t bw1_threshold{128};
-            std::uint8_t gray2_strength{8};
-            Gray2Curve gray2_curve{Gray2Curve::Linear};
-        };
-
-        struct EinkPolicy {
-            int max_partial_count{20};
-            int min_full_interval_ms{30000};
-            int partial_area_ratio_pct{35};
-        };
-
         DefaultFrameBuffer& fb;
         PixelFormat src_format{screen_pixel_format};
         std::size_t src_bpp{DefaultFrameBuffer::bytes_per_pixel};
-        DisplayConfig display{};
-        EinkPolicy eink_policy{};
+        ui::gfx::DisplayConfig display{};
+        ui::gfx::EinkPolicy eink_policy{};
         RefreshKind last_refresh{RefreshKind::None};
         int partial_count{0};
         int total_partial_count{0};
@@ -345,7 +320,7 @@ namespace {
         std::uint32_t last_full_ms{0};
         int last_dirty_pct{0};
         std::array<std::uint8_t, 256> gray2_lut{};
-        Gray2Curve gray2_curve_cached{Gray2Curve::Linear};
+        ui::gfx::Gray2Curve gray2_curve_cached{ui::gfx::Gray2Curve::Linear};
         bool gray2_lut_ready{false};
         bool dirty_set{false};
         int dirty_left{0};
@@ -365,8 +340,8 @@ namespace {
             gray2_lut_ready = true;
             float gamma = 1.0f;
             switch (display.gray2_curve) {
-            case Gray2Curve::Soft: gamma = 1.25f; break;
-            case Gray2Curve::Contrast: gamma = 0.85f; break;
+            case ui::gfx::Gray2Curve::Soft: gamma = 1.25f; break;
+            case ui::gfx::Gray2Curve::Contrast: gamma = 0.85f; break;
             default: break;
             }
             for (int i = 0; i < 256; ++i) {
@@ -388,7 +363,7 @@ namespace {
             if (bytes > max_bytes) bytes = max_bytes;
             auto* dst = fb.data() + static_cast<std::size_t>(y) * stride
                 + static_cast<std::size_t>(x) * bpp;
-            if (display.mode == DisplayMode::Color) {
+            if (display.mode == ui::gfx::DisplayMode::Color) {
                 std::memcpy(dst, src, bytes);
                 return;
             }
@@ -452,7 +427,7 @@ namespace {
                         + static_cast<std::uint32_t>(c.g) * 150u
                         + static_cast<std::uint32_t>(c.b) * 29u) >> 8u);
                 std::uint8_t v = 0u;
-                if (display.mode == DisplayMode::BW1) {
+                if (display.mode == ui::gfx::DisplayMode::BW1) {
                     v = (lum >= display.bw1_threshold) ? 255u : 0u;
                 } else {
                     const int px_x = x + static_cast<int>(i);
@@ -505,20 +480,11 @@ namespace {
         }
 
         const char* display_mode_name() const noexcept {
-            switch (display.mode) {
-            case DisplayMode::BW1: return "bw1";
-            case DisplayMode::Gray2: return "gray2";
-            case DisplayMode::Eink: return "eink";
-            default: return "color";
-            }
+            return ui::gfx::display_mode_name(display.mode);
         }
 
         const char* gray2_curve_name() const noexcept {
-            switch (display.gray2_curve) {
-            case Gray2Curve::Soft: return "soft";
-            case Gray2Curve::Contrast: return "contrast";
-            default: return "linear";
-            }
+            return ui::gfx::gray2_curve_name(display.gray2_curve);
         }
 
         void mark_dirty(int x, int y, int w, int h) noexcept {
@@ -552,15 +518,15 @@ namespace {
                                 const SdlTileBackend& backend) noexcept {
         char label[96]{};
         Rect panel{8, 8, 160, 18};
-        if (backend.display.mode == SdlTileBackend::DisplayMode::BW1) {
+        if (backend.display.mode == ui::gfx::DisplayMode::BW1) {
             const auto threshold = static_cast<unsigned>(backend.display.bw1_threshold);
             (void)std::snprintf(label, sizeof(label), "bw1 thr=%u", threshold);
-        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Gray2) {
+        } else if (backend.display.mode == ui::gfx::DisplayMode::Gray2) {
             const auto strength = static_cast<unsigned>(backend.display.gray2_strength);
             (void)std::snprintf(label, sizeof(label), "gray2 str=%u curve=%s",
                                 strength, backend.gray2_curve_name());
             panel.w = 200;
-        } else if (backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+        } else if (backend.display.mode == ui::gfx::DisplayMode::Eink) {
             const auto ratio = static_cast<unsigned>(backend.eink_policy.partial_area_ratio_pct);
             const auto max_partial = static_cast<unsigned>(backend.eink_policy.max_partial_count);
             const auto min_full = static_cast<unsigned>(backend.eink_policy.min_full_interval_ms);
@@ -824,10 +790,10 @@ namespace {
                 std::fclose(file);
                 return false;
             }
-            tile_backend.display.mode = static_cast<SdlTileBackend::DisplayMode>(config.display_mode);
+            tile_backend.display.mode = static_cast<ui::gfx::DisplayMode>(config.display_mode);
             tile_backend.display.bw1_threshold = config.bw1_threshold;
             tile_backend.display.gray2_strength = config.gray2_strength;
-            tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(config.gray2_curve);
+            tile_backend.display.gray2_curve = static_cast<ui::gfx::Gray2Curve>(config.gray2_curve);
             tile_backend.eink_policy.max_partial_count = config.eink_max_partial;
             tile_backend.eink_policy.min_full_interval_ms = config.eink_min_full_ms;
             tile_backend.eink_policy.partial_area_ratio_pct = config.eink_partial_ratio_pct;
@@ -2468,7 +2434,7 @@ int main(int argc, char** argv) {
     int bw1_threshold = 128;
     int gray2_strength = 8;
     int compaction_union_factor = 8;
-    SdlTileBackend::Gray2Curve gray2_curve = SdlTileBackend::Gray2Curve::Linear;
+    ui::gfx::Gray2Curve gray2_curve = ui::gfx::Gray2Curve::Linear;
     int gif_frames = 1;
     std::uint16_t gif_delay_cs = 4;
     std::string dump_cmd_path{};
@@ -2548,11 +2514,11 @@ int main(int argc, char** argv) {
         } else if (arg.rfind("--gray2-curve=", 0) == 0) {
             const std::string_view value = std::string_view(arg).substr(14);
             if (value == "soft") {
-                gray2_curve = SdlTileBackend::Gray2Curve::Soft;
+                gray2_curve = ui::gfx::Gray2Curve::Soft;
             } else if (value == "contrast") {
-                gray2_curve = SdlTileBackend::Gray2Curve::Contrast;
+                gray2_curve = ui::gfx::Gray2Curve::Contrast;
             } else {
-                gray2_curve = SdlTileBackend::Gray2Curve::Linear;
+                gray2_curve = ui::gfx::Gray2Curve::Linear;
             }
         } else if (arg.rfind("--max-missing-glyphs=", 0) == 0) {
             max_missing_glyphs = std::atoi(std::string(arg.substr(21)).c_str());
@@ -2661,13 +2627,13 @@ int main(int argc, char** argv) {
         : (tile_view.format == PixelFormat::ARGB8888) ? 4u
         : 0u;
     if (use_eink) {
-        tile_backend.display.mode = SdlTileBackend::DisplayMode::Eink;
+        tile_backend.display.mode = ui::gfx::DisplayMode::Eink;
     } else if (use_gray2) {
-        tile_backend.display.mode = SdlTileBackend::DisplayMode::Gray2;
+        tile_backend.display.mode = ui::gfx::DisplayMode::Gray2;
     } else if (use_bw1) {
-        tile_backend.display.mode = SdlTileBackend::DisplayMode::BW1;
+        tile_backend.display.mode = ui::gfx::DisplayMode::BW1;
     } else {
-        tile_backend.display.mode = SdlTileBackend::DisplayMode::Color;
+        tile_backend.display.mode = ui::gfx::DisplayMode::Color;
     }
     tile_backend.display.bw1_threshold = static_cast<std::uint8_t>(bw1_threshold);
     tile_backend.display.gray2_strength = static_cast<std::uint8_t>(gray2_strength);
@@ -3771,7 +3737,7 @@ int main(int argc, char** argv) {
     bool last_stats_valid = false;
     bool last_stats_tiles = false;
     const auto adjust_gray2_strength = [&](int delta) noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::Gray2) return;
         int next = static_cast<int>(tile_backend.display.gray2_strength) + delta;
         next = std::clamp(next, 0, 64);
         if (next == tile_backend.display.gray2_strength) return;
@@ -3780,14 +3746,14 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] gray2 strength={}">(g_console, next);
     };
     const auto cycle_gray2_curve = [&]() noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Gray2) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::Gray2) return;
         const int next = (static_cast<int>(tile_backend.display.gray2_curve) + 1) % 3;
-        tile_backend.display.gray2_curve = static_cast<SdlTileBackend::Gray2Curve>(next);
+        tile_backend.display.gray2_curve = static_cast<ui::gfx::Gray2Curve>(next);
         gray2_curve = tile_backend.display.gray2_curve;
         (void)out::println<"[soa] gray2 curve={}">(g_console, tile_backend.gray2_curve_name());
     };
     const auto adjust_bw1_threshold = [&](int delta) noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::BW1) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::BW1) return;
         int next = static_cast<int>(tile_backend.display.bw1_threshold) + delta;
         next = std::clamp(next, 0, 255);
         if (next == tile_backend.display.bw1_threshold) return;
@@ -3796,7 +3762,7 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] bw1 threshold={}">(g_console, next);
     };
     const auto adjust_eink_ratio = [&](int delta) noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::Eink) return;
         int next = tile_backend.eink_policy.partial_area_ratio_pct + delta;
         next = std::clamp(next, 1, 100);
         if (next == tile_backend.eink_policy.partial_area_ratio_pct) return;
@@ -3804,7 +3770,7 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] eink partial_pct={}">(g_console, next);
     };
     const auto adjust_eink_max_partial = [&](int delta) noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::Eink) return;
         int next = tile_backend.eink_policy.max_partial_count + delta;
         next = std::clamp(next, 1, 200);
         if (next == tile_backend.eink_policy.max_partial_count) return;
@@ -3812,7 +3778,7 @@ int main(int argc, char** argv) {
         (void)out::println<"[soa] eink max_partial={}">(g_console, next);
     };
     const auto adjust_eink_min_full = [&](int delta) noexcept {
-        if (tile_backend.display.mode != SdlTileBackend::DisplayMode::Eink) return;
+        if (tile_backend.display.mode != ui::gfx::DisplayMode::Eink) return;
         int next = tile_backend.eink_policy.min_full_interval_ms + delta;
         next = std::clamp(next, 0, 120000);
         if (next == tile_backend.eink_policy.min_full_interval_ms) return;
@@ -3959,7 +3925,7 @@ int main(int argc, char** argv) {
                 dirty_pct = (screen_area > 0)
                     ? static_cast<std::uint8_t>((area * 100u) / screen_area)
                     : 0;
-                if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                if (tile_backend.display.mode == ui::gfx::DisplayMode::Eink) {
                     tile_backend.decide_refresh(static_cast<int>(dirty_area),
                                                 static_cast<int>(screen_area),
                                                 SDL_GetTicks());
@@ -4053,7 +4019,7 @@ int main(int argc, char** argv) {
                             dirty_area,
                             static_cast<std::uint32_t>(dirty_pct),
                             static_cast<std::uint32_t>(tile_hit_pct));
-                    if (tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+                    if (tile_backend.display.mode == ui::gfx::DisplayMode::Eink) {
                         (void)out::println<"[soa] eink refresh={} partial_count={} dirty_pct={}">(
                             g_console,
                             tile_backend.last_refresh_name(),
@@ -4094,7 +4060,7 @@ int main(int argc, char** argv) {
         SDL_Delay(16);
     }
 
-    if (use_eink && tile_backend.display.mode == SdlTileBackend::DisplayMode::Eink) {
+    if (use_eink && tile_backend.display.mode == ui::gfx::DisplayMode::Eink) {
         (void)out::println<"[soa] eink summary full={} partial={} last_refresh={} last_dirty_pct={}">(
             g_console,
             tile_backend.total_full_count,
@@ -4112,4 +4078,6 @@ int main(int argc, char** argv) {
 #endif
     return 0;
 }
+
+
 

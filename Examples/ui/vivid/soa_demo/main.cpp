@@ -3130,6 +3130,7 @@ int main(int argc, char** argv) {
         img_stats_before_record = ui::draw_cmd::image_registry_stats();
         gui.record_commands(compare_buf);
         append_path_icon(compare_buf, screen_width);
+        append_compaction_probe(compare_buf, screen_width, screen_height);
         compare_cmd_count_raw = compare_buf.stats().cmd_count;
         compare_buf.compact();
         has_recorded = true;
@@ -3374,6 +3375,7 @@ int main(int argc, char** argv) {
         if (!has_recorded) {
             gui.record_commands(compare_buf);
             append_path_icon(compare_buf, screen_width);
+            append_compaction_probe(compare_buf, screen_width, screen_height);
             compare_cmd_count_raw = compare_buf.stats().cmd_count;
             compare_buf.compact();
         }

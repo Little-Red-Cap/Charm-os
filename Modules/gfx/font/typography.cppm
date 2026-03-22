@@ -147,6 +147,8 @@ export void set_utf8_replacement_char(std::uint32_t codepoint) noexcept;
 export std::uint32_t utf8_replacement_char() noexcept;
 export void set_utf8_replacement_enabled(bool enabled) noexcept;
 export bool utf8_replacement_enabled() noexcept;
+export bool font_provider_bound() noexcept;
+export bool font_fallback_bound() noexcept;
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 std::uint32_t g_font_ptr_map_count = 0;
@@ -264,6 +266,22 @@ void set_utf8_replacement_enabled(bool enabled) noexcept {
 export
 bool utf8_replacement_enabled() noexcept {
     return g_utf8_replacement_enabled;
+}
+
+export
+bool font_provider_bound() noexcept {
+    return g_font_provider.api != nullptr;
+}
+
+export
+bool font_fallback_bound() noexcept {
+    if (g_default_fallback) {
+        return true;
+    }
+    if (g_font_provider.api && g_font_provider.api->get_fallback_font) {
+        return g_font_provider.api->get_fallback_font(g_font_provider.ctx) != nullptr;
+    }
+    return false;
 }
 
 #if defined(VIVID_SOA_TRACE_INPUT)

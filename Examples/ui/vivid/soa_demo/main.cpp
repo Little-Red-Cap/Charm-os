@@ -2452,6 +2452,9 @@ int main(int argc, char** argv) {
     bool run_replay = false;
     bool run_ci = false;
     bool selftest_dedup = false;
+    bool require_font_provider = false;
+    bool require_fallback_font = false;
+    bool require_utf8_replacement_disabled = false;
     int max_missing_glyphs = 0;
     int max_fallback_glyphs = 0;
     int max_utf8_replacements = 0;
@@ -2503,6 +2506,12 @@ int main(int argc, char** argv) {
             run_regress_ui = true;
         } else if (arg == "--selftest-dedup") {
             selftest_dedup = true;
+        } else if (arg == "--require-font-provider") {
+            require_font_provider = true;
+        } else if (arg == "--require-fallback-font") {
+            require_fallback_font = true;
+        } else if (arg == "--require-utf8-replace-disabled") {
+            require_utf8_replacement_disabled = true;
         } else if (arg.rfind("--dump-cmd=", 0) == 0) {
             run_dump = true;
             dump_cmd_path = std::string(arg.substr(11));
@@ -3473,6 +3482,15 @@ int main(int argc, char** argv) {
         }
         if (max_utf8_replacements >= 0 && static_cast<int>(utf8_replacements) > max_utf8_replacements) {
             ci_mark_fail("utf8_replace");
+        }
+        if (require_font_provider && !font_provider_bound()) {
+            ci_mark_fail("font_provider_missing");
+        }
+        if (require_fallback_font && !font_fallback_bound()) {
+            ci_mark_fail("font_fallback_missing");
+        }
+        if (require_utf8_replacement_disabled && utf8_replacement_enabled()) {
+            ci_mark_fail("utf8_replace_enabled");
         }
         if (max_text_draw >= 0 && static_cast<int>(text_profile.draw_calls) > max_text_draw) {
             ci_mark_fail("text_draw");

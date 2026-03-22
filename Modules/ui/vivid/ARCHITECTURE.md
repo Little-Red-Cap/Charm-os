@@ -326,6 +326,10 @@ flowchart TB
     2. 配置 `VfsFontProviderConfig` 的路径（small/normal/large/mono/fallback）。
     3. `set_font_provider(provider.provider())` 注入字体提供器。
   - 约束：`Font` 指针在 provider 生命周期内必须稳定；loader 不得在渲染热路径做阻塞 IO。
+- 文本链路强契约（CI 可选开启）：
+  - `--require-font-provider`：必须绑定字体 provider。
+  - `--require-fallback-font`：必须提供 fallback 字体。
+  - `--require-utf8-replace-disabled`：禁止 UTF-8 替换字符路径。
 
 ## 6. 主题与样式
 

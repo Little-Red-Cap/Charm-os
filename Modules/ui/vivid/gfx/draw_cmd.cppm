@@ -2123,6 +2123,77 @@ export namespace ui::draw_cmd {
                     break;
                 }
             };
+            auto imagelike_batchable = [](CmdType type) noexcept {
+                switch (type) {
+                case CmdType::DrawImage:
+                case CmdType::DrawImageRoundRect:
+                case CmdType::DrawImageNineSlice:
+                    return true;
+                default:
+                    return false;
+                }
+            };
+            auto imagelike_params_match = [&](const DrawCmd& a, const DrawCmd& b) noexcept {
+                if (a.type != b.type) return false;
+                if (a.image != b.image) return false;
+                switch (a.type) {
+                case CmdType::DrawImage:
+                    return true;
+                case CmdType::DrawImageRoundRect:
+                    return a.p0 == b.p0;
+                case CmdType::DrawImageNineSlice:
+                    return a.p0 == b.p0 && a.p1 == b.p1 && a.p2 == b.p2 && a.p3 == b.p3;
+                default:
+                    return false;
+                }
+            };
+            auto exec_imagelike_item = [&](const DrawCmd& cur, const Rect& rect) noexcept {
+                switch (cur.type) {
+                case CmdType::DrawImage: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        fail_image();
+                        break;
+                    }
+                    if (rect.w > 0 && rect.h > 0) {
+                        ui::render::draw_image_scaled(canvas, rect.x, rect.y, rect.w, rect.h, *image);
+                    } else {
+                        ui::render::draw_image(canvas, rect.x, rect.y, *image);
+                    }
+                    break;
+                }
+                case CmdType::DrawImageRoundRect: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        fail_image();
+                        break;
+                    }
+                    if (rect.w > 0 && rect.h > 0) {
+                        ui::render::draw_image_scaled_round_rect(canvas, rect.x, rect.y,
+                                                                  rect.w, rect.h, *image, cur.p0);
+                    } else {
+                        ui::render::draw_image_round_rect(canvas, rect.x, rect.y,
+                                                          *image, cur.p0);
+                    }
+                    break;
+                }
+                case CmdType::DrawImageNineSlice: {
+                    const auto* image = resolve_image(cur.image);
+                    if (!image || !(*image)) {
+                        fail_image();
+                        break;
+                    }
+                    ui::render::draw_image_nine_slice(canvas,
+                                                      rect.x, rect.y,
+                                                      rect.w, rect.h,
+                                                      *image,
+                                                      cur.p0, cur.p1, cur.p2, cur.p3);
+                    break;
+                }
+                default:
+                    break;
+                }
+            };
 
             auto exec_draw_line = [&](const DrawCmd& cur) noexcept {
                 ui::render::draw_line(canvas,
@@ -2608,6 +2679,46 @@ export namespace ui::draw_cmd {
                                 }
                                 for (std::size_t j = 0; j < run; ++j) {
                                     exec_rectlike_item(cur, rect_items[j].rect);
+                                    count_cmd(kind);
+                                }
+                                i += run;
+                            } else {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            }
+                            if (i >= count) break;
+                            if (!read_cmd_at(i, cmd)) {
+                                fail_other();
+                                ++i;
+                                continue;
+                            }
+                            if (group_kind(cmd.type) != kind) break;
+                        }
+                        stats.batch_flushes++;
+                        continue;
+                    }
+                    if (kind == GroupKind::ImageLike) {
+                        constexpr std::size_t kMaxExecBatchItems = 64;
+                        std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
+                        while (true) {
+                            DrawCmd cur = cmd;
+                            if (imagelike_batchable(cur.type)) {
+                                std::size_t run = 1;
+                                rect_items[0].rect = cur.rect;
+                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                    DrawCmd next{};
+                                    if (!read_cmd_at(i + run, next)) {
+                                        break;
+                                    }
+                                    if (group_kind(next.type) != kind) break;
+                                    if (!imagelike_batchable(next.type)) break;
+                                    if (!imagelike_params_match(cur, next)) break;
+                                    rect_items[run].rect = next.rect;
+                                    ++run;
+                                }
+                                for (std::size_t j = 0; j < run; ++j) {
+                                    exec_imagelike_item(cur, rect_items[j].rect);
                                     count_cmd(kind);
                                 }
                                 i += run;

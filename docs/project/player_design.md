@@ -11,6 +11,7 @@
 - 缓冲与数据路径
 - 已验证能力
 - 待验证清单
+- 架构草案 v0.1
 - 规划与里程碑
 
 目标与约束
@@ -51,6 +52,17 @@
 - GPIO：LED/KEY/Encoder/Display Control
 - 备注：具体引脚与极性请同步更新
 
+引脚细表（当前板卡）
+- LED：PA3 绿灯使能（低电平有效），PB1 蓝灯使能（低电平有效）
+- KEY：PA2 (PWR_WKUP2，高电平有效)，PA8 (KEY0，高电平有效)
+- Encoder：PI8 (KEY)，PC7 (TIM8_CH2)，PC6 (TIM8_CH1)
+- UART：PA9 (USART1_TX)，PA10 (USART1_RX)
+- SDMMC1：PC8/PC9/PC10/PC11/PC12 (D0~D3/CK)，PD2 (CMD)
+- I2S1：PA7 (SDO)，PA5 (CK)，PC4 (MCK)，PA4 (WS)
+- SPI5：PK0 (SCK)，PK1 (NSS)，PJ10 (MOSI)
+- Display 控制：PJ5 (RST)，PJ6 (DATA/CMD)
+- Debug：PA14 (SWCLK)，PA13 (SWDIO)
+
 缓冲与数据路径（初版）
 - 音频环形缓冲：>= 256 KB（48k/16bit/2ch 约 192 KB/s）
 - I2S DMA 双缓冲：2 x 8~16 KB
@@ -69,6 +81,18 @@
 - EMMC 读写速率与抖动评估
 - GUI 帧缓冲与刷新带宽
 - 网络协议栈内存峰值
+
+验证矩阵（建议执行）
+- USB MSC：持续读写 30 分钟；记录吞吐与错误计数
+- USB Audio：连续播放 30 分钟；记录 underrun/overrun 与环形缓冲低水位
+- Audio + MSC 并发：复制文件 + 播放音频；记录吞吐退化
+- EMMC：顺序读/随机读；记录 P95 延迟
+- UI：全屏刷新 + 滚动；记录帧率与抖动
+
+资源占用基线
+- Audio + MSC（main-usb-as.cpp）
+  - RAM_D1：约 489,792 B（93.42%）
+  - FLASH：约 403,328 B（38.46%）
 
 架构草案 v0.1（合并版）
 - 目标：给双核与内存分区一个可执行边界，避免功能堆叠返工

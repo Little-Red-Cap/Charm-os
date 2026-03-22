@@ -300,6 +300,18 @@ export namespace ui::draw_cmd {
         std::size_t failed_cmds{0};
         std::size_t dispatch_groups{0};
         std::size_t batch_flushes{0};
+        std::size_t group_rect{0};
+        std::size_t group_text{0};
+        std::size_t group_image{0};
+        std::size_t group_line{0};
+        std::size_t group_path{0};
+        std::size_t group_other{0};
+        std::size_t cmd_rect{0};
+        std::size_t cmd_text{0};
+        std::size_t cmd_image{0};
+        std::size_t cmd_line{0};
+        std::size_t cmd_path{0};
+        std::size_t cmd_other{0};
         bool overflowed{false};
     };
 
@@ -319,6 +331,18 @@ export namespace ui::draw_cmd {
         std::size_t dispatch_groups{0};
         std::size_t batch_flushes{0};
         std::size_t failed_cmds{0};
+        std::size_t group_rect{0};
+        std::size_t group_text{0};
+        std::size_t group_image{0};
+        std::size_t group_line{0};
+        std::size_t group_path{0};
+        std::size_t group_other{0};
+        std::size_t cmd_rect{0};
+        std::size_t cmd_text{0};
+        std::size_t cmd_image{0};
+        std::size_t cmd_line{0};
+        std::size_t cmd_path{0};
+        std::size_t cmd_other{0};
     };
 
     struct RectBatchItem {
@@ -2394,6 +2418,54 @@ export namespace ui::draw_cmd {
                 }
             };
 
+            auto count_group = [&](GroupKind kind) noexcept {
+                switch (kind) {
+                case GroupKind::RectLike:
+                    stats.group_rect++;
+                    break;
+                case GroupKind::TextBox:
+                    stats.group_text++;
+                    break;
+                case GroupKind::ImageLike:
+                    stats.group_image++;
+                    break;
+                case GroupKind::DrawLine:
+                    stats.group_line++;
+                    break;
+                case GroupKind::DrawPath:
+                    stats.group_path++;
+                    break;
+                case GroupKind::None:
+                default:
+                    stats.group_other++;
+                    break;
+                }
+            };
+
+            auto count_cmd = [&](GroupKind kind) noexcept {
+                switch (kind) {
+                case GroupKind::RectLike:
+                    stats.cmd_rect++;
+                    break;
+                case GroupKind::TextBox:
+                    stats.cmd_text++;
+                    break;
+                case GroupKind::ImageLike:
+                    stats.cmd_image++;
+                    break;
+                case GroupKind::DrawLine:
+                    stats.cmd_line++;
+                    break;
+                case GroupKind::DrawPath:
+                    stats.cmd_path++;
+                    break;
+                case GroupKind::None:
+                default:
+                    stats.cmd_other++;
+                    break;
+                }
+            };
+
             while (i < count) {
                 DrawCmd cmd{};
                 if (!read_cmd_at(i, cmd)) {
@@ -2405,7 +2477,9 @@ export namespace ui::draw_cmd {
                 const auto kind = group_kind(cmd.type);
                 if (kind != GroupKind::None) {
                     stats.dispatch_groups++;
+                    count_group(kind);
                     exec_group_cmd(cmd, kind);
+                    count_cmd(kind);
                     ++i;
                     while (i < count) {
                         DrawCmd cur{};
@@ -2416,6 +2490,7 @@ export namespace ui::draw_cmd {
                         }
                         if (group_kind(cur.type) != kind) break;
                         exec_group_cmd(cur, kind);
+                        count_cmd(kind);
                         ++i;
                     }
                     stats.batch_flushes++;
@@ -2423,6 +2498,7 @@ export namespace ui::draw_cmd {
                 }
 
                 stats.dispatch_groups++;
+                count_group(GroupKind::None);
                 switch (cmd.type) {
                 case CmdType::PushClip:
                     if (sp < clip_stack.size()) {
@@ -2438,6 +2514,7 @@ export namespace ui::draw_cmd {
                     }
                     break;
                 }
+                count_cmd(GroupKind::None);
                 stats.batch_flushes++;
                 ++i;
             }
@@ -2565,6 +2642,18 @@ export namespace ui::draw_cmd {
                     stats.dispatch_groups += exec_stats.dispatch_groups;
                     stats.batch_flushes += exec_stats.batch_flushes;
                     stats.failed_cmds += exec_stats.failed_cmds;
+                    stats.group_rect += exec_stats.group_rect;
+                    stats.group_text += exec_stats.group_text;
+                    stats.group_image += exec_stats.group_image;
+                    stats.group_line += exec_stats.group_line;
+                    stats.group_path += exec_stats.group_path;
+                    stats.group_other += exec_stats.group_other;
+                    stats.cmd_rect += exec_stats.cmd_rect;
+                    stats.cmd_text += exec_stats.cmd_text;
+                    stats.cmd_image += exec_stats.cmd_image;
+                    stats.cmd_line += exec_stats.cmd_line;
+                    stats.cmd_path += exec_stats.cmd_path;
+                    stats.cmd_other += exec_stats.cmd_other;
                     tile_canvas.clear_origin();
 
                     const std::size_t row_bytes = static_cast<std::size_t>(w)

@@ -3049,6 +3049,18 @@ int main(int argc, char** argv) {
     std::size_t compare_tile_dispatch_groups = 0;
     std::size_t compare_tile_batch_flushes = 0;
     std::size_t compare_tile_failed_cmds = 0;
+    std::size_t compare_group_rect = 0;
+    std::size_t compare_group_text = 0;
+    std::size_t compare_group_image = 0;
+    std::size_t compare_group_line = 0;
+    std::size_t compare_group_path = 0;
+    std::size_t compare_group_other = 0;
+    std::size_t compare_cmd_rect = 0;
+    std::size_t compare_cmd_text = 0;
+    std::size_t compare_cmd_image = 0;
+    std::size_t compare_cmd_line = 0;
+    std::size_t compare_cmd_path = 0;
+    std::size_t compare_cmd_other = 0;
     bool compare_ok = true;
     bool compact_ok = true;
     std::size_t compact_saved = 0;
@@ -3118,6 +3130,18 @@ int main(int argc, char** argv) {
         compare_failed_cmds = exec_stats.failed_cmds;
         compare_dispatch_groups = exec_stats.dispatch_groups;
         compare_batch_flushes = exec_stats.batch_flushes;
+        compare_group_rect = exec_stats.group_rect;
+        compare_group_text = exec_stats.group_text;
+        compare_group_image = exec_stats.group_image;
+        compare_group_line = exec_stats.group_line;
+        compare_group_path = exec_stats.group_path;
+        compare_group_other = exec_stats.group_other;
+        compare_cmd_rect = exec_stats.cmd_rect;
+        compare_cmd_text = exec_stats.cmd_text;
+        compare_cmd_image = exec_stats.cmd_image;
+        compare_cmd_line = exec_stats.cmd_line;
+        compare_cmd_path = exec_stats.cmd_path;
+        compare_cmd_other = exec_stats.cmd_other;
         compare_tile_flushes = tile_stats.tile_flush_count;
         compare_tile_dispatch_groups = tile_stats.dispatch_groups;
         compare_tile_batch_flushes = tile_stats.batch_flushes;
@@ -3329,7 +3353,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3358,6 +3382,18 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(cmd_budget),
             static_cast<unsigned>(compare_dispatch_groups),
             static_cast<unsigned>(compare_batch_flushes),
+            static_cast<unsigned>(compare_group_rect),
+            static_cast<unsigned>(compare_group_text),
+            static_cast<unsigned>(compare_group_image),
+            static_cast<unsigned>(compare_group_line),
+            static_cast<unsigned>(compare_group_path),
+            static_cast<unsigned>(compare_group_other),
+            static_cast<unsigned>(compare_cmd_rect),
+            static_cast<unsigned>(compare_cmd_text),
+            static_cast<unsigned>(compare_cmd_image),
+            static_cast<unsigned>(compare_cmd_line),
+            static_cast<unsigned>(compare_cmd_path),
+            static_cast<unsigned>(compare_cmd_other),
             static_cast<unsigned>(compare_tile_flushes),
             static_cast<unsigned>(compare_tile_hit_pct),
             static_cast<unsigned>(compare_tile_dispatch_groups),

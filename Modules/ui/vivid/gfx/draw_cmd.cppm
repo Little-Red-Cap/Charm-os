@@ -781,13 +781,8 @@ export namespace ui::draw_cmd {
             }
             cmd_bytes_used_ = cmd_bytes_len;
             count_ = cmd_count;
-            if (cmd_bytes_used_ > 0) {
-                if (count_ == 0) {
-                    if (!rebuild_offsets_from_bytes()) {
-                        cmd_overflowed_ = true;
-                        return false;
-                    }
-                } else if (!rebuild_offsets()) {
+            if (cmd_bytes_used_ > 0 && count_ != 0) {
+                if (!rebuild_offsets()) {
                     cmd_overflowed_ = true;
                     return false;
                 }
@@ -969,21 +964,29 @@ export namespace ui::draw_cmd {
         bool any_draw_hits(const Rect& rect) const noexcept {
             Rect out{};
             DrawCmd cmd{};
-            for (std::size_t i = 0; i < count_; ++i) {
-                if (!read_cmd(i, cmd)) continue;
+            std::size_t offset = 0;
+            while (offset < cmd_bytes_used_) {
+                std::size_t stride = 0;
+                if (!read_cmd_at_offset(offset, cmd, stride)) break;
                 if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
+                    offset += stride;
                     continue;
                 }
                 if (cmd.type == CmdType::DrawLine) {
                     const Rect bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
                     if (rect_intersect(bounds, rect, out)) return true;
+                    offset += stride;
                     continue;
                 }
                 if (cmd.type == CmdType::DrawLineBatch) {
                     const int count = cmd.p0;
-                    if (count <= 0) continue;
+                    if (count <= 0) {
+                        offset += stride;
+                        continue;
+                    }
                     const auto blob = blob_.bytes(cmd.blob);
                     if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                        offset += stride;
                         continue;
                     }
                     const auto items = std::span<const LineBatchItem>(
@@ -992,16 +995,21 @@ export namespace ui::draw_cmd {
                         const Rect bounds = line_bounds(item.x0, item.y0, item.x1, item.y1);
                         if (rect_intersect(bounds, rect, out)) return true;
                     }
+                    offset += stride;
                     continue;
                 }
-                if (!rect_valid(cmd.rect)) continue;
+                if (!rect_valid(cmd.rect)) {
+                    offset += stride;
+                    continue;
+                }
                 if (rect_intersect(cmd.rect, rect, out)) return true;
+                offset += stride;
             }
             return false;
         }
 
         bool compact() noexcept {
-            if (count_ == 0) return true;
+            if (cmd_bytes_used_ == 0) return true;
             const std::size_t input_bytes = cmd_bytes_used_;
             std::array<std::uint32_t, kMaxCommands> output_offsets{};
             std::size_t out_bytes = 0;

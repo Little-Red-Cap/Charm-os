@@ -904,8 +904,11 @@ namespace {
             return false;
         }
         ui::draw_cmd::DrawCmd cmd{};
-        for (std::size_t i = 0; i < buf.size(); ++i) {
-            if (!buf.read_cmd(i, cmd)) return false;
+        const std::size_t cmd_bytes_size = buf.cmd_bytes();
+        std::size_t offset = 0;
+        while (offset < cmd_bytes_size) {
+            std::size_t stride = 0;
+            if (!buf.read_cmd_at_offset(offset, cmd, stride)) return false;
             if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
                 const std::size_t end = static_cast<std::size_t>(cmd.text.offset) + cmd.text.length;
                 if (end > text.size()) {
@@ -923,6 +926,7 @@ namespace {
                 && !ui::draw_cmd::image_id_valid(cmd.image)) {
                 return false;
             }
+            offset += stride;
         }
 
         ui::draw_cmd::DrawCmdExecutor exec{};

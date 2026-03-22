@@ -6,6 +6,9 @@ param(
     [string]$DumpPath = "",
     [string]$ReplayPath = "",
     [switch]$Tile,
+    [switch]$RequireFontProvider,
+    [switch]$RequireFallbackFont,
+    [switch]$RequireUtf8ReplaceDisabled,
     [switch]$NoBuild
 )
 
@@ -63,6 +66,10 @@ switch ($Mode) {
         }
     }
 }
+
+if ($RequireFontProvider) { $args += "--require-font-provider" }
+if ($RequireFallbackFont) { $args += "--require-fallback-font" }
+if ($RequireUtf8ReplaceDisabled) { $args += "--require-utf8-replace-disabled" }
 
 Write-Host "[soa-ci] run: $Exe $($args -join ' ')"
 & $Exe @args 2>&1 | Tee-Object -FilePath $logPath

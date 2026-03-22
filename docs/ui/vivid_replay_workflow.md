@@ -78,3 +78,16 @@ g:\Project\Codex\Charm-os\Examples\ui\vivid\soa_demo\cmake-build-debug\Debug\viv
 - `img_new_after_lock != 0`：说明 lock 后仍有图片注册  
 - `cmd_budget`：命令数超预算  
 - `replay_*` hash 不一致：回放不一致  
+
+## 5. Font Contract (CI)
+
+Optional flags to make text/Font behavior deterministic in CI:
+
+```powershell
+.\Examples\ui\vivid\soa_demo\soa_ci.ps1 -Mode ci -RequireFontProvider -RequireFallbackFont -RequireUtf8ReplaceDisabled
+```
+
+Flags:
+- `--require-font-provider`
+- `--require-fallback-font`
+- `--require-utf8-replace-disabled`

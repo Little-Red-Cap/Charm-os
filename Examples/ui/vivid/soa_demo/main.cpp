@@ -3410,6 +3410,10 @@ int main(int argc, char** argv) {
         const bool payload_ok = !kernel.payload_overflowed();
         const bool text_ok = !kernel.text_overflowed();
         const bool blob_ok = !compare_buf.stats().blob_overflowed;
+        const bool clip_ok = compare_clip_push_overflow == 0
+            && compare_clip_pop_underflow == 0
+            && compare_clip_invalid == 0;
+        const bool tile_failed_ok = compare_tile_failed_cmds == 0;
         const std::size_t cmd_budget = (compare_cmd_capacity > 0)
             ? (compare_cmd_capacity * 9u) / 10u
             : 0u;
@@ -3482,6 +3486,12 @@ int main(int argc, char** argv) {
         if (!cmd_budget_ok) {
             ci_mark_fail("cmd_budget");
         }
+        if (!clip_ok) {
+            ci_mark_fail("clip_invalid");
+        }
+        if (!tile_failed_ok) {
+            ci_mark_fail("tile_failed_cmds");
+        }
         const bool ok = ci_ok
               && compare_ok
               && dump_ok
@@ -3489,6 +3499,8 @@ int main(int argc, char** argv) {
             && payload_ok
             && text_ok
             && blob_ok
+            && clip_ok
+            && tile_failed_ok
             && (compare_failed_cmds == 0)
             && (compare_hash_full == compare_hash_tile)
             && (replay_full == compare_hash_full)

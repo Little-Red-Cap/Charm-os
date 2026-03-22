@@ -287,6 +287,49 @@ namespace {
         buf.draw_image_nine_slice(slice_rect, g_slice_id, 2, 2, 2, 2);
     }
 
+    void append_compaction_probe(ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                                 int screen_width,
+                                 int screen_height) noexcept {
+        const int size = 8;
+        const int gap = 3;
+        const int count = 6;
+        int x = 8;
+        int y = 36;
+        if (screen_height > 120) {
+            y = screen_height - (size + gap) * 5 - 12;
+        }
+        if (screen_width < 200) {
+            x = 4;
+        }
+
+        for (int i = 0; i < count; ++i) {
+            const Rect r{x + i * (size + gap), y, size, size};
+            buf.fill_round_rect(r, 3, kDemoPanel);
+        }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const Rect r{x + i * (size + gap), y, size, size};
+            buf.stroke_round_rect(r, 3, kDemoPanelBorder);
+        }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const int cx = x + i * (size + gap) + size / 2;
+            const int cy = y + size / 2;
+            buf.fill_circle(cx, cy, size / 2, kDemoPath);
+        }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const int cx = x + i * (size + gap) + size / 2;
+            const int cy = y + size / 2;
+            buf.stroke_circle(cx, cy, size / 2, kDemoPath);
+        }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const Rect r{x + i * (size + gap), y, size, size};
+            buf.stroke_rect(r, kDemoPanelBorder);
+        }
+    }
+
     void apply_demo_theme() noexcept {
         ThemeTokens tokens = Theme::instance().get_tokens();
         tokens.surface = kDemoBg;
@@ -3891,6 +3934,7 @@ int main(int argc, char** argv) {
 
         gui.record_commands(cmd_buf);
         append_path_icon(cmd_buf, screen_width);
+        append_compaction_probe(cmd_buf, screen_width, screen_height);
         append_display_overlay(cmd_buf, tile_backend);
         if (show_perf_overlay) {
             append_perf_overlay(cmd_buf,

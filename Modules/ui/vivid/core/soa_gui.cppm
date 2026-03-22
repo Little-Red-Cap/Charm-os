@@ -1,9 +1,11 @@
 module;
 #include <array>
 #include <cassert>
-#include <cstdio>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <string_view>
+#include <utility>
 
 #include "features.hpp"
 
@@ -23,6 +25,9 @@ export import charm.gfx.text_box;
 export import charm.font.typography;
 import charm.widgets.perf_overlay;
 import charm.widgets.perf_overlay;
+import out.core;
+import out.format;
+import out.sink;
 
 namespace {
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
@@ -91,6 +96,33 @@ namespace {
         }
         buf[out] = '\0';
         return out;
+    }
+
+    struct trunc_sink {
+        char* buf{nullptr};
+        std::size_t cap{0};
+        std::size_t pos{0};
+
+        out::result<std::size_t> write(out::bytes b) noexcept {
+            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
+            const std::size_t n = (b.size() < avail) ? b.size() : avail;
+            if (n > 0) {
+                std::memcpy(buf + pos, b.data(), n);
+                pos += n;
+            }
+            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            return out::ok(b.size());
+        }
+    };
+
+    template <out::fixed_string Fmt, class... Args>
+    inline std::string_view format_to(char* buf, std::size_t size, Args&&... args) noexcept {
+        if (!buf || size == 0) return {};
+        trunc_sink sink{buf, size - 1u, 0u};
+        (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
+        buf[sink.pos] = '\0';
+        return {buf, sink.pos};
     }
 
     bool is_scrollable_kind(WidgetKind kind) noexcept {
@@ -1662,42 +1694,39 @@ void SoaGui::record_perf_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& out, const 
 
     char buf[96]{};
     if (!perf_overlay_stats_valid()) {
-        (void)std::snprintf(buf, sizeof(buf), "perf: n/a");
+        (void)format_to<"perf: n/a">(buf, sizeof(buf));
         out.draw_text_box(line_rect, buf, colors.font, font,
                           TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
         return;
     }
 
     const auto stats = perf_overlay_stats();
-    (void)std::snprintf(buf, sizeof(buf),
-                        "dispatch/batch/failed: %u/%u/%u",
-                        static_cast<unsigned>(stats.dispatch_groups),
-                        static_cast<unsigned>(stats.batch_flushes),
-                        static_cast<unsigned>(stats.failed_cmds));
+    (void)format_to<"dispatch/batch/failed: {}/{}/{}">(buf, sizeof(buf),
+                                                      static_cast<unsigned>(stats.dispatch_groups),
+                                                      static_cast<unsigned>(stats.batch_flushes),
+                                                      static_cast<unsigned>(stats.failed_cmds));
     out.draw_text_box(line_rect, buf, colors.font, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
     line_rect.y += line_h;
 
-    (void)std::snprintf(buf, sizeof(buf),
-                        "grp r/t/i/l/p/o: %u/%u/%u/%u/%u/%u",
-                        static_cast<unsigned>(stats.group_rect),
-                        static_cast<unsigned>(stats.group_text),
-                        static_cast<unsigned>(stats.group_image),
-                        static_cast<unsigned>(stats.group_line),
-                        static_cast<unsigned>(stats.group_path),
-                        static_cast<unsigned>(stats.group_other));
+    (void)format_to<"grp r/t/i/l/p/o: {}/{}/{}/{}/{}/{}">(buf, sizeof(buf),
+                                                         static_cast<unsigned>(stats.group_rect),
+                                                         static_cast<unsigned>(stats.group_text),
+                                                         static_cast<unsigned>(stats.group_image),
+                                                         static_cast<unsigned>(stats.group_line),
+                                                         static_cast<unsigned>(stats.group_path),
+                                                         static_cast<unsigned>(stats.group_other));
     out.draw_text_box(line_rect, buf, colors.font, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
     line_rect.y += line_h;
 
-    (void)std::snprintf(buf, sizeof(buf),
-                        "cmd r/t/i/l/p/o: %u/%u/%u/%u/%u/%u",
-                        static_cast<unsigned>(stats.cmd_rect),
-                        static_cast<unsigned>(stats.cmd_text),
-                        static_cast<unsigned>(stats.cmd_image),
-                        static_cast<unsigned>(stats.cmd_line),
-                        static_cast<unsigned>(stats.cmd_path),
-                        static_cast<unsigned>(stats.cmd_other));
+    (void)format_to<"cmd r/t/i/l/p/o: {}/{}/{}/{}/{}/{}">(buf, sizeof(buf),
+                                                         static_cast<unsigned>(stats.cmd_rect),
+                                                         static_cast<unsigned>(stats.cmd_text),
+                                                         static_cast<unsigned>(stats.cmd_image),
+                                                         static_cast<unsigned>(stats.cmd_line),
+                                                         static_cast<unsigned>(stats.cmd_path),
+                                                         static_cast<unsigned>(stats.cmd_other));
     out.draw_text_box(line_rect, buf, colors.font, font,
                       TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
 }

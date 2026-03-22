@@ -2645,6 +2645,14 @@ export namespace ui::draw_cmd {
                     break;
                 }
             };
+            auto text_params_match = [&](const DrawCmd& a, const DrawCmd& b) noexcept {
+                return rgba_equal(a.color, b.color)
+                    && a.font == b.font
+                    && a.align_h == b.align_h
+                    && a.align_v == b.align_v
+                    && a.wrap == b.wrap
+                    && a.ellipsis == b.ellipsis;
+            };
 
             while (i < count) {
                 DrawCmd cmd{};
@@ -2722,6 +2730,65 @@ export namespace ui::draw_cmd {
                                     count_cmd(kind);
                                 }
                                 i += run;
+                            } else {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            }
+                            if (i >= count) break;
+                            if (!read_cmd_at(i, cmd)) {
+                                fail_other();
+                                ++i;
+                                continue;
+                            }
+                            if (group_kind(cmd.type) != kind) break;
+                        }
+                        stats.batch_flushes++;
+                        continue;
+                    }
+                    if (kind == GroupKind::TextBox) {
+                        constexpr std::size_t kMaxExecBatchItems = 64;
+                        while (true) {
+                            DrawCmd cur = cmd;
+                            if (cur.type == CmdType::GlyphRun) {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            } else if (cur.type == CmdType::DrawTextBox) {
+                                if (!buf.text_span_valid(cur.text)) {
+                                    fail_text();
+                                    ++i;
+                                } else {
+                                    std::size_t run = 1;
+                                    while ((i + run) < count && run < kMaxExecBatchItems) {
+                                        DrawCmd next{};
+                                        if (!read_cmd_at(i + run, next)) {
+                                            break;
+                                        }
+                                        if (group_kind(next.type) != kind) break;
+                                        if (next.type != CmdType::DrawTextBox) break;
+                                        if (!buf.text_span_valid(next.text)) break;
+                                        if (!text_params_match(cur, next)) break;
+                                        ++run;
+                                    }
+                                    for (std::size_t j = 0; j < run; ++j) {
+                                        DrawCmd item{};
+                                        if (!read_cmd_at(i + j, item)) {
+                                            fail_other();
+                                            continue;
+                                        }
+                                        if (!buf.text_span_valid(item.text)) {
+                                            fail_text();
+                                            continue;
+                                        }
+                                        const char* text = buf.text_at(item.text.offset);
+                                        const Font& font = get_font(item.font);
+                                        draw_text_box(canvas, item.rect, text, item.color, font,
+                                                      item.align_h, item.align_v, item.wrap, item.ellipsis);
+                                        count_cmd(kind);
+                                    }
+                                    i += run;
+                                }
                             } else {
                                 exec_group_cmd(cur, kind);
                                 count_cmd(kind);

@@ -703,6 +703,7 @@ export namespace ui::draw_cmd {
             batch_shrink_round_ = 0;
             batch_shrink_image_ = 0;
             batch_shrink_focus_ = 0;
+            offsets_valid_ = true;
         }
 
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
@@ -731,6 +732,7 @@ export namespace ui::draw_cmd {
             return end <= text_used_;
         }
         [[nodiscard]] const CmdHeader* cmd_header(std::size_t index) const noexcept {
+            if (!offsets_valid_) return nullptr;
             if (index >= count_) return nullptr;
             const std::size_t offset = cmd_offsets_[index];
             if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return nullptr;
@@ -787,6 +789,7 @@ export namespace ui::draw_cmd {
                     return false;
                 }
             }
+            offsets_valid_ = (count_ != 0);
             if (!text || text_bytes == 0) {
                 text_[0] = '\0';
                 text_used_ = 1;
@@ -1688,12 +1691,14 @@ export namespace ui::draw_cmd {
             if (out_count == 0) {
                 count_ = 0;
                 cmd_bytes_used_ = 0;
+                offsets_valid_ = false;
             } else {
                 count_ = out_count;
                 cmd_bytes_used_ = out_bytes;
                 std::memcpy(cmd_offsets_.data(),
                             output_offsets.data(),
                             out_count * sizeof(std::uint32_t));
+                offsets_valid_ = true;
             }
             return ok && !blob_.overflowed();
         }
@@ -1745,6 +1750,7 @@ export namespace ui::draw_cmd {
                 if (offset + stride > cmd_bytes_used_) return false;
                 offset += stride;
             }
+            offsets_valid_ = true;
             return true;
         }
 
@@ -1767,6 +1773,7 @@ export namespace ui::draw_cmd {
                 ++count;
             }
             count_ = count;
+            offsets_valid_ = true;
             return true;
         }
 
@@ -1993,6 +2000,7 @@ export namespace ui::draw_cmd {
         std::size_t batch_shrink_focus_{0};
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
+        bool offsets_valid_{true};
     };
 
     constexpr std::size_t kDefaultCmdCapacity = 1024;

@@ -909,6 +909,7 @@ namespace {
         while (offset < cmd_bytes_size) {
             std::size_t stride = 0;
             if (!buf.read_cmd_at_offset(offset, cmd, stride)) return false;
+            const auto blob_span = buf.blob_at(cmd.blob);
             if (cmd.type == ui::draw_cmd::CmdType::DrawTextBox) {
                 const std::size_t end = static_cast<std::size_t>(cmd.text.offset) + cmd.text.length;
                 if (end > text.size()) {
@@ -925,6 +926,86 @@ namespace {
                 || cmd.type == ui::draw_cmd::CmdType::DrawImageNineSlice)
                 && !ui::draw_cmd::image_id_valid(cmd.image)) {
                 return false;
+            }
+            switch (cmd.type) {
+            case ui::draw_cmd::CmdType::FillRectBatch:
+            case ui::draw_cmd::CmdType::StrokeRectBatch: {
+                const int count = cmd.p0;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::RectBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::FillRoundRectBatch:
+            case ui::draw_cmd::CmdType::StrokeRoundRectBatch:
+            case ui::draw_cmd::CmdType::FillCircleBatch:
+            case ui::draw_cmd::CmdType::StrokeCircleBatch: {
+                const int count = cmd.p1;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::RectBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::FocusRingBatch: {
+                const int count = cmd.p3;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::RectBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::DrawLineBatch: {
+                const int count = cmd.p0;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::LineBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::DrawPathBatch: {
+                const int count = cmd.p0;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::PathBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::GlyphRun: {
+                const int count = cmd.p0;
+                if (count <= 0) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::GlyphRunItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::DrawImageBatch: {
+                const int count = cmd.p0;
+                if (count <= 0) return false;
+                if (!ui::draw_cmd::image_id_valid(cmd.image)) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::ImageBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::DrawImageRoundRectBatch: {
+                const int count = cmd.p1;
+                if (count <= 0) return false;
+                if (!ui::draw_cmd::image_id_valid(cmd.image)) return false;
+                if (blob_span.size() < static_cast<std::size_t>(count) * sizeof(ui::draw_cmd::ImageBatchItem)) {
+                    return false;
+                }
+                break;
+            }
+            case ui::draw_cmd::CmdType::DrawImageNineSliceBatch: {
+                if (!ui::draw_cmd::image_id_valid(cmd.image)) return false;
+                if (blob_span.empty()) return false;
+                if ((blob_span.size() % sizeof(ui::draw_cmd::ImageBatchItem)) != 0) return false;
+                break;
+            }
+            default:
+                break;
             }
             offset += stride;
         }

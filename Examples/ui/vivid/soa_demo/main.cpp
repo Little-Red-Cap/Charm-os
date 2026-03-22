@@ -3046,6 +3046,9 @@ int main(int argc, char** argv) {
     std::size_t compare_batch_shrink_focus = 0;
     int compare_tile_flushes = 0;
     std::uint8_t compare_tile_hit_pct = 0;
+    std::size_t compare_tile_dispatch_groups = 0;
+    std::size_t compare_tile_batch_flushes = 0;
+    std::size_t compare_tile_failed_cmds = 0;
     bool compare_ok = true;
     bool compact_ok = true;
     std::size_t compact_saved = 0;
@@ -3116,6 +3119,9 @@ int main(int argc, char** argv) {
         compare_dispatch_groups = exec_stats.dispatch_groups;
         compare_batch_flushes = exec_stats.batch_flushes;
         compare_tile_flushes = tile_stats.tile_flush_count;
+        compare_tile_dispatch_groups = tile_stats.dispatch_groups;
+        compare_tile_batch_flushes = tile_stats.batch_flushes;
+        compare_tile_failed_cmds = tile_stats.failed_cmds;
         if (tile_stats.tiles_total > 0) {
             compare_tile_hit_pct = static_cast<std::uint8_t>(
                 (static_cast<std::uint32_t>(tile_stats.tiles_drawn) * 100u)
@@ -3323,7 +3329,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3354,6 +3360,9 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(compare_batch_flushes),
             static_cast<unsigned>(compare_tile_flushes),
             static_cast<unsigned>(compare_tile_hit_pct),
+            static_cast<unsigned>(compare_tile_dispatch_groups),
+            static_cast<unsigned>(compare_tile_batch_flushes),
+            static_cast<unsigned>(compare_tile_failed_cmds),
             static_cast<unsigned>(img_stats.register_new_total),
             static_cast<unsigned>(img_stats.register_new_after_lock),
             static_cast<unsigned>(img_stats.register_new_record),

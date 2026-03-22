@@ -316,6 +316,9 @@ export namespace ui::draw_cmd {
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
         int tile_flush_count{0};
+        std::size_t dispatch_groups{0};
+        std::size_t batch_flushes{0};
+        std::size_t failed_cmds{0};
     };
 
     struct RectBatchItem {
@@ -2558,7 +2561,10 @@ export namespace ui::draw_cmd {
                         tile_canvas.clear(config.clear_color);
                     }
                     tile_canvas.set_origin(-tile_rect.x, -tile_rect.y);
-                    (void)execute(tile_canvas, buf, &tile_rect);
+                    const auto exec_stats = execute(tile_canvas, buf, &tile_rect);
+                    stats.dispatch_groups += exec_stats.dispatch_groups;
+                    stats.batch_flushes += exec_stats.batch_flushes;
+                    stats.failed_cmds += exec_stats.failed_cmds;
                     tile_canvas.clear_origin();
 
                     const std::size_t row_bytes = static_cast<std::size_t>(w)

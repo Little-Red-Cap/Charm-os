@@ -1,6 +1,7 @@
 module;
 #include <array>
 #include <cassert>
+#include <cstdio>
 #include <cstddef>
 #include <cstdint>
 
@@ -20,6 +21,8 @@ export import charm.gfx.draw_cmd;
 export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 export import charm.font.typography;
+import charm.widgets.perf_overlay;
+import charm.widgets.perf_overlay;
 
 namespace {
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
@@ -216,6 +219,9 @@ private:
                               const StyleState& state, const SoaKernel& kernel, WidgetHandle h);
     static void record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                const ResolvedColors& colors, std::uint8_t phase);
+    static void record_perf_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                    const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                    const StyleState& state);
     static void record_scrollbar(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                  const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                  ScrollBarOrientation orient, int scroll_y, int max_scroll, int page_size);
@@ -632,7 +638,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::PerfOverlay:
-        unsupported_kind(kind);
+        record_perf_overlay(out, world_rect, colors, metrics, state);
         break;
     case WidgetKind::Stepper:
         {
@@ -1637,6 +1643,63 @@ void SoaGui::record_spinner(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect&
         const int y1 = cy + kDirs[idx].y * len;
         out.draw_line(cx, cy, x1, y1, color);
     }
+}
+
+void SoaGui::record_perf_overlay(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
+                                 const ResolvedColors& colors, const ResolvedMetrics& metrics,
+                                 const StyleState& state) {
+    (void)state;
+    const int radius = metrics.corner_radius;
+    out.fill_round_rect(r, radius, colors.bg);
+    for (int i = 0; i < metrics.border_width; ++i) {
+        out.stroke_round_rect(Rect{r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i}, radius, colors.border);
+    }
+
+    const Font& font = font_from_metrics(metrics);
+    const int line_h = (font.line_height > 0) ? font.line_height : 12;
+    const int pad = metrics.padding;
+    Rect line_rect{r.x + pad, r.y + pad, r.w - pad * 2, line_h};
+
+    char buf[96]{};
+    if (!perf_overlay_stats_valid()) {
+        (void)std::snprintf(buf, sizeof(buf), "perf: n/a");
+        out.draw_text_box(line_rect, buf, colors.font, font,
+                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+        return;
+    }
+
+    const auto stats = perf_overlay_stats();
+    (void)std::snprintf(buf, sizeof(buf),
+                        "dispatch/batch/failed: %u/%u/%u",
+                        static_cast<unsigned>(stats.dispatch_groups),
+                        static_cast<unsigned>(stats.batch_flushes),
+                        static_cast<unsigned>(stats.failed_cmds));
+    out.draw_text_box(line_rect, buf, colors.font, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+    line_rect.y += line_h;
+
+    (void)std::snprintf(buf, sizeof(buf),
+                        "grp r/t/i/l/p/o: %u/%u/%u/%u/%u/%u",
+                        static_cast<unsigned>(stats.group_rect),
+                        static_cast<unsigned>(stats.group_text),
+                        static_cast<unsigned>(stats.group_image),
+                        static_cast<unsigned>(stats.group_line),
+                        static_cast<unsigned>(stats.group_path),
+                        static_cast<unsigned>(stats.group_other));
+    out.draw_text_box(line_rect, buf, colors.font, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
+    line_rect.y += line_h;
+
+    (void)std::snprintf(buf, sizeof(buf),
+                        "cmd r/t/i/l/p/o: %u/%u/%u/%u/%u/%u",
+                        static_cast<unsigned>(stats.cmd_rect),
+                        static_cast<unsigned>(stats.cmd_text),
+                        static_cast<unsigned>(stats.cmd_image),
+                        static_cast<unsigned>(stats.cmd_line),
+                        static_cast<unsigned>(stats.cmd_path),
+                        static_cast<unsigned>(stats.cmd_other));
+    out.draw_text_box(line_rect, buf, colors.font, font,
+                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::None);
 }
 
 void SoaGui::record_scrollbar(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,

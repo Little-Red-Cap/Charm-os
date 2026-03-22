@@ -30,6 +30,7 @@ import charm.gfx.pixel_ops;
 import charm.gfx.text_box;
 import charm.font.typography;
 import charm.widgets.menu_tree;
+import charm.widgets.perf_overlay;
 import out.api;
 
 namespace {
@@ -3122,6 +3123,15 @@ int main(int argc, char** argv) {
     std::size_t compare_cmd_line = 0;
     std::size_t compare_cmd_path = 0;
     std::size_t compare_cmd_other = 0;
+    std::size_t compare_fail_text = 0;
+    std::size_t compare_fail_image = 0;
+    std::size_t compare_fail_blob = 0;
+    std::size_t compare_fail_path = 0;
+    std::size_t compare_fail_clip = 0;
+    std::size_t compare_fail_other = 0;
+    std::size_t compare_clip_push_overflow = 0;
+    std::size_t compare_clip_pop_underflow = 0;
+    std::size_t compare_clip_invalid = 0;
     bool compare_ok = true;
     bool compact_ok = true;
     std::size_t compact_saved = 0;
@@ -3203,6 +3213,15 @@ int main(int argc, char** argv) {
         compare_cmd_line = exec_stats.cmd_line;
         compare_cmd_path = exec_stats.cmd_path;
         compare_cmd_other = exec_stats.cmd_other;
+        compare_fail_text = exec_stats.fail_text;
+        compare_fail_image = exec_stats.fail_image;
+        compare_fail_blob = exec_stats.fail_blob;
+        compare_fail_path = exec_stats.fail_path;
+        compare_fail_clip = exec_stats.fail_clip;
+        compare_fail_other = exec_stats.fail_other;
+        compare_clip_push_overflow = exec_stats.clip_push_overflow;
+        compare_clip_pop_underflow = exec_stats.clip_pop_underflow;
+        compare_clip_invalid = exec_stats.clip_invalid;
         compare_tile_flushes = tile_stats.tile_flush_count;
         compare_tile_dispatch_groups = tile_stats.dispatch_groups;
         compare_tile_batch_flushes = tile_stats.batch_flushes;
@@ -3414,7 +3433,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3455,6 +3474,15 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(compare_cmd_line),
             static_cast<unsigned>(compare_cmd_path),
             static_cast<unsigned>(compare_cmd_other),
+            static_cast<unsigned>(compare_fail_text),
+            static_cast<unsigned>(compare_fail_image),
+            static_cast<unsigned>(compare_fail_blob),
+            static_cast<unsigned>(compare_fail_path),
+            static_cast<unsigned>(compare_fail_clip),
+            static_cast<unsigned>(compare_fail_other),
+            static_cast<unsigned>(compare_clip_push_overflow),
+            static_cast<unsigned>(compare_clip_pop_underflow),
+            static_cast<unsigned>(compare_clip_invalid),
             static_cast<unsigned>(compare_tile_flushes),
             static_cast<unsigned>(compare_tile_hit_pct),
             static_cast<unsigned>(compare_tile_dispatch_groups),
@@ -3844,6 +3872,45 @@ int main(int argc, char** argv) {
             last_exec_stats = exec_stats;
             last_stats_tiles = false;
             last_stats_valid = true;
+        }
+        if (last_stats_valid) {
+            PerfOverlay::OverlayStats overlay{};
+            if (last_stats_tiles) {
+                overlay.dispatch_groups = static_cast<std::uint32_t>(last_tile_stats.dispatch_groups);
+                overlay.batch_flushes = static_cast<std::uint32_t>(last_tile_stats.batch_flushes);
+                overlay.failed_cmds = static_cast<std::uint32_t>(last_tile_stats.failed_cmds);
+                overlay.group_rect = static_cast<std::uint32_t>(last_tile_stats.group_rect);
+                overlay.group_text = static_cast<std::uint32_t>(last_tile_stats.group_text);
+                overlay.group_image = static_cast<std::uint32_t>(last_tile_stats.group_image);
+                overlay.group_line = static_cast<std::uint32_t>(last_tile_stats.group_line);
+                overlay.group_path = static_cast<std::uint32_t>(last_tile_stats.group_path);
+                overlay.group_other = static_cast<std::uint32_t>(last_tile_stats.group_other);
+                overlay.cmd_rect = static_cast<std::uint32_t>(last_tile_stats.cmd_rect);
+                overlay.cmd_text = static_cast<std::uint32_t>(last_tile_stats.cmd_text);
+                overlay.cmd_image = static_cast<std::uint32_t>(last_tile_stats.cmd_image);
+                overlay.cmd_line = static_cast<std::uint32_t>(last_tile_stats.cmd_line);
+                overlay.cmd_path = static_cast<std::uint32_t>(last_tile_stats.cmd_path);
+                overlay.cmd_other = static_cast<std::uint32_t>(last_tile_stats.cmd_other);
+            } else {
+                overlay.dispatch_groups = static_cast<std::uint32_t>(last_exec_stats.dispatch_groups);
+                overlay.batch_flushes = static_cast<std::uint32_t>(last_exec_stats.batch_flushes);
+                overlay.failed_cmds = static_cast<std::uint32_t>(last_exec_stats.failed_cmds);
+                overlay.group_rect = static_cast<std::uint32_t>(last_exec_stats.group_rect);
+                overlay.group_text = static_cast<std::uint32_t>(last_exec_stats.group_text);
+                overlay.group_image = static_cast<std::uint32_t>(last_exec_stats.group_image);
+                overlay.group_line = static_cast<std::uint32_t>(last_exec_stats.group_line);
+                overlay.group_path = static_cast<std::uint32_t>(last_exec_stats.group_path);
+                overlay.group_other = static_cast<std::uint32_t>(last_exec_stats.group_other);
+                overlay.cmd_rect = static_cast<std::uint32_t>(last_exec_stats.cmd_rect);
+                overlay.cmd_text = static_cast<std::uint32_t>(last_exec_stats.cmd_text);
+                overlay.cmd_image = static_cast<std::uint32_t>(last_exec_stats.cmd_image);
+                overlay.cmd_line = static_cast<std::uint32_t>(last_exec_stats.cmd_line);
+                overlay.cmd_path = static_cast<std::uint32_t>(last_exec_stats.cmd_path);
+                overlay.cmd_other = static_cast<std::uint32_t>(last_exec_stats.cmd_other);
+            }
+            set_perf_overlay_stats(overlay);
+        } else {
+            clear_perf_overlay_stats();
         }
 
         if (print_stats) {

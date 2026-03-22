@@ -297,7 +297,16 @@ export namespace ui::draw_cmd {
         std::size_t cmd_bytes{0};
         std::size_t clip_pushes{0};
         std::size_t clip_pops{0};
+        std::size_t clip_push_overflow{0};
+        std::size_t clip_pop_underflow{0};
+        std::size_t clip_invalid{0};
         std::size_t failed_cmds{0};
+        std::size_t fail_text{0};
+        std::size_t fail_image{0};
+        std::size_t fail_blob{0};
+        std::size_t fail_path{0};
+        std::size_t fail_clip{0};
+        std::size_t fail_other{0};
         std::size_t dispatch_groups{0};
         std::size_t batch_flushes{0};
         std::size_t group_rect{0};
@@ -328,9 +337,18 @@ export namespace ui::draw_cmd {
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
         int tile_flush_count{0};
+        std::size_t clip_push_overflow{0};
+        std::size_t clip_pop_underflow{0};
+        std::size_t clip_invalid{0};
         std::size_t dispatch_groups{0};
         std::size_t batch_flushes{0};
         std::size_t failed_cmds{0};
+        std::size_t fail_text{0};
+        std::size_t fail_image{0};
+        std::size_t fail_blob{0};
+        std::size_t fail_path{0};
+        std::size_t fail_clip{0};
+        std::size_t fail_other{0};
         std::size_t group_rect{0};
         std::size_t group_text{0};
         std::size_t group_image{0};
@@ -1933,6 +1951,30 @@ export namespace ui::draw_cmd {
             auto read_cmd_at = [&](std::size_t index, DrawCmd& out) noexcept -> bool {
                 return buf.read_cmd(index, out);
             };
+            auto fail_text = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_text++;
+            };
+            auto fail_image = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_image++;
+            };
+            auto fail_blob = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_blob++;
+            };
+            auto fail_path = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_path++;
+            };
+            auto fail_clip = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_clip++;
+            };
+            auto fail_other = [&]() noexcept {
+                stats.failed_cmds++;
+                stats.fail_other++;
+            };
             auto exec_rect_like = [&](const DrawCmd& cur) noexcept {
                 switch (cur.type) {
                 case CmdType::FillRect:
@@ -1971,7 +2013,7 @@ export namespace ui::draw_cmd {
                 case CmdType::DrawImage: {
                     const auto* image = resolve_image(cur.image);
                     if (!image || !(*image)) {
-                        stats.failed_cmds++;
+                        fail_image();
                         break;
                     }
                     if (cur.rect.w > 0 && cur.rect.h > 0) {
@@ -1985,7 +2027,7 @@ export namespace ui::draw_cmd {
                 case CmdType::DrawImageRoundRect: {
                     const auto* image = resolve_image(cur.image);
                     if (!image || !(*image)) {
-                        stats.failed_cmds++;
+                        fail_image();
                         break;
                     }
                     if (cur.rect.w > 0 && cur.rect.h > 0) {
@@ -2000,7 +2042,7 @@ export namespace ui::draw_cmd {
                 case CmdType::DrawImageNineSlice: {
                     const auto* image = resolve_image(cur.image);
                     if (!image || !(*image)) {
-                        stats.failed_cmds++;
+                        fail_image();
                         break;
                     }
                     ui::render::draw_image_nine_slice(canvas,
@@ -2027,13 +2069,13 @@ export namespace ui::draw_cmd {
             auto exec_draw_path = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count < 2) {
-                    stats.failed_cmds++;
+                    fail_path();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 const auto points = ui::gfx::path::decode_points(blob, count);
                 if (points.empty()) {
-                    stats.failed_cmds++;
+                    fail_path();
                     return;
                 }
                 const bool closed = (cur.p1 != 0);
@@ -2043,12 +2085,12 @@ export namespace ui::draw_cmd {
             auto exec_line_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const LineBatchItem>(
@@ -2061,25 +2103,25 @@ export namespace ui::draw_cmd {
             auto exec_path_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const PathBatchItem>(
                     reinterpret_cast<const PathBatchItem*>(blob.data()), count);
                 for (const auto& item : items) {
                     if (item.count < 2) {
-                        stats.failed_cmds++;
+                        fail_path();
                         continue;
                     }
                     const auto path_blob = buf.blob_at(item.blob);
                     const auto points = ui::gfx::path::decode_points(path_blob, item.count);
                     if (points.empty()) {
-                        stats.failed_cmds++;
+                        fail_path();
                         continue;
                     }
                     const bool closed = (item.closed != 0);
@@ -2090,12 +2132,12 @@ export namespace ui::draw_cmd {
             auto exec_rect_batch = [&](const DrawCmd& cur, bool fill) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
@@ -2111,12 +2153,12 @@ export namespace ui::draw_cmd {
             auto exec_round_batch = [&](const DrawCmd& cur, bool fill) noexcept {
                 const int count = cur.p1;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
@@ -2134,12 +2176,12 @@ export namespace ui::draw_cmd {
             auto exec_circle_batch = [&](const DrawCmd& cur, bool fill) noexcept {
                 const int count = cur.p1;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
@@ -2155,12 +2197,12 @@ export namespace ui::draw_cmd {
             auto exec_focus_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p3;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
@@ -2173,12 +2215,12 @@ export namespace ui::draw_cmd {
             auto exec_glyph_run = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(GlyphRunItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const GlyphRunItem>(
@@ -2186,7 +2228,7 @@ export namespace ui::draw_cmd {
                 const Font& font = get_font(cur.font);
                 for (const auto& item : items) {
                     if (!buf.text_span_valid(item.text)) {
-                        stats.failed_cmds++;
+                        fail_text();
                         continue;
                     }
                     const char* text = buf.text_at(item.text.offset);
@@ -2198,17 +2240,17 @@ export namespace ui::draw_cmd {
             auto exec_image_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
-                    stats.failed_cmds++;
+                    fail_image();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const ImageBatchItem>(
@@ -2226,17 +2268,17 @@ export namespace ui::draw_cmd {
             auto exec_image_round_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p1;
                 if (count <= 0) {
-                    stats.failed_cmds++;
+                    fail_other();
                     return;
                 }
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
-                    stats.failed_cmds++;
+                    fail_image();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto items = std::span<const ImageBatchItem>(
@@ -2255,13 +2297,13 @@ export namespace ui::draw_cmd {
             auto exec_image_nine_batch = [&](const DrawCmd& cur) noexcept {
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
-                    stats.failed_cmds++;
+                    fail_image();
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < sizeof(ImageBatchItem)
                     || (blob.size() % sizeof(ImageBatchItem)) != 0) {
-                    stats.failed_cmds++;
+                    fail_blob();
                     return;
                 }
                 const auto count = static_cast<int>(blob.size() / sizeof(ImageBatchItem));
@@ -2369,7 +2411,7 @@ export namespace ui::draw_cmd {
                         break;
                     }
                     if (!buf.text_span_valid(cur.text)) {
-                        stats.failed_cmds++;
+                        fail_text();
                         return;
                     }
                     const char* text = buf.text_at(cur.text.offset);
@@ -2469,7 +2511,7 @@ export namespace ui::draw_cmd {
             while (i < count) {
                 DrawCmd cmd{};
                 if (!read_cmd_at(i, cmd)) {
-                    stats.failed_cmds++;
+                    fail_other();
                     ++i;
                     continue;
                 }
@@ -2484,7 +2526,7 @@ export namespace ui::draw_cmd {
                     while (i < count) {
                         DrawCmd cur{};
                         if (!read_cmd_at(i, cur)) {
-                            stats.failed_cmds++;
+                            fail_other();
                             ++i;
                             continue;
                         }
@@ -2501,16 +2543,27 @@ export namespace ui::draw_cmd {
                 count_group(GroupKind::None);
                 switch (cmd.type) {
                 case CmdType::PushClip:
+                    if (cmd.rect.w <= 0 || cmd.rect.h <= 0) {
+                        stats.clip_invalid++;
+                        fail_clip();
+                        break;
+                    }
                     if (sp < clip_stack.size()) {
                         clip_stack[sp++] = canvas.save_clip();
                         canvas.set_clip(cmd.rect);
                         stats.clip_pushes++;
+                    } else {
+                        stats.clip_push_overflow++;
+                        fail_clip();
                     }
                     break;
                 case CmdType::PopClip:
                     if (sp > 0) {
                         canvas.restore_clip(clip_stack[--sp]);
                         stats.clip_pops++;
+                    } else {
+                        stats.clip_pop_underflow++;
+                        fail_clip();
                     }
                     break;
                 }
@@ -2642,6 +2695,15 @@ export namespace ui::draw_cmd {
                     stats.dispatch_groups += exec_stats.dispatch_groups;
                     stats.batch_flushes += exec_stats.batch_flushes;
                     stats.failed_cmds += exec_stats.failed_cmds;
+                    stats.clip_push_overflow += exec_stats.clip_push_overflow;
+                    stats.clip_pop_underflow += exec_stats.clip_pop_underflow;
+                    stats.clip_invalid += exec_stats.clip_invalid;
+                    stats.fail_text += exec_stats.fail_text;
+                    stats.fail_image += exec_stats.fail_image;
+                    stats.fail_blob += exec_stats.fail_blob;
+                    stats.fail_path += exec_stats.fail_path;
+                    stats.fail_clip += exec_stats.fail_clip;
+                    stats.fail_other += exec_stats.fail_other;
                     stats.group_rect += exec_stats.group_rect;
                     stats.group_text += exec_stats.group_text;
                     stats.group_image += exec_stats.group_image;

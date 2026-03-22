@@ -1002,13 +1002,11 @@ export namespace ui::draw_cmd {
 
         bool compact() noexcept {
             if (count_ == 0) return true;
-            const std::size_t input_count = count_;
             const std::size_t input_bytes = cmd_bytes_used_;
-            std::array<std::uint32_t, kMaxCommands> input_offsets = cmd_offsets_;
             std::array<std::uint32_t, kMaxCommands> output_offsets{};
             std::size_t out_bytes = 0;
             std::size_t out_count = 0;
-            std::size_t i = 0;
+            std::size_t offset = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = 64;
             std::array<RectBatchItem, kMaxBatchItems> rect_items{};
@@ -1026,11 +1024,12 @@ export namespace ui::draw_cmd {
             batch_shrink_focus_ = 0;
             const std::int64_t union_max_factor = static_cast<std::int64_t>(compaction_union_factor());
 
-            auto read_cmd_at = [&](std::size_t index, DrawCmd& out_cmd) noexcept -> bool {
-                if (index >= input_count) return false;
-                const std::size_t offset = input_offsets[index];
-                if (offset + sizeof(CmdHeader) > input_bytes) return false;
-                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
+            auto read_cmd_at_offset = [&](std::size_t at, DrawCmd& out_cmd, std::size_t& stride) noexcept -> bool {
+                if (at + sizeof(CmdHeader) > input_bytes) return false;
+                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + at);
+                if (header->size < sizeof(CmdHeader)) return false;
+                stride = cmd_stride(header->size);
+                if (stride == 0 || at + stride > input_bytes) return false;
                 return decode_cmd(header, out_cmd);
             };
 
@@ -1061,19 +1060,23 @@ export namespace ui::draw_cmd {
                 return static_cast<std::int64_t>(n.w) * static_cast<std::int64_t>(n.h);
             };
 
-            while (i < input_count) {
+            while (offset < input_bytes) {
                 DrawCmd cmd{};
-                if (!read_cmd_at(i, cmd)) {
+                std::size_t stride = 0;
+                if (!read_cmd_at_offset(offset, cmd, stride)) {
                     ok = false;
                     break;
                 }
                 if (allow_batch && cmd.type == CmdType::DrawLine) {
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawLine) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1081,9 +1084,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 line_items[j] = LineBatchItem{next.rect.x, next.rect.y, next.rect.w, next.rect.h};
                                 const Rect line_rect = line_bounds(line_items[j].x0, line_items[j].y0,
                                                                    line_items[j].x1, line_items[j].y1);
@@ -1093,6 +1098,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, line_rect);
                                 }
                                 sum_area += rect_area(line_rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1115,7 +1121,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.blob = blob;
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1127,11 +1133,14 @@ export namespace ui::draw_cmd {
                     }
                 } else if (allow_batch && cmd.type == CmdType::DrawPath) {
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawPath) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1139,9 +1148,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds = cmd.rect;
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 path_items[j].blob = next.blob;
                                 path_items[j].count = next.p0;
                                 path_items[j].closed = next.p1;
@@ -1151,6 +1162,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, next.rect);
                                 }
                                 sum_area += rect_area(next.rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1173,7 +1185,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.blob = blob;
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1185,10 +1197,13 @@ export namespace ui::draw_cmd {
                     }
                 } else if (allow_batch && (cmd.type == CmdType::FillRect || cmd.type == CmdType::StrokeRect)) {
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != cmd.type || !rgba_equal(next.color, cmd.color)) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1196,9 +1211,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 rect_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = rect_items[j].rect;
@@ -1206,6 +1223,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, rect_items[j].rect);
                                 }
                                 sum_area += rect_area(rect_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1230,7 +1248,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.blob = blob;
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1246,12 +1264,15 @@ export namespace ui::draw_cmd {
                         || cmd.type == CmdType::FillCircle
                         || cmd.type == CmdType::StrokeCircle)) {
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != cmd.type) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         if (next.p0 != cmd.p0) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1259,9 +1280,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 rect_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = rect_items[j].rect;
@@ -1269,6 +1292,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, rect_items[j].rect);
                                 }
                                 sum_area += rect_area(rect_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1308,7 +1332,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = cmd.p0;
                                 batch_cmd.p1 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1321,24 +1345,29 @@ export namespace ui::draw_cmd {
                 } else if (allow_batch && cmd.type == CmdType::DrawTextBox) {
                     if (!text_span_valid(cmd.text)) {
                         if (!emit_cmd(cmd)) ok = false;
-                        ++i;
+                        offset += stride;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawTextBox) break;
                         if (!can_merge_text(cmd, next)) break;
                         if (!text_span_valid(next.text)) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
                         const std::size_t batch = (run > kMaxBatchItems) ? kMaxBatchItems : run;
                         Rect bounds = cmd.rect;
+                        std::size_t item_offset = offset;
                         for (std::size_t j = 0; j < batch; ++j) {
                             DrawCmd next{};
-                            (void)read_cmd_at(i + j, next);
+                            std::size_t item_stride = 0;
+                            (void)read_cmd_at_offset(item_offset, next, item_stride);
                             text_items[j].rect = next.rect;
                             text_items[j].text = next.text;
                             if (j == 0) {
@@ -1346,6 +1375,7 @@ export namespace ui::draw_cmd {
                             } else {
                                 bounds = rect_union(bounds, text_items[j].rect);
                             }
+                            item_offset += item_stride;
                         }
                         const BlobRef blob = blob_.add_bytes(text_items.data(),
                                                              batch * sizeof(GlyphRunItem),
@@ -1363,7 +1393,7 @@ export namespace ui::draw_cmd {
                             batch_cmd.blob = blob;
                             batch_cmd.p0 = static_cast<std::int16_t>(batch);
                             if (!emit_cmd(batch_cmd)) ok = false;
-                            i += batch;
+                            offset = item_offset;
                             continue;
                         }
                         ok = false;
@@ -1371,15 +1401,18 @@ export namespace ui::draw_cmd {
                 } else if (allow_batch && cmd.type == CmdType::DrawImage) {
                     if (!image_id_valid(cmd.image)) {
                         if (!emit_cmd(cmd)) ok = false;
-                        ++i;
+                        offset += stride;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImage) break;
                         if (next.image != cmd.image) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1387,9 +1420,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 image_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = image_items[j].rect;
@@ -1397,6 +1432,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, image_items[j].rect);
                                 }
                                 sum_area += rect_area(image_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1419,7 +1455,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.blob = blob;
                                 batch_cmd.p0 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1432,16 +1468,19 @@ export namespace ui::draw_cmd {
                 } else if (allow_batch && cmd.type == CmdType::DrawImageRoundRect) {
                     if (!image_id_valid(cmd.image)) {
                         if (!emit_cmd(cmd)) ok = false;
-                        ++i;
+                        offset += stride;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImageRoundRect) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1449,9 +1488,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 image_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = image_items[j].rect;
@@ -1459,6 +1500,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, image_items[j].rect);
                                 }
                                 sum_area += rect_area(image_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1482,7 +1524,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p0 = cmd.p0;
                                 batch_cmd.p1 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1495,17 +1537,20 @@ export namespace ui::draw_cmd {
                 } else if (allow_batch && cmd.type == CmdType::DrawImageNineSlice) {
                     if (!image_id_valid(cmd.image)) {
                         if (!emit_cmd(cmd)) ok = false;
-                        ++i;
+                        offset += stride;
                         continue;
                     }
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImageNineSlice) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0 || next.p1 != cmd.p1
                             || next.p2 != cmd.p2 || next.p3 != cmd.p3) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1513,9 +1558,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 image_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = image_items[j].rect;
@@ -1523,6 +1570,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, image_items[j].rect);
                                 }
                                 sum_area += rect_area(image_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1548,7 +1596,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p2 = cmd.p2;
                                 batch_cmd.p3 = cmd.p3;
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1560,12 +1608,15 @@ export namespace ui::draw_cmd {
                     }
                 } else if (allow_batch && cmd.type == CmdType::FocusRing) {
                     std::size_t run = 1;
-                    while ((i + run) < input_count) {
+                    std::size_t scan_offset = offset + stride;
+                    while (scan_offset < input_bytes) {
                         DrawCmd next{};
-                        if (!read_cmd_at(i + run, next)) break;
+                        std::size_t next_stride = 0;
+                        if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::FocusRing) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         if (next.p0 != cmd.p0 || next.p1 != cmd.p1 || next.p2 != cmd.p2) break;
+                        scan_offset += next_stride;
                         ++run;
                     }
                     if (run >= 2) {
@@ -1573,9 +1624,11 @@ export namespace ui::draw_cmd {
                         while (batch >= 2) {
                             Rect bounds{};
                             std::int64_t sum_area = 0;
+                            std::size_t item_offset = offset;
                             for (std::size_t j = 0; j < batch; ++j) {
                                 DrawCmd next{};
-                                (void)read_cmd_at(i + j, next);
+                                std::size_t item_stride = 0;
+                                (void)read_cmd_at_offset(item_offset, next, item_stride);
                                 rect_items[j].rect = next.rect;
                                 if (j == 0) {
                                     bounds = rect_items[j].rect;
@@ -1583,6 +1636,7 @@ export namespace ui::draw_cmd {
                                     bounds = rect_union(bounds, rect_items[j].rect);
                                 }
                                 sum_area += rect_area(rect_items[j].rect);
+                                item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
                             const bool area_ok = (sum_area == 0)
@@ -1608,7 +1662,7 @@ export namespace ui::draw_cmd {
                                 batch_cmd.p2 = cmd.p2;
                                 batch_cmd.p3 = static_cast<std::int16_t>(batch);
                                 if (!emit_cmd(batch_cmd)) ok = false;
-                                i += batch;
+                                offset = item_offset;
                                 break;
                             }
                             ok = false;
@@ -1620,7 +1674,7 @@ export namespace ui::draw_cmd {
                     }
                 }
                 if (!emit_cmd(cmd)) ok = false;
-                ++i;
+                offset += stride;
             }
 
             if (out_count == 0) {
@@ -3039,11 +3093,16 @@ export namespace ui::draw_cmd {
             if (use_hit_cache) {
                 Rect screen_rect{0, 0, screen_w, screen_h};
                 Rect clipped{};
-                const std::size_t count = buf.size();
+                const std::size_t cmd_bytes = buf.cmd_bytes();
+                std::size_t offset = 0;
                 DrawCmd cmd{};
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (!buf.read_cmd(i, cmd)) continue;
+                while (offset < cmd_bytes) {
+                    std::size_t stride = 0;
+                    if (!buf.read_cmd_at_offset(offset, cmd, stride)) {
+                        break;
+                    }
                     if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
+                        offset += stride;
                         continue;
                     }
                     Rect bounds = cmd.rect;
@@ -3051,9 +3110,13 @@ export namespace ui::draw_cmd {
                         bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
                     } else if (cmd.type == CmdType::DrawLineBatch) {
                         const int count = cmd.p0;
-                        if (count <= 0) continue;
+                        if (count <= 0) {
+                            offset += stride;
+                            continue;
+                        }
                         const auto blob = buf.blob_at(cmd.blob);
                         if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                            offset += stride;
                             continue;
                         }
                         const auto items = std::span<const LineBatchItem>(
@@ -3069,11 +3132,20 @@ export namespace ui::draw_cmd {
                                 union_bounds = rect_union(union_bounds, line_rect);
                             }
                         }
-                        if (first) continue;
+                        if (first) {
+                            offset += stride;
+                            continue;
+                        }
                         bounds = union_bounds;
                     }
-                    if (!rect_valid(bounds)) continue;
-                    if (!rect_intersect(bounds, screen_rect, clipped)) continue;
+                    if (!rect_valid(bounds)) {
+                        offset += stride;
+                        continue;
+                    }
+                    if (!rect_intersect(bounds, screen_rect, clipped)) {
+                        offset += stride;
+                        continue;
+                    }
 
                     int tx0 = clipped.x / tile_w;
                     int ty0 = clipped.y / tile_h;
@@ -3089,6 +3161,7 @@ export namespace ui::draw_cmd {
                             tile_hits[row + static_cast<std::size_t>(tx)] = 1;
                         }
                     }
+                    offset += stride;
                 }
             }
 

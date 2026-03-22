@@ -2007,6 +2007,73 @@ export namespace ui::draw_cmd {
                     break;
                 }
             };
+            auto rectlike_batchable = [](CmdType type) noexcept {
+                switch (type) {
+                case CmdType::FillRect:
+                case CmdType::StrokeRect:
+                case CmdType::FillRoundRect:
+                case CmdType::StrokeRoundRect:
+                case CmdType::FillCircle:
+                case CmdType::StrokeCircle:
+                case CmdType::FocusRing:
+                    return true;
+                default:
+                    return false;
+                }
+            };
+            auto rectlike_params_match = [&](const DrawCmd& a, const DrawCmd& b) noexcept {
+                if (a.type != b.type) return false;
+                if (!rgba_equal(a.color, b.color)) return false;
+                switch (a.type) {
+                case CmdType::FillRect:
+                case CmdType::StrokeRect:
+                    return true;
+                case CmdType::FillRoundRect:
+                case CmdType::StrokeRoundRect:
+                case CmdType::FillCircle:
+                case CmdType::StrokeCircle:
+                    return a.p0 == b.p0;
+                case CmdType::FocusRing:
+                    return a.p0 == b.p0 && a.p1 == b.p1 && a.p2 == b.p2;
+                default:
+                    return false;
+                }
+            };
+            auto exec_rectlike_item = [&](const DrawCmd& cur, const Rect& rect) noexcept {
+                switch (cur.type) {
+                case CmdType::FillRect:
+                    ui::render::draw_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.color, true);
+                    break;
+                case CmdType::StrokeRect:
+                    ui::render::draw_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.color, false);
+                    break;
+                case CmdType::FillRoundRect:
+                    ui::render::draw_round_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.p0, cur.color, true);
+                    break;
+                case CmdType::StrokeRoundRect:
+                    ui::render::draw_round_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.p0, cur.color, false);
+                    break;
+                case CmdType::FillCircle: {
+                    const int radius = cur.p0;
+                    const int cx = rect.x + rect.w / 2;
+                    const int cy = rect.y + rect.h / 2;
+                    ui::render::draw_circle(canvas, cx, cy, radius, cur.color, true);
+                    break;
+                }
+                case CmdType::StrokeCircle: {
+                    const int radius = cur.p0;
+                    const int cx = rect.x + rect.w / 2;
+                    const int cy = rect.y + rect.h / 2;
+                    ui::render::draw_circle(canvas, cx, cy, radius, cur.color, false);
+                    break;
+                }
+                case CmdType::FocusRing:
+                    ui::render::draw_focus_ring(canvas, rect, cur.color, cur.p0, true, cur.p1, cur.p2);
+                    break;
+                default:
+                    break;
+                }
+            };
 
             auto exec_image_like = [&](const DrawCmd& cur) noexcept {
                 switch (cur.type) {
@@ -2520,6 +2587,46 @@ export namespace ui::draw_cmd {
                 if (kind != GroupKind::None) {
                     stats.dispatch_groups++;
                     count_group(kind);
+                    if (kind == GroupKind::RectLike) {
+                        constexpr std::size_t kMaxExecBatchItems = 64;
+                        std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
+                        while (true) {
+                            DrawCmd cur = cmd;
+                            if (rectlike_batchable(cur.type)) {
+                                std::size_t run = 1;
+                                rect_items[0].rect = cur.rect;
+                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                    DrawCmd next{};
+                                    if (!read_cmd_at(i + run, next)) {
+                                        break;
+                                    }
+                                    if (group_kind(next.type) != kind) break;
+                                    if (!rectlike_batchable(next.type)) break;
+                                    if (!rectlike_params_match(cur, next)) break;
+                                    rect_items[run].rect = next.rect;
+                                    ++run;
+                                }
+                                for (std::size_t j = 0; j < run; ++j) {
+                                    exec_rectlike_item(cur, rect_items[j].rect);
+                                    count_cmd(kind);
+                                }
+                                i += run;
+                            } else {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            }
+                            if (i >= count) break;
+                            if (!read_cmd_at(i, cmd)) {
+                                fail_other();
+                                ++i;
+                                continue;
+                            }
+                            if (group_kind(cmd.type) != kind) break;
+                        }
+                        stats.batch_flushes++;
+                        continue;
+                    }
                     exec_group_cmd(cmd, kind);
                     count_cmd(kind);
                     ++i;

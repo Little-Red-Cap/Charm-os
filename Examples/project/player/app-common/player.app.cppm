@@ -1,4 +1,4 @@
-﻿module;
+module;
 
 #include <string>
 #include <vector>
@@ -12,7 +12,7 @@ import charm.system.clock;
 import player.storage;
 import player.ui;
 import player.ui_builder;
-import charm.core.soa_gui;
+import charm.ui.scene;
 import input.raw_event;
 import ui.input_adapter;
 
@@ -78,11 +78,11 @@ export namespace player {
             return controller.track_ready();
         }
 
-        template <typename Controller, typename Factory>
-        void bind_ui(Factory& factory, Controller& controller) {
+        template <typename Controller>
+        void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             apply_player_theme();
             controller.icons = register_player_icons();
-            controller.handles = build_ui(factory, controller, controller.icons);
+            controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.focus_list();
             controller.set_time_label(0);
@@ -93,10 +93,10 @@ export namespace player {
         }
 
         template <typename Controller>
-        void dispatch_raw_input(SoaGui& gui, Controller& controller, const input::RawInputEvent& ev) {
+        void dispatch_raw_input(::ui::scene::Scene& scene, Controller& controller, const input::RawInputEvent& ev) {
             const auto bridge = input::adapter::bridge_from_raw(ev);
             if (bridge.event) {
-                gui.dispatch_event(*bridge.event);
+                scene.dispatch_event(*bridge.event);
                 controller.process_input_events();
             }
         }

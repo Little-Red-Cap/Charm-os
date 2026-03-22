@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -18,7 +18,7 @@ import audio.result;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
-import charm.core.soa_kernel;
+import charm.ui.scene;
 import charm.core.soa_payload;
 import charm.font.typography;
 import charm.system.clock;
@@ -92,7 +92,7 @@ export namespace player {
 
     struct PlayerController {
         PlaybackEngine playback{};
-        SoaKernel* kernel{nullptr};
+        ::ui::scene::SceneAccess access{};
         UiHandles handles{};
         PlayerIconIds icons{};
         int last_time_sec{-1};
@@ -164,8 +164,8 @@ export namespace player {
             return a == 'f' && b == 'l' && c == 'a' && d == 'c';
         }
 
-        void bind_kernel(SoaKernel& k) {
-            kernel = &k;
+        void bind_scene(::ui::scene::Scene& scene) {
+            access = scene.access();
         }
 
         void bind_player(audio::AudioPlayer& p) {
@@ -220,9 +220,9 @@ export namespace player {
         }
 
         void init_text_slots() {
-            if (!kernel) return;
+            if (!access.valid()) return;
             auto alloc = [this]() noexcept {
-                return kernel->alloc_text_slot();
+                return access.alloc_text_slot();
             };
             text_slots.title = alloc();
             text_slots.subtitle = alloc();
@@ -241,19 +241,19 @@ export namespace player {
         }
 
         void set_label(WidgetHandle h, const char* text) {
-            if (!kernel || !h) return;
+            if (!access.valid() || !h) return;
             player::font_cache::ensure_text(text);
-            kernel->set_text(h, text);
+            access.set_text(h, text);
         }
 
         void set_label_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) {
-            if (!kernel || !h) return;
+            if (!access.valid() || !h) return;
             player::font_cache::ensure_text(text);
             if (slot != soa_detail::kInvalidTextSlot) {
-                kernel->set_text_slot(h, slot, text);
+                access.set_text_slot(h, slot, text);
                 return;
             }
-            kernel->set_text(h, text);
+            access.set_text(h, text);
         }
 
         void set_status(const char* text) {
@@ -272,17 +272,17 @@ export namespace player {
             cover_embedded_path.clear();
             cover_folder_path.clear();
             release_cover_image(cover_image);
-            if (kernel && handles.cover && kernel->kind(handles.cover) == WidgetKind::Image) {
-                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            if (access.valid() && handles.cover && access.kind(handles.cover) == WidgetKind::Image) {
+                access.set_image(handles.cover, soa_detail::invalid_image_id());
             }
         }
 
         void update_cover_image() {
-            if (!kernel || !handles.cover) return;
+            if (!access.valid() || !handles.cover) return;
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
-                if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                    kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+                if (access.kind(handles.cover) == WidgetKind::Image) {
+                    access.set_image(handles.cover, soa_detail::invalid_image_id());
                 }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
@@ -292,15 +292,15 @@ export namespace player {
             auto try_load = [&](std::string_view candidate) -> bool {
                 if (candidate.empty()) return false;
                 if (cover_image.path == candidate && soa_detail::image_id_valid(cover_image.image_id)) {
-                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                        kernel->set_image(handles.cover, cover_image.image_id);
+                    if (access.kind(handles.cover) == WidgetKind::Image) {
+                        access.set_image(handles.cover, cover_image.image_id);
                     }
                     cover_path.assign(candidate);
                     return true;
                 }
                 if (load_cover_image(candidate, cover_image)) {
-                    if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                        kernel->set_image(handles.cover, cover_image.image_id);
+                    if (access.kind(handles.cover) == WidgetKind::Image) {
+                        access.set_image(handles.cover, cover_image.image_id);
                     }
                     cover_path.assign(candidate);
                     return true;
@@ -328,8 +328,8 @@ export namespace player {
             }
 
             if (loaded) return;
-            if (kernel->kind(handles.cover) == WidgetKind::Image) {
-                kernel->set_image(handles.cover, soa_detail::invalid_image_id());
+            if (access.kind(handles.cover) == WidgetKind::Image) {
+                access.set_image(handles.cover, soa_detail::invalid_image_id());
             }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());
@@ -382,11 +382,11 @@ export namespace player {
         }
 
         void set_play_button_text(bool playing_now) {
-            if (!kernel) return;
+            if (!access.valid()) return;
             const int state = playing_now ? 1 : 0;
             if (last_play_button_state == state) return;
             last_play_button_state = state;
-            kernel->set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
+            access.set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
             set_label_slot(handles.btn_pause, text_slots.btn_pause, playing_now ? "Pause" : "Play");
         }
 
@@ -422,11 +422,11 @@ export namespace player {
             if (last_mode_text.view() == buf) return;
             last_mode_text.assign(buf);
             set_label_slot(handles.mode_hint, text_slots.mode_hint, buf);
-            if (!kernel) return;
+            if (!access.valid()) return;
             auto icon = icons.loop;
             if (play_mode == 1) icon = icons.single;
             else if (play_mode == 2) icon = icons.shuffle;
-            kernel->set_button_icon(handles.btn_mode, icon);
+            access.set_button_icon(handles.btn_mode, icon);
         }
 
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
@@ -447,26 +447,26 @@ export namespace player {
         }
 
         void sync_list_selection() {
-            if (!kernel || !handles.list) return;
+            if (!access.valid() || !handles.list) return;
             const auto* labels = storage.track_labels;
             if (!labels) return;
             if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
             ignore_list_select = true;
-            kernel->set_list_view_selected(handles.list, track_index);
+            access.set_list_view_selected(handles.list, track_index);
             last_list_selected = track_index;
             ignore_list_select = false;
         }
 
         void refresh_list_view() {
-            if (!kernel || !handles.list) return;
+            if (!access.valid() || !handles.list) return;
             const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
-            kernel->set_list_view_source(handles.list,
+            access.set_list_view_source(handles.list,
                                          static_cast<std::uint16_t>(count),
                                          this,
                                          &PlayerController::list_view_text);
-            kernel->set_list_row_height(handles.list, 34);
-            kernel->set_scroll_step(handles.list, 34);
+            access.set_list_row_height(handles.list, 34);
+            access.set_scroll_step(handles.list, 34);
             if (count > 0) {
                 sync_list_selection();
             } else {
@@ -494,7 +494,7 @@ export namespace player {
         }
 
         void update_list_title() {
-            if (!kernel) return;
+            if (!access.valid()) return;
             const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             char buf[64]{};
@@ -512,11 +512,11 @@ export namespace player {
         }
 
         void update_list_placeholder() {
-            if (!kernel || !handles.list_hint) return;
+            if (!access.valid() || !handles.list_hint) return;
             const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             const bool show = (count == 0);
-            kernel->set_visible(handles.list_hint, show);
+            access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (!mount_status.empty()) {
                 if (last_list_hint_text.view() == mount_status.view()) return;
@@ -584,17 +584,17 @@ export namespace player {
         }
 
         bool update_progress() {
-            if (!kernel || progress_dragging) return false;
+            if (!access.valid() || progress_dragging) return false;
             auto upd = playback.update_progress();
             if (!upd.updated) return false;
-            kernel->set_value(handles.progress, upd.value);
+            access.set_value(handles.progress, upd.value);
             set_time_label(upd.current_sec);
             return true;
         }
 
         void update_debug_overlay() {
 #if CHARM_PLAYER_DEBUG_UI
-            if (!kernel || !handles.debug_text) return;
+            if (!access.valid() || !handles.debug_text) return;
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
             if (last_debug_tick_ms != 0) {
                 const auto dt = now_ms - last_debug_tick_ms;
@@ -656,13 +656,13 @@ export namespace player {
         }
 
         void sync_progress_value(int value) {
-            if (!kernel) return;
-            kernel->set_value(handles.progress, value);
+            if (!access.valid()) return;
+            access.set_value(handles.progress, value);
         }
 
         int progress_value_from_x(int x) const {
-            if (!kernel) return 0;
-            const Rect r = kernel->world_rect(handles.progress);
+            if (!access.valid()) return 0;
+            const Rect r = access.world_rect(handles.progress);
             if (r.w <= 1) return 0;
             const int dx = std::clamp(x - r.x, 0, r.w);
             return (dx * 100) / r.w;
@@ -897,37 +897,37 @@ export namespace player {
         }
 
         void focus_list() {
-            if (!kernel || !handles.list) return;
-            kernel->set_focused(handles.list, true);
+            if (!access.valid() || !handles.list) return;
+            access.set_focused(handles.list, true);
         }
 
         void nav_list(int delta) {
-            if (!kernel || !handles.list) return;
+            if (!access.valid() || !handles.list) return;
             const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
             if (count <= 0) return;
-            int selected = kernel->list_view_selected(handles.list);
+            int selected = access.list_view_selected(handles.list);
             if (selected < 0) selected = 0;
             selected += delta;
             if (selected < 0) selected = 0;
             if (selected >= count) selected = count - 1;
-            kernel->set_list_view_selected(handles.list, selected);
+            access.set_list_view_selected(handles.list, selected);
         }
 
         void nav_list_activate() {
-            if (!kernel || !handles.list) return;
-            const int selected = kernel->list_view_selected(handles.list);
+            if (!access.valid() || !handles.list) return;
+            const int selected = access.list_view_selected(handles.list);
             if (selected >= 0) {
                 select_track_index(selected);
             }
         }
 
         void sync_eq_values() {
-            if (!kernel) return;
+            if (!access.valid()) return;
             bool changed = false;
             for (std::size_t i = 0; i < kEqBands; ++i) {
                 if (!handles.eq_sliders[i] || !handles.eq_values[i]) continue;
-                const int value = kernel->value(handles.eq_sliders[i]);
+                const int value = access.value(handles.eq_sliders[i]);
                 if (value == last_eq_values[i]) continue;
                 last_eq_values[i] = value;
                 eq_values[i] = value;
@@ -954,8 +954,8 @@ export namespace player {
         }
 
         void sync_volume_value() {
-            if (!kernel || !handles.volume_slider || !handles.volume_value) return;
-            const int value = kernel->value(handles.volume_slider);
+            if (!access.valid() || !handles.volume_slider || !handles.volume_value) return;
+            const int value = access.value(handles.volume_slider);
             if (value == last_volume_value) return;
             last_volume_value = value;
             char buf[16]{};
@@ -968,9 +968,9 @@ export namespace player {
         }
 
         void sync_dsp_controls() {
-            if (!kernel) return;
+            if (!access.valid()) return;
             if (handles.dc_switch) {
-                const int enabled = kernel->checked(handles.dc_switch) ? 1 : 0;
+                const int enabled = access.checked(handles.dc_switch) ? 1 : 0;
                 if (enabled != last_dc_enabled) {
                     last_dc_enabled = enabled;
                     FixedString<128> status;
@@ -980,8 +980,8 @@ export namespace player {
                 }
             }
             if (!handles.clip_switch || !handles.clip_slider || !handles.clip_value) return;
-            const int enabled = kernel->checked(handles.clip_switch) ? 1 : 0;
-            const int threshold = kernel->value(handles.clip_slider);
+            const int enabled = access.checked(handles.clip_switch) ? 1 : 0;
+            const int threshold = access.value(handles.clip_slider);
             bool changed = false;
             if (enabled != last_clip_enabled) {
                 last_clip_enabled = enabled;
@@ -1002,11 +1002,11 @@ export namespace player {
         }
 
         void process_input_events() {
-            if (!kernel) return;
+            if (!access.valid()) return;
             PendingActions actions{};
-            const std::size_t count = kernel->input_event_count();
+            const std::size_t count = access.input_event_count();
             for (std::size_t i = 0; i < count; ++i) {
-                const auto& item = kernel->input_event(i);
+                const auto& item = access.input_event(i);
                 const auto target = item.target;
                 const auto type = item.event.type;
                 if (target == handles.progress) {
@@ -1042,7 +1042,7 @@ export namespace player {
             }
 
             if (handles.list) {
-                const int selected = kernel->list_view_selected(handles.list);
+                const int selected = access.list_view_selected(handles.list);
                 if (selected >= 0 && selected != last_list_selected) {
                     last_list_selected = selected;
                     if (!ignore_list_select) {

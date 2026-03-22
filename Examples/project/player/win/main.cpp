@@ -1,4 +1,4 @@
-﻿import audio.player;
+import audio.player;
 import audio.result;
 import player.app;
 import player.controller;
@@ -10,12 +10,10 @@ import player.ui_builder;
 import player.ui;
 import charm.core.config;
 import charm.core.event;
-import charm.core.soa_factory;
-import charm.core.soa_gui;
-import charm.core.soa_kernel;
-import charm.core.soa_payload;
+import charm.ui.scene;
 import ui.input_adapter;
 import charm.gfx.color;
+import charm.gfx.image;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import fs_core;
@@ -57,8 +55,6 @@ namespace {
     }
 
     static player::PlayerPlatform g_platform{};
-    static SoaKernel g_kernel{};
-    static SoaFactory g_factory{g_kernel};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     static std::optional<player::App> g_app{};
@@ -79,14 +75,14 @@ namespace {
         }
     }
 
-    void draw_player_fx(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+    void draw_player_fx(::ui::scene::SceneOverlay& out,
                         const PlayerUiContext& ctx,
-                        const SoaKernel& kernel,
+                        const ::ui::scene::Scene& scene,
                         float t_sec) {
-        const Rect cover = kernel.world_rect(ctx.handles.cover);
+        const Rect cover = scene.world_rect(ctx.handles.cover);
         const int cover_radius = 18;
         const auto cover_image = ctx.cover_image.image_id;
-        if (!soa_detail::image_id_valid(cover_image)) {
+        if (!ui::gfx::image_id_valid(cover_image)) {
             out.fill_round_rect(cover, cover_radius, kUiCover);
         }
         rgba cover_ring = kUiOk;
@@ -98,7 +94,7 @@ namespace {
         }
         out.stroke_round_rect(cover, cover_radius, cover_ring);
 
-        const Rect spec = kernel.world_rect(ctx.handles.spectrum);
+        const Rect spec = scene.world_rect(ctx.handles.spectrum);
         if (spec.w > 0 && spec.h > 0) {
             out.fill_round_rect(spec, 10, kUiListBg);
             out.stroke_round_rect(spec, 10, kUiListBorder);
@@ -122,7 +118,7 @@ namespace {
         player::App* app{nullptr};
         player::PlayerPlatform* platform{nullptr};
         PlayerUiContext* ctx{nullptr};
-        SoaKernel* kernel{nullptr};
+        ::ui::scene::Scene* scene{nullptr};
         SDL_Renderer* renderer{nullptr};
         SDL_Texture* texture{nullptr};
         bool* running{nullptr};
@@ -131,7 +127,7 @@ namespace {
         float t_sec{0.0f};
     };
 
-    bool dispatch_sdl_event(SoaGui& gui,
+    bool dispatch_sdl_event(::ui::scene::Scene& scene,
                             player::App& app,
                             PlayerUiContext& ctx,
                             const SDL_Event& evt);
@@ -155,7 +151,7 @@ namespace {
                     *state->win_h = static_cast<int>(evt.window.data2);
                 }
             }
-            dispatch_sdl_event(*state->platform->gui, *state->app, *state->ctx, evt);
+            dispatch_sdl_event(state->platform->scene_ref(), *state->app, *state->ctx, evt);
         }
     }
 
@@ -172,14 +168,19 @@ namespace {
 
     void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->platform || !state->ctx || !state->kernel || !state->renderer || !state->texture) {
+        if (!state || !state->platform || !state->ctx || !state->scene || !state->renderer || !state->texture) {
             return;
         }
         state->platform->framebuffer_ref().clear(kUiBackground);
         state->platform->begin_frame();
-        state->platform->record();
-        draw_player_fx(state->platform->commands(), *state->ctx, *state->kernel, state->t_sec);
-        state->platform->execute();
+        state->platform->scene_ref().set_overlay(
+            [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
+                auto* state = static_cast<PlayerLoopState*>(ctx);
+                if (!state || !state->ctx || !state->scene) return;
+                draw_player_fx(overlay, *state->ctx, *state->scene, state->t_sec);
+            },
+            state);
+        state->platform->render();
         state->platform->end_frame();
 
         SDL_UpdateTexture(state->texture,
@@ -219,7 +220,7 @@ namespace {
         return std::nullopt;
     }
 
-    bool dispatch_sdl_event(SoaGui& gui, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
+    bool dispatch_sdl_event(::ui::scene::Scene& scene, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION: {
             input::RawInputEvent raw{};
@@ -230,7 +231,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.motion.y),
                                             0};
             raw.pointer_action = input::PointerAction::Move;
-            app.dispatch_raw_input(gui, ctx, raw);
+            app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
@@ -243,7 +244,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Down;
-            app.dispatch_raw_input(gui, ctx, raw);
+            app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_UP: {
@@ -256,7 +257,7 @@ namespace {
                                             static_cast<std::int16_t>(evt.button.y),
                                             0};
             raw.pointer_action = input::PointerAction::Up;
-            app.dispatch_raw_input(gui, ctx, raw);
+            app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_WHEEL:
@@ -264,9 +265,9 @@ namespace {
                 float mx = 0.0f;
                 float my = 0.0f;
                 SDL_GetMouseState(&mx, &my);
-                gui.dispatch_event(Event::wheel(static_cast<int>(mx),
-                                                static_cast<int>(my),
-                                                evt.wheel.y));
+                scene.dispatch_event(Event::wheel(static_cast<int>(mx),
+                                                  static_cast<int>(my),
+                                                  evt.wheel.y));
             }
             ctx.process_input_events();
             return true;
@@ -280,7 +281,7 @@ namespace {
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = true;
-                app.dispatch_raw_input(gui, ctx, raw);
+                app.dispatch_raw_input(scene, ctx, raw);
             }
             return true;
         case SDL_EVENT_KEY_UP:
@@ -290,7 +291,7 @@ namespace {
                 raw.ms = SDL_GetTicks();
                 raw.button = *b;
                 raw.pressed = false;
-                app.dispatch_raw_input(gui, ctx, raw);
+                app.dispatch_raw_input(scene, ctx, raw);
             }
             return true;
         default:
@@ -336,16 +337,16 @@ int main(int argc, char** argv) {
     g_app.emplace(player::AppConfig{g_player_cfg}, g_clock);
 
     g_app->bind_player(g_ctx);
-    g_ctx.bind_kernel(g_kernel);
-    g_app->bind_ui(g_factory, g_ctx);
+    g_ctx.bind_scene(g_platform.scene_ref());
+    auto builder = g_platform.begin_scene();
+    g_app->bind_ui(builder, g_ctx);
+    g_platform.end_scene(builder);
 
     player::init_storage(player::default_storage_config());
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }
-
-    g_platform.bind_gui(g_kernel, g_ctx.handles.root);
 
     int win_w = screen_width;
     int win_h = screen_height;
@@ -354,7 +355,7 @@ int main(int argc, char** argv) {
         .app = &(*g_app),
         .platform = &g_platform,
         .ctx = &g_ctx,
-        .kernel = &g_kernel,
+        .scene = &g_platform.scene_ref(),
         .renderer = renderer,
         .texture = texture,
         .running = &running,

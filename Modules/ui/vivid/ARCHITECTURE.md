@@ -384,3 +384,6 @@ flowchart TB
 
 - 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
 - 当前示例含 ListView/ScrollBar/TableView/TreeView、Stepper/Timeline、MenuTree、RichText/CodeBlock、Image 变换等最小配置。
+- 示例入口与回归入口分工：
+  - 示例入口：`fullframe_demo` / `tile_demo` / `theme_demo` / `nav_demo` 仅使用 `charm.ui.scene`（不直连 SoA/DrawCmd）。
+  - 回归入口：`soa_demo` 作为 internal regression 工具，允许直连 SoA/DrawCmd，用于 dump/replay/CI。

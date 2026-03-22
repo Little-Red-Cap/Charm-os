@@ -2805,6 +2805,98 @@ export namespace ui::draw_cmd {
                         stats.batch_flushes++;
                         continue;
                     }
+                    if (kind == GroupKind::DrawLine) {
+                        constexpr std::size_t kMaxExecBatchItems = 64;
+                        while (true) {
+                            DrawCmd cur = cmd;
+                            if (cur.type == CmdType::DrawLineBatch) {
+                                exec_line_batch(cur);
+                                count_cmd(kind);
+                                ++i;
+                            } else if (cur.type == CmdType::DrawLine) {
+                                std::size_t run = 1;
+                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                    DrawCmd next{};
+                                    if (!read_cmd_at(i + run, next)) {
+                                        break;
+                                    }
+                                    if (group_kind(next.type) != kind) break;
+                                    if (next.type != CmdType::DrawLine) break;
+                                    if (!rgba_equal(next.color, cur.color)) break;
+                                    ++run;
+                                }
+                                for (std::size_t j = 0; j < run; ++j) {
+                                    DrawCmd item{};
+                                    if (!read_cmd_at(i + j, item)) {
+                                        fail_other();
+                                        continue;
+                                    }
+                                    exec_draw_line(item);
+                                    count_cmd(kind);
+                                }
+                                i += run;
+                            } else {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            }
+                            if (i >= count) break;
+                            if (!read_cmd_at(i, cmd)) {
+                                fail_other();
+                                ++i;
+                                continue;
+                            }
+                            if (group_kind(cmd.type) != kind) break;
+                        }
+                        stats.batch_flushes++;
+                        continue;
+                    }
+                    if (kind == GroupKind::DrawPath) {
+                        constexpr std::size_t kMaxExecBatchItems = 64;
+                        while (true) {
+                            DrawCmd cur = cmd;
+                            if (cur.type == CmdType::DrawPathBatch) {
+                                exec_path_batch(cur);
+                                count_cmd(kind);
+                                ++i;
+                            } else if (cur.type == CmdType::DrawPath) {
+                                std::size_t run = 1;
+                                while ((i + run) < count && run < kMaxExecBatchItems) {
+                                    DrawCmd next{};
+                                    if (!read_cmd_at(i + run, next)) {
+                                        break;
+                                    }
+                                    if (group_kind(next.type) != kind) break;
+                                    if (next.type != CmdType::DrawPath) break;
+                                    if (!rgba_equal(next.color, cur.color)) break;
+                                    ++run;
+                                }
+                                for (std::size_t j = 0; j < run; ++j) {
+                                    DrawCmd item{};
+                                    if (!read_cmd_at(i + j, item)) {
+                                        fail_other();
+                                        continue;
+                                    }
+                                    exec_draw_path(item);
+                                    count_cmd(kind);
+                                }
+                                i += run;
+                            } else {
+                                exec_group_cmd(cur, kind);
+                                count_cmd(kind);
+                                ++i;
+                            }
+                            if (i >= count) break;
+                            if (!read_cmd_at(i, cmd)) {
+                                fail_other();
+                                ++i;
+                                continue;
+                            }
+                            if (group_kind(cmd.type) != kind) break;
+                        }
+                        stats.batch_flushes++;
+                        continue;
+                    }
                     exec_group_cmd(cmd, kind);
                     count_cmd(kind);
                     ++i;

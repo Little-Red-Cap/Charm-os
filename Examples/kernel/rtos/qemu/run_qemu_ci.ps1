@@ -20,7 +20,6 @@ $args = @(
     "-M", "mps2-an500",
     "-cpu", "cortex-m7",
     "-nographic",
-    "-semihosting",
     "-kernel", $ElfPath
 )
 

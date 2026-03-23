@@ -22,12 +22,40 @@ namespace demo {
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
 
-    inline void semihosting_write0(const char* text) noexcept {
-        constexpr std::uint32_t kSysWrite0 = 0x04;
-        register std::uint32_t r0 asm("r0") = kSysWrite0;
-        register const char* r1 asm("r1") = text;
-        asm volatile("bkpt 0xAB" : "+r"(r0) : "r"(r1) : "memory");
-    }
+    struct UartCmsdk {
+        static constexpr std::uint32_t base = 0x40004000u;
+        static constexpr std::uint32_t data = base + 0x00u;
+        static constexpr std::uint32_t state = base + 0x04u;
+        static constexpr std::uint32_t ctrl = base + 0x08u;
+        static constexpr std::uint32_t state_txbf = 1u << 1;
+        static constexpr std::uint32_t ctrl_tx_enable = 1u << 0;
+        static constexpr std::uint32_t ctrl_rx_enable = 1u << 1;
+
+        static void init() noexcept {
+            auto* reg = reinterpret_cast<volatile std::uint32_t*>(ctrl);
+            *reg = ctrl_tx_enable | ctrl_rx_enable;
+        }
+
+        static void write_byte(char ch) noexcept {
+            auto* status = reinterpret_cast<volatile std::uint32_t*>(state);
+            auto* out = reinterpret_cast<volatile std::uint32_t*>(data);
+            while ((*status & state_txbf) != 0u) {
+            }
+            *out = static_cast<std::uint32_t>(static_cast<unsigned char>(ch));
+        }
+
+        static void write(const char* text) noexcept {
+            static bool inited = false;
+            if (!inited) {
+                init();
+                inited = true;
+            }
+            if (!text) return;
+            while (*text) {
+                write_byte(*text++);
+            }
+        }
+    };
 
     u64 clock_now_ms(void*) noexcept {
         return g_tick_ms;
@@ -65,7 +93,7 @@ int main() {
         demo::g_tick_ms += 1;
         demo.scheduler.run_once();
         if ((demo::g_tick_ms % 1000u) == 0u) {
-            demo::semihosting_write0("rtos tick\n");
+            demo::UartCmsdk::write("rtos tick\n");
         }
     }
     return 0;

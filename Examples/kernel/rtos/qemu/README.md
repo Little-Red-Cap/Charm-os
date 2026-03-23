@@ -8,7 +8,6 @@ It does **not** emulate STM32H7 peripherals.
 ```powershell
 & "D:\Toolchains\qemu\qemu-system-arm.exe" `
   -M mps2-an500 -cpu cortex-m7 -nographic `
-  -semihosting `
   -kernel path\to\rtos-qemu-demo.elf
 ```
 
@@ -19,7 +18,6 @@ If `-nographic` is used, UART output will go to the console.
 ```powershell
 & "D:\Toolchains\qemu\qemu-system-arm.exe" `
   -M mps2-an500 -cpu cortex-m7 -nographic `
-  -semihosting `
   -kernel path\to\rtos-qemu-demo.elf -S -gdb tcp::1234
 ```
 

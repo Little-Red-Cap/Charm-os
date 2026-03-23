@@ -12,6 +12,7 @@ export import charm.system.bringup;
 export import charm.system.bringup.stm32_stub;
 export import charm.system.bringup.win_stub;
 export import charm.system.reactor_pump;
+export import charm.system.rtos;
 
 export import device.desc;
 export import device.bus;

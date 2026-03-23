@@ -97,13 +97,14 @@ namespace demo {
         Demo() noexcept
             : scheduler(SchedulerConfig{
                   std::span<TaskSlot>(slots.data(), slots.size()),
-                  std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size())
+                  std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size()),
+                  1
               }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
-            (void)scheduler.create(&task_a, nullptr);
-            (void)scheduler.create(&task_b, nullptr);
+            (void)scheduler.create(&task_a, nullptr, 1, 1);
+            (void)scheduler.create(&task_b, nullptr, 0, 1);
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
         }
     };

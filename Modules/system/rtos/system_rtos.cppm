@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <cstdint>
 #include <span>
 #include <type_traits>
@@ -15,6 +16,9 @@ export namespace charm::system::rtos {
     using TaskId = util::u16;
     using TaskFn = void (*)(void* ctx) noexcept;
     using TimerFn = void (*)(void* ctx) noexcept;
+    using TaskPriority = util::u8;
+
+    constexpr TaskPriority max_task_priority = 31;
 
     constexpr TaskId invalid_task_id = 0;
 
@@ -32,6 +36,9 @@ export namespace charm::system::rtos {
         void* ctx{nullptr};
         Tick wake_ms{0};
         TaskState state{TaskState::unused};
+        TaskPriority priority{0};
+        util::u32 slice_max{1};
+        util::u32 slice_left{1};
     };
 
     struct TimerSlot {
@@ -78,13 +85,18 @@ export namespace charm::system::rtos {
     struct SchedulerConfig {
         std::span<TaskSlot> tasks{};
         std::span<TimerSlot> timers{};
+        TaskPriority max_priority{0};
     };
 
     class Scheduler {
     public:
-        explicit Scheduler(SchedulerConfig cfg) noexcept : tasks_(cfg.tasks), timers_(cfg.timers) {}
+        explicit Scheduler(SchedulerConfig cfg) noexcept
+            : tasks_(cfg.tasks), timers_(cfg.timers) {
+            max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
+        }
 
         [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx) noexcept;
+        [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept;
         void run_once() noexcept;
         void yield() noexcept;
         void sleep_ms(Tick ms) noexcept;
@@ -100,9 +112,15 @@ export namespace charm::system::rtos {
     private:
         TaskSlot* slot_from_id(TaskId id) noexcept;
         TimerSlot* timer_from_id(util::u16 id) noexcept;
+        void mark_ready(TaskSlot& slot) noexcept;
+        void mark_unready(TaskSlot& slot) noexcept;
+        TaskId pick_next_ready() noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
+        std::array<util::u16, max_task_priority + 1> ready_count_{};
+        std::array<util::usize, max_task_priority + 1> rr_index_{};
+        TaskPriority max_priority_{0};
         TaskId current_{invalid_task_id};
         inline static Scheduler* bound_{nullptr};
     };
@@ -130,14 +148,24 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx) noexcept {
+        return create(fn, ctx, 0, 1);
+    }
+
+    inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
+        if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
+        if (slice == 0) slice = 1;
         for (util::usize i = 0; i < tasks_.size(); ++i) {
             auto& slot = tasks_[i];
             if (slot.state == TaskState::unused || slot.state == TaskState::stopped) {
                 slot.fn = fn;
                 slot.ctx = ctx;
                 slot.wake_ms = 0;
+                slot.priority = priority;
+                slot.slice_max = slice;
+                slot.slice_left = slice;
                 slot.state = TaskState::ready;
+                mark_ready(slot);
                 return static_cast<TaskId>(i + 1);
             }
         }
@@ -149,6 +177,8 @@ export namespace charm::system::rtos {
         if (!slot) return;
         if (slot->state == TaskState::running) {
             slot->state = TaskState::ready;
+            slot->slice_left = slot->slice_max;
+            mark_ready(*slot);
         }
     }
 
@@ -157,6 +187,45 @@ export namespace charm::system::rtos {
         if (!slot) return;
         slot->wake_ms = time::now_ms() + ms;
         slot->state = TaskState::sleeping;
+        slot->slice_left = slot->slice_max;
+    }
+
+    inline void Scheduler::mark_ready(TaskSlot& slot) noexcept {
+        if (slot.state != TaskState::ready) return;
+        const auto prio = slot.priority;
+        if (prio > max_priority_) return;
+        auto& count = ready_count_[prio];
+        if (count < 0xFFFFu) {
+            ++count;
+        }
+    }
+
+    inline void Scheduler::mark_unready(TaskSlot& slot) noexcept {
+        if (slot.state != TaskState::ready) return;
+        const auto prio = slot.priority;
+        if (prio > max_priority_) return;
+        auto& count = ready_count_[prio];
+        if (count > 0) {
+            --count;
+        }
+    }
+
+    inline TaskId Scheduler::pick_next_ready() noexcept {
+        if (tasks_.empty()) return invalid_task_id;
+        for (int p = static_cast<int>(max_priority_); p >= 0; --p) {
+            const auto prio = static_cast<TaskPriority>(p);
+            if (ready_count_[prio] == 0) continue;
+            const auto start = rr_index_[prio] % tasks_.size();
+            for (util::usize offset = 0; offset < tasks_.size(); ++offset) {
+                const auto idx = (start + offset) % tasks_.size();
+                auto& slot = tasks_[idx];
+                if (slot.state == TaskState::ready && slot.priority == prio && slot.fn) {
+                    rr_index_[prio] = (idx + 1) % tasks_.size();
+                    return static_cast<TaskId>(idx + 1);
+                }
+            }
+        }
+        return invalid_task_id;
     }
 
     inline void Scheduler::run_once() noexcept {
@@ -173,16 +242,32 @@ export namespace charm::system::rtos {
             auto& slot = tasks_[i];
             if (slot.state == TaskState::sleeping && now >= slot.wake_ms) {
                 slot.state = TaskState::ready;
+                mark_ready(slot);
             }
-            if (slot.state != TaskState::ready || !slot.fn) {
-                continue;
+        }
+        const auto next = pick_next_ready();
+        if (next == invalid_task_id) {
+            current_ = invalid_task_id;
+            return;
+        }
+        auto* slot = slot_from_id(next);
+        if (!slot) {
+            current_ = invalid_task_id;
+            return;
+        }
+        mark_unready(*slot);
+        current_ = next;
+        slot->state = TaskState::running;
+        slot->fn(slot->ctx);
+        if (slot->state == TaskState::running) {
+            slot->state = TaskState::ready;
+            if (slot->slice_left > 0) {
+                --slot->slice_left;
             }
-            current_ = static_cast<TaskId>(i + 1);
-            slot.state = TaskState::running;
-            slot.fn(slot.ctx);
-            if (slot.state == TaskState::running) {
-                slot.state = TaskState::ready;
+            if (slot->slice_left == 0) {
+                slot->slice_left = slot->slice_max;
             }
+            mark_ready(*slot);
         }
         current_ = invalid_task_id;
     }

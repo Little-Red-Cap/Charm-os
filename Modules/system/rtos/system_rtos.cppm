@@ -109,6 +109,16 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
         void cancel_timer(TimerId id) noexcept;
         void tick() noexcept;
+        struct Stats {
+            util::u32 ready{0};
+            util::u32 sleeping{0};
+            util::u32 running{0};
+            util::u32 blocked{0};
+            util::u32 stopped{0};
+            util::u32 timers_soft{0};
+            util::u32 timers_hard{0};
+        };
+        [[nodiscard]] Stats stats() const noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
 
@@ -371,5 +381,39 @@ export namespace charm::system::rtos {
         timer->fn = nullptr;
         timer->ctx = nullptr;
         timer->due_ms = 0;
+    }
+
+    inline Scheduler::Stats Scheduler::stats() const noexcept {
+        Stats out{};
+        for (const auto& slot : tasks_) {
+            switch (slot.state) {
+            case TaskState::ready:
+                ++out.ready;
+                break;
+            case TaskState::running:
+                ++out.running;
+                break;
+            case TaskState::sleeping:
+                ++out.sleeping;
+                break;
+            case TaskState::blocked:
+                ++out.blocked;
+                break;
+            case TaskState::stopped:
+                ++out.stopped;
+                break;
+            case TaskState::unused:
+                break;
+            }
+        }
+        for (const auto& timer : timers_) {
+            if (!timer.active) continue;
+            if (timer.kind == TimerSlot::Kind::hard) {
+                ++out.timers_hard;
+            } else {
+                ++out.timers_soft;
+            }
+        }
+        return out;
     }
 }

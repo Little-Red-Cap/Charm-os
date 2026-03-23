@@ -325,6 +325,9 @@ export namespace fs {
                     return status_from_fr(fr);
                 }
                 if (info.fname[0] == '\0') break;
+                if ((info.fattrib & AM_VOL) != 0) {
+                    continue;
+                }
                 const char* name = "";
 #if defined(_LFN_UNICODE) && (_LFN_UNICODE == 1)
                 constexpr util::usize lfn_utf8_cap =
@@ -336,7 +339,7 @@ export namespace fs {
                 std::array<char, lfn_utf8_cap> fname_utf8{};
                 const TCHAR* src = info.fname;
     #if defined(_USE_LFN) && _USE_LFN
-                if (info.lfname && info.lfname[0] != 0) {
+                if ((!src || src[0] == 0) && info.lfname && info.lfname[0] != 0) {
                     src = info.lfname;
                 }
     #endif
@@ -357,7 +360,7 @@ export namespace fs {
                 std::array<char, lfn_utf8_cap> fname_utf8{};
                 const TCHAR* src = info.fname;
     #if defined(_USE_LFN) && _USE_LFN
-                if (info.lfname && info.lfname[0] != 0) {
+                if ((!src || src[0] == 0) && info.lfname && info.lfname[0] != 0) {
                     src = info.lfname;
                 }
     #endif

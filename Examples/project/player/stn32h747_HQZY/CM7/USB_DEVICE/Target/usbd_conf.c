@@ -52,6 +52,14 @@ void Error_Handler(void);
 /* Private function prototypes -----------------------------------------------*/
 USBD_StatusTypeDef USBD_Get_USB_Status(HAL_StatusTypeDef hal_status);
 void app_usb_setup_sniff(const uint8_t setup[8]);
+int charm_usb_setup_hook(PCD_HandleTypeDef *hpcd);
+int charm_usb_data_out_hook(PCD_HandleTypeDef *hpcd, uint8_t epnum);
+int charm_usb_data_in_hook(PCD_HandleTypeDef *hpcd, uint8_t epnum);
+int charm_usb_reset_hook(PCD_HandleTypeDef *hpcd);
+int charm_usb_suspend_hook(PCD_HandleTypeDef *hpcd);
+int charm_usb_resume_hook(PCD_HandleTypeDef *hpcd);
+int charm_usb_connect_hook(PCD_HandleTypeDef *hpcd);
+int charm_usb_disconnect_hook(PCD_HandleTypeDef *hpcd);
 
 /* USER CODE END PFP */
 
@@ -65,6 +73,48 @@ uint32_t usb_out_ep_hits(uint8_t epnum)
     return 0;
   }
   return g_usb_out_ep_hits[epnum];
+}
+__attribute__((weak)) int charm_usb_setup_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_data_out_hook(PCD_HandleTypeDef *hpcd, uint8_t epnum)
+{
+  (void)hpcd;
+  (void)epnum;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_data_in_hook(PCD_HandleTypeDef *hpcd, uint8_t epnum)
+{
+  (void)hpcd;
+  (void)epnum;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_reset_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_suspend_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_resume_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_connect_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
+}
+__attribute__((weak)) int charm_usb_disconnect_hook(PCD_HandleTypeDef *hpcd)
+{
+  (void)hpcd;
+  return 0;
 }
 /* USER CODE END 1 */
 
@@ -171,6 +221,10 @@ static void PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_setup_hook(hpcd))
+  {
+    return;
+  }
   USBD_LL_SetupStage((USBD_HandleTypeDef*)hpcd->pData, (uint8_t *)hpcd->Setup);
   app_usb_setup_sniff((const uint8_t *)hpcd->Setup);
 }
@@ -187,6 +241,10 @@ static void PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_data_out_hook(hpcd, epnum))
+  {
+    return;
+  }
   if (epnum < (uint8_t)(sizeof(g_usb_out_ep_hits) / sizeof(g_usb_out_ep_hits[0])))
   {
     g_usb_out_ep_hits[epnum]++;
@@ -206,6 +264,10 @@ static void PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef *hpcd, uint8_t epnum)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_data_in_hook(hpcd, epnum))
+  {
+    return;
+  }
   USBD_LL_DataInStage((USBD_HandleTypeDef*)hpcd->pData, epnum, hpcd->IN_ep[epnum].xfer_buff);
 }
 
@@ -234,6 +296,10 @@ static void PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_reset_hook(hpcd))
+  {
+    return;
+  }
   USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
 
   if ( hpcd->Init.speed == PCD_SPEED_HIGH)
@@ -267,6 +333,10 @@ static void PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_suspend_hook(hpcd))
+  {
+    return;
+  }
   /* Inform USB library that core enters in suspend Mode. */
   USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
   __HAL_PCD_GATE_PHYCLOCK(hpcd);
@@ -292,6 +362,10 @@ static void PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_resume_hook(hpcd))
+  {
+    return;
+  }
   /* USER CODE BEGIN 3 */
 
   /* USER CODE END 3 */
@@ -339,6 +413,10 @@ static void PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_connect_hook(hpcd))
+  {
+    return;
+  }
   USBD_LL_DevConnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 
@@ -353,6 +431,10 @@ static void PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  if (charm_usb_disconnect_hook(hpcd))
+  {
+    return;
+  }
   USBD_LL_DevDisconnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 

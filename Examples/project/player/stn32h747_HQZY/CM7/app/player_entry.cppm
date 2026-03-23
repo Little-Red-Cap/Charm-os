@@ -13,21 +13,52 @@ HAL_StatusTypeDef HAL_PCD_Start(PCD_HandleTypeDef* hpcd);
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 }
 
-export void player_boot() {}
+namespace {
+using ServiceInit = bool (*)();
 
-export bool player_init_fs() {
+struct ServiceItem {
+    const char* name;
+    ServiceInit init;
+};
+
+bool init_fs() {
     MX_SDMMC1_MMC_Init();
     return fs_boot_init();
 }
 
-export void player_init_audio() {
+bool init_audio() {
     MX_I2S1_Init();
+    return true;
 }
 
-export bool player_init_usb() {
+bool init_usb() {
     usb_system_init(fs_sd_block_device(), false);
     if (HAL_PCD_Start(&hpcd_USB_OTG_FS) != 0) {
         return false;
+    }
+    return true;
+}
+
+constexpr ServiceItem kServices[] = {
+    {"fs", &init_fs},
+    {"audio", &init_audio},
+    {"usb", &init_usb},
+};
+}
+
+export void player_boot() {}
+
+export bool player_init_fs() { return init_fs(); }
+
+export void player_init_audio() { (void)init_audio(); }
+
+export bool player_init_usb() { return init_usb(); }
+
+export bool player_init_services() {
+    for (const auto& item : kServices) {
+        if (item.init && !item.init()) {
+            return false;
+        }
     }
     return true;
 }

@@ -11,6 +11,9 @@ import init.node;
 import util.core;
 import util.error;
 
+extern "C" __attribute__((weak)) void charm_init_debug_duplicate_cap(util::u32) noexcept {
+}
+
 export namespace init {
     template <util::usize MaxNodes, util::usize MaxCaps>
     class Graph {
@@ -37,6 +40,7 @@ export namespace init {
                     const auto cap = node->provides[j];
                     if (cap == 0) return util::unexpected(util::Errc::invalid_arg);
                     if (find_cap_index(cap) >= 0) {
+                        charm_init_debug_duplicate_cap(cap);
                         return util::unexpected(util::Errc::exist);
                     }
                     if (cap_count_ >= MaxCaps) {

@@ -14,6 +14,9 @@ import init.node;
 import util.core;
 import util.error;
 
+extern "C" __attribute__((weak)) void charm_io_registry_debug_exist(const char*, util::u32) noexcept {
+}
+
 export namespace io {
     using CapId = util::u32;
     using EndpointId = util::u32;
@@ -79,6 +82,7 @@ export namespace io {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (find_channel(desc.name) || find_channel(desc.cap)) {
+                charm_io_registry_debug_exist(desc.name.data(), desc.cap);
                 return util::unexpected(util::Errc::exist);
             }
             if (count_ >= endpoints_.size()) {

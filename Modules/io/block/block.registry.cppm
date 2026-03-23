@@ -13,6 +13,9 @@ import init.node;
 import util.core;
 import util.error;
 
+extern "C" __attribute__((weak)) void charm_block_registry_debug_exist(const char*, util::u32) noexcept {
+}
+
 export namespace block {
     using CapId = util::u32;
 
@@ -57,6 +60,7 @@ export namespace block {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (find_device(desc.name) || find_device(desc.cap)) {
+                charm_block_registry_debug_exist(desc.name.data(), desc.cap);
                 return util::unexpected(util::Errc::exist);
             }
             if (count_ >= devices_.size()) {

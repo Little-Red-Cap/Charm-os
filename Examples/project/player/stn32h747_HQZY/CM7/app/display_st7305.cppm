@@ -14,12 +14,17 @@ import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;
 import util.core;
-
 extern "C" SPI_HandleTypeDef hspi5;
 
 namespace {
+#if defined(__GNUC__)
+#define CHARM_SDRAM_BUFFER __attribute__((section(".sdram"), aligned(32)))
+#else
+#define CHARM_SDRAM_BUFFER
+#endif
     static out::channel_sink* g_sink = nullptr;
     static void (*g_yield)() noexcept = nullptr;
+    static bool g_use_dma = true;
     constexpr util::u32 kLogRetryMs = 20;
     static volatile bool g_spi5_dma_done = false;
     static volatile bool g_spi5_dma_error = false;
@@ -96,7 +101,7 @@ namespace {
             st7305_clean_dcache(data + offset, chunk);
             g_spi5_dma_done = false;
             g_spi5_dma_error = false;
-            if (HAL_SPI_Transmit_DMA(&hspi5, data + offset, chunk) != HAL_OK) {
+            if (!g_use_dma || HAL_SPI_Transmit_DMA(&hspi5, data + offset, chunk) != HAL_OK) {
                 (void)HAL_SPI_Transmit(&hspi5, data + offset, chunk, 1000);
             } else {
                 const util::u32 start = HAL_GetTick();
@@ -148,6 +153,10 @@ export void display_st7305_set_yield(void (*fn)() noexcept) noexcept {
     g_yield = fn;
 }
 
+export void display_st7305_set_dma(bool enabled) noexcept {
+    g_use_dma = enabled;
+}
+
 export bool display_st7305_init() noexcept {
     hspi5.Init.NSS = SPI_NSS_SOFT;
     hspi5.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
@@ -173,12 +182,13 @@ export bool display_st7305_init() noexcept {
 }
 
 export void display_st7305_selftest() noexcept {
-    static std::array<std::uint8_t, kPanelNativeSize> frame{};
-    panel().clear_native(frame, false);
-    panel().set_native_pixel(frame, 0, 0, true);
-    panel().set_native_pixel(frame, 0, 1, true);
-    panel().set_native_pixel(frame, 1, 0, true);
-    (void)panel().flush_native(frame);
+    static std::array<std::uint8_t, kPanelNativeSize> frame CHARM_SDRAM_BUFFER{};
+    auto buf = std::span<std::uint8_t>(frame.data(), kPanelNativeSize);
+    panel().clear_native(buf, false);
+    panel().set_native_pixel(buf, 0, 0, true);
+    panel().set_native_pixel(buf, 0, 1, true);
+    panel().set_native_pixel(buf, 1, 0, true);
+    (void)panel().flush_native(buf);
     log<"display: selftest origin mark">();
 }
 

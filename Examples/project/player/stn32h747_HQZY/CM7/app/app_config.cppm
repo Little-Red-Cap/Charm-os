@@ -3,9 +3,9 @@ module;
 #include <cstddef>
 #include <cstdint>
 
-export module player.stm32h7.player_config;
+export module player.stm32h7.app_config;
 
-export namespace player::stm32h7::config {
+export namespace player::stm32h7::app::config {
     constexpr std::size_t kRxCap = 64;
     constexpr std::size_t kTxCap = 640;
 

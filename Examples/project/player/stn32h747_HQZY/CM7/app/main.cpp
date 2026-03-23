@@ -92,21 +92,21 @@ import kernel.scheduler;
 import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;
+import player.stm32h7.board_console;
 import player.stm32h7.board_keys;
 import player.stm32h7.board_config;
 import player.stm32h7.board_sdram;
 import player.stm32h7.board_sdmmc;
+import player.stm32h7.board_usb;
 import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import player.stm32h7.ink_demo;
-import player.stm32h7.player_config;
+import player.stm32h7.app_config;
 import platform.board.stn32h747xi;
-import usb.class_msc;
 import usb.class_msc_block;
 import usb.class_msc_block.node;
 import usb.common;
 import usb.device_driver;
-import usb.driver;
 import usb.dsl;
 import util.core;
 import util.error;
@@ -188,37 +188,26 @@ namespace {
 } // namespace
 
 // namespace {
-    constexpr util::usize kRxCap = player::stm32h7::config::kRxCap;
-    constexpr util::usize kTxCap = player::stm32h7::config::kTxCap;
-    constexpr bool kBringupKeySelect = player::stm32h7::config::kBringupKeySelect;
-    constexpr bool kBringupWaitKey = player::stm32h7::config::kBringupWaitKey;
-    constexpr bool kFmcInitOnBoot = player::stm32h7::config::kFmcInitOnBoot;
-    constexpr bool kSdramSelftestOnBoot = player::stm32h7::config::kSdramSelftestOnBoot;
-    constexpr bool kSdramSelftestInBringup = player::stm32h7::config::kSdramSelftestInBringup;
-    constexpr bool kEnableSdmmcInit = player::stm32h7::config::kEnableSdmmcInit;
-    constexpr bool kEnableUsbMsc = player::stm32h7::config::kEnableUsbMsc;
-    constexpr bool kEnableAudio = player::stm32h7::config::kEnableAudio;
-    constexpr bool kEnableDisplay = player::stm32h7::config::kEnableDisplay;
-    constexpr bool kDebugStopAfterBringup = player::stm32h7::config::kDebugStopAfterBringup;
-    constexpr bool kDebugStopAfterChannel = player::stm32h7::config::kDebugStopAfterChannel;
-    constexpr bool kDebugStopAfterFs = player::stm32h7::config::kDebugStopAfterFs;
-    constexpr bool kDebugDumpRoot = player::stm32h7::config::kDebugDumpRoot;
-    constexpr bool kUseOutLoggerEarly = player::stm32h7::config::kUseOutLoggerEarly;
-    constexpr bool kUseDmaConsole = player::stm32h7::config::kUseDmaConsole;
-    constexpr bool kEncoderTestOnBoot = player::stm32h7::config::kEncoderTestOnBoot;
-    constexpr util::u32 kEncoderTestMs = player::stm32h7::config::kEncoderTestMs;
-    charm::port::ConsoleSink g_console_sink{};
+    constexpr util::usize kRxCap = player::stm32h7::app::config::kRxCap;
+    constexpr util::usize kTxCap = player::stm32h7::app::config::kTxCap;
+    constexpr bool kBringupKeySelect = player::stm32h7::app::config::kBringupKeySelect;
+    constexpr bool kBringupWaitKey = player::stm32h7::app::config::kBringupWaitKey;
+    constexpr bool kFmcInitOnBoot = player::stm32h7::app::config::kFmcInitOnBoot;
+    constexpr bool kSdramSelftestOnBoot = player::stm32h7::app::config::kSdramSelftestOnBoot;
+    constexpr bool kSdramSelftestInBringup = player::stm32h7::app::config::kSdramSelftestInBringup;
+    constexpr bool kEnableSdmmcInit = player::stm32h7::app::config::kEnableSdmmcInit;
+    constexpr bool kEnableUsbMsc = player::stm32h7::app::config::kEnableUsbMsc;
+    constexpr bool kEnableAudio = player::stm32h7::app::config::kEnableAudio;
+    constexpr bool kEnableDisplay = player::stm32h7::app::config::kEnableDisplay;
+    constexpr bool kDebugStopAfterBringup = player::stm32h7::app::config::kDebugStopAfterBringup;
+    constexpr bool kDebugStopAfterChannel = player::stm32h7::app::config::kDebugStopAfterChannel;
+    constexpr bool kDebugStopAfterFs = player::stm32h7::app::config::kDebugStopAfterFs;
+    constexpr bool kDebugDumpRoot = player::stm32h7::app::config::kDebugDumpRoot;
+    constexpr bool kUseOutLoggerEarly = player::stm32h7::app::config::kUseOutLoggerEarly;
+    constexpr bool kUseDmaConsole = player::stm32h7::app::config::kUseDmaConsole;
+    constexpr bool kEncoderTestOnBoot = player::stm32h7::app::config::kEncoderTestOnBoot;
+    constexpr util::u32 kEncoderTestMs = player::stm32h7::app::config::kEncoderTestMs;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
-    usb::driver::DcdDeviceAdapter g_usb_adapter{};
-    usb::driver::DcdOps g_usb_dcd_ops{};
-    usb::class_driver::MscBot* g_msc_bot = nullptr;
-    const usb::class_driver::MscConfig* g_msc_cfg = nullptr;
-    std::array<usb::driver::EpCallbacks, 16> g_usb_out_cbs{};
-    std::array<usb::driver::EpCallbacks, 16> g_usb_in_cbs{};
-    std::array<void*, 16> g_usb_out_ctx{};
-    std::array<void*, 16> g_usb_in_ctx{};
-    std::array<std::array<usb::u8, 64>, 16> g_usb_out_bufs{};
-    std::array<usb::u16, 16> g_usb_out_mps{};
 
     constexpr usb::u16 kLangs[] = { 0x0409 };
     constexpr auto kLangDesc = usb::make_lang_id_descriptor(kLangs);
@@ -263,105 +252,6 @@ namespace {
 #if defined(SCB_CCR_UNALIGN_TRP_Msk)
         SCB->CCR &= ~SCB_CCR_UNALIGN_TRP_Msk;
 #endif
-    }
-
-    inline PCD_HandleTypeDef* usb_pcd(void* ctx) noexcept {
-        return static_cast<PCD_HandleTypeDef*>(ctx);
-    }
-
-    void usb_set_ready(void*, usb::class_driver::MscBot* bot,
-                       const usb::class_driver::MscConfig* cfg) noexcept {
-        g_msc_bot = bot;
-        g_msc_cfg = cfg;
-        if (bot && cfg) {
-            const std::uint8_t out_ep = static_cast<std::uint8_t>(cfg->ep_out & 0x0F);
-            const std::uint8_t in_ep = static_cast<std::uint8_t>(cfg->ep_in & 0x0F);
-            g_usb_out_ctx[out_ep] = bot;
-            g_usb_in_ctx[in_ep] = bot;
-        }
-    }
-
-    bool usb_ep_open(void* ctx, const usb::driver::EpConfig& cfg,
-                     usb::driver::EpCallbacks cb) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        std::uint8_t type = USBD_EP_TYPE_BULK;
-        switch (cfg.type) {
-        case usb::driver::EpType::control: type = USBD_EP_TYPE_CTRL; break;
-        case usb::driver::EpType::isochronous: type = USBD_EP_TYPE_ISOC; break;
-        case usb::driver::EpType::bulk: type = USBD_EP_TYPE_BULK; break;
-        case usb::driver::EpType::interrupt: type = USBD_EP_TYPE_INTR; break;
-        }
-        if (HAL_PCD_EP_Open(pcd, cfg.address, cfg.max_packet_size, type) != HAL_OK) {
-            return false;
-        }
-        const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
-        if (cfg.direction == usb::driver::EpDirection::out) {
-            g_usb_out_cbs[ep_num] = cb;
-            g_usb_out_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_out)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
-            g_usb_out_mps[ep_num] = cfg.max_packet_size;
-            (void)HAL_PCD_EP_Receive(pcd, cfg.address,
-                g_usb_out_bufs[ep_num].data(),
-                g_usb_out_mps[ep_num]);
-        } else {
-            g_usb_in_cbs[ep_num] = cb;
-            g_usb_in_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_in)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
-        }
-        return true;
-    }
-
-    bool usb_ep_close(void* ctx, usb::u8 address) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        if (HAL_PCD_EP_Close(pcd, address) != HAL_OK) return false;
-        const std::uint8_t ep_num = static_cast<std::uint8_t>(address & 0x0F);
-        if ((address & 0x80) != 0) {
-            g_usb_in_cbs[ep_num] = {};
-            g_usb_in_ctx[ep_num] = nullptr;
-        } else {
-            g_usb_out_cbs[ep_num] = {};
-            g_usb_out_ctx[ep_num] = nullptr;
-        }
-        return true;
-    }
-
-    bool usb_ep_send(void* ctx, usb::u8 address,
-                     std::span<const usb::u8> data, bool) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        auto* ptr = const_cast<usb::u8*>(data.data());
-        return HAL_PCD_EP_Transmit(pcd, address, ptr,
-            static_cast<uint16_t>(data.size())) == HAL_OK;
-    }
-
-    bool usb_ep_stall(void* ctx, usb::u8 address) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        return HAL_PCD_EP_SetStall(pcd, address) == HAL_OK;
-    }
-
-    bool usb_set_address(void* ctx, usb::u8 address) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        return HAL_PCD_SetAddress(pcd, address) == HAL_OK;
-    }
-
-    bool usb_set_configured(void* ctx, bool configured) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        return configured ? (HAL_PCD_Start(pcd) == HAL_OK)
-                          : (HAL_PCD_Stop(pcd) == HAL_OK);
-    }
-
-    bool usb_connect(void* ctx, bool enable) noexcept {
-        auto* pcd = usb_pcd(ctx);
-        if (!pcd) return false;
-        return enable ? (HAL_PCD_Start(pcd) == HAL_OK)
-                      : (HAL_PCD_Stop(pcd) == HAL_OK);
     }
 
     struct PumpConfig : kernel::KernelConfig {
@@ -562,15 +452,7 @@ namespace {
     void wait_key_press() noexcept;
 
     void early_uart_print(const char* msg) noexcept {
-        if (!msg) return;
-        const std::size_t len = std::strlen(msg);
-        if (len == 0) return;
-        if (!g_console_sink.ctx) return;
-        const out::bytes view{
-            reinterpret_cast<const std::byte*>(msg),
-            static_cast<std::size_t>(len)
-        };
-        (void)g_console_sink.write(view);
+        player::stm32h7::board::early_uart_print(msg);
     }
 
     void early_sleep_ms(util::u32 ms) noexcept {
@@ -685,70 +567,6 @@ namespace {
     }
 
 
-extern "C" void USART1_IRQHandler(void) {
-    if (g_uart_adapter) {
-        g_uart_adapter->on_irq();
-    }
-}
-
-extern "C" CHARM_WEAK void OTG_FS_IRQHandler(void) {
-    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
-    if (!hpcd) return;
-    usb::SetupPacket setup{};
-    setup.bm_request_type = hpcd->Setup[0];
-    setup.b_request = hpcd->Setup[1];
-    setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
-    setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
-    setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
-    g_usb_adapter.handle_setup(setup);
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    if (!hpcd) return;
-    const auto len = hpcd->OUT_ep[epnum].xfer_count;
-    auto& cb = g_usb_out_cbs[epnum];
-    if (cb.on_out && len > 0) {
-        cb.on_out(g_usb_out_ctx[epnum],
-            std::span<const usb::u8>(g_usb_out_bufs[epnum].data(), len));
-    }
-    const auto addr = static_cast<uint8_t>(epnum & 0x0F);
-    (void)HAL_PCD_EP_Receive(hpcd, addr,
-        g_usb_out_bufs[epnum].data(),
-        g_usb_out_mps[epnum]);
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    if (!hpcd) return;
-    auto& cb = g_usb_in_cbs[epnum];
-    if (cb.on_in_complete) {
-        const auto sent = hpcd->IN_ep[epnum].xfer_count;
-        cb.on_in_complete(g_usb_in_ctx[epnum], sent, false);
-    }
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_ResetCallback(PCD_HandleTypeDef*) {
-    g_usb_adapter.handle_reset();
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_SuspendCallback(PCD_HandleTypeDef*) {
-    g_usb_adapter.handle_suspend();
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_ResumeCallback(PCD_HandleTypeDef*) {
-    g_usb_adapter.handle_resume();
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_ConnectCallback(PCD_HandleTypeDef*) {
-    g_usb_adapter.handle_connect(true);
-}
-
-extern "C" CHARM_WEAK void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef*) {
-    g_usb_adapter.handle_connect(false);
-}
-
 extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     if (huart == &huart1) {
         g_uart1_dma_tx.on_complete();
@@ -769,7 +587,7 @@ int main() {
 
     auto kit = charm::port::init();
     allow_unaligned_access();
-    g_console_sink = kit.console;
+    player::stm32h7::board::set_console_sink(kit.console);
     out::Scope scope{kit.console};
 
     early_uart_print("boot: uart ok\n");
@@ -846,14 +664,6 @@ int main() {
     };
 
     early_uart_print("boot: pre-bringup\n");
-    g_usb_dcd_ops.ep.open = &usb_ep_open;
-    g_usb_dcd_ops.ep.close = &usb_ep_close;
-    g_usb_dcd_ops.ep.send = &usb_ep_send;
-    g_usb_dcd_ops.ep.stall = &usb_ep_stall;
-    g_usb_dcd_ops.set_address = &usb_set_address;
-    g_usb_dcd_ops.set_configured = &usb_set_configured;
-    g_usb_dcd_ops.connect = &usb_connect;
-
     std::span<const init::Node* const> extra_nodes{};
     charm::system::UsbMscBlockInitChain<block::Registry<16>> usb_chain{
         bringup.block_registry(),
@@ -862,11 +672,12 @@ int main() {
         static_cast<util::u32>(init::Runlevel::all)
     };
     if (kEnableUsbMsc) {
+        auto& dcd_ops = player::stm32h7::board::usb_dcd_ops();
         usb_chain.binding.desc.cap_name = "usb.msc0";
         usb_chain.binding.desc.block_cap = "block.sd0";
-        usb_chain.binding.desc.dcd = g_usb_dcd_ops;
+        usb_chain.binding.desc.dcd = dcd_ops;
         usb_chain.binding.desc.dcd_ctx = &hpcd_USB_OTG_FS;
-        usb_chain.binding.desc.adapter = &g_usb_adapter;
+        usb_chain.binding.desc.adapter = &player::stm32h7::board::usb_adapter();
         usb_chain.binding.desc.dev_info.vendor_id = 0x1209;
         usb_chain.binding.desc.dev_info.product_id = 0x0002;
         usb_chain.binding.desc.dev_info.i_manufacturer = 1;
@@ -878,7 +689,7 @@ int main() {
         usb_chain.binding.desc.strings = std::span<const std::span<const usb::u8>>(
             kUsbStrings.entries.data(), kUsbStrings.entries.size());
         usb_chain.binding.desc.storage_cfg.read_only = true;
-        usb_chain.binding.desc.on_ready = &usb_set_ready;
+        usb_chain.binding.desc.on_ready = &player::stm32h7::board::usb_set_ready;
         usb_chain.binding.desc.on_ready_ctx = nullptr;
         extra_nodes = usb_chain.node_span();
     }
@@ -904,6 +715,12 @@ int main() {
         Error_Handler();
     }
     g_uart_adapter = static_cast<driver::usart::ChannelAdapter<kRxCap, kTxCap>*>(ch->ctx);
+    player::stm32h7::board::set_uart_irq_handler(
+        {g_uart_adapter, [](void* ctx) noexcept {
+            auto* adapter = static_cast<driver::usart::ChannelAdapter<kRxCap, kTxCap>*>(ctx);
+            if (adapter) adapter->on_irq();
+        }}
+    );
 
     g_dma_ctx.rx_channel = ch;
     g_dma_ctx.tx = &g_uart1_dma_tx;
@@ -1076,9 +893,8 @@ int main() {
 
     while (true) {
         loop.run_once();
-        if (kEnableUsbMsc && g_msc_bot && g_msc_cfg) {
-            (void)usb::device::examples::send_msc_in_packet(
-                g_usb_dcd_ops, &hpcd_USB_OTG_FS, *g_msc_bot, *g_msc_cfg);
+        if (kEnableUsbMsc) {
+            player::stm32h7::board::usb_poll_msc(&hpcd_USB_OTG_FS);
         }
     }
 }

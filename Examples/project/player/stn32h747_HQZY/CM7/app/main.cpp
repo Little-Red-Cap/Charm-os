@@ -4,12 +4,15 @@
 #include <cstdio>
 #include <cstring>
 #include <new>
+#include <span>
+#include <string_view>
 #include <utility>
 
 #include "stm32h7xx_hal.h"
 #include "fmc.h"
 #include "tim.h"
-#include "usb_otg.h"
+#include "usb_device.h"
+#include "stm32h7xx_hal_pcd.h"
 
 /*
 LED
@@ -70,12 +73,17 @@ import charm.system.run_loop;
 import charm.system.time;
 import charm.system.reactor_pump;
 import charm.system.init_usb;
+import init.node;
 import charm.port;
 import driver.usart_channel;
 import io.channel;
 import io.reactor;
 import io.registry;
 import block.registry;
+import fs_core;
+import fs_stream;
+import fs_vfs;
+import fs_errno;
 import kernel.capabilities;
 import kernel.config;
 import kernel.eda;
@@ -84,12 +92,17 @@ import kernel.scheduler;
 import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;
+import player.stm32h7.board_config;
+import player.stm32h7.board_sdram;
+import player.stm32h7.board_sdmmc;
 import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import player.stm32h7.ink_demo;
 import platform.board.stn32h747xi;
 import usb.class_msc;
 import usb.class_msc_block;
+import usb.class_msc_block.node;
+import usb.common;
 import usb.device_driver;
 import usb.driver;
 import usb.dsl;
@@ -97,9 +110,13 @@ import util.core;
 import util.error;
 
 extern "C" {
+    void MPU_Config(void);
+    void SystemClock_Config(void);
+    void MX_GPIO_Init(void);
     void MX_FMC_Init(void);
     void MX_I2S1_Init(void);
-    void MX_SDMMC1_SD_Init(void);
+    void MX_SDMMC2_SD_Init(void);
+    void MX_DMA_Init(void);
     void MX_USB_OTG_FS_PCD_Init(void);
     void MX_SPI5_Init(void);
     void MX_TIM8_Init(void);
@@ -110,7 +127,65 @@ extern "C" {
     extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 }
 
+void early_uart_print(const char* s) noexcept;
+
 namespace {
+    void early_uart_print_sv(std::string_view s) noexcept {
+        char buf[64]{};
+        std::size_t pos = 0;
+        for (std::size_t i = 0; i < s.size(); ++i) {
+            buf[pos++] = s[i];
+            if (pos + 1 >= sizeof(buf)) {
+                buf[pos] = '\0';
+                early_uart_print(buf);
+                pos = 0;
+            }
+        }
+        if (pos > 0) {
+            buf[pos] = '\0';
+            early_uart_print(buf);
+        }
+    }
+
+    struct RootDumpCtx {
+        const char* prefix{nullptr};
+        std::size_t count{0};
+    };
+
+    fs::Status dump_entry_early(void* p, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* out = static_cast<RootDumpCtx*>(p);
+        if (!out || !out->prefix) return fs::Status{fs::Errc::inval};
+        early_uart_print("fs: ");
+        early_uart_print(out->prefix);
+        early_uart_print(" ");
+        early_uart_print_sv(entry.name);
+        early_uart_print(" type=");
+        char buf[12]{};
+        std::snprintf(buf, sizeof(buf), "%d\n", static_cast<int>(entry.type));
+        early_uart_print(buf);
+        ++out->count;
+        return fs::Status{fs::Errc::ok};
+    }
+
+    void dump_dir_early(const char* path) noexcept {
+        if (!path || *path == '\0') return;
+        RootDumpCtx ctx{path, 0};
+        const auto st = fs::vfs_list(path, &ctx, dump_entry_early);
+        if (!st) {
+            char buf[64]{};
+            std::snprintf(buf, sizeof(buf), "fs: list failed %s err=%d\n",
+                path, static_cast<int>(st.err));
+            early_uart_print(buf);
+            return;
+        }
+        char count_buf[64]{};
+        std::snprintf(count_buf, sizeof(count_buf), "fs: %s entries=%u\n",
+            path, static_cast<unsigned>(ctx.count));
+        early_uart_print(count_buf);
+    }
+} // namespace
+
+// namespace {
     constexpr util::usize kRxCap = 64;
     constexpr util::usize kTxCap = 640;
     constexpr bool kKeyActiveHigh = true;
@@ -119,6 +194,14 @@ namespace {
     constexpr bool kFmcInitOnBoot = true;
     constexpr bool kSdramSelftestOnBoot = true;
     constexpr bool kSdramSelftestInBringup = false;
+    constexpr bool kEnableSdmmcInit = false;
+    constexpr bool kEnableUsbMsc = true;
+    constexpr bool kEnableAudio = true;
+    constexpr bool kEnableDisplay = false;
+    constexpr bool kDebugStopAfterBringup = false;
+    constexpr bool kDebugStopAfterChannel = false;
+    constexpr bool kDebugStopAfterFs = false;
+    constexpr bool kDebugDumpRoot = false;
     constexpr bool kUseOutLoggerEarly = false;
     constexpr bool kUseDmaConsole = false;
     constexpr bool kEncoderTestOnBoot = false;
@@ -131,6 +214,8 @@ namespace {
     const usb::class_driver::MscConfig* g_msc_cfg = nullptr;
     std::array<usb::driver::EpCallbacks, 16> g_usb_out_cbs{};
     std::array<usb::driver::EpCallbacks, 16> g_usb_in_cbs{};
+    std::array<void*, 16> g_usb_out_ctx{};
+    std::array<void*, 16> g_usb_in_ctx{};
     std::array<std::array<usb::u8, 64>, 16> g_usb_out_bufs{};
     std::array<usb::u16, 16> g_usb_out_mps{};
 
@@ -151,8 +236,10 @@ namespace {
 
 #if defined(__GNUC__)
 #define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
+#define CHARM_WEAK __attribute__((weak))
 #else
 #define CHARM_DMA_BUFFER
+#define CHARM_WEAK
 #endif
 
     inline void clean_dcache(const void* addr, std::size_t size) noexcept {
@@ -185,18 +272,24 @@ namespace {
                        const usb::class_driver::MscConfig* cfg) noexcept {
         g_msc_bot = bot;
         g_msc_cfg = cfg;
+        if (bot && cfg) {
+            const std::uint8_t out_ep = static_cast<std::uint8_t>(cfg->ep_out & 0x0F);
+            const std::uint8_t in_ep = static_cast<std::uint8_t>(cfg->ep_in & 0x0F);
+            g_usb_out_ctx[out_ep] = bot;
+            g_usb_in_ctx[in_ep] = bot;
+        }
     }
 
     bool usb_ep_open(void* ctx, const usb::driver::EpConfig& cfg,
                      usb::driver::EpCallbacks cb) noexcept {
         auto* pcd = usb_pcd(ctx);
         if (!pcd) return false;
-        std::uint8_t type = USB_EP_TYPE_BULK;
+        std::uint8_t type = USBD_EP_TYPE_BULK;
         switch (cfg.type) {
-        case usb::driver::EpType::control: type = USB_EP_TYPE_CTRL; break;
-        case usb::driver::EpType::isochronous: type = USB_EP_TYPE_ISOC; break;
-        case usb::driver::EpType::bulk: type = USB_EP_TYPE_BULK; break;
-        case usb::driver::EpType::interrupt: type = USB_EP_TYPE_INTR; break;
+        case usb::driver::EpType::control: type = USBD_EP_TYPE_CTRL; break;
+        case usb::driver::EpType::isochronous: type = USBD_EP_TYPE_ISOC; break;
+        case usb::driver::EpType::bulk: type = USBD_EP_TYPE_BULK; break;
+        case usb::driver::EpType::interrupt: type = USBD_EP_TYPE_INTR; break;
         }
         if (HAL_PCD_EP_Open(pcd, cfg.address, cfg.max_packet_size, type) != HAL_OK) {
             return false;
@@ -204,12 +297,18 @@ namespace {
         const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
         if (cfg.direction == usb::driver::EpDirection::out) {
             g_usb_out_cbs[ep_num] = cb;
+            g_usb_out_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_out)
+                ? static_cast<void*>(g_msc_bot)
+                : nullptr;
             g_usb_out_mps[ep_num] = cfg.max_packet_size;
             (void)HAL_PCD_EP_Receive(pcd, cfg.address,
                 g_usb_out_bufs[ep_num].data(),
                 g_usb_out_mps[ep_num]);
         } else {
             g_usb_in_cbs[ep_num] = cb;
+            g_usb_in_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_in)
+                ? static_cast<void*>(g_msc_bot)
+                : nullptr;
         }
         return true;
     }
@@ -221,8 +320,10 @@ namespace {
         const std::uint8_t ep_num = static_cast<std::uint8_t>(address & 0x0F);
         if ((address & 0x80) != 0) {
             g_usb_in_cbs[ep_num] = {};
+            g_usb_in_ctx[ep_num] = nullptr;
         } else {
             g_usb_out_cbs[ep_num] = {};
+            g_usb_out_ctx[ep_num] = nullptr;
         }
         return true;
     }
@@ -444,70 +545,6 @@ namespace {
         .flush = &dma_flush_trampoline,
     };
 
-    void hqzy_gpio_init() noexcept {
-        __HAL_RCC_GPIOA_CLK_ENABLE();
-        __HAL_RCC_GPIOC_CLK_ENABLE();
-        __HAL_RCC_GPIOD_CLK_ENABLE();
-        __HAL_RCC_GPIOE_CLK_ENABLE();
-        __HAL_RCC_GPIOI_CLK_ENABLE();
-        __HAL_RCC_GPIOJ_CLK_ENABLE();
-        __HAL_RCC_GPIOK_CLK_ENABLE();
-
-        GPIO_InitTypeDef gpio_init = {};
-
-        /* SDMMC1: PC8/PC9/PC10/PC11/PC12 + PD2 (external pull-ups). */
-        gpio_init.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12;
-        gpio_init.Mode = GPIO_MODE_AF_PP;
-        gpio_init.Pull = GPIO_NOPULL;
-        gpio_init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-        gpio_init.Alternate = GPIO_AF12_SDIO1;
-        HAL_GPIO_Init(GPIOC, &gpio_init);
-
-        gpio_init.Pin = GPIO_PIN_2;
-        gpio_init.Mode = GPIO_MODE_AF_PP;
-        gpio_init.Pull = GPIO_NOPULL;
-        gpio_init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-        gpio_init.Alternate = GPIO_AF12_SDIO1;
-        HAL_GPIO_Init(GPIOD, &gpio_init);
-
-        /* Keys: PA2 (WKUP2), PA8 (KEY0), active high (external pull-ups). */
-        gpio_init.Pin = GPIO_PIN_2;
-        gpio_init.Mode = GPIO_MODE_INPUT;
-        gpio_init.Pull = GPIO_PULLDOWN;
-        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        gpio_init.Alternate = 0;
-        HAL_GPIO_Init(GPIOA, &gpio_init);
-
-        gpio_init.Pin = GPIO_PIN_8;
-        HAL_GPIO_Init(GPIOA, &gpio_init);
-
-        /* Encoder key: PI8, active low (pull-up). */
-        gpio_init.Pin = GPIO_PIN_8;
-        gpio_init.Mode = GPIO_MODE_INPUT;
-        gpio_init.Pull = GPIO_PULLUP;
-        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        gpio_init.Alternate = 0;
-        HAL_GPIO_Init(GPIOI, &gpio_init);
-
-        /* Display control: PJ5 reset, PJ6 data/cmd. */
-        gpio_init.Pin = GPIO_PIN_5 | GPIO_PIN_6;
-        gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
-        gpio_init.Pull = GPIO_NOPULL;
-        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        gpio_init.Alternate = 0;
-        HAL_GPIO_Init(GPIOJ, &gpio_init);
-        HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_RESET);
-
-        /* Display chip select: PK1. */
-        gpio_init.Pin = GPIO_PIN_1;
-        gpio_init.Mode = GPIO_MODE_OUTPUT_PP;
-        gpio_init.Pull = GPIO_NOPULL;
-        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        gpio_init.Alternate = 0;
-        HAL_GPIO_Init(GPIOK, &gpio_init);
-        HAL_GPIO_WritePin(GPIOK, GPIO_PIN_1, GPIO_PIN_SET);
-    }
-
     enum class BringupMode : std::uint8_t {
         sd = 0,
         decode = 1,
@@ -525,9 +562,27 @@ namespace {
         return kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
     }
 
+    void ensure_key_gpio_init() noexcept {
+        static bool inited = false;
+        if (inited) return;
+        inited = true;
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+        GPIO_InitTypeDef gpio_init{};
+        gpio_init.Pin = GPIO_PIN_2 | GPIO_PIN_8;
+        gpio_init.Mode = GPIO_MODE_INPUT;
+        gpio_init.Pull = kKeyActiveHigh ? GPIO_PULLDOWN : GPIO_PULLUP;
+        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
+        HAL_GPIO_Init(GPIOA, &gpio_init);
+    }
+
     bool key_pressed(GPIO_TypeDef* port, std::uint16_t pin) noexcept {
+        if (port == GPIOA && (pin == GPIO_PIN_2 || pin == GPIO_PIN_8)) {
+            ensure_key_gpio_init();
+        }
         return HAL_GPIO_ReadPin(port, pin) == key_active();
     }
+
+    void wait_key_press() noexcept;
 
     void early_uart_print(const char* msg) noexcept {
         if (!msg) return;
@@ -541,6 +596,11 @@ namespace {
         (void)g_console_sink.write(view);
     }
 
+    void early_sleep_ms(util::u32 ms) noexcept {
+        HAL_Delay(ms);
+    }
+
+
     void early_uart_print_err(const char* tag, util::Errc err) noexcept {
         char buf[64]{};
         const int n = std::snprintf(buf, sizeof(buf), "%s err=%d\n", tag, static_cast<int>(err));
@@ -549,39 +609,27 @@ namespace {
         }
     }
 
-    bool sdram_init_sequence() noexcept;
-
-    bool sdram_selftest_early() noexcept {
-        constexpr std::uintptr_t base = 0xD0000000u;
-        constexpr std::size_t words = 16;
-        constexpr std::uint32_t pattern = 0xA5A50000u;
-        if (!sdram_init_sequence()) {
-            early_uart_print("sdram: init sequence failed\n");
-            return false;
-        }
-        auto* sdram = reinterpret_cast<volatile std::uint32_t*>(base);
-        early_uart_print("sdram: test write0\n");
-        sdram[0] = pattern;
-        early_uart_print("sdram: test read0\n");
-        const auto probe = sdram[0];
-        if (probe != pattern) {
-            early_uart_print("sdram: probe mismatch\n");
-            return false;
-        }
-        early_uart_print("sdram: test writeN\n");
-        for (std::size_t i = 0; i < words; ++i) {
-            sdram[i] = pattern + static_cast<std::uint32_t>(i);
-        }
-        early_uart_print("sdram: test readN\n");
-        for (std::size_t i = 0; i < words; ++i) {
-            const std::uint32_t expect = pattern + static_cast<std::uint32_t>(i);
-            if (sdram[i] != expect) {
-                early_uart_print("sdram: mismatch\n");
-                return false;
+    void run_display_demo(out::channel_sink& console_sink) noexcept {
+        early_uart_print("boot: display init begin\n");
+        if (display_st7305_init()) {
+            early_uart_print("boot: display init ok\n");
+            display_st7305_selftest();
+            if (ink_demo_render_once()) {
+                (void)out::try_println<"display: ink demo done">(console_sink);
+            } else {
+                (void)out::try_println<"display: ink demo failed">(console_sink);
             }
+            ink_demo_run();
+        } else {
+            early_uart_print("boot: display init failed\n");
+            (void)out::try_println<"display: init failed">(console_sink);
         }
-        early_uart_print("sdram: ok\n");
-        return true;
+    }
+
+    void run_audio_demo(out::channel_sink& console_sink) noexcept {
+        (void)out::try_println<"boot: wait key">(console_sink);
+        wait_key_press();
+        audio_mp3_demo_run();
     }
 
     const char* bringup_mode_name(BringupMode mode) noexcept {
@@ -606,14 +654,25 @@ namespace {
 
     void wait_key_press() noexcept {
         if (!kBringupWaitKey) return;
-        const auto active = key_active();
-        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == active) {
-            charm::system::time::sleep_ms(10);
+        ensure_key_gpio_init();
+        const auto any_pressed = []() noexcept -> bool {
+            return key_pressed(GPIOA, GPIO_PIN_8) || key_pressed(GPIOA, GPIO_PIN_2);
+        };
+        while (any_pressed()) {
+            early_sleep_ms(10);
         }
-        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) != active) {
-            charm::system::time::sleep_ms(10);
+        util::u32 stable = 0;
+        while (stable < 30) {
+            if (any_pressed()) {
+                stable += 10;
+            } else {
+                stable = 0;
+            }
+            early_sleep_ms(10);
         }
-        charm::system::time::sleep_ms(20);
+        while (any_pressed()) {
+            early_sleep_ms(10);
+        }
     }
 
     void encoder_test() noexcept {
@@ -658,76 +717,6 @@ namespace {
         early_uart_print("encoder: test end\n");
     }
 
-    constexpr std::uintptr_t kSdramBase = 0xD0000000u;
-    constexpr std::size_t kSdramTestWords = 1024;
-    constexpr std::uint32_t kSdramPattern = 0xA5A50000u;
-    constexpr std::uint32_t kSdramRefresh = 0x0603u;
-
-    bool sdram_init_sequence() noexcept {
-        early_uart_print("sdram: seq begin\n");
-        FMC_SDRAM_CommandTypeDef cmd{};
-        cmd.CommandTarget = FMC_SDRAM_CMD_TARGET_BANK2;
-        cmd.AutoRefreshNumber = 1;
-        cmd.ModeRegisterDefinition = 0;
-
-        cmd.CommandMode = FMC_SDRAM_CMD_CLK_ENABLE;
-        early_uart_print("sdram: seq clk\n");
-        if (HAL_SDRAM_SendCommand(&hsdram1, &cmd, 100) != HAL_OK) return false;
-        charm::system::time::sleep_ms(1);
-
-        cmd.CommandMode = FMC_SDRAM_CMD_PALL;
-        early_uart_print("sdram: seq pall\n");
-        if (HAL_SDRAM_SendCommand(&hsdram1, &cmd, 100) != HAL_OK) return false;
-
-        cmd.CommandMode = FMC_SDRAM_CMD_AUTOREFRESH_MODE;
-        cmd.AutoRefreshNumber = 8;
-        early_uart_print("sdram: seq refresh\n");
-        if (HAL_SDRAM_SendCommand(&hsdram1, &cmd, 100) != HAL_OK) return false;
-
-        constexpr std::uint32_t kMode =
-            0x0000u | // burst length 1
-            0x0000u | // burst type sequential
-            0x0030u | // CAS latency 3
-            0x0000u | // standard
-            0x0200u;  // single write burst
-
-        cmd.CommandMode = FMC_SDRAM_CMD_LOAD_MODE;
-        cmd.AutoRefreshNumber = 1;
-        cmd.ModeRegisterDefinition = kMode;
-        early_uart_print("sdram: seq mode\n");
-        if (HAL_SDRAM_SendCommand(&hsdram1, &cmd, 100) != HAL_OK) return false;
-
-        early_uart_print("sdram: seq rate\n");
-        if (HAL_SDRAM_ProgramRefreshRate(&hsdram1, kSdramRefresh) != HAL_OK) return false;
-        early_uart_print("sdram: seq ok\n");
-        return true;
-    }
-
-    bool sdram_selftest(out::channel_sink& sink) noexcept {
-        if (!sdram_init_sequence()) {
-            (void)out::try_println<"sdram: init sequence failed">(sink);
-            return false;
-        }
-        auto* sdram = reinterpret_cast<std::uint32_t*>(kSdramBase);
-        for (std::size_t i = 0; i < kSdramTestWords; ++i) {
-            sdram[i] = kSdramPattern + static_cast<std::uint32_t>(i);
-        }
-        const std::size_t bytes = kSdramTestWords * sizeof(std::uint32_t);
-        SCB_CleanDCache_by_Addr(reinterpret_cast<uint32_t*>(kSdramBase), bytes);
-        SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(kSdramBase), bytes);
-        for (std::size_t i = 0; i < kSdramTestWords; ++i) {
-            const std::uint32_t expect = kSdramPattern + static_cast<std::uint32_t>(i);
-            if (sdram[i] != expect) {
-                (void)out::try_println<"sdram: mismatch at {} exp=0x{:08X} got=0x{:08X}">(
-                    sink, static_cast<unsigned long>(i), expect, sdram[i]);
-                return false;
-            }
-        }
-        (void)out::try_println<"sdram: ok base=0x{:08X} words={}">(
-            sink, static_cast<std::uint32_t>(kSdramBase), static_cast<unsigned long>(kSdramTestWords));
-        return true;
-    }
-}
 
 extern "C" void USART1_IRQHandler(void) {
     if (g_uart_adapter) {
@@ -735,11 +724,11 @@ extern "C" void USART1_IRQHandler(void) {
     }
 }
 
-extern "C" void OTG_FS_IRQHandler(void) {
+extern "C" CHARM_WEAK void OTG_FS_IRQHandler(void) {
     HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 }
 
-extern "C" void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
+extern "C" CHARM_WEAK void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
     if (!hpcd) return;
     usb::SetupPacket setup{};
     setup.bm_request_type = hpcd->Setup[0];
@@ -750,12 +739,13 @@ extern "C" void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
     g_usb_adapter.handle_setup(setup);
 }
 
-extern "C" void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+extern "C" CHARM_WEAK void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return;
     const auto len = hpcd->OUT_ep[epnum].xfer_count;
     auto& cb = g_usb_out_cbs[epnum];
     if (cb.on_out && len > 0) {
-        cb.on_out(cb.ctx, std::span<const usb::u8>(g_usb_out_bufs[epnum].data(), len));
+        cb.on_out(g_usb_out_ctx[epnum],
+            std::span<const usb::u8>(g_usb_out_bufs[epnum].data(), len));
     }
     const auto addr = static_cast<uint8_t>(epnum & 0x0F);
     (void)HAL_PCD_EP_Receive(hpcd, addr,
@@ -763,32 +753,32 @@ extern "C" void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t ep
         g_usb_out_mps[epnum]);
 }
 
-extern "C" void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+extern "C" CHARM_WEAK void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return;
     auto& cb = g_usb_in_cbs[epnum];
     if (cb.on_in_complete) {
         const auto sent = hpcd->IN_ep[epnum].xfer_count;
-        cb.on_in_complete(cb.ctx, sent, false);
+        cb.on_in_complete(g_usb_in_ctx[epnum], sent, false);
     }
 }
 
-extern "C" void HAL_PCD_ResetCallback(PCD_HandleTypeDef*) {
+extern "C" CHARM_WEAK void HAL_PCD_ResetCallback(PCD_HandleTypeDef*) {
     g_usb_adapter.handle_reset();
 }
 
-extern "C" void HAL_PCD_SuspendCallback(PCD_HandleTypeDef*) {
+extern "C" CHARM_WEAK void HAL_PCD_SuspendCallback(PCD_HandleTypeDef*) {
     g_usb_adapter.handle_suspend();
 }
 
-extern "C" void HAL_PCD_ResumeCallback(PCD_HandleTypeDef*) {
+extern "C" CHARM_WEAK void HAL_PCD_ResumeCallback(PCD_HandleTypeDef*) {
     g_usb_adapter.handle_resume();
 }
 
-extern "C" void HAL_PCD_ConnectCallback(PCD_HandleTypeDef*) {
+extern "C" CHARM_WEAK void HAL_PCD_ConnectCallback(PCD_HandleTypeDef*) {
     g_usb_adapter.handle_connect(true);
 }
 
-extern "C" void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef*) {
+extern "C" CHARM_WEAK void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef*) {
     g_usb_adapter.handle_connect(false);
 }
 
@@ -798,15 +788,21 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
+extern "C" CHARM_WEAK void MX_USB_OTG_FS_PCD_Init(void) {
+}
+
 int main() {
+    HAL_Init();
+    // MPU_Config();
+    SystemClock_Config();
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_USART1_UART_Init();
+
+
     auto kit = charm::port::init();
     allow_unaligned_access();
     g_console_sink = kit.console;
-    charm::system::Clock clock{
-        kit.time_ctx,
-        charm::system::ClockOps{&charm::port::now_ms, nullptr}
-    };
-    charm::system::time::bind(clock);
     out::Scope scope{kit.console};
 
     early_uart_print("boot: uart ok\n");
@@ -828,17 +824,21 @@ int main() {
     } else {
         early_uart_print("boot: fmc init skip\n");
     }
+    bool sdram_ready = false;
     if (kSdramSelftestOnBoot) {
         early_uart_print("boot: sdram test begin\n");
-        (void)sdram_selftest_early();
+        sdram_ready = player::stm32h7::board::sdram_selftest_early(
+            &early_uart_print,
+            &early_sleep_ms);
         early_uart_print("boot: sdram test end\n");
     }
-    MX_SDMMC1_SD_Init();
+    audio_mp3_set_sdram_ready(sdram_ready);
+    if (kEnableSdmmcInit) {
+        player::stm32h7::board::sdmmc_hw_init();
+    }
     MX_I2S1_Init();
     MX_SPI5_Init();
     MX_USB_OTG_FS_PCD_Init();
-
-    hqzy_gpio_init();
 
     auto caps = platform::board::stn32h747xi::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;
@@ -869,6 +869,8 @@ int main() {
         caps.spi1,
         caps.i2c1,
         caps.can0,
+        caps.sdmmc0,
+        caps.flash0,
         pump,
         post_fn,
         &running,
@@ -885,40 +887,50 @@ int main() {
     g_usb_dcd_ops.set_configured = &usb_set_configured;
     g_usb_dcd_ops.connect = &usb_connect;
 
-    usb::device::MscBlockDesc usb_desc{};
-    usb_desc.cap_name = "usb.msc0";
-    usb_desc.block_cap = "block.sd0";
-    usb_desc.dcd = g_usb_dcd_ops;
-    usb_desc.dcd_ctx = &hpcd_USB_OTG_FS;
-    usb_desc.adapter = &g_usb_adapter;
-    usb_desc.dev_info.vendor_id = 0x1209;
-    usb_desc.dev_info.product_id = 0x0002;
-    usb_desc.dev_info.i_manufacturer = 1;
-    usb_desc.dev_info.i_product = 2;
-    usb_desc.dev_info.i_serial = 3;
-    usb_desc.msc_cfg.ep_out = 0x01;
-    usb_desc.msc_cfg.ep_in = 0x81;
-    usb_desc.msc_cfg.ep_mps = 64;
-    usb_desc.strings = std::span<const std::span<const usb::u8>>(
-        kUsbStrings.entries.data(), kUsbStrings.entries.size());
-    usb_desc.storage_cfg.read_only = true;
-    usb_desc.on_ready = &usb_set_ready;
-    usb_desc.on_ready_ctx = nullptr;
-
+    std::span<const init::Node* const> extra_nodes{};
     charm::system::UsbMscBlockInitChain<block::Registry<16>> usb_chain{
-        bringup.block_registry(), usb_desc
+        bringup.block_registry(),
+        usb::device::MscBlockDesc{},
+        init::Phase::app,
+        static_cast<util::u32>(init::Runlevel::all)
     };
+    if (kEnableUsbMsc) {
+        usb_chain.binding.desc.cap_name = "usb.msc0";
+        usb_chain.binding.desc.block_cap = "block.sd0";
+        usb_chain.binding.desc.dcd = g_usb_dcd_ops;
+        usb_chain.binding.desc.dcd_ctx = &hpcd_USB_OTG_FS;
+        usb_chain.binding.desc.adapter = &g_usb_adapter;
+        usb_chain.binding.desc.dev_info.vendor_id = 0x1209;
+        usb_chain.binding.desc.dev_info.product_id = 0x0002;
+        usb_chain.binding.desc.dev_info.i_manufacturer = 1;
+        usb_chain.binding.desc.dev_info.i_product = 2;
+        usb_chain.binding.desc.dev_info.i_serial = 3;
+        usb_chain.binding.desc.msc_cfg.ep_out = 0x01;
+        usb_chain.binding.desc.msc_cfg.ep_in = 0x81;
+        usb_chain.binding.desc.msc_cfg.ep_mps = 64;
+        usb_chain.binding.desc.strings = std::span<const std::span<const usb::u8>>(
+            kUsbStrings.entries.data(), kUsbStrings.entries.size());
+        usb_chain.binding.desc.storage_cfg.read_only = true;
+        usb_chain.binding.desc.on_ready = &usb_set_ready;
+        usb_chain.binding.desc.on_ready_ctx = nullptr;
+        extra_nodes = usb_chain.node_span();
+    }
 
     auto r = bringup.start(
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app,
-        usb_chain.node_span());
+        extra_nodes
+        );
     if (!r) {
         early_uart_print("boot: bringup failed\n");
         early_uart_print_err("boot: bringup", r.error());
         Error_Handler();
     }
     early_uart_print("boot: bringup ok\n");
+    charm::system::time::bind(bringup.clock());
+    if (kDebugStopAfterBringup) {
+        while (true) {}
+    }
 
     auto* ch = bringup.registry().open_channel("io.uart1");
     if (!ch) {
@@ -961,10 +973,15 @@ int main() {
         Error_Handler();
     }
     early_uart_print("boot: console channel ok\n");
+    early_uart_print("boot: channels ok\n");
+    if (kDebugStopAfterChannel) {
+        while (true) {}
+    }
     static out::channel_sink console_sink = out::make_channel_sink(g_dma_console);
     fs_set_console_sink(console_sink);
     audio_set_console_sink(console_sink);
     display_set_console_sink(console_sink);
+    display_st7305_set_dma(!kEnableAudio);
     ink_set_console_sink(console_sink);
     early_uart_print("boot: sinks ok\n");
 
@@ -1007,29 +1024,44 @@ int main() {
             Error_Handler();
         }
         early_uart_print("boot: fs init ok\n");
-        if (kUseOutLoggerEarly) {
-            (void)out::try_println<"bringup: wait key">(console_sink);
+        if (kDebugDumpRoot) {
+            dump_dir_early("/");
+            dump_dir_early("/SDNAND~1");
         }
-        wait_key_press();
-        if (kUseOutLoggerEarly) {
-            (void)out::try_println<"bringup: decode selftest begin">(console_sink);
+        if (kDebugStopAfterFs) {
+            while (true) {}
         }
-        (void)audio_mp3_decode_selftest();
+        if (kEnableAudio) {
+            if (kUseOutLoggerEarly) {
+                (void)out::try_println<"bringup: wait key">(console_sink);
+            }
+            wait_key_press();
+            if (kUseOutLoggerEarly) {
+                (void)out::try_println<"bringup: decode selftest begin">(console_sink);
+            }
+            (void)audio_mp3_decode_selftest();
+        } else {
+            early_uart_print("boot: audio disabled\n");
+        }
     } else if (mode == BringupMode::i2s) {
         if (kUseOutLoggerEarly) {
             (void)out::try_println<"bringup: wait key">(console_sink);
         }
         wait_key_press();
-        if (kUseOutLoggerEarly) {
-            (void)out::try_println<"bringup: i2s selftest begin">(console_sink);
+        if (kEnableAudio) {
+            if (kUseOutLoggerEarly) {
+                (void)out::try_println<"bringup: i2s selftest begin">(console_sink);
+            }
+            audio_i2s_selftest(kI2sSelfMs);
+        } else {
+            early_uart_print("boot: audio disabled\n");
         }
-        audio_i2s_selftest(kI2sSelfMs);
     } else {
         if (kSdramSelftestOnBoot && kSdramSelftestInBringup) {
             if (kUseOutLoggerEarly) {
                 (void)out::try_println<"bringup: sdram selftest begin">(console_sink);
             }
-            (void)sdram_selftest(console_sink);
+            (void)player::stm32h7::board::sdram_selftest(console_sink);
         } else if (kSdramSelftestOnBoot && !kSdramSelftestInBringup) {
             early_uart_print("boot: sdram selftest skip\n");
         }
@@ -1039,23 +1071,23 @@ int main() {
             Error_Handler();
         }
         early_uart_print("boot: fs init ok\n");
-        early_uart_print("boot: display init begin\n");
-        if (display_st7305_init()) {
-            early_uart_print("boot: display init ok\n");
-            display_st7305_selftest();
-            if (ink_demo_render_once()) {
-                (void)out::try_println<"display: ink demo done">(console_sink);
-            } else {
-                (void)out::try_println<"display: ink demo failed">(console_sink);
-            }
-            ink_demo_run();
-        } else {
-            early_uart_print("boot: display init failed\n");
-            (void)out::try_println<"display: init failed">(console_sink);
+        if (kDebugDumpRoot) {
+            dump_dir_early("/");
+            dump_dir_early("/SDNAND~1");
         }
-        (void)out::try_println<"boot: wait key">(console_sink);
-        wait_key_press();
-        audio_mp3_demo_run();
+        if (kDebugStopAfterFs) {
+            while (true) {}
+        }
+        if (kEnableDisplay) {
+            run_display_demo(console_sink);
+        } else {
+            early_uart_print("boot: display disabled\n");
+        }
+        if (kEnableAudio) {
+            run_audio_demo(console_sink);
+        } else {
+            early_uart_print("boot: audio disabled\n");
+        }
     }
 
     charm::system::RunLoop<4> loop{};
@@ -1077,7 +1109,7 @@ int main() {
 
     while (true) {
         loop.run_once();
-        if (g_msc_bot && g_msc_cfg) {
+        if (kEnableUsbMsc && g_msc_bot && g_msc_cfg) {
             (void)usb::device::examples::send_msc_in_packet(
                 g_usb_dcd_ops, &hpcd_USB_OTG_FS, *g_msc_bot, *g_msc_cfg);
         }

@@ -12,6 +12,8 @@ module;
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_dma.h"
 #include "stm32h7xx_hal_i2s.h"
+#include "usbd_audio.h"
+#include "usbd_audio_if.h"
 
 export module player.stm32h7.audio_mp3_demo;
 
@@ -39,6 +41,7 @@ export void audio_mp3_stop() noexcept;
 export bool audio_mp3_is_active() noexcept;
 export void audio_mp3_set_log_suppressed(bool enabled) noexcept;
 export void audio_mp3_set_sdram_ready(bool ready) noexcept;
+export void audio_usb_stream_run() noexcept;
 
 namespace {
 #if defined(__GNUC__)
@@ -964,15 +967,18 @@ namespace {
   static volatile std::uint32_t g_i2s_full_count = 0;
   static volatile std::uint32_t g_dma_irq_count = 0;
   static volatile std::uint32_t g_dma_irq_last_ms = 0;
-  static util::u32 g_poll_start_ms = 0;
-  static bool g_use_dma_poll = false;
-  static util::u32 g_poll_last_fill_ms = 0;
-  static int g_poll_last_phase = -1;
-  static util::u32 g_ndtr_last_ms = 0;
-  static int g_ndtr_last = -1;
-  static util::u32 g_dma_restart_ms = 0;
+    static util::u32 g_poll_start_ms = 0;
+    static bool g_use_dma_poll = false;
+    static util::u32 g_poll_last_fill_ms = 0;
+    static int g_poll_last_phase = -1;
+    static util::u32 g_ndtr_last_ms = 0;
+    static int g_ndtr_last = -1;
+    static util::u32 g_dma_restart_ms = 0;
     alignas(32) static std::array<std::int16_t, kI2sBufFrames * 2 * 2> g_pcm_buffer{};
     static std::array<std::uint16_t, kI2sBufFrames * 2 * kI2sWordsPerFrame> g_i2s_buffer CHARM_DMA_BUFFER{};
+    static bool g_usb_started = false;
+    static std::array<std::uint16_t, kI2sBufFrames * kI2sWordsPerFrame> g_usb_last_frame{};
+    static std::array<std::uint8_t, 2048> g_usb_discard{};
 
       extern "C" void charm_audio_i2s_half_notify() {
           g_half_ready = true;
@@ -1049,6 +1055,60 @@ namespace {
           static_cast<int>(HAL_I2S_GetError(&hi2s1)));
   }
 
+  namespace {
+      constexpr std::size_t kUsbHalfWords = kI2sBufFrames * kI2sWordsPerFrame;
+      constexpr std::size_t kUsbHalfBytes = kUsbHalfWords * sizeof(std::uint16_t);
+      constexpr std::size_t kUsbRingLow = kUsbHalfBytes;
+      constexpr std::size_t kUsbRingHigh = kUsbHalfBytes * 4;
+      constexpr util::u32 kUsbPollDelayMs = 5;
+
+      void usb_drop_bytes(std::size_t bytes) noexcept {
+          while (bytes > 0) {
+              const std::size_t chunk = (bytes > g_usb_discard.size())
+                  ? g_usb_discard.size()
+                  : bytes;
+              (void)usb_audio_ring_read(g_usb_discard.data(),
+                  static_cast<std::uint32_t>(chunk));
+              bytes -= chunk;
+          }
+      }
+
+      void usb_fill_half(std::span<std::uint16_t> dst) noexcept {
+          if (dst.empty()) return;
+          std::size_t want = dst.size() * sizeof(std::uint16_t);
+          std::uint32_t available = usb_audio_ring_available();
+          if (available > kUsbRingHigh) {
+              const std::size_t drop = static_cast<std::size_t>(available - kUsbRingHigh);
+              usb_drop_bytes(drop);
+              available = usb_audio_ring_available();
+          }
+          if (available < kUsbRingLow) {
+              (void)std::memcpy(dst.data(),
+                  g_usb_last_frame.data(),
+                  kUsbHalfBytes);
+              clean_dcache(dst.data(), kUsbHalfBytes);
+              return;
+          }
+          const std::uint32_t got = usb_audio_ring_read(
+              reinterpret_cast<std::uint8_t*>(dst.data()),
+              static_cast<std::uint32_t>(want));
+          if (got < want) {
+              const std::size_t pad = want - got;
+              (void)std::memset(reinterpret_cast<std::uint8_t*>(dst.data()) + got, 0, pad);
+          }
+          (void)std::memcpy(g_usb_last_frame.data(), dst.data(), kUsbHalfBytes);
+          clean_dcache(dst.data(), kUsbHalfBytes);
+      }
+
+      void usb_reset_state() noexcept {
+          g_usb_started = false;
+          g_half_ready = false;
+          g_full_ready = false;
+          usb_audio_rx_reset();
+          (void)std::memset(g_usb_last_frame.data(), 0, kUsbHalfBytes);
+      }
+  } // namespace
+
   export void audio_mp3_demo_run() noexcept {
     HAL_I2S_DMAStop(&hi2s1);
     allow_unaligned_access();
@@ -1082,6 +1142,55 @@ namespace {
         }
     }
     (void)audio_mp3_play_path(open_path);
+  }
+
+  export void audio_usb_stream_run() noexcept {
+      HAL_I2S_DMAStop(&hi2s1);
+      allow_unaligned_access();
+      usb_reset_state();
+      const std::size_t period_words = kI2sBufFrames * kI2sWordsPerFrame;
+      auto out_first = std::span<std::uint16_t>(g_i2s_buffer.data(), period_words);
+      auto out_second = std::span<std::uint16_t>(g_i2s_buffer.data() + period_words, period_words);
+      log<"usb audio: wait host">();
+      while (true) {
+          const bool streaming = (usb_audio_last_alt_setting() == 1);
+          if (!streaming) {
+              if (g_usb_started) {
+                  HAL_I2S_DMAStop(&hi2s1);
+                  usb_reset_state();
+              }
+              HAL_Delay(kUsbPollDelayMs);
+              continue;
+          }
+          if (!g_usb_started) {
+              if (usb_audio_ring_available() < kUsbRingLow) {
+                  HAL_Delay(kUsbPollDelayMs);
+                  continue;
+              }
+              usb_fill_half(out_first);
+              usb_fill_half(out_second);
+              clean_dcache(g_i2s_buffer.data(),
+                  g_i2s_buffer.size() * sizeof(g_i2s_buffer[0]));
+              if (HAL_I2S_Transmit_DMA(&hi2s1,
+                      g_i2s_buffer.data(),
+                      static_cast<uint16_t>(g_i2s_buffer.size())) == HAL_OK) {
+                  g_usb_started = true;
+                  g_half_ready = false;
+                  g_full_ready = false;
+              }
+              HAL_Delay(kUsbPollDelayMs);
+              continue;
+          }
+          if (g_half_ready) {
+              g_half_ready = false;
+              usb_fill_half(out_first);
+          }
+          if (g_full_ready) {
+              g_full_ready = false;
+              usb_fill_half(out_second);
+          }
+          HAL_Delay(kUsbPollDelayMs);
+      }
   }
 
   namespace {

@@ -200,6 +200,8 @@ namespace {
     constexpr bool kEnableUsbMsc = player::stm32h7::app::config::kEnableUsbMsc;
     constexpr bool kUseStUsbStack = player::stm32h7::app::config::kUseStUsbStack;
     constexpr bool kEnableAudio = player::stm32h7::app::config::kEnableAudio;
+    constexpr bool kEnableUsbAudio = player::stm32h7::app::config::kEnableUsbAudio;
+    constexpr bool kUseUsbAudioOnBoot = player::stm32h7::app::config::kUseUsbAudioOnBoot;
     constexpr bool kEnableDisplay = player::stm32h7::app::config::kEnableDisplay;
     constexpr bool kDebugStopAfterBringup = player::stm32h7::app::config::kDebugStopAfterBringup;
     constexpr bool kDebugStopAfterChannel = player::stm32h7::app::config::kDebugStopAfterChannel;
@@ -488,6 +490,12 @@ namespace {
     }
 
     void run_audio_demo(out::channel_sink& console_sink) noexcept {
+        if (kEnableUsbAudio && kUseUsbAudioOnBoot) {
+            (void)out::try_println<"boot: usb audio wait key">(console_sink);
+            wait_key_press();
+            audio_usb_stream_run();
+            return;
+        }
         (void)out::try_println<"boot: wait key">(console_sink);
         wait_key_press();
         audio_mp3_demo_run();

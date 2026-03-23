@@ -3099,60 +3099,9 @@ export namespace ui::draw_cmd {
             if (use_hit_cache) {
                 Rect screen_rect{0, 0, screen_w, screen_h};
                 Rect clipped{};
-                const std::size_t cmd_bytes = buf.cmd_bytes();
-                std::size_t offset = 0;
-                DrawCmd cmd{};
-                while (offset < cmd_bytes) {
-                    std::size_t stride = 0;
-                    if (!buf.read_cmd_at_offset(offset, cmd, stride)) {
-                        break;
-                    }
-                    if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
-                        offset += stride;
-                        continue;
-                    }
-                    Rect bounds = cmd.rect;
-                    if (cmd.type == CmdType::DrawLine) {
-                        bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
-                    } else if (cmd.type == CmdType::DrawLineBatch) {
-                        const int count = cmd.p0;
-                        if (count <= 0) {
-                            offset += stride;
-                            continue;
-                        }
-                        const auto blob = buf.blob_at(cmd.blob);
-                        if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
-                            offset += stride;
-                            continue;
-                        }
-                        const auto items = std::span<const LineBatchItem>(
-                            reinterpret_cast<const LineBatchItem*>(blob.data()), count);
-                        bool first = true;
-                        Rect union_bounds{};
-                        for (const auto& item : items) {
-                            const Rect line_rect = line_bounds(item.x0, item.y0, item.x1, item.y1);
-                            if (first) {
-                                union_bounds = line_rect;
-                                first = false;
-                            } else {
-                                union_bounds = rect_union(union_bounds, line_rect);
-                            }
-                        }
-                        if (first) {
-                            offset += stride;
-                            continue;
-                        }
-                        bounds = union_bounds;
-                    }
-                    if (!rect_valid(bounds)) {
-                        offset += stride;
-                        continue;
-                    }
-                    if (!rect_intersect(bounds, screen_rect, clipped)) {
-                        offset += stride;
-                        continue;
-                    }
-
+                auto mark_bounds = [&](const Rect& bounds) noexcept {
+                    if (!rect_valid(bounds)) return;
+                    if (!rect_intersect(bounds, screen_rect, clipped)) return;
                     int tx0 = clipped.x / tile_w;
                     int ty0 = clipped.y / tile_h;
                     int tx1 = (clipped.x + clipped.w - 1) / tile_w;
@@ -3167,6 +3116,77 @@ export namespace ui::draw_cmd {
                             tile_hits[row + static_cast<std::size_t>(tx)] = 1;
                         }
                     }
+                };
+                const std::size_t cmd_bytes = buf.cmd_bytes();
+                std::size_t offset = 0;
+                DrawCmd cmd{};
+                while (offset < cmd_bytes) {
+                    std::size_t stride = 0;
+                    if (!buf.read_cmd_at_offset(offset, cmd, stride)) {
+                        break;
+                    }
+                    if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
+                        offset += stride;
+                        continue;
+                    }
+                    if (cmd.type == CmdType::DrawLineBatch) {
+                        const int count = cmd.p0;
+                        if (count > 0) {
+                            const auto blob = buf.blob_at(cmd.blob);
+                            if (blob.size() >= static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
+                                const auto items = std::span<const LineBatchItem>(
+                                    reinterpret_cast<const LineBatchItem*>(blob.data()), count);
+                                for (const auto& item : items) {
+                                    mark_bounds(line_bounds(item.x0, item.y0, item.x1, item.y1));
+                                }
+                            }
+                        }
+                        offset += stride;
+                        continue;
+                    }
+                    if (cmd.type == CmdType::DrawPathBatch) {
+                        const int count = cmd.p0;
+                        if (count > 0) {
+                            const auto blob = buf.blob_at(cmd.blob);
+                            if (blob.size() >= static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
+                                const auto items = std::span<const PathBatchItem>(
+                                    reinterpret_cast<const PathBatchItem*>(blob.data()), count);
+                                for (const auto& item : items) {
+                                    const auto path_blob = buf.blob_at(item.blob);
+                                    if (path_blob.empty()) continue;
+                                    const auto points = std::span<const Point>(
+                                        reinterpret_cast<const Point*>(path_blob.data()),
+                                        static_cast<std::size_t>(item.count));
+                                    Rect bounds{};
+                                    if (ui::gfx::path::compute_bounds(points.data(), item.count, bounds)) {
+                                        mark_bounds(bounds);
+                                    }
+                                }
+                            }
+                        }
+                        offset += stride;
+                        continue;
+                    }
+                    if (cmd.type == CmdType::FocusRingBatch) {
+                        const int count = cmd.p3;
+                        if (count > 0) {
+                            const auto blob = buf.blob_at(cmd.blob);
+                            if (blob.size() >= static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
+                                const auto items = std::span<const RectBatchItem>(
+                                    reinterpret_cast<const RectBatchItem*>(blob.data()), count);
+                                for (const auto& item : items) {
+                                    mark_bounds(item.rect);
+                                }
+                            }
+                        }
+                        offset += stride;
+                        continue;
+                    }
+                    Rect bounds = cmd.rect;
+                    if (cmd.type == CmdType::DrawLine) {
+                        bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
+                    }
+                    mark_bounds(bounds);
                     offset += stride;
                 }
             }

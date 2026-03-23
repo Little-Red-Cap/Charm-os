@@ -68,9 +68,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-#    app/main.cpp
-    app/main-player.cpp
+#    app/main-bisect.cpp
+    app/main.cpp
+#    app/main-player.cpp
 #    app/main-usb-as.cpp
+#    app/main-usb-audio.cpp
+#    app/main-usb-storage.cpp
     app/uart_bridge.c
     app/port_impl.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
@@ -84,11 +87,53 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     USB_DEVICE/App/usbd_storage_if.c
 )
 
-set(MODULE_INTERFACE_UNITS
+set(MODULE_GROUP_BASE
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_active.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_hqzy.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_caps.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_config.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_sdmmc.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_sdram.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
+)
+
+set(MODULE_GROUP_FS
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_sd.cppm"
+)
+
+set(MODULE_GROUP_USB
     "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/system_entry.cppm"
+)
+
+set(MODULE_GROUP_AUDIO
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/audio_mp3_demo.cppm"
+)
+
+set(MODULE_GROUP_DISPLAY
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/display_st7305.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/ink_demo.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.panels.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.transform.cppm"
+)
+
+set(MODULE_GROUP_PLAYER_UI
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_app_state.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_controller.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_fs_utils.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_ui_ink.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
+)
+
+set(MODULE_INTERFACE_UNITS
+    ${MODULE_GROUP_BASE}
+    ${MODULE_GROUP_FS}
+    ${MODULE_GROUP_USB}
+    ${MODULE_GROUP_AUDIO}
+    ${MODULE_GROUP_DISPLAY}
+    ${MODULE_GROUP_PLAYER_UI}
 )
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
@@ -108,6 +153,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined libraries
 )
+
 
 add_compile_definitions(STM32H747xx)
 add_compile_definitions(CORE_CM7)

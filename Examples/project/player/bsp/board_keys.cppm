@@ -18,10 +18,13 @@ export namespace player::stm32h7::board {
     constexpr KeyPin kBootKey0{GPIOA, GPIO_PIN_8};
     constexpr KeyPin kBootKey1{GPIOA, GPIO_PIN_2};
     constexpr KeyPin kEncoderKey{GPIOI, GPIO_PIN_8};
+} // namespace player::stm32h7::board
 
-    namespace {
-        bool g_boot_keys_inited = false;
-    }
+namespace {
+    bool g_boot_keys_inited = false;
+}
+
+export namespace player::stm32h7::board {
 
     GPIO_PinState key_active_state() noexcept {
         return kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;

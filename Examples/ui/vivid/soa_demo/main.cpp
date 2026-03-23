@@ -11,10 +11,7 @@
 #include <vector>
 #include <cmath>
 
-import charm.core.soa_kernel;
-import charm.core.soa_factory;
-import charm.core.soa_gui;
-import charm.core.soa_payload;
+import charm.ui.vivid_internal;
 import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
@@ -23,7 +20,6 @@ import charm.gfx.snapshot;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
 import charm.gfx.canvas;
-import charm.gfx.draw_cmd;
 import charm.gfx.display_policy;
 import charm.gfx.image;
 import charm.gfx.snapshot;

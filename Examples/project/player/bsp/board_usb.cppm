@@ -24,6 +24,8 @@ export namespace player::stm32h7::board {
     usb::driver::DcdDeviceAdapter& usb_adapter() noexcept;
     usb::driver::DcdOps& usb_dcd_ops() noexcept;
 
+    void usb_hw_init() noexcept;
+    void usb_enable_hooks(bool enable) noexcept;
     void usb_set_ready(void* ctx,
                        usb::class_driver::MscBot* bot,
                        const usb::class_driver::MscConfig* cfg) noexcept;
@@ -41,6 +43,7 @@ namespace {
     std::array<void*, 16> g_usb_in_ctx{};
     std::array<std::array<usb::u8, 64>, 16> g_usb_out_bufs{};
     std::array<usb::u16, 16> g_usb_out_mps{};
+    bool g_usb_hooks_enabled = false;
 
     inline PCD_HandleTypeDef* usb_pcd(void* ctx) noexcept {
         return static_cast<PCD_HandleTypeDef*>(ctx);
@@ -137,8 +140,13 @@ namespace {
     bool usb_connect(void* ctx, bool enable) noexcept {
         auto* pcd = usb_pcd(ctx);
         if (!pcd) return false;
-        return enable ? (HAL_PCD_Start(pcd) == HAL_OK)
-                      : (HAL_PCD_Stop(pcd) == HAL_OK);
+        if (enable) {
+            if (HAL_PCD_Start(pcd) != HAL_OK) return false;
+            (void)HAL_PCD_DevConnect(pcd);
+            return true;
+        }
+        (void)HAL_PCD_DevDisconnect(pcd);
+        return HAL_PCD_Stop(pcd) == HAL_OK;
     }
 }
 
@@ -174,10 +182,39 @@ export namespace player::stm32h7::board {
         ::usb_set_ready(ctx, bot, cfg);
     }
 
+    void usb_hw_init() noexcept {
+        static bool inited = false;
+        if (inited) return;
+        inited = true;
+        hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
+        hpcd_USB_OTG_FS.Init.dev_endpoints = 8;
+        hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
+        hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
+        hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
+        hpcd_USB_OTG_FS.Init.Sof_enable = ENABLE;
+        hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
+        hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
+        hpcd_USB_OTG_FS.Init.battery_charging_enable = DISABLE;
+        hpcd_USB_OTG_FS.Init.vbus_sensing_enable = DISABLE;
+        hpcd_USB_OTG_FS.Init.use_dedicated_ep1 = DISABLE;
+        hpcd_USB_OTG_FS.pData = nullptr;
+        if (HAL_PCD_Init(&hpcd_USB_OTG_FS) != HAL_OK) {
+            return;
+        }
+        HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80);
+        HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40);
+        HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x20);
+        HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 2, 0x40);
+    }
+
     void usb_poll_msc(PCD_HandleTypeDef* pcd) noexcept {
-        if (!g_msc_bot || !g_msc_cfg || !pcd) return;
+        if (!g_usb_hooks_enabled || !g_msc_bot || !g_msc_cfg || !pcd) return;
         (void)usb::device::examples::send_msc_in_packet(
             g_usb_dcd_ops, pcd, *g_msc_bot, *g_msc_cfg);
+    }
+
+    void usb_enable_hooks(bool enable) noexcept {
+        g_usb_hooks_enabled = enable;
     }
 }
 
@@ -187,17 +224,21 @@ extern "C" CHARM_WEAK void OTG_FS_IRQHandler(void) {
 
 extern "C" CHARM_WEAK void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
     if (!hpcd) return;
-    usb::SetupPacket setup{};
-    setup.bm_request_type = hpcd->Setup[0];
-    setup.b_request = hpcd->Setup[1];
-    setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
-    setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
-    setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
-    g_usb_adapter.handle_setup(setup);
+    if (g_usb_hooks_enabled) {
+        usb::SetupPacket setup{};
+        setup.bm_request_type = hpcd->Setup[0];
+        setup.b_request = hpcd->Setup[1];
+        setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
+        setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
+        setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
+        g_usb_adapter.handle_setup(setup);
+        return;
+    }
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return;
+    if (!g_usb_hooks_enabled) return;
     const auto len = hpcd->OUT_ep[epnum].xfer_count;
     auto& cb = g_usb_out_cbs[epnum];
     if (cb.on_out && len > 0) {
@@ -212,6 +253,7 @@ extern "C" CHARM_WEAK void HAL_PCD_DataOutStageCallback(PCD_HandleTypeDef* hpcd,
 
 extern "C" CHARM_WEAK void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return;
+    if (!g_usb_hooks_enabled) return;
     auto& cb = g_usb_in_cbs[epnum];
     if (cb.on_in_complete) {
         const auto sent = hpcd->IN_ep[epnum].xfer_count;
@@ -220,21 +262,93 @@ extern "C" CHARM_WEAK void HAL_PCD_DataInStageCallback(PCD_HandleTypeDef* hpcd, 
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_ResetCallback(PCD_HandleTypeDef*) {
+    if (!g_usb_hooks_enabled) return;
     g_usb_adapter.handle_reset();
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_SuspendCallback(PCD_HandleTypeDef*) {
+    if (!g_usb_hooks_enabled) return;
     g_usb_adapter.handle_suspend();
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_ResumeCallback(PCD_HandleTypeDef*) {
+    if (!g_usb_hooks_enabled) return;
     g_usb_adapter.handle_resume();
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_ConnectCallback(PCD_HandleTypeDef*) {
+    if (!g_usb_hooks_enabled) return;
     g_usb_adapter.handle_connect(true);
 }
 
 extern "C" CHARM_WEAK void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef*) {
+    if (!g_usb_hooks_enabled) return;
     g_usb_adapter.handle_connect(false);
+}
+
+extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    usb::SetupPacket setup{};
+    setup.bm_request_type = hpcd->Setup[0];
+    setup.b_request = hpcd->Setup[1];
+    setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
+    setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
+    setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
+    g_usb_adapter.handle_setup(setup);
+    return 1;
+}
+
+extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    const auto len = hpcd->OUT_ep[epnum].xfer_count;
+    auto& cb = g_usb_out_cbs[epnum];
+    if (cb.on_out && len > 0) {
+        cb.on_out(g_usb_out_ctx[epnum],
+            std::span<const usb::u8>(g_usb_out_bufs[epnum].data(), len));
+    }
+    const auto addr = static_cast<uint8_t>(epnum & 0x0F);
+    (void)HAL_PCD_EP_Receive(hpcd, addr,
+        g_usb_out_bufs[epnum].data(),
+        g_usb_out_mps[epnum]);
+    return 1;
+}
+
+extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    auto& cb = g_usb_in_cbs[epnum];
+    if (cb.on_in_complete) {
+        const auto sent = hpcd->IN_ep[epnum].xfer_count;
+        cb.on_in_complete(g_usb_in_ctx[epnum], sent, false);
+    }
+    return 1;
+}
+
+extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    g_usb_adapter.handle_reset();
+    return 1;
+}
+
+extern "C" int charm_usb_suspend_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    g_usb_adapter.handle_suspend();
+    return 1;
+}
+
+extern "C" int charm_usb_resume_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    g_usb_adapter.handle_resume();
+    return 1;
+}
+
+extern "C" int charm_usb_connect_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    g_usb_adapter.handle_connect(true);
+    return 1;
+}
+
+extern "C" int charm_usb_disconnect_hook(PCD_HandleTypeDef* hpcd) {
+    if (!g_usb_hooks_enabled || !hpcd) return 0;
+    g_usb_adapter.handle_connect(false);
+    return 1;
 }

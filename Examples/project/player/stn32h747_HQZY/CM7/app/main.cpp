@@ -102,6 +102,7 @@ import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import player.stm32h7.ink_demo;
 import player.stm32h7.app_config;
+import player.stm32h7.usb_system;
 import platform.board.stn32h747xi;
 import usb.class_msc_block;
 import usb.class_msc_block.node;
@@ -197,6 +198,7 @@ namespace {
     constexpr bool kSdramSelftestInBringup = player::stm32h7::app::config::kSdramSelftestInBringup;
     constexpr bool kEnableSdmmcInit = player::stm32h7::app::config::kEnableSdmmcInit;
     constexpr bool kEnableUsbMsc = player::stm32h7::app::config::kEnableUsbMsc;
+    constexpr bool kUseStUsbStack = player::stm32h7::app::config::kUseStUsbStack;
     constexpr bool kEnableAudio = player::stm32h7::app::config::kEnableAudio;
     constexpr bool kEnableDisplay = player::stm32h7::app::config::kEnableDisplay;
     constexpr bool kDebugStopAfterBringup = player::stm32h7::app::config::kDebugStopAfterBringup;
@@ -573,9 +575,6 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
-extern "C" CHARM_WEAK void MX_USB_OTG_FS_PCD_Init(void) {
-}
-
 int main() {
     HAL_Init();
     // MPU_Config();
@@ -623,7 +622,9 @@ int main() {
     }
     MX_I2S1_Init();
     MX_SPI5_Init();
-    MX_USB_OTG_FS_PCD_Init();
+    if (!kUseStUsbStack) {
+        player::stm32h7::board::usb_hw_init();
+    }
 
     auto caps = platform::board::stn32h747xi::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;
@@ -671,7 +672,7 @@ int main() {
         init::Phase::app,
         static_cast<util::u32>(init::Runlevel::all)
     };
-    if (kEnableUsbMsc) {
+    if (kEnableUsbMsc && !kUseStUsbStack) {
         auto& dcd_ops = player::stm32h7::board::usb_dcd_ops();
         usb_chain.binding.desc.cap_name = "usb.msc0";
         usb_chain.binding.desc.block_cap = "block.sd0";
@@ -705,6 +706,22 @@ int main() {
         Error_Handler();
     }
     early_uart_print("boot: bringup ok\n");
+    if (kEnableUsbMsc) {
+        player::stm32h7::board::usb_enable_hooks(!kUseStUsbStack);
+        if (kUseStUsbStack) {
+            MX_USB_DEVICE_Init();
+            early_uart_print("boot: usb device init ok\n");
+            if (HAL_PCD_Start(&hpcd_USB_OTG_FS) == HAL_OK) {
+                early_uart_print("boot: usb pcd start ok\n");
+            } else {
+                early_uart_print("boot: usb pcd start failed\n");
+            }
+        } else {
+            auto& dcd_ops = player::stm32h7::board::usb_dcd_ops();
+            (void)dcd_ops.connect(&hpcd_USB_OTG_FS, true);
+            early_uart_print("boot: usb pcd start ok\n");
+        }
+    }
     charm::system::time::bind(bringup.clock());
     if (kDebugStopAfterBringup) {
         while (true) {}
@@ -893,7 +910,7 @@ int main() {
 
     while (true) {
         loop.run_once();
-        if (kEnableUsbMsc) {
+        if (kEnableUsbMsc && !kUseStUsbStack) {
             player::stm32h7::board::usb_poll_msc(&hpcd_USB_OTG_FS);
         }
     }

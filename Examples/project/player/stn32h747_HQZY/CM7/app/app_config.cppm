@@ -16,6 +16,7 @@ export namespace player::stm32h7::app::config {
     constexpr bool kSdramSelftestInBringup = false;
     constexpr bool kEnableSdmmcInit = false;
     constexpr bool kEnableUsbMsc = true;
+    constexpr bool kUseStUsbStack = true;
     constexpr bool kEnableAudio = true;
     constexpr bool kEnableDisplay = false;
 

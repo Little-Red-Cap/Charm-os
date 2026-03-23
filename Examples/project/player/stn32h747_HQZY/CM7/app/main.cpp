@@ -709,7 +709,11 @@ int main() {
     if (kEnableUsbMsc) {
         player::stm32h7::board::usb_enable_hooks(!kUseStUsbStack);
         if (kUseStUsbStack) {
-            MX_USB_DEVICE_Init();
+            auto* usb_dev = fs_sd_block_device();
+            if (!usb_dev) {
+                early_uart_print("boot: usb block device not ready\n");
+            }
+            usb_system_init(usb_dev, false);
             early_uart_print("boot: usb device init ok\n");
             if (HAL_PCD_Start(&hpcd_USB_OTG_FS) == HAL_OK) {
                 early_uart_print("boot: usb pcd start ok\n");

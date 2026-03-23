@@ -4002,6 +4002,9 @@ int main(int argc, char** argv) {
         }
         if (last_stats_valid) {
             PerfOverlay::OverlayStats overlay{};
+            overlay.batch_shrink = static_cast<std::uint32_t>(cmd_stats.batch_shrink);
+            overlay.batch_shrink_rect = static_cast<std::uint32_t>(cmd_stats.batch_shrink_rect);
+            overlay.batch_shrink_round = static_cast<std::uint32_t>(cmd_stats.batch_shrink_round);
             if (last_stats_tiles) {
                 overlay.dispatch_groups = static_cast<std::uint32_t>(last_tile_stats.dispatch_groups);
                 overlay.batch_flushes = static_cast<std::uint32_t>(last_tile_stats.batch_flushes);

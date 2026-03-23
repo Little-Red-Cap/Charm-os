@@ -55,6 +55,9 @@ namespace perf_overlay_detail {
         std::uint32_t dispatch_groups{0};
         std::uint32_t batch_flushes{0};
         std::uint32_t failed_cmds{0};
+        std::uint32_t batch_shrink{0};
+        std::uint32_t batch_shrink_rect{0};
+        std::uint32_t batch_shrink_round{0};
         std::uint32_t group_rect{0};
         std::uint32_t group_text{0};
         std::uint32_t group_image{0};
@@ -90,6 +93,9 @@ public:
         std::uint32_t dispatch_groups{0};
         std::uint32_t batch_flushes{0};
         std::uint32_t failed_cmds{0};
+        std::uint32_t batch_shrink{0};
+        std::uint32_t batch_shrink_rect{0};
+        std::uint32_t batch_shrink_round{0};
         std::uint32_t group_rect{0};
         std::uint32_t group_text{0};
         std::uint32_t group_image{0};
@@ -178,8 +184,13 @@ public:
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
-        (void)format_to<"nodes: {}  depth: {}  cycle: {}">(buf, sizeof(buf),
-                                                         sample_.nodes, sample_.depth_hits, sample_.cycle_hits);
+        (void)format_to<"nodes: {}  depth: {}  cycle: {}  shrink: {}/{}/{}">(buf, sizeof(buf),
+                                                                            sample_.nodes,
+                                                                            sample_.depth_hits,
+                                                                            sample_.cycle_hits,
+                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink,
+                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink_rect,
+                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink_round);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
@@ -235,6 +246,9 @@ export inline void set_perf_overlay_stats(const PerfOverlay::OverlayStats& stats
     perf_overlay_detail::g_overlay_stats.dispatch_groups = stats.dispatch_groups;
     perf_overlay_detail::g_overlay_stats.batch_flushes = stats.batch_flushes;
     perf_overlay_detail::g_overlay_stats.failed_cmds = stats.failed_cmds;
+    perf_overlay_detail::g_overlay_stats.batch_shrink = stats.batch_shrink;
+    perf_overlay_detail::g_overlay_stats.batch_shrink_rect = stats.batch_shrink_rect;
+    perf_overlay_detail::g_overlay_stats.batch_shrink_round = stats.batch_shrink_round;
     perf_overlay_detail::g_overlay_stats.group_rect = stats.group_rect;
     perf_overlay_detail::g_overlay_stats.group_text = stats.group_text;
     perf_overlay_detail::g_overlay_stats.group_image = stats.group_image;
@@ -263,6 +277,9 @@ export inline PerfOverlay::OverlayStats perf_overlay_stats() noexcept {
     out.dispatch_groups = perf_overlay_detail::g_overlay_stats.dispatch_groups;
     out.batch_flushes = perf_overlay_detail::g_overlay_stats.batch_flushes;
     out.failed_cmds = perf_overlay_detail::g_overlay_stats.failed_cmds;
+    out.batch_shrink = perf_overlay_detail::g_overlay_stats.batch_shrink;
+    out.batch_shrink_rect = perf_overlay_detail::g_overlay_stats.batch_shrink_rect;
+    out.batch_shrink_round = perf_overlay_detail::g_overlay_stats.batch_shrink_round;
     out.group_rect = perf_overlay_detail::g_overlay_stats.group_rect;
     out.group_text = perf_overlay_detail::g_overlay_stats.group_text;
     out.group_image = perf_overlay_detail::g_overlay_stats.group_image;

@@ -38,7 +38,8 @@ namespace {
     };
 
     inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
     }
 
     inline void append_int(trunc_sink& sink, int value) noexcept {

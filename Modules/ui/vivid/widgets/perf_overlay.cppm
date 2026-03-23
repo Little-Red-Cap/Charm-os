@@ -21,7 +21,7 @@ import out.sink;
 using namespace ui::render;
 
 namespace {
-    struct trunc_sink {
+    struct perf_trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
         std::size_t pos{0};
@@ -42,7 +42,7 @@ namespace {
     template <out::fixed_string Fmt, class... Args>
     inline std::string_view format_to(char* buf, std::size_t size, Args&&... args) noexcept {
         if (!buf || size == 0) return {};
-        trunc_sink sink{buf, size - 1u, 0u};
+        perf_trunc_sink sink{buf, size - 1u, 0u};
         (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
         buf[sink.pos] = '\0';
         return {buf, sink.pos};

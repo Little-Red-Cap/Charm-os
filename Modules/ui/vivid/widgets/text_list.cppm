@@ -41,7 +41,8 @@ namespace {
     };
 
     inline void append_sv(trunc_sink& sink, std::string_view sv) noexcept {
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
     }
 
     inline std::string_view format_label(char* buf, std::size_t size,

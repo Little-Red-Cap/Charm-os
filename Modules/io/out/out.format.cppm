@@ -248,7 +248,8 @@ export namespace out {
       result<std::size_t> flush_bytes() noexcept {
         if (pos == 0) return ok<std::size_t>(0u);
         const std::size_t n = pos;
-        auto r = out::write(sink, std::string_view{buf.data(), pos});
+        const auto b = bytes{reinterpret_cast<const std::byte*>(buf.data()), pos};
+        auto r = sink.write(b);
         if (!r) return util::unexpected(r.error());
         pos = 0;
         return ok(n);

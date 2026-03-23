@@ -338,9 +338,9 @@ int main(int argc, char** argv) {
 
     g_app->bind_player(g_ctx);
     g_ctx.bind_scene(g_platform.scene_ref());
-    auto builder = g_platform.begin_scene();
-    g_app->bind_ui(builder, g_ctx);
-    g_platform.end_scene(builder);
+    g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
+        g_app->bind_ui(builder, g_ctx);
+    });
 
     player::init_storage(player::default_storage_config());
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);

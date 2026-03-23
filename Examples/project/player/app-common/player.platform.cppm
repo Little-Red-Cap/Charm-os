@@ -1,6 +1,7 @@
 module;
 #include <cstddef>
 #include <optional>
+#include <utility>
 
 export module player.platform;
 
@@ -14,8 +15,10 @@ export namespace player {
         DefaultCanvas canvas{framebuffer};
         ::ui::scene::Scene scene{canvas};
 
-        ::ui::scene::SceneBuilder begin_scene() { return scene.begin(); }
-        void end_scene(const ::ui::scene::SceneBuilder& builder) { scene.end(builder); }
+        template <typename Fn>
+        void build_scene(Fn&& fn) {
+            scene.build(std::forward<Fn>(fn));
+        }
 
         void begin_frame() { canvas.begin_frame(); }
         void render() { scene.render(); }

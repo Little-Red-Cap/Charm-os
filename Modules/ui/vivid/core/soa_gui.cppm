@@ -24,10 +24,9 @@ export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 export import charm.font.typography;
 import charm.widgets.perf_overlay;
-import charm.widgets.perf_overlay;
 import out.core;
 import out.format;
-import out.sink;
+import util.expected;
 
 namespace {
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
@@ -98,20 +97,20 @@ namespace {
         return out;
     }
 
-    struct trunc_sink {
+    struct soa_trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
         std::size_t pos{0};
 
         out::result<std::size_t> write(out::bytes b) noexcept {
-            if (!buf || cap == 0) return std::unexpected(out::errc::buffer_overflow);
+            if (!buf || cap == 0) return util::unexpected(out::errc::buffer_overflow);
             const std::size_t avail = (pos < cap) ? (cap - pos) : 0;
             const std::size_t n = (b.size() < avail) ? b.size() : avail;
             if (n > 0) {
                 std::memcpy(buf + pos, b.data(), n);
                 pos += n;
             }
-            if (n < b.size()) return std::unexpected(out::errc::buffer_overflow);
+            if (n < b.size()) return util::unexpected(out::errc::buffer_overflow);
             return out::ok(b.size());
         }
     };
@@ -119,7 +118,7 @@ namespace {
     template <out::fixed_string Fmt, class... Args>
     inline std::string_view format_to(char* buf, std::size_t size, Args&&... args) noexcept {
         if (!buf || size == 0) return {};
-        trunc_sink sink{buf, size - 1u, 0u};
+        soa_trunc_sink sink{buf, size - 1u, 0u};
         (void)out::vprint<Fmt>(sink, std::forward<Args>(args)...);
         buf[sink.pos] = '\0';
         return {buf, sink.pos};

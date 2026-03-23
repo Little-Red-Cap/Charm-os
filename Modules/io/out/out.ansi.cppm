@@ -57,7 +57,8 @@ export namespace out::ansi {
                 }) {
                     return base->write_ansi(sv);
                 } else {
-                    return out::write(*base, sv);
+                    const auto b = bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+                    return base->write(b);
                 }
             } else {
                 return out::ok<std::size_t>(0u);
@@ -70,7 +71,8 @@ export namespace out::ansi {
                 }) {
                     return base->write_ansi(sv);
                 } else {
-                    return out::write(*base, sv);
+                    const auto b = bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+                    return base->write(b);
                 }
             } else {
                 return out::ok<std::size_t>(0u);

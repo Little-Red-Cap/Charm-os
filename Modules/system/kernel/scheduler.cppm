@@ -50,7 +50,8 @@ namespace kernel::detail {
                                    std::string_view sv) noexcept {
         if (!out || max == 0 || offset >= max) return offset;
         trunc_sink sink{out + offset, max - offset - 1u, 0u};
-        (void)out::write(sink, sv);
+        const auto b = out::bytes{reinterpret_cast<const std::byte*>(sv.data()), sv.size()};
+        (void)sink.write(b);
         const std::size_t n = sink.pos;
         out[offset + n] = '\0';
         return offset + n;

@@ -19,6 +19,10 @@ export import charm.gfx.image;
 export import charm.gfx.render_style;
 import charm.gfx.draw_cmd;
 
+export using ::ScrollBarOrientation;
+export using ::TableViewHeaderStyle;
+export using ::TableViewColDividerStyle;
+
 export namespace ui::scene {
     using TextSlotId = std::uint16_t;
     constexpr TextSlotId kInvalidTextSlot = 0xFFFF;
@@ -26,6 +30,10 @@ export namespace ui::scene {
     using ImageId = ui::gfx::ImageId;
     constexpr ImageId invalid_image_id() noexcept { return ui::gfx::invalid_image_id(); }
     constexpr bool image_id_valid(ImageId id) noexcept { return ui::gfx::image_id_valid(id); }
+
+    using ScrollBarOrientation = ::ScrollBarOrientation;
+    using TableViewHeaderStyle = ::TableViewHeaderStyle;
+    using TableViewColDividerStyle = ::TableViewColDividerStyle;
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
@@ -255,6 +263,12 @@ export namespace ui::scene {
 
         SceneBuilder begin() noexcept { return SceneBuilder(kernel_, factory_); }
         void end(const SceneBuilder& builder) noexcept { set_root(builder.root()); }
+        template <typename Fn>
+        void build(Fn&& fn) noexcept {
+            SceneBuilder builder{kernel_, factory_};
+            fn(builder);
+            set_root(builder.root());
+        }
 
         void set_root(WidgetHandle root) noexcept {
             root_ = root;

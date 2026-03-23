@@ -339,7 +339,7 @@ export namespace fs {
                 std::array<char, lfn_utf8_cap> fname_utf8{};
                 const TCHAR* src = info.fname;
     #if defined(_USE_LFN) && _USE_LFN
-                if ((!src || src[0] == 0) && info.lfname && info.lfname[0] != 0) {
+                if (info.lfname && info.lfname[0] != 0) {
                     src = info.lfname;
                 }
     #endif
@@ -360,7 +360,7 @@ export namespace fs {
                 std::array<char, lfn_utf8_cap> fname_utf8{};
                 const TCHAR* src = info.fname;
     #if defined(_USE_LFN) && _USE_LFN
-                if ((!src || src[0] == 0) && info.lfname && info.lfname[0] != 0) {
+                if (info.lfname && info.lfname[0] != 0) {
                     src = info.lfname;
                 }
     #endif

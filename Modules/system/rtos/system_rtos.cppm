@@ -124,6 +124,7 @@ export namespace charm::system::rtos {
         [[nodiscard]] TaskId current_id() const noexcept { return current_; }
         [[nodiscard]] WaitResult take_wait_result(TaskId id) noexcept;
         [[nodiscard]] bool take_grant(TaskId id) noexcept;
+        [[nodiscard]] bool is_blocked(TaskId id) noexcept;
         void block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept;
         void wake(TaskId id, WaitResult result, bool grant) noexcept;
         struct Stats {
@@ -204,6 +205,11 @@ export namespace charm::system::rtos {
             return true;
         }
         return false;
+    }
+
+    inline bool Scheduler::is_blocked(TaskId id) noexcept {
+        auto* slot = slot_from_id(id);
+        return slot && slot->state == TaskState::blocked;
     }
 
     inline void Scheduler::block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept {
@@ -544,8 +550,7 @@ export namespace charm::system::rtos {
                 const auto id = waiters_[head_];
                 head_ = advance(head_);
                 --wait_count_;
-                auto* slot = sched.slot_from_id(id);
-                if (!slot || slot->state != TaskState::blocked) {
+                if (!sched.is_blocked(id)) {
                     continue;
                 }
                 sched.wake(id, WaitResult::ok, true);

@@ -17,6 +17,7 @@ export namespace charm::system::rtos {
     using TaskFn = void (*)(void* ctx) noexcept;
     using TimerFn = void (*)(void* ctx) noexcept;
     using TaskPriority = util::u8;
+    using TimerId = util::u16;
 
     constexpr TaskPriority max_task_priority = 31;
 
@@ -46,6 +47,7 @@ export namespace charm::system::rtos {
         void* ctx{nullptr};
         Tick due_ms{0};
         bool active{false};
+        enum class Kind : util::u8 { soft, hard } kind{Kind::soft};
     };
 
     template <class T>
@@ -101,9 +103,12 @@ export namespace charm::system::rtos {
         void run_once() noexcept;
         void yield() noexcept;
         void sleep_ms(Tick ms) noexcept;
-        [[nodiscard]] util::Result<util::u16> schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept;
-        [[nodiscard]] util::Result<util::u16> schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept;
-        void cancel_timer(util::u16 id) noexcept;
+        [[nodiscard]] util::Result<TimerId> schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept;
+        [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept;
+        [[nodiscard]] util::Result<TimerId> schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
+        [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
+        void cancel_timer(TimerId id) noexcept;
+        void tick() noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
 
@@ -112,13 +117,14 @@ export namespace charm::system::rtos {
 
     private:
         TaskSlot* slot_from_id(TaskId id) noexcept;
-        TimerSlot* timer_from_id(util::u16 id) noexcept;
+        TimerSlot* timer_from_id(TimerId id) noexcept;
         void mark_ready(TaskSlot& slot) noexcept;
         void mark_unready(TaskSlot& slot) noexcept;
         TaskId pick_next_ready() noexcept;
         void delay_insert(TaskId id, Tick due_ms) noexcept;
         void delay_remove(TaskId id) noexcept;
         void delay_wake_ready(Tick now) noexcept;
+        void process_timers(TimerSlot::Kind kind, Tick now) noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
@@ -146,7 +152,7 @@ export namespace charm::system::rtos {
         return &tasks_[index];
     }
 
-    inline TimerSlot* Scheduler::timer_from_id(util::u16 id) noexcept {
+    inline TimerSlot* Scheduler::timer_from_id(TimerId id) noexcept {
         if (id == 0u) return nullptr;
         const auto index = static_cast<util::usize>(id - 1u);
         if (index >= timers_.size()) return nullptr;
@@ -282,17 +288,27 @@ export namespace charm::system::rtos {
         return invalid_task_id;
     }
 
-    inline void Scheduler::run_once() noexcept {
-        const auto now = time::now_ms();
-        delay_wake_ready(now);
+    inline void Scheduler::process_timers(TimerSlot::Kind kind, Tick now) noexcept {
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
             if (!timer.active || !timer.fn) continue;
+            if (timer.kind != kind) continue;
             if (now >= timer.due_ms) {
                 timer.active = false;
                 timer.fn(timer.ctx);
             }
         }
+    }
+
+    inline void Scheduler::tick() noexcept {
+        const auto now = time::now_ms();
+        process_timers(TimerSlot::Kind::hard, now);
+    }
+
+    inline void Scheduler::run_once() noexcept {
+        const auto now = time::now_ms();
+        delay_wake_ready(now);
+        process_timers(TimerSlot::Kind::soft, now);
         const auto next = pick_next_ready();
         if (next == invalid_task_id) {
             current_ = invalid_task_id;
@@ -320,7 +336,15 @@ export namespace charm::system::rtos {
         current_ = invalid_task_id;
     }
 
-    inline util::Result<util::u16> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept {
+    inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept {
+        return schedule_at(due_ms, fn, ctx, TimerSlot::Kind::soft);
+    }
+
+    inline util::Result<TimerId> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept {
+        return schedule_after(delay_ms, fn, ctx, TimerSlot::Kind::soft);
+    }
+
+    inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
@@ -328,18 +352,19 @@ export namespace charm::system::rtos {
                 timer.fn = fn;
                 timer.ctx = ctx;
                 timer.due_ms = due_ms;
+                timer.kind = kind;
                 timer.active = true;
-                return static_cast<util::u16>(i + 1u);
+                return static_cast<TimerId>(i + 1u);
             }
         }
         return util::unexpected(util::Errc::no_memory);
     }
 
-    inline util::Result<util::u16> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept {
-        return schedule_at(time::now_ms() + delay_ms, fn, ctx);
+    inline util::Result<TimerId> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
+        return schedule_at(time::now_ms() + delay_ms, fn, ctx, kind);
     }
 
-    inline void Scheduler::cancel_timer(util::u16 id) noexcept {
+    inline void Scheduler::cancel_timer(TimerId id) noexcept {
         auto* timer = timer_from_id(id);
         if (!timer) return;
         timer->active = false;

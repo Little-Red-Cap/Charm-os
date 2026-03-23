@@ -22,6 +22,7 @@ namespace demo {
     volatile u64 g_tick_ms = 0;
     volatile u32 g_tick_mod = 1000;
     volatile u32 timer_hits = 0;
+    volatile u32 timer_hits_hard = 0;
     volatile u32 queue_hits = 0;
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
@@ -89,6 +90,16 @@ namespace demo {
         (void)Scheduler::current().schedule_after(250, &timer_tick, nullptr);
     }
 
+    void timer_tick_hard(void*) noexcept {
+        ++timer_hits_hard;
+        (void)Scheduler::current().schedule_after(
+            500,
+            &timer_tick_hard,
+            nullptr,
+            charm::system::rtos::TimerSlot::Kind::hard
+        );
+    }
+
     struct Demo {
         std::array<TaskSlot, 4> slots{};
         std::array<charm::system::rtos::TimerSlot, 4> timers{};
@@ -109,6 +120,12 @@ namespace demo {
             (void)scheduler.create(&task_a, nullptr, 1, 1);
             (void)scheduler.create(&task_b, nullptr, 0, 1);
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
+            (void)scheduler.schedule_after(
+                500,
+                &timer_tick_hard,
+                nullptr,
+                charm::system::rtos::TimerSlot::Kind::hard
+            );
         }
     };
 }
@@ -118,6 +135,7 @@ int main() {
     demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
+        demo.scheduler.tick();
         demo.scheduler.run_once();
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {
             demo::UartCmsdk::write("rtos tick\n");

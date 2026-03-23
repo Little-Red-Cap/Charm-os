@@ -92,12 +92,14 @@ import kernel.scheduler;
 import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;
+import player.stm32h7.board_keys;
 import player.stm32h7.board_config;
 import player.stm32h7.board_sdram;
 import player.stm32h7.board_sdmmc;
 import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
 import player.stm32h7.ink_demo;
+import player.stm32h7.player_config;
 import platform.board.stn32h747xi;
 import usb.class_msc;
 import usb.class_msc_block;
@@ -186,26 +188,25 @@ namespace {
 } // namespace
 
 // namespace {
-    constexpr util::usize kRxCap = 64;
-    constexpr util::usize kTxCap = 640;
-    constexpr bool kKeyActiveHigh = true;
-    constexpr bool kBringupKeySelect = true;
-    constexpr bool kBringupWaitKey = true;
-    constexpr bool kFmcInitOnBoot = true;
-    constexpr bool kSdramSelftestOnBoot = true;
-    constexpr bool kSdramSelftestInBringup = false;
-    constexpr bool kEnableSdmmcInit = false;
-    constexpr bool kEnableUsbMsc = true;
-    constexpr bool kEnableAudio = true;
-    constexpr bool kEnableDisplay = false;
-    constexpr bool kDebugStopAfterBringup = false;
-    constexpr bool kDebugStopAfterChannel = false;
-    constexpr bool kDebugStopAfterFs = false;
-    constexpr bool kDebugDumpRoot = false;
-    constexpr bool kUseOutLoggerEarly = false;
-    constexpr bool kUseDmaConsole = false;
-    constexpr bool kEncoderTestOnBoot = false;
-    constexpr util::u32 kEncoderTestMs = 5000;
+    constexpr util::usize kRxCap = player::stm32h7::config::kRxCap;
+    constexpr util::usize kTxCap = player::stm32h7::config::kTxCap;
+    constexpr bool kBringupKeySelect = player::stm32h7::config::kBringupKeySelect;
+    constexpr bool kBringupWaitKey = player::stm32h7::config::kBringupWaitKey;
+    constexpr bool kFmcInitOnBoot = player::stm32h7::config::kFmcInitOnBoot;
+    constexpr bool kSdramSelftestOnBoot = player::stm32h7::config::kSdramSelftestOnBoot;
+    constexpr bool kSdramSelftestInBringup = player::stm32h7::config::kSdramSelftestInBringup;
+    constexpr bool kEnableSdmmcInit = player::stm32h7::config::kEnableSdmmcInit;
+    constexpr bool kEnableUsbMsc = player::stm32h7::config::kEnableUsbMsc;
+    constexpr bool kEnableAudio = player::stm32h7::config::kEnableAudio;
+    constexpr bool kEnableDisplay = player::stm32h7::config::kEnableDisplay;
+    constexpr bool kDebugStopAfterBringup = player::stm32h7::config::kDebugStopAfterBringup;
+    constexpr bool kDebugStopAfterChannel = player::stm32h7::config::kDebugStopAfterChannel;
+    constexpr bool kDebugStopAfterFs = player::stm32h7::config::kDebugStopAfterFs;
+    constexpr bool kDebugDumpRoot = player::stm32h7::config::kDebugDumpRoot;
+    constexpr bool kUseOutLoggerEarly = player::stm32h7::config::kUseOutLoggerEarly;
+    constexpr bool kUseDmaConsole = player::stm32h7::config::kUseDmaConsole;
+    constexpr bool kEncoderTestOnBoot = player::stm32h7::config::kEncoderTestOnBoot;
+    constexpr util::u32 kEncoderTestMs = player::stm32h7::config::kEncoderTestMs;
     charm::port::ConsoleSink g_console_sink{};
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
     usb::driver::DcdDeviceAdapter g_usb_adapter{};
@@ -558,30 +559,6 @@ namespace {
     constexpr util::u32 kSdSelfStride = 1;
     constexpr util::u32 kI2sSelfMs = 2000;
 
-    constexpr GPIO_PinState key_active() noexcept {
-        return kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
-    }
-
-    void ensure_key_gpio_init() noexcept {
-        static bool inited = false;
-        if (inited) return;
-        inited = true;
-        __HAL_RCC_GPIOA_CLK_ENABLE();
-        GPIO_InitTypeDef gpio_init{};
-        gpio_init.Pin = GPIO_PIN_2 | GPIO_PIN_8;
-        gpio_init.Mode = GPIO_MODE_INPUT;
-        gpio_init.Pull = kKeyActiveHigh ? GPIO_PULLDOWN : GPIO_PULLUP;
-        gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(GPIOA, &gpio_init);
-    }
-
-    bool key_pressed(GPIO_TypeDef* port, std::uint16_t pin) noexcept {
-        if (port == GPIOA && (pin == GPIO_PIN_2 || pin == GPIO_PIN_8)) {
-            ensure_key_gpio_init();
-        }
-        return HAL_GPIO_ReadPin(port, pin) == key_active();
-    }
-
     void wait_key_press() noexcept;
 
     void early_uart_print(const char* msg) noexcept {
@@ -644,8 +621,10 @@ namespace {
 
     BringupMode select_bringup_mode() noexcept {
         if (!kBringupKeySelect) return kDefaultBringupMode;
-        const bool key0 = key_pressed(GPIOA, GPIO_PIN_8);
-        const bool wkup2 = key_pressed(GPIOA, GPIO_PIN_2);
+        const bool key0 = player::stm32h7::board::boot_key_pressed(
+            player::stm32h7::board::kBootKey0);
+        const bool wkup2 = player::stm32h7::board::boot_key_pressed(
+            player::stm32h7::board::kBootKey1);
         if (key0 && wkup2) return BringupMode::i2s;
         if (key0) return BringupMode::sd;
         if (wkup2) return BringupMode::decode;
@@ -654,25 +633,7 @@ namespace {
 
     void wait_key_press() noexcept {
         if (!kBringupWaitKey) return;
-        ensure_key_gpio_init();
-        const auto any_pressed = []() noexcept -> bool {
-            return key_pressed(GPIOA, GPIO_PIN_8) || key_pressed(GPIOA, GPIO_PIN_2);
-        };
-        while (any_pressed()) {
-            early_sleep_ms(10);
-        }
-        util::u32 stable = 0;
-        while (stable < 30) {
-            if (any_pressed()) {
-                stable += 10;
-            } else {
-                stable = 0;
-            }
-            early_sleep_ms(10);
-        }
-        while (any_pressed()) {
-            early_sleep_ms(10);
-        }
+        player::stm32h7::board::wait_for_boot_key();
     }
 
     void encoder_test() noexcept {
@@ -680,11 +641,11 @@ namespace {
         MX_TIM8_Init();
         __HAL_RCC_GPIOI_CLK_ENABLE();
         GPIO_InitTypeDef gpio_init = {};
-        gpio_init.Pin = GPIO_PIN_8;
+        gpio_init.Pin = player::stm32h7::board::kEncoderKey.pin;
         gpio_init.Mode = GPIO_MODE_INPUT;
         gpio_init.Pull = GPIO_PULLUP;
         gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
-        HAL_GPIO_Init(GPIOI, &gpio_init);
+        HAL_GPIO_Init(player::stm32h7::board::kEncoderKey.port, &gpio_init);
         if (HAL_TIM_Encoder_Start(&htim8, TIM_CHANNEL_ALL) != HAL_OK) {
             early_uart_print("encoder: start failed\n");
             return;
@@ -694,10 +655,16 @@ namespace {
         const util::u32 start_ms = static_cast<util::u32>(charm::port::now_ms(nullptr));
         std::uint16_t last = static_cast<std::uint16_t>(__HAL_TIM_GET_COUNTER(&htim8));
         util::u32 last_print = start_ms;
-        GPIO_PinState last_key = HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_8);
-        while (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_8) == GPIO_PIN_RESET) {
+        GPIO_PinState last_key = HAL_GPIO_ReadPin(
+            player::stm32h7::board::kEncoderKey.port,
+            player::stm32h7::board::kEncoderKey.pin);
+        while (HAL_GPIO_ReadPin(
+                   player::stm32h7::board::kBootKey0.port,
+                   player::stm32h7::board::kBootKey0.pin) == GPIO_PIN_RESET) {
             const std::uint16_t now = static_cast<std::uint16_t>(__HAL_TIM_GET_COUNTER(&htim8));
-            const GPIO_PinState key = HAL_GPIO_ReadPin(GPIOI, GPIO_PIN_8);
+            const GPIO_PinState key = HAL_GPIO_ReadPin(
+                player::stm32h7::board::kEncoderKey.port,
+                player::stm32h7::board::kEncoderKey.pin);
             const util::u32 tick = static_cast<util::u32>(charm::port::now_ms(nullptr));
             if (now != last || key != last_key || (tick - last_print) >= 200u) {
                 char buf[80]{};

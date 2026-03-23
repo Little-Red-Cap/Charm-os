@@ -22,4 +22,6 @@ export namespace board::active {
     constexpr bool kSdmmcVerbose = board::hqzy::kSdmmcVerbose;
     constexpr bool kSdmmcVerboseGpio = board::hqzy::kSdmmcVerboseGpio;
     constexpr std::uint32_t kSdmmcPartitionLba = board::hqzy::kSdmmcPartitionLba;
+
+    constexpr bool kKeyActiveHigh = board::hqzy::kKeyActiveHigh;
 }

@@ -23,4 +23,6 @@ export namespace player::stm32h7::board {
     constexpr bool kSdmmcVerbose = ::board::active::kSdmmcVerbose;
     constexpr bool kSdmmcVerboseGpio = ::board::active::kSdmmcVerboseGpio;
     constexpr std::uint32_t kSdmmcPartitionLba = ::board::active::kSdmmcPartitionLba;
+
+    constexpr bool kKeyActiveHigh = ::board::active::kKeyActiveHigh;
 }

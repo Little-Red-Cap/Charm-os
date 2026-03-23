@@ -92,9 +92,11 @@ set(MODULE_GROUP_BASE
     "${CMAKE_CURRENT_SOURCE_DIR}/app/board_hqzy.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/board_caps.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/board_config.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/board_keys.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/board_sdmmc.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/board_sdram.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_config.cppm"
 )
 
 set(MODULE_GROUP_FS

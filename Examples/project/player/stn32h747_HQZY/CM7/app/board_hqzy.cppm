@@ -35,4 +35,6 @@ export namespace board::hqzy {
     constexpr bool kSdmmcVerbose = false;
     constexpr bool kSdmmcVerboseGpio = false;
     constexpr std::uint32_t kSdmmcPartitionLba = 496u;
+
+    constexpr bool kKeyActiveHigh = true;
 }

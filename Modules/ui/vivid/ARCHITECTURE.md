@@ -97,6 +97,7 @@ sequenceDiagram
   - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
 - `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
+- 业务侧只使用 `Scene`：`Scene` 暴露 `CmdStats/ExecStats/TileStats/TileConfig`，SoA/DrawCmd 作为内部实现不对外直连。
 
 **命令合批（Compaction）：**
 

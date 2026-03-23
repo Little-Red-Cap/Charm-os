@@ -19,7 +19,6 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.ui.scene;
-import charm.core.soa_payload;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
@@ -128,24 +127,24 @@ export namespace player {
         int last_clip_enabled{-1};
         int last_clip_threshold{-1};
         struct TextSlots {
-            soa_detail::TextSlotId title{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId subtitle{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId status{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId time{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId mode_hint{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId list_title{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId list_hint{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId btn_pause{soa_detail::kInvalidTextSlot};
-            std::array<soa_detail::TextSlotId, kEqBands> eq_values{
-                soa_detail::kInvalidTextSlot,
-                soa_detail::kInvalidTextSlot,
-                soa_detail::kInvalidTextSlot,
-                soa_detail::kInvalidTextSlot,
-                soa_detail::kInvalidTextSlot,
+            ::ui::scene::TextSlotId title{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId subtitle{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId status{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId time{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId mode_hint{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId list_title{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId list_hint{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId btn_pause{::ui::scene::kInvalidTextSlot};
+            std::array<::ui::scene::TextSlotId, kEqBands> eq_values{
+                ::ui::scene::kInvalidTextSlot,
+                ::ui::scene::kInvalidTextSlot,
+                ::ui::scene::kInvalidTextSlot,
+                ::ui::scene::kInvalidTextSlot,
+                ::ui::scene::kInvalidTextSlot,
             };
-            soa_detail::TextSlotId volume_value{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId clip_value{soa_detail::kInvalidTextSlot};
-            soa_detail::TextSlotId debug_text{soa_detail::kInvalidTextSlot};
+            ::ui::scene::TextSlotId volume_value{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId clip_value{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId debug_text{::ui::scene::kInvalidTextSlot};
         } text_slots{};
         FixedString<128> mount_status{};
         std::uint32_t rng_state{0};
@@ -246,10 +245,10 @@ export namespace player {
             access.set_text(h, text);
         }
 
-        void set_label_slot(WidgetHandle h, soa_detail::TextSlotId slot, const char* text) {
+        void set_label_slot(WidgetHandle h, ::ui::scene::TextSlotId slot, const char* text) {
             if (!access.valid() || !h) return;
             player::font_cache::ensure_text(text);
-            if (slot != soa_detail::kInvalidTextSlot) {
+            if (slot != ::ui::scene::kInvalidTextSlot) {
                 access.set_text_slot(h, slot, text);
                 return;
             }
@@ -273,7 +272,7 @@ export namespace player {
             cover_folder_path.clear();
             release_cover_image(cover_image);
             if (access.valid() && handles.cover && access.kind(handles.cover) == WidgetKind::Image) {
-                access.set_image(handles.cover, soa_detail::invalid_image_id());
+                access.set_image(handles.cover, ::ui::scene::invalid_image_id());
             }
         }
 
@@ -282,7 +281,7 @@ export namespace player {
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
                 if (access.kind(handles.cover) == WidgetKind::Image) {
-                    access.set_image(handles.cover, soa_detail::invalid_image_id());
+                    access.set_image(handles.cover, ::ui::scene::invalid_image_id());
                 }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
@@ -291,7 +290,7 @@ export namespace player {
             }
             auto try_load = [&](std::string_view candidate) -> bool {
                 if (candidate.empty()) return false;
-                if (cover_image.path == candidate && soa_detail::image_id_valid(cover_image.image_id)) {
+                if (cover_image.path == candidate && ::ui::scene::image_id_valid(cover_image.image_id)) {
                     if (access.kind(handles.cover) == WidgetKind::Image) {
                         access.set_image(handles.cover, cover_image.image_id);
                     }
@@ -329,7 +328,7 @@ export namespace player {
 
             if (loaded) return;
             if (access.kind(handles.cover) == WidgetKind::Image) {
-                access.set_image(handles.cover, soa_detail::invalid_image_id());
+                access.set_image(handles.cover, ::ui::scene::invalid_image_id());
             }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());

@@ -238,6 +238,14 @@ export namespace charm::system::rtos {
         if (delay_count_ == 0 || delay_list_.empty()) return;
         for (util::usize i = 0; i < delay_count_; ++i) {
             if (delay_list_[i] == id) {
+                auto* removed = slot_from_id(id);
+                const Tick removed_delta = removed ? removed->wake_ms : 0;
+                if (i + 1 < delay_count_) {
+                    auto* next = slot_from_id(delay_list_[i + 1]);
+                    if (next) {
+                        next->wake_ms += removed_delta;
+                    }
+                }
                 for (util::usize j = i + 1; j < delay_count_; ++j) {
                     delay_list_[j - 1] = delay_list_[j];
                 }
@@ -251,22 +259,47 @@ export namespace charm::system::rtos {
         if (delay_list_.empty()) return;
         delay_remove(id);
         if (delay_count_ >= delay_list_.size()) return;
+        auto* slot = slot_from_id(id);
+        if (!slot) return;
+
         util::usize pos = delay_count_;
+        Tick accum = 0;
         for (util::usize i = 0; i < delay_count_; ++i) {
-            auto* slot = slot_from_id(delay_list_[i]);
-            if (!slot || due_ms < slot->wake_ms) {
+            auto* other = slot_from_id(delay_list_[i]);
+            if (!other) {
                 pos = i;
                 break;
             }
+            const Tick delta = other->wake_ms;
+            if (accum + delta > due_ms) {
+                pos = i;
+                break;
+            }
+            accum += delta;
         }
+
         for (util::usize i = delay_count_; i > pos; --i) {
             delay_list_[i] = delay_list_[i - 1];
         }
         delay_list_[pos] = id;
+        slot->wake_ms = due_ms - accum;
+
+        for (util::usize i = pos + 1; i <= delay_count_; ++i) {
+            auto* adjust = slot_from_id(delay_list_[i]);
+            if (!adjust) continue;
+            if (adjust->wake_ms >= slot->wake_ms) {
+                adjust->wake_ms -= slot->wake_ms;
+            } else {
+                adjust->wake_ms = 0;
+            }
+            break;
+        }
+
         ++delay_count_;
     }
 
     inline void Scheduler::delay_wake_ready(Tick now) noexcept {
+        Tick remain = now;
         while (delay_count_ > 0) {
             const auto id = delay_list_[0];
             auto* slot = slot_from_id(id);
@@ -274,24 +307,25 @@ export namespace charm::system::rtos {
                 delay_remove(id);
                 continue;
             }
-            if (now < slot->wake_ms) break;
+            if (slot->wake_ms > remain) {
+                slot->wake_ms -= remain;
+                break;
+            }
+            remain -= slot->wake_ms;
+            delay_remove(id);
             if (slot->state == TaskState::sleeping) {
-                delay_remove(id);
                 slot->state = TaskState::ready;
                 mark_ready(*slot);
             } else if (slot->state == TaskState::blocked) {
                 if (slot->wait_cancel && slot->wait_ctx) {
                     slot->wait_cancel(slot->wait_ctx, id);
                 }
-                delay_remove(id);
                 slot->state = TaskState::ready;
                 slot->wait_result = WaitResult::timeout;
                 slot->wait_ctx = nullptr;
                 slot->wait_cancel = nullptr;
                 slot->grant = false;
                 mark_ready(*slot);
-            } else {
-                delay_remove(id);
             }
         }
     }

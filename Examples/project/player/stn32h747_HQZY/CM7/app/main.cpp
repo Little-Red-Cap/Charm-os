@@ -583,6 +583,9 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
+extern "C" CHARM_WEAK void MX_USB_OTG_FS_PCD_Init(void) {
+}
+
 int main() {
     HAL_Init();
     // MPU_Config();
@@ -630,7 +633,9 @@ int main() {
     }
     MX_I2S1_Init();
     MX_SPI5_Init();
-    if (!kUseStUsbStack) {
+    if (kUseStUsbStack) {
+        MX_USB_OTG_FS_PCD_Init();
+    } else {
         player::stm32h7::board::usb_hw_init();
     }
 

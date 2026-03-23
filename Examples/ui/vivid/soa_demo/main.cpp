@@ -146,15 +146,16 @@ namespace {
 
     void ensure_demo_images() noexcept {
         if (g_demo_images_ready) return;
-        const auto reg = [](const ImageView& view, const char* tag) noexcept {
-            const auto res = ui::draw_cmd::register_image_dedup(
-                view,
-                ui::draw_cmd::ImageRegisterReason::Init,
-                tag);
-            return res.ok() ? res.id : ui::draw_cmd::invalid_image_id();
+        std::array<ui::draw_cmd::ImageAsset, 2> assets{
+            ui::draw_cmd::ImageAsset{kTestIconView, ui::draw_cmd::invalid_image_id(), "demo_images"},
+            ui::draw_cmd::ImageAsset{kSliceView, ui::draw_cmd::invalid_image_id(), "demo_images"}
         };
-        g_test_icon_id = reg(kTestIconView, "demo_images");
-        g_slice_id = reg(kSliceView, "demo_images");
+        (void)ui::draw_cmd::register_image_bundle(assets,
+                                                  ui::draw_cmd::ImageRegisterReason::Init,
+                                                  true,
+                                                  false);
+        g_test_icon_id = assets[0].id;
+        g_slice_id = assets[1].id;
         if (g_selftest_dedup) {
             (void)ui::draw_cmd::register_image_dedup(
                 kTestIconView,
@@ -164,6 +165,9 @@ namespace {
                 kSliceView,
                 ui::draw_cmd::ImageRegisterReason::SelfTest,
                 "selftest_dedup");
+        }
+        if (!ui::draw_cmd::image_registry_locked()) {
+            ui::draw_cmd::set_image_registry_locked(true);
         }
         g_demo_images_ready = true;
     }

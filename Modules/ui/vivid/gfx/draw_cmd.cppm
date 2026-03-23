@@ -80,12 +80,15 @@ export namespace ui::draw_cmd {
     using ImageRegisterReason = ui::gfx::ImageRegisterReason;
     using ImageRegistryStats = ui::gfx::ImageRegistryStats;
     using ImageRegistryEntry = ui::gfx::ImageRegistryEntry;
+    using ImageAsset = ui::gfx::ImageAsset;
+    using ImageBundleResult = ui::gfx::ImageBundleResult;
     using ui::gfx::invalid_image_id;
     using ui::gfx::image_id_valid;
     using ui::gfx::image_register_reason_name;
     using ui::gfx::register_image;
     using ui::gfx::register_image_key;
     using ui::gfx::register_image_dedup;
+    using ui::gfx::register_image_bundle;
     using ui::gfx::unregister_image;
     using ui::gfx::resolve_image;
     using ui::gfx::clear_image_registry;

@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 export module charm.gfx.image;
 
 export import charm.gfx.pixel_format;
@@ -106,6 +107,18 @@ export namespace ui::gfx {
         std::uint32_t register_new_execute{0};
         std::uint32_t dedup_hits{0};
         bool overflowed{false};
+    };
+
+    struct ImageAsset {
+        ImageView view{};
+        ImageId id{};
+        const char* tag{nullptr};
+    };
+
+    struct ImageBundleResult {
+        std::uint16_t registered{0};
+        std::uint16_t failed{0};
+        bool locked{false};
     };
 
     enum class ImageRegisterStatus : std::uint8_t {
@@ -523,6 +536,45 @@ export namespace ui::gfx {
             registry.dedup_hits,
             registry.overflowed
         };
+    }
+
+    inline ImageBundleResult register_image_bundle(std::span<ImageAsset> assets,
+                                                   ImageRegisterReason reason = ImageRegisterReason::Init,
+                                                   bool dedup = true,
+                                                   bool lock_after = true) noexcept {
+        ImageBundleResult result{};
+        if (assets.empty()) {
+            result.locked = image_registry().locked();
+            if (lock_after && !result.locked) {
+                image_registry().set_locked(true);
+                result.locked = true;
+            }
+            return result;
+        }
+        for (auto& asset : assets) {
+            if (!asset.view) {
+                asset.id = invalid_image_id();
+                ++result.failed;
+                continue;
+            }
+            const char* tag = asset.tag ? asset.tag : "bundle";
+            const ImageRegisterResult reg = dedup
+                ? register_image_dedup(asset.view, reason, tag)
+                : register_image(asset.view, reason, tag);
+            if (reg.ok()) {
+                asset.id = reg.id;
+                ++result.registered;
+            } else {
+                asset.id = invalid_image_id();
+                ++result.failed;
+            }
+        }
+        result.locked = image_registry().locked();
+        if (lock_after && !result.locked) {
+            image_registry().set_locked(true);
+            result.locked = true;
+        }
+        return result;
     }
 
     struct ImageRegistryPhaseGuard {

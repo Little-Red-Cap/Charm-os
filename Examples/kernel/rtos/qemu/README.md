@@ -51,3 +51,8 @@ cmake -S . -B cmake-build-debug -G Ninja `
 
 cmake --build cmake-build-debug -j 8
 ```
+
+## Tick output rate
+
+The demo prints `rtos tick` every `g_tick_mod` milliseconds.
+Adjust `demo::g_tick_mod` in `main.cpp` to control output frequency.

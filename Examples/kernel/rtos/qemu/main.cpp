@@ -19,6 +19,7 @@ namespace demo {
     using util::u64;
 
     volatile u64 g_tick_ms = 0;
+    volatile u32 g_tick_mod = 1000;
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
 
@@ -89,10 +90,11 @@ namespace demo {
 
 int main() {
     demo::Demo demo{};
+    demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
         demo.scheduler.run_once();
-        if ((demo::g_tick_ms % 1000u) == 0u) {
+        if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {
             demo::UartCmsdk::write("rtos tick\n");
         }
     }

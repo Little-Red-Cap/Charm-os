@@ -41,24 +41,23 @@ int main() {
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
     ::ui::scene::Scene scene{canvas};
-    auto builder = scene.begin();
+    scene.build([&](::ui::scene::SceneBuilder& builder) {
+        auto root = builder.create_container();
+        auto b1 = builder.create_button_static("A");
+        auto b2 = builder.create_button_static("B");
+        auto b3 = builder.create_button_static("C");
 
-    auto root = builder.create_container();
-    auto b1 = builder.create_button_static("A");
-    auto b2 = builder.create_button_static("B");
-    auto b3 = builder.create_button_static("C");
+        builder.link(root, b1);
+        builder.link(root, b2);
+        builder.link(root, b3);
 
-    builder.link(root, b1);
-    builder.link(root, b2);
-    builder.link(root, b3);
-
-    builder.set_rect(root, {0, 0, 240, 160});
-    builder.set_rect(b1, {10, 10, 80, 40});
-    builder.set_rect(b2, {10, 60, 80, 40});
-    builder.set_rect(b3, {10, 110, 80, 40});
-    builder.set_input_root(root);
-    builder.set_root(root);
-    scene.end(builder);
+        builder.set_rect(root, {0, 0, 240, 160});
+        builder.set_rect(b1, {10, 10, 80, 40});
+        builder.set_rect(b2, {10, 60, 80, 40});
+        builder.set_rect(b3, {10, 110, 80, 40});
+        builder.set_input_root(root);
+        builder.set_root(root);
+    });
     auto access = scene.access();
 
     int click_count = 0;

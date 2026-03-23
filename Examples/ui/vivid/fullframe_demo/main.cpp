@@ -88,31 +88,31 @@ int main() {
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
     ::ui::scene::Scene scene{canvas};
-    auto builder = scene.begin();
-    auto root = builder.create_container();
-    builder.set_rect(root, {0, 0, screen_width, screen_height});
+    scene.build([&](::ui::scene::SceneBuilder& builder) {
+        auto root = builder.create_container();
+        builder.set_rect(root, {0, 0, screen_width, screen_height});
 
-    auto title = builder.create_label_static("FullFrame Dirty Demo");
-    auto btn = builder.create_button_static("Press");
-    auto sw = builder.create_switch();
-    auto slider = builder.create_slider();
-    auto progress = builder.create_progress();
+        auto title = builder.create_label_static("FullFrame Dirty Demo");
+        auto btn = builder.create_button_static("Press");
+        auto sw = builder.create_switch();
+        auto slider = builder.create_slider();
+        auto progress = builder.create_progress();
 
-    builder.link(root, title);
-    builder.link(root, btn);
-    builder.link(root, sw);
-    builder.link(root, slider);
-    builder.link(root, progress);
+        builder.link(root, title);
+        builder.link(root, btn);
+        builder.link(root, sw);
+        builder.link(root, slider);
+        builder.link(root, progress);
 
-    builder.set_rect(title, {24, 16, screen_width - 48, 24});
-    builder.set_rect(btn, {24, 60, 160, 40});
-    builder.set_rect(sw, {24, 112, 96, 32});
-    builder.set_rect(slider, {24, 168, 280, 24});
-    builder.set_rect(progress, {24, 208, 280, 18});
-    builder.set_range(slider, 0, 100);
-    builder.set_range(progress, 0, 100);
-    builder.set_root(root);
-    scene.end(builder);
+        builder.set_rect(title, {24, 16, screen_width - 48, 24});
+        builder.set_rect(btn, {24, 60, 160, 40});
+        builder.set_rect(sw, {24, 112, 96, 32});
+        builder.set_rect(slider, {24, 168, 280, 24});
+        builder.set_rect(progress, {24, 208, 280, 18});
+        builder.set_range(slider, 0, 100);
+        builder.set_range(progress, 0, 100);
+        builder.set_root(root);
+    });
     auto access = scene.access();
 
     int win_w = screen_width;

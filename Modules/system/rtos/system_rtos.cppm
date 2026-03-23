@@ -32,6 +32,12 @@ export namespace charm::system::rtos {
         stopped,
     };
 
+    enum class WaitResult : util::u8 {
+        ok,
+        timeout,
+        blocked,
+    };
+
     struct TaskSlot {
         TaskFn fn{nullptr};
         void* ctx{nullptr};
@@ -40,6 +46,10 @@ export namespace charm::system::rtos {
         TaskPriority priority{0};
         util::u32 slice_max{1};
         util::u32 slice_left{1};
+        bool grant{false};
+        WaitResult wait_result{WaitResult::ok};
+        void* wait_ctx{nullptr};
+        void (*wait_cancel)(void* ctx, TaskId id) noexcept {nullptr};
     };
 
     struct TimerSlot {
@@ -84,6 +94,8 @@ export namespace charm::system::rtos {
         util::usize tail_{0};
     };
 
+    class Scheduler;
+
     struct SchedulerConfig {
         std::span<TaskSlot> tasks{};
         std::span<TimerSlot> timers{};
@@ -109,6 +121,11 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
         void cancel_timer(TimerId id) noexcept;
         void tick() noexcept;
+        [[nodiscard]] TaskId current_id() const noexcept { return current_; }
+        [[nodiscard]] WaitResult take_wait_result(TaskId id) noexcept;
+        [[nodiscard]] bool take_grant(TaskId id) noexcept;
+        void block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept;
+        void wake(TaskId id, WaitResult result, bool grant) noexcept;
         struct Stats {
             util::u32 ready{0};
             util::u32 sleeping{0};
@@ -169,6 +186,54 @@ export namespace charm::system::rtos {
         return &timers_[index];
     }
 
+    inline WaitResult Scheduler::take_wait_result(TaskId id) noexcept {
+        auto* slot = slot_from_id(id);
+        if (!slot) return WaitResult::blocked;
+        const auto result = slot->wait_result;
+        if (result != WaitResult::ok) {
+            slot->wait_result = WaitResult::ok;
+        }
+        return result;
+    }
+
+    inline bool Scheduler::take_grant(TaskId id) noexcept {
+        auto* slot = slot_from_id(id);
+        if (!slot) return false;
+        if (slot->grant) {
+            slot->grant = false;
+            return true;
+        }
+        return false;
+    }
+
+    inline void Scheduler::block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept {
+        auto* slot = slot_from_id(current_);
+        if (!slot) return;
+        slot->state = TaskState::blocked;
+        slot->slice_left = slot->slice_max;
+        slot->wait_result = WaitResult::blocked;
+        slot->wait_ctx = ctx;
+        slot->wait_cancel = cancel;
+        if (timeout_ms > 0) {
+            slot->wake_ms = time::now_ms() + timeout_ms;
+            delay_insert(current_, slot->wake_ms);
+        } else {
+            slot->wake_ms = 0;
+        }
+    }
+
+    inline void Scheduler::wake(TaskId id, WaitResult result, bool grant) noexcept {
+        auto* slot = slot_from_id(id);
+        if (!slot) return;
+        delay_remove(id);
+        slot->state = TaskState::ready;
+        slot->wait_result = result;
+        slot->grant = grant;
+        slot->wait_ctx = nullptr;
+        slot->wait_cancel = nullptr;
+        mark_ready(*slot);
+    }
+
     inline void Scheduler::delay_remove(TaskId id) noexcept {
         if (delay_count_ == 0 || delay_list_.empty()) return;
         for (util::usize i = 0; i < delay_count_; ++i) {
@@ -205,14 +270,29 @@ export namespace charm::system::rtos {
         while (delay_count_ > 0) {
             const auto id = delay_list_[0];
             auto* slot = slot_from_id(id);
-            if (!slot || slot->state != TaskState::sleeping) {
+            if (!slot) {
                 delay_remove(id);
                 continue;
             }
             if (now < slot->wake_ms) break;
-            delay_remove(id);
-            slot->state = TaskState::ready;
-            mark_ready(*slot);
+            if (slot->state == TaskState::sleeping) {
+                delay_remove(id);
+                slot->state = TaskState::ready;
+                mark_ready(*slot);
+            } else if (slot->state == TaskState::blocked) {
+                if (slot->wait_cancel && slot->wait_ctx) {
+                    slot->wait_cancel(slot->wait_ctx, id);
+                }
+                delay_remove(id);
+                slot->state = TaskState::ready;
+                slot->wait_result = WaitResult::timeout;
+                slot->wait_ctx = nullptr;
+                slot->wait_cancel = nullptr;
+                slot->grant = false;
+                mark_ready(*slot);
+            } else {
+                delay_remove(id);
+            }
         }
     }
 
@@ -416,4 +496,85 @@ export namespace charm::system::rtos {
         }
         return out;
     }
+
+    template <util::usize Capacity>
+    class Semaphore {
+    public:
+        explicit Semaphore(util::u32 initial = 0, util::u32 max = 0xFFFFFFFFu) noexcept
+            : count_(initial), max_(max) {}
+
+        [[nodiscard]] bool post() noexcept {
+            if (!Scheduler::current().valid()) return false;
+            auto& sched = Scheduler::current();
+            while (wait_count_ > 0) {
+                const auto id = waiters_[head_];
+                head_ = advance(head_);
+                --wait_count_;
+                auto* slot = sched.slot_from_id(id);
+                if (!slot || slot->state != TaskState::blocked) {
+                    continue;
+                }
+                sched.wake(id, WaitResult::ok, true);
+                return true;
+            }
+            if (count_ < max_) {
+                ++count_;
+                return true;
+            }
+            return false;
+        }
+
+        [[nodiscard]] WaitResult wait(Tick timeout_ms = 0) noexcept {
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return WaitResult::blocked;
+
+            const auto prev = sched.take_wait_result(id);
+            if (prev == WaitResult::timeout) {
+                return WaitResult::timeout;
+            }
+            if (sched.take_grant(id)) {
+                return WaitResult::ok;
+            }
+            if (count_ > 0) {
+                --count_;
+                return WaitResult::ok;
+            }
+            if (full()) return WaitResult::blocked;
+            waiters_[tail_] = id;
+            tail_ = advance(tail_);
+            ++wait_count_;
+            sched.block_current(timeout_ms, &Semaphore::cancel_waiter, this);
+            return WaitResult::blocked;
+        }
+
+    private:
+        static constexpr util::usize advance(util::usize value) noexcept {
+            return (value + 1u) % Capacity;
+        }
+
+        static void cancel_waiter(void* ctx, TaskId id) noexcept {
+            auto* self = static_cast<Semaphore*>(ctx);
+            if (!self) return;
+            util::usize new_count = 0;
+            for (util::usize i = 0; i < self->wait_count_; ++i) {
+                const auto idx = (self->head_ + i) % Capacity;
+                const auto value = self->waiters_[idx];
+                if (value == id) continue;
+                self->waiters_[(self->head_ + new_count) % Capacity] = value;
+                ++new_count;
+            }
+            self->tail_ = (self->head_ + new_count) % Capacity;
+            self->wait_count_ = new_count;
+        }
+
+        [[nodiscard]] bool full() const noexcept { return wait_count_ == Capacity; }
+
+        TaskId waiters_[Capacity]{};
+        util::usize head_{0};
+        util::usize tail_{0};
+        util::usize wait_count_{0};
+        util::u32 count_{0};
+        util::u32 max_{0xFFFFFFFFu};
+    };
 }

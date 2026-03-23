@@ -18,6 +18,7 @@ export namespace charm::system::rtos {
     using TimerFn = void (*)(void* ctx) noexcept;
     using TaskPriority = util::u8;
     using TimerId = util::u16;
+    using CriticalFn = void (*)() noexcept;
 
     constexpr TaskPriority max_task_priority = 31;
 
@@ -121,6 +122,9 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
         void cancel_timer(TimerId id) noexcept;
         void tick() noexcept;
+        void lock() noexcept { ++lock_count_; }
+        void unlock() noexcept { if (lock_count_ > 0) --lock_count_; }
+        [[nodiscard]] bool locked() const noexcept { return lock_count_ != 0; }
         [[nodiscard]] TaskId current_id() const noexcept { return current_; }
         [[nodiscard]] WaitResult take_wait_result(TaskId id) noexcept;
         [[nodiscard]] bool take_grant(TaskId id) noexcept;
@@ -162,7 +166,34 @@ export namespace charm::system::rtos {
         std::span<TaskId> delay_list_{};
         util::usize delay_count_{0};
         TaskId current_{invalid_task_id};
+        util::u32 lock_count_{0};
         inline static Scheduler* bound_{nullptr};
+    };
+
+    class SchedulerLockGuard {
+    public:
+        explicit SchedulerLockGuard(Scheduler& sched) noexcept : sched_(sched) { sched_.lock(); }
+        ~SchedulerLockGuard() { sched_.unlock(); }
+        SchedulerLockGuard(const SchedulerLockGuard&) = delete;
+        SchedulerLockGuard& operator=(const SchedulerLockGuard&) = delete;
+    private:
+        Scheduler& sched_;
+    };
+
+    inline CriticalFn critical_enter_{nullptr};
+    inline CriticalFn critical_exit_{nullptr};
+
+    inline void bind_critical(CriticalFn enter, CriticalFn exit) noexcept {
+        critical_enter_ = enter;
+        critical_exit_ = exit;
+    }
+
+    class CriticalGuard {
+    public:
+        CriticalGuard() noexcept { if (critical_enter_) critical_enter_(); }
+        ~CriticalGuard() { if (critical_exit_) critical_exit_(); }
+        CriticalGuard(const CriticalGuard&) = delete;
+        CriticalGuard& operator=(const CriticalGuard&) = delete;
     };
 
     inline Scheduler& Scheduler::current() noexcept {
@@ -439,6 +470,10 @@ export namespace charm::system::rtos {
         const auto now = time::now_ms();
         delay_wake_ready(now);
         process_timers(TimerSlot::Kind::soft, now);
+        if (locked()) {
+            current_ = invalid_task_id;
+            return;
+        }
         const auto next = pick_next_ready();
         if (next == invalid_task_id) {
             current_ = invalid_task_id;
@@ -616,4 +651,5 @@ export namespace charm::system::rtos {
         util::u32 count_{0};
         util::u32 max_{0xFFFFFFFFu};
     };
+
 }

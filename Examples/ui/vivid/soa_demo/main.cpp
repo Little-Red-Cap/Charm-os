@@ -328,6 +328,23 @@ namespace {
             const Rect r{x + i * (size + gap), y, size, size};
             buf.stroke_rect(r, kDemoPanelBorder);
         }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const int x0 = x + i * (size + gap);
+            const int y0 = y;
+            buf.draw_line(x0, y0 + size, x0 + size, y0, kDemoPanelBorder);
+        }
+        y += size + gap;
+        for (int i = 0; i < count; ++i) {
+            const int x0 = x + i * (size + gap);
+            const int y0 = y;
+            const Point tri[3]{
+                Point{x0, y0 + size},
+                Point{x0 + size / 2, y0},
+                Point{x0 + size, y0 + size}
+            };
+            buf.draw_path(tri, 3, false, kDemoPanelBorder);
+        }
     }
 
     void apply_demo_theme() noexcept {

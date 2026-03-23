@@ -38,12 +38,15 @@ export bool audio_mp3_update() noexcept;
 export void audio_mp3_stop() noexcept;
 export bool audio_mp3_is_active() noexcept;
 export void audio_mp3_set_log_suppressed(bool enabled) noexcept;
+export void audio_mp3_set_sdram_ready(bool ready) noexcept;
 
 namespace {
 #if defined(__GNUC__)
 #define CHARM_DMA_BUFFER __attribute__((section(".dma_buffer"), aligned(32)))
+#define CHARM_SDRAM_BUFFER __attribute__((section(".sdram"), aligned(32)))
 #else
 #define CHARM_DMA_BUFFER
+#define CHARM_SDRAM_BUFFER
 #endif
 
 #ifndef DMA_LISR_TCIF0
@@ -55,6 +58,7 @@ namespace {
 
     static out::channel_sink* g_sink = nullptr;
     static bool g_log_suppressed = false;
+    static bool g_sdram_ready = false;
     constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
@@ -84,14 +88,15 @@ namespace {
     constexpr bool kVerbose = false;
     constexpr bool kRuntimeLog = false;
     constexpr bool kUpdateLog = false;
-    constexpr bool kStartupLog = true;
+    constexpr bool kStartupLog = false;
+    constexpr bool kFsListVerbose = false;
     constexpr bool kOpenTrace = true;
     constexpr bool kStatLog = true;
     constexpr util::u32 kOpenReadLogEvery = 64;
     constexpr util::u32 kRunReadLogEvery = 512;
     constexpr util::u32 kReadLogMinMs = 200;
     constexpr std::size_t kMaxRead = 8192;
-    constexpr bool kUseFixedPath = true;
+    constexpr bool kUseFixedPath = false;
     constexpr const char kFixedPath[] = "/jtwayne-pianos-by-jtwayne-7-174717.mp3";
 
     static bool g_opening = false;
@@ -221,6 +226,185 @@ namespace {
         char path[256]{};
         bool found{false};
     };
+
+    struct ListRootCtx {
+        std::size_t max{0};
+        std::size_t count{0};
+        bool saw_dir{false};
+        bool saw_file{false};
+        bool single_dir{true};
+        char dir[64]{};
+    };
+
+    struct ListDirCtx {
+        const char* prefix{nullptr};
+        std::size_t max{0};
+        std::size_t count{0};
+    };
+
+    struct ScanDirCtx {
+        FindAudioCtx* out{nullptr};
+        char base[128]{};
+        char prefix[128]{};
+        std::array<std::array<char, 32>, 8> dirs{};
+        std::size_t dir_count{0};
+        bool found{false};
+    };
+
+    fs::Status list_root_entry(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* out = static_cast<ListRootCtx*>(ctx);
+        if (!out) return fs::Status{fs::Errc::inval};
+        if (out->count >= out->max) return fs::Status{fs::Errc::ok};
+        if constexpr (kFsListVerbose) {
+            log<"fs: / {} type={}">(
+                entry.name,
+                static_cast<int>(entry.type));
+        }
+        ++out->count;
+        if (entry.type == fs::NodeType::dir) {
+            if (!out->saw_dir && !out->saw_file) {
+                const auto len = name_len(entry.name);
+                const auto copy_len = (std::min)(len, sizeof(out->dir) - 1);
+                std::memcpy(out->dir, entry.name.data(), copy_len);
+                out->dir[copy_len] = '\0';
+                out->saw_dir = true;
+            } else {
+                out->single_dir = false;
+                out->saw_dir = true;
+            }
+        } else {
+            out->saw_file = true;
+            out->single_dir = false;
+        }
+        return fs::Status{fs::Errc::ok};
+    }
+
+    ListRootCtx list_root_entries(std::size_t max_entries) noexcept {
+        ListRootCtx ctx{};
+        if (max_entries == 0) return ctx;
+        ctx.max = max_entries;
+        (void)fs::vfs_list("/", &ctx, &list_root_entry);
+        return ctx;
+    }
+
+    fs::Status list_dir_entry(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* out = static_cast<ListDirCtx*>(ctx);
+        if (!out || !out->prefix) return fs::Status{fs::Errc::inval};
+        if (out->count >= out->max) return fs::Status{fs::Errc::ok};
+        if constexpr (kFsListVerbose) {
+            log<"fs: {} {} type={}">(
+                out->prefix,
+                entry.name,
+                static_cast<int>(entry.type));
+        }
+        ++out->count;
+        return fs::Status{fs::Errc::ok};
+    }
+
+    void list_dir_entries(const char* path, std::size_t max_entries) noexcept {
+        if (!path || max_entries == 0) return;
+        ListDirCtx ctx{};
+        ctx.prefix = path;
+        ctx.max = max_entries;
+        (void)fs::vfs_list(path, &ctx, &list_dir_entry);
+    }
+
+    fs::Status find_first_mp3(void* ctx, const fs::MountOps::ListEntry& entry) noexcept;
+
+    bool is_dot_dir(std::string_view name) noexcept {
+        const auto len = name_len(name);
+        if (len == 1 && name.data()[0] == '.') return true;
+        if (len == 2 && name.data()[0] == '.' && name.data()[1] == '.') return true;
+        return false;
+    }
+
+    bool find_mp3_in_path(const char* path, FindAudioCtx& out) noexcept {
+        if (!path || *path == '\0') return false;
+        char list_path[128]{};
+        char prefix[128]{};
+        std::size_t pos = 0;
+        if (path[0] != '/' && pos + 1 < sizeof(list_path)) {
+            list_path[pos] = '/';
+            prefix[pos] = '/';
+            ++pos;
+        }
+        for (std::size_t i = 0; path[i] != '\0' && pos + 1 < sizeof(list_path); ++i) {
+            list_path[pos] = path[i];
+            prefix[pos] = path[i];
+            ++pos;
+        }
+        list_path[pos] = '\0';
+        if (pos + 1 < sizeof(prefix)) {
+            prefix[pos++] = '/';
+            prefix[pos] = '\0';
+        } else {
+            prefix[sizeof(prefix) - 1] = '\0';
+        }
+        out.prefix = prefix;
+        auto st = fs::vfs_list(list_path, &out, &find_first_mp3);
+        return st && out.found;
+    }
+
+    fs::Status scan_dir_entry(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+        auto* out = static_cast<ScanDirCtx*>(ctx);
+        if (!out || !out->out) return fs::Status{fs::Errc::inval};
+        if (out->found) return fs::Status{fs::Errc::ok};
+        if (entry.type == fs::NodeType::file) {
+            if (!is_mp3_name(entry.name)) return fs::Status{fs::Errc::ok};
+            const auto len = name_len(entry.name);
+            std::size_t pos = 0;
+            for (std::size_t i = 0; out->prefix[i] != '\0' && pos + 1 < sizeof(out->out->path); ++i) {
+                out->out->path[pos++] = out->prefix[i];
+            }
+            for (std::size_t i = 0; i < len && pos + 1 < sizeof(out->out->path); ++i) {
+                out->out->path[pos++] = entry.name.data()[i];
+            }
+            out->out->path[pos] = '\0';
+            out->out->found = true;
+            out->found = true;
+            return fs::Status{fs::Errc::ok};
+        }
+        if (entry.type == fs::NodeType::dir && !is_dot_dir(entry.name)) {
+            if (out->dir_count < out->dirs.size()) {
+                const auto len = name_len(entry.name);
+                const auto copy_len = (std::min)(len, out->dirs[out->dir_count].size() - 1);
+                std::memcpy(out->dirs[out->dir_count].data(), entry.name.data(), copy_len);
+                out->dirs[out->dir_count][copy_len] = '\0';
+                ++out->dir_count;
+            }
+        }
+        return fs::Status{fs::Errc::ok};
+    }
+
+    bool scan_dir_for_mp3(const char* path, FindAudioCtx& out) noexcept {
+        if (!path || *path == '\0') return false;
+        ScanDirCtx ctx{};
+        ctx.out = &out;
+        std::strncpy(ctx.base, path, sizeof(ctx.base) - 1);
+        std::strncpy(ctx.prefix, path, sizeof(ctx.prefix) - 2);
+        const auto plen = std::strlen(ctx.prefix);
+        if (plen + 1 < sizeof(ctx.prefix)) {
+            ctx.prefix[plen] = '/';
+            ctx.prefix[plen + 1] = '\0';
+        }
+        auto st = fs::vfs_list(path, &ctx, &scan_dir_entry);
+        if (st && out.found) return true;
+        for (std::size_t i = 0; i < ctx.dir_count; ++i) {
+            char sub_path[160]{};
+            std::size_t pos = 0;
+            for (std::size_t j = 0; ctx.base[j] != '\0' && pos + 1 < sizeof(sub_path); ++j) {
+                sub_path[pos++] = ctx.base[j];
+            }
+            if (pos + 1 < sizeof(sub_path)) sub_path[pos++] = '/';
+            for (std::size_t j = 0; ctx.dirs[i][j] != '\0' && pos + 1 < sizeof(sub_path); ++j) {
+                sub_path[pos++] = ctx.dirs[i][j];
+            }
+            sub_path[pos] = '\0';
+            log<"mp3 demo: scan {}">(sub_path);
+            if (find_mp3_in_path(sub_path, out)) return true;
+        }
+        return false;
+    }
 
     fs::Status find_first_mp3(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
         auto* out = static_cast<FindAudioCtx*>(ctx);
@@ -502,14 +686,15 @@ namespace {
     static Mp3Player g_player{};
     static std::array<std::uint8_t, kMaxRead> g_wav_read_buf CHARM_DMA_BUFFER{};
     static std::array<std::int32_t, kI2sBufFrames * 2 * 2> g_pcm32_buffer CHARM_DMA_BUFFER{};
-    constexpr std::uintptr_t kSdramBase = 0xD0000000u;
     constexpr std::size_t kMp3ArenaSize = 128 * 1024;
     constexpr std::size_t kFlacArenaSize = 512 * 1024;
-    constexpr std::uintptr_t kFlacArenaBase = kSdramBase + kMp3ArenaSize;
 #ifndef CHARM_USE_SDRAM_ARENA
 #define CHARM_USE_SDRAM_ARENA 1
 #endif
-#if !CHARM_USE_SDRAM_ARENA
+#if CHARM_USE_SDRAM_ARENA
+    alignas(32) static std::array<std::uint8_t, kMp3ArenaSize> g_mp3_arena CHARM_SDRAM_BUFFER{};
+    alignas(32) static std::array<std::uint8_t, kFlacArenaSize> g_flac_arena CHARM_SDRAM_BUFFER{};
+#else
     alignas(32) static std::array<std::uint8_t, kMp3ArenaSize> g_mp3_arena{};
     alignas(32) static std::array<std::uint8_t, kFlacArenaSize> g_flac_arena{};
 #endif
@@ -914,6 +1099,24 @@ namespace {
         auto st = fs::vfs_open(open_path, f);
         if (!st) {
             log<"mp3 demo: open failed {}">(static_cast<int>(st.err));
+            if (st.err == fs::Errc::noent) {
+                const auto root_ctx = list_root_entries(12);
+                if (root_ctx.single_dir && root_ctx.saw_dir && !root_ctx.saw_file) {
+                    FindAudioCtx auto_ctx{};
+                    char base_path[96]{};
+                    base_path[0] = '/';
+                    const auto len = std::strlen(root_ctx.dir);
+                    const auto copy_len = (std::min)(len, sizeof(base_path) - 2);
+                    std::memcpy(base_path + 1, root_ctx.dir, copy_len);
+                    base_path[copy_len + 1] = '\0';
+                    if (scan_dir_for_mp3(base_path, auto_ctx)) {
+                        log<"mp3 demo: auto path {}">(auto_ctx.path);
+                        return play_mp3_path(auto_ctx.path);
+                    }
+                    log<"mp3 demo: no mp3 under {}">(base_path);
+                    list_dir_entries(base_path, 12);
+                }
+            }
             return false;
         }
         if constexpr (kStartupLog) {
@@ -1867,9 +2070,26 @@ export void audio_mp3_set_log_suppressed(bool enabled) noexcept {
 export void audio_set_console_sink(out::channel_sink& sink) noexcept {
     g_sink = &sink;
     audio::mp3_set_debug_sink(sink);
+    if (!g_sdram_ready) {
+        return;
+    }
 #if CHARM_USE_SDRAM_ARENA
-    audio::mp3_set_arena(reinterpret_cast<void*>(kSdramBase), kMp3ArenaSize);
-    audio::flac_set_arena(reinterpret_cast<void*>(kFlacArenaBase), kFlacArenaSize);
+    audio::mp3_set_arena(g_mp3_arena.data(), g_mp3_arena.size());
+    audio::flac_set_arena(g_flac_arena.data(), g_flac_arena.size());
+#else
+    audio::mp3_set_arena(g_mp3_arena.data(), g_mp3_arena.size());
+    audio::flac_set_arena(g_flac_arena.data(), g_flac_arena.size());
+#endif
+}
+
+export void audio_mp3_set_sdram_ready(bool ready) noexcept {
+    g_sdram_ready = ready;
+    if (!g_sdram_ready) {
+        return;
+    }
+#if CHARM_USE_SDRAM_ARENA
+    audio::mp3_set_arena(g_mp3_arena.data(), g_mp3_arena.size());
+    audio::flac_set_arena(g_flac_arena.data(), g_flac_arena.size());
 #else
     audio::mp3_set_arena(g_mp3_arena.data(), g_mp3_arena.size());
     audio::flac_set_arena(g_flac_arena.data(), g_flac_arena.size());

@@ -1,6 +1,0 @@
-entry_scan
-- app/main-player.cpp: port_kit
-- app/main-usb-storage.cpp: port_kit
-- app/main-usb-audio.cpp: port_kit
-- app/main-usb-as.cpp: port_kit
-- app/main.cpp: port_kit (bringup)

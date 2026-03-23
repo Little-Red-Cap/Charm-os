@@ -20,6 +20,11 @@ namespace demo {
 
     volatile u64 g_tick_ms = 0;
     volatile u32 g_tick_mod = 1000;
+    volatile u32 timer_hits = 0;
+    volatile u32 queue_hits = 0;
+
+    using Queue = charm::system::rtos::SpscQueue<u32, 16>;
+    Queue g_queue{};
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
 
@@ -64,26 +69,42 @@ namespace demo {
 
     void task_a(void*) noexcept {
         ++task_a_hits;
+        const u32 value = task_a_hits;
+        (void)g_queue.push(value);
         Scheduler::current().sleep_ms(10);
     }
 
     void task_b(void*) noexcept {
         ++task_b_hits;
+        u32 value = 0;
+        if (g_queue.pop(value)) {
+            ++queue_hits;
+        }
         Scheduler::current().sleep_ms(25);
+    }
+
+    void timer_tick(void*) noexcept {
+        ++timer_hits;
+        (void)Scheduler::current().schedule_after(250, &timer_tick, nullptr);
     }
 
     struct Demo {
         std::array<TaskSlot, 4> slots{};
+        std::array<charm::system::rtos::TimerSlot, 4> timers{};
         Clock clock{};
         Scheduler scheduler;
 
         Demo() noexcept
-            : scheduler(SchedulerConfig{std::span<TaskSlot>(slots.data(), slots.size())}) {
+            : scheduler(SchedulerConfig{
+                  std::span<TaskSlot>(slots.data(), slots.size()),
+                  std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size())
+              }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
             (void)scheduler.create(&task_a, nullptr);
             (void)scheduler.create(&task_b, nullptr);
+            (void)scheduler.schedule_after(250, &timer_tick, nullptr);
         }
     };
 }

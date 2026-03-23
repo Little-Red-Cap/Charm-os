@@ -86,12 +86,13 @@ export namespace charm::system::rtos {
         std::span<TaskSlot> tasks{};
         std::span<TimerSlot> timers{};
         TaskPriority max_priority{0};
+        std::span<TaskId> delay_list{};
     };
 
     class Scheduler {
     public:
         explicit Scheduler(SchedulerConfig cfg) noexcept
-            : tasks_(cfg.tasks), timers_(cfg.timers) {
+            : tasks_(cfg.tasks), timers_(cfg.timers), delay_list_(cfg.delay_list) {
             max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
         }
 
@@ -115,12 +116,17 @@ export namespace charm::system::rtos {
         void mark_ready(TaskSlot& slot) noexcept;
         void mark_unready(TaskSlot& slot) noexcept;
         TaskId pick_next_ready() noexcept;
+        void delay_insert(TaskId id, Tick due_ms) noexcept;
+        void delay_remove(TaskId id) noexcept;
+        void delay_wake_ready(Tick now) noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
         std::array<util::u16, max_task_priority + 1> ready_count_{};
         std::array<util::usize, max_task_priority + 1> rr_index_{};
         TaskPriority max_priority_{0};
+        std::span<TaskId> delay_list_{};
+        util::usize delay_count_{0};
         TaskId current_{invalid_task_id};
         inline static Scheduler* bound_{nullptr};
     };
@@ -145,6 +151,53 @@ export namespace charm::system::rtos {
         const auto index = static_cast<util::usize>(id - 1u);
         if (index >= timers_.size()) return nullptr;
         return &timers_[index];
+    }
+
+    inline void Scheduler::delay_remove(TaskId id) noexcept {
+        if (delay_count_ == 0 || delay_list_.empty()) return;
+        for (util::usize i = 0; i < delay_count_; ++i) {
+            if (delay_list_[i] == id) {
+                for (util::usize j = i + 1; j < delay_count_; ++j) {
+                    delay_list_[j - 1] = delay_list_[j];
+                }
+                --delay_count_;
+                return;
+            }
+        }
+    }
+
+    inline void Scheduler::delay_insert(TaskId id, Tick due_ms) noexcept {
+        if (delay_list_.empty()) return;
+        delay_remove(id);
+        if (delay_count_ >= delay_list_.size()) return;
+        util::usize pos = delay_count_;
+        for (util::usize i = 0; i < delay_count_; ++i) {
+            auto* slot = slot_from_id(delay_list_[i]);
+            if (!slot || due_ms < slot->wake_ms) {
+                pos = i;
+                break;
+            }
+        }
+        for (util::usize i = delay_count_; i > pos; --i) {
+            delay_list_[i] = delay_list_[i - 1];
+        }
+        delay_list_[pos] = id;
+        ++delay_count_;
+    }
+
+    inline void Scheduler::delay_wake_ready(Tick now) noexcept {
+        while (delay_count_ > 0) {
+            const auto id = delay_list_[0];
+            auto* slot = slot_from_id(id);
+            if (!slot || slot->state != TaskState::sleeping) {
+                delay_remove(id);
+                continue;
+            }
+            if (now < slot->wake_ms) break;
+            delay_remove(id);
+            slot->state = TaskState::ready;
+            mark_ready(*slot);
+        }
     }
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx) noexcept {
@@ -188,6 +241,7 @@ export namespace charm::system::rtos {
         slot->wake_ms = time::now_ms() + ms;
         slot->state = TaskState::sleeping;
         slot->slice_left = slot->slice_max;
+        delay_insert(current_, slot->wake_ms);
     }
 
     inline void Scheduler::mark_ready(TaskSlot& slot) noexcept {
@@ -230,19 +284,13 @@ export namespace charm::system::rtos {
 
     inline void Scheduler::run_once() noexcept {
         const auto now = time::now_ms();
+        delay_wake_ready(now);
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
             if (!timer.active || !timer.fn) continue;
             if (now >= timer.due_ms) {
                 timer.active = false;
                 timer.fn(timer.ctx);
-            }
-        }
-        for (util::usize i = 0; i < tasks_.size(); ++i) {
-            auto& slot = tasks_[i];
-            if (slot.state == TaskState::sleeping && now >= slot.wake_ms) {
-                slot.state = TaskState::ready;
-                mark_ready(slot);
             }
         }
         const auto next = pick_next_ready();

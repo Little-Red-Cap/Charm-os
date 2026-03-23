@@ -14,6 +14,7 @@ namespace demo {
     using charm::system::rtos::SchedulerConfig;
     using charm::system::rtos::TaskSlot;
     using charm::system::rtos::TaskState;
+    using charm::system::rtos::TaskId;
     using charm::system::time::bind;
     using util::u32;
     using util::u64;
@@ -91,6 +92,7 @@ namespace demo {
     struct Demo {
         std::array<TaskSlot, 4> slots{};
         std::array<charm::system::rtos::TimerSlot, 4> timers{};
+        std::array<TaskId, 4> delays{};
         Clock clock{};
         Scheduler scheduler;
 
@@ -98,7 +100,8 @@ namespace demo {
             : scheduler(SchedulerConfig{
                   std::span<TaskSlot>(slots.data(), slots.size()),
                   std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size()),
-                  1
+                  1,
+                  std::span<TaskId>(delays.data(), delays.size())
               }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);

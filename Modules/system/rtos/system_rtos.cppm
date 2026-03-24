@@ -450,6 +450,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::process_timers(TimerSlot::Kind kind, Tick now) noexcept {
+        CriticalGuard guard{};
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
             if (!timer.active || !timer.fn) continue;
@@ -511,6 +512,7 @@ export namespace charm::system::rtos {
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
+        CriticalGuard guard{};
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
             if (!timer.active) {
@@ -530,6 +532,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::cancel_timer(TimerId id) noexcept {
+        CriticalGuard guard{};
         auto* timer = timer_from_id(id);
         if (!timer) return;
         timer->active = false;

@@ -139,6 +139,8 @@ export namespace charm::system::rtos {
             util::u32 stopped{0};
             util::u32 timers_soft{0};
             util::u32 timers_hard{0};
+            util::u32 lock_depth{0};
+            util::u32 delay_count{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
 
@@ -546,6 +548,8 @@ export namespace charm::system::rtos {
 
     inline Scheduler::Stats Scheduler::stats() const noexcept {
         Stats out{};
+        out.lock_depth = lock_count_;
+        out.delay_count = static_cast<util::u32>(delay_count_);
         for (const auto& slot : tasks_) {
             switch (slot.state) {
             case TaskState::ready:

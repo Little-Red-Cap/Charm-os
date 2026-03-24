@@ -16,6 +16,7 @@ namespace demo {
     using charm::system::rtos::TaskSlot;
     using charm::system::rtos::TaskState;
     using charm::system::rtos::TaskId;
+    using charm::system::rtos::PreemptGuard;
     using charm::system::rtos::bind_critical;
     using charm::system::rtos::CriticalGuard;
     using charm::system::time::bind;
@@ -94,6 +95,11 @@ namespace demo {
         u32 value = 0;
         if (g_queue.pop(value)) {
             ++queue_hits;
+        }
+        if ((task_b_hits % 11u) == 0u) {
+            PreemptGuard guard{};
+            (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
+                charm::system::rtos::TimerSlot::Kind::hard);
         }
         Scheduler::current().sleep_ms(25);
     }

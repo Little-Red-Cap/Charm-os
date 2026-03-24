@@ -147,6 +147,7 @@ export namespace charm::system::rtos {
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
 
         static Scheduler& current() noexcept;
+        static Scheduler* current_ptr() noexcept;
         static void bind(Scheduler& scheduler) noexcept;
 
     private:
@@ -182,6 +183,33 @@ export namespace charm::system::rtos {
         Scheduler& sched_;
     };
 
+    class PreemptGuard {
+    public:
+        PreemptGuard() noexcept
+            : sched_(Scheduler::current_ptr()) {
+            if (sched_) sched_->lock();
+        }
+        ~PreemptGuard() {
+            if (sched_) sched_->unlock();
+        }
+        PreemptGuard(const PreemptGuard&) = delete;
+        PreemptGuard& operator=(const PreemptGuard&) = delete;
+    private:
+        Scheduler* sched_{nullptr};
+    };
+
+    inline void preempt_disable() noexcept {
+        if (auto* sched = Scheduler::current_ptr()) {
+            sched->lock();
+        }
+    }
+
+    inline void preempt_enable() noexcept {
+        if (auto* sched = Scheduler::current_ptr()) {
+            sched->unlock();
+        }
+    }
+
     inline CriticalFn critical_enter_{nullptr};
     inline CriticalFn critical_exit_{nullptr};
 
@@ -200,6 +228,10 @@ export namespace charm::system::rtos {
 
     inline Scheduler& Scheduler::current() noexcept {
         return *bound_;
+    }
+
+    inline Scheduler* Scheduler::current_ptr() noexcept {
+        return bound_;
     }
 
     inline void Scheduler::bind(Scheduler& scheduler) noexcept {

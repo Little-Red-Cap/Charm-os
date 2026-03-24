@@ -272,6 +272,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::delay_remove(TaskId id) noexcept {
+        CriticalGuard guard{};
         if (delay_count_ == 0 || delay_list_.empty()) return;
         for (util::usize i = 0; i < delay_count_; ++i) {
             if (delay_list_[i] == id) {
@@ -294,6 +295,7 @@ export namespace charm::system::rtos {
 
     inline void Scheduler::delay_insert(TaskId id, Tick due_ms) noexcept {
         if (delay_list_.empty()) return;
+        CriticalGuard guard{};
         delay_remove(id);
         if (delay_count_ >= delay_list_.size()) return;
         auto* slot = slot_from_id(id);
@@ -336,6 +338,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::delay_wake_ready(Tick now) noexcept {
+        CriticalGuard guard{};
         Tick remain = now;
         while (delay_count_ > 0) {
             const auto id = delay_list_[0];

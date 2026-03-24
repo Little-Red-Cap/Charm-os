@@ -12,9 +12,12 @@ namespace demo {
     using charm::system::ClockOps;
     using charm::system::rtos::Scheduler;
     using charm::system::rtos::SchedulerConfig;
+    using charm::system::rtos::SchedulerLockGuard;
     using charm::system::rtos::TaskSlot;
     using charm::system::rtos::TaskState;
     using charm::system::rtos::TaskId;
+    using charm::system::rtos::bind_critical;
+    using charm::system::rtos::CriticalGuard;
     using charm::system::time::bind;
     using util::u32;
     using util::u64;
@@ -69,10 +72,20 @@ namespace demo {
         return g_tick_ms;
     }
 
+    void disable_irqs() noexcept {}
+    void enable_irqs() noexcept {}
+
+    void timer_tick(void*) noexcept;
+    void timer_tick_hard(void*) noexcept;
+
     void task_a(void*) noexcept {
         ++task_a_hits;
         const u32 value = task_a_hits;
         (void)g_queue.push(value);
+        if ((task_a_hits % 9u) == 0u) {
+            SchedulerLockGuard guard{Scheduler::current()};
+            (void)Scheduler::current().schedule_after(5, &timer_tick, nullptr);
+        }
         Scheduler::current().sleep_ms(10);
     }
 
@@ -117,6 +130,7 @@ namespace demo {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
+            bind_critical(&disable_irqs, &enable_irqs);
             (void)scheduler.create(&task_a, nullptr, 1, 1);
             (void)scheduler.create(&task_b, nullptr, 0, 1);
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
@@ -138,7 +152,10 @@ int main() {
         demo.scheduler.tick();
         demo.scheduler.run_once();
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {
-            demo::UartCmsdk::write("rtos tick\n");
+            {
+                demo::CriticalGuard guard{};
+                demo::UartCmsdk::write("rtos tick\n");
+            }
         }
     }
     return 0;

@@ -20,6 +20,22 @@ export namespace charm::system::rtos {
     using TimerId = util::u16;
     using CriticalFn = void (*)() noexcept;
 
+#if !defined(NDEBUG)
+    inline void debug_trap() noexcept {
+#if defined(__GNUC__)
+        __builtin_trap();
+#else
+        while (true) {}
+#endif
+    }
+
+    inline void debug_assert(bool cond) noexcept {
+        if (!cond) debug_trap();
+    }
+#else
+    inline void debug_assert(bool) noexcept {}
+#endif
+
     constexpr TaskPriority max_task_priority = 31;
 
     constexpr TaskId invalid_task_id = 0;
@@ -281,6 +297,7 @@ export namespace charm::system::rtos {
     inline void Scheduler::block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
+        debug_assert(slot->state == TaskState::running);
         slot->state = TaskState::blocked;
         slot->slice_left = slot->slice_max;
         slot->wait_result = WaitResult::blocked;
@@ -297,6 +314,7 @@ export namespace charm::system::rtos {
     inline void Scheduler::wake(TaskId id, WaitResult result, bool grant) noexcept {
         auto* slot = slot_from_id(id);
         if (!slot) return;
+        debug_assert(slot->state == TaskState::blocked);
         delay_remove(id);
         slot->state = TaskState::ready;
         slot->wait_result = result;
@@ -433,6 +451,7 @@ export namespace charm::system::rtos {
     inline void Scheduler::yield() noexcept {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
+        debug_assert(slot->state == TaskState::running);
         if (slot->state == TaskState::running) {
             slot->state = TaskState::ready;
             slot->slice_left = slot->slice_max;
@@ -443,6 +462,7 @@ export namespace charm::system::rtos {
     inline void Scheduler::sleep_ms(Tick ms) noexcept {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
+        debug_assert(slot->state == TaskState::running);
         slot->wake_ms = time::now_ms() + ms;
         slot->state = TaskState::sleeping;
         slot->slice_left = slot->slice_max;
@@ -523,6 +543,7 @@ export namespace charm::system::rtos {
             current_ = invalid_task_id;
             return;
         }
+        debug_assert(slot->state == TaskState::ready);
         mark_unready(*slot);
         current_ = next;
         slot->state = TaskState::running;

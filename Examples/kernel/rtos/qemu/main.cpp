@@ -18,11 +18,12 @@ namespace demo {
     using charm::system::rtos::TaskState;
     using charm::system::rtos::TaskId;
     using charm::system::rtos::PreemptGuard;
-    using charm::system::rtos::bind_critical;
+    using charm::system::rtos::bind_port;
     using charm::system::rtos::CriticalGuard;
     using charm::system::rtos::EventFlags;
     using charm::system::rtos::IsrGuard;
     using charm::system::rtos::MessageQueue;
+    using charm::system::rtos::RtosPort;
     using charm::system::time::bind;
     using util::u32;
     using util::u64;
@@ -167,7 +168,7 @@ namespace demo {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
-            bind_critical(&disable_irqs, &enable_irqs);
+            bind_port(RtosPort{&disable_irqs, &enable_irqs, nullptr});
             g_flags.set_auto_clear_any(EventFlags<4>::AutoClearMode::match_any);
             g_flags.set_auto_clear_all(EventFlags<4>::AutoClearMode::mask);
             (void)scheduler.create(&task_a, nullptr, 1, 1);

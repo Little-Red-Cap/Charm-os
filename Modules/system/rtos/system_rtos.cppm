@@ -19,6 +19,8 @@ export namespace charm::system::rtos {
     using TaskPriority = util::u8;
     using TimerId = util::u16;
     using CriticalFn = void (*)() noexcept;
+    struct TraceEvent;
+    using TraceSinkFn = void (*)(const TraceEvent& ev) noexcept;
 
 #if !defined(NDEBUG)
     inline void debug_trap() noexcept {
@@ -302,12 +304,29 @@ export namespace charm::system::rtos {
         }
     }
 
+    struct RtosPort {
+        CriticalFn enter_critical{nullptr};
+        CriticalFn exit_critical{nullptr};
+        TraceSinkFn trace_sink{nullptr};
+    };
+
     inline CriticalFn critical_enter_{nullptr};
     inline CriticalFn critical_exit_{nullptr};
+
+    inline RtosPort port_{};
+
+    inline const RtosPort& port() noexcept { return port_; }
+    inline void bind_port(const RtosPort& port) noexcept {
+        port_ = port;
+        critical_enter_ = port_.enter_critical;
+        critical_exit_ = port_.exit_critical;
+    }
 
     inline void bind_critical(CriticalFn enter, CriticalFn exit) noexcept {
         critical_enter_ = enter;
         critical_exit_ = exit;
+        port_.enter_critical = enter;
+        port_.exit_critical = exit;
     }
 
     class CriticalGuard {
@@ -643,10 +662,14 @@ export namespace charm::system::rtos {
         if (trace_.empty()) return;
         if ((trace_mask_ & trace_bit(kind)) == 0u) return;
         const auto idx = trace_head_ % static_cast<util::u32>(trace_.size());
-        trace_[idx] = TraceEvent{time::now_ms(), kind, id, data};
+        const TraceEvent ev{time::now_ms(), kind, id, data};
+        trace_[idx] = ev;
         ++trace_head_;
         if (trace_count_ < trace_.size()) {
             ++trace_count_;
+        }
+        if (port_.trace_sink) {
+            port_.trace_sink(ev);
         }
     }
 

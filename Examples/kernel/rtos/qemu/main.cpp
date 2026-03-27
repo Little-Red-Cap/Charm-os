@@ -197,6 +197,8 @@ int main() {
     demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
+        demo::g_flags.poll_wake(demo.scheduler);
+        demo::g_mq.poll_wake(demo.scheduler);
         demo.scheduler.tick();
         demo.scheduler.run_once();
         demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));

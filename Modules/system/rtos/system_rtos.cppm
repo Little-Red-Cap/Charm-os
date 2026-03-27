@@ -807,7 +807,38 @@ export namespace charm::system::rtos {
         void set(util::u32 mask) noexcept {
             flags_ |= mask;
             if (!Scheduler::current().valid()) return;
-            auto& sched = Scheduler::current();
+            process_waiters(Scheduler::current());
+        }
+
+        void set_isr(util::u32 mask) noexcept {
+            flags_ |= mask;
+            pending_wake_ = true;
+        }
+
+        void poll_wake(Scheduler& sched) noexcept {
+            if (!pending_wake_) return;
+            pending_wake_ = false;
+            process_waiters(sched);
+        }
+
+        [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, false, auto_clear_any_, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_any(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, false, mode, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, true, auto_clear_all_, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_all(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, true, mode, timeout_ms);
+        }
+
+    private:
+        void process_waiters(Scheduler& sched) noexcept {
             util::usize i = 0;
             while (i < wait_count_) {
                 const auto w = waiters_[i];
@@ -838,24 +869,6 @@ export namespace charm::system::rtos {
                 ++i;
             }
         }
-
-        [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, false, auto_clear_any_, timeout_ms);
-        }
-
-        [[nodiscard]] WaitResult wait_any(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, false, mode, timeout_ms);
-        }
-
-        [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, true, auto_clear_all_, timeout_ms);
-        }
-
-        [[nodiscard]] WaitResult wait_all(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, true, mode, timeout_ms);
-        }
-
-    private:
         struct Waiter {
             TaskId id{invalid_task_id};
             util::u32 mask{0};
@@ -924,6 +937,7 @@ export namespace charm::system::rtos {
         }
 
         util::u32 flags_{0};
+        bool pending_wake_{false};
         AutoClearMode auto_clear_any_{AutoClearMode::none};
         AutoClearMode auto_clear_all_{AutoClearMode::none};
         std::array<Waiter, MaxWaiters> waiters_{};
@@ -966,6 +980,13 @@ export namespace charm::system::rtos {
             return true;
         }
 
+        [[nodiscard]] bool try_send_isr(const T& value) noexcept {
+            if (full()) return false;
+            push(value);
+            pending_rx_wake_ = true;
+            return true;
+        }
+
         [[nodiscard]] WaitResult recv(T& out, Tick timeout_ms = 0) noexcept {
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
@@ -998,6 +1019,28 @@ export namespace charm::system::rtos {
                 wake_sender(Scheduler::current());
             }
             return true;
+        }
+
+        [[nodiscard]] bool try_recv_isr(T& out) noexcept {
+            if (empty()) return false;
+            pop(out);
+            pending_tx_wake_ = true;
+            return true;
+        }
+
+        void poll_wake(Scheduler& sched) noexcept {
+            if (pending_rx_wake_) {
+                pending_rx_wake_ = false;
+                while (recv_wait_count_ > 0 && !empty()) {
+                    wake_receiver(sched);
+                }
+            }
+            if (pending_tx_wake_) {
+                pending_tx_wake_ = false;
+                while (send_wait_count_ > 0 && !full()) {
+                    wake_sender(sched);
+                }
+            }
         }
 
         [[nodiscard]] util::usize send_batch(std::span<const T> items) noexcept {
@@ -1098,6 +1141,8 @@ export namespace charm::system::rtos {
         std::array<TaskId, MaxWaiters> recv_waiters_{};
         util::usize send_wait_count_{0};
         util::usize recv_wait_count_{0};
+        bool pending_rx_wake_{false};
+        bool pending_tx_wake_{false};
     };
 
     template <util::usize MaxWaiters>

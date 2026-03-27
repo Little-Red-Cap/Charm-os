@@ -118,6 +118,8 @@ export namespace charm::system::rtos {
         std::span<TimerSlot> timers{};
         TaskPriority max_priority{0};
         std::span<TaskId> delay_list{};
+        bool allow_task_create{true};
+        bool allow_timer_create{true};
     };
 
     class Scheduler {
@@ -125,10 +127,15 @@ export namespace charm::system::rtos {
         explicit Scheduler(SchedulerConfig cfg) noexcept
             : tasks_(cfg.tasks), timers_(cfg.timers), delay_list_(cfg.delay_list) {
             max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
+            allow_task_create_ = cfg.allow_task_create;
+            allow_timer_create_ = cfg.allow_timer_create;
         }
 
         [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx) noexcept;
         [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept;
+        [[nodiscard]] util::Result<TaskId> reserve(TaskFn fn, void* ctx, TaskPriority priority,
+                                                   util::u32 slice) noexcept;
+        [[nodiscard]] bool activate(TaskId id) noexcept;
         void run_once() noexcept;
         void yield() noexcept;
         void sleep_ms(Tick ms) noexcept;
@@ -162,6 +169,10 @@ export namespace charm::system::rtos {
         [[nodiscard]] bool self_check() const noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
+        void allow_task_create(bool allowed) noexcept { allow_task_create_ = allowed; }
+        void allow_timer_create(bool allowed) noexcept { allow_timer_create_ = allowed; }
+        void freeze_task_creation() noexcept { allow_task_create_ = false; }
+        void freeze_timer_creation() noexcept { allow_timer_create_ = false; }
 
         static Scheduler& current() noexcept;
         static Scheduler* current_ptr() noexcept;
@@ -187,6 +198,8 @@ export namespace charm::system::rtos {
         util::usize delay_count_{0};
         TaskId current_{invalid_task_id};
         util::u32 lock_count_{0};
+        bool allow_task_create_{true};
+        bool allow_timer_create_{true};
         inline static Scheduler* bound_{nullptr};
     };
 
@@ -429,6 +442,7 @@ export namespace charm::system::rtos {
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
+        if (!allow_task_create_) return util::unexpected(util::Errc::perm);
         if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
         if (slice == 0) slice = 1;
         for (util::usize i = 0; i < tasks_.size(); ++i) {
@@ -446,6 +460,38 @@ export namespace charm::system::rtos {
             }
         }
         return util::unexpected(util::Errc::no_memory);
+    }
+
+    inline util::Result<TaskId> Scheduler::reserve(TaskFn fn, void* ctx, TaskPriority priority,
+                                                   util::u32 slice) noexcept {
+        if (!fn) return util::unexpected(util::Errc::invalid_arg);
+        if (!allow_task_create_) return util::unexpected(util::Errc::perm);
+        if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
+        if (slice == 0) slice = 1;
+        for (util::usize i = 0; i < tasks_.size(); ++i) {
+            auto& slot = tasks_[i];
+            if (slot.state == TaskState::unused || slot.state == TaskState::stopped) {
+                slot.fn = fn;
+                slot.ctx = ctx;
+                slot.wake_ms = 0;
+                slot.priority = priority;
+                slot.slice_max = slice;
+                slot.slice_left = slice;
+                slot.state = TaskState::stopped;
+                return static_cast<TaskId>(i + 1);
+            }
+        }
+        return util::unexpected(util::Errc::no_memory);
+    }
+
+    inline bool Scheduler::activate(TaskId id) noexcept {
+        auto* slot = slot_from_id(id);
+        if (!slot) return false;
+        if (slot->state != TaskState::stopped || !slot->fn) return false;
+        slot->state = TaskState::ready;
+        slot->slice_left = slot->slice_max;
+        mark_ready(*slot);
+        return true;
     }
 
     inline void Scheduler::yield() noexcept {
@@ -571,6 +617,7 @@ export namespace charm::system::rtos {
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
+        if (!allow_timer_create_) return util::unexpected(util::Errc::perm);
         CriticalGuard guard{};
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];

@@ -157,6 +157,7 @@ namespace demo {
             g_flags.set_auto_clear_all(EventFlags<4>::AutoClearMode::mask);
             (void)scheduler.create(&task_a, nullptr, 1, 1);
             (void)scheduler.create(&task_b, nullptr, 0, 1);
+            scheduler.freeze_task_creation();
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
             (void)scheduler.schedule_after(
                 500,

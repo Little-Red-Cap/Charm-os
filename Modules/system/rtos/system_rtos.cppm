@@ -1098,7 +1098,9 @@ export namespace charm::system::rtos {
             debug_assert(in_isr());
             if (full()) return false;
             push(value);
-            pending_rx_wake_ = true;
+            if (recv_wait_count_ > 0) {
+                ++rx_lock_;
+            }
             return true;
         }
 
@@ -1142,24 +1144,30 @@ export namespace charm::system::rtos {
             debug_assert(in_isr());
             if (empty()) return false;
             pop(out);
-            pending_tx_wake_ = true;
+            if (send_wait_count_ > 0) {
+                ++tx_lock_;
+            }
             return true;
         }
 
         void poll_wake(Scheduler& sched) noexcept {
             debug_assert(!in_isr());
-            if (pending_rx_wake_) {
-                pending_rx_wake_ = false;
-                while (recv_wait_count_ > 0 && !empty()) {
-                    wake_receiver(sched);
-                }
+            if (recv_wait_count_ == 0 || empty()) {
+                rx_lock_ = 0;
             }
-            if (pending_tx_wake_) {
-                pending_tx_wake_ = false;
-                while (send_wait_count_ > 0 && !full()) {
-                    wake_sender(sched);
-                }
+            while (rx_lock_ > 0 && recv_wait_count_ > 0 && !empty()) {
+                wake_receiver(sched);
+                --rx_lock_;
             }
+            if (rx_lock_ > recv_wait_count_) rx_lock_ = recv_wait_count_;
+            if (send_wait_count_ == 0 || full()) {
+                tx_lock_ = 0;
+            }
+            while (tx_lock_ > 0 && send_wait_count_ > 0 && !full()) {
+                wake_sender(sched);
+                --tx_lock_;
+            }
+            if (tx_lock_ > send_wait_count_) tx_lock_ = send_wait_count_;
         }
 
         [[nodiscard]] util::usize send_batch(std::span<const T> items) noexcept {
@@ -1260,8 +1268,8 @@ export namespace charm::system::rtos {
         std::array<TaskId, MaxWaiters> recv_waiters_{};
         util::usize send_wait_count_{0};
         util::usize recv_wait_count_{0};
-        bool pending_rx_wake_{false};
-        bool pending_tx_wake_{false};
+        util::u32 rx_lock_{0};
+        util::u32 tx_lock_{0};
     };
 
     template <util::usize MaxWaiters>

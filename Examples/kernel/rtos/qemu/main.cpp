@@ -168,7 +168,9 @@ namespace demo {
               charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::run) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout)
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation)
           }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
@@ -267,6 +269,10 @@ namespace demo {
             case TraceKind::sleep: return 'S';
             case TraceKind::timer_fire: return 'F';
             case TraceKind::isr_poll: return 'I';
+            case TraceKind::task_violation: return 'v';
+            case TraceKind::isr_violation: return 'V';
+            case TraceKind::create_denied: return 'C';
+            case TraceKind::timer_create_denied: return 'D';
             }
             return '?';
         }

@@ -54,19 +54,8 @@ export namespace charm::system::rtos {
     inline void isr_enter() noexcept { ++isr_depth_; }
     inline void isr_exit() noexcept { if (isr_depth_ > 0) --isr_depth_; }
 
-    inline void require_task_context() noexcept {
-        if (in_isr()) {
-            ++task_violation_count_;
-            debug_assert(false);
-        }
-    }
-
-    inline void require_isr_context() noexcept {
-        if (!in_isr()) {
-            ++isr_violation_count_;
-            debug_assert(false);
-        }
-    }
+    void require_task_context() noexcept;
+    void require_isr_context() noexcept;
 
     class IsrGuard {
     public:
@@ -106,6 +95,8 @@ export namespace charm::system::rtos {
         isr_poll,
         create_denied,
         timer_create_denied,
+        task_violation,
+        isr_violation,
     };
 
     struct TraceEvent {
@@ -271,6 +262,9 @@ export namespace charm::system::rtos {
         static void bind(Scheduler& scheduler) noexcept;
 
     private:
+        friend void require_task_context() noexcept;
+        friend void require_isr_context() noexcept;
+
         TaskSlot* slot_from_id(TaskId id) noexcept;
         TimerSlot* timer_from_id(TimerId id) noexcept;
         void mark_ready(TaskSlot& slot) noexcept;
@@ -397,6 +391,24 @@ export namespace charm::system::rtos {
 
     inline Scheduler* Scheduler::current_ptr() noexcept {
         return bound_;
+    }
+
+    inline void require_task_context() noexcept {
+        if (!in_isr()) return;
+        ++task_violation_count_;
+        if (auto* sched = Scheduler::current_ptr(); sched && sched->valid()) {
+            sched->trace_push(TraceKind::task_violation, sched->current_id(), 0);
+        }
+        debug_assert(false);
+    }
+
+    inline void require_isr_context() noexcept {
+        if (in_isr()) return;
+        ++isr_violation_count_;
+        if (auto* sched = Scheduler::current_ptr(); sched && sched->valid()) {
+            sched->trace_push(TraceKind::isr_violation, sched->current_id(), 0);
+        }
+        debug_assert(false);
     }
 
     inline void Scheduler::bind(Scheduler& scheduler) noexcept {
@@ -957,6 +969,7 @@ export namespace charm::system::rtos {
             : count_(initial), max_(max) {}
 
         [[nodiscard]] bool post() noexcept {
+            require_task_context();
             if (!Scheduler::current().valid()) return false;
             auto& sched = Scheduler::current();
             while (wait_count_ > 0) {
@@ -977,6 +990,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult wait(Tick timeout_ms = 0) noexcept {
+            require_task_context();
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
             if (id == invalid_task_id) return WaitResult::blocked;
@@ -1412,6 +1426,7 @@ export namespace charm::system::rtos {
     class Mutex {
     public:
         [[nodiscard]] bool try_lock() noexcept {
+            require_task_context();
             if (!Scheduler::current().valid()) return false;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -1424,6 +1439,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult lock(Tick timeout_ms = 0) noexcept {
+            require_task_context();
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -1448,6 +1464,7 @@ export namespace charm::system::rtos {
         }
 
         void unlock() noexcept {
+            require_task_context();
             if (!Scheduler::current().valid()) return;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();

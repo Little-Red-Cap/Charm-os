@@ -24,6 +24,11 @@ export namespace charm::system::rtos {
     using PortFn = void (*)() noexcept;
     using TickSetupFn = void (*)(util::u32 hz) noexcept;
 
+    enum class RuntimePhase : util::u8 {
+        registration,
+        runtime,
+    };
+
 #if !defined(NDEBUG)
     inline void debug_trap() noexcept {
 #if defined(__GNUC__)
@@ -161,6 +166,8 @@ export namespace charm::system::rtos {
         std::span<TaskId> delay_list{};
         bool allow_task_create{true};
         bool allow_timer_create{true};
+        bool allow_runtime_task_create{false};
+        bool allow_runtime_timer_create{false};
         std::span<TraceEvent> trace{};
         util::u32 trace_mask{0xFFFFFFFFu};
     };
@@ -172,6 +179,8 @@ export namespace charm::system::rtos {
             max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
             allow_task_create_ = cfg.allow_task_create;
             allow_timer_create_ = cfg.allow_timer_create;
+            allow_runtime_task_create_ = cfg.allow_runtime_task_create;
+            allow_runtime_timer_create_ = cfg.allow_runtime_timer_create;
             trace_ = cfg.trace;
             trace_mask_ = trace_.empty() ? 0u : cfg.trace_mask;
         }
@@ -181,6 +190,8 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TaskId> reserve(TaskFn fn, void* ctx, TaskPriority priority,
                                                    util::u32 slice) noexcept;
         [[nodiscard]] bool activate(TaskId id) noexcept;
+        void enter_runtime() noexcept { phase_ = RuntimePhase::runtime; }
+        [[nodiscard]] bool in_runtime() const noexcept { return phase_ == RuntimePhase::runtime; }
         void run_once() noexcept;
         void yield() noexcept;
         void sleep_ms(Tick ms) noexcept;
@@ -215,6 +226,10 @@ export namespace charm::system::rtos {
             util::u32 wake_count{0};
             util::u32 timeout_count{0};
             util::u32 last_pick_prio{0};
+            util::u32 create_denied{0};
+            util::u32 runtime_create_denied{0};
+            util::u32 timer_create_denied{0};
+            util::u32 runtime_timer_denied{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
@@ -254,8 +269,11 @@ export namespace charm::system::rtos {
         util::usize delay_count_{0};
         TaskId current_{invalid_task_id};
         util::u32 lock_count_{0};
+        RuntimePhase phase_{RuntimePhase::registration};
         bool allow_task_create_{true};
         bool allow_timer_create_{true};
+        bool allow_runtime_task_create_{false};
+        bool allow_runtime_timer_create_{false};
         std::span<TraceEvent> trace_{};
         util::u32 trace_head_{0};
         util::u32 trace_count_{0};
@@ -266,6 +284,10 @@ export namespace charm::system::rtos {
         util::u32 wake_count_{0};
         util::u32 timeout_count_{0};
         TaskPriority last_pick_prio_{0};
+        util::u32 create_denied_{0};
+        util::u32 runtime_create_denied_{0};
+        util::u32 timer_create_denied_{0};
+        util::u32 runtime_timer_denied_{0};
         inline static Scheduler* bound_{nullptr};
     };
 
@@ -552,7 +574,14 @@ export namespace charm::system::rtos {
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
-        if (!allow_task_create_) return util::unexpected(util::Errc::perm);
+        if (!allow_task_create_) {
+            ++create_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
+        if (phase_ == RuntimePhase::runtime && !allow_runtime_task_create_) {
+            ++runtime_create_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
         if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
         if (slice == 0) slice = 1;
         for (util::usize i = 0; i < tasks_.size(); ++i) {
@@ -575,7 +604,14 @@ export namespace charm::system::rtos {
     inline util::Result<TaskId> Scheduler::reserve(TaskFn fn, void* ctx, TaskPriority priority,
                                                    util::u32 slice) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
-        if (!allow_task_create_) return util::unexpected(util::Errc::perm);
+        if (!allow_task_create_) {
+            ++create_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
+        if (phase_ == RuntimePhase::runtime && !allow_runtime_task_create_) {
+            ++runtime_create_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
         if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
         if (slice == 0) slice = 1;
         for (util::usize i = 0; i < tasks_.size(); ++i) {
@@ -764,7 +800,14 @@ export namespace charm::system::rtos {
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
-        if (!allow_timer_create_) return util::unexpected(util::Errc::perm);
+        if (!allow_timer_create_) {
+            ++timer_create_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
+        if (phase_ == RuntimePhase::runtime && !allow_runtime_timer_create_) {
+            ++runtime_timer_denied_;
+            return util::unexpected(util::Errc::perm);
+        }
         CriticalGuard guard{};
         for (util::usize i = 0; i < timers_.size(); ++i) {
             auto& timer = timers_[i];
@@ -804,6 +847,10 @@ export namespace charm::system::rtos {
         out.wake_count = wake_count_;
         out.timeout_count = timeout_count_;
         out.last_pick_prio = last_pick_prio_;
+        out.create_denied = create_denied_;
+        out.runtime_create_denied = runtime_create_denied_;
+        out.timer_create_denied = timer_create_denied_;
+        out.runtime_timer_denied = runtime_timer_denied_;
         for (const auto& slot : tasks_) {
             switch (slot.state) {
             case TaskState::ready:

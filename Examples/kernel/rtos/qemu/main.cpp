@@ -168,7 +168,7 @@ namespace demo {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
-            bind_port(RtosPort{&disable_irqs, &enable_irqs, nullptr});
+            bind_port(RtosPort{&disable_irqs, &enable_irqs, nullptr, nullptr, nullptr, nullptr});
             g_flags.set_auto_clear_any(EventFlags<4>::AutoClearMode::match_any);
             g_flags.set_auto_clear_all(EventFlags<4>::AutoClearMode::mask);
             (void)scheduler.create(&task_a, nullptr, 1, 1);

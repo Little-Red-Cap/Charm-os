@@ -21,6 +21,8 @@ export namespace charm::system::rtos {
     using CriticalFn = void (*)() noexcept;
     struct TraceEvent;
     using TraceSinkFn = void (*)(const TraceEvent& ev) noexcept;
+    using PortFn = void (*)() noexcept;
+    using TickSetupFn = void (*)(util::u32 hz) noexcept;
 
 #if !defined(NDEBUG)
     inline void debug_trap() noexcept {
@@ -308,6 +310,9 @@ export namespace charm::system::rtos {
         CriticalFn enter_critical{nullptr};
         CriticalFn exit_critical{nullptr};
         TraceSinkFn trace_sink{nullptr};
+        PortFn yield{nullptr};
+        PortFn start_first_task{nullptr};
+        TickSetupFn setup_tick{nullptr};
     };
 
     inline CriticalFn critical_enter_{nullptr};
@@ -320,6 +325,24 @@ export namespace charm::system::rtos {
         port_ = port;
         critical_enter_ = port_.enter_critical;
         critical_exit_ = port_.exit_critical;
+    }
+
+    inline void port_yield() noexcept {
+        if (port_.yield) {
+            port_.yield();
+        }
+    }
+
+    inline void port_start_first_task() noexcept {
+        if (port_.start_first_task) {
+            port_.start_first_task();
+        }
+    }
+
+    inline void port_setup_tick(util::u32 hz) noexcept {
+        if (port_.setup_tick) {
+            port_.setup_tick(hz);
+        }
     }
 
     inline void bind_critical(CriticalFn enter, CriticalFn exit) noexcept {

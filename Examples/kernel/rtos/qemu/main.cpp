@@ -82,6 +82,9 @@ namespace demo {
 
     void disable_irqs() noexcept {}
     void enable_irqs() noexcept {}
+    void port_yield_impl() noexcept {}
+    void port_start_impl() noexcept {}
+    void port_setup_tick_impl(u32) noexcept {}
 
     void timer_tick(void*) noexcept;
     void timer_tick_hard(void*) noexcept;
@@ -170,7 +173,14 @@ namespace demo {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);
-            bind_port(RtosPort{&disable_irqs, &enable_irqs, nullptr, nullptr, nullptr, nullptr});
+            bind_port(RtosPort{
+                &disable_irqs,
+                &enable_irqs,
+                nullptr,
+                &port_yield_impl,
+                &port_start_impl,
+                &port_setup_tick_impl
+            });
             g_flags.set_auto_clear_any(EventFlags<4>::AutoClearMode::match_any);
             g_flags.set_auto_clear_all(EventFlags<4>::AutoClearMode::mask);
             (void)scheduler.create(&task_a, nullptr, 1, 1);

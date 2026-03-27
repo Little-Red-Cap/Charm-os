@@ -211,6 +211,8 @@ export namespace charm::system::rtos {
         void run_once() noexcept;
         void yield() noexcept;
         void sleep_ms(Tick ms) noexcept;
+        void start() noexcept;
+        void setup_tick_rate(util::u32 hz) noexcept;
         [[nodiscard]] util::Result<TimerId> schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept;
         [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept;
         [[nodiscard]] util::Result<TimerId> schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
@@ -367,23 +369,9 @@ export namespace charm::system::rtos {
         critical_exit_ = port_.exit_critical;
     }
 
-    inline void port_yield() noexcept {
-        if (port_.yield) {
-            port_.yield();
-        }
-    }
-
-    inline void port_start_first_task() noexcept {
-        if (port_.start_first_task) {
-            port_.start_first_task();
-        }
-    }
-
-    inline void port_setup_tick(util::u32 hz) noexcept {
-        if (port_.setup_tick) {
-            port_.setup_tick(hz);
-        }
-    }
+    inline void port_yield() noexcept { if (port_.yield) port_.yield(); }
+    inline void port_start_first_task() noexcept { if (port_.start_first_task) port_.start_first_task(); }
+    inline void port_setup_tick(util::u32 hz) noexcept { if (port_.setup_tick) port_.setup_tick(hz); }
 
     inline void bind_critical(CriticalFn enter, CriticalFn exit) noexcept {
         critical_enter_ = enter;
@@ -666,6 +654,7 @@ export namespace charm::system::rtos {
         debug_assert(slot->state == TaskState::running);
         ++yield_count_;
         trace_push(TraceKind::yield, current_, 0);
+        port_yield();
         if (slot->state == TaskState::running) {
             slot->state = TaskState::ready;
             slot->slice_left = slot->slice_max;
@@ -683,6 +672,14 @@ export namespace charm::system::rtos {
         slot->state = TaskState::sleeping;
         slot->slice_left = slot->slice_max;
         delay_insert(current_, slot->wake_ms);
+    }
+
+    inline void Scheduler::start() noexcept {
+        port_start_first_task();
+    }
+
+    inline void Scheduler::setup_tick_rate(util::u32 hz) noexcept {
+        port_setup_tick(hz);
     }
 
     inline void Scheduler::mark_ready(TaskSlot& slot) noexcept {

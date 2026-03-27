@@ -168,6 +168,9 @@ namespace demo {
             if (n > 0) {
                 UartCmsdk::write(buf);
             }
+            if (!scheduler.self_check()) {
+                UartCmsdk::write("rtos check failed\n");
+            }
         }
     };
 }

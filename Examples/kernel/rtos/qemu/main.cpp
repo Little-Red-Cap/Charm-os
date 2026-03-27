@@ -20,6 +20,8 @@ namespace demo {
     using charm::system::rtos::PreemptGuard;
     using charm::system::rtos::bind_critical;
     using charm::system::rtos::CriticalGuard;
+    using charm::system::rtos::EventFlags;
+    using charm::system::rtos::MessageQueue;
     using charm::system::time::bind;
     using util::u32;
     using util::u64;
@@ -32,6 +34,8 @@ namespace demo {
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
+    EventFlags<4> g_flags{};
+    MessageQueue<u32, 8, 4> g_mq{};
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
 
@@ -84,6 +88,10 @@ namespace demo {
         ++task_a_hits;
         const u32 value = task_a_hits;
         (void)g_queue.push(value);
+        if ((task_a_hits % 4u) == 0u) {
+            g_flags.set(0x1);
+            (void)g_mq.try_send(value);
+        }
         if ((task_a_hits % 9u) == 0u) {
             SchedulerLockGuard guard{Scheduler::current()};
             (void)Scheduler::current().schedule_after(5, &timer_tick, nullptr);
@@ -97,6 +105,11 @@ namespace demo {
         if (g_queue.pop(value)) {
             ++queue_hits;
         }
+        if ((task_b_hits % 5u) == 0u) {
+            (void)g_flags.wait_any(0x1, true, 20);
+        }
+        u32 msg = 0;
+        (void)g_mq.try_recv(msg);
         if ((task_b_hits % 11u) == 0u) {
             PreemptGuard guard{};
             (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,

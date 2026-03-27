@@ -747,6 +747,7 @@ export namespace charm::system::rtos {
     public:
         [[nodiscard]] util::u32 get() const noexcept { return flags_; }
         void clear(util::u32 mask) noexcept { flags_ &= ~mask; }
+        void set_auto_clear(bool enabled) noexcept { auto_clear_ = enabled; }
 
         void set(util::u32 mask) noexcept {
             flags_ |= mask;
@@ -762,6 +763,9 @@ export namespace charm::system::rtos {
                 const bool ready = w.all ? ((flags_ & w.mask) == w.mask)
                                          : ((flags_ & w.mask) != 0);
                 if (ready) {
+                    if (w.auto_clear) {
+                        flags_ &= ~w.mask;
+                    }
                     sched.wake(w.id, WaitResult::ok, true);
                     remove_waiter(i);
                     continue;
@@ -771,11 +775,19 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, false, timeout_ms);
+            return wait_impl(mask, false, auto_clear_, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_any(util::u32 mask, bool auto_clear, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, false, auto_clear, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, true, timeout_ms);
+            return wait_impl(mask, true, auto_clear_, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_all(util::u32 mask, bool auto_clear, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, true, auto_clear, timeout_ms);
         }
 
     private:
@@ -783,6 +795,7 @@ export namespace charm::system::rtos {
             TaskId id{invalid_task_id};
             util::u32 mask{0};
             bool all{false};
+            bool auto_clear{false};
         };
 
         void remove_waiter(util::usize index) noexcept {
@@ -806,7 +819,7 @@ export namespace charm::system::rtos {
             }
         }
 
-        [[nodiscard]] WaitResult wait_impl(util::u32 mask, bool all, Tick timeout_ms) noexcept {
+        [[nodiscard]] WaitResult wait_impl(util::u32 mask, bool all, bool auto_clear, Tick timeout_ms) noexcept {
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -821,15 +834,21 @@ export namespace charm::system::rtos {
             }
             const bool ready = all ? ((flags_ & mask) == mask)
                                    : ((flags_ & mask) != 0);
-            if (ready) return WaitResult::ok;
+            if (ready) {
+                if (auto_clear) {
+                    flags_ &= ~mask;
+                }
+                return WaitResult::ok;
+            }
             if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
-            waiters_[wait_count_] = Waiter{id, mask, all};
+            waiters_[wait_count_] = Waiter{id, mask, all, auto_clear};
             ++wait_count_;
             sched.block_current(timeout_ms, &EventFlags::cancel_waiter, this);
             return WaitResult::blocked;
         }
 
         util::u32 flags_{0};
+        bool auto_clear_{false};
         std::array<Waiter, MaxWaiters> waiters_{};
         util::usize wait_count_{0};
     };
@@ -861,6 +880,15 @@ export namespace charm::system::rtos {
             return WaitResult::blocked;
         }
 
+        [[nodiscard]] bool try_send(const T& value) noexcept {
+            if (full()) return false;
+            push(value);
+            if (Scheduler::current().valid()) {
+                wake_receiver(Scheduler::current());
+            }
+            return true;
+        }
+
         [[nodiscard]] WaitResult recv(T& out, Tick timeout_ms = 0) noexcept {
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
@@ -884,6 +912,15 @@ export namespace charm::system::rtos {
             recv_waiters_[recv_wait_count_++] = id;
             sched.block_current(timeout_ms, &MessageQueue::cancel_recv, this);
             return WaitResult::blocked;
+        }
+
+        [[nodiscard]] bool try_recv(T& out) noexcept {
+            if (empty()) return false;
+            pop(out);
+            if (Scheduler::current().valid()) {
+                wake_sender(Scheduler::current());
+            }
+            return true;
         }
 
         [[nodiscard]] bool empty() const noexcept { return count_ == 0; }

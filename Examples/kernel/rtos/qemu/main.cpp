@@ -21,6 +21,7 @@ namespace demo {
     using charm::system::rtos::bind_critical;
     using charm::system::rtos::CriticalGuard;
     using charm::system::rtos::EventFlags;
+    using charm::system::rtos::IsrGuard;
     using charm::system::rtos::MessageQueue;
     using charm::system::time::bind;
     using util::u32;
@@ -126,6 +127,12 @@ namespace demo {
 
     void timer_tick_hard(void*) noexcept {
         ++timer_hits_hard;
+        {
+            IsrGuard guard{};
+            g_flags.set_isr(0x2);
+            const u32 isr_value = timer_hits_hard;
+            (void)g_mq.try_send_isr(isr_value);
+        }
         (void)Scheduler::current().schedule_after(
             500,
             &timer_tick_hard,

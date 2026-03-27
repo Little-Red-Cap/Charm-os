@@ -202,6 +202,46 @@ namespace demo {
             if (!scheduler.self_check()) {
                 UartCmsdk::write("rtos check failed\n");
             }
+            dump_trace();
+        }
+
+        void dump_trace() noexcept {
+            if (scheduler.trace_count() == 0) return;
+            std::array<charm::system::rtos::TraceEvent, 4> out{};
+            const auto count = scheduler.trace_dump(
+                std::span<charm::system::rtos::TraceEvent>(out.data(), out.size()),
+                scheduler.trace_mask());
+            for (util::usize i = 0; i < count; ++i) {
+                const auto& ev = out[i];
+                const char kind = trace_kind_short(ev.kind);
+                char buf[96]{};
+                const int n = std::snprintf(
+                    buf,
+                    sizeof(buf),
+                    "trace %c id=%u data=%u ts=%llu\n",
+                    kind,
+                    static_cast<unsigned>(ev.id),
+                    static_cast<unsigned>(ev.data),
+                    static_cast<unsigned long long>(ev.ts));
+                if (n > 0) {
+                    UartCmsdk::write(buf);
+                }
+            }
+        }
+
+        static char trace_kind_short(charm::system::rtos::TraceKind kind) noexcept {
+            using charm::system::rtos::TraceKind;
+            switch (kind) {
+            case TraceKind::run: return 'R';
+            case TraceKind::yield: return 'Y';
+            case TraceKind::block: return 'B';
+            case TraceKind::wake: return 'W';
+            case TraceKind::timeout: return 'T';
+            case TraceKind::sleep: return 'S';
+            case TraceKind::timer_fire: return 'F';
+            case TraceKind::isr_poll: return 'I';
+            }
+            return '?';
         }
     };
 }

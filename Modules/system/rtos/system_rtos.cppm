@@ -18,6 +18,12 @@ export namespace charm::system::rtos {
     using TimerFn = void (*)(void* ctx) noexcept;
     using TaskPriority = util::u8;
     using TimerId = util::u16;
+    using IsrPollFn = void (*)(void* ctx, class Scheduler& sched) noexcept;
+
+    struct IsrPollEntry {
+        void* ctx{nullptr};
+        IsrPollFn fn{nullptr};
+    };
     using CriticalFn = void (*)() noexcept;
     struct TraceEvent;
     using TraceSinkFn = void (*)(const TraceEvent& ev) noexcept;
@@ -179,12 +185,16 @@ export namespace charm::system::rtos {
         bool allow_runtime_timer_create{false};
         std::span<TraceEvent> trace{};
         util::u32 trace_mask{0xFFFFFFFFu};
+        std::span<IsrPollEntry> isr_polls{};
     };
 
     class Scheduler {
     public:
         explicit Scheduler(SchedulerConfig cfg) noexcept
-            : tasks_(cfg.tasks), timers_(cfg.timers), delay_list_(cfg.delay_list) {
+            : tasks_(cfg.tasks),
+              timers_(cfg.timers),
+              pollers_(cfg.isr_polls),
+              delay_list_(cfg.delay_list) {
             max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
             allow_task_create_ = cfg.allow_task_create;
             allow_timer_create_ = cfg.allow_timer_create;
@@ -275,10 +285,12 @@ export namespace charm::system::rtos {
         void delay_wake_ready(Tick now) noexcept;
         void process_timers(TimerSlot::Kind kind, Tick now) noexcept;
         void trace_push(TraceKind kind, TaskId id, util::u32 data) noexcept;
+        void poll_isr_wake() noexcept;
         void finish_run(TaskSlot& slot) noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
+        std::span<IsrPollEntry> pollers_{};
         std::array<util::u16, max_task_priority + 1> ready_count_{};
         std::array<util::usize, max_task_priority + 1> rr_index_{};
         TaskPriority max_priority_{0};
@@ -794,6 +806,7 @@ export namespace charm::system::rtos {
         const auto now = time::now_ms();
         delay_wake_ready(now);
         process_timers(TimerSlot::Kind::soft, now);
+        poll_isr_wake();
         if (locked()) return;
         const auto next = pick_next_ready();
         if (next == invalid_task_id) return;
@@ -807,6 +820,15 @@ export namespace charm::system::rtos {
         slot->fn(slot->ctx);
         finish_run(*slot);
         current_ = invalid_task_id;
+    }
+
+    inline void Scheduler::poll_isr_wake() noexcept {
+        if (pollers_.empty()) return;
+        trace_push(TraceKind::isr_poll, invalid_task_id, static_cast<util::u32>(pollers_.size()));
+        for (auto& poller : pollers_) {
+            if (!poller.fn) continue;
+            poller.fn(poller.ctx, *this);
+        }
     }
 
     inline void Scheduler::finish_run(TaskSlot& slot) noexcept {

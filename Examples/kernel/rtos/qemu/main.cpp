@@ -22,6 +22,7 @@ namespace demo {
     using charm::system::rtos::CriticalGuard;
     using charm::system::rtos::EventFlags;
     using charm::system::rtos::IsrGuard;
+    using charm::system::rtos::IsrPollEntry;
     using charm::system::rtos::MessageQueue;
     using charm::system::rtos::Semaphore;
     using charm::system::rtos::RtosPort;
@@ -38,6 +39,7 @@ namespace demo {
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
     EventFlags<4> g_flags{};
+    EventFlags<2> g_timeout_flags{};
     MessageQueue<u32, 8, 4> g_mq{};
     Semaphore<4> g_sem{};
     volatile u32 task_a_hits = 0;
@@ -88,6 +90,24 @@ namespace demo {
     void port_start_impl() noexcept {}
     void port_setup_tick_impl(u32) noexcept {}
 
+    void poll_flags(void* ctx, Scheduler& sched) noexcept {
+        auto* flags = static_cast<EventFlags<4>*>(ctx);
+        if (!flags) return;
+        flags->poll_wake(sched);
+    }
+
+    void poll_mq(void* ctx, Scheduler& sched) noexcept {
+        auto* mq = static_cast<MessageQueue<u32, 8, 4>*>(ctx);
+        if (!mq) return;
+        mq->poll_wake(sched);
+    }
+
+    void poll_sem(void* ctx, Scheduler& sched) noexcept {
+        auto* sem = static_cast<Semaphore<4>*>(ctx);
+        if (!sem) return;
+        sem->poll_wake(sched);
+    }
+
     void timer_tick(void*) noexcept;
     void timer_tick_hard(void*) noexcept;
 
@@ -115,6 +135,11 @@ namespace demo {
         }
         if ((task_b_hits % 5u) == 0u) {
             (void)g_flags.wait_any(0x1, 20);
+        }
+        if ((task_b_hits % 6u) == 0u) {
+            if (g_timeout_flags.wait_any(0x1, 2) != charm::system::rtos::WaitResult::ok) {
+                return;
+            }
         }
         if ((task_b_hits % 7u) == 0u) {
             if (g_sem.wait(15) != charm::system::rtos::WaitResult::ok) {
@@ -157,13 +182,17 @@ namespace demo {
         std::array<TaskSlot, 4> slots{};
         std::array<charm::system::rtos::TimerSlot, 4> timers{};
         std::array<TaskId, 4> delays{};
+        std::array<IsrPollEntry, 3> pollers{};
         std::array<charm::system::rtos::TraceEvent, 64> trace{};
         Clock clock{};
         Scheduler scheduler;
         u32 last_stats_tick{0};
 
         Demo() noexcept
-            : scheduler(SchedulerConfig{
+            : pollers{IsrPollEntry{&g_flags, &poll_flags},
+                      IsrPollEntry{&g_mq, &poll_mq},
+                      IsrPollEntry{&g_sem, &poll_sem}},
+              scheduler(SchedulerConfig{
                   std::span<TaskSlot>(slots.data(), slots.size()),
                   std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size()),
                   1,
@@ -178,7 +207,8 @@ namespace demo {
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation)
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation),
+              std::span<IsrPollEntry>(pollers.data(), pollers.size())
           }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
@@ -292,9 +322,6 @@ int main() {
     demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
-        demo::g_flags.poll_wake(demo.scheduler);
-        demo::g_sem.poll_wake(demo.scheduler);
-        demo::g_mq.poll_wake(demo.scheduler);
         demo.scheduler.tick();
         demo.scheduler.run_once();
         demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));

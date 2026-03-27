@@ -742,4 +742,230 @@ export namespace charm::system::rtos {
         util::u32 max_{0xFFFFFFFFu};
     };
 
+    template <util::usize MaxWaiters>
+    class EventFlags {
+    public:
+        [[nodiscard]] util::u32 get() const noexcept { return flags_; }
+        void clear(util::u32 mask) noexcept { flags_ &= ~mask; }
+
+        void set(util::u32 mask) noexcept {
+            flags_ |= mask;
+            if (!Scheduler::current().valid()) return;
+            auto& sched = Scheduler::current();
+            util::usize i = 0;
+            while (i < wait_count_) {
+                const auto w = waiters_[i];
+                if (w.id == invalid_task_id) {
+                    remove_waiter(i);
+                    continue;
+                }
+                const bool ready = w.all ? ((flags_ & w.mask) == w.mask)
+                                         : ((flags_ & w.mask) != 0);
+                if (ready) {
+                    sched.wake(w.id, WaitResult::ok, true);
+                    remove_waiter(i);
+                    continue;
+                }
+                ++i;
+            }
+        }
+
+        [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, false, timeout_ms);
+        }
+
+        [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, true, timeout_ms);
+        }
+
+    private:
+        struct Waiter {
+            TaskId id{invalid_task_id};
+            util::u32 mask{0};
+            bool all{false};
+        };
+
+        void remove_waiter(util::usize index) noexcept {
+            if (index >= wait_count_) return;
+            for (util::usize i = index + 1; i < wait_count_; ++i) {
+                waiters_[i - 1] = waiters_[i];
+            }
+            --wait_count_;
+        }
+
+        static void cancel_waiter(void* ctx, TaskId id) noexcept {
+            auto* self = static_cast<EventFlags*>(ctx);
+            if (!self) return;
+            util::usize i = 0;
+            while (i < self->wait_count_) {
+                if (self->waiters_[i].id == id) {
+                    self->remove_waiter(i);
+                    return;
+                }
+                ++i;
+            }
+        }
+
+        [[nodiscard]] WaitResult wait_impl(util::u32 mask, bool all, Tick timeout_ms) noexcept {
+            if (!Scheduler::current().valid()) return WaitResult::blocked;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return WaitResult::blocked;
+
+            const auto prev = sched.take_wait_result(id);
+            if (prev == WaitResult::timeout) {
+                return WaitResult::timeout;
+            }
+            if (sched.take_grant(id)) {
+                return WaitResult::ok;
+            }
+            const bool ready = all ? ((flags_ & mask) == mask)
+                                   : ((flags_ & mask) != 0);
+            if (ready) return WaitResult::ok;
+            if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
+            waiters_[wait_count_] = Waiter{id, mask, all};
+            ++wait_count_;
+            sched.block_current(timeout_ms, &EventFlags::cancel_waiter, this);
+            return WaitResult::blocked;
+        }
+
+        util::u32 flags_{0};
+        std::array<Waiter, MaxWaiters> waiters_{};
+        util::usize wait_count_{0};
+    };
+
+    template <CopyableValue T, util::usize Capacity, util::usize MaxWaiters>
+    class MessageQueue {
+    public:
+        [[nodiscard]] WaitResult send(const T& value, Tick timeout_ms = 0) noexcept {
+            if (!Scheduler::current().valid()) return WaitResult::blocked;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return WaitResult::blocked;
+
+            const auto prev = sched.take_wait_result(id);
+            if (prev == WaitResult::timeout) {
+                return WaitResult::timeout;
+            }
+            if (sched.take_grant(id)) {
+                return WaitResult::ok;
+            }
+            if (!full()) {
+                push(value);
+                wake_receiver(sched);
+                return WaitResult::ok;
+            }
+            if (send_wait_count_ >= MaxWaiters) return WaitResult::blocked;
+            send_waiters_[send_wait_count_++] = id;
+            sched.block_current(timeout_ms, &MessageQueue::cancel_send, this);
+            return WaitResult::blocked;
+        }
+
+        [[nodiscard]] WaitResult recv(T& out, Tick timeout_ms = 0) noexcept {
+            if (!Scheduler::current().valid()) return WaitResult::blocked;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return WaitResult::blocked;
+
+            const auto prev = sched.take_wait_result(id);
+            if (prev == WaitResult::timeout) {
+                return WaitResult::timeout;
+            }
+            if (sched.take_grant(id) && !empty()) {
+                pop(out);
+                return WaitResult::ok;
+            }
+            if (!empty()) {
+                pop(out);
+                wake_sender(sched);
+                return WaitResult::ok;
+            }
+            if (recv_wait_count_ >= MaxWaiters) return WaitResult::blocked;
+            recv_waiters_[recv_wait_count_++] = id;
+            sched.block_current(timeout_ms, &MessageQueue::cancel_recv, this);
+            return WaitResult::blocked;
+        }
+
+        [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+        [[nodiscard]] bool full() const noexcept { return count_ == Capacity; }
+
+    private:
+        static constexpr util::usize advance(util::usize value) noexcept {
+            return (value + 1u) % Capacity;
+        }
+
+        void push(const T& value) noexcept {
+            buffer_[tail_] = value;
+            tail_ = advance(tail_);
+            ++count_;
+        }
+
+        void pop(T& out) noexcept {
+            out = buffer_[head_];
+            head_ = advance(head_);
+            --count_;
+        }
+
+        void wake_receiver(Scheduler& sched) noexcept {
+            if (recv_wait_count_ == 0) return;
+            const auto id = recv_waiters_[0];
+            for (util::usize i = 1; i < recv_wait_count_; ++i) {
+                recv_waiters_[i - 1] = recv_waiters_[i];
+            }
+            --recv_wait_count_;
+            sched.wake(id, WaitResult::ok, true);
+        }
+
+        void wake_sender(Scheduler& sched) noexcept {
+            if (send_wait_count_ == 0) return;
+            const auto id = send_waiters_[0];
+            for (util::usize i = 1; i < send_wait_count_; ++i) {
+                send_waiters_[i - 1] = send_waiters_[i];
+            }
+            --send_wait_count_;
+            sched.wake(id, WaitResult::ok, true);
+        }
+
+        static void cancel_send(void* ctx, TaskId id) noexcept {
+            auto* self = static_cast<MessageQueue*>(ctx);
+            if (!self) return;
+            util::usize i = 0;
+            while (i < self->send_wait_count_) {
+                if (self->send_waiters_[i] == id) {
+                    for (util::usize j = i + 1; j < self->send_wait_count_; ++j) {
+                        self->send_waiters_[j - 1] = self->send_waiters_[j];
+                    }
+                    --self->send_wait_count_;
+                    return;
+                }
+                ++i;
+            }
+        }
+
+        static void cancel_recv(void* ctx, TaskId id) noexcept {
+            auto* self = static_cast<MessageQueue*>(ctx);
+            if (!self) return;
+            util::usize i = 0;
+            while (i < self->recv_wait_count_) {
+                if (self->recv_waiters_[i] == id) {
+                    for (util::usize j = i + 1; j < self->recv_wait_count_; ++j) {
+                        self->recv_waiters_[j - 1] = self->recv_waiters_[j];
+                    }
+                    --self->recv_wait_count_;
+                    return;
+                }
+                ++i;
+            }
+        }
+
+        std::array<T, Capacity> buffer_{};
+        util::usize head_{0};
+        util::usize tail_{0};
+        util::usize count_{0};
+        std::array<TaskId, MaxWaiters> send_waiters_{};
+        std::array<TaskId, MaxWaiters> recv_waiters_{};
+        util::usize send_wait_count_{0};
+        util::usize recv_wait_count_{0};
+    };
+
 }

@@ -39,5 +39,8 @@ $log = (Get-Content $outFile -Raw) + (Get-Content $errFile -Raw)
 if ($log -notmatch "rtos tick") {
     throw "no rtos tick output detected"
 }
+if ($log -notmatch "isr=0 task=0") {
+    throw "isr/task violation detected"
+}
 
 Write-Host "[ok] rtos tick detected"

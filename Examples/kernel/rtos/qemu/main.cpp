@@ -204,7 +204,7 @@ namespace demo {
             const int n = std::snprintf(
                 buf,
                 sizeof(buf),
-                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u sw=%u y=%u b=%u w=%u tmo=%u prio=%u den=%u rden=%u tden=%u rtden=%u\n",
+                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u sw=%u y=%u b=%u w=%u tmo=%u prio=%u den=%u rden=%u tden=%u rtden=%u isr=%u task=%u\n",
                 static_cast<unsigned>(st.ready),
                 static_cast<unsigned>(st.running),
                 static_cast<unsigned>(st.blocked),
@@ -220,7 +220,9 @@ namespace demo {
                 static_cast<unsigned>(st.create_denied),
                 static_cast<unsigned>(st.runtime_create_denied),
                 static_cast<unsigned>(st.timer_create_denied),
-                static_cast<unsigned>(st.runtime_timer_denied));
+                static_cast<unsigned>(st.runtime_timer_denied),
+                static_cast<unsigned>(st.isr_violation_count),
+                static_cast<unsigned>(st.task_violation_count));
             if (n > 0) {
                 UartCmsdk::write(buf);
             }

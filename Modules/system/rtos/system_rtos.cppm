@@ -104,6 +104,8 @@ export namespace charm::system::rtos {
         sleep,
         timer_fire,
         isr_poll,
+        create_denied,
+        timer_create_denied,
     };
 
     struct TraceEvent {
@@ -279,6 +281,7 @@ export namespace charm::system::rtos {
         void delay_wake_ready(Tick now) noexcept;
         void process_timers(TimerSlot::Kind kind, Tick now) noexcept;
         void trace_push(TraceKind kind, TaskId id, util::u32 data) noexcept;
+        void finish_run(TaskSlot& slot) noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
@@ -583,10 +586,12 @@ export namespace charm::system::rtos {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_task_create_) {
             ++create_denied_;
+            trace_push(TraceKind::create_denied, invalid_task_id, 0);
             return util::unexpected(util::Errc::perm);
         }
         if (phase_ == RuntimePhase::runtime && !allow_runtime_task_create_) {
             ++runtime_create_denied_;
+            trace_push(TraceKind::create_denied, invalid_task_id, 1);
             return util::unexpected(util::Errc::perm);
         }
         if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
@@ -613,10 +618,12 @@ export namespace charm::system::rtos {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_task_create_) {
             ++create_denied_;
+            trace_push(TraceKind::create_denied, invalid_task_id, 0);
             return util::unexpected(util::Errc::perm);
         }
         if (phase_ == RuntimePhase::runtime && !allow_runtime_task_create_) {
             ++runtime_create_denied_;
+            trace_push(TraceKind::create_denied, invalid_task_id, 1);
             return util::unexpected(util::Errc::perm);
         }
         if (priority > max_task_priority) return util::unexpected(util::Errc::invalid_arg);
@@ -771,41 +778,35 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::run_once() noexcept {
+        current_ = invalid_task_id;
         const auto now = time::now_ms();
         delay_wake_ready(now);
         process_timers(TimerSlot::Kind::soft, now);
-        if (locked()) {
-            current_ = invalid_task_id;
-            return;
-        }
+        if (locked()) return;
         const auto next = pick_next_ready();
-        if (next == invalid_task_id) {
-            current_ = invalid_task_id;
-            return;
-        }
+        if (next == invalid_task_id) return;
         auto* slot = slot_from_id(next);
-        if (!slot) {
-            current_ = invalid_task_id;
-            return;
-        }
-        debug_assert(slot->state == TaskState::ready);
+        if (!slot || slot->state != TaskState::ready) return;
         mark_unready(*slot);
         current_ = next;
         ++switch_count_;
         trace_push(TraceKind::run, current_, 0);
         slot->state = TaskState::running;
         slot->fn(slot->ctx);
-        if (slot->state == TaskState::running) {
-            slot->state = TaskState::ready;
-            if (slot->slice_left > 0) {
-                --slot->slice_left;
-            }
-            if (slot->slice_left == 0) {
-                slot->slice_left = slot->slice_max;
-            }
-            mark_ready(*slot);
-        }
+        finish_run(*slot);
         current_ = invalid_task_id;
+    }
+
+    inline void Scheduler::finish_run(TaskSlot& slot) noexcept {
+        if (slot.state != TaskState::running) return;
+        slot.state = TaskState::ready;
+        if (slot.slice_left > 0) {
+            --slot.slice_left;
+        }
+        if (slot.slice_left == 0) {
+            slot.slice_left = slot.slice_max;
+        }
+        mark_ready(slot);
     }
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept {
@@ -820,10 +821,12 @@ export namespace charm::system::rtos {
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_timer_create_) {
             ++timer_create_denied_;
+            trace_push(TraceKind::timer_create_denied, invalid_task_id, 0);
             return util::unexpected(util::Errc::perm);
         }
         if (phase_ == RuntimePhase::runtime && !allow_runtime_timer_create_) {
             ++runtime_timer_denied_;
+            trace_push(TraceKind::timer_create_denied, invalid_task_id, 1);
             return util::unexpected(util::Errc::perm);
         }
         CriticalGuard guard{};

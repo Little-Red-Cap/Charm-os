@@ -143,6 +143,7 @@ export namespace charm::system::rtos {
             util::u32 delay_count{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
+        [[nodiscard]] bool self_check() const noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
 
@@ -612,6 +613,32 @@ export namespace charm::system::rtos {
             }
         }
         return out;
+    }
+
+    inline bool Scheduler::self_check() const noexcept {
+        util::u32 ready = 0;
+        util::u32 running = 0;
+        util::u32 sleeping = 0;
+        util::u32 blocked = 0;
+        util::u32 stopped = 0;
+        for (const auto& slot : tasks_) {
+            switch (slot.state) {
+            case TaskState::ready: ++ready; break;
+            case TaskState::running: ++running; break;
+            case TaskState::sleeping: ++sleeping; break;
+            case TaskState::blocked: ++blocked; break;
+            case TaskState::stopped: ++stopped; break;
+            case TaskState::unused: break;
+            }
+        }
+        util::u32 ready_count = 0;
+        for (auto count : ready_count_) {
+            ready_count += count;
+        }
+        if (ready_count != ready) return false;
+        if (running > 1) return false;
+        if (delay_count_ > delay_list_.size()) return false;
+        return true;
     }
 
     template <util::usize Capacity>

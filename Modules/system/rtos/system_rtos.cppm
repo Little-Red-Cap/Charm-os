@@ -822,14 +822,19 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx) noexcept {
+        require_task_context();
         return schedule_at(due_ms, fn, ctx, TimerSlot::Kind::soft);
     }
 
     inline util::Result<TimerId> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx) noexcept {
+        require_task_context();
         return schedule_after(delay_ms, fn, ctx, TimerSlot::Kind::soft);
     }
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
+        if (!(kind == TimerSlot::Kind::hard && in_isr())) {
+            require_task_context();
+        }
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_timer_create_) {
             ++timer_create_denied_;
@@ -857,10 +862,14 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TimerId> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
+        if (!(kind == TimerSlot::Kind::hard && in_isr())) {
+            require_task_context();
+        }
         return schedule_at(time::now_ms() + delay_ms, fn, ctx, kind);
     }
 
     inline void Scheduler::cancel_timer(TimerId id) noexcept {
+        require_task_context();
         CriticalGuard guard{};
         auto* timer = timer_from_id(id);
         if (!timer) return;

@@ -90,7 +90,8 @@ namespace demo {
         (void)g_queue.push(value);
         if ((task_a_hits % 4u) == 0u) {
             g_flags.set(0x1);
-            (void)g_mq.try_send(value);
+            std::array<u32, 2> batch{value, static_cast<u32>(value + 1)};
+            (void)g_mq.send_batch(std::span<const u32>(batch.data(), batch.size()));
         }
         if ((task_a_hits % 9u) == 0u) {
             SchedulerLockGuard guard{Scheduler::current()};
@@ -106,10 +107,10 @@ namespace demo {
             ++queue_hits;
         }
         if ((task_b_hits % 5u) == 0u) {
-            (void)g_flags.wait_any(0x1, true, 20);
+            (void)g_flags.wait_any(0x1, 20);
         }
-        u32 msg = 0;
-        (void)g_mq.try_recv(msg);
+        std::array<u32, 2> out{};
+        (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));
         if ((task_b_hits % 11u) == 0u) {
             PreemptGuard guard{};
             (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
@@ -152,6 +153,8 @@ namespace demo {
             bind(clock);
             Scheduler::bind(scheduler);
             bind_critical(&disable_irqs, &enable_irqs);
+            g_flags.set_auto_clear_any(EventFlags<4>::AutoClearMode::match_any);
+            g_flags.set_auto_clear_all(EventFlags<4>::AutoClearMode::mask);
             (void)scheduler.create(&task_a, nullptr, 1, 1);
             (void)scheduler.create(&task_b, nullptr, 0, 1);
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);

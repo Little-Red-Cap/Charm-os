@@ -745,9 +745,17 @@ export namespace charm::system::rtos {
     template <util::usize MaxWaiters>
     class EventFlags {
     public:
+        enum class AutoClearMode : util::u8 {
+            none,
+            mask,
+            match_any,
+            match_all,
+        };
+
         [[nodiscard]] util::u32 get() const noexcept { return flags_; }
         void clear(util::u32 mask) noexcept { flags_ &= ~mask; }
-        void set_auto_clear(bool enabled) noexcept { auto_clear_ = enabled; }
+        void set_auto_clear_any(AutoClearMode mode) noexcept { auto_clear_any_ = mode; }
+        void set_auto_clear_all(AutoClearMode mode) noexcept { auto_clear_all_ = mode; }
 
         void set(util::u32 mask) noexcept {
             flags_ |= mask;
@@ -763,8 +771,18 @@ export namespace charm::system::rtos {
                 const bool ready = w.all ? ((flags_ & w.mask) == w.mask)
                                          : ((flags_ & w.mask) != 0);
                 if (ready) {
-                    if (w.auto_clear) {
+                    switch (w.auto_clear) {
+                    case AutoClearMode::mask:
                         flags_ &= ~w.mask;
+                        break;
+                    case AutoClearMode::match_any:
+                        flags_ &= ~(flags_ & w.mask);
+                        break;
+                    case AutoClearMode::match_all:
+                        flags_ &= ~w.mask;
+                        break;
+                    case AutoClearMode::none:
+                        break;
                     }
                     sched.wake(w.id, WaitResult::ok, true);
                     remove_waiter(i);
@@ -775,19 +793,19 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, false, auto_clear_, timeout_ms);
+            return wait_impl(mask, false, auto_clear_any_, timeout_ms);
         }
 
-        [[nodiscard]] WaitResult wait_any(util::u32 mask, bool auto_clear, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, false, auto_clear, timeout_ms);
+        [[nodiscard]] WaitResult wait_any(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, false, mode, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, true, auto_clear_, timeout_ms);
+            return wait_impl(mask, true, auto_clear_all_, timeout_ms);
         }
 
-        [[nodiscard]] WaitResult wait_all(util::u32 mask, bool auto_clear, Tick timeout_ms = 0) noexcept {
-            return wait_impl(mask, true, auto_clear, timeout_ms);
+        [[nodiscard]] WaitResult wait_all(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            return wait_impl(mask, true, mode, timeout_ms);
         }
 
     private:
@@ -795,7 +813,7 @@ export namespace charm::system::rtos {
             TaskId id{invalid_task_id};
             util::u32 mask{0};
             bool all{false};
-            bool auto_clear{false};
+            AutoClearMode auto_clear{AutoClearMode::none};
         };
 
         void remove_waiter(util::usize index) noexcept {
@@ -819,7 +837,8 @@ export namespace charm::system::rtos {
             }
         }
 
-        [[nodiscard]] WaitResult wait_impl(util::u32 mask, bool all, bool auto_clear, Tick timeout_ms) noexcept {
+        [[nodiscard]] WaitResult wait_impl(util::u32 mask, bool all, AutoClearMode auto_clear,
+                                           Tick timeout_ms) noexcept {
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -835,8 +854,18 @@ export namespace charm::system::rtos {
             const bool ready = all ? ((flags_ & mask) == mask)
                                    : ((flags_ & mask) != 0);
             if (ready) {
-                if (auto_clear) {
+                switch (auto_clear) {
+                case AutoClearMode::mask:
                     flags_ &= ~mask;
+                    break;
+                case AutoClearMode::match_any:
+                    flags_ &= ~(flags_ & mask);
+                    break;
+                case AutoClearMode::match_all:
+                    flags_ &= ~mask;
+                    break;
+                case AutoClearMode::none:
+                    break;
                 }
                 return WaitResult::ok;
             }
@@ -848,7 +877,8 @@ export namespace charm::system::rtos {
         }
 
         util::u32 flags_{0};
-        bool auto_clear_{false};
+        AutoClearMode auto_clear_any_{AutoClearMode::none};
+        AutoClearMode auto_clear_all_{AutoClearMode::none};
         std::array<Waiter, MaxWaiters> waiters_{};
         util::usize wait_count_{0};
     };
@@ -921,6 +951,24 @@ export namespace charm::system::rtos {
                 wake_sender(Scheduler::current());
             }
             return true;
+        }
+
+        [[nodiscard]] util::usize send_batch(std::span<const T> items) noexcept {
+            util::usize sent = 0;
+            for (const auto& item : items) {
+                if (!try_send(item)) break;
+                ++sent;
+            }
+            return sent;
+        }
+
+        [[nodiscard]] util::usize recv_batch(std::span<T> items) noexcept {
+            util::usize got = 0;
+            for (auto& item : items) {
+                if (!try_recv(item)) break;
+                ++got;
+            }
+            return got;
         }
 
         [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
@@ -1003,6 +1051,85 @@ export namespace charm::system::rtos {
         std::array<TaskId, MaxWaiters> recv_waiters_{};
         util::usize send_wait_count_{0};
         util::usize recv_wait_count_{0};
+    };
+
+    template <util::usize MaxWaiters>
+    class Mutex {
+    public:
+        [[nodiscard]] bool try_lock() noexcept {
+            if (!Scheduler::current().valid()) return false;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return false;
+            if (owner_ == invalid_task_id || owner_ == id) {
+                owner_ = id;
+                return true;
+            }
+            return false;
+        }
+
+        [[nodiscard]] WaitResult lock(Tick timeout_ms = 0) noexcept {
+            if (!Scheduler::current().valid()) return WaitResult::blocked;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (id == invalid_task_id) return WaitResult::blocked;
+
+            const auto prev = sched.take_wait_result(id);
+            if (prev == WaitResult::timeout) {
+                return WaitResult::timeout;
+            }
+            if (sched.take_grant(id)) {
+                owner_ = id;
+                return WaitResult::ok;
+            }
+            if (owner_ == invalid_task_id || owner_ == id) {
+                owner_ = id;
+                return WaitResult::ok;
+            }
+            if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
+            waiters_[wait_count_++] = id;
+            sched.block_current(timeout_ms, &Mutex::cancel_waiter, this);
+            return WaitResult::blocked;
+        }
+
+        void unlock() noexcept {
+            if (!Scheduler::current().valid()) return;
+            auto& sched = Scheduler::current();
+            const auto id = sched.current_id();
+            if (owner_ != id) return;
+            if (wait_count_ > 0) {
+                const auto next = waiters_[0];
+                for (util::usize i = 1; i < wait_count_; ++i) {
+                    waiters_[i - 1] = waiters_[i];
+                }
+                --wait_count_;
+                owner_ = next;
+                sched.wake(next, WaitResult::ok, true);
+                return;
+            }
+            owner_ = invalid_task_id;
+        }
+
+    private:
+        static void cancel_waiter(void* ctx, TaskId id) noexcept {
+            auto* self = static_cast<Mutex*>(ctx);
+            if (!self) return;
+            util::usize i = 0;
+            while (i < self->wait_count_) {
+                if (self->waiters_[i] == id) {
+                    for (util::usize j = i + 1; j < self->wait_count_; ++j) {
+                        self->waiters_[j - 1] = self->waiters_[j];
+                    }
+                    --self->wait_count_;
+                    return;
+                }
+                ++i;
+            }
+        }
+
+        TaskId owner_{invalid_task_id};
+        std::array<TaskId, MaxWaiters> waiters_{};
+        util::usize wait_count_{0};
     };
 
 }

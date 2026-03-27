@@ -46,11 +46,27 @@ export namespace charm::system::rtos {
 #endif
 
     inline util::u32 isr_depth_ = 0;
+    inline util::u32 isr_violation_count_ = 0;
+    inline util::u32 task_violation_count_ = 0;
 
     inline bool in_isr() noexcept { return isr_depth_ != 0; }
 
     inline void isr_enter() noexcept { ++isr_depth_; }
     inline void isr_exit() noexcept { if (isr_depth_ > 0) --isr_depth_; }
+
+    inline void require_task_context() noexcept {
+        if (in_isr()) {
+            ++task_violation_count_;
+            debug_assert(false);
+        }
+    }
+
+    inline void require_isr_context() noexcept {
+        if (!in_isr()) {
+            ++isr_violation_count_;
+            debug_assert(false);
+        }
+    }
 
     class IsrGuard {
     public:
@@ -230,6 +246,8 @@ export namespace charm::system::rtos {
             util::u32 runtime_create_denied{0};
             util::u32 timer_create_denied{0};
             util::u32 runtime_timer_denied{0};
+            util::u32 isr_violation_count{0};
+            util::u32 task_violation_count{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
@@ -434,6 +452,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::block_current(Tick timeout_ms, void (*cancel)(void* ctx, TaskId id) noexcept, void* ctx) noexcept {
+        require_task_context();
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
@@ -641,6 +660,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::yield() noexcept {
+        require_task_context();
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
@@ -654,6 +674,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::sleep_ms(Tick ms) noexcept {
+        require_task_context();
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
@@ -851,6 +872,8 @@ export namespace charm::system::rtos {
         out.runtime_create_denied = runtime_create_denied_;
         out.timer_create_denied = timer_create_denied_;
         out.runtime_timer_denied = runtime_timer_denied_;
+        out.isr_violation_count = isr_violation_count_;
+        out.task_violation_count = task_violation_count_;
         for (const auto& slot : tasks_) {
             switch (slot.state) {
             case TaskState::ready:
@@ -1023,40 +1046,42 @@ export namespace charm::system::rtos {
         void set_auto_clear_all(AutoClearMode mode) noexcept { auto_clear_all_ = mode; }
 
         void set(util::u32 mask) noexcept {
+            require_task_context();
             flags_ |= mask;
             if (!Scheduler::current().valid()) return;
             process_waiters(Scheduler::current());
         }
 
         void set_isr(util::u32 mask) noexcept {
+            require_isr_context();
             flags_ |= mask;
             pending_wake_ = true;
         }
 
         void poll_wake(Scheduler& sched) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (!pending_wake_) return;
             pending_wake_ = false;
             process_waiters(sched);
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             return wait_impl(mask, false, auto_clear_any_, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             return wait_impl(mask, false, mode, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             return wait_impl(mask, true, auto_clear_all_, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             return wait_impl(mask, true, mode, timeout_ms);
         }
 
@@ -1171,7 +1196,7 @@ export namespace charm::system::rtos {
     class MessageQueue {
     public:
         [[nodiscard]] WaitResult send(const T& value, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -1196,7 +1221,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_send(const T& value) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (full()) return false;
             push(value);
             if (Scheduler::current().valid()) {
@@ -1206,7 +1231,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_send_isr(const T& value) noexcept {
-            debug_assert(in_isr());
+            require_isr_context();
             if (full()) return false;
             push(value);
             if (recv_wait_count_ > 0) {
@@ -1216,7 +1241,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult recv(T& out, Tick timeout_ms = 0) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -1242,7 +1267,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_recv(T& out) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (empty()) return false;
             pop(out);
             if (Scheduler::current().valid()) {
@@ -1252,7 +1277,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_recv_isr(T& out) noexcept {
-            debug_assert(in_isr());
+            require_isr_context();
             if (empty()) return false;
             pop(out);
             if (send_wait_count_ > 0) {
@@ -1262,7 +1287,7 @@ export namespace charm::system::rtos {
         }
 
         void poll_wake(Scheduler& sched) noexcept {
-            debug_assert(!in_isr());
+            require_task_context();
             if (recv_wait_count_ == 0 || empty()) {
                 rx_lock_ = 0;
             }

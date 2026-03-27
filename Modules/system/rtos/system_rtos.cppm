@@ -989,6 +989,19 @@ export namespace charm::system::rtos {
             return false;
         }
 
+        [[nodiscard]] bool post_isr() noexcept {
+            require_isr_context();
+            if (wait_count_ > 0) {
+                ++pending_wake_;
+                return true;
+            }
+            if (count_ < max_) {
+                ++count_;
+                return true;
+            }
+            return false;
+        }
+
         [[nodiscard]] WaitResult wait(Tick timeout_ms = 0) noexcept {
             require_task_context();
             auto& sched = Scheduler::current();
@@ -1012,6 +1025,27 @@ export namespace charm::system::rtos {
             ++wait_count_;
             sched.block_current(timeout_ms, &Semaphore::cancel_waiter, this);
             return WaitResult::blocked;
+        }
+
+        void poll_wake(Scheduler& sched) noexcept {
+            require_task_context();
+            while (pending_wake_ > 0 && wait_count_ > 0) {
+                const auto id = waiters_[head_];
+                head_ = advance(head_);
+                --wait_count_;
+                --pending_wake_;
+                if (!sched.is_blocked(id)) {
+                    continue;
+                }
+                sched.wake(id, WaitResult::ok, true);
+                return;
+            }
+            if (pending_wake_ > 0) {
+                const auto room = max_ > count_ ? (max_ - count_) : 0u;
+                const auto add = pending_wake_ < room ? pending_wake_ : room;
+                count_ += add;
+                pending_wake_ -= add;
+            }
         }
 
     private:
@@ -1042,6 +1076,7 @@ export namespace charm::system::rtos {
         util::usize wait_count_{0};
         util::u32 count_{0};
         util::u32 max_{0xFFFFFFFFu};
+        util::u32 pending_wake_{0};
     };
 
     template <util::usize MaxWaiters>

@@ -148,11 +148,15 @@ namespace demo {
                   std::span<TaskSlot>(slots.data(), slots.size()),
                   std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size()),
                   1,
-                  std::span<TaskId>(delays.data(), delays.size()),
-                  true,
-                  true,
-                  std::span<charm::system::rtos::TraceEvent>(trace.data(), trace.size())
-              }) {
+              std::span<TaskId>(delays.data(), delays.size()),
+              true,
+              true,
+              std::span<charm::system::rtos::TraceEvent>(trace.data(), trace.size()),
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::run) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout)
+          }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
             Scheduler::bind(scheduler);

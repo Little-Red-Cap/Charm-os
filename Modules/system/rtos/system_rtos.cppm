@@ -88,6 +88,10 @@ export namespace charm::system::rtos {
         util::u32 data{0};
     };
 
+    constexpr util::u32 trace_bit(TraceKind kind) noexcept {
+        return 1u << static_cast<util::u32>(kind);
+    }
+
     struct TaskSlot {
         TaskFn fn{nullptr};
         void* ctx{nullptr};
@@ -154,6 +158,7 @@ export namespace charm::system::rtos {
         bool allow_task_create{true};
         bool allow_timer_create{true};
         std::span<TraceEvent> trace{};
+        util::u32 trace_mask{0xFFFFFFFFu};
     };
 
     class Scheduler {
@@ -164,6 +169,7 @@ export namespace charm::system::rtos {
             allow_task_create_ = cfg.allow_task_create;
             allow_timer_create_ = cfg.allow_timer_create;
             trace_ = cfg.trace;
+            trace_mask_ = trace_.empty() ? 0u : cfg.trace_mask;
         }
 
         [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx) noexcept;
@@ -208,6 +214,10 @@ export namespace charm::system::rtos {
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
+        [[nodiscard]] util::u32 trace_mask() const noexcept { return trace_mask_; }
+        void set_trace_mask(util::u32 mask) noexcept { trace_mask_ = mask; }
+        [[nodiscard]] util::usize trace_count() const noexcept { return trace_count_; }
+        [[nodiscard]] util::usize trace_dump(std::span<TraceEvent> out, util::u32 mask) const noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
         void allow_task_create(bool allowed) noexcept { allow_task_create_ = allowed; }
@@ -244,6 +254,8 @@ export namespace charm::system::rtos {
         bool allow_timer_create_{true};
         std::span<TraceEvent> trace_{};
         util::u32 trace_head_{0};
+        util::u32 trace_count_{0};
+        util::u32 trace_mask_{0};
         util::u32 switch_count_{0};
         util::u32 yield_count_{0};
         util::u32 block_count_{0};
@@ -629,9 +641,28 @@ export namespace charm::system::rtos {
 
     inline void Scheduler::trace_push(TraceKind kind, TaskId id, util::u32 data) noexcept {
         if (trace_.empty()) return;
+        if ((trace_mask_ & trace_bit(kind)) == 0u) return;
         const auto idx = trace_head_ % static_cast<util::u32>(trace_.size());
         trace_[idx] = TraceEvent{time::now_ms(), kind, id, data};
         ++trace_head_;
+        if (trace_count_ < trace_.size()) {
+            ++trace_count_;
+        }
+    }
+
+    inline util::usize Scheduler::trace_dump(std::span<TraceEvent> out, util::u32 mask) const noexcept {
+        if (trace_.empty() || out.empty() || trace_count_ == 0) return 0;
+        const util::usize capacity = trace_.size();
+        const util::usize available = trace_count_ < capacity ? trace_count_ : capacity;
+        util::usize written = 0;
+        for (util::usize offset = 0; offset < available && written < out.size(); ++offset) {
+            const auto idx =
+                static_cast<util::usize>((trace_head_ + capacity - 1u - offset) % capacity);
+            const auto& ev = trace_[idx];
+            if ((mask & trace_bit(ev.kind)) == 0u) continue;
+            out[written++] = ev;
+        }
+        return written;
     }
 
     inline void Scheduler::tick() noexcept {

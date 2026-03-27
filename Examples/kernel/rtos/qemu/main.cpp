@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <span>
 
 import charm.system.clock;
@@ -125,6 +126,7 @@ namespace demo {
         std::array<TaskId, 4> delays{};
         Clock clock{};
         Scheduler scheduler;
+        u32 last_stats_tick{0};
 
         Demo() noexcept
             : scheduler(SchedulerConfig{
@@ -147,6 +149,26 @@ namespace demo {
                 charm::system::rtos::TimerSlot::Kind::hard
             );
         }
+
+        void dump_stats(u32 now_tick) noexcept {
+            if (now_tick - last_stats_tick < 1000u) return;
+            last_stats_tick = now_tick;
+            const auto st = scheduler.stats();
+            char buf[160]{};
+            const int n = std::snprintf(
+                buf,
+                sizeof(buf),
+                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u\n",
+                static_cast<unsigned>(st.ready),
+                static_cast<unsigned>(st.running),
+                static_cast<unsigned>(st.blocked),
+                static_cast<unsigned>(st.sleeping),
+                static_cast<unsigned>(st.lock_depth),
+                static_cast<unsigned>(st.delay_count));
+            if (n > 0) {
+                UartCmsdk::write(buf);
+            }
+        }
     };
 }
 
@@ -157,6 +179,7 @@ int main() {
         demo::g_tick_ms += 1;
         demo.scheduler.tick();
         demo.scheduler.run_once();
+        demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {
             {
                 demo::CriticalGuard guard{};

@@ -23,6 +23,7 @@ namespace demo {
     using charm::system::rtos::EventFlags;
     using charm::system::rtos::IsrGuard;
     using charm::system::rtos::MessageQueue;
+    using charm::system::rtos::Semaphore;
     using charm::system::rtos::RtosPort;
     using charm::system::time::bind;
     using util::u32;
@@ -38,6 +39,7 @@ namespace demo {
     Queue g_queue{};
     EventFlags<4> g_flags{};
     MessageQueue<u32, 8, 4> g_mq{};
+    Semaphore<4> g_sem{};
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
 
@@ -114,6 +116,11 @@ namespace demo {
         if ((task_b_hits % 5u) == 0u) {
             (void)g_flags.wait_any(0x1, 20);
         }
+        if ((task_b_hits % 7u) == 0u) {
+            if (g_sem.wait(15) != charm::system::rtos::WaitResult::ok) {
+                return;
+            }
+        }
         std::array<u32, 2> out{};
         (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));
         if ((task_b_hits % 11u) == 0u) {
@@ -136,6 +143,7 @@ namespace demo {
             g_flags.set_isr(0x2);
             const u32 isr_value = timer_hits_hard;
             (void)g_mq.try_send_isr(isr_value);
+            (void)g_sem.post_isr();
         }
         (void)Scheduler::current().schedule_after(
             500,
@@ -285,6 +293,7 @@ int main() {
     while (true) {
         demo::g_tick_ms += 1;
         demo::g_flags.poll_wake(demo.scheduler);
+        demo::g_sem.poll_wake(demo.scheduler);
         demo::g_mq.poll_wake(demo.scheduler);
         demo.scheduler.tick();
         demo.scheduler.run_once();

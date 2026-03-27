@@ -138,6 +138,7 @@ namespace demo {
         std::array<TaskSlot, 4> slots{};
         std::array<charm::system::rtos::TimerSlot, 4> timers{};
         std::array<TaskId, 4> delays{};
+        std::array<charm::system::rtos::TraceEvent, 64> trace{};
         Clock clock{};
         Scheduler scheduler;
         u32 last_stats_tick{0};
@@ -147,7 +148,10 @@ namespace demo {
                   std::span<TaskSlot>(slots.data(), slots.size()),
                   std::span<charm::system::rtos::TimerSlot>(timers.data(), timers.size()),
                   1,
-                  std::span<TaskId>(delays.data(), delays.size())
+                  std::span<TaskId>(delays.data(), delays.size()),
+                  true,
+                  true,
+                  std::span<charm::system::rtos::TraceEvent>(trace.data(), trace.size())
               }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
             bind(clock);
@@ -175,13 +179,19 @@ namespace demo {
             const int n = std::snprintf(
                 buf,
                 sizeof(buf),
-                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u\n",
+                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u sw=%u y=%u b=%u w=%u tmo=%u prio=%u\n",
                 static_cast<unsigned>(st.ready),
                 static_cast<unsigned>(st.running),
                 static_cast<unsigned>(st.blocked),
                 static_cast<unsigned>(st.sleeping),
                 static_cast<unsigned>(st.lock_depth),
-                static_cast<unsigned>(st.delay_count));
+                static_cast<unsigned>(st.delay_count),
+                static_cast<unsigned>(st.switch_count),
+                static_cast<unsigned>(st.yield_count),
+                static_cast<unsigned>(st.block_count),
+                static_cast<unsigned>(st.wake_count),
+                static_cast<unsigned>(st.timeout_count),
+                static_cast<unsigned>(st.last_pick_prio));
             if (n > 0) {
                 UartCmsdk::write(buf);
             }

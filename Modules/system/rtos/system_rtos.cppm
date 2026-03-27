@@ -36,6 +36,21 @@ export namespace charm::system::rtos {
     inline void debug_assert(bool) noexcept {}
 #endif
 
+    inline util::u32 isr_depth_ = 0;
+
+    inline bool in_isr() noexcept { return isr_depth_ != 0; }
+
+    inline void isr_enter() noexcept { ++isr_depth_; }
+    inline void isr_exit() noexcept { if (isr_depth_ > 0) --isr_depth_; }
+
+    class IsrGuard {
+    public:
+        IsrGuard() noexcept { isr_enter(); }
+        ~IsrGuard() { isr_exit(); }
+        IsrGuard(const IsrGuard&) = delete;
+        IsrGuard& operator=(const IsrGuard&) = delete;
+    };
+
     constexpr TaskPriority max_task_priority = 31;
 
     constexpr TaskId invalid_task_id = 0;
@@ -53,6 +68,24 @@ export namespace charm::system::rtos {
         ok,
         timeout,
         blocked,
+    };
+
+    enum class TraceKind : util::u8 {
+        run,
+        yield,
+        block,
+        wake,
+        timeout,
+        sleep,
+        timer_fire,
+        isr_poll,
+    };
+
+    struct TraceEvent {
+        Tick ts{0};
+        TraceKind kind{TraceKind::run};
+        TaskId id{invalid_task_id};
+        util::u32 data{0};
     };
 
     struct TaskSlot {
@@ -120,6 +153,7 @@ export namespace charm::system::rtos {
         std::span<TaskId> delay_list{};
         bool allow_task_create{true};
         bool allow_timer_create{true};
+        std::span<TraceEvent> trace{};
     };
 
     class Scheduler {
@@ -129,6 +163,7 @@ export namespace charm::system::rtos {
             max_priority_ = cfg.max_priority > max_task_priority ? max_task_priority : cfg.max_priority;
             allow_task_create_ = cfg.allow_task_create;
             allow_timer_create_ = cfg.allow_timer_create;
+            trace_ = cfg.trace;
         }
 
         [[nodiscard]] util::Result<TaskId> create(TaskFn fn, void* ctx) noexcept;
@@ -164,6 +199,12 @@ export namespace charm::system::rtos {
             util::u32 timers_hard{0};
             util::u32 lock_depth{0};
             util::u32 delay_count{0};
+            util::u32 switch_count{0};
+            util::u32 yield_count{0};
+            util::u32 block_count{0};
+            util::u32 wake_count{0};
+            util::u32 timeout_count{0};
+            util::u32 last_pick_prio{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
@@ -188,6 +229,7 @@ export namespace charm::system::rtos {
         void delay_remove(TaskId id) noexcept;
         void delay_wake_ready(Tick now) noexcept;
         void process_timers(TimerSlot::Kind kind, Tick now) noexcept;
+        void trace_push(TraceKind kind, TaskId id, util::u32 data) noexcept;
 
         std::span<TaskSlot> tasks_{};
         std::span<TimerSlot> timers_{};
@@ -200,6 +242,14 @@ export namespace charm::system::rtos {
         util::u32 lock_count_{0};
         bool allow_task_create_{true};
         bool allow_timer_create_{true};
+        std::span<TraceEvent> trace_{};
+        util::u32 trace_head_{0};
+        util::u32 switch_count_{0};
+        util::u32 yield_count_{0};
+        util::u32 block_count_{0};
+        util::u32 wake_count_{0};
+        util::u32 timeout_count_{0};
+        TaskPriority last_pick_prio_{0};
         inline static Scheduler* bound_{nullptr};
     };
 
@@ -311,6 +361,8 @@ export namespace charm::system::rtos {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
+        ++block_count_;
+        trace_push(TraceKind::block, current_, 0);
         slot->state = TaskState::blocked;
         slot->slice_left = slot->slice_max;
         slot->wait_result = WaitResult::blocked;
@@ -328,6 +380,8 @@ export namespace charm::system::rtos {
         auto* slot = slot_from_id(id);
         if (!slot) return;
         debug_assert(slot->state == TaskState::blocked);
+        ++wake_count_;
+        trace_push(TraceKind::wake, id, static_cast<util::u32>(result));
         delay_remove(id);
         slot->state = TaskState::ready;
         slot->wait_result = result;
@@ -431,6 +485,8 @@ export namespace charm::system::rtos {
                 slot->wait_ctx = nullptr;
                 slot->wait_cancel = nullptr;
                 slot->grant = false;
+                ++timeout_count_;
+                trace_push(TraceKind::timeout, id, 0);
                 mark_ready(*slot);
             }
         }
@@ -498,6 +554,8 @@ export namespace charm::system::rtos {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
+        ++yield_count_;
+        trace_push(TraceKind::yield, current_, 0);
         if (slot->state == TaskState::running) {
             slot->state = TaskState::ready;
             slot->slice_left = slot->slice_max;
@@ -509,6 +567,7 @@ export namespace charm::system::rtos {
         auto* slot = slot_from_id(current_);
         if (!slot) return;
         debug_assert(slot->state == TaskState::running);
+        trace_push(TraceKind::sleep, current_, static_cast<util::u32>(ms));
         slot->wake_ms = time::now_ms() + ms;
         slot->state = TaskState::sleeping;
         slot->slice_left = slot->slice_max;
@@ -540,6 +599,7 @@ export namespace charm::system::rtos {
         for (int p = static_cast<int>(max_priority_); p >= 0; --p) {
             const auto prio = static_cast<TaskPriority>(p);
             if (ready_count_[prio] == 0) continue;
+            last_pick_prio_ = prio;
             const auto start = rr_index_[prio] % tasks_.size();
             for (util::usize offset = 0; offset < tasks_.size(); ++offset) {
                 const auto idx = (start + offset) % tasks_.size();
@@ -562,8 +622,16 @@ export namespace charm::system::rtos {
             if (now >= timer.due_ms) {
                 timer.active = false;
                 timer.fn(timer.ctx);
+                trace_push(TraceKind::timer_fire, current_, static_cast<util::u32>(kind));
             }
         }
+    }
+
+    inline void Scheduler::trace_push(TraceKind kind, TaskId id, util::u32 data) noexcept {
+        if (trace_.empty()) return;
+        const auto idx = trace_head_ % static_cast<util::u32>(trace_.size());
+        trace_[idx] = TraceEvent{time::now_ms(), kind, id, data};
+        ++trace_head_;
     }
 
     inline void Scheduler::tick() noexcept {
@@ -592,6 +660,8 @@ export namespace charm::system::rtos {
         debug_assert(slot->state == TaskState::ready);
         mark_unready(*slot);
         current_ = next;
+        ++switch_count_;
+        trace_push(TraceKind::run, current_, 0);
         slot->state = TaskState::running;
         slot->fn(slot->ctx);
         if (slot->state == TaskState::running) {
@@ -651,6 +721,12 @@ export namespace charm::system::rtos {
         Stats out{};
         out.lock_depth = lock_count_;
         out.delay_count = static_cast<util::u32>(delay_count_);
+        out.switch_count = switch_count_;
+        out.yield_count = yield_count_;
+        out.block_count = block_count_;
+        out.wake_count = wake_count_;
+        out.timeout_count = timeout_count_;
+        out.last_pick_prio = last_pick_prio_;
         for (const auto& slot : tasks_) {
             switch (slot.state) {
             case TaskState::ready:
@@ -816,24 +892,29 @@ export namespace charm::system::rtos {
         }
 
         void poll_wake(Scheduler& sched) noexcept {
+            debug_assert(!in_isr());
             if (!pending_wake_) return;
             pending_wake_ = false;
             process_waiters(sched);
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             return wait_impl(mask, false, auto_clear_any_, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_any(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             return wait_impl(mask, false, mode, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             return wait_impl(mask, true, auto_clear_all_, timeout_ms);
         }
 
         [[nodiscard]] WaitResult wait_all(util::u32 mask, AutoClearMode mode, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             return wait_impl(mask, true, mode, timeout_ms);
         }
 
@@ -948,6 +1029,7 @@ export namespace charm::system::rtos {
     class MessageQueue {
     public:
         [[nodiscard]] WaitResult send(const T& value, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -972,6 +1054,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_send(const T& value) noexcept {
+            debug_assert(!in_isr());
             if (full()) return false;
             push(value);
             if (Scheduler::current().valid()) {
@@ -981,6 +1064,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_send_isr(const T& value) noexcept {
+            debug_assert(in_isr());
             if (full()) return false;
             push(value);
             pending_rx_wake_ = true;
@@ -988,6 +1072,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] WaitResult recv(T& out, Tick timeout_ms = 0) noexcept {
+            debug_assert(!in_isr());
             if (!Scheduler::current().valid()) return WaitResult::blocked;
             auto& sched = Scheduler::current();
             const auto id = sched.current_id();
@@ -1013,6 +1098,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_recv(T& out) noexcept {
+            debug_assert(!in_isr());
             if (empty()) return false;
             pop(out);
             if (Scheduler::current().valid()) {
@@ -1022,6 +1108,7 @@ export namespace charm::system::rtos {
         }
 
         [[nodiscard]] bool try_recv_isr(T& out) noexcept {
+            debug_assert(in_isr());
             if (empty()) return false;
             pop(out);
             pending_tx_wake_ = true;
@@ -1029,6 +1116,7 @@ export namespace charm::system::rtos {
         }
 
         void poll_wake(Scheduler& sched) noexcept {
+            debug_assert(!in_isr());
             if (pending_rx_wake_) {
                 pending_rx_wake_ = false;
                 while (recv_wait_count_ > 0 && !empty()) {

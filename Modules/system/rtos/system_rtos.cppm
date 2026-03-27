@@ -889,9 +889,15 @@ export namespace charm::system::rtos {
         util::u32 sleeping = 0;
         util::u32 blocked = 0;
         util::u32 stopped = 0;
+        std::array<util::u32, max_task_priority + 1> ready_by_prio{};
         for (const auto& slot : tasks_) {
             switch (slot.state) {
-            case TaskState::ready: ++ready; break;
+            case TaskState::ready:
+                ++ready;
+                if (slot.priority <= max_task_priority) {
+                    ++ready_by_prio[slot.priority];
+                }
+                break;
             case TaskState::running: ++running; break;
             case TaskState::sleeping: ++sleeping; break;
             case TaskState::blocked: ++blocked; break;
@@ -906,6 +912,18 @@ export namespace charm::system::rtos {
         if (ready_count != ready) return false;
         if (running > 1) return false;
         if (delay_count_ > delay_list_.size()) return false;
+        for (util::usize i = 0; i < delay_count_; ++i) {
+            const auto id = delay_list_[i];
+            auto* slot = const_cast<Scheduler*>(this)->slot_from_id(id);
+            if (!slot) return false;
+            if (slot->state != TaskState::sleeping && slot->state != TaskState::blocked) {
+                return false;
+            }
+        }
+        for (util::usize prio = 0; prio <= max_task_priority; ++prio) {
+            if (prio > max_priority_) break;
+            if (ready_by_prio[prio] != ready_count_[prio]) return false;
+        }
         return true;
     }
 

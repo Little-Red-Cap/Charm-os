@@ -211,7 +211,10 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TaskId> reserve(TaskFn fn, void* ctx, TaskPriority priority,
                                                    util::u32 slice) noexcept;
         [[nodiscard]] bool activate(TaskId id) noexcept;
-        void enter_runtime() noexcept { phase_ = RuntimePhase::runtime; }
+        void enter_runtime() noexcept {
+            require_task_context();
+            phase_ = RuntimePhase::runtime;
+        }
         [[nodiscard]] bool in_runtime() const noexcept { return phase_ == RuntimePhase::runtime; }
         void run_once() noexcept;
         void yield() noexcept;
@@ -619,10 +622,12 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx) noexcept {
+        require_task_context();
         return create(fn, ctx, 0, 1);
     }
 
     inline util::Result<TaskId> Scheduler::create(TaskFn fn, void* ctx, TaskPriority priority, util::u32 slice) noexcept {
+        require_task_context();
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_task_create_) {
             ++create_denied_;
@@ -655,6 +660,7 @@ export namespace charm::system::rtos {
 
     inline util::Result<TaskId> Scheduler::reserve(TaskFn fn, void* ctx, TaskPriority priority,
                                                    util::u32 slice) noexcept {
+        require_task_context();
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
         if (!allow_task_create_) {
             ++create_denied_;
@@ -685,6 +691,7 @@ export namespace charm::system::rtos {
     }
 
     inline bool Scheduler::activate(TaskId id) noexcept {
+        require_task_context();
         auto* slot = slot_from_id(id);
         if (!slot) return false;
         if (slot->state != TaskState::stopped || !slot->fn) return false;

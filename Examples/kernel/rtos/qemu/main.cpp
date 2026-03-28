@@ -42,8 +42,10 @@ namespace demo {
     EventFlags<2> g_timeout_flags{};
     MessageQueue<u32, 8, 4> g_mq{};
     Semaphore<4> g_sem{};
+    Semaphore<2> g_cancel_sem{};
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
+    volatile u32 cancel_hits = 0;
 
     struct UartCmsdk {
         static constexpr std::uint32_t base = 0x40004000u;
@@ -124,6 +126,9 @@ namespace demo {
             SchedulerLockGuard guard{Scheduler::current()};
             (void)Scheduler::current().schedule_after(5, &timer_tick, nullptr);
         }
+        if ((task_a_hits % 13u) == 0u) {
+            g_cancel_sem.cancel_waiters(Scheduler::current());
+        }
         Scheduler::current().sleep_ms(10);
     }
 
@@ -143,6 +148,16 @@ namespace demo {
         }
         if ((task_b_hits % 7u) == 0u) {
             if (g_sem.wait(15) != charm::system::rtos::WaitResult::ok) {
+                return;
+            }
+        }
+        if ((task_b_hits % 9u) == 0u) {
+            const auto result = g_cancel_sem.wait(50);
+            if (result == charm::system::rtos::WaitResult::cancelled) {
+                ++cancel_hits;
+                return;
+            }
+            if (result != charm::system::rtos::WaitResult::ok) {
                 return;
             }
         }
@@ -265,13 +280,16 @@ namespace demo {
                 static_cast<unsigned>(st.runtime_timer_denied),
                 static_cast<unsigned>(st.isr_violation_count),
                 static_cast<unsigned>(st.task_violation_count));
-            if (n > 0) {
-                UartCmsdk::write(buf);
-            }
-            if (st.timeout_count > last_timeout_count) {
-                last_timeout_count = st.timeout_count;
-                UartCmsdk::write("rtos timeout\n");
-            }
+        if (n > 0) {
+            UartCmsdk::write(buf);
+        }
+        if (cancel_hits > 0) {
+            UartCmsdk::write("rtos cancelled\n");
+        }
+        if (st.timeout_count > last_timeout_count) {
+            last_timeout_count = st.timeout_count;
+            UartCmsdk::write("rtos timeout\n");
+        }
             if (!scheduler.self_check()) {
                 UartCmsdk::write("rtos check failed\n");
             }

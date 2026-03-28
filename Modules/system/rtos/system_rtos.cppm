@@ -1072,12 +1072,7 @@ export namespace charm::system::rtos {
                 if (slot.wait_cancel && slot.wait_ctx) {
                     slot.wait_cancel(slot.wait_ctx, id);
                 }
-                slot.wait_result = WaitResult::cancelled;
-                slot.wait_ctx = nullptr;
-                slot.wait_cancel = nullptr;
-                slot.grant = false;
-                slot.state = TaskState::ready;
-                mark_ready(slot);
+                wake(id, WaitResult::cancelled, false);
             }
         }
         delay_count_ = 0;

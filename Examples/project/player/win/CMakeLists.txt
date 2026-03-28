@@ -9,6 +9,7 @@ set(PLAYER_MAIN_VIVID main.cpp)
 set(PLAYER_MAIN_INK main_ink.cpp)
 set(PLAYER_TARGET_VIVID charm-player-win-vivid)
 set(PLAYER_TARGET_INK charm-player-win-ink)
+set(PLAYER_TARGET_VIVID_MD3 charm-player-win-vivid-md3)
 
 add_executable(${PLAYER_TARGET_VIVID}
     ${PLAYER_MAIN_VIVID}
@@ -16,8 +17,11 @@ add_executable(${PLAYER_TARGET_VIVID}
 add_executable(${PLAYER_TARGET_INK}
     ${PLAYER_MAIN_INK}
 )
+add_executable(${PLAYER_TARGET_VIVID_MD3}
+    ${PLAYER_MAIN_VIVID}
+)
 
-foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK})
+foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TARGET_VIVID_MD3})
     target_compile_definitions(${_target} PRIVATE
         OUT_ENABLE_FLOAT
         CHARM_AUDIO_USE_VFS=1
@@ -68,6 +72,7 @@ endif()
 set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/")
+set(CHARM_PLAYER_EXCLUDE_REGEX_MD3 "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/")
 
 charm_example_sources_filtered(${PLAYER_TARGET_VIVID}
     "${CHARM_ROOT}"
@@ -86,6 +91,12 @@ charm_example_sources_filtered(${PLAYER_TARGET_INK}
     "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/app-ink/**/*.cppm"
 )
+charm_example_sources_filtered(${PLAYER_TARGET_VIVID_MD3}
+    "${CHARM_ROOT}"
+    "${CHARM_PLAYER_EXCLUDE_REGEX_MD3}"
+    "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/*.cppm"
+)
 charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/common/sdl3/backend.sdl3.cppm"
     "${CHARM_ROOT}/Examples/common/sdl3/sdl3.input.cppm"
@@ -94,9 +105,11 @@ charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
 
 charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
 target_link_libraries(${PLAYER_TARGET_INK} PRIVATE Charm-os)
+target_link_libraries(${PLAYER_TARGET_VIVID_MD3} PRIVATE Charm-os)
 
 if (CHARM_PLAYER_SOA_TRACE)
     target_compile_definitions(${PLAYER_TARGET_VIVID} PRIVATE VIVID_SOA_TRACE_INPUT=1)
+    target_compile_definitions(${PLAYER_TARGET_VIVID_MD3} PRIVATE VIVID_SOA_TRACE_INPUT=1)
     target_compile_definitions(Charm-os PRIVATE VIVID_SOA_TRACE_INPUT=1)
 endif()
 
@@ -108,7 +121,9 @@ if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_f
     include("${CHARM_ROOT}/cmake/DRLibs.cmake")
     charm_link_dr_libs(${PLAYER_TARGET_VIVID})
     charm_link_dr_libs(${PLAYER_TARGET_INK})
+    charm_link_dr_libs(${PLAYER_TARGET_VIVID_MD3})
 endif()
 
 charm_example_link_sdl3(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}")
 charm_example_link_sdl3(${PLAYER_TARGET_INK} "${CHARM_ROOT}")
+charm_example_link_sdl3(${PLAYER_TARGET_VIVID_MD3} "${CHARM_ROOT}")

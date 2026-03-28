@@ -280,8 +280,22 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::usize trace_dump(std::span<TraceEvent> out, util::u32 mask) const noexcept;
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
-        void allow_task_create(bool allowed) noexcept { allow_task_create_ = allowed; }
-        void allow_timer_create(bool allowed) noexcept { allow_timer_create_ = allowed; }
+        void allow_task_create(bool allowed) noexcept {
+            require_task_context();
+            allow_task_create_ = allowed;
+        }
+        void allow_timer_create(bool allowed) noexcept {
+            require_task_context();
+            allow_timer_create_ = allowed;
+        }
+        void allow_runtime_task_create(bool allowed) noexcept {
+            require_task_context();
+            allow_runtime_task_create_ = allowed;
+        }
+        void allow_runtime_timer_create(bool allowed) noexcept {
+            require_task_context();
+            allow_runtime_timer_create_ = allowed;
+        }
         void freeze_task_creation() noexcept { allow_task_create_ = false; }
         void freeze_timer_creation() noexcept { allow_timer_create_ = false; }
 

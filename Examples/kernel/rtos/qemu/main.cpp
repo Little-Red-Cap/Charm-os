@@ -195,12 +195,12 @@ namespace demo {
         }
         if (runtime_timer_denied_hits == 0u) {
             auto& sched = Scheduler::current();
-            sched.allow_timer_create(true);
+            sched.allow_runtime_timer_create(false);
             auto res = sched.schedule_after(1, &timer_tick, nullptr);
             if (!res) {
                 ++runtime_timer_denied_hits;
             }
-            sched.allow_timer_create(false);
+            sched.allow_runtime_timer_create(true);
         }
         std::array<u32, 2> out{};
         (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));

@@ -11,3 +11,7 @@
 - 模块名仍为 `player.ui` / `player.ui_builder`，通过独立 target 编译避免与旧 UI 冲突
 - 仅调整 UI 与主题，不影响控制面/数据面
 
+## 文档
+- `design_notes.md`：设计参考与提炼
+- `layout_plan.md`：三大主屏布局规划
+- `todo.md`：推进清单

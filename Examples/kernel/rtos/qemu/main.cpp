@@ -35,6 +35,8 @@ namespace demo {
     volatile u32 timer_hits = 0;
     volatile u32 timer_hits_hard = 0;
     volatile u32 queue_hits = 0;
+    volatile u32 create_denied_hits = 0;
+    volatile u32 timer_denied_hits = 0;
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
@@ -166,6 +168,20 @@ namespace demo {
                 return;
             }
         }
+        if (create_denied_hits == 0u) {
+            auto res = Scheduler::current().create(&task_a, nullptr, 0, 1);
+            if (!res) {
+                ++create_denied_hits;
+            }
+        }
+        if (timer_denied_hits == 0u) {
+            Scheduler::current().allow_timer_create(false);
+            auto res = Scheduler::current().schedule_after(1, &timer_tick, nullptr);
+            if (!res) {
+                ++timer_denied_hits;
+            }
+            Scheduler::current().allow_timer_create(true);
+        }
         std::array<u32, 2> out{};
         (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));
         if ((task_b_hits % 11u) == 0u) {
@@ -228,11 +244,13 @@ namespace demo {
               true,
               std::span<charm::system::rtos::TraceEvent>(trace.data(), trace.size()),
               charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::run) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::create_denied) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timer_create_denied) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_detected) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::lock_reenter) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_boost),
@@ -308,6 +326,12 @@ namespace demo {
         }
         if (cleanup_hits > 0) {
             UartCmsdk::write("rtos cleanup\n");
+        }
+        if (create_denied_hits > 0) {
+            UartCmsdk::write("rtos create denied\n");
+        }
+        if (timer_denied_hits > 0) {
+            UartCmsdk::write("rtos timer denied\n");
         }
         if (!scheduler.self_check()) {
             UartCmsdk::write("rtos check failed\n");

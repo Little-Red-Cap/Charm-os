@@ -54,6 +54,7 @@ export namespace charm::system::rtos {
     inline util::u32 isr_depth_ = 0;
     inline util::u32 isr_violation_count_ = 0;
     inline util::u32 task_violation_count_ = 0;
+    inline util::u32 lock_reenter_count_ = 0;
 
     inline bool in_isr() noexcept { return isr_depth_ != 0; }
 
@@ -105,6 +106,7 @@ export namespace charm::system::rtos {
         task_violation,
         isr_violation,
         pi_detected,
+        lock_reenter,
     };
 
     struct TraceEvent {
@@ -260,6 +262,7 @@ export namespace charm::system::rtos {
             util::u32 runtime_timer_denied{0};
             util::u32 isr_violation_count{0};
             util::u32 task_violation_count{0};
+            util::u32 lock_reenter_count{0};
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
@@ -941,6 +944,7 @@ export namespace charm::system::rtos {
         out.runtime_timer_denied = runtime_timer_denied_;
         out.isr_violation_count = isr_violation_count_;
         out.task_violation_count = task_violation_count_;
+        out.lock_reenter_count = lock_reenter_count_;
         for (const auto& slot : tasks_) {
             switch (slot.state) {
             case TaskState::ready:
@@ -1619,6 +1623,10 @@ export namespace charm::system::rtos {
             const auto id = sched.current_id();
             if (id == invalid_task_id) return false;
             if (owner_ == invalid_task_id || owner_ == id) {
+                if (owner_ == id) {
+                    ++lock_reenter_count_;
+                    sched.trace_push(TraceKind::lock_reenter, id, 0);
+                }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
                 return true;
@@ -1645,6 +1653,10 @@ export namespace charm::system::rtos {
                 return WaitResult::ok;
             }
             if (owner_ == invalid_task_id || owner_ == id) {
+                if (owner_ == id) {
+                    ++lock_reenter_count_;
+                    sched.trace_push(TraceKind::lock_reenter, id, 0);
+                }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
                 return WaitResult::ok;

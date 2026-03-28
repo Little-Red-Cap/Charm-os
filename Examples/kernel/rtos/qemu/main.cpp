@@ -224,7 +224,8 @@ namespace demo {
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_detected),
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_detected) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::lock_reenter),
               std::span<IsrPollEntry>(pollers.data(), pollers.size())
           }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
@@ -261,7 +262,7 @@ namespace demo {
             const int n = std::snprintf(
                 buf,
                 sizeof(buf),
-                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u sw=%u y=%u b=%u w=%u tmo=%u prio=%u den=%u rden=%u tden=%u rtden=%u isr=%u task=%u\n",
+                "rtos stats ready=%u run=%u blk=%u slp=%u lock=%u delay=%u sw=%u y=%u b=%u w=%u tmo=%u prio=%u den=%u rden=%u tden=%u rtden=%u isr=%u task=%u reent=%u\n",
                 static_cast<unsigned>(st.ready),
                 static_cast<unsigned>(st.running),
                 static_cast<unsigned>(st.blocked),
@@ -279,7 +280,8 @@ namespace demo {
                 static_cast<unsigned>(st.timer_create_denied),
                 static_cast<unsigned>(st.runtime_timer_denied),
                 static_cast<unsigned>(st.isr_violation_count),
-                static_cast<unsigned>(st.task_violation_count));
+                static_cast<unsigned>(st.task_violation_count),
+                static_cast<unsigned>(st.lock_reenter_count));
         if (n > 0) {
             UartCmsdk::write(buf);
         }
@@ -336,6 +338,7 @@ namespace demo {
             case TraceKind::create_denied: return 'C';
             case TraceKind::timer_create_denied: return 'D';
             case TraceKind::pi_detected: return 'P';
+            case TraceKind::lock_reenter: return 'L';
             }
             return '?';
         }

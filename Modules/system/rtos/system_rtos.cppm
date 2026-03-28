@@ -104,6 +104,7 @@ export namespace charm::system::rtos {
         timer_create_denied,
         task_violation,
         isr_violation,
+        pi_detected,
     };
 
     struct TraceEvent {
@@ -227,6 +228,8 @@ export namespace charm::system::rtos {
         void unlock() noexcept { if (lock_count_ > 0) --lock_count_; }
         [[nodiscard]] bool locked() const noexcept { return lock_count_ != 0; }
         [[nodiscard]] TaskId current_id() const noexcept { return current_; }
+        [[nodiscard]] TaskPriority current_priority() const noexcept;
+        [[nodiscard]] TaskPriority priority_of(TaskId id) const noexcept;
         [[nodiscard]] WaitResult take_wait_result(TaskId id) noexcept;
         [[nodiscard]] bool take_grant(TaskId id) noexcept;
         [[nodiscard]] bool is_blocked(TaskId id) noexcept;
@@ -433,6 +436,18 @@ export namespace charm::system::rtos {
         const auto index = static_cast<util::usize>(id - 1);
         if (index >= tasks_.size()) return nullptr;
         return &tasks_[index];
+    }
+
+    inline TaskPriority Scheduler::current_priority() const noexcept {
+        if (current_ == invalid_task_id) return 0;
+        return priority_of(current_);
+    }
+
+    inline TaskPriority Scheduler::priority_of(TaskId id) const noexcept {
+        if (id == invalid_task_id) return 0;
+        const auto index = static_cast<util::usize>(id - 1);
+        if (index >= tasks_.size()) return 0;
+        return tasks_[index].priority;
     }
 
     inline TimerSlot* Scheduler::timer_from_id(TimerId id) noexcept {
@@ -1562,6 +1577,7 @@ export namespace charm::system::rtos {
             if (id == invalid_task_id) return false;
             if (owner_ == invalid_task_id || owner_ == id) {
                 owner_ = id;
+                owner_prio_ = sched.current_priority();
                 return true;
             }
             return false;
@@ -1587,7 +1603,13 @@ export namespace charm::system::rtos {
             }
             if (owner_ == invalid_task_id || owner_ == id) {
                 owner_ = id;
+                owner_prio_ = sched.current_priority();
                 return WaitResult::ok;
+            }
+            if (owner_prio_ < sched.current_priority()) {
+                const util::u32 packed = (static_cast<util::u32>(owner_prio_) << 8) |
+                                         static_cast<util::u32>(sched.current_priority());
+                sched.trace_push(TraceKind::pi_detected, id, packed);
             }
             if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
             waiters_[wait_count_++] = id;
@@ -1608,10 +1630,12 @@ export namespace charm::system::rtos {
                 }
                 --wait_count_;
                 owner_ = next;
+                owner_prio_ = sched.priority_of(next);
                 sched.wake(next, WaitResult::ok, true);
                 return;
             }
             owner_ = invalid_task_id;
+            owner_prio_ = 0;
         }
 
         void cancel_waiters(Scheduler& sched) noexcept {
@@ -1627,6 +1651,7 @@ export namespace charm::system::rtos {
                 }
             }
             owner_ = invalid_task_id;
+            owner_prio_ = 0;
         }
 
     private:
@@ -1647,6 +1672,7 @@ export namespace charm::system::rtos {
         }
 
         TaskId owner_{invalid_task_id};
+        TaskPriority owner_prio_{0};
         std::array<TaskId, MaxWaiters> waiters_{};
         util::usize wait_count_{0};
     };

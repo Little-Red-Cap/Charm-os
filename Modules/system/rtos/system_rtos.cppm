@@ -278,6 +278,7 @@ export namespace charm::system::rtos {
         void set_trace_mask(util::u32 mask) noexcept { trace_mask_ = mask; }
         [[nodiscard]] util::usize trace_count() const noexcept { return trace_count_; }
         [[nodiscard]] util::usize trace_dump(std::span<TraceEvent> out, util::u32 mask) const noexcept;
+        void trace_event(TraceKind kind, TaskId id, util::u32 data) noexcept { trace_push(kind, id, data); }
 
         [[nodiscard]] bool valid() const noexcept { return !tasks_.empty(); }
         void allow_task_create(bool allowed) noexcept {
@@ -1027,6 +1028,7 @@ export namespace charm::system::rtos {
         util::u32 sleeping = 0;
         util::u32 blocked = 0;
         util::u32 stopped = 0;
+        util::u32 unused = 0;
         std::array<util::u32, max_task_priority + 1> ready_by_prio{};
         for (const auto& slot : tasks_) {
             switch (slot.state) {
@@ -1040,7 +1042,7 @@ export namespace charm::system::rtos {
             case TaskState::sleeping: ++sleeping; break;
             case TaskState::blocked: ++blocked; break;
             case TaskState::stopped: ++stopped; break;
-            case TaskState::unused: break;
+            case TaskState::unused: ++unused; break;
             }
         }
         util::u32 ready_count = 0;
@@ -1048,6 +1050,7 @@ export namespace charm::system::rtos {
             ready_count += count;
         }
         if (ready_count != ready) return false;
+        if (ready + running + sleeping + blocked + stopped + unused != tasks_.size()) return false;
         if (running > 1) return false;
         if (delay_count_ > delay_list_.size()) return false;
         for (util::usize i = 0; i < delay_count_; ++i) {
@@ -1664,7 +1667,7 @@ export namespace charm::system::rtos {
             if (owner_ == invalid_task_id || owner_ == id) {
                 if (owner_ == id) {
                     ++lock_reenter_count_;
-                    sched.trace_push(TraceKind::lock_reenter, id, 0);
+                    sched.trace_event(TraceKind::lock_reenter, id, 0);
                 }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
@@ -1695,7 +1698,7 @@ export namespace charm::system::rtos {
             if (owner_ == invalid_task_id || owner_ == id) {
                 if (owner_ == id) {
                     ++lock_reenter_count_;
-                    sched.trace_push(TraceKind::lock_reenter, id, 0);
+                    sched.trace_event(TraceKind::lock_reenter, id, 0);
                 }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
@@ -1705,9 +1708,9 @@ export namespace charm::system::rtos {
             if (owner_prio_ < sched.current_priority()) {
                 const util::u32 packed = (static_cast<util::u32>(owner_prio_) << 8) |
                                          static_cast<util::u32>(sched.current_priority());
-                sched.trace_push(TraceKind::pi_detected, id, packed);
+                sched.trace_event(TraceKind::pi_detected, id, packed);
                 boost_target_ = sched.current_priority();
-                sched.trace_push(TraceKind::pi_boost, owner_, boost_target_);
+                sched.trace_event(TraceKind::pi_boost, owner_, boost_target_);
             }
             if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
             waiters_[wait_count_++] = id;

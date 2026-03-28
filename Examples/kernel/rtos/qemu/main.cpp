@@ -187,6 +187,7 @@ namespace demo {
         Clock clock{};
         Scheduler scheduler;
         u32 last_stats_tick{0};
+        u32 last_timeout_count{0};
 
         Demo() noexcept
             : pollers{IsrPollEntry{&g_flags, &poll_flags},
@@ -265,6 +266,10 @@ namespace demo {
                 static_cast<unsigned>(st.task_violation_count));
             if (n > 0) {
                 UartCmsdk::write(buf);
+            }
+            if (st.timeout_count > last_timeout_count) {
+                last_timeout_count = st.timeout_count;
+                UartCmsdk::write("rtos timeout\n");
             }
             if (!scheduler.self_check()) {
                 UartCmsdk::write("rtos check failed\n");

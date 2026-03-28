@@ -37,6 +37,7 @@ namespace demo {
     volatile u32 queue_hits = 0;
     volatile u32 create_denied_hits = 0;
     volatile u32 timer_denied_hits = 0;
+    volatile u32 runtime_create_denied_hits = 0;
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
@@ -173,6 +174,15 @@ namespace demo {
             if (!res) {
                 ++create_denied_hits;
             }
+        }
+        if (runtime_create_denied_hits == 0u) {
+            auto& sched = Scheduler::current();
+            sched.allow_task_create(true);
+            auto res = sched.create(&task_a, nullptr, 0, 1);
+            if (!res) {
+                ++runtime_create_denied_hits;
+            }
+            sched.allow_task_create(false);
         }
         if (timer_denied_hits == 0u) {
             Scheduler::current().allow_timer_create(false);
@@ -329,6 +339,9 @@ namespace demo {
         }
         if (create_denied_hits > 0) {
             UartCmsdk::write("rtos create denied\n");
+        }
+        if (runtime_create_denied_hits > 0) {
+            UartCmsdk::write("rtos runtime create denied\n");
         }
         if (timer_denied_hits > 0) {
             UartCmsdk::write("rtos timer denied\n");

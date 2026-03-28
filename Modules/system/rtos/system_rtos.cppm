@@ -263,6 +263,7 @@ export namespace charm::system::rtos {
         };
         [[nodiscard]] Stats stats() const noexcept;
         [[nodiscard]] bool self_check() const noexcept;
+        void cleanup_all() noexcept;
         [[nodiscard]] util::u32 trace_mask() const noexcept { return trace_mask_; }
         void set_trace_mask(util::u32 mask) noexcept { trace_mask_ = mask; }
         [[nodiscard]] util::usize trace_count() const noexcept { return trace_count_; }
@@ -1013,7 +1014,42 @@ export namespace charm::system::rtos {
             if (prio > max_priority_) break;
             if (ready_by_prio[prio] != ready_count_[prio]) return false;
         }
+        for (util::usize i = 0; i < tasks_.size(); ++i) {
+            const auto& slot = tasks_[i];
+            if (slot.state != TaskState::blocked) continue;
+            const auto id = static_cast<TaskId>(i + 1u);
+            bool found = false;
+            for (util::usize j = 0; j < delay_count_; ++j) {
+                if (delay_list_[j] == id) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && slot.wait_ctx != nullptr) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    inline void Scheduler::cleanup_all() noexcept {
+        require_task_context();
+        for (util::usize i = 0; i < tasks_.size(); ++i) {
+            auto& slot = tasks_[i];
+            if (slot.state == TaskState::blocked) {
+                const auto id = static_cast<TaskId>(i + 1u);
+                if (slot.wait_cancel && slot.wait_ctx) {
+                    slot.wait_cancel(slot.wait_ctx, id);
+                }
+                slot.wait_result = WaitResult::cancelled;
+                slot.wait_ctx = nullptr;
+                slot.wait_cancel = nullptr;
+                slot.grant = false;
+                slot.state = TaskState::ready;
+                mark_ready(slot);
+            }
+        }
+        delay_count_ = 0;
     }
 
     template <util::usize Capacity>

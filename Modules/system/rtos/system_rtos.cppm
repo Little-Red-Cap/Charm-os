@@ -818,6 +818,7 @@ export namespace charm::system::rtos {
     }
 
     inline util::usize Scheduler::trace_dump(std::span<TraceEvent> out, util::u32 mask) const noexcept {
+        require_task_context();
         if (trace_.empty() || out.empty() || trace_count_ == 0) return 0;
         const util::usize capacity = trace_.size();
         const util::usize available = trace_count_ < capacity ? trace_count_ : capacity;
@@ -956,6 +957,7 @@ export namespace charm::system::rtos {
     }
 
     inline Scheduler::Stats Scheduler::stats() const noexcept {
+        require_task_context();
         Stats out{};
         out.lock_depth = lock_count_;
         out.delay_count = static_cast<util::u32>(delay_count_);
@@ -1005,6 +1007,7 @@ export namespace charm::system::rtos {
     }
 
     inline bool Scheduler::self_check() const noexcept {
+        require_task_context();
         util::u32 ready = 0;
         util::u32 running = 0;
         util::u32 sleeping = 0;

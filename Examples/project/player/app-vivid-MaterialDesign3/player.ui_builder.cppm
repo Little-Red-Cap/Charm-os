@@ -25,9 +25,15 @@ export namespace player {
 
         const int mode_w = 56;
         const int mode_h = 44;
+        const int nav_h = 56;
+        const int nav_gap = 12;
+        const int bottom_bar_h = 72;
+        const int bottom_bar_gap = 14;
+        const int nav_y = screen_height - kUiPadding - nav_h;
+        const int bottom_bar_y = nav_y - bottom_bar_gap - bottom_bar_h;
         const int controls_w = kButtonWidth * 3 + kButtonGap * 2 + mode_w + kButtonGap;
         const int controls_x = (screen_width - controls_w) / 2;
-        const int controls_y = screen_height - kControlsBottomMargin - kButtonHeight;
+        const int controls_y = bottom_bar_y - bottom_bar_gap - kButtonHeight;
 
         const WidgetHandle scroll_area = builder.create_scroll_container();
         anchor_rect(scroll_area, {0, 0, screen_width, controls_y - 8});
@@ -44,8 +50,20 @@ export namespace player {
 
         const WidgetHandle content = builder.create_container();
         anchor_rect(content, {0, 0, screen_width, content_h});
+        const int cover_x = (screen_width - kCoverSize) / 2;
+        const int cover_y = cover_top;
         h.cover = builder.create_image();
-        anchor_rect(h.cover, {(screen_width - kCoverSize) / 2, cover_top, kCoverSize, kCoverSize});
+        anchor_rect(h.cover, {cover_x, cover_y, kCoverSize, kCoverSize});
+
+        const int collage_small = 96;
+        const int collage_tiny = 72;
+        h.cover_left = builder.create_image();
+        anchor_rect(h.cover_left, {cover_x - 20, cover_y + kCoverSize - collage_small - 12,
+                                   collage_small, collage_small});
+        h.cover_right = builder.create_image();
+        anchor_rect(h.cover_right, {cover_x + kCoverSize - collage_tiny + 24,
+                                    cover_y + kCoverSize / 2,
+                                    collage_tiny, collage_tiny});
 
         h.title = builder.create_label_static("");
         anchor_rect(h.title, {kUiPadding, title_y,
@@ -154,6 +172,34 @@ export namespace player {
         h.controls = builder.create_container();
         anchor_rect(h.controls, {controls_x, controls_y, controls_w, kButtonHeight});
 
+        h.bottom_bar = builder.create_container();
+        anchor_rect(h.bottom_bar, {kUiPadding, bottom_bar_y,
+                                   screen_width - kUiPadding * 2, bottom_bar_h});
+        h.bottom_cover = builder.create_image();
+        anchor_rect(h.bottom_cover, {kUiPadding + 12, bottom_bar_y + 12, 48, 48});
+        h.bottom_title = builder.create_label_static("");
+        anchor_rect(h.bottom_title, {kUiPadding + 72, bottom_bar_y + 10,
+                                     screen_width - kUiPadding * 2 - 140, 22});
+        h.bottom_subtitle = builder.create_label_static("");
+        anchor_rect(h.bottom_subtitle, {kUiPadding + 72, bottom_bar_y + 34,
+                                        screen_width - kUiPadding * 2 - 140, 18});
+        h.bottom_play = builder.create_button_static("");
+        anchor_rect(h.bottom_play, {screen_width - kUiPadding - 64, bottom_bar_y + 14, 48, 48});
+        builder.set_button_icon(h.bottom_play, icons.play);
+        builder.set_button_icon_size(h.bottom_play, 18);
+
+        h.nav_bar = builder.create_container();
+        anchor_rect(h.nav_bar, {kUiPadding, nav_y,
+                                screen_width - kUiPadding * 2, nav_h});
+        const int nav_w = screen_width - kUiPadding * 2;
+        const int nav_btn_w = (nav_w - nav_gap * 2) / 3;
+        h.nav_home = builder.create_button_static("Home");
+        anchor_rect(h.nav_home, {kUiPadding, nav_y, nav_btn_w, nav_h});
+        h.nav_search = builder.create_button_static("Search");
+        anchor_rect(h.nav_search, {kUiPadding + nav_btn_w + nav_gap, nav_y, nav_btn_w, nav_h});
+        h.nav_library = builder.create_button_static("Library");
+        anchor_rect(h.nav_library, {kUiPadding + (nav_btn_w + nav_gap) * 2, nav_y, nav_btn_w, nav_h});
+
 #if CHARM_PLAYER_DEBUG_UI
         const int debug_h = 18;
         const int debug_y = controls_y - debug_h - 6;
@@ -188,6 +234,8 @@ export namespace player {
         builder.link(h.root, scroll_area);
         builder.link(scroll_area, content);
         builder.link(content, h.cover);
+        builder.link(content, h.cover_left);
+        builder.link(content, h.cover_right);
         builder.link(content, h.title);
         builder.link(content, h.subtitle);
         builder.link(content, h.progress);
@@ -220,6 +268,15 @@ export namespace player {
         builder.link(h.controls, h.btn_pause);
         builder.link(h.controls, h.btn_next);
         builder.link(h.controls, h.btn_mode);
+        builder.link(h.root, h.bottom_bar);
+        builder.link(h.bottom_bar, h.bottom_cover);
+        builder.link(h.bottom_bar, h.bottom_title);
+        builder.link(h.bottom_bar, h.bottom_subtitle);
+        builder.link(h.bottom_bar, h.bottom_play);
+        builder.link(h.root, h.nav_bar);
+        builder.link(h.nav_bar, h.nav_home);
+        builder.link(h.nav_bar, h.nav_search);
+        builder.link(h.nav_bar, h.nav_library);
 #if CHARM_PLAYER_DEBUG_UI
         builder.link(h.root, h.debug_text);
 #endif

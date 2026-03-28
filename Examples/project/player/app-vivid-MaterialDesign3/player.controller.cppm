@@ -56,6 +56,8 @@ export namespace player {
     struct UiHandles {
         WidgetHandle root{};
         WidgetHandle cover{};
+        WidgetHandle cover_left{};
+        WidgetHandle cover_right{};
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
@@ -86,6 +88,15 @@ export namespace player {
         WidgetHandle btn_next{};
         WidgetHandle btn_mode{};
         WidgetHandle controls{};
+        WidgetHandle bottom_bar{};
+        WidgetHandle bottom_cover{};
+        WidgetHandle bottom_title{};
+        WidgetHandle bottom_subtitle{};
+        WidgetHandle bottom_play{};
+        WidgetHandle nav_bar{};
+        WidgetHandle nav_home{};
+        WidgetHandle nav_search{};
+        WidgetHandle nav_library{};
         WidgetHandle debug_text{};
     };
 
@@ -135,6 +146,8 @@ export namespace player {
             ::ui::scene::TextSlotId list_title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_hint{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId btn_pause{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId bottom_title{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId bottom_subtitle{::ui::scene::kInvalidTextSlot};
             std::array<::ui::scene::TextSlotId, kEqBands> eq_values{
                 ::ui::scene::kInvalidTextSlot,
                 ::ui::scene::kInvalidTextSlot,
@@ -271,18 +284,31 @@ export namespace player {
             cover_embedded_path.clear();
             cover_folder_path.clear();
             release_cover_image(cover_image);
-            if (access.valid() && handles.cover && access.kind(handles.cover) == WidgetKind::Image) {
-                access.set_image(handles.cover, ::ui::scene::invalid_image_id());
-            }
+            if (!access.valid()) return;
+            const auto clear_image = [&](WidgetHandle handle) {
+                if (handle && access.kind(handle) == WidgetKind::Image) {
+                    access.set_image(handle, ::ui::scene::invalid_image_id());
+                }
+            };
+            clear_image(handles.cover);
+            clear_image(handles.cover_left);
+            clear_image(handles.cover_right);
+            clear_image(handles.bottom_cover);
         }
 
         void update_cover_image() {
-            if (!access.valid() || !handles.cover) return;
+            if (!access.valid()) return;
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
-                if (access.kind(handles.cover) == WidgetKind::Image) {
-                    access.set_image(handles.cover, ::ui::scene::invalid_image_id());
-                }
+                const auto clear_image = [&](WidgetHandle handle) {
+                    if (handle && access.kind(handle) == WidgetKind::Image) {
+                        access.set_image(handle, ::ui::scene::invalid_image_id());
+                    }
+                };
+                clear_image(handles.cover);
+                clear_image(handles.cover_left);
+                clear_image(handles.cover_right);
+                clear_image(handles.bottom_cover);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
 #endif
@@ -291,16 +317,28 @@ export namespace player {
             auto try_load = [&](std::string_view candidate) -> bool {
                 if (candidate.empty()) return false;
                 if (cover_image.path == candidate && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                    if (access.kind(handles.cover) == WidgetKind::Image) {
-                        access.set_image(handles.cover, cover_image.image_id);
-                    }
+                    const auto set_image = [&](WidgetHandle handle) {
+                        if (handle && access.kind(handle) == WidgetKind::Image) {
+                            access.set_image(handle, cover_image.image_id);
+                        }
+                    };
+                    set_image(handles.cover);
+                    set_image(handles.cover_left);
+                    set_image(handles.cover_right);
+                    set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
                     return true;
                 }
                 if (load_cover_image(candidate, cover_image)) {
-                    if (access.kind(handles.cover) == WidgetKind::Image) {
-                        access.set_image(handles.cover, cover_image.image_id);
-                    }
+                    const auto set_image = [&](WidgetHandle handle) {
+                        if (handle && access.kind(handle) == WidgetKind::Image) {
+                            access.set_image(handle, cover_image.image_id);
+                        }
+                    };
+                    set_image(handles.cover);
+                    set_image(handles.cover_left);
+                    set_image(handles.cover_right);
+                    set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
                     return true;
                 }
@@ -327,9 +365,15 @@ export namespace player {
             }
 
             if (loaded) return;
-            if (access.kind(handles.cover) == WidgetKind::Image) {
-                access.set_image(handles.cover, ::ui::scene::invalid_image_id());
-            }
+            const auto clear_image = [&](WidgetHandle handle) {
+                if (handle && access.kind(handle) == WidgetKind::Image) {
+                    access.set_image(handle, ::ui::scene::invalid_image_id());
+                }
+            };
+            clear_image(handles.cover);
+            clear_image(handles.cover_left);
+            clear_image(handles.cover_right);
+            clear_image(handles.bottom_cover);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());
 #endif
@@ -387,6 +431,9 @@ export namespace player {
             last_play_button_state = state;
             access.set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
             set_label_slot(handles.btn_pause, text_slots.btn_pause, playing_now ? "Pause" : "Play");
+            if (handles.bottom_play) {
+                access.set_button_icon(handles.bottom_play, playing_now ? icons.pause : icons.play);
+            }
         }
 
         void set_time_label(int elapsed_sec) {
@@ -782,6 +829,8 @@ export namespace player {
             subtitle_text.assign((*storage.track_subtitles)[idx].view());
             set_label_slot(handles.title, text_slots.title, title_text.c_str());
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
+            set_label_slot(handles.bottom_title, text_slots.bottom_title, title_text.c_str());
+            set_label_slot(handles.bottom_subtitle, text_slots.bottom_subtitle, subtitle_text.c_str());
         }
         bool load_track_index(int idx) {
             if (!fs_ready) {

@@ -46,6 +46,7 @@ namespace demo {
     volatile u32 task_a_hits = 0;
     volatile u32 task_b_hits = 0;
     volatile u32 cancel_hits = 0;
+    volatile u32 cleanup_hits = 0;
 
     struct UartCmsdk {
         static constexpr std::uint32_t base = 0x40004000u;
@@ -128,6 +129,10 @@ namespace demo {
         }
         if ((task_a_hits % 13u) == 0u) {
             g_cancel_sem.cancel_waiters(Scheduler::current());
+        }
+        if ((task_a_hits % 17u) == 0u) {
+            Scheduler::current().cleanup_all();
+            ++cleanup_hits;
         }
         Scheduler::current().sleep_ms(10);
     }
@@ -293,9 +298,12 @@ namespace demo {
             last_timeout_count = st.timeout_count;
             UartCmsdk::write("rtos timeout\n");
         }
-            if (!scheduler.self_check()) {
-                UartCmsdk::write("rtos check failed\n");
-            }
+        if (cleanup_hits > 0) {
+            UartCmsdk::write("rtos cleanup\n");
+        }
+        if (!scheduler.self_check()) {
+            UartCmsdk::write("rtos check failed\n");
+        }
             dump_trace();
         }
 

@@ -34,6 +34,7 @@ ISR APIs must be explicitly named and restricted to:
 - Defer wakeups to task context.
 
 Task-context APIs must reject ISR usage (debug assert).
+ISR deferral must be centralized (scheduler-level poll path).
 
 ## 4) Observability Is Mandatory
 
@@ -43,7 +44,18 @@ The RTOS must always provide:
 
 Observability can be disabled at runtime, but not removed from the core.
 
-## 5) Portability Roadmap
+## 5) Cancellation & Cleanup
+
+Blocking waits must support explicit cancellation:
+- Cancelled waits return `WaitResult::cancelled`.
+- Global cleanup is allowed only in task context and must cancel all waiters.
+
+## 6) Priority Inversion
+
+Detection must exist (trace + stats). Priority inheritance may be a later
+implementation, but detection is mandatory.
+
+## 7) Portability Roadmap
 
 Roadmap order is fixed:
 1. Cortex-M: stability and determinism first.

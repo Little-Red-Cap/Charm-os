@@ -39,6 +39,7 @@ namespace demo {
     volatile u32 timer_denied_hits = 0;
     volatile u32 runtime_create_denied_hits = 0;
     volatile u32 runtime_timer_denied_hits = 0;
+    volatile u32 isr_violation_demo_done = 0;
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
@@ -422,6 +423,16 @@ int main() {
             demo::IsrGuard isr{};
             demo.scheduler.tick();
         }
+#if defined(NDEBUG)
+        if (demo::isr_violation_demo_done == 0u) {
+            {
+                demo::IsrGuard isr{};
+                demo.scheduler.sleep_ms(1);
+            }
+            (void)demo::g_mq.try_send_isr(0x1234u);
+            demo::isr_violation_demo_done = 1;
+        }
+#endif
         demo.scheduler.run_once();
         demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {

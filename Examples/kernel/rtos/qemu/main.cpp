@@ -225,7 +225,8 @@ namespace demo {
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_detected) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::lock_reenter),
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::lock_reenter) |
+                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_boost),
               std::span<IsrPollEntry>(pollers.data(), pollers.size())
           }) {
             clock.reset(nullptr, ClockOps{&clock_now_ms, nullptr});
@@ -339,6 +340,7 @@ namespace demo {
             case TraceKind::timer_create_denied: return 'D';
             case TraceKind::pi_detected: return 'P';
             case TraceKind::lock_reenter: return 'L';
+            case TraceKind::pi_boost: return 'B';
             }
             return '?';
         }

@@ -107,6 +107,7 @@ export namespace charm::system::rtos {
         isr_violation,
         pi_detected,
         lock_reenter,
+        pi_boost,
     };
 
     struct TraceEvent {
@@ -1629,6 +1630,7 @@ export namespace charm::system::rtos {
                 }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
+                boost_target_ = 0;
                 return true;
             }
             return false;
@@ -1659,12 +1661,15 @@ export namespace charm::system::rtos {
                 }
                 owner_ = id;
                 owner_prio_ = sched.current_priority();
+                boost_target_ = 0;
                 return WaitResult::ok;
             }
             if (owner_prio_ < sched.current_priority()) {
                 const util::u32 packed = (static_cast<util::u32>(owner_prio_) << 8) |
                                          static_cast<util::u32>(sched.current_priority());
                 sched.trace_push(TraceKind::pi_detected, id, packed);
+                boost_target_ = sched.current_priority();
+                sched.trace_push(TraceKind::pi_boost, owner_, boost_target_);
             }
             if (wait_count_ >= MaxWaiters) return WaitResult::blocked;
             waiters_[wait_count_++] = id;
@@ -1686,11 +1691,13 @@ export namespace charm::system::rtos {
                 --wait_count_;
                 owner_ = next;
                 owner_prio_ = sched.priority_of(next);
+                boost_target_ = 0;
                 sched.wake(next, WaitResult::ok, true);
                 return;
             }
             owner_ = invalid_task_id;
             owner_prio_ = 0;
+            boost_target_ = 0;
         }
 
         void cancel_waiters(Scheduler& sched) noexcept {
@@ -1707,6 +1714,7 @@ export namespace charm::system::rtos {
             }
             owner_ = invalid_task_id;
             owner_prio_ = 0;
+            boost_target_ = 0;
         }
 
     private:
@@ -1728,6 +1736,7 @@ export namespace charm::system::rtos {
 
         TaskId owner_{invalid_task_id};
         TaskPriority owner_prio_{0};
+        TaskPriority boost_target_{0};
         std::array<TaskId, MaxWaiters> waiters_{};
         util::usize wait_count_{0};
     };

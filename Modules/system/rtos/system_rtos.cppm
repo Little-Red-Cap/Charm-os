@@ -88,6 +88,7 @@ export namespace charm::system::rtos {
         ok,
         timeout,
         blocked,
+        cancelled,
     };
 
     enum class TraceKind : util::u8 {
@@ -1043,6 +1044,9 @@ export namespace charm::system::rtos {
             if (prev == WaitResult::timeout) {
                 return WaitResult::timeout;
             }
+            if (prev == WaitResult::cancelled) {
+                return WaitResult::cancelled;
+            }
             if (sched.take_grant(id)) {
                 return WaitResult::ok;
             }
@@ -1076,6 +1080,19 @@ export namespace charm::system::rtos {
                 const auto add = pending_wake_ < room ? pending_wake_ : room;
                 count_ += add;
                 pending_wake_ -= add;
+            }
+        }
+
+        void cancel_waiters(Scheduler& sched) noexcept {
+            require_task_context();
+            while (wait_count_ > 0) {
+                const auto id = waiters_[head_];
+                head_ = advance(head_);
+                --wait_count_;
+                if (!sched.is_blocked(id)) {
+                    continue;
+                }
+                sched.wake(id, WaitResult::cancelled, false);
             }
         }
 
@@ -1236,6 +1253,9 @@ export namespace charm::system::rtos {
             if (prev == WaitResult::timeout) {
                 return WaitResult::timeout;
             }
+            if (prev == WaitResult::cancelled) {
+                return WaitResult::cancelled;
+            }
             if (sched.take_grant(id)) {
                 return WaitResult::ok;
             }
@@ -1264,6 +1284,19 @@ export namespace charm::system::rtos {
             return WaitResult::blocked;
         }
 
+        void cancel_waiters(Scheduler& sched) noexcept {
+            require_task_context();
+            util::usize i = 0;
+            while (i < wait_count_) {
+                const auto w = waiters_[i];
+                remove_waiter(i);
+                if (!sched.is_blocked(w.id)) {
+                    continue;
+                }
+                sched.wake(w.id, WaitResult::cancelled, false);
+            }
+        }
+
         util::u32 flags_{0};
         bool pending_wake_{false};
         AutoClearMode auto_clear_any_{AutoClearMode::none};
@@ -1285,6 +1318,9 @@ export namespace charm::system::rtos {
             const auto prev = sched.take_wait_result(id);
             if (prev == WaitResult::timeout) {
                 return WaitResult::timeout;
+            }
+            if (prev == WaitResult::cancelled) {
+                return WaitResult::cancelled;
             }
             if (sched.take_grant(id)) {
                 return WaitResult::ok;
@@ -1330,6 +1366,9 @@ export namespace charm::system::rtos {
             const auto prev = sched.take_wait_result(id);
             if (prev == WaitResult::timeout) {
                 return WaitResult::timeout;
+            }
+            if (prev == WaitResult::cancelled) {
+                return WaitResult::cancelled;
             }
             if (sched.take_grant(id) && !empty()) {
                 pop(out);
@@ -1384,6 +1423,30 @@ export namespace charm::system::rtos {
                 --tx_lock_;
             }
             if (tx_lock_ > send_wait_count_) tx_lock_ = send_wait_count_;
+        }
+
+        void cancel_waiters(Scheduler& sched) noexcept {
+            require_task_context();
+            while (send_wait_count_ > 0) {
+                const auto id = send_waiters_[0];
+                for (util::usize i = 1; i < send_wait_count_; ++i) {
+                    send_waiters_[i - 1] = send_waiters_[i];
+                }
+                --send_wait_count_;
+                if (sched.is_blocked(id)) {
+                    sched.wake(id, WaitResult::cancelled, false);
+                }
+            }
+            while (recv_wait_count_ > 0) {
+                const auto id = recv_waiters_[0];
+                for (util::usize i = 1; i < recv_wait_count_; ++i) {
+                    recv_waiters_[i - 1] = recv_waiters_[i];
+                }
+                --recv_wait_count_;
+                if (sched.is_blocked(id)) {
+                    sched.wake(id, WaitResult::cancelled, false);
+                }
+            }
         }
 
         [[nodiscard]] util::usize send_batch(std::span<const T> items) noexcept {
@@ -1515,6 +1578,9 @@ export namespace charm::system::rtos {
             if (prev == WaitResult::timeout) {
                 return WaitResult::timeout;
             }
+            if (prev == WaitResult::cancelled) {
+                return WaitResult::cancelled;
+            }
             if (sched.take_grant(id)) {
                 owner_ = id;
                 return WaitResult::ok;
@@ -1544,6 +1610,21 @@ export namespace charm::system::rtos {
                 owner_ = next;
                 sched.wake(next, WaitResult::ok, true);
                 return;
+            }
+            owner_ = invalid_task_id;
+        }
+
+        void cancel_waiters(Scheduler& sched) noexcept {
+            require_task_context();
+            while (wait_count_ > 0) {
+                const auto id = waiters_[0];
+                for (util::usize i = 1; i < wait_count_; ++i) {
+                    waiters_[i - 1] = waiters_[i];
+                }
+                --wait_count_;
+                if (sched.is_blocked(id)) {
+                    sched.wake(id, WaitResult::cancelled, false);
+                }
             }
             owner_ = invalid_task_id;
         }

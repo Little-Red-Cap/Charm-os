@@ -170,8 +170,12 @@ namespace demo {
         (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));
         if ((task_b_hits % 11u) == 0u) {
             PreemptGuard guard{};
-            (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
-                charm::system::rtos::TimerSlot::Kind::hard);
+            {
+                // 模拟 ISR 调度硬定时器
+                IsrGuard isr{};
+                (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
+                    charm::system::rtos::TimerSlot::Kind::hard);
+            }
         }
         Scheduler::current().sleep_ms(25);
     }
@@ -251,12 +255,16 @@ namespace demo {
             (void)scheduler.create(&task_b, nullptr, 0, 1);
             scheduler.freeze_task_creation();
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
-            (void)scheduler.schedule_after(
-                500,
-                &timer_tick_hard,
-                nullptr,
-                charm::system::rtos::TimerSlot::Kind::hard
-            );
+            {
+                // 模拟 ISR 调度硬定时器
+                IsrGuard isr{};
+                (void)scheduler.schedule_after(
+                    500,
+                    &timer_tick_hard,
+                    nullptr,
+                    charm::system::rtos::TimerSlot::Kind::hard
+                );
+            }
             scheduler.enter_runtime();
         }
 
@@ -360,7 +368,10 @@ int main() {
     demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
-        demo.scheduler.tick();
+        {
+            demo::IsrGuard isr{};
+            demo.scheduler.tick();
+        }
         demo.scheduler.run_once();
         demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {

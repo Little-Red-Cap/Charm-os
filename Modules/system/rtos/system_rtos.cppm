@@ -230,8 +230,14 @@ export namespace charm::system::rtos {
         [[nodiscard]] util::Result<TimerId> schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept;
         void cancel_timer(TimerId id) noexcept;
         void tick() noexcept;
-        void lock() noexcept { ++lock_count_; }
-        void unlock() noexcept { if (lock_count_ > 0) --lock_count_; }
+        void lock() noexcept {
+            require_task_context();
+            ++lock_count_;
+        }
+        void unlock() noexcept {
+            require_task_context();
+            if (lock_count_ > 0) --lock_count_;
+        }
         [[nodiscard]] bool locked() const noexcept { return lock_count_ != 0; }
         [[nodiscard]] TaskId current_id() const noexcept { return current_; }
         [[nodiscard]] TaskPriority current_priority() const noexcept;
@@ -734,10 +740,12 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::start() noexcept {
+        require_task_context();
         port_start_first_task();
     }
 
     inline void Scheduler::setup_tick_rate(util::u32 hz) noexcept {
+        require_task_context();
         port_setup_tick(hz);
     }
 
@@ -830,6 +838,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::run_once() noexcept {
+        require_task_context();
         current_ = invalid_task_id;
         const auto now = time::now_ms();
         delay_wake_ready(now);
@@ -851,6 +860,7 @@ export namespace charm::system::rtos {
     }
 
     inline void Scheduler::poll_isr_wake() noexcept {
+        require_task_context();
         if (pollers_.empty()) return;
         trace_push(TraceKind::isr_poll, invalid_task_id, static_cast<util::u32>(pollers_.size()));
         for (auto& poller : pollers_) {
@@ -882,7 +892,15 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TimerId> Scheduler::schedule_at(Tick due_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
-        if (!(kind == TimerSlot::Kind::hard && in_isr())) {
+        if (kind == TimerSlot::Kind::hard) {
+            if (!in_isr()) {
+                require_isr_context();
+                return util::unexpected(util::Errc::perm);
+            }
+        } else if (in_isr()) {
+            require_task_context();
+            return util::unexpected(util::Errc::perm);
+        } else {
             require_task_context();
         }
         if (!fn) return util::unexpected(util::Errc::invalid_arg);
@@ -912,7 +930,15 @@ export namespace charm::system::rtos {
     }
 
     inline util::Result<TimerId> Scheduler::schedule_after(Tick delay_ms, TimerFn fn, void* ctx, TimerSlot::Kind kind) noexcept {
-        if (!(kind == TimerSlot::Kind::hard && in_isr())) {
+        if (kind == TimerSlot::Kind::hard) {
+            if (!in_isr()) {
+                require_isr_context();
+                return util::unexpected(util::Errc::perm);
+            }
+        } else if (in_isr()) {
+            require_task_context();
+            return util::unexpected(util::Errc::perm);
+        } else {
             require_task_context();
         }
         return schedule_at(time::now_ms() + delay_ms, fn, ctx, kind);

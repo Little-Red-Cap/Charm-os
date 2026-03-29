@@ -2956,3 +2956,34 @@ import alg_list_scroll;
         }
     }
 
+    void SoaKernel::set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.style_patch[idx] = patch;
+        common_.style_patch_on[idx] = 1;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::clear_style_patch(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        if (common_.style_patch_on[idx] == 0) return;
+        common_.style_patch[idx] = StylePatch{};
+        common_.style_patch_on[idx] = 0;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    bool SoaKernel::has_style_patch(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? false : (common_.style_patch_on[idx] != 0);
+    }
+
+    const StylePatch* SoaKernel::style_patch(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return nullptr;
+        if (common_.style_patch_on[idx] == 0) return nullptr;
+        return &common_.style_patch[idx];
+    }
+

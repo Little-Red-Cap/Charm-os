@@ -53,8 +53,16 @@ export namespace player {
         folder_only,
     };
 
+    enum class PlayerPage : std::uint8_t {
+        NowPlaying,
+        Library,
+    };
+
     struct UiHandles {
+        WidgetHandle page_now_playing{};
+        WidgetHandle page_library{};
         WidgetHandle root{};
+        WidgetHandle now_back{};
         WidgetHandle cover{};
         WidgetHandle cover_left{};
         WidgetHandle cover_right{};
@@ -130,6 +138,10 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+        PlayerPage current_page{PlayerPage::NowPlaying};
+        PlayerPage start_page{PlayerPage::Library};
+        ::ui::scene::PageLayer page_now_layer{};
+        ::ui::scene::PageLayer page_library_layer{};
         audio::EqConfig eq_config{};
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
@@ -182,6 +194,76 @@ export namespace player {
 
         void bind_player(audio::AudioPlayer& p) {
             playback.set_player(p);
+        }
+
+        void set_start_page(PlayerPage page) noexcept {
+            start_page = page;
+        }
+
+        void set_page(PlayerPage page) noexcept {
+            current_page = page;
+            if (!access.valid()) return;
+            if (page_now_layer.root()) {
+                if (page == PlayerPage::NowPlaying) page_now_layer.show(access);
+                else page_now_layer.hide(access);
+            } else if (handles.page_now_playing) {
+                access.set_visible(handles.page_now_playing, page == PlayerPage::NowPlaying);
+            }
+            if (page_library_layer.root()) {
+                if (page == PlayerPage::Library) page_library_layer.show(access);
+                else page_library_layer.hide(access);
+            } else if (handles.page_library) {
+                access.set_visible(handles.page_library, page == PlayerPage::Library);
+            }
+            if (handles.debug_text) {
+                access.set_visible(handles.debug_text, false);
+            }
+            if (page == PlayerPage::Library) {
+                refresh_library();
+            } else {
+                refresh_now_playing();
+            }
+        }
+
+        static void on_show_now_playing(::ui::scene::SceneAccess& access,
+                                        WidgetHandle root,
+                                        void* ctx) noexcept {
+            (void)access;
+            (void)root;
+            auto* self = static_cast<PlayerController*>(ctx);
+            if (!self) return;
+            self->refresh_now_playing();
+            self->set_time_label(self->playback.current_sec());
+        }
+
+        static void on_show_library(::ui::scene::SceneAccess& access,
+                                    WidgetHandle root,
+                                    void* ctx) noexcept {
+            (void)access;
+            (void)root;
+            auto* self = static_cast<PlayerController*>(ctx);
+            if (!self) return;
+            self->refresh_library();
+        }
+
+        void init_pages() noexcept {
+            if (handles.page_now_playing) {
+                page_now_layer.set_root(handles.page_now_playing);
+                page_now_layer.set_hooks(::ui::scene::PageHooks{
+                    .on_show = &PlayerController::on_show_now_playing,
+                    .ctx = this,
+                });
+                page_now_layer.set_visible(access, false);
+            }
+            if (handles.page_library) {
+                page_library_layer.set_root(handles.page_library);
+                page_library_layer.set_hooks(::ui::scene::PageHooks{
+                    .on_show = &PlayerController::on_show_library,
+                    .ctx = this,
+                });
+                page_library_layer.set_visible(access, false);
+            }
+            set_page(start_page);
         }
 
         const char* track_path() const noexcept {
@@ -419,9 +501,11 @@ export namespace player {
                               player::audio_err_text(err), player::audio_stage_text(stage));
                 on_player_error(buf);
             }
-            update_duration_from_player();
-            update_progress();
-            update_debug_overlay();
+            if (current_page == PlayerPage::Library) {
+                refresh_library();
+            } else {
+                refresh_now_playing();
+            }
         }
 
         void set_play_button_text(bool playing_now) {
@@ -430,7 +514,7 @@ export namespace player {
             if (last_play_button_state == state) return;
             last_play_button_state = state;
             access.set_button_icon(handles.btn_pause, playing_now ? icons.pause : icons.play);
-            set_label_slot(handles.btn_pause, text_slots.btn_pause, playing_now ? "Pause" : "Play");
+            set_label_slot(handles.btn_pause, text_slots.btn_pause, "");
             if (handles.bottom_play) {
                 access.set_button_icon(handles.bottom_play, playing_now ? icons.pause : icons.play);
             }
@@ -473,6 +557,19 @@ export namespace player {
             if (play_mode == 1) icon = icons.single;
             else if (play_mode == 2) icon = icons.shuffle;
             access.set_button_icon(handles.btn_mode, icon);
+        }
+
+        void refresh_now_playing() {
+            update_duration_from_player();
+            update_progress();
+            update_play_mode_label();
+            update_debug_overlay();
+        }
+
+        void refresh_library() {
+            update_list_title();
+            update_list_placeholder();
+            update_debug_overlay();
         }
 
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
@@ -1057,34 +1154,49 @@ export namespace player {
                 const auto& item = access.input_event(i);
                 const auto target = item.target;
                 const auto type = item.event.type;
-                if (target == handles.progress) {
-                    if (type == Event::Type::MouseDown) {
-                        progress_dragging = true;
-                        update_progress_drag(item.event.x);
-                    } else if (type == Event::Type::DragStart || type == Event::Type::DragMove
-                               || type == Event::Type::MouseMove) {
-                        if (progress_dragging) {
+                if (current_page == PlayerPage::NowPlaying) {
+                    if (target == handles.progress) {
+                        if (type == Event::Type::MouseDown) {
+                            progress_dragging = true;
                             update_progress_drag(item.event.x);
+                        } else if (type == Event::Type::DragStart || type == Event::Type::DragMove
+                                   || type == Event::Type::MouseMove) {
+                            if (progress_dragging) {
+                                update_progress_drag(item.event.x);
+                            }
+                        } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
+                            if (progress_dragging) {
+                                update_progress_drag(item.event.x);
+                                end_progress_drag(true, actions);
+                            }
+                        } else if (type == Event::Type::Cancel) {
+                            end_progress_drag(false, actions);
                         }
-                    } else if (type == Event::Type::MouseUp || type == Event::Type::DragEnd) {
-                        if (progress_dragging) {
-                            update_progress_drag(item.event.x);
-                            end_progress_drag(true, actions);
-                        }
-                    } else if (type == Event::Type::Cancel) {
-                        end_progress_drag(false, actions);
+                        continue;
                     }
-                    continue;
-                }
-                if (type == Event::Type::MouseUp) {
-                    if (target == handles.btn_prev) {
-                        actions.prev = true;
-                    } else if (target == handles.btn_next) {
-                        actions.next = true;
-                    } else if (target == handles.btn_pause) {
-                        actions.toggle_play = true;
-                    } else if (target == handles.btn_mode) {
-                        actions.cycle_mode = true;
+                    if (type == Event::Type::MouseUp) {
+                        if (target == handles.now_back) {
+                            set_page(PlayerPage::Library);
+                        } else if (target == handles.btn_prev) {
+                            actions.prev = true;
+                        } else if (target == handles.btn_next) {
+                            actions.next = true;
+                        } else if (target == handles.btn_pause) {
+                            actions.toggle_play = true;
+                        } else if (target == handles.btn_mode) {
+                            actions.cycle_mode = true;
+                        }
+                    }
+                } else {
+                    if (type == Event::Type::MouseUp) {
+                        if (target == handles.bottom_bar || target == handles.bottom_cover
+                                   || target == handles.bottom_title || target == handles.bottom_subtitle) {
+                            set_page(PlayerPage::NowPlaying);
+                        } else if (target == handles.nav_home) {
+                            set_page(PlayerPage::NowPlaying);
+                        } else if (target == handles.nav_library) {
+                            set_page(PlayerPage::Library);
+                        }
                     }
                 }
             }

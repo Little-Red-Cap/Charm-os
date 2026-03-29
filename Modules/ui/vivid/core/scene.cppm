@@ -9,6 +9,7 @@ export module charm.ui.scene;
 export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
+export import charm.core.style;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -163,6 +164,8 @@ export namespace ui::scene {
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
+        void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_->set_value(h, value); }
@@ -221,11 +224,52 @@ export namespace ui::scene {
             kernel_.set_scrollbar_orientation(h, o);
         }
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
+        void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
 
     private:
         SoaKernel& kernel_;
         SoaFactory& factory_;
         WidgetHandle root_{};
+    };
+
+    struct PageHooks {
+        void (*on_show)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};
+        void (*on_hide)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};
+        void* ctx{nullptr};
+    };
+
+    class PageLayer {
+    public:
+        PageLayer() noexcept = default;
+        explicit PageLayer(WidgetHandle root) noexcept : root_(root) {}
+
+        void set_root(WidgetHandle root) noexcept { root_ = root; }
+        WidgetHandle root() const noexcept { return root_; }
+        void set_hooks(const PageHooks& hooks) noexcept { hooks_ = hooks; }
+        bool visible() const noexcept { return visible_; }
+
+        void show(SceneAccess& access) noexcept { set_visible(access, true); }
+        void hide(SceneAccess& access) noexcept { set_visible(access, false); }
+
+        void set_visible(SceneAccess& access, bool on) noexcept {
+            if (!root_) return;
+            access.set_visible(root_, on);
+            const bool changed = (visible_ != on);
+            visible_ = on;
+            if (changed) {
+                if (on) {
+                    if (hooks_.on_show) hooks_.on_show(access, root_, hooks_.ctx);
+                } else {
+                    if (hooks_.on_hide) hooks_.on_hide(access, root_, hooks_.ctx);
+                }
+            }
+        }
+
+    private:
+        WidgetHandle root_{};
+        bool visible_{false};
+        PageHooks hooks_{};
     };
 
     class SceneOverlay {

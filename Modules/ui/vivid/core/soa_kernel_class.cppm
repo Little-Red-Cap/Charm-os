@@ -51,6 +51,8 @@ namespace soa_detail {
         std::array<Rect, N> paint_bounds{};
         std::array<std::uint8_t, N> layout_kind{};
         std::array<PayloadHandle, N> payload{};
+        std::array<StylePatch, N> style_patch{};
+        std::array<std::uint8_t, N> style_patch_on{};
     };
 
 }
@@ -80,6 +82,8 @@ public:
             common_.child_count[i] = 0;
             common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
             common_.payload[i] = soa_detail::invalid_payload_handle();
+            common_.style_patch[i] = StylePatch{};
+            common_.style_patch_on[i] = 0;
         }
         payloads_.reset();
     }
@@ -116,6 +120,8 @@ public:
         common_.prev_sibling[idx] = kInvalidIndex;
         common_.child_count[idx] = 0;
         common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
+        common_.style_patch[idx] = StylePatch{};
+        common_.style_patch_on[idx] = 0;
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
@@ -132,6 +138,8 @@ public:
             common_.child_count[idx] = 0;
             common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
             common_.payload[idx] = soa_detail::invalid_payload_handle();
+            common_.style_patch[idx] = StylePatch{};
+            common_.style_patch_on[idx] = 0;
             common_.free_next[idx] = free_head_;
             free_head_ = idx;
             return {};
@@ -156,6 +164,8 @@ public:
         common_.rects[idx] = Rect{};
         common_.paint_bounds[idx] = Rect{};
         common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
+        common_.style_patch[idx] = StylePatch{};
+        common_.style_patch_on[idx] = 0;
         payload_free(old_kind, common_.payload[idx], idx);
         common_.payload[idx] = soa_detail::invalid_payload_handle();
         mark_layout_dirty();
@@ -610,6 +620,11 @@ public:
         const std::uint16_t idx = index_of(h);
         return (idx == kInvalidIndex) ? std::uint8_t{0} : common_.variant[idx];
     }
+
+    void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept;
+    void clear_style_patch(WidgetHandle h) noexcept;
+    bool has_style_patch(WidgetHandle h) const noexcept;
+    const StylePatch* style_patch(WidgetHandle h) const noexcept;
 
     soa_detail::TextSlotId alloc_text_slot() noexcept;
     void free_text_slot(soa_detail::TextSlotId slot) noexcept;

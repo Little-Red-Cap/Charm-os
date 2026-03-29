@@ -101,11 +101,11 @@ export namespace player::ui {
     inline constexpr rgba kUiSwitchOn = {140, 176, 255, 255};
     inline constexpr rgba kUiEqTitle = {210, 216, 235, 255};
 
-    inline constexpr rgba kUiButtonBg = {36, 40, 56, 255};
-    inline constexpr rgba kUiButtonBorder = {70, 78, 104, 255};
-    inline constexpr rgba kUiButtonHover = {50, 56, 80, 255};
-    inline constexpr rgba kUiListBg = {26, 28, 40, 255};
-    inline constexpr rgba kUiListBorder = {64, 72, 96, 255};
+    inline constexpr rgba kUiButtonBg = {32, 36, 52, 255};
+    inline constexpr rgba kUiButtonBorder = {58, 66, 92, 255};
+    inline constexpr rgba kUiButtonHover = {44, 50, 72, 255};
+    inline constexpr rgba kUiListBg = {28, 32, 46, 255};
+    inline constexpr rgba kUiListBorder = {50, 58, 86, 255};
     inline constexpr rgba kUiListFont = {220, 228, 246, 255};
     inline constexpr rgba kUiProgressBg = {30, 34, 50, 255};
     inline constexpr rgba kUiProgressBorder = {100, 110, 150, 255};
@@ -114,6 +114,9 @@ export namespace player::ui {
     inline constexpr rgba kUiPerfBg = {26, 28, 40, 220};
     inline constexpr rgba kUiPerfBorder = {70, 80, 110, 255};
     inline constexpr rgba kUiPerfFont = {230, 236, 248, 255};
+    inline constexpr rgba kUiPlayBg = {24, 28, 42, 255};
+    inline constexpr rgba kUiPlayShadow = {0, 0, 0, 120};
+    inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
 
     struct PlayerIconIds {
         ::ui::gfx::ImageId prev{};
@@ -425,6 +428,7 @@ export namespace player::ui {
         preset.button.colors.bg_color = kUiButtonBg;
         preset.button.colors.border_color = kUiButtonBorder;
         preset.button.metrics.padding = 8;
+        preset.button.metrics.corner_radius = 14;
         preset.button.colors.font_color = kUiListFont;
         preset.has_list_view = true;
         preset.list_view = theme.get<ListView>();
@@ -432,7 +436,7 @@ export namespace player::ui {
         preset.list_view.colors.border_color = kUiListBorder;
         preset.list_view.colors.on_accent = kUiListFont;
         preset.list_view.metrics.corner_radius = 12;
-        preset.list_view.metrics.padding = 6;
+        preset.list_view.metrics.padding = 12;
         preset.list_view.colors.font_color = kUiListFont;
         preset.has_progress = true;
         preset.progress = theme.get<Progress>();
@@ -469,6 +473,8 @@ export namespace player::ui {
         segmented_control.colors.bg_pressed = kUiButtonHover;
         segmented_control.colors.border_pressed = kUiButtonBorder;
         segmented_control.colors.font_color = kUiListFont;
+        segmented_control.metrics.corner_radius = 14;
+        segmented_control.metrics.padding = 6;
         set_base(WidgetKind::SegmentedControl, segmented_control);
 
         Style perf_overlay = theme.get<PerfOverlay>();

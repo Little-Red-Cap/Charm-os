@@ -38,6 +38,49 @@ namespace {
         return metrics.font ? *metrics.font : get_font(FontId::Normal);
     }
 
+    void apply_style_patch(ResolvedColors& colors,
+                           ResolvedMetrics& metrics,
+                           const StyleState& state,
+                           const StylePatch& patch) noexcept {
+        if (patch.has_border_width) metrics.border_width = static_cast<std::int16_t>(patch.border_width);
+        if (patch.has_corner_radius) metrics.corner_radius = static_cast<std::int16_t>(patch.corner_radius);
+        if (patch.has_padding) metrics.padding = static_cast<std::int16_t>(patch.padding);
+        if (patch.has_header_padding) metrics.header_padding = static_cast<std::int16_t>(patch.header_padding);
+        if (patch.has_content_padding) metrics.content_padding = static_cast<std::int16_t>(patch.content_padding);
+        if (patch.has_scrollbar_margin) metrics.scrollbar_margin = static_cast<std::int16_t>(patch.scrollbar_margin);
+        if (patch.has_scrollbar_thumb_min) metrics.scrollbar_thumb_min =
+            static_cast<std::int16_t>(patch.scrollbar_thumb_min);
+        if (patch.has_font) metrics.font = patch.font;
+
+        if (patch.has_bg_color) colors.bg = patch.bg_color;
+        if (patch.has_border_color) colors.border = patch.border_color;
+        if (patch.has_font_color) colors.font = patch.font_color;
+        if (patch.has_accent_color) colors.accent = patch.accent_color;
+        if (patch.has_on_accent) colors.on_accent = patch.on_accent;
+        if (patch.has_border_focus) colors.border_focus = patch.border_focus;
+
+        if (!state.enabled) {
+            if (patch.has_bg_disabled) colors.bg = patch.bg_disabled;
+            if (patch.has_border_disabled) colors.border = patch.border_disabled;
+            if (patch.has_font_color_disabled) colors.font = patch.font_color_disabled;
+            if (patch.has_accent_disabled) colors.accent = patch.accent_disabled;
+            return;
+        }
+
+        if (state.pressed) {
+            if (patch.has_bg_pressed) colors.bg = patch.bg_pressed;
+            if (patch.has_border_pressed) colors.border = patch.border_pressed;
+            if (patch.has_accent_pressed) colors.accent = patch.accent_pressed;
+            return;
+        }
+
+        if (state.hovered) {
+            if (patch.has_bg_hover) colors.bg = patch.bg_hover;
+            if (patch.has_border_hover) colors.border = patch.border_hover;
+            if (patch.has_accent_hover) colors.accent = patch.accent_hover;
+        }
+    }
+
     constexpr std::size_t kMaxSegments = 8;
     constexpr int kWheelLutSize = 72;
     struct WheelQ15Point {
@@ -456,8 +499,17 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     const WidgetKind kind = kernel_.kind(h);
     const StyleState state = make_state(kernel_, h);
     const ResolvedStyleView style = resolve_style(kind, state);
-    const ResolvedColors& colors = *style.colors;
-    const ResolvedMetrics& metrics = *style.metrics;
+    const ResolvedColors* colors = style.colors;
+    const ResolvedMetrics* metrics = style.metrics;
+    ResolvedColors patched_colors{};
+    ResolvedMetrics patched_metrics{};
+    if (const auto* patch = kernel_.style_patch(h)) {
+        patched_colors = *colors;
+        patched_metrics = *metrics;
+        apply_style_patch(patched_colors, patched_metrics, state, *patch);
+        colors = &patched_colors;
+        metrics = &patched_metrics;
+    }
     switch (kind) {
     case WidgetKind::None:
         unsupported_kind(kind);
@@ -465,7 +517,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::Container:
         break;
     case WidgetKind::ScrollContainer:
-        record_scroll_container(out, world_rect, colors, metrics, state,
+        record_scroll_container(out, world_rect, *colors, *metrics, state,
                                 kernel_.scroll_y(h), kernel_.max_scroll(h));
         break;
     case WidgetKind::Dial:
@@ -475,45 +527,45 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Image:
-        record_image(out, world_rect, kernel_.image(h), metrics.corner_radius);
+        record_image(out, world_rect, kernel_.image(h), metrics->corner_radius);
         break;
     case WidgetKind::Label:
-        record_label(out, world_rect, colors, metrics, state, kernel_.text(h));
+        record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h));
         break;
         case WidgetKind::Button:
         case WidgetKind::IconButton:
-            record_button(out, world_rect, colors, metrics, state, kernel_.text(h),
+            record_button(out, world_rect, *colors, *metrics, state, kernel_.text(h),
                           kernel_.button_icon(h), kernel_.button_icon_size(h));
             break;
     case WidgetKind::Checkbox:
-        record_checkbox(out, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
+        record_checkbox(out, world_rect, *colors, *metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::Led:
         unsupported_kind(kind);
         break;
     case WidgetKind::Slider:
-        record_slider(out, world_rect, colors, metrics, state,
+        record_slider(out, world_rect, *colors, *metrics, state,
                       kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::Switch:
-        record_switch(out, world_rect, colors, metrics, state, kernel_.checked(h));
+        record_switch(out, world_rect, *colors, *metrics, state, kernel_.checked(h));
         break;
     case WidgetKind::Progress:
-        record_progress(out, world_rect, colors, metrics, state,
+        record_progress(out, world_rect, *colors, *metrics, state,
                         kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::List:
-        record_list(out, world_rect, colors, metrics, state,
+        record_list(out, world_rect, *colors, *metrics, state,
                     kernel_.scroll_y(h), kernel_.max_scroll(h));
         break;
     case WidgetKind::ListItem:
-        record_list_item(out, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
+        record_list_item(out, world_rect, *colors, *metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::ListView:
-        record_list_view(out, world_rect, colors, metrics, state, kernel_, h);
+        record_list_view(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::IconList:
-        record_list_view(out, world_rect, colors, metrics, state, kernel_, h);
+        record_list_view(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::TextTrackingList:
         unsupported_kind(kind);
@@ -526,7 +578,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint16_t i = 0; i < count && i < items.size(); ++i) {
                 items[i] = kernel_.text_list_item(h, i);
             }
-            record_text_list(out, world_rect, colors, metrics, state,
+            record_text_list(out, world_rect, *colors, *metrics, state,
                              items.data(), count, kernel_.text_list_selected(h),
                              kernel_.scroll_y(h), kernel_.list_row_height(h));
         }
@@ -539,7 +591,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint16_t i = 0; i < count && i < items.size(); ++i) {
                 items[i] = kernel_.text_list_item(h, i);
             }
-            record_text_list(out, world_rect, colors, metrics, state,
+            record_text_list(out, world_rect, *colors, *metrics, state,
                              items.data(), count, -1,
                              kernel_.scroll_y(h), kernel_.list_row_height(h));
         }
@@ -548,11 +600,11 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressBarSimple:
-        record_progress_bar_simple(out, world_rect, colors, metrics,
+        record_progress_bar_simple(out, world_rect, *colors, *metrics,
                                    kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::ProgressBarRound:
-        record_progress_bar_round(out, world_rect, colors, metrics,
+        record_progress_bar_round(out, world_rect, *colors, *metrics,
                                   kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::DynamicNebula:
@@ -579,9 +631,9 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                 }
             }
             if (max_scroll < 0) max_scroll = 0;
-            record_scrollbar(out, world_rect, colors, metrics, orient, scroll_y, max_scroll, page_size);
+            record_scrollbar(out, world_rect, *colors, *metrics, orient, scroll_y, max_scroll, page_size);
             if (state.focused) {
-                out.focus_ring(world_rect, colors.border_focus, metrics.corner_radius, 0, -1);
+                out.focus_ring(world_rect, colors->border_focus, metrics->corner_radius, 0, -1);
             }
         }
         break;
@@ -593,43 +645,43 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint8_t i = 0; i < count && i < labels.size(); ++i) {
                 labels[i] = kernel_.segmented_label(h, i);
             }
-            record_segmented_control(out, world_rect, colors, metrics, state, state.variant,
+            record_segmented_control(out, world_rect, *colors, *metrics, state, state.variant,
                                      labels.data(), count, kernel_.segmented_selected(h));
         }
         break;
     case WidgetKind::TextArea:
-        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+        record_text_box(out, world_rect, *colors, *metrics, state, kernel_.text(h),
                         TextAlignV::Top, TextWrap::Word);
         break;
     case WidgetKind::TextInput:
-        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+        record_text_box(out, world_rect, *colors, *metrics, state, kernel_.text(h),
                         TextAlignV::Center, TextWrap::None);
         break;
     case WidgetKind::NumberInput:
-        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+        record_text_box(out, world_rect, *colors, *metrics, state, kernel_.text(h),
                         TextAlignV::Center, TextWrap::None);
         break;
     case WidgetKind::TextBox:
-        record_text_box(out, world_rect, colors, metrics, state, kernel_.text(h),
+        record_text_box(out, world_rect, *colors, *metrics, state, kernel_.text(h),
                         TextAlignV::Top, TextWrap::Word);
         break;
     case WidgetKind::ToggleGroup:
         break;
         break;
     case WidgetKind::TableView:
-        record_table_view(out, world_rect, colors, metrics, state, kernel_, h);
+        record_table_view(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::TreeView:
-        record_tree_view(out, world_rect, colors, metrics, state, kernel_, h);
+        record_tree_view(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::Dropdown:
         unsupported_kind(kind);
         break;
     case WidgetKind::Roller:
-        record_roller(out, world_rect, colors, metrics, state, kernel_, h);
+        record_roller(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::Spinner:
-        record_spinner(out, world_rect, colors, kernel_.spinner_phase(h));
+        record_spinner(out, world_rect, *colors, kernel_.spinner_phase(h));
         break;
     case WidgetKind::Bar:
         unsupported_kind(kind);
@@ -641,17 +693,17 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Menu:
-        record_list(out, world_rect, colors, metrics, state, 0, 0);
+        record_list(out, world_rect, *colors, *metrics, state, 0, 0);
         if (state.focused) {
-            out.focus_ring(world_rect, colors.border_focus, metrics.corner_radius, 0, -1);
+            out.focus_ring(world_rect, colors->border_focus, metrics->corner_radius, 0, -1);
         }
         break;
     case WidgetKind::MenuItem:
-        record_list_item(out, world_rect, colors, metrics, state,
+        record_list_item(out, world_rect, *colors, *metrics, state,
                          kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::Radio:
-        record_radio(out, world_rect, colors, metrics, state, kernel_.text(h), kernel_.checked(h));
+        record_radio(out, world_rect, *colors, *metrics, state, kernel_.text(h), kernel_.checked(h));
         break;
     case WidgetKind::RadioGroup:
         unsupported_kind(kind);
@@ -669,7 +721,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::PerfOverlay:
-        record_perf_overlay(out, world_rect, colors, metrics, state);
+        record_perf_overlay(out, world_rect, *colors, *metrics, state);
         break;
     case WidgetKind::Stepper:
         {
@@ -678,7 +730,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint8_t i = 0; i < count && i < labels.size(); ++i) {
                 labels[i] = kernel_.stepper_label(h, i);
             }
-            record_stepper(out, world_rect, colors, metrics, state,
+            record_stepper(out, world_rect, *colors, *metrics, state,
                            labels.data(), count, kernel_.stepper_current(h));
         }
         break;
@@ -692,7 +744,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressWheel:
-        record_progress_wheel(out, world_rect, colors, metrics,
+        record_progress_wheel(out, world_rect, *colors, *metrics,
                               kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::WaveformView:
@@ -711,14 +763,14 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::ProgressFlowing:
-        record_progress_flowing(out, world_rect, colors, metrics,
+        record_progress_flowing(out, world_rect, *colors, *metrics,
                                 kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::CloudyGlass:
         unsupported_kind(kind);
         break;
     case WidgetKind::NumberList:
-        record_number_list(out, world_rect, colors, metrics, state, kernel_, h);
+        record_number_list(out, world_rect, *colors, *metrics, state, kernel_, h);
         break;
     case WidgetKind::SpinZoomWidget:
         unsupported_kind(kind);

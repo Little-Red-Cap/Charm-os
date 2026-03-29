@@ -18,6 +18,7 @@ export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
 export import charm.gfx.render_style;
+export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
@@ -35,6 +36,8 @@ export namespace ui::scene {
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
     using TableViewColDividerStyle = ::TableViewColDividerStyle;
+    using TextAlignH = ::TextAlignH;
+    using TextAlignV = ::TextAlignV;
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
@@ -220,6 +223,9 @@ export namespace ui::scene {
         void set_hit_testable(WidgetHandle h, bool v) noexcept { kernel_.set_hit_testable(h, v); }
         void set_checked(WidgetHandle h, bool v) noexcept { kernel_.set_checked(h, v); }
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_.set_list_row_height(h, height); }
+        void set_label_align(WidgetHandle h, TextAlignH align_h, TextAlignV align_v) noexcept {
+            kernel_.set_text_align(h, align_h, align_v);
+        }
         void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation o) noexcept {
             kernel_.set_scrollbar_orientation(h, o);
         }

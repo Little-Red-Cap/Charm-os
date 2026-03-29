@@ -131,51 +131,54 @@ export namespace player {
                 builder.set_style_patch(h.cover, patch);
             }
 
-            const int collage_small = 64;
-            const int collage_tiny = 52;
-            h.cover_left = builder.create_image();
-            anchor_rect(h.cover_left, {layout.cover_x - 18,
-                                       layout.cover_y + kCoverSize - collage_small - 8,
-                                       collage_small, collage_small});
-            {
-                StylePatch patch{};
-                patch.has_corner_radius = true;
-                patch.corner_radius = 12;
-                patch.has_shadow_enabled = true;
-                patch.shadow_enabled = true;
-                patch.has_shadow_color = true;
-                patch.shadow_color = {0, 0, 0, 80};
-                patch.has_shadow_offset_x = true;
-                patch.shadow_offset_x = 0;
-                patch.has_shadow_offset_y = true;
-                patch.shadow_offset_y = 2;
-                patch.has_shadow_spread = true;
-                patch.shadow_spread = 2;
-                patch.has_shadow_radius = true;
-                patch.shadow_radius = 10;
-                builder.set_style_patch(h.cover_left, patch);
-            }
-            h.cover_right = builder.create_image();
-            anchor_rect(h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 18,
-                                        layout.cover_y + kCoverSize / 2 + 28,
-                                        collage_tiny, collage_tiny});
-            {
-                StylePatch patch{};
-                patch.has_corner_radius = true;
-                patch.corner_radius = 12;
-                patch.has_shadow_enabled = true;
-                patch.shadow_enabled = true;
-                patch.has_shadow_color = true;
-                patch.shadow_color = {0, 0, 0, 80};
-                patch.has_shadow_offset_x = true;
-                patch.shadow_offset_x = 0;
-                patch.has_shadow_offset_y = true;
-                patch.shadow_offset_y = 2;
-                patch.has_shadow_spread = true;
-                patch.shadow_spread = 2;
-                patch.has_shadow_radius = true;
-                patch.shadow_radius = 10;
-                builder.set_style_patch(h.cover_right, patch);
+            constexpr bool kShowCoverCollage = false;
+            if (kShowCoverCollage) {
+                const int collage_small = 64;
+                const int collage_tiny = 52;
+                h.cover_left = builder.create_image();
+                anchor_rect(h.cover_left, {layout.cover_x - 18,
+                                           layout.cover_y + kCoverSize - collage_small - 8,
+                                           collage_small, collage_small});
+                {
+                    StylePatch patch{};
+                    patch.has_corner_radius = true;
+                    patch.corner_radius = 12;
+                    patch.has_shadow_enabled = true;
+                    patch.shadow_enabled = true;
+                    patch.has_shadow_color = true;
+                    patch.shadow_color = {0, 0, 0, 80};
+                    patch.has_shadow_offset_x = true;
+                    patch.shadow_offset_x = 0;
+                    patch.has_shadow_offset_y = true;
+                    patch.shadow_offset_y = 2;
+                    patch.has_shadow_spread = true;
+                    patch.shadow_spread = 2;
+                    patch.has_shadow_radius = true;
+                    patch.shadow_radius = 10;
+                    builder.set_style_patch(h.cover_left, patch);
+                }
+                h.cover_right = builder.create_image();
+                anchor_rect(h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 18,
+                                            layout.cover_y + kCoverSize / 2 + 28,
+                                            collage_tiny, collage_tiny});
+                {
+                    StylePatch patch{};
+                    patch.has_corner_radius = true;
+                    patch.corner_radius = 12;
+                    patch.has_shadow_enabled = true;
+                    patch.shadow_enabled = true;
+                    patch.has_shadow_color = true;
+                    patch.shadow_color = {0, 0, 0, 80};
+                    patch.has_shadow_offset_x = true;
+                    patch.shadow_offset_x = 0;
+                    patch.has_shadow_offset_y = true;
+                    patch.shadow_offset_y = 2;
+                    patch.has_shadow_spread = true;
+                    patch.shadow_spread = 2;
+                    patch.has_shadow_radius = true;
+                    patch.shadow_radius = 10;
+                    builder.set_style_patch(h.cover_right, patch);
+                }
             }
 
             h.title = builder.create_button_static("");
@@ -237,6 +240,7 @@ export namespace player {
                 builder.set_style_patch(h.time_left, patch);
                 builder.set_style_patch(h.time_right, patch);
             }
+            builder.set_label_align(h.time_right, ::ui::scene::TextAlignH::Right, ::ui::scene::TextAlignV::Center);
             {
                 StylePatch patch{};
                 patch.has_bg_color = true;
@@ -341,6 +345,8 @@ export namespace player {
                 StylePatch patch{};
                 patch.has_corner_radius = true;
                 patch.corner_radius = 18;
+                patch.has_padding = true;
+                patch.padding = (small_btn - 18) / 2;
                 builder.set_style_patch(h.btn_prev, patch);
             }
 
@@ -380,6 +386,8 @@ export namespace player {
                 patch.outline_color = {80, 92, 130, 140};
                 patch.has_outline_width = true;
                 patch.outline_width = 2;
+                patch.has_padding = true;
+                patch.padding = (play_btn - 22) / 2;
                 builder.set_style_patch(h.btn_pause, patch);
             }
 
@@ -391,6 +399,8 @@ export namespace player {
                 StylePatch patch{};
                 patch.has_corner_radius = true;
                 patch.corner_radius = 18;
+                patch.has_padding = true;
+                patch.padding = (small_btn - 18) / 2;
                 builder.set_style_patch(h.btn_next, patch);
             }
 
@@ -479,8 +489,10 @@ export namespace player {
             builder.link(top_bar, top_more);
 
             builder.link(now_playing, h.cover);
-            builder.link(now_playing, h.cover_left);
-            builder.link(now_playing, h.cover_right);
+            if (kShowCoverCollage) {
+                builder.link(now_playing, h.cover_left);
+                builder.link(now_playing, h.cover_right);
+            }
             builder.link(now_playing, h.title);
             builder.link(now_playing, h.subtitle);
             builder.link(now_playing, h.progress);

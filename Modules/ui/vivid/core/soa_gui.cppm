@@ -297,7 +297,8 @@ private:
     void record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::DefaultDrawCmdBuffer& out);
 
     static void record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                             const ResolvedMetrics& metrics, const StyleState& state, const char* text);
+                             const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                             TextAlignH align_h, TextAlignV align_v);
     static void record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                               const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
                               const StyleState& state, const char* text,
@@ -621,9 +622,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::Image:
         record_image(out, world_rect, kernel_.image(h), metrics->corner_radius);
         break;
-    case WidgetKind::Label:
-        record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h));
-        break;
+      case WidgetKind::Label:
+          record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h),
+                       kernel_.text_align_h(h), kernel_.text_align_v(h));
+          break;
         case WidgetKind::Button:
         case WidgetKind::IconButton:
             record_button(out, world_rect, *colors, *metrics, *decoration, state, kernel_.text(h),
@@ -894,12 +896,13 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     }
 }
 
-void SoaGui::record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                          const ResolvedMetrics& metrics, const StyleState& state, const char* text) {
-    (void)state;
-    out.draw_text_box(r, text ? text : "", colors.font, font_from_metrics(metrics),
-                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-}
+    void SoaGui::record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
+                              const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                              TextAlignH align_h, TextAlignV align_v) {
+        (void)state;
+        out.draw_text_box(r, text ? text : "", colors.font, font_from_metrics(metrics),
+                          align_h, align_v, TextWrap::None, TextEllipsis::End);
+    }
 
 void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                            const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,

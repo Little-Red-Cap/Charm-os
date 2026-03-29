@@ -169,36 +169,68 @@ export namespace player {
             const int w = img.width;
             const int h = img.height;
             const int step = std::max(1, std::min(w, h) / 64);
-            std::uint64_t sum_r = 0;
-            std::uint64_t sum_g = 0;
-            std::uint64_t sum_b = 0;
-            std::uint64_t count = 0;
+            float sum_r = 0.0f;
+            float sum_g = 0.0f;
+            float sum_b = 0.0f;
+            float sum_w = 0.0f;
+            float sum_r_all = 0.0f;
+            float sum_g_all = 0.0f;
+            float sum_b_all = 0.0f;
+            float sum_w_all = 0.0f;
             for (int y = 0; y < h; y += step) {
                 const int row = y * w;
                 for (int x = 0; x < w; x += step) {
                     const auto argb = img.argb[static_cast<std::size_t>(row + x)];
                     const std::uint8_t a = static_cast<std::uint8_t>((argb >> 24) & 0xFF);
                     if (a < 20) continue;
-                    const std::uint8_t r = static_cast<std::uint8_t>((argb >> 16) & 0xFF);
-                    const std::uint8_t g = static_cast<std::uint8_t>((argb >> 8) & 0xFF);
-                    const std::uint8_t b = static_cast<std::uint8_t>(argb & 0xFF);
-                    sum_r += r;
-                    sum_g += g;
-                    sum_b += b;
-                    ++count;
+                    const float rf = static_cast<float>((argb >> 16) & 0xFF) / 255.0f;
+                    const float gf = static_cast<float>((argb >> 8) & 0xFF) / 255.0f;
+                    const float bf = static_cast<float>(argb & 0xFF) / 255.0f;
+                    const float luma = rf * 0.2126f + gf * 0.7152f + bf * 0.0722f;
+                    const float max_c = std::max(rf, std::max(gf, bf));
+                    const float min_c = std::min(rf, std::min(gf, bf));
+                    const float sat = max_c - min_c;
+                    const float alpha_w = static_cast<float>(a) / 255.0f;
+                    sum_r_all += rf * alpha_w;
+                    sum_g_all += gf * alpha_w;
+                    sum_b_all += bf * alpha_w;
+                    sum_w_all += alpha_w;
+
+                    if (sat < 0.08f || luma < 0.08f || luma > 0.92f) {
+                        continue;
+                    }
+                    float weight = (sat - 0.08f) / 0.92f;
+                    const float mid = 1.0f - std::abs(luma - 0.5f) * 1.4f;
+                    weight *= std::max(0.0f, 0.6f + 0.4f * mid);
+                    if (weight <= 0.0f) continue;
+                    sum_r += rf * weight;
+                    sum_g += gf * weight;
+                    sum_b += bf * weight;
+                    sum_w += weight;
                 }
             }
-            if (count == 0) return kUiBackdropBase;
-            const float inv = 1.0f / static_cast<float>(count);
-            float rf = static_cast<float>(sum_r) * inv / 255.0f;
-            float gf = static_cast<float>(sum_g) * inv / 255.0f;
-            float bf = static_cast<float>(sum_b) * inv / 255.0f;
+            float rf = 0.0f;
+            float gf = 0.0f;
+            float bf = 0.0f;
+            if (sum_w > 0.001f) {
+                const float inv = 1.0f / sum_w;
+                rf = sum_r * inv;
+                gf = sum_g * inv;
+                bf = sum_b * inv;
+            } else if (sum_w_all > 0.001f) {
+                const float inv = 1.0f / sum_w_all;
+                rf = sum_r_all * inv;
+                gf = sum_g_all * inv;
+                bf = sum_b_all * inv;
+            } else {
+                return kUiBackdropBase;
+            }
             const float luma = rf * 0.299f + gf * 0.587f + bf * 0.114f;
-            const float sat = 0.45f;
+            const float sat = 0.65f;
             rf = luma + (rf - luma) * sat;
             gf = luma + (gf - luma) * sat;
             bf = luma + (bf - luma) * sat;
-            const float dark = 0.38f;
+            const float dark = 0.52f;
             rf *= dark;
             gf *= dark;
             bf *= dark;
@@ -207,7 +239,7 @@ export namespace player {
                 static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f)),
                 static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f)),
                 255};
-            return mix_rgba(kUiBackdropBase, tint, 0.55f);
+            return mix_rgba(kUiBackdropBase, tint, 0.65f);
         }
 
         void apply_now_backdrop(const rgba& tint) noexcept {

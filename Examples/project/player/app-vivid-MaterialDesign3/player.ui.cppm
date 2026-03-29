@@ -90,7 +90,7 @@ export namespace player::ui {
     inline constexpr rgba kUiCover = {40, 42, 56, 255};
     inline constexpr rgba kUiTitle = {240, 242, 250, 255};
     inline constexpr rgba kUiSubtitle = {170, 176, 200, 255};
-    inline constexpr rgba kUiTime = {140, 150, 175, 255};
+    inline constexpr rgba kUiTime = {122, 132, 156, 255};
     inline constexpr rgba kUiStatus = {160, 166, 190, 255};
     inline constexpr rgba kUiListTitle = {210, 214, 230, 255};
     inline constexpr rgba kUiHint = {130, 138, 160, 255};
@@ -107,17 +107,19 @@ export namespace player::ui {
     inline constexpr rgba kUiTabBg = {32, 36, 52, 255};
     inline constexpr rgba kUiTabActive = {72, 92, 132, 255};
     inline constexpr rgba kUiListBg = {34, 38, 56, 255};
+    inline constexpr rgba kUiInfoTagBg = {28, 32, 46, 255};
     inline constexpr rgba kUiListBorder = {62, 72, 104, 255};
     inline constexpr rgba kUiListFont = {220, 228, 246, 255};
-    inline constexpr rgba kUiProgressBg = {28, 32, 46, 255};
-    inline constexpr rgba kUiProgressBorder = {82, 92, 124, 255};
+    inline constexpr rgba kUiProgressBg = {22, 26, 40, 255};
+    inline constexpr rgba kUiProgressBorder = {64, 74, 102, 255};
+    inline constexpr rgba kUiBackdropBase = {18, 20, 30, 255};
     inline constexpr rgba kUiScrollBg = {36, 40, 58, 255};
     inline constexpr rgba kUiScrollBorder = {72, 82, 110, 255};
     inline constexpr rgba kUiPerfBg = {26, 28, 40, 220};
     inline constexpr rgba kUiPerfBorder = {70, 80, 110, 255};
     inline constexpr rgba kUiPerfFont = {230, 236, 248, 255};
-    inline constexpr rgba kUiPlayBg = {18, 22, 36, 255};
-    inline constexpr rgba kUiPlayShadow = {0, 0, 0, 120};
+    inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
+    inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
 
     struct PlayerIconIds {

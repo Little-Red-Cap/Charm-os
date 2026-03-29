@@ -115,10 +115,13 @@ namespace {
         const Rect cover_left = scene.world_rect(ctx.handles.cover_left);
         const Rect cover_right = scene.world_rect(ctx.handles.cover_right);
         const int small_radius = 14;
+        const rgba small_dim{0, 0, 0, 70};
         if (cover_left.w > 0 && cover_left.h > 0) {
+            out.fill_round_rect(cover_left, small_radius, small_dim);
             out.stroke_round_rect(cover_left, small_radius, kUiListBorder);
         }
         if (cover_right.w > 0 && cover_right.h > 0) {
+            out.fill_round_rect(cover_right, small_radius, small_dim);
             out.stroke_round_rect(cover_right, small_radius, kUiListBorder);
         }
 

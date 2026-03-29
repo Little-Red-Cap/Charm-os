@@ -18,6 +18,7 @@ import audio.result;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
+import charm.gfx.color;
 import charm.ui.scene;
 import charm.font.typography;
 import charm.system.clock;
@@ -28,6 +29,11 @@ import player.track_probe;
 import player.ui;
 import player.cover;
 import player.font_cache;
+#if defined(CHARM_AUDIO_USE_VFS)
+import audio.source.fs;
+#else
+import audio.source.file;
+#endif
 
 inline constexpr bool kPlayerControllerMcuGuard =
     (player::mcu_policy::guard("player.controller uses std::string/std::vector; port before MCU build."), true);
@@ -63,6 +69,7 @@ export namespace player {
         WidgetHandle page_library{};
         WidgetHandle root{};
         WidgetHandle now_back{};
+        WidgetHandle now_backdrop{};
         WidgetHandle cover{};
         WidgetHandle cover_left{};
         WidgetHandle cover_right{};
@@ -70,7 +77,9 @@ export namespace player {
         WidgetHandle subtitle{};
         WidgetHandle status{};
         WidgetHandle progress{};
-        WidgetHandle time{};
+        WidgetHandle time_left{};
+        WidgetHandle time_right{};
+        WidgetHandle info_tag{};
         WidgetHandle spectrum{};
         WidgetHandle eq_panel{};
         WidgetHandle eq_title{};
@@ -121,12 +130,17 @@ export namespace player {
         FixedString<260> cover_path{};
         FixedString<260> cover_embedded_path{};
         FixedString<260> cover_folder_path{};
+        FixedString<260> cover_tint_path{};
+        FixedString<12> track_format_text{};
         FixedString<128> last_status_text{};
         FixedString<48> last_mode_text{};
         FixedString<64> last_list_title_text{};
         FixedString<128> last_list_hint_text{};
         FixedString<128> last_debug_text{};
+        FixedString<96> last_info_text{};
+        std::uint64_t track_size_bytes{0};
         CoverImage cover_image{};
+        rgba cover_tint{ui::kUiBackdropBase};
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         bool fs_ready{false};
@@ -138,6 +152,78 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+
+        static rgba mix_rgba(const rgba& a, const rgba& b, float t) noexcept {
+            const float s = 1.0f - t;
+            auto blend = [&](std::uint8_t av, std::uint8_t bv) -> std::uint8_t {
+                const float v = static_cast<float>(av) * s + static_cast<float>(bv) * t;
+                return static_cast<std::uint8_t>(std::clamp(v, 0.0f, 255.0f));
+            };
+            return {blend(a.r, b.r), blend(a.g, b.g), blend(a.b, b.b), 255};
+        }
+
+        static rgba derive_cover_tint(const CoverImage& img) noexcept {
+            if (img.argb.empty() || img.width <= 0 || img.height <= 0) {
+                return kUiBackdropBase;
+            }
+            const int w = img.width;
+            const int h = img.height;
+            const int step = std::max(1, std::min(w, h) / 64);
+            std::uint64_t sum_r = 0;
+            std::uint64_t sum_g = 0;
+            std::uint64_t sum_b = 0;
+            std::uint64_t count = 0;
+            for (int y = 0; y < h; y += step) {
+                const int row = y * w;
+                for (int x = 0; x < w; x += step) {
+                    const auto argb = img.argb[static_cast<std::size_t>(row + x)];
+                    const std::uint8_t a = static_cast<std::uint8_t>((argb >> 24) & 0xFF);
+                    if (a < 20) continue;
+                    const std::uint8_t r = static_cast<std::uint8_t>((argb >> 16) & 0xFF);
+                    const std::uint8_t g = static_cast<std::uint8_t>((argb >> 8) & 0xFF);
+                    const std::uint8_t b = static_cast<std::uint8_t>(argb & 0xFF);
+                    sum_r += r;
+                    sum_g += g;
+                    sum_b += b;
+                    ++count;
+                }
+            }
+            if (count == 0) return kUiBackdropBase;
+            const float inv = 1.0f / static_cast<float>(count);
+            float rf = static_cast<float>(sum_r) * inv / 255.0f;
+            float gf = static_cast<float>(sum_g) * inv / 255.0f;
+            float bf = static_cast<float>(sum_b) * inv / 255.0f;
+            const float luma = rf * 0.299f + gf * 0.587f + bf * 0.114f;
+            const float sat = 0.45f;
+            rf = luma + (rf - luma) * sat;
+            gf = luma + (gf - luma) * sat;
+            bf = luma + (bf - luma) * sat;
+            const float dark = 0.38f;
+            rf *= dark;
+            gf *= dark;
+            bf *= dark;
+            const rgba tint{
+                static_cast<std::uint8_t>(std::clamp(rf * 255.0f, 0.0f, 255.0f)),
+                static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f)),
+                static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f)),
+                255};
+            return mix_rgba(kUiBackdropBase, tint, 0.55f);
+        }
+
+        void apply_now_backdrop(const rgba& tint) noexcept {
+            if (!access.valid() || !handles.now_backdrop) return;
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = tint;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 0;
+            access.set_style_patch(handles.now_backdrop, patch);
+        }
+
         PlayerPage current_page{PlayerPage::NowPlaying};
         PlayerPage start_page{PlayerPage::Library};
         ::ui::scene::PageLayer page_now_layer{};
@@ -153,7 +239,9 @@ export namespace player {
             ::ui::scene::TextSlotId title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId subtitle{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId status{::ui::scene::kInvalidTextSlot};
-            ::ui::scene::TextSlotId time{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId time_left{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId time_right{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId info_tag{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId mode_hint{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_hint{::ui::scene::kInvalidTextSlot};
@@ -186,6 +274,41 @@ export namespace player {
             const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
             const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
             return a == 'f' && b == 'l' && c == 'a' && d == 'c';
+        }
+
+        static std::string_view format_from_path(std::string_view path) noexcept {
+            const auto dot = path.find_last_of('.');
+            if (dot == std::string_view::npos || dot + 1 >= path.size()) return {};
+            const auto ext = path.substr(dot + 1);
+            if (ext.size() == 3) {
+                const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+                const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+                const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+                if (a == 'm' && b == 'p' && c == '3') return "MP3";
+                if (a == 'w' && b == 'a' && c == 'v') return "WAV";
+                if (a == 'f' && b == 'l' && c == 'a') return "FLA";
+            }
+            if (ext.size() == 4) {
+                const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+                const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+                const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
+                const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
+                if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return "FLAC";
+            }
+            return {};
+        }
+
+        static std::uint64_t query_track_size(const char* path) noexcept {
+            if (!path || !*path) return 0;
+#if defined(CHARM_AUDIO_USE_VFS)
+            audio::FsDataSource src{};
+#else
+            audio::FileDataSource src{};
+#endif
+            if (!src.open(path)) return 0;
+            auto size = src.size();
+            if (!size) return 0;
+            return static_cast<std::uint64_t>(*size);
         }
 
         void bind_scene(::ui::scene::Scene& scene) {
@@ -277,6 +400,10 @@ export namespace player {
         void clear_track_state() noexcept {
             playback.set_track_path(nullptr);
             playback.set_track_ready(false);
+            track_size_bytes = 0;
+            track_format_text.clear();
+            last_info_text.clear();
+            set_info_label("");
             reset_cover_image();
         }
 
@@ -321,7 +448,9 @@ export namespace player {
             text_slots.title = alloc();
             text_slots.subtitle = alloc();
             text_slots.status = alloc();
-            text_slots.time = alloc();
+            text_slots.time_left = alloc();
+            text_slots.time_right = alloc();
+            text_slots.info_tag = alloc();
             text_slots.mode_hint = alloc();
             text_slots.list_title = alloc();
             text_slots.list_hint = alloc();
@@ -357,6 +486,13 @@ export namespace player {
             set_label_slot(handles.status, text_slots.status, value);
         }
 
+        void set_info_label(std::string_view value) {
+            if (!access.valid() || !handles.info_tag) return;
+            if (last_info_text.view() == value) return;
+            last_info_text.assign(value);
+            set_label_slot(handles.info_tag, text_slots.info_tag, last_info_text.c_str());
+        }
+
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
 
@@ -382,6 +518,9 @@ export namespace player {
             if (!access.valid()) return;
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
+                cover_tint_path.clear();
+                cover_tint = kUiBackdropBase;
+                apply_now_backdrop(cover_tint);
                 const auto clear_image = [&](WidgetHandle handle) {
                     if (handle && access.kind(handle) == WidgetKind::Image) {
                         access.set_image(handle, ::ui::scene::invalid_image_id());
@@ -409,6 +548,11 @@ export namespace player {
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
+                    if (cover_tint_path.view() != cover_image.path) {
+                        cover_tint = derive_cover_tint(cover_image);
+                        cover_tint_path.assign(cover_image.path);
+                        apply_now_backdrop(cover_tint);
+                    }
                     return true;
                 }
                 if (load_cover_image(candidate, cover_image)) {
@@ -422,6 +566,9 @@ export namespace player {
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
+                    cover_tint = derive_cover_tint(cover_image);
+                    cover_tint_path.assign(cover_image.path);
+                    apply_now_backdrop(cover_tint);
                     return true;
                 }
                 return false;
@@ -456,6 +603,9 @@ export namespace player {
             clear_image(handles.cover_left);
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
+            cover_tint_path.clear();
+            cover_tint = kUiBackdropBase;
+            apply_now_backdrop(cover_tint);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());
 #endif
@@ -523,14 +673,57 @@ export namespace player {
         void set_time_label(int elapsed_sec) {
             if (elapsed_sec == last_time_sec) return;
             last_time_sec = elapsed_sec;
-            char buf[32]{};
             const int total = playback.duration_sec();
             const int cur_m = elapsed_sec / 60;
             const int cur_s = elapsed_sec % 60;
             const int total_m = total / 60;
             const int total_s = total % 60;
-            std::snprintf(buf, sizeof(buf), "%d:%02d / %d:%02d", cur_m, cur_s, total_m, total_s);
-            set_label_slot(handles.time, text_slots.time, buf);
+            char left[16]{};
+            char right[16]{};
+            std::snprintf(left, sizeof(left), "%d:%02d", cur_m, cur_s);
+            std::snprintf(right, sizeof(right), "%d:%02d", total_m, total_s);
+            set_label_slot(handles.time_left, text_slots.time_left, left);
+            set_label_slot(handles.time_right, text_slots.time_right, right);
+        }
+
+        void update_info_label() {
+            if (!access.valid() || !handles.info_tag) return;
+            const int total = playback.duration_sec();
+            if (total <= 0) return;
+            std::uint32_t rate = 0;
+            audio::PlayerSnapshot snap{};
+            if (playback.snapshot(snap)) {
+                rate = snap.input_fmt.rate;
+            }
+            if (rate == 0) rate = 48000;
+            std::uint64_t kbps = 0;
+            if (track_size_bytes > 0) {
+                kbps = (track_size_bytes * 8ull) / (static_cast<std::uint64_t>(total) * 1000ull);
+            }
+
+            char rate_buf[16]{};
+            const std::uint32_t khz_int = rate / 1000;
+            const std::uint32_t khz_dec = (rate % 1000) / 100;
+            if (khz_dec == 0) {
+                std::snprintf(rate_buf, sizeof(rate_buf), "%ukHz", static_cast<unsigned>(khz_int));
+            } else {
+                std::snprintf(rate_buf, sizeof(rate_buf), "%u.%ukHz",
+                              static_cast<unsigned>(khz_int),
+                              static_cast<unsigned>(khz_dec));
+            }
+
+            char kbps_buf[16]{};
+            if (kbps > 0) {
+                std::snprintf(kbps_buf, sizeof(kbps_buf), "%llukbps",
+                              static_cast<unsigned long long>(kbps));
+            } else {
+                std::snprintf(kbps_buf, sizeof(kbps_buf), "--kbps");
+            }
+
+            const char* fmt = track_format_text.empty() ? "--" : track_format_text.c_str();
+            char info[96]{};
+            std::snprintf(info, sizeof(info), "%s * %s * %s", rate_buf, kbps_buf, fmt);
+            set_info_label(info);
         }
 
         void reset_duration() {
@@ -724,6 +917,7 @@ export namespace player {
             } else {
                 set_time_label(cur);
             }
+            update_info_label();
         }
 
         bool update_progress() {
@@ -936,6 +1130,21 @@ export namespace player {
                     }
                 }
             }
+            const auto looks_like_format = [&](std::string_view v) noexcept -> bool {
+                if (v.empty()) return true;
+                if (v == "UNKNOWN") return true;
+                if (v.size() > 5) return false;
+                for (char ch : v) {
+                    if (!std::isalnum(static_cast<unsigned char>(ch))) return false;
+                    if (std::isalpha(static_cast<unsigned char>(ch)) && !std::isupper(static_cast<unsigned char>(ch))) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            if (looks_like_format(subtitle_text.view())) {
+                subtitle_text.assign("");
+            }
             set_label_slot(handles.title, text_slots.title, title_text.c_str());
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
             set_label_slot(handles.bottom_title, text_slots.bottom_title, title_text.c_str());
@@ -956,6 +1165,12 @@ export namespace player {
             const auto& vfs_path = (*tracks)[track_index];
             const char* track_path = vfs_path.c_str();
             set_track_labels(track_index);
+            track_format_text.clear();
+            if (const auto fmt = format_from_path(vfs_path.view()); !fmt.empty()) {
+                track_format_text.assign(fmt);
+            }
+            track_size_bytes = query_track_size(track_path);
+            last_info_text.clear();
             FixedString<128> status;
             const bool track_ready = player::check_track_ready(vfs_path.view(), status);
             if (!status.empty()) { set_status(status.c_str()); }
@@ -996,6 +1211,7 @@ export namespace player {
                 int secs = 0;
                 if (player::probe_duration_seconds(track_path, secs)) {
                     playback.set_duration_from_probe(secs);
+                    update_info_label();
                 }
             }
             set_play_button_text(false);

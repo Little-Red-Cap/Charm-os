@@ -69,10 +69,16 @@ export namespace player {
         const int cover_x = (screen_width - kCoverSize) / 2;
         const int cover_y = cover_top;
         const int header_top = cover_top + kCoverSize;
+        const int text_gap = 10;
+        const int title_h = 36;
+        const int subtitle_h = 18;
+        const int progress_h = 6;
+        const int time_row_h = 14;
         const int text_col_y = header_top + 12;
         const int text_col_h = 118;
+        const int time_row_y = text_col_y + title_h + text_gap + subtitle_h + text_gap + progress_h + text_gap;
         const int controls_y = text_col_y + text_col_h + 30;
-        const int controls_w = 56 * 2 + 104 + 22 * 2;
+        const int controls_w = 72 * 3 + 16 * 2;
         const int controls_x = (screen_width - controls_w) / 2;
 
         const int tabs_y = top_bar_y + top_bar_h + 10;
@@ -219,13 +225,33 @@ export namespace player {
             builder.set_value(h.progress, 0);
             builder.set_hit_testable(h.progress, true);
 
-            h.time = builder.create_label_static("");
+            h.time_left = builder.create_label_static("");
+            h.time_right = builder.create_label_static("");
+            h.info_tag = builder.create_button_static("");
             {
                 StylePatch patch{};
                 patch.has_font_color = true;
                 patch.font_color = kUiTime;
-                builder.set_style_patch(h.time, patch);
+                patch.has_font = true;
+                patch.font = &get_font(FontId::Small);
+                builder.set_style_patch(h.time_left, patch);
+                builder.set_style_patch(h.time_right, patch);
             }
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiInfoTagBg;
+                patch.has_border_color = true;
+                patch.border_color = kUiButtonBorder;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 10;
+                patch.has_font_color = true;
+                patch.font_color = kUiTime;
+                patch.has_font = true;
+                patch.font = &get_font(FontId::Small);
+                builder.set_style_patch(h.info_tag, patch);
+            }
+            builder.set_hit_testable(h.info_tag, false);
 
             h.status = builder.create_label_static("");
             anchor_rect(h.status, {0, 0, 0, 0});
@@ -300,9 +326,9 @@ export namespace player {
             h.controls = builder.create_container();
             anchor_rect(h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, 72});
 
-            const int small_btn = 56;
-            const int play_btn = 112;
-            const int btn_gap = 22;
+            const int small_btn = 72;
+            const int play_btn = 72;
+            const int btn_gap = 16;
             const Rect controls_rect{0, 0, layout.controls_w, 72};
             auto controls_row = ::ui::scene::make_row(builder, controls_rect, btn_gap, 0,
                                                       ::ui::scene::LayoutAlign::Center);
@@ -311,6 +337,12 @@ export namespace player {
             controls_row.place(h.btn_prev, small_btn, small_btn);
             builder.set_button_icon(h.btn_prev, icons.prev);
             builder.set_button_icon_size(h.btn_prev, 18);
+            {
+                StylePatch patch{};
+                patch.has_corner_radius = true;
+                patch.corner_radius = 18;
+                builder.set_style_patch(h.btn_prev, patch);
+            }
 
             h.btn_pause = builder.create_button_static("");
             controls_row.place(h.btn_pause, play_btn, play_btn);
@@ -323,7 +355,7 @@ export namespace player {
                 patch.has_border_color = true;
                 patch.border_color = kUiButtonBorder;
                 patch.has_corner_radius = true;
-                patch.corner_radius = play_btn / 2;
+                patch.corner_radius = 18;
                 patch.has_shadow_enabled = true;
                 patch.shadow_enabled = true;
                 patch.has_shadow_color = true;
@@ -331,11 +363,11 @@ export namespace player {
                 patch.has_shadow_offset_x = true;
                 patch.shadow_offset_x = 0;
                 patch.has_shadow_offset_y = true;
-                patch.shadow_offset_y = 6;
+                patch.shadow_offset_y = 8;
                 patch.has_shadow_spread = true;
-                patch.shadow_spread = 6;
+                patch.shadow_spread = 8;
                 patch.has_shadow_radius = true;
-                patch.shadow_radius = play_btn / 2 + 6;
+                patch.shadow_radius = play_btn / 2 + 12;
                 patch.has_inner_stroke_enabled = true;
                 patch.inner_stroke_enabled = true;
                 patch.has_inner_stroke_color = true;
@@ -345,9 +377,9 @@ export namespace player {
                 patch.has_outline_enabled = true;
                 patch.outline_enabled = true;
                 patch.has_outline_color = true;
-                patch.outline_color = {80, 92, 130, 120};
+                patch.outline_color = {80, 92, 130, 140};
                 patch.has_outline_width = true;
-                patch.outline_width = 3;
+                patch.outline_width = 2;
                 builder.set_style_patch(h.btn_pause, patch);
             }
 
@@ -355,6 +387,12 @@ export namespace player {
             controls_row.place(h.btn_next, small_btn, small_btn);
             builder.set_button_icon(h.btn_next, icons.next);
             builder.set_button_icon_size(h.btn_next, 18);
+            {
+                StylePatch patch{};
+                patch.has_corner_radius = true;
+                patch.corner_radius = 18;
+                builder.set_style_patch(h.btn_next, patch);
+            }
 
             h.btn_mode = builder.create_button_static("");
             anchor_rect(h.btn_mode, {0, 0, 0, 0});
@@ -362,17 +400,42 @@ export namespace player {
             {
                 const Rect text_rect{kUiPadding, text_col_y,
                                      screen_width - kUiPadding * 2, text_col_h};
-                auto text_col = ::ui::scene::make_column(builder, text_rect, 10, 0,
+                auto text_col = ::ui::scene::make_column(builder, text_rect, text_gap, 0,
                                                          ::ui::scene::LayoutAlign::Start);
-                text_col.place(h.title, text_rect.w, 36);
-                text_col.place(h.subtitle, text_rect.w, 18);
-                text_col.place(h.progress, text_rect.w, 10);
-                text_col.place(h.time, text_rect.w, 16);
+                text_col.place(h.title, text_rect.w, title_h);
+                text_col.place(h.subtitle, text_rect.w, subtitle_h);
+                text_col.place(h.progress, text_rect.w, progress_h);
+            }
+            {
+                const int time_row_w = screen_width - kUiPadding * 2;
+                const int time_row_x = kUiPadding;
+                const int time_side_w = 56;
+                const int info_w = std::max(160, time_row_w - time_side_w * 2 - 20);
+                const int info_x = time_row_x + (time_row_w - info_w) / 2;
+                anchor_rect(h.time_left, {time_row_x, time_row_y, time_side_w, time_row_h});
+                anchor_rect(h.time_right,
+                            {time_row_x + time_row_w - time_side_w, time_row_y, time_side_w, time_row_h});
+                anchor_rect(h.info_tag, {info_x, time_row_y - 2, info_w, time_row_h + 4});
             }
 
             const WidgetHandle now_playing = builder.create_container();
             anchor_rect(now_playing, {0, 0, screen_width, screen_height});
             h.page_now_playing = now_playing;
+
+            h.now_backdrop = builder.create_container();
+            anchor_rect(h.now_backdrop, {0, 0, screen_width, screen_height});
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiBackdropBase;
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 0;
+                builder.set_style_patch(h.now_backdrop, patch);
+            }
 
             const WidgetHandle top_bar = builder.create_container();
             anchor_rect(top_bar, {layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h});
@@ -380,6 +443,16 @@ export namespace player {
             anchor_rect(h.now_back, {layout.top_bar_x, layout.top_bar_y, 40, 40});
             builder.set_button_icon(h.now_back, icons.prev);
             builder.set_button_icon_size(h.now_back, 16);
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiButtonBg;
+                patch.has_border_color = true;
+                patch.border_color = kUiButtonBorder;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 12;
+                builder.set_style_patch(h.now_back, patch);
+            }
             const WidgetHandle top_title = builder.create_label_static("Now Playing");
             anchor_rect(top_title, {layout.top_bar_x + 48, layout.top_bar_y + 8,
                                     layout.top_bar_w - 96, 24});
@@ -387,8 +460,19 @@ export namespace player {
             anchor_rect(top_more, {layout.top_bar_x + layout.top_bar_w - 40, layout.top_bar_y, 40, 40});
             builder.set_button_icon(top_more, icons.shuffle);
             builder.set_button_icon_size(top_more, 14);
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiButtonBg;
+                patch.has_border_color = true;
+                patch.border_color = kUiButtonBorder;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 12;
+                builder.set_style_patch(top_more, patch);
+            }
 
             builder.link(h.root, now_playing);
+            builder.link(now_playing, h.now_backdrop);
             builder.link(now_playing, top_bar);
             builder.link(top_bar, h.now_back);
             builder.link(top_bar, top_title);
@@ -400,7 +484,9 @@ export namespace player {
             builder.link(now_playing, h.title);
             builder.link(now_playing, h.subtitle);
             builder.link(now_playing, h.progress);
-            builder.link(now_playing, h.time);
+            builder.link(now_playing, h.time_left);
+            builder.link(now_playing, h.time_right);
+            builder.link(now_playing, h.info_tag);
             builder.link(now_playing, h.status);
             builder.link(now_playing, h.mode_hint);
             builder.link(now_playing, h.spectrum);

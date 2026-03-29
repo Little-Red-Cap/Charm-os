@@ -35,6 +35,11 @@ namespace demo {
     volatile u32 timer_hits = 0;
     volatile u32 timer_hits_hard = 0;
     volatile u32 queue_hits = 0;
+    volatile u32 create_denied_hits = 0;
+    volatile u32 timer_denied_hits = 0;
+    volatile u32 runtime_create_denied_hits = 0;
+    volatile u32 runtime_timer_denied_hits = 0;
+    volatile u32 isr_violation_demo_done = 0;
 
     using Queue = charm::system::rtos::SpscQueue<u32, 16>;
     Queue g_queue{};
@@ -166,12 +171,48 @@ namespace demo {
                 return;
             }
         }
+        if (create_denied_hits == 0u) {
+            auto res = Scheduler::current().create(&task_a, nullptr, 0, 1);
+            if (!res) {
+                ++create_denied_hits;
+            }
+        }
+        if (runtime_create_denied_hits == 0u) {
+            auto& sched = Scheduler::current();
+            sched.allow_task_create(true);
+            auto res = sched.create(&task_a, nullptr, 0, 1);
+            if (!res) {
+                ++runtime_create_denied_hits;
+            }
+            sched.allow_task_create(false);
+        }
+        if (timer_denied_hits == 0u) {
+            Scheduler::current().allow_timer_create(false);
+            auto res = Scheduler::current().schedule_after(1, &timer_tick, nullptr);
+            if (!res) {
+                ++timer_denied_hits;
+            }
+            Scheduler::current().allow_timer_create(true);
+        }
+        if (runtime_timer_denied_hits == 0u) {
+            auto& sched = Scheduler::current();
+            sched.allow_runtime_timer_create(false);
+            auto res = sched.schedule_after(1, &timer_tick, nullptr);
+            if (!res) {
+                ++runtime_timer_denied_hits;
+            }
+            sched.allow_runtime_timer_create(true);
+        }
         std::array<u32, 2> out{};
         (void)g_mq.recv_batch(std::span<u32>(out.data(), out.size()));
         if ((task_b_hits % 11u) == 0u) {
             PreemptGuard guard{};
-            (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
-                charm::system::rtos::TimerSlot::Kind::hard);
+            {
+                // 模拟 ISR 调度硬定时器
+                IsrGuard isr{};
+                (void)Scheduler::current().schedule_after(7, &timer_tick_hard, nullptr,
+                    charm::system::rtos::TimerSlot::Kind::hard);
+            }
         }
         Scheduler::current().sleep_ms(25);
     }
@@ -224,11 +265,13 @@ namespace demo {
               true,
               std::span<charm::system::rtos::TraceEvent>(trace.data(), trace.size()),
               charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::run) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
-                  charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::block) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::wake) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timeout) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::create_denied) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::timer_create_denied) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::task_violation) |
+              charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::isr_violation) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_detected) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::lock_reenter) |
                   charm::system::rtos::trace_bit(charm::system::rtos::TraceKind::pi_boost),
@@ -251,12 +294,16 @@ namespace demo {
             (void)scheduler.create(&task_b, nullptr, 0, 1);
             scheduler.freeze_task_creation();
             (void)scheduler.schedule_after(250, &timer_tick, nullptr);
-            (void)scheduler.schedule_after(
-                500,
-                &timer_tick_hard,
-                nullptr,
-                charm::system::rtos::TimerSlot::Kind::hard
-            );
+            {
+                // 模拟 ISR 调度硬定时器
+                IsrGuard isr{};
+                (void)scheduler.schedule_after(
+                    500,
+                    &timer_tick_hard,
+                    nullptr,
+                    charm::system::rtos::TimerSlot::Kind::hard
+                );
+            }
             scheduler.enter_runtime();
         }
 
@@ -300,6 +347,18 @@ namespace demo {
         }
         if (cleanup_hits > 0) {
             UartCmsdk::write("rtos cleanup\n");
+        }
+        if (create_denied_hits > 0) {
+            UartCmsdk::write("rtos create denied\n");
+        }
+        if (runtime_create_denied_hits > 0) {
+            UartCmsdk::write("rtos runtime create denied\n");
+        }
+        if (timer_denied_hits > 0) {
+            UartCmsdk::write("rtos timer denied\n");
+        }
+        if (runtime_timer_denied_hits > 0) {
+            UartCmsdk::write("rtos runtime timer denied\n");
         }
         if (!scheduler.self_check()) {
             UartCmsdk::write("rtos check failed\n");
@@ -360,7 +419,20 @@ int main() {
     demo::g_tick_mod = 100;
     while (true) {
         demo::g_tick_ms += 1;
-        demo.scheduler.tick();
+        {
+            demo::IsrGuard isr{};
+            demo.scheduler.tick();
+        }
+#if defined(NDEBUG)
+        if (demo::isr_violation_demo_done == 0u) {
+            {
+                demo::IsrGuard isr{};
+                demo.scheduler.sleep_ms(1);
+            }
+            (void)demo::g_mq.try_send_isr(0x1234u);
+            demo::isr_violation_demo_done = 1;
+        }
+#endif
         demo.scheduler.run_once();
         demo.dump_stats(static_cast<demo::u32>(demo::g_tick_ms));
         if ((demo::g_tick_ms % demo::g_tick_mod) == 0u) {

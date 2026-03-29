@@ -261,15 +261,33 @@ struct ResolvedMetrics {
 };
 
 export
+struct ResolvedDecoration {
+    rgba shadow_color{};
+    std::int16_t shadow_offset_x{0};
+    std::int16_t shadow_offset_y{0};
+    std::int16_t shadow_spread{0};
+    std::int16_t shadow_radius{0};
+    rgba inner_stroke_color{};
+    std::int16_t inner_stroke_width{0};
+    rgba outline_color{};
+    std::int16_t outline_width{0};
+    std::uint8_t shadow_enabled{0};
+    std::uint8_t inner_stroke_enabled{0};
+    std::uint8_t outline_enabled{0};
+};
+
+export
 struct ResolvedStyleView {
     const ResolvedColors* colors{nullptr};
     const ResolvedMetrics* metrics{nullptr};
+    const ResolvedDecoration* decoration{nullptr};
 };
 
 #if defined(VIVID_SOA_TRACE_INPUT)
 export
 struct StyleStats {
     std::size_t style_colors_bytes{0};
+    std::size_t style_decor_bytes{0};
     std::size_t style_metrics_id_bytes{0};
     std::size_t metrics_pool_bytes{0};
     std::size_t style_table_total_bytes{0};
@@ -292,14 +310,17 @@ struct StyleKindStateInfo {
 
 static_assert(std::is_trivially_copyable_v<ResolvedColors>);
 static_assert(std::is_trivially_copyable_v<ResolvedMetrics>);
+static_assert(std::is_trivially_copyable_v<ResolvedDecoration>);
 static_assert(std::is_trivially_copyable_v<ResolvedStyleView>);
 static_assert(sizeof(ResolvedColors) <= 32);
 static_assert(sizeof(ResolvedMetrics) <= 32);
-static_assert(sizeof(ResolvedStyleView) <= 24);
+static_assert(sizeof(ResolvedDecoration) <= 32);
+static_assert(sizeof(ResolvedStyleView) <= 32);
 static_assert(kMaxStyleStateBits <= 6);
 
 struct StyleTable {
     std::array<ResolvedColors, kTotalStyleSlots> colors{};
+    std::array<ResolvedDecoration, kTotalStyleSlots> decorations{};
     std::array<std::uint8_t, kTotalStyleSlots> matched{};
     std::array<std::uint8_t, kWidgetKindCount> kind_compiled{};
     std::array<ResolvedMetrics, kMaxMetricsPool> metrics_pool{};
@@ -312,6 +333,7 @@ struct StyleTable {
 
     void reset() noexcept {
         colors.fill(ResolvedColors{});
+        decorations.fill(ResolvedDecoration{});
         matched.fill(0);
         kind_compiled.fill(0);
         metrics_pool.fill(ResolvedMetrics{});
@@ -443,6 +465,23 @@ inline std::int16_t clamp_i16(int v) noexcept {
     return static_cast<std::int16_t>(v);
 }
 
+inline ResolvedDecoration build_resolved_decoration(const Style& st) noexcept {
+    ResolvedDecoration d{};
+    d.shadow_color = st.decoration.shadow_color;
+    d.shadow_offset_x = clamp_i16(st.decoration.shadow_offset_x);
+    d.shadow_offset_y = clamp_i16(st.decoration.shadow_offset_y);
+    d.shadow_spread = clamp_i16(st.decoration.shadow_spread);
+    d.shadow_radius = clamp_i16(st.decoration.shadow_radius);
+    d.inner_stroke_color = st.decoration.inner_stroke_color;
+    d.inner_stroke_width = clamp_i16(st.decoration.inner_stroke_width);
+    d.outline_color = st.decoration.outline_color;
+    d.outline_width = clamp_i16(st.decoration.outline_width);
+    d.shadow_enabled = static_cast<std::uint8_t>(st.decoration.shadow_enabled ? 1 : 0);
+    d.inner_stroke_enabled = static_cast<std::uint8_t>(st.decoration.inner_stroke_enabled ? 1 : 0);
+    d.outline_enabled = static_cast<std::uint8_t>(st.decoration.outline_enabled ? 1 : 0);
+    return d;
+}
+
 inline ResolvedMetrics build_resolved_metrics(const Style& st) noexcept {
     ResolvedMetrics m{};
     m.font = st.font;
@@ -473,6 +512,21 @@ inline void apply_resolved_colors(Style& style, const ResolvedColors& colors) no
     style.colors.accent_pressed = colors.accent;
     style.colors.accent_disabled = colors.accent;
     style.colors.on_accent = colors.on_accent;
+}
+
+inline void apply_resolved_decoration(Style& style, const ResolvedDecoration& deco) noexcept {
+    style.decoration.shadow_color = deco.shadow_color;
+    style.decoration.shadow_offset_x = deco.shadow_offset_x;
+    style.decoration.shadow_offset_y = deco.shadow_offset_y;
+    style.decoration.shadow_spread = deco.shadow_spread;
+    style.decoration.shadow_radius = deco.shadow_radius;
+    style.decoration.inner_stroke_color = deco.inner_stroke_color;
+    style.decoration.inner_stroke_width = deco.inner_stroke_width;
+    style.decoration.outline_color = deco.outline_color;
+    style.decoration.outline_width = deco.outline_width;
+    style.decoration.shadow_enabled = deco.shadow_enabled != 0;
+    style.decoration.inner_stroke_enabled = deco.inner_stroke_enabled != 0;
+    style.decoration.outline_enabled = deco.outline_enabled != 0;
 }
 
 inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {
@@ -585,7 +639,7 @@ public:
 #ifndef NDEBUG
             assert(false && "StyleSheet compiled table is not ready");
 #endif
-            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_, &fallback_decoration_};
         }
         const auto& tokens = Theme::instance().get_tokens();
         if (style_table_.tokens_version != tokens.version ||
@@ -593,11 +647,11 @@ public:
 #ifndef NDEBUG
             assert(false && "StyleSheet compiled table out of date");
 #endif
-            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_, &fallback_decoration_};
         }
         const auto kind_idx = widget_kind_index[static_cast<std::size_t>(kind)];
         if (kind_idx == kInvalidKindIndex || style_table_.kind_compiled[kind_idx] == 0) {
-            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_};
+            return ResolvedStyleView{&fallback_colors_, &fallback_metrics_, &fallback_decoration_};
         }
         const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
         const std::uint8_t state_count = kKindStateCounts[kind_idx];
@@ -612,7 +666,8 @@ public:
             static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant;
         return ResolvedStyleView{
             &style_table_.colors[color_entry],
-            &style_table_.metrics_pool[style_table_.metrics_id[metrics_entry]]
+            &style_table_.metrics_pool[style_table_.metrics_id[metrics_entry]],
+            &style_table_.decorations[color_entry]
         };
     }
 
@@ -666,9 +721,11 @@ public:
     StyleStats style_stats() const noexcept {
         StyleStats s{};
         s.style_colors_bytes = style_table_.colors.size() * sizeof(ResolvedColors);
+        s.style_decor_bytes = style_table_.decorations.size() * sizeof(ResolvedDecoration);
         s.style_metrics_id_bytes = style_table_.metrics_id.size() * sizeof(std::uint8_t);
         s.metrics_pool_bytes = static_cast<std::size_t>(style_table_.metrics_count) * sizeof(ResolvedMetrics);
-        s.style_table_total_bytes = s.style_colors_bytes + s.style_metrics_id_bytes + s.metrics_pool_bytes;
+        s.style_table_total_bytes = s.style_colors_bytes + s.style_decor_bytes
+            + s.style_metrics_id_bytes + s.metrics_pool_bytes;
         s.metrics_pool_size = style_table_.metrics_count;
         s.style_lookup_count = style_lookup_count_;
         s.theme_recompile_count = style_table_compile_count_;
@@ -848,10 +905,13 @@ private:
                             apply_role_patch(scratch, rule.role_patch, resolved_.role_palette);
                         }
                     }
-                    const ResolvedColors colors = build_resolved_colors(matched ? scratch : base, state);
+                    const Style& resolved = matched ? scratch : base;
+                    const ResolvedColors colors = build_resolved_colors(resolved, state);
+                    const ResolvedDecoration deco = build_resolved_decoration(resolved);
                     const std::size_t entry =
                         static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
                     style_table_.colors[entry] = colors;
+                    style_table_.decorations[entry] = deco;
                     style_table_.matched[entry] = matched
                         ? static_cast<std::uint8_t>(1)
                         : static_cast<std::uint8_t>(0);
@@ -888,6 +948,7 @@ private:
             static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
         if (style_table_.matched[entry] == 0) return false;
         apply_resolved_colors(style, style_table_.colors[entry]);
+        apply_resolved_decoration(style, style_table_.decorations[entry]);
         return true;
     }
 
@@ -923,6 +984,7 @@ private:
         if (style_table_.matched[entry] == 0) return false;
         out = base;
         apply_resolved_colors(out, style_table_.colors[entry]);
+        apply_resolved_decoration(out, style_table_.decorations[entry]);
         return true;
     }
 
@@ -936,6 +998,7 @@ private:
     mutable StyleTable style_table_{};
     ResolvedColors fallback_colors_{};
     ResolvedMetrics fallback_metrics_{};
+    ResolvedDecoration fallback_decoration_{};
 #if defined(VIVID_SOA_TRACE_INPUT)
     std::uint32_t role_palette_compile_count_{0};
     std::uint32_t style_table_compile_count_{0};

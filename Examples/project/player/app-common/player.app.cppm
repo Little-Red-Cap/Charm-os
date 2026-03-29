@@ -84,6 +84,7 @@ export namespace player {
             controller.icons = register_player_icons();
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
+            controller.init_pages();
             controller.focus_list();
             controller.set_time_label(0);
             controller.mount_status.assign("Mounting storage...");

@@ -9,6 +9,7 @@ export module charm.ui.scene;
 export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
+export import charm.core.style;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -163,6 +164,8 @@ export namespace ui::scene {
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
+        void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_->set_value(h, value); }
@@ -221,11 +224,204 @@ export namespace ui::scene {
             kernel_.set_scrollbar_orientation(h, o);
         }
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
+        void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
 
     private:
         SoaKernel& kernel_;
         SoaFactory& factory_;
         WidgetHandle root_{};
+    };
+
+    enum class LayoutAxis : std::uint8_t {
+        Row,
+        Column
+    };
+
+    enum class LayoutAlign : std::uint8_t {
+        Start,
+        Center,
+        End,
+        Stretch
+    };
+
+    class LayoutCursor {
+    public:
+        LayoutCursor(SceneBuilder& builder,
+                     const Rect& rect,
+                     LayoutAxis axis,
+                     int gap,
+                     int padding,
+                     LayoutAlign cross = LayoutAlign::Center) noexcept
+            : builder_(&builder),
+              rect_(rect),
+              axis_(axis),
+              gap_(gap),
+              padding_(padding),
+              cross_align_(cross) {}
+
+        LayoutCursor(SceneBuilder& builder,
+                     const Rect& rect,
+                     LayoutAxis axis,
+                     int gap,
+                     int padding,
+                     int origin_x,
+                     int origin_y,
+                     LayoutAlign cross = LayoutAlign::Center) noexcept
+            : builder_(&builder),
+              rect_(rect),
+              axis_(axis),
+              gap_(gap),
+              padding_(padding),
+              cross_align_(cross),
+              origin_x_(origin_x),
+              origin_y_(origin_y),
+              use_origin_(true) {}
+
+        Rect content_rect() const noexcept {
+            Rect c{
+                rect_.x + padding_,
+                rect_.y + padding_,
+                rect_.w - padding_ * 2,
+                rect_.h - padding_ * 2
+            };
+            if (c.w < 0) c.w = 0;
+            if (c.h < 0) c.h = 0;
+            return c;
+        }
+
+        Rect place_rect(int w, int h) noexcept {
+            const Rect c = content_rect();
+            if (axis_ == LayoutAxis::Row) {
+                int height = h;
+                int y = c.y;
+                if (cross_align_ == LayoutAlign::Stretch) {
+                    height = c.h;
+                } else if (cross_align_ == LayoutAlign::Center) {
+                    y = c.y + (c.h - h) / 2;
+                } else if (cross_align_ == LayoutAlign::End) {
+                    y = c.y + c.h - h;
+                }
+                Rect r{c.x + cursor_, y, w, height};
+                if (use_origin_) {
+                    r.x += origin_x_;
+                    r.y += origin_y_;
+                }
+                cursor_ += w + gap_;
+                return r;
+            }
+            int width = w;
+            int x = c.x;
+            if (cross_align_ == LayoutAlign::Stretch) {
+                width = c.w;
+            } else if (cross_align_ == LayoutAlign::Center) {
+                x = c.x + (c.w - w) / 2;
+            } else if (cross_align_ == LayoutAlign::End) {
+                x = c.x + c.w - w;
+            }
+            Rect r{x, c.y + cursor_, width, h};
+            if (use_origin_) {
+                r.x += origin_x_;
+                r.y += origin_y_;
+            }
+            cursor_ += h + gap_;
+            return r;
+        }
+
+        void place(WidgetHandle h, int w, int hgt) noexcept {
+            if (!builder_) return;
+            const Rect r = place_rect(w, hgt);
+            builder_->set_rect(h, r);
+        }
+
+        void skip(int amount) noexcept { cursor_ += amount; }
+
+    private:
+        SceneBuilder* builder_{nullptr};
+        Rect rect_{};
+        LayoutAxis axis_{LayoutAxis::Row};
+        int gap_{0};
+        int padding_{0};
+        LayoutAlign cross_align_{LayoutAlign::Center};
+        int cursor_{0};
+        int origin_x_{0};
+        int origin_y_{0};
+        bool use_origin_{false};
+    };
+
+    inline LayoutCursor make_row(SceneBuilder& builder,
+                                 const Rect& rect,
+                                 int gap = 0,
+                                 int padding = 0,
+                                 LayoutAlign cross = LayoutAlign::Center) noexcept {
+        return LayoutCursor(builder, rect, LayoutAxis::Row, gap, padding, cross);
+    }
+
+    inline LayoutCursor make_column(SceneBuilder& builder,
+                                    const Rect& rect,
+                                    int gap = 0,
+                                    int padding = 0,
+                                    LayoutAlign cross = LayoutAlign::Center) noexcept {
+        return LayoutCursor(builder, rect, LayoutAxis::Column, gap, padding, cross);
+    }
+
+    inline LayoutCursor make_row_local(SceneBuilder& builder,
+                                       const Rect& rect,
+                                       int origin_x,
+                                       int origin_y,
+                                       int gap = 0,
+                                       int padding = 0,
+                                       LayoutAlign cross = LayoutAlign::Center) noexcept {
+        return LayoutCursor(builder, rect, LayoutAxis::Row, gap, padding, origin_x, origin_y, cross);
+    }
+
+    inline LayoutCursor make_column_local(SceneBuilder& builder,
+                                          const Rect& rect,
+                                          int origin_x,
+                                          int origin_y,
+                                          int gap = 0,
+                                          int padding = 0,
+                                          LayoutAlign cross = LayoutAlign::Center) noexcept {
+        return LayoutCursor(builder, rect, LayoutAxis::Column, gap, padding, origin_x, origin_y, cross);
+    }
+
+    struct PageHooks {
+        void (*on_show)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};
+        void (*on_hide)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};
+        void* ctx{nullptr};
+    };
+
+    class PageLayer {
+    public:
+        PageLayer() noexcept = default;
+        explicit PageLayer(WidgetHandle root) noexcept : root_(root) {}
+
+        void set_root(WidgetHandle root) noexcept { root_ = root; }
+        WidgetHandle root() const noexcept { return root_; }
+        void set_hooks(const PageHooks& hooks) noexcept { hooks_ = hooks; }
+        bool visible() const noexcept { return visible_; }
+
+        void show(SceneAccess& access) noexcept { set_visible(access, true); }
+        void hide(SceneAccess& access) noexcept { set_visible(access, false); }
+
+        void set_visible(SceneAccess& access, bool on) noexcept {
+            if (!root_) return;
+            access.set_visible(root_, on);
+            const bool changed = (visible_ != on);
+            visible_ = on;
+            if (changed) {
+                if (on) {
+                    if (hooks_.on_show) hooks_.on_show(access, root_, hooks_.ctx);
+                } else {
+                    if (hooks_.on_hide) hooks_.on_hide(access, root_, hooks_.ctx);
+                }
+            }
+        }
+
+    private:
+        WidgetHandle root_{};
+        bool visible_{false};
+        PageHooks hooks_{};
     };
 
     class SceneOverlay {

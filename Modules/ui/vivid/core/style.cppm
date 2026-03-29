@@ -45,9 +45,28 @@ struct StyleMetrics {
 };
 
 export
+struct StyleDecoration {
+    bool shadow_enabled{false};
+    rgba shadow_color{0, 0, 0, 0};
+    std::int16_t shadow_offset_x{0};
+    std::int16_t shadow_offset_y{0};
+    std::int16_t shadow_spread{0};
+    std::int16_t shadow_radius{0};
+
+    bool inner_stroke_enabled{false};
+    rgba inner_stroke_color{0, 0, 0, 0};
+    std::int16_t inner_stroke_width{0};
+
+    bool outline_enabled{false};
+    rgba outline_color{0, 0, 0, 0};
+    std::int16_t outline_width{0};
+};
+
+export
 struct Style {
     StyleColors colors{};
     StyleMetrics metrics{};
+    StyleDecoration decoration{};
     const Font* font{nullptr};
 };
 
@@ -99,6 +118,18 @@ struct StylePatch {
     bool has_accent_pressed{false};
     bool has_accent_disabled{false};
     bool has_on_accent{false};
+    bool has_shadow_enabled{false};
+    bool has_shadow_color{false};
+    bool has_shadow_offset_x{false};
+    bool has_shadow_offset_y{false};
+    bool has_shadow_spread{false};
+    bool has_shadow_radius{false};
+    bool has_inner_stroke_enabled{false};
+    bool has_inner_stroke_color{false};
+    bool has_inner_stroke_width{false};
+    bool has_outline_enabled{false};
+    bool has_outline_color{false};
+    bool has_outline_width{false};
 
     rgba bg_color{};
     rgba border_color{};
@@ -129,6 +160,18 @@ struct StylePatch {
     rgba accent_pressed{};
     rgba accent_disabled{};
     rgba on_accent{};
+    bool shadow_enabled{false};
+    rgba shadow_color{};
+    std::int16_t shadow_offset_x{0};
+    std::int16_t shadow_offset_y{0};
+    std::int16_t shadow_spread{0};
+    std::int16_t shadow_radius{0};
+    bool inner_stroke_enabled{false};
+    rgba inner_stroke_color{};
+    std::int16_t inner_stroke_width{0};
+    bool outline_enabled{false};
+    rgba outline_color{};
+    std::int16_t outline_width{0};
 
     void apply_to(Style& s) const noexcept {
         if (has_bg_color) s.colors.bg_color = bg_color;
@@ -167,10 +210,22 @@ struct StylePatch {
             s.colors.accent_disabled = adjust_by_luma(accent_color, 40);
         }
     }
-    if (has_accent_hover) s.colors.accent_hover = accent_hover;
-    if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
-    if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
+        if (has_accent_hover) s.colors.accent_hover = accent_hover;
+        if (has_accent_pressed) s.colors.accent_pressed = accent_pressed;
+        if (has_accent_disabled) s.colors.accent_disabled = accent_disabled;
         if (has_on_accent) s.colors.on_accent = on_accent;
+        if (has_shadow_enabled) s.decoration.shadow_enabled = shadow_enabled;
+        if (has_shadow_color) s.decoration.shadow_color = shadow_color;
+        if (has_shadow_offset_x) s.decoration.shadow_offset_x = shadow_offset_x;
+        if (has_shadow_offset_y) s.decoration.shadow_offset_y = shadow_offset_y;
+        if (has_shadow_spread) s.decoration.shadow_spread = shadow_spread;
+        if (has_shadow_radius) s.decoration.shadow_radius = shadow_radius;
+        if (has_inner_stroke_enabled) s.decoration.inner_stroke_enabled = inner_stroke_enabled;
+        if (has_inner_stroke_color) s.decoration.inner_stroke_color = inner_stroke_color;
+        if (has_inner_stroke_width) s.decoration.inner_stroke_width = inner_stroke_width;
+        if (has_outline_enabled) s.decoration.outline_enabled = outline_enabled;
+        if (has_outline_color) s.decoration.outline_color = outline_color;
+        if (has_outline_width) s.decoration.outline_width = outline_width;
     }
 };
 

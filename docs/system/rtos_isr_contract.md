@@ -1,8 +1,6 @@
 # RTOS ISR 语义清单（草案）
 
-本清单定义 RTOS API 在 ISR 与任务上下文中的可用性。
-默认规则：ISR 只允许“标记/入队”，唤醒必须在任务上下文完成。
-任务上下文 API 在 ISR 中必须拒绝（Debug 断言 + 统计/trace）。
+本清单定义 RTOS API 在 ISR 与任务上下文中的可用性。默认规则：ISR 只允许“标记/入队”，唤醒必须在任务上下文完成。违反规则时：Debug 断言 + 记录 trace；Release 不中断但统计递增。
 
 ## 1) 仅任务上下文可用
 
@@ -15,9 +13,13 @@
 - `Scheduler::sleep_ms`
 - `Scheduler::block_current`
 - `Scheduler::cleanup_all`
+- `Scheduler::start`
+- `Scheduler::setup_tick_rate`
 - `Scheduler::schedule_at`（软定时器）
 - `Scheduler::schedule_after`（软定时器）
 - `Scheduler::cancel_timer`
+- `Scheduler::lock`
+- `Scheduler::unlock`
 - `EventFlags::set`
 - `EventFlags::wait_any`
 - `EventFlags::wait_all`
@@ -47,19 +49,14 @@
 - `Scheduler::schedule_at`（`TimerSlot::Kind::hard`）
 - `Scheduler::schedule_after`（`TimerSlot::Kind::hard`）
 
-## 3) ISR/任务上下文均可用
+## 3) ISR / 任务上下文均可用
 
-- `Scheduler::tick`（不允许阻塞）
+- `Scheduler::tick`（不可阻塞）
 - `EventFlags::get`
 - `EventFlags::clear`
 - `MessageQueue::empty`
 - `MessageQueue::full`
 
-## 4) 违规行为
-
-Debug：触发断言，并记录 trace/计数。  
-Release：不中断执行，但统计计数增加。
-
-## 5) 统一唤醒路径
+## 4) 统一唤醒路径
 
 ISR 触发的唤醒必须通过调度器的统一轮询入口完成（`isr_polls`）。

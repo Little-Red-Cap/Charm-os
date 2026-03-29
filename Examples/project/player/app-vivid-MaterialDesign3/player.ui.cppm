@@ -46,8 +46,8 @@ import charm.widgets.slider;
 import charm.widgets.dropdown;
 
 export namespace player::ui {
-    inline constexpr int kUiPadding = 20;
-    inline constexpr int kCoverSize = 280;
+    inline constexpr int kUiPadding = 18;
+    inline constexpr int kCoverSize = 300;
     inline constexpr int kDemoGap = 16;
     inline constexpr int kHeaderTitleOffset = 18;
     inline constexpr int kHeaderSubtitleOffset = 44;
@@ -90,7 +90,7 @@ export namespace player::ui {
     inline constexpr rgba kUiCover = {40, 42, 56, 255};
     inline constexpr rgba kUiTitle = {240, 242, 250, 255};
     inline constexpr rgba kUiSubtitle = {170, 176, 200, 255};
-    inline constexpr rgba kUiTime = {150, 156, 180, 255};
+    inline constexpr rgba kUiTime = {140, 150, 175, 255};
     inline constexpr rgba kUiStatus = {160, 166, 190, 255};
     inline constexpr rgba kUiListTitle = {210, 214, 230, 255};
     inline constexpr rgba kUiHint = {130, 138, 160, 255};
@@ -101,20 +101,22 @@ export namespace player::ui {
     inline constexpr rgba kUiSwitchOn = {140, 176, 255, 255};
     inline constexpr rgba kUiEqTitle = {210, 216, 235, 255};
 
-    inline constexpr rgba kUiButtonBg = {32, 36, 52, 255};
-    inline constexpr rgba kUiButtonBorder = {58, 66, 92, 255};
-    inline constexpr rgba kUiButtonHover = {44, 50, 72, 255};
-    inline constexpr rgba kUiListBg = {28, 32, 46, 255};
-    inline constexpr rgba kUiListBorder = {50, 58, 86, 255};
+    inline constexpr rgba kUiButtonBg = {36, 40, 58, 255};
+    inline constexpr rgba kUiButtonBorder = {64, 74, 102, 255};
+    inline constexpr rgba kUiButtonHover = {48, 56, 82, 255};
+    inline constexpr rgba kUiTabBg = {32, 36, 52, 255};
+    inline constexpr rgba kUiTabActive = {72, 92, 132, 255};
+    inline constexpr rgba kUiListBg = {34, 38, 56, 255};
+    inline constexpr rgba kUiListBorder = {62, 72, 104, 255};
     inline constexpr rgba kUiListFont = {220, 228, 246, 255};
-    inline constexpr rgba kUiProgressBg = {30, 34, 50, 255};
-    inline constexpr rgba kUiProgressBorder = {100, 110, 150, 255};
+    inline constexpr rgba kUiProgressBg = {28, 32, 46, 255};
+    inline constexpr rgba kUiProgressBorder = {82, 92, 124, 255};
     inline constexpr rgba kUiScrollBg = {36, 40, 58, 255};
     inline constexpr rgba kUiScrollBorder = {72, 82, 110, 255};
     inline constexpr rgba kUiPerfBg = {26, 28, 40, 220};
     inline constexpr rgba kUiPerfBorder = {70, 80, 110, 255};
     inline constexpr rgba kUiPerfFont = {230, 236, 248, 255};
-    inline constexpr rgba kUiPlayBg = {24, 28, 42, 255};
+    inline constexpr rgba kUiPlayBg = {18, 22, 36, 255};
     inline constexpr rgba kUiPlayShadow = {0, 0, 0, 120};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
 

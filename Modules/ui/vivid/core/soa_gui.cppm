@@ -40,6 +40,7 @@ namespace {
 
     void apply_style_patch(ResolvedColors& colors,
                            ResolvedMetrics& metrics,
+                           ResolvedDecoration& decoration,
                            const StyleState& state,
                            const StylePatch& patch) noexcept {
         if (patch.has_border_width) metrics.border_width = static_cast<std::int16_t>(patch.border_width);
@@ -58,6 +59,19 @@ namespace {
         if (patch.has_accent_color) colors.accent = patch.accent_color;
         if (patch.has_on_accent) colors.on_accent = patch.on_accent;
         if (patch.has_border_focus) colors.border_focus = patch.border_focus;
+        if (patch.has_shadow_enabled) decoration.shadow_enabled = patch.shadow_enabled ? 1 : 0;
+        if (patch.has_shadow_color) decoration.shadow_color = patch.shadow_color;
+        if (patch.has_shadow_offset_x) decoration.shadow_offset_x = static_cast<std::int16_t>(patch.shadow_offset_x);
+        if (patch.has_shadow_offset_y) decoration.shadow_offset_y = static_cast<std::int16_t>(patch.shadow_offset_y);
+        if (patch.has_shadow_spread) decoration.shadow_spread = static_cast<std::int16_t>(patch.shadow_spread);
+        if (patch.has_shadow_radius) decoration.shadow_radius = static_cast<std::int16_t>(patch.shadow_radius);
+        if (patch.has_inner_stroke_enabled) decoration.inner_stroke_enabled = patch.inner_stroke_enabled ? 1 : 0;
+        if (patch.has_inner_stroke_color) decoration.inner_stroke_color = patch.inner_stroke_color;
+        if (patch.has_inner_stroke_width) decoration.inner_stroke_width =
+            static_cast<std::int16_t>(patch.inner_stroke_width);
+        if (patch.has_outline_enabled) decoration.outline_enabled = patch.outline_enabled ? 1 : 0;
+        if (patch.has_outline_color) decoration.outline_color = patch.outline_color;
+        if (patch.has_outline_width) decoration.outline_width = static_cast<std::int16_t>(patch.outline_width);
 
         if (!state.enabled) {
             if (patch.has_bg_disabled) colors.bg = patch.bg_disabled;
@@ -79,6 +93,70 @@ namespace {
             if (patch.has_border_hover) colors.border = patch.border_hover;
             if (patch.has_accent_hover) colors.accent = patch.accent_hover;
         }
+    }
+
+    void draw_decoration_shadow(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                                const Rect& r,
+                                int radius,
+                                const ResolvedDecoration& deco) {
+        if (deco.shadow_enabled == 0 || deco.shadow_color.a == 0) return;
+        const int spread = deco.shadow_spread;
+        Rect sr{
+            r.x + deco.shadow_offset_x - spread,
+            r.y + deco.shadow_offset_y - spread,
+            r.w + spread * 2,
+            r.h + spread * 2
+        };
+        if (sr.w <= 0 || sr.h <= 0) return;
+        int rad = (deco.shadow_radius > 0) ? deco.shadow_radius : (radius + spread);
+        if (rad < 0) rad = 0;
+        out.fill_round_rect(sr, rad, deco.shadow_color);
+    }
+
+    void draw_decoration_inner(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                               const Rect& r,
+                               int radius,
+                               const ResolvedDecoration& deco) {
+        if (deco.inner_stroke_enabled == 0 || deco.inner_stroke_width <= 0) return;
+        const int width = deco.inner_stroke_width;
+        for (int i = 0; i < width; ++i) {
+            Rect in{r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i};
+            if (in.w <= 0 || in.h <= 0) break;
+            const int rad = std::max(0, radius - i);
+            out.stroke_round_rect(in, rad, deco.inner_stroke_color);
+        }
+    }
+
+    void draw_decoration_outline(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                                 const Rect& r,
+                                 int radius,
+                                 const ResolvedDecoration& deco) {
+        if (deco.outline_enabled == 0 || deco.outline_width <= 0) return;
+        const int width = deco.outline_width;
+        for (int i = 0; i < width; ++i) {
+            Rect out_r{r.x - i, r.y - i, r.w + 2 * i, r.h + 2 * i};
+            const int rad = radius + i;
+            out.stroke_round_rect(out_r, rad, deco.outline_color);
+        }
+    }
+
+    void record_decorated_box(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                              const Rect& r,
+                              const ResolvedColors& colors,
+                              const ResolvedMetrics& metrics,
+                              const ResolvedDecoration& deco,
+                              bool draw_fill,
+                              bool draw_border) {
+        const int rad = metrics.corner_radius;
+        draw_decoration_shadow(out, r, rad, deco);
+        if (draw_fill) {
+            out.fill_round_rect(r, rad, colors.bg);
+        }
+        if (draw_border) {
+            out.stroke_round_rect(r, rad, colors.border);
+        }
+        draw_decoration_inner(out, r, rad, deco);
+        draw_decoration_outline(out, r, rad, deco);
     }
 
     constexpr std::size_t kMaxSegments = 8;
@@ -221,7 +299,8 @@ private:
     static void record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                              const ResolvedMetrics& metrics, const StyleState& state, const char* text);
     static void record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                              const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                              const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
+                              const StyleState& state, const char* text,
                               ui::draw_cmd::ImageId icon, std::uint8_t icon_size);
     static void record_image(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                              ui::draw_cmd::ImageId image, int corner_radius);
@@ -259,7 +338,8 @@ private:
                                  const ResolvedColors& colors, const ResolvedMetrics& metrics,
                                  const StyleState& state, const SoaKernel& kernel, WidgetHandle h);
     static void record_list(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                            const ResolvedMetrics& metrics, const StyleState& state,
+                            const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
+                            const StyleState& state,
                             int scroll_y, int max_scroll);
     static void record_list_item(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                                  const ResolvedMetrics& metrics, const StyleState& state,
@@ -501,20 +581,32 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     const ResolvedStyleView style = resolve_style(kind, state);
     const ResolvedColors* colors = style.colors;
     const ResolvedMetrics* metrics = style.metrics;
+    const ResolvedDecoration* decoration = style.decoration;
     ResolvedColors patched_colors{};
     ResolvedMetrics patched_metrics{};
+    ResolvedDecoration patched_decoration{};
     if (const auto* patch = kernel_.style_patch(h)) {
         patched_colors = *colors;
         patched_metrics = *metrics;
-        apply_style_patch(patched_colors, patched_metrics, state, *patch);
+        patched_decoration = *decoration;
+        apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *patch);
         colors = &patched_colors;
         metrics = &patched_metrics;
+        decoration = &patched_decoration;
     }
     switch (kind) {
     case WidgetKind::None:
         unsupported_kind(kind);
         break;
     case WidgetKind::Container:
+        if (const auto* patch = kernel_.style_patch(h)) {
+            const bool wants_surface = patch->has_bg_color || patch->has_border_color ||
+                patch->has_border_width || patch->has_corner_radius ||
+                patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled;
+            if (wants_surface) {
+                record_decorated_box(out, world_rect, *colors, *metrics, *decoration, true, true);
+            }
+        }
         break;
     case WidgetKind::ScrollContainer:
         record_scroll_container(out, world_rect, *colors, *metrics, state,
@@ -534,7 +626,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         break;
         case WidgetKind::Button:
         case WidgetKind::IconButton:
-            record_button(out, world_rect, *colors, *metrics, state, kernel_.text(h),
+            record_button(out, world_rect, *colors, *metrics, *decoration, state, kernel_.text(h),
                           kernel_.button_icon(h), kernel_.button_icon_size(h));
             break;
     case WidgetKind::Checkbox:
@@ -555,7 +647,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                         kernel_.value(h), kernel_.min_value(h), kernel_.max_value(h));
         break;
     case WidgetKind::List:
-        record_list(out, world_rect, *colors, *metrics, state,
+        record_list(out, world_rect, *colors, *metrics, *decoration, state,
                     kernel_.scroll_y(h), kernel_.max_scroll(h));
         break;
     case WidgetKind::ListItem:
@@ -693,7 +785,7 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Menu:
-        record_list(out, world_rect, *colors, *metrics, state, 0, 0);
+        record_list(out, world_rect, *colors, *metrics, *decoration, state, 0, 0);
         if (state.focused) {
             out.focus_ring(world_rect, colors->border_focus, metrics->corner_radius, 0, -1);
         }
@@ -810,11 +902,10 @@ void SoaGui::record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r
 }
 
 void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                           const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                           const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
+                           const StyleState& state, const char* text,
                            ui::draw_cmd::ImageId icon, std::uint8_t icon_size) {
-    const int rad = metrics.corner_radius;
-    out.fill_round_rect(r, rad, colors.bg);
-    out.stroke_round_rect(r, rad, colors.border);
+    record_decorated_box(out, r, colors, metrics, decoration, true, true);
     Rect text_rect = r;
     TextAlignH align = TextAlignH::Center;
     if (ui::draw_cmd::image_id_valid(icon)) {
@@ -835,6 +926,7 @@ void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& 
     out.draw_text_box(text_rect, text ? text : "", colors.font, font_from_metrics(metrics),
                       align, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
     if (state.focused) {
+        const int rad = metrics.corner_radius;
         out.focus_ring(r, colors.border_focus, metrics.corner_radius, 0, rad);
     }
 }
@@ -935,11 +1027,11 @@ void SoaGui::record_radio(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r
 }
 
 void SoaGui::record_list(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                         const ResolvedMetrics& metrics, const StyleState& state,
+                         const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
+                         const StyleState& state,
                          int scroll_y, int max_scroll) {
     (void)state;
-    out.fill_rect(r, colors.bg);
-    out.stroke_rect(r, colors.border);
+    record_decorated_box(out, r, colors, metrics, decoration, true, true);
     record_scrollbar(out, r, colors, metrics, ScrollBarOrientation::Vertical, scroll_y, max_scroll, r.h);
 }
 

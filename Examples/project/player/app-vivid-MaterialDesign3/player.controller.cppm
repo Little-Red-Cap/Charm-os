@@ -924,6 +924,18 @@ export namespace player {
             if (idx < 0 || idx >= static_cast<int>(storage.track_titles->size())) return;
             title_text.assign((*storage.track_titles)[idx].view());
             subtitle_text.assign((*storage.track_subtitles)[idx].view());
+            const std::string_view raw = title_text.view();
+            const auto sep = raw.find(" - ");
+            if (sep != std::string_view::npos) {
+                const std::string_view left = raw.substr(0, sep);
+                const std::string_view right = raw.substr(sep + 3);
+                if (!right.empty()) {
+                    title_text.assign(right);
+                    if (!left.empty()) {
+                        subtitle_text.assign(left);
+                    }
+                }
+            }
             set_label_slot(handles.title, text_slots.title, title_text.c_str());
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
             set_label_slot(handles.bottom_title, text_slots.bottom_title, title_text.c_str());

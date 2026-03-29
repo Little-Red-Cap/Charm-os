@@ -65,29 +65,26 @@ export namespace player {
         const int nav_y = screen_height - kUiPadding - nav_h;
         const int bottom_bar_y = nav_y - bottom_bar_gap - bottom_bar_h;
 
-        const int cover_top = top_bar_y + top_bar_h + 18;
+        const int cover_top = top_bar_y + top_bar_h + 12;
         const int cover_x = (screen_width - kCoverSize) / 2;
         const int cover_y = cover_top;
         const int header_top = cover_top + kCoverSize;
-        const int title_y = header_top + 18;
-        const int subtitle_y = title_y + 30;
-        const int progress_y = subtitle_y + 30;
-        const int time_y = progress_y + 30;
-
-        const int controls_y = time_y + 40;
-        const int controls_w = 56 * 2 + 96 + 16 * 2;
+        const int text_col_y = header_top + 12;
+        const int text_col_h = 118;
+        const int controls_y = text_col_y + text_col_h + 30;
+        const int controls_w = 56 * 2 + 104 + 22 * 2;
         const int controls_x = (screen_width - controls_w) / 2;
 
-        const int tabs_y = top_bar_y + top_bar_h + 6;
-        const int tabs_h = 32;
-        const int tabs_gap = 8;
+        const int tabs_y = top_bar_y + top_bar_h + 10;
+        const int tabs_h = 34;
+        const int tabs_gap = 10;
         const int tabs_w = screen_width - kUiPadding * 2;
         const int tab_w = (tabs_w - tabs_gap * 2) / 3;
 
-        const int shuffle_y = tabs_y + tabs_h + 6;
-        const int shuffle_h = 32;
-        const int list_card_y = shuffle_y + shuffle_h + 6;
-        const int list_card_h = std::max(220, bottom_bar_y - list_card_y - 20);
+        const int shuffle_y = tabs_y + tabs_h + 10;
+        const int shuffle_h = 34;
+        const int list_card_y = shuffle_y + shuffle_h + 10;
+        const int list_card_h = std::max(240, bottom_bar_y - list_card_y - 18);
 
         const UiLayout layout{
             .top_bar_x = top_bar_x,
@@ -101,10 +98,10 @@ export namespace player {
             .bottom_bar_h = bottom_bar_h,
             .cover_x = cover_x,
             .cover_y = cover_y,
-            .title_y = title_y,
-            .subtitle_y = subtitle_y,
-            .progress_y = progress_y,
-            .time_y = time_y,
+            .title_y = text_col_y,
+            .subtitle_y = text_col_y,
+            .progress_y = text_col_y,
+            .time_y = text_col_y,
             .controls_x = controls_x,
             .controls_y = controls_y,
             .controls_w = controls_w,
@@ -121,36 +118,114 @@ export namespace player {
         auto build_now_playing = [&] {
             h.cover = builder.create_image();
             anchor_rect(h.cover, {layout.cover_x, layout.cover_y, kCoverSize, kCoverSize});
+            {
+                StylePatch patch{};
+                patch.has_corner_radius = true;
+                patch.corner_radius = 20;
+                builder.set_style_patch(h.cover, patch);
+            }
 
-            const int collage_small = 88;
-            const int collage_tiny = 68;
+            const int collage_small = 64;
+            const int collage_tiny = 52;
             h.cover_left = builder.create_image();
-            anchor_rect(h.cover_left, {layout.cover_x - 12,
-                                       layout.cover_y + kCoverSize - collage_small - 10,
+            anchor_rect(h.cover_left, {layout.cover_x - 18,
+                                       layout.cover_y + kCoverSize - collage_small - 8,
                                        collage_small, collage_small});
+            {
+                StylePatch patch{};
+                patch.has_corner_radius = true;
+                patch.corner_radius = 12;
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = {0, 0, 0, 80};
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 2;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 2;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = 10;
+                builder.set_style_patch(h.cover_left, patch);
+            }
             h.cover_right = builder.create_image();
-            anchor_rect(h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 8,
-                                        layout.cover_y + kCoverSize / 2 + 12,
+            anchor_rect(h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 18,
+                                        layout.cover_y + kCoverSize / 2 + 28,
                                         collage_tiny, collage_tiny});
+            {
+                StylePatch patch{};
+                patch.has_corner_radius = true;
+                patch.corner_radius = 12;
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = {0, 0, 0, 80};
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 2;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 2;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = 10;
+                builder.set_style_patch(h.cover_right, patch);
+            }
 
-            h.title = builder.create_label_static("");
-            anchor_rect(h.title, {kUiPadding, layout.title_y,
-                                  screen_width - kUiPadding * 2, 32});
+            h.title = builder.create_button_static("");
+            {
+                StylePatch patch{};
+                patch.has_font_color = true;
+                patch.font_color = kUiTitle;
+                patch.has_font = true;
+                patch.font = &get_font(FontId::Large);
+                patch.has_bg_color = true;
+                patch.bg_color = {0, 0, 0, 0};
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_padding = true;
+                patch.padding = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 0;
+                builder.set_style_patch(h.title, patch);
+            }
+            builder.set_hit_testable(h.title, false);
 
-            h.subtitle = builder.create_label_static("");
-            anchor_rect(h.subtitle, {kUiPadding, layout.subtitle_y,
-                                     screen_width - kUiPadding * 2, 22});
+            h.subtitle = builder.create_button_static("");
+            {
+                StylePatch patch{};
+                patch.has_font_color = true;
+                patch.font_color = kUiSubtitle;
+                patch.has_font = true;
+                patch.font = &get_font(FontId::Small);
+                patch.has_bg_color = true;
+                patch.bg_color = {0, 0, 0, 0};
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_padding = true;
+                patch.padding = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 0;
+                builder.set_style_patch(h.subtitle, patch);
+            }
+            builder.set_hit_testable(h.subtitle, false);
 
             h.progress = builder.create_progress();
-            anchor_rect(h.progress, {kUiPadding, layout.progress_y,
-                                     screen_width - kUiPadding * 2, 20});
             builder.set_range(h.progress, 0, 100);
             builder.set_value(h.progress, 0);
             builder.set_hit_testable(h.progress, true);
 
             h.time = builder.create_label_static("");
-            anchor_rect(h.time, {kUiPadding, layout.time_y,
-                                 screen_width - kUiPadding * 2, 18});
+            {
+                StylePatch patch{};
+                patch.has_font_color = true;
+                patch.font_color = kUiTime;
+                builder.set_style_patch(h.time, patch);
+            }
 
             h.status = builder.create_label_static("");
             anchor_rect(h.status, {0, 0, 0, 0});
@@ -226,19 +301,19 @@ export namespace player {
             anchor_rect(h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, 72});
 
             const int small_btn = 56;
-            const int play_btn = 96;
-            const int btn_gap = 16;
-            const int prev_x = 0;
-            const int play_x = prev_x + small_btn + btn_gap;
-            const int next_x = play_x + play_btn + btn_gap;
+            const int play_btn = 112;
+            const int btn_gap = 22;
+            const Rect controls_rect{0, 0, layout.controls_w, 72};
+            auto controls_row = ::ui::scene::make_row(builder, controls_rect, btn_gap, 0,
+                                                      ::ui::scene::LayoutAlign::Center);
 
             h.btn_prev = builder.create_button_static("");
-            anchor_rect(h.btn_prev, {prev_x, 8, small_btn, small_btn});
+            controls_row.place(h.btn_prev, small_btn, small_btn);
             builder.set_button_icon(h.btn_prev, icons.prev);
             builder.set_button_icon_size(h.btn_prev, 18);
 
             h.btn_pause = builder.create_button_static("");
-            anchor_rect(h.btn_pause, {play_x, -4, play_btn, play_btn});
+            controls_row.place(h.btn_pause, play_btn, play_btn);
             builder.set_button_icon(h.btn_pause, icons.play);
             builder.set_button_icon_size(h.btn_pause, 22);
             {
@@ -248,17 +323,52 @@ export namespace player {
                 patch.has_border_color = true;
                 patch.border_color = kUiButtonBorder;
                 patch.has_corner_radius = true;
-                patch.corner_radius = 22;
+                patch.corner_radius = play_btn / 2;
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = kUiPlayShadow;
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 6;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 6;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = play_btn / 2 + 6;
+                patch.has_inner_stroke_enabled = true;
+                patch.inner_stroke_enabled = true;
+                patch.has_inner_stroke_color = true;
+                patch.inner_stroke_color = {0, 0, 0, 120};
+                patch.has_inner_stroke_width = true;
+                patch.inner_stroke_width = 3;
+                patch.has_outline_enabled = true;
+                patch.outline_enabled = true;
+                patch.has_outline_color = true;
+                patch.outline_color = {80, 92, 130, 120};
+                patch.has_outline_width = true;
+                patch.outline_width = 3;
                 builder.set_style_patch(h.btn_pause, patch);
             }
 
             h.btn_next = builder.create_button_static("");
-            anchor_rect(h.btn_next, {next_x, 8, small_btn, small_btn});
+            controls_row.place(h.btn_next, small_btn, small_btn);
             builder.set_button_icon(h.btn_next, icons.next);
             builder.set_button_icon_size(h.btn_next, 18);
 
             h.btn_mode = builder.create_button_static("");
             anchor_rect(h.btn_mode, {0, 0, 0, 0});
+
+            {
+                const Rect text_rect{kUiPadding, text_col_y,
+                                     screen_width - kUiPadding * 2, text_col_h};
+                auto text_col = ::ui::scene::make_column(builder, text_rect, 10, 0,
+                                                         ::ui::scene::LayoutAlign::Start);
+                text_col.place(h.title, text_rect.w, 36);
+                text_col.place(h.subtitle, text_rect.w, 18);
+                text_col.place(h.progress, text_rect.w, 10);
+                text_col.place(h.time, text_rect.w, 16);
+            }
 
             const WidgetHandle now_playing = builder.create_container();
             anchor_rect(now_playing, {0, 0, screen_width, screen_height});
@@ -323,8 +433,8 @@ export namespace player {
 
             h.list = builder.create_list_view();
             anchor_rect(h.list, {0, 0, 0, 0});
-            builder.set_list_row_height(h.list, 34);
-            builder.set_scroll_step(h.list, 34);
+            builder.set_list_row_height(h.list, 40);
+            builder.set_scroll_step(h.list, 40);
             {
                 StylePatch patch{};
                 patch.has_bg_color = true;
@@ -332,7 +442,19 @@ export namespace player {
                 patch.has_border_color = true;
                 patch.border_color = kUiListBorder;
                 patch.has_corner_radius = true;
-                patch.corner_radius = 14;
+                patch.corner_radius = 16;
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = kUiCardShadow;
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 6;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 8;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = 20;
                 builder.set_style_patch(h.list, patch);
             }
 
@@ -391,14 +513,56 @@ export namespace player {
             {
                 StylePatch patch{};
                 patch.has_bg_color = true;
-                patch.bg_color = kUiButtonBg;
+                patch.bg_color = kUiTabBg;
                 patch.has_border_color = true;
                 patch.border_color = kUiButtonBorder;
                 patch.has_corner_radius = true;
-                patch.corner_radius = 12;
+                patch.corner_radius = layout.tabs_h / 2;
                 builder.set_style_patch(tab_songs, patch);
                 builder.set_style_patch(tab_albums, patch);
                 builder.set_style_patch(tab_artist, patch);
+                builder.set_style_patch(shuffle_btn, patch);
+            }
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiTabActive;
+                patch.has_border_color = true;
+                patch.border_color = kUiTabActive;
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = kUiCardShadow;
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 4;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 4;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = 18;
+                patch.has_inner_stroke_enabled = true;
+                patch.inner_stroke_enabled = true;
+                patch.has_inner_stroke_color = true;
+                patch.inner_stroke_color = kUiButtonHover;
+                patch.has_inner_stroke_width = true;
+                patch.inner_stroke_width = 1;
+                builder.set_style_patch(tab_songs, patch);
+            }
+            {
+                StylePatch patch{};
+                patch.has_shadow_enabled = true;
+                patch.shadow_enabled = true;
+                patch.has_shadow_color = true;
+                patch.shadow_color = kUiCardShadow;
+                patch.has_shadow_offset_x = true;
+                patch.shadow_offset_x = 0;
+                patch.has_shadow_offset_y = true;
+                patch.shadow_offset_y = 3;
+                patch.has_shadow_spread = true;
+                patch.shadow_spread = 3;
+                patch.has_shadow_radius = true;
+                patch.shadow_radius = 16;
                 builder.set_style_patch(shuffle_btn, patch);
             }
 

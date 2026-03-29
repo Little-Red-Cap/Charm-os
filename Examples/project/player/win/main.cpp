@@ -85,19 +85,7 @@ namespace {
         if (!ctx.handles.page_library || scene.world_rect(ctx.handles.page_library).w <= 0) {
             return;
         }
-        const Rect list_rect = scene.world_rect(ctx.handles.list);
-        if (list_rect.w <= 0 || list_rect.h <= 0) {
-            return;
-        }
-        const Rect card_rect{list_rect.x - 8,
-                             list_rect.y - 30,
-                             list_rect.w + 16,
-                             list_rect.h + 42};
-        const Rect shadow{card_rect.x - 4,
-                          card_rect.y - 2,
-                          card_rect.w + 8,
-                          card_rect.h + 10};
-        out.fill_round_rect(shadow, 18, kUiCardShadow);
+        (void)scene;
     }
 
     void draw_now_playing_fx(::ui::scene::SceneOverlay& out,
@@ -111,7 +99,7 @@ namespace {
             return;
         }
         const Rect cover = scene.world_rect(ctx.handles.cover);
-        const int cover_radius = 18;
+        const int cover_radius = 20;
         const auto cover_image = ctx.cover_image.image_id;
         if (!ui::gfx::image_id_valid(cover_image)) {
             out.fill_round_rect(cover, cover_radius, kUiCover);
@@ -134,15 +122,7 @@ namespace {
             out.stroke_round_rect(cover_right, small_radius, kUiListBorder);
         }
 
-        const Rect play_btn = scene.world_rect(ctx.handles.btn_pause);
-        if (play_btn.w > 0 && play_btn.h > 0) {
-            const int radius = std::max(12, play_btn.w / 2 - 2);
-            const Rect shadow{play_btn.x - 6, play_btn.y - 4,
-                              play_btn.w + 12, play_btn.h + 12};
-            out.fill_round_rect(shadow, radius + 6, kUiPlayShadow);
-            out.fill_round_rect(play_btn, radius, kUiPlayBg);
-            out.stroke_round_rect(play_btn, radius, kUiButtonBorder);
-        }
+        (void)scene;
 
         const Rect spec = scene.world_rect(ctx.handles.spectrum);
         if (spec.w > 0 && spec.h > 0) {
@@ -159,6 +139,22 @@ namespace {
                 const Rect bar{ x, y, bar_w, h };
                 out.fill_round_rect(bar, 3, kUiSwitchOn);
                 x += bar_w + gap;
+            }
+        }
+
+        const Rect progress = scene.world_rect(ctx.handles.progress);
+        if (progress.w > 0 && progress.h > 0) {
+            const int wave_y = progress.y + progress.h / 2;
+            const int dot_r = 2;
+            const int dot_gap = 6;
+            const int dot_count = std::max(8, progress.w / (dot_r * 2 + dot_gap));
+            const int phase = static_cast<int>(t_sec * 8.0f) % (dot_r * 2 + dot_gap);
+            int x = progress.x + 8 + phase;
+            for (int i = 0; i < dot_count; ++i) {
+                const int y = wave_y + ((i % 4 == 0) ? -1 : 0);
+                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTime);
+                x += dot_r * 2 + dot_gap;
+                if (x > progress.x + progress.w - 6) break;
             }
         }
     }

@@ -57,6 +57,12 @@ export namespace posix {
     };
 
     template <util::usize MaxFds>
+    struct FdTableSnapshot {
+        std::array<FdEntry, MaxFds> slots{};
+        std::array<bool, MaxFds> used{};
+    };
+
+    template <util::usize MaxFds>
     class FdTable {
     public:
         void init() noexcept { clear(); }
@@ -149,6 +155,11 @@ export namespace posix {
                 slots_[i] = {};
                 used_[i] = false;
             }
+        }
+
+        void snapshot(FdTableSnapshot<MaxFds>& out) const noexcept {
+            out.slots = slots_;
+            out.used = used_;
         }
 
     private:

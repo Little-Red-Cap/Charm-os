@@ -8,6 +8,9 @@ module;
 export module posix.proc;
 
 import init.node;
+import posix.env;
+import posix.fd_table;
+import posix.file;
 import util.core;
 import util.error;
 
@@ -85,7 +88,7 @@ export namespace posix {
         MainEntry entry{nullptr};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
     class ProcService {
     public:
         void init() noexcept {
@@ -93,6 +96,14 @@ export namespace posix {
             for (auto& used : used_) used = false;
             exec_count_ = 0;
             next_pid_ = 1;
+        }
+
+        void bind_fd_table(FdTable<MaxFds>& table) noexcept {
+            fd_table_ = &table;
+        }
+
+        void bind_file_service(FileService<MaxFiles>& file_service) noexcept {
+            file_service_ = &file_service;
         }
 
         util::Result<void> register_executable(std::string_view name, MainEntry entry) noexcept {
@@ -118,11 +129,16 @@ export namespace posix {
             if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
                 return util::unexpected(util::Errc::not_supported);
             }
-            if (cfg.file_actions && cfg.file_actions->count > 0) {
+            const bool has_actions = cfg.file_actions && cfg.file_actions->count > 0;
+            const bool has_stdio = cfg.stdio_in >= 0 || cfg.stdio_out >= 0 || cfg.stdio_err >= 0;
+            if ((has_actions || has_stdio) && fd_table_ == nullptr) {
                 return util::unexpected(util::Errc::not_supported);
             }
-            if (cfg.stdio_in >= 0 || cfg.stdio_out >= 0 || cfg.stdio_err >= 0) {
-                return util::unexpected(util::Errc::not_supported);
+            if (has_actions || has_stdio) {
+                auto r = apply_fd_overrides(cfg);
+                if (!r) {
+                    return util::unexpected(r.error());
+                }
             }
 
             std::string_view name = resolve_name(cfg);
@@ -174,6 +190,145 @@ export namespace posix {
             int exit_code{0};
         };
 
+        static util::Result<void> snapshot_open(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
+            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const util::usize idx = static_cast<util::usize>(fd);
+            snapshot.used[idx] = true;
+            snapshot.slots[idx].id = fd;
+            return {};
+        }
+
+        static util::Result<void> snapshot_close(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
+            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const util::usize idx = static_cast<util::usize>(fd);
+            if (!snapshot.used[idx]) {
+                return util::unexpected(util::Errc::noent);
+            }
+            snapshot.slots[idx] = {};
+            snapshot.used[idx] = false;
+            return {};
+        }
+
+        static util::Result<void> snapshot_dup2(FdTableSnapshot<MaxFds>& snapshot, int from, int to) noexcept {
+            if (from < 0 || to < 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (static_cast<util::usize>(from) >= MaxFds || static_cast<util::usize>(to) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (from == to) return {};
+            const util::usize from_idx = static_cast<util::usize>(from);
+            if (!snapshot.used[from_idx]) {
+                return util::unexpected(util::Errc::noent);
+            }
+            const util::usize to_idx = static_cast<util::usize>(to);
+            snapshot.slots[to_idx] = snapshot.slots[from_idx];
+            snapshot.slots[to_idx].id = to;
+            snapshot.used[to_idx] = true;
+            return {};
+        }
+
+        util::Result<void> apply_fd_overrides(const SpawnConfig& cfg) noexcept {
+            if (!fd_table_) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            FdTableSnapshot<MaxFds> snapshot{};
+            fd_table_->snapshot(snapshot);
+
+            if (cfg.stdio_in >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_in, 0);
+                if (!r) return r;
+            }
+            if (cfg.stdio_out >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_out, 1);
+                if (!r) return r;
+            }
+            if (cfg.stdio_err >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_err, 2);
+                if (!r) return r;
+            }
+
+            if (cfg.file_actions && cfg.file_actions->count > 0) {
+                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
+                    const auto& act = cfg.file_actions->actions[i];
+                    switch (act.kind) {
+                        case FileAction::Kind::open:
+                            if (!act.path || act.fd < 0) {
+                                return util::unexpected(util::Errc::invalid_arg);
+                            }
+                            if (file_service_ == nullptr) {
+                                return util::unexpected(util::Errc::not_supported);
+                            }
+                            if (auto r = snapshot_open(snapshot, act.fd); !r) return r;
+                            break;
+                        case FileAction::Kind::close: {
+                            auto r = snapshot_close(snapshot, act.fd);
+                            if (!r) return r;
+                            break;
+                        }
+                        case FileAction::Kind::dup2: {
+                            auto r = snapshot_dup2(snapshot, act.fd, act.newfd);
+                            if (!r) return r;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (cfg.stdio_in >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_in, 0);
+                if (!r) return r;
+            }
+            if (cfg.stdio_out >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_out, 1);
+                if (!r) return r;
+            }
+            if (cfg.stdio_err >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_err, 2);
+                if (!r) return r;
+            }
+
+            if (cfg.file_actions && cfg.file_actions->count > 0) {
+                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
+                    const auto& act = cfg.file_actions->actions[i];
+                    switch (act.kind) {
+                        case FileAction::Kind::open: {
+                            if (!file_service_) {
+                                return util::unexpected(util::Errc::not_supported);
+                            }
+                            auto entry = file_service_->open(std::string_view{act.path}, act.flags, act.mode);
+                            if (!entry) {
+                                return util::unexpected(entry.error());
+                            }
+                            if (auto existing = fd_table_->get(act.fd)) {
+                                auto r = fd_table_->close(act.fd);
+                                if (!r) return r;
+                            }
+                            auto r = fd_table_->attach(entry.value(), act.fd);
+                            if (!r) return util::unexpected(r.error());
+                            break;
+                        }
+                        case FileAction::Kind::close: {
+                            auto r = fd_table_->close(act.fd);
+                            if (!r) return r;
+                            break;
+                        }
+                        case FileAction::Kind::dup2: {
+                            auto r = fd_table_->dup2(act.fd, act.newfd);
+                            if (!r) return r;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return {};
+        }
+
         ExecEntry* find_entry(std::string_view name) noexcept {
             for (util::usize i = 0; i < exec_count_; ++i) {
                 if (execs_[i].name == name) return &execs_[i];
@@ -182,16 +337,45 @@ export namespace posix {
         }
 
         std::string_view resolve_name(const SpawnConfig& cfg) noexcept {
+            const std::string_view path = cfg.path ? std::string_view{cfg.path} : std::string_view{};
+            const std::string_view argv0 =
+                (!cfg.argv.empty() && cfg.argv[0] != nullptr) ? std::string_view{cfg.argv[0]} : std::string_view{};
+
             if (cfg.path_mode == PathMode::exact) {
-                return cfg.path ? std::string_view{cfg.path} : std::string_view{};
+                return path;
             }
-            if (cfg.path != nullptr && cfg.path[0] != '\0') {
-                return std::string_view{cfg.path};
+
+            const std::string_view target = !path.empty() ? path : argv0;
+            if (target.empty()) return {};
+
+            const auto path_list = envp_path(cfg.envp);
+            if (path_list.empty()) {
+                return target;
             }
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
-                return std::string_view{cfg.argv[0]};
+
+            resolved_path_[0] = '\0';
+            bool found = for_each_path_candidate<MaxPathLen>(path_list, target,
+                [&](std::string_view candidate) noexcept {
+                    if (find_entry(candidate) != nullptr) {
+                        const util::usize n = candidate.size() < (MaxPathLen - 1)
+                            ? candidate.size()
+                            : (MaxPathLen - 1);
+                        for (util::usize i = 0; i < n; ++i) {
+                            resolved_path_[i] = candidate[i];
+                        }
+                        resolved_path_[n] = '\0';
+                        return true;
+                    }
+                    return false;
+                });
+            if (found) {
+                return std::string_view{resolved_path_};
             }
-            return {};
+            return target;
+        }
+
+        static std::string_view envp_path(std::span<const char* const> envp) noexcept {
+            return envp_get(envp, kPathKey);
         }
 
         int alloc_slot() noexcept {
@@ -226,16 +410,19 @@ export namespace posix {
         util::usize exec_count_{0};
         std::array<Process, MaxProcs> procs_{};
         std::array<bool, MaxProcs> used_{};
+        FdTable<MaxFds>* fd_table_{nullptr};
+        FileService<MaxFiles>* file_service_{nullptr};
         int next_pid_{1};
+        std::array<char, MaxPathLen> resolved_path_{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

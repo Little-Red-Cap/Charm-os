@@ -4,6 +4,10 @@ module;
 #include <span>
 #include <string_view>
 
+#ifdef errno
+#undef errno
+#endif
+
 export module posix.api;
 
 import posix.errno;

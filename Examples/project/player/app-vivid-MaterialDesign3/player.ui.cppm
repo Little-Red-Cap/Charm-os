@@ -46,6 +46,17 @@ import charm.widgets.slider;
 import charm.widgets.dropdown;
 
 export namespace player::ui {
+    enum class PlayerStyleClass : StyleClassId {
+        ControlSide = 1,
+        ControlPlay = 2,
+        TopBarButton = 3,
+        TabBase = 4,
+        ShuffleShadow = 5,
+        ListCard = 6,
+        InfoTag = 7,
+        BottomBar = 8,
+    };
+
     inline constexpr int kUiPadding = 18;
     inline constexpr int kCoverSize = 300;
     inline constexpr int kDemoGap = 16;
@@ -90,7 +101,7 @@ export namespace player::ui {
     inline constexpr rgba kUiCover = {40, 42, 56, 255};
     inline constexpr rgba kUiTitle = {240, 242, 250, 255};
     inline constexpr rgba kUiSubtitle = {170, 176, 200, 255};
-    inline constexpr rgba kUiTime = {140, 150, 175, 255};
+    inline constexpr rgba kUiTime = {122, 132, 156, 255};
     inline constexpr rgba kUiStatus = {160, 166, 190, 255};
     inline constexpr rgba kUiListTitle = {210, 214, 230, 255};
     inline constexpr rgba kUiHint = {130, 138, 160, 255};
@@ -107,17 +118,19 @@ export namespace player::ui {
     inline constexpr rgba kUiTabBg = {32, 36, 52, 255};
     inline constexpr rgba kUiTabActive = {72, 92, 132, 255};
     inline constexpr rgba kUiListBg = {34, 38, 56, 255};
+    inline constexpr rgba kUiInfoTagBg = {28, 32, 46, 255};
     inline constexpr rgba kUiListBorder = {62, 72, 104, 255};
     inline constexpr rgba kUiListFont = {220, 228, 246, 255};
-    inline constexpr rgba kUiProgressBg = {28, 32, 46, 255};
-    inline constexpr rgba kUiProgressBorder = {82, 92, 124, 255};
+    inline constexpr rgba kUiProgressBg = {22, 26, 40, 255};
+    inline constexpr rgba kUiProgressBorder = {64, 74, 102, 255};
+    inline constexpr rgba kUiBackdropBase = {18, 20, 30, 255};
     inline constexpr rgba kUiScrollBg = {36, 40, 58, 255};
     inline constexpr rgba kUiScrollBorder = {72, 82, 110, 255};
     inline constexpr rgba kUiPerfBg = {26, 28, 40, 220};
     inline constexpr rgba kUiPerfBorder = {70, 80, 110, 255};
     inline constexpr rgba kUiPerfFont = {230, 236, 248, 255};
-    inline constexpr rgba kUiPlayBg = {18, 22, 36, 255};
-    inline constexpr rgba kUiPlayShadow = {0, 0, 0, 120};
+    inline constexpr rgba kUiPlayBg = {14, 18, 30, 255};
+    inline constexpr rgba kUiPlayShadow = {0, 0, 0, 160};
     inline constexpr rgba kUiCardShadow = {0, 0, 0, 70};
 
     struct PlayerIconIds {
@@ -154,8 +167,8 @@ export namespace player::ui {
             constexpr int top = 3;
             constexpr int bottom = 12;
             constexpr int base_half = (bottom - top) / 2;
-            constexpr int apex_x = 3;
-            constexpr int base_x = 11;
+            constexpr int apex_x = 4;
+            constexpr int base_x = 12;
             for (int y = top; y <= bottom; ++y) {
                 for (int x = apex_x; x <= base_x; ++x) {
                     const int span = (x - apex_x) * base_half / (base_x - apex_x);
@@ -165,8 +178,8 @@ export namespace player::ui {
                 }
             }
             for (int y = top; y <= bottom; ++y) {
-                icon_set_pixel(buf, 1, y, color);
                 icon_set_pixel(buf, 2, y, color);
+                icon_set_pixel(buf, 3, y, color);
             }
         }
 
@@ -176,8 +189,8 @@ export namespace player::ui {
             constexpr int top = 3;
             constexpr int bottom = 12;
             constexpr int base_half = (bottom - top) / 2;
-            constexpr int base_x = 4;
-            constexpr int apex_x = 12;
+            constexpr int base_x = 3;
+            constexpr int apex_x = 11;
             for (int y = top; y <= bottom; ++y) {
                 for (int x = base_x; x <= apex_x; ++x) {
                     const int span = (apex_x - x) * base_half / (apex_x - base_x);
@@ -264,8 +277,8 @@ export namespace player::ui {
                 }
             }
             for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 12, y, color);
                 icon_set_pixel(buf, 13, y, color);
-                icon_set_pixel(buf, 14, y, color);
             }
         }
     }
@@ -413,6 +426,140 @@ export namespace player::ui {
 
         auto& theme = Theme::instance();
         theme.set_default_font(player_default_font());
+
+        {
+            StylePatch side{};
+            side.has_corner_radius = true;
+            side.corner_radius = 24;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlSide), side);
+
+            StylePatch play{};
+            play.has_corner_radius = true;
+            play.corner_radius = 24;
+            play.has_shadow_enabled = true;
+            play.shadow_enabled = true;
+            play.has_shadow_color = true;
+            play.shadow_color = kUiPlayShadow;
+            play.has_shadow_offset_x = true;
+            play.shadow_offset_x = 0;
+            play.has_shadow_offset_y = true;
+            play.shadow_offset_y = 8;
+            play.has_shadow_spread = true;
+            play.shadow_spread = 8;
+            play.has_shadow_radius = true;
+            play.shadow_radius = 56;
+            play.has_inner_stroke_enabled = true;
+            play.inner_stroke_enabled = true;
+            play.has_inner_stroke_color = true;
+            play.inner_stroke_color = {0, 0, 0, 120};
+            play.has_inner_stroke_width = true;
+            play.inner_stroke_width = 3;
+            play.has_outline_enabled = true;
+            play.outline_enabled = true;
+            play.has_outline_color = true;
+            play.outline_color = {80, 92, 130, 140};
+            play.has_outline_width = true;
+            play.outline_width = 2;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlPlay), play);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiButtonBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 12;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TopBarButton), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiTabBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TabBase), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 3;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 3;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 16;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ShuffleShadow), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiListBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 8;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 20;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ListCard), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiInfoTagBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 10;
+            patch.has_font_color = true;
+            patch.font_color = kUiTime;
+            patch.has_font = true;
+            patch.font = &get_font(FontId::Small);
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::InfoTag), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiListBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 18;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 4;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 6;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 18;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomBar), patch);
+        }
         Style baseline = theme.get<Button>();
         baseline.font = &player_default_font();
         baseline.colors.border_color = kUiButtonBorder;

@@ -33,7 +33,12 @@ namespace {
         const int by2 = rb.y + rb.h;
         return !(ax2 < rb.x - 1 || bx2 < ra.x - 1 || ay2 < rb.y - 1 || by2 < ra.y - 1);
     }
+
+    std::uint64_t g_alpha_blend_count = 0;
 }
+
+export inline void reset_alpha_blend_count() noexcept { g_alpha_blend_count = 0; }
+export inline std::uint64_t alpha_blend_count() noexcept { return g_alpha_blend_count; }
 
 export
 class CanvasBase {
@@ -199,6 +204,14 @@ public:
         const int ly = y + origin_y_;
         if (lx < 0 || ly < 0) return;
         if (lx >= static_cast<int>(W) || ly >= static_cast<int>(H)) return;
+        if (c.a == 0) return;
+        if (c.a < 255) {
+            ++g_alpha_blend_count;
+            const rgba bg = fb_.get_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly));
+            const rgba blended = c.blend_over(bg);
+            fb_.set_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly), blended);
+            return;
+        }
         fb_.set_pixel(static_cast<std::size_t>(lx), static_cast<std::size_t>(ly), c);
     }
 
@@ -419,8 +432,16 @@ public:
         const int lx = x + origin_x_;
         const int ly = y + origin_y_;
         if (lx < 0 || ly < 0 || lx >= width_ || ly >= height_) return;
+        if (c.a == 0) return;
         auto* dst = data_ + static_cast<std::size_t>(ly) * stride_bytes_
             + static_cast<std::size_t>(lx) * bytes_per_pixel();
+        if (c.a < 255) {
+            ++g_alpha_blend_count;
+            const rgba bg = read_pixel(dst);
+            const rgba blended = c.blend_over(bg);
+            write_pixel(dst, blended);
+            return;
+        }
         write_pixel(dst, c);
     }
 

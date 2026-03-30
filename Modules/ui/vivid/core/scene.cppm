@@ -18,6 +18,7 @@ export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
 export import charm.gfx.render_style;
+export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 
 export using ::ScrollBarOrientation;
@@ -35,6 +36,8 @@ export namespace ui::scene {
     using ScrollBarOrientation = ::ScrollBarOrientation;
     using TableViewHeaderStyle = ::TableViewHeaderStyle;
     using TableViewColDividerStyle = ::TableViewColDividerStyle;
+    using TextAlignH = ::TextAlignH;
+    using TextAlignV = ::TextAlignV;
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
@@ -64,6 +67,7 @@ export namespace ui::scene {
     struct ExecStats {
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
+        std::uint64_t alpha_blend_count{0};
         std::size_t clip_pushes{0};
         std::size_t clip_pops{0};
         std::size_t clip_push_overflow{0};
@@ -98,6 +102,7 @@ export namespace ui::scene {
         int tiles_drawn{0};
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
+        std::uint64_t alpha_blend_count{0};
         int tile_flush_count{0};
         std::size_t clip_push_overflow{0};
         std::size_t clip_pop_underflow{0};
@@ -164,7 +169,12 @@ export namespace ui::scene {
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
-        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
+        void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
+        void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_override(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_override(h, token.patch); }
+        void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_->set_style_class(h, id); }
+        void clear_style_class(WidgetHandle h) noexcept { kernel_->clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
@@ -220,11 +230,19 @@ export namespace ui::scene {
         void set_hit_testable(WidgetHandle h, bool v) noexcept { kernel_.set_hit_testable(h, v); }
         void set_checked(WidgetHandle h, bool v) noexcept { kernel_.set_checked(h, v); }
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_.set_list_row_height(h, height); }
+        void set_label_align(WidgetHandle h, TextAlignH align_h, TextAlignV align_v) noexcept {
+            kernel_.set_text_align(h, align_h, align_v);
+        }
         void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation o) noexcept {
             kernel_.set_scrollbar_orientation(h, o);
         }
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
-        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
+        void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
+        void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_override(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_override(h, token.patch); }
+        void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_.set_style_class(h, id); }
+        void clear_style_class(WidgetHandle h) noexcept { kernel_.clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
 
     private:
@@ -484,7 +502,9 @@ export namespace ui::scene {
                 SceneOverlay overlay{cmd_buf_};
                 overlay_fn_(overlay, overlay_ctx_);
             }
+            reset_alpha_blend_count();
             last_exec_stats_ = to_scene_stats(cmd_exec_.execute(canvas_, cmd_buf_));
+            last_exec_stats_.alpha_blend_count = alpha_blend_count();
         }
 
         template <ui::RenderBackend Backend>
@@ -503,7 +523,10 @@ export namespace ui::scene {
                 config.clear_color,
                 config.clear_tile
             };
-            return to_scene_stats(cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buf_, cfg));
+            reset_alpha_blend_count();
+            auto stats = to_scene_stats(cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buf_, cfg));
+            stats.alpha_blend_count = alpha_blend_count();
+            return stats;
         }
 
         void dispatch_event(const Event& e) { gui_.dispatch_event(e); }

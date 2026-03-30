@@ -37,11 +37,13 @@ import platform.win.time_source;
 #undef WIN32_LEAN_AND_MEAN
 #endif
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -112,16 +114,6 @@ namespace {
             cover_ring.a = 70;
         }
         out.stroke_round_rect(cover, cover_radius, cover_ring);
-        const Rect cover_left = scene.world_rect(ctx.handles.cover_left);
-        const Rect cover_right = scene.world_rect(ctx.handles.cover_right);
-        const int small_radius = 14;
-        if (cover_left.w > 0 && cover_left.h > 0) {
-            out.stroke_round_rect(cover_left, small_radius, kUiListBorder);
-        }
-        if (cover_right.w > 0 && cover_right.h > 0) {
-            out.stroke_round_rect(cover_right, small_radius, kUiListBorder);
-        }
-
         (void)scene;
 
         const Rect spec = scene.world_rect(ctx.handles.spectrum);
@@ -174,12 +166,16 @@ namespace {
         std::string screenshot_gif_path{};
         player::PlayerPage screenshot_page{player::PlayerPage::Library};
         bool screenshot_verbose{false};
+        int screenshot_wait_frames{0};
     };
 
     struct UiCiResult {
         bool ok{true};
         int failed{0};
     };
+
+    constexpr std::size_t kUiCmdBudget = 1200;
+    constexpr std::uint64_t kUiAlphaBlendBudget = 1000000;
 
     void ui_ci_emit(const char* name, bool ok, const char* reason) {
         if (ok) {
@@ -212,6 +208,25 @@ namespace {
         platform.begin_frame();
         platform.render();
         platform.end_frame();
+
+        {
+            const auto cmd_stats = scene.last_cmd_stats();
+            const auto exec_stats = scene.last_exec_stats();
+            if (cmd_stats.cmd_count > kUiCmdBudget) {
+                ui_ci_emit("frame_budget_cmd", false, "cmd_budget");
+                res.ok = false;
+                res.failed++;
+            } else {
+                ui_ci_emit("frame_budget_cmd", true, nullptr);
+            }
+            if (exec_stats.alpha_blend_count > kUiAlphaBlendBudget) {
+                ui_ci_emit("frame_budget_alpha", false, "alpha_budget");
+                res.ok = false;
+                res.failed++;
+            } else {
+                ui_ci_emit("frame_budget_alpha", true, nullptr);
+            }
+        }
 
         auto click_handle = [&](WidgetHandle h, const char* case_name) -> bool {
             if (!h) {
@@ -330,6 +345,7 @@ namespace {
         if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
             if (state->ctx->current_page != state->screenshot_page) {
                 state->ctx->set_page(state->screenshot_page);
+                if (state->screenshot_wait_frames < 1) state->screenshot_wait_frames = 1;
             }
         }
         state->platform->framebuffer_ref().clear(kUiBackground);
@@ -354,6 +370,10 @@ namespace {
         SDL_RenderPresent(state->renderer);
 
         if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
+            if (state->screenshot_wait_frames > 0) {
+                state->screenshot_wait_frames--;
+                return;
+            }
             auto& fb = state->platform->framebuffer_ref();
             ::FrameBufferView view{
                 screen_pixel_format,
@@ -497,6 +517,7 @@ int main(int argc, char** argv) {
     std::string screenshot_path{};
     std::string screenshot_gif_path{};
     bool screenshot_verbose = false;
+    int screenshot_wait_frames = 0;
     player::PlayerPage start_page = player::PlayerPage::Library;
     bool start_page_set = false;
     bool ui_ci = false;
@@ -526,6 +547,9 @@ int main(int argc, char** argv) {
             }
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
+        } else if (arg.rfind("--screenshot-frame=", 0) == 0) {
+            const std::string_view value = arg.substr(19);
+            screenshot_wait_frames = std::max(0, std::atoi(std::string(value).c_str()));
         } else if (arg == "--ui-ci") {
             ui_ci = true;
         }
@@ -606,7 +630,8 @@ int main(int argc, char** argv) {
         .screenshot_path = std::move(screenshot_path),
         .screenshot_gif_path = std::move(screenshot_gif_path),
         .screenshot_page = start_page,
-        .screenshot_verbose = screenshot_verbose
+        .screenshot_verbose = screenshot_verbose,
+        .screenshot_wait_frames = screenshot_wait_frames
     };
     charm::system::RunLoop<4> loop{};
     loop.bind_clock(g_clock);

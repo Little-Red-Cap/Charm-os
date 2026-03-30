@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstdint>
 #include <type_traits>
 export module charm.core.style;
@@ -230,6 +231,72 @@ struct StylePatch {
 };
 
 export
+enum class StylePatchKind : std::uint8_t {
+    None = 0,
+    Adjust = 1,
+    Override = 2
+};
+
+export
+struct StyleToken {
+    StylePatch patch{};
+};
+
+export
+using StyleClassId = std::uint16_t;
+
+export
+inline constexpr StyleClassId kStyleClassInvalid = 0;
+
+export
+inline constexpr std::size_t kStyleClassMax = 256;
+
+export
+inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
+    if (src.has_bg_color) { dst.has_bg_color = true; dst.bg_color = src.bg_color; }
+    if (src.has_border_color) { dst.has_border_color = true; dst.border_color = src.border_color; }
+    if (src.has_border_width) { dst.has_border_width = true; dst.border_width = src.border_width; }
+    if (src.has_corner_radius) { dst.has_corner_radius = true; dst.corner_radius = src.corner_radius; }
+    if (src.has_padding) { dst.has_padding = true; dst.padding = src.padding; }
+    if (src.has_header_padding) { dst.has_header_padding = true; dst.header_padding = src.header_padding; }
+    if (src.has_content_padding) { dst.has_content_padding = true; dst.content_padding = src.content_padding; }
+    if (src.has_scrollbar_margin) { dst.has_scrollbar_margin = true; dst.scrollbar_margin = src.scrollbar_margin; }
+    if (src.has_scrollbar_thumb_min) { dst.has_scrollbar_thumb_min = true; dst.scrollbar_thumb_min = src.scrollbar_thumb_min; }
+    if (src.has_glass_highlight_pos) { dst.has_glass_highlight_pos = true; dst.glass_highlight_pos = src.glass_highlight_pos; }
+    if (src.has_glass_highlight_alpha) { dst.has_glass_highlight_alpha = true; dst.glass_highlight_alpha = src.glass_highlight_alpha; }
+    if (src.has_glass_shadow_alpha) { dst.has_glass_shadow_alpha = true; dst.glass_shadow_alpha = src.glass_shadow_alpha; }
+    if (src.has_glass_opacity_min) { dst.has_glass_opacity_min = true; dst.glass_opacity_min = src.glass_opacity_min; }
+    if (src.has_glass_opacity_max) { dst.has_glass_opacity_max = true; dst.glass_opacity_max = src.glass_opacity_max; }
+    if (src.has_font) { dst.has_font = true; dst.font = src.font; }
+    if (src.has_font_color) { dst.has_font_color = true; dst.font_color = src.font_color; }
+    if (src.has_bg_hover) { dst.has_bg_hover = true; dst.bg_hover = src.bg_hover; }
+    if (src.has_bg_pressed) { dst.has_bg_pressed = true; dst.bg_pressed = src.bg_pressed; }
+    if (src.has_bg_disabled) { dst.has_bg_disabled = true; dst.bg_disabled = src.bg_disabled; }
+    if (src.has_border_hover) { dst.has_border_hover = true; dst.border_hover = src.border_hover; }
+    if (src.has_border_pressed) { dst.has_border_pressed = true; dst.border_pressed = src.border_pressed; }
+    if (src.has_border_disabled) { dst.has_border_disabled = true; dst.border_disabled = src.border_disabled; }
+    if (src.has_border_focus) { dst.has_border_focus = true; dst.border_focus = src.border_focus; }
+    if (src.has_font_color_disabled) { dst.has_font_color_disabled = true; dst.font_color_disabled = src.font_color_disabled; }
+    if (src.has_accent_color) { dst.has_accent_color = true; dst.accent_color = src.accent_color; }
+    if (src.has_accent_hover) { dst.has_accent_hover = true; dst.accent_hover = src.accent_hover; }
+    if (src.has_accent_pressed) { dst.has_accent_pressed = true; dst.accent_pressed = src.accent_pressed; }
+    if (src.has_accent_disabled) { dst.has_accent_disabled = true; dst.accent_disabled = src.accent_disabled; }
+    if (src.has_on_accent) { dst.has_on_accent = true; dst.on_accent = src.on_accent; }
+    if (src.has_shadow_enabled) { dst.has_shadow_enabled = true; dst.shadow_enabled = src.shadow_enabled; }
+    if (src.has_shadow_color) { dst.has_shadow_color = true; dst.shadow_color = src.shadow_color; }
+    if (src.has_shadow_offset_x) { dst.has_shadow_offset_x = true; dst.shadow_offset_x = src.shadow_offset_x; }
+    if (src.has_shadow_offset_y) { dst.has_shadow_offset_y = true; dst.shadow_offset_y = src.shadow_offset_y; }
+    if (src.has_shadow_spread) { dst.has_shadow_spread = true; dst.shadow_spread = src.shadow_spread; }
+    if (src.has_shadow_radius) { dst.has_shadow_radius = true; dst.shadow_radius = src.shadow_radius; }
+    if (src.has_inner_stroke_enabled) { dst.has_inner_stroke_enabled = true; dst.inner_stroke_enabled = src.inner_stroke_enabled; }
+    if (src.has_inner_stroke_color) { dst.has_inner_stroke_color = true; dst.inner_stroke_color = src.inner_stroke_color; }
+    if (src.has_inner_stroke_width) { dst.has_inner_stroke_width = true; dst.inner_stroke_width = src.inner_stroke_width; }
+    if (src.has_outline_enabled) { dst.has_outline_enabled = true; dst.outline_enabled = src.outline_enabled; }
+    if (src.has_outline_color) { dst.has_outline_color = true; dst.outline_color = src.outline_color; }
+    if (src.has_outline_width) { dst.has_outline_width = true; dst.outline_width = src.outline_width; }
+}
+
+export
 struct StyleState {
     bool enabled{true};
     bool hovered{false};
@@ -385,6 +452,31 @@ public:
         default_font_ptr() = &f;
     }
 
+    void set_style_class(StyleClassId id, const StylePatch& patch) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        class_patch_[id] = patch;
+        class_on_[id] = 1;
+        class_version_++;
+    }
+
+    void clear_style_class(StyleClassId id) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        if (class_on_[id] == 0) return;
+        class_patch_[id] = StylePatch{};
+        class_on_[id] = 0;
+        class_version_++;
+    }
+
+    [[nodiscard]] const StylePatch* style_class(StyleClassId id) const noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return nullptr;
+        if (class_on_[id] == 0) return nullptr;
+        return &class_patch_[id];
+    }
+
+    [[nodiscard]] std::uint32_t style_class_version() const noexcept {
+        return class_version_;
+    }
+
 private:
     Theme() {
         default_font_ptr() = nullptr;
@@ -407,4 +499,8 @@ private:
         }
         return &get_font(FontId::Normal);
     }
+
+    std::array<StylePatch, kStyleClassMax> class_patch_{};
+    std::array<std::uint8_t, kStyleClassMax> class_on_{};
+    std::uint32_t class_version_{0};
 };

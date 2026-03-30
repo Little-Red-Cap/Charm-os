@@ -2957,10 +2957,25 @@ import alg_list_scroll;
     }
 
     void SoaKernel::set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept {
+        set_style_adjust(h, patch);
+    }
+
+    void SoaKernel::set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         common_.style_patch[idx] = patch;
         common_.style_patch_on[idx] = 1;
+        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::Adjust);
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::set_style_override(WidgetHandle h, const StylePatch& patch) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.style_patch[idx] = patch;
+        common_.style_patch_on[idx] = 1;
+        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::Override);
         mark_layout_dirty();
         mark_paint_dirty();
     }
@@ -2971,6 +2986,7 @@ import alg_list_scroll;
         if (common_.style_patch_on[idx] == 0) return;
         common_.style_patch[idx] = StylePatch{};
         common_.style_patch_on[idx] = 0;
+        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
         mark_layout_dirty();
         mark_paint_dirty();
     }
@@ -2985,5 +3001,35 @@ import alg_list_scroll;
         if (idx == kInvalidIndex) return nullptr;
         if (common_.style_patch_on[idx] == 0) return nullptr;
         return &common_.style_patch[idx];
+    }
+
+    StylePatchKind SoaKernel::style_patch_kind(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return StylePatchKind::None;
+        if (common_.style_patch_on[idx] == 0) return StylePatchKind::None;
+        return static_cast<StylePatchKind>(common_.style_patch_kind[idx]);
+    }
+
+    void SoaKernel::set_style_class(WidgetHandle h, StyleClassId id) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.style_class[idx] = id;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::clear_style_class(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        if (common_.style_class[idx] == kStyleClassInvalid) return;
+        common_.style_class[idx] = kStyleClassInvalid;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    StyleClassId SoaKernel::style_class(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return kStyleClassInvalid;
+        return common_.style_class[idx];
     }
 

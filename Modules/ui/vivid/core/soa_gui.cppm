@@ -95,6 +95,13 @@ namespace {
         }
     }
 
+    void apply_style_adjust(ResolvedMetrics& metrics,
+                            const StylePatch& patch) noexcept {
+        if (patch.has_corner_radius) metrics.corner_radius = static_cast<std::int16_t>(patch.corner_radius);
+        if (patch.has_padding) metrics.padding = static_cast<std::int16_t>(patch.padding);
+        if (patch.has_font) metrics.font = patch.font;
+    }
+
     void draw_decoration_shadow(ui::draw_cmd::DefaultDrawCmdBuffer& out,
                                 const Rect& r,
                                 int radius,
@@ -297,7 +304,8 @@ private:
     void record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::DefaultDrawCmdBuffer& out);
 
     static void record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                             const ResolvedMetrics& metrics, const StyleState& state, const char* text);
+                             const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                             TextAlignH align_h, TextAlignV align_v);
     static void record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                               const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,
                               const StyleState& state, const char* text,
@@ -585,11 +593,27 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     ResolvedColors patched_colors{};
     ResolvedMetrics patched_metrics{};
     ResolvedDecoration patched_decoration{};
-    if (const auto* patch = kernel_.style_patch(h)) {
+    const auto class_id = kernel_.style_class(h);
+    const StylePatch* class_patch = (class_id != kStyleClassInvalid)
+        ? Theme::instance().style_class(class_id)
+        : nullptr;
+    const auto patch_kind = kernel_.style_patch_kind(h);
+    const StylePatch* local_patch = kernel_.style_patch(h);
+    const StylePatch* override_patch = (patch_kind == StylePatchKind::Override) ? local_patch : nullptr;
+    const StylePatch* adjust_patch = (patch_kind == StylePatchKind::Adjust) ? local_patch : nullptr;
+    if (class_patch || override_patch || adjust_patch) {
         patched_colors = *colors;
         patched_metrics = *metrics;
         patched_decoration = *decoration;
-        apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *patch);
+        if (class_patch) {
+            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *class_patch);
+        }
+        if (override_patch) {
+            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *override_patch);
+        }
+        if (adjust_patch) {
+            apply_style_adjust(patched_metrics, *adjust_patch);
+        }
         colors = &patched_colors;
         metrics = &patched_metrics;
         decoration = &patched_decoration;
@@ -599,11 +623,14 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Container:
-        if (const auto* patch = kernel_.style_patch(h)) {
-            const bool wants_surface = patch->has_bg_color || patch->has_border_color ||
-                patch->has_border_width || patch->has_corner_radius ||
-                patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled;
-            if (wants_surface) {
+        if (class_patch || override_patch) {
+            const auto wants_surface = [](const StylePatch* patch) noexcept {
+                return patch && (patch->has_bg_color || patch->has_border_color ||
+                    patch->has_border_width || patch->has_corner_radius ||
+                    patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled);
+            };
+            const bool draw_surface = wants_surface(class_patch) || wants_surface(override_patch);
+            if (draw_surface) {
                 record_decorated_box(out, world_rect, *colors, *metrics, *decoration, true, true);
             }
         }
@@ -621,9 +648,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     case WidgetKind::Image:
         record_image(out, world_rect, kernel_.image(h), metrics->corner_radius);
         break;
-    case WidgetKind::Label:
-        record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h));
-        break;
+      case WidgetKind::Label:
+          record_label(out, world_rect, *colors, *metrics, state, kernel_.text(h),
+                       kernel_.text_align_h(h), kernel_.text_align_v(h));
+          break;
         case WidgetKind::Button:
         case WidgetKind::IconButton:
             record_button(out, world_rect, *colors, *metrics, *decoration, state, kernel_.text(h),
@@ -894,12 +922,13 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     }
 }
 
-void SoaGui::record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
-                          const ResolvedMetrics& metrics, const StyleState& state, const char* text) {
-    (void)state;
-    out.draw_text_box(r, text ? text : "", colors.font, font_from_metrics(metrics),
-                      TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-}
+    void SoaGui::record_label(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
+                              const ResolvedMetrics& metrics, const StyleState& state, const char* text,
+                              TextAlignH align_h, TextAlignV align_v) {
+        (void)state;
+        out.draw_text_box(r, text ? text : "", colors.font, font_from_metrics(metrics),
+                          align_h, align_v, TextWrap::None, TextEllipsis::End);
+    }
 
 void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,
                            const ResolvedMetrics& metrics, const ResolvedDecoration& decoration,

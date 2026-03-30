@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <span>
 #include <type_traits>
+#include <span>
 
 export module posix.pipe;
 

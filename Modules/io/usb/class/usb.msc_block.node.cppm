@@ -124,7 +124,7 @@ export namespace usb::device {
                 self->desc.strings.empty() ? nullptr : self->desc.strings.data();
             const auto strings_count = self->desc.strings.size();
 
-            const auto ok = usb::device::examples::build_attach_open_msc(
+            const auto ok = usb::device::examples::build_and_attach_msc(
                 self->dev,
                 *self->msc,
                 build_ctx,
@@ -133,10 +133,7 @@ export namespace usb::device {
                 self->desc.msc_cfg,
                 usb::dsl::MscClassDescriptors{}.view(),
                 strings_ptr,
-                strings_count,
-                self->desc.dcd,
-                self->desc.dcd_ctx,
-                usb::device::examples::make_msc_ep_callbacks(*self->bot));
+                strings_count);
 
             if (!ok) {
                 return util::unexpected(util::Errc::io);

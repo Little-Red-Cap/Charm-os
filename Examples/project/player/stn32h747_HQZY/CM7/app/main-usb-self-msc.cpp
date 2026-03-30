@@ -42,6 +42,7 @@ constexpr bool kDumpLba0 = true;
 constexpr bool kDumpMscIo = true;
 constexpr bool kUsbMscRemovable = false;
 constexpr bool kUsbMscUseBpbCapacity = true;
+constexpr bool kUsbPollIrqInLoop = false;
 constexpr std::uint32_t kUsbPollBurst = 8;
 
 static const usb::StringTable<4> kUsbStrings{
@@ -295,8 +296,10 @@ int main() {
         static std::uint32_t last_ms = 0;
         static std::uint32_t irq_poll_calls = 0;
         const auto now = static_cast<std::uint32_t>(charm::port::now_ms(nullptr));
-        HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-        irq_poll_calls++;
+        if (kUsbPollIrqInLoop) {
+            HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+            irq_poll_calls++;
+        }
         if ((now - last_ms) >= 1000u) {
             const auto diag = player::stm32h7::board::usb_diag_snapshot();
             out::println<"usb: setup={} out0={} in0={} out1={} in1={} reset={} conn={} set_cfg={} last_cfg={} cfg_ok={} cfg_out_ok={} cfg_in_ok={} cfg_arm_ok={} set_addr={} last_addr={} addr_ok={} set_addr_nz={} last_addr_nz={} class_setup={} class_bm=0x{:02X} class_b=0x{:02X} class_wv=0x{:04X} class_wl=0x{:04X} ep0_in={} ep0_fail={} ep0_bytes={} ep0_zlp={} ep0_last_len={} ep0_last_zlp={} irq_poll={} bm=0x{:02X} b=0x{:02X} wv=0x{:04X} wi=0x{:04X} wl=0x{:04X} raw={:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}">(

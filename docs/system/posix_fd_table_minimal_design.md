@@ -64,7 +64,7 @@ namespace posix {
 
 ## Behavior
 
-- `attach` allocates an fd slot; if `desired` is occupied, returns `EMFILE`.
+- `attach` allocates an fd slot; if `desired` is occupied, returns `EEXIST`.
 - `dup2` preserves semantics: if `to` exists, close then duplicate.
 - `close` calls entry ops->close and releases slot.
 - `clone_entry` copies references without transferring ownership.
@@ -90,4 +90,3 @@ namespace posix {
 - Use `FdFlags` only for read/write policy and non-blocking hints.
 - Backpressure and readiness should remain in the pipe/term subsystem.
 - No `FD_CLOEXEC` in v1; use explicit `FileActions::add_close`.
-

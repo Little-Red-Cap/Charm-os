@@ -43,6 +43,11 @@ flowchart TD
 | 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
+| POSIX 兼容/BusyBox 验收 | `docs/system/posix_compat_roadmap.md` |
+| POSIX spawn 草案 | `docs/system/posix_spawn_minimal_design.md` |
+| POSIX fd 表草案 | `docs/system/posix_fd_table_minimal_design.md` |
+| POSIX errno 映射 | `docs/system/posix_errno_mapping.md` |
+| BusyBox 验收清单 | `docs/system/posix_busybox_phase_checklist.md` |
 
 ## 按专题索引
 
@@ -98,6 +103,11 @@ docs/
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`
 - `docs/system/av_pipeline_overview.md`
+- `docs/system/posix_compat_roadmap.md`
+- `docs/system/posix_spawn_minimal_design.md`
+- `docs/system/posix_fd_table_minimal_design.md`
+- `docs/system/posix_errno_mapping.md`
+- `docs/system/posix_busybox_phase_checklist.md`
 - `docs/boot/bootloader_overview.md`
 - `docs/boot/bootloader_xymodem.md`
 

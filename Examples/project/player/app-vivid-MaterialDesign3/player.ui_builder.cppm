@@ -256,6 +256,9 @@ namespace player::ui_builder_detail {
     static void build_now_playing(::ui::scene::SceneBuilder& builder, UiHandles& h,
                                   const UiLayout& layout, const NowTextLayout& text_layout,
                                   const PlayerIconIds& icons) {
+        constexpr int kNowTextPadding = 0;
+        constexpr int kNowControlsPadding = 0;
+        constexpr int kNowTimePadding = 0;
         const int title_h = text_layout.title_h;
         const int subtitle_h = text_layout.subtitle_h;
         const int progress_h = text_layout.progress_h;
@@ -425,7 +428,7 @@ namespace player::ui_builder_detail {
         const int play_btn = control_play;
         const int btn_gap = 16;
         const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, control_play};
-        ::ui::scene::RowBuilder controls_row{builder, controls_rect, btn_gap, 0,
+        ::ui::scene::RowBuilder controls_row{builder, controls_rect, btn_gap, kNowControlsPadding,
                                              ::ui::scene::LayoutAlign::Center};
         h.controls = controls_row.root();
 
@@ -454,23 +457,28 @@ namespace player::ui_builder_detail {
         {
             const Rect text_rect{kUiPadding, text_col_y,
                                  screen_width - kUiPadding * 2, text_col_h};
-            ::ui::scene::ColumnBuilder text_col{builder, text_rect, text_gap, 0,
+            ::ui::scene::ColumnBuilder text_col{builder, text_rect, text_gap, kNowTextPadding,
                                                 ::ui::scene::LayoutAlign::Start};
             text_col_root = text_col.root();
             text_col.add(h.title, text_rect.w, title_h);
             text_col.add(h.subtitle, text_rect.w, subtitle_h);
             text_col.add(h.progress, text_rect.w, progress_h);
         }
+        WidgetHandle time_row_root{};
         {
             const int time_row_w = screen_width - kUiPadding * 2;
             const int time_row_x = kUiPadding;
             const int time_side_w = 52;
             const int info_w = std::max(170, time_row_w - time_side_w * 2 - 16);
-            const int info_x = time_row_x + (time_row_w - info_w) / 2;
-            anchor_rect(builder, h.time_left, {time_row_x, time_row_y, time_side_w, time_row_h});
-            anchor_rect(builder, h.time_right,
-                        {time_row_x + time_row_w - time_side_w, time_row_y, time_side_w, time_row_h});
-            anchor_rect(builder, h.info_tag, {info_x, time_row_y, info_w, time_row_h});
+            const int extra = time_row_w - (time_side_w * 2 + info_w);
+            const int row_pad = (extra > 0) ? (extra / 2) : 0;
+            const Rect time_row_rect{time_row_x, time_row_y, time_row_w, time_row_h};
+            ::ui::scene::RowBuilder time_row{builder, time_row_rect, 0, row_pad + kNowTimePadding,
+                                             ::ui::scene::LayoutAlign::Center};
+            time_row_root = time_row.root();
+            time_row.add(h.time_left, time_side_w, time_row_h);
+            time_row.add(h.info_tag, info_w, time_row_h);
+            time_row.add(h.time_right, time_side_w, time_row_h);
         }
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
@@ -533,9 +541,9 @@ namespace player::ui_builder_detail {
         if (text_col_root) {
             builder.link(now_playing, text_col_root);
         }
-        builder.link(now_playing, h.time_left);
-        builder.link(now_playing, h.time_right);
-        builder.link(now_playing, h.info_tag);
+        if (time_row_root) {
+            builder.link(now_playing, time_row_root);
+        }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
         builder.link(now_playing, h.cover_debug);
 #endif
@@ -563,6 +571,9 @@ namespace player::ui_builder_detail {
 
     static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
                               const UiLayout& layout, const PlayerIconIds& icons) {
+        constexpr int kTabsPadding = 0;
+        constexpr int kShufflePadding = 0;
+        constexpr int kNavPadding = 0;
         h.list_title = builder.create_label_static("");
         anchor_rect(builder, h.list_title, {0, 0, 0, 0});
 
@@ -603,16 +614,10 @@ namespace player::ui_builder_detail {
         apply_top_bar_button_style(builder, lib_settings);
 
         const WidgetHandle tab_songs = builder.create_button_static("Songs");
-        anchor_rect(builder, tab_songs, {kUiPadding, layout.tabs_y, layout.tab_w, layout.tabs_h});
         const WidgetHandle tab_albums = builder.create_button_static("Albums");
-        anchor_rect(builder, tab_albums, {kUiPadding + layout.tab_w + layout.tabs_gap, layout.tabs_y,
-                                          layout.tab_w, layout.tabs_h});
         const WidgetHandle tab_artist = builder.create_button_static("Artist");
-        anchor_rect(builder, tab_artist, {kUiPadding + (layout.tab_w + layout.tabs_gap) * 2,
-                                          layout.tabs_y, layout.tab_w, layout.tabs_h});
 
         const WidgetHandle shuffle_btn = builder.create_button_static("Shuffle");
-        anchor_rect(builder, shuffle_btn, {kUiPadding, layout.shuffle_y, 120, layout.shuffle_h});
         const int tab_radius = layout.tabs_h / 2;
         apply_tab_base_style(builder, tab_songs, tab_radius);
         apply_tab_base_style(builder, tab_albums, tab_radius);
@@ -620,6 +625,23 @@ namespace player::ui_builder_detail {
         apply_tab_base_style(builder, shuffle_btn, tab_radius);
         apply_tab_active_style(builder, tab_songs);
         apply_shuffle_shadow_style(builder, shuffle_btn);
+
+        ::ui::scene::RowBuilder tabs_row{builder,
+                                         {kUiPadding, layout.tabs_y,
+                                          screen_width - kUiPadding * 2, layout.tabs_h},
+                                         layout.tabs_gap, kTabsPadding,
+                                         ::ui::scene::LayoutAlign::Center};
+        const WidgetHandle tabs_root = tabs_row.root();
+        tabs_row.add(tab_songs, layout.tab_w, layout.tabs_h);
+        tabs_row.add(tab_albums, layout.tab_w, layout.tabs_h);
+        tabs_row.add(tab_artist, layout.tab_w, layout.tabs_h);
+
+        ::ui::scene::RowBuilder shuffle_row{builder,
+                                            {kUiPadding, layout.shuffle_y, 120, layout.shuffle_h},
+                                            0, kShufflePadding,
+                                            ::ui::scene::LayoutAlign::Center};
+        const WidgetHandle shuffle_root = shuffle_row.root();
+        shuffle_row.add(shuffle_btn, 120, layout.shuffle_h);
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
@@ -633,10 +655,8 @@ namespace player::ui_builder_detail {
         builder.link(library, lib_top);
         builder.link(lib_top, lib_title);
         builder.link(lib_top, lib_settings);
-        builder.link(library, tab_songs);
-        builder.link(library, tab_albums);
-        builder.link(library, tab_artist);
-        builder.link(library, shuffle_btn);
+        builder.link(library, tabs_root);
+        builder.link(library, shuffle_root);
         builder.link(library, list_card_root);
         anchor_rect(builder, h.list_title, {list_card_rect.x + 12, list_card_rect.y + 8,
                                             list_card_rect.w - 24, 18});
@@ -690,22 +710,22 @@ namespace player::ui_builder_detail {
             builder.link(h.bottom_bar, h.bottom_subtitle);
         }
 
-        anchor_rect(builder, h.nav_bar, {kUiPadding, layout.nav_y,
-                                         screen_width - kUiPadding * 2, layout.nav_h});
-        const int nav_w = screen_width - kUiPadding * 2;
-        const int nav_btn_w = (nav_w - layout.nav_gap * 2) / 3;
-        anchor_rect(builder, h.nav_home, {kUiPadding, layout.nav_y, nav_btn_w, layout.nav_h});
-        anchor_rect(builder, h.nav_search, {kUiPadding + nav_btn_w + layout.nav_gap,
-                                            layout.nav_y, nav_btn_w, layout.nav_h});
-        anchor_rect(builder, h.nav_library, {kUiPadding + (nav_btn_w + layout.nav_gap) * 2,
-                                             layout.nav_y, nav_btn_w, layout.nav_h});
+        {
+            const Rect nav_rect{kUiPadding, layout.nav_y,
+                                screen_width - kUiPadding * 2, layout.nav_h};
+            ::ui::scene::RowBuilder nav_row{builder, nav_rect, layout.nav_gap, kNavPadding,
+                                            ::ui::scene::LayoutAlign::Center};
+            h.nav_bar = nav_row.root();
+            const int nav_w = nav_rect.w;
+            const int nav_btn_w = (nav_w - layout.nav_gap * 2) / 3;
+            nav_row.add(h.nav_home, nav_btn_w, layout.nav_h);
+            nav_row.add(h.nav_search, nav_btn_w, layout.nav_h);
+            nav_row.add(h.nav_library, nav_btn_w, layout.nav_h);
+        }
 
         builder.link(library, h.bottom_bar);
         builder.set_hit_testable(h.bottom_bar, true);
         builder.link(library, h.nav_bar);
-        builder.link(h.nav_bar, h.nav_home);
-        builder.link(h.nav_bar, h.nav_search);
-        builder.link(h.nav_bar, h.nav_library);
     }
 
 } // namespace player::ui_builder_detail

@@ -134,12 +134,57 @@ namespace {
         int wpid = api.waitpid(posix::ProcessId{pid}, &status, 0);
         assert_eq(wpid, pid);
     }
+
+    void test_api_dev_null_and_isatty() noexcept {
+        fs::clear_mounts();
+        fs::Mount mount{};
+        mount.ops = &dummy_mount_ops;
+        mount.data = nullptr;
+        auto st = fs::add_mount("", &mount);
+        assert_true(st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        int fd = api.open("/dev/null", posix::O_WRONLY, 0);
+        assert_true(fd >= 0);
+        const char msg[] = "abc";
+        auto w = api.write(fd, msg, 3);
+        assert_eq(w, 3);
+        auto r = api.read(fd, nullptr, 0);
+        assert_eq(r, 0);
+        assert_eq(api.close(fd), 0);
+
+        static const posix::FdOps kOps{
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+        posix::FdEntry term{};
+        term.kind = posix::FdKind::term;
+        term.flags = posix::FdFlags::read_write;
+        term.ops = &kOps;
+        term.ctx = nullptr;
+        auto rfd = fds.attach(term, 3);
+        assert_true(rfd);
+        assert_eq(api.isatty(3), 1);
+        assert_eq(api.isatty(4), 0);
+    }
 } // namespace
 
 export void run_posix_api_smoke_tests() noexcept {
     test_api_open_close();
     test_api_pipe_rw();
     test_api_spawn_wait();
+    test_api_dev_null_and_isatty();
 }
 
 #endif

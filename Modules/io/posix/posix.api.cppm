@@ -156,6 +156,19 @@ export namespace posix {
             return to;
         }
 
+        int isatty(int fd) noexcept {
+            if (!fd_table_) {
+                set_errno(ENOSYS);
+                return 0;
+            }
+            auto entry = fd_table_->get(fd);
+            if (!entry) {
+                set_errno(EBADF);
+                return 0;
+            }
+            return entry.value()->kind == FdKind::term ? 1 : 0;
+        }
+
         int pipe(int fds[2]) noexcept {
             if (!fds) {
                 set_errno(EINVAL);

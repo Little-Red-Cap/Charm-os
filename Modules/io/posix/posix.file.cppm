@@ -68,6 +68,15 @@ export namespace posix {
             if (path.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
+            if (path == "/dev/null") {
+                FdEntry entry{};
+                entry.kind = FdKind::dev;
+                entry.flags = flags_to_fd_flags(flags);
+                entry.ops = &NullDevice::ops();
+                entry.ctx = nullptr;
+                entry.inheritable = true;
+                return entry;
+            }
             auto* handle = pool_.create();
             if (!handle) {
                 return util::unexpected(util::Errc::buffer_overflow);
@@ -105,6 +114,30 @@ export namespace posix {
         }
 
     private:
+        struct NullDevice {
+            static util::Result<util::usize> read(void*, MutByteView) noexcept {
+                return util::usize{0};
+            }
+            static util::Result<util::usize> write(void*, ByteView buf) noexcept {
+                return buf.size();
+            }
+            static util::Result<void> close(void*) noexcept { return {}; }
+            static util::Result<void> stat(void*, PosixStat& out) noexcept {
+                out.mode = 0;
+                out.size = 0;
+                return {};
+            }
+            static const FdOps& ops() noexcept {
+                static const FdOps kOps{
+                    &NullDevice::read,
+                    &NullDevice::write,
+                    &NullDevice::close,
+                    &NullDevice::stat
+                };
+                return kOps;
+            }
+        };
+
         struct Handle {
             fs::File file{};
             bool append{false};

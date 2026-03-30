@@ -586,11 +586,21 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     ResolvedColors patched_colors{};
     ResolvedMetrics patched_metrics{};
     ResolvedDecoration patched_decoration{};
-    if (const auto* patch = kernel_.style_patch(h)) {
+    const auto class_id = kernel_.style_class(h);
+    const StylePatch* class_patch = (class_id != kStyleClassInvalid)
+        ? Theme::instance().style_class(class_id)
+        : nullptr;
+    const StylePatch* local_patch = kernel_.style_patch(h);
+    if (class_patch || local_patch) {
         patched_colors = *colors;
         patched_metrics = *metrics;
         patched_decoration = *decoration;
-        apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *patch);
+        if (class_patch) {
+            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *class_patch);
+        }
+        if (local_patch) {
+            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *local_patch);
+        }
         colors = &patched_colors;
         metrics = &patched_metrics;
         decoration = &patched_decoration;
@@ -600,11 +610,14 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Container:
-        if (const auto* patch = kernel_.style_patch(h)) {
-            const bool wants_surface = patch->has_bg_color || patch->has_border_color ||
-                patch->has_border_width || patch->has_corner_radius ||
-                patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled;
-            if (wants_surface) {
+        if (class_patch || local_patch) {
+            const auto wants_surface = [](const StylePatch* patch) noexcept {
+                return patch && (patch->has_bg_color || patch->has_border_color ||
+                    patch->has_border_width || patch->has_corner_radius ||
+                    patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled);
+            };
+            const bool draw_surface = wants_surface(class_patch) || wants_surface(local_patch);
+            if (draw_surface) {
                 record_decorated_box(out, world_rect, *colors, *metrics, *decoration, true, true);
             }
         }

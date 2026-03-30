@@ -38,6 +38,7 @@ export namespace player::cover_theme {
         rgba on_surface{player::ui::kUiListFont};
         rgba on_surface_variant{player::ui::kUiSubtitle};
         rgba outline_variant{player::ui::kUiButtonBorder};
+        rgba avg_raw{};
         rgba seed_raw{};
         bool neutral{false};
     };
@@ -138,6 +139,7 @@ export namespace player::cover_theme {
             .on_surface = rgba_from_argb(scheme.on_surface),
             .on_surface_variant = rgba_from_argb(scheme.on_surface_variant),
             .outline_variant = rgba_from_argb(scheme.outline_variant),
+            .avg_raw = rgba_from_argb(avg_argb),
             .seed_raw = rgba_from_argb(seed_result.seed_argb),
             .neutral = seed_result.force_neutral,
         };

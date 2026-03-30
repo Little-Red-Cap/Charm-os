@@ -2987,3 +2987,26 @@ import alg_list_scroll;
         return &common_.style_patch[idx];
     }
 
+    void SoaKernel::set_style_class(WidgetHandle h, StyleClassId id) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.style_class[idx] = id;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::clear_style_class(WidgetHandle h) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        if (common_.style_class[idx] == kStyleClassInvalid) return;
+        common_.style_class[idx] = kStyleClassInvalid;
+        mark_layout_dirty();
+        mark_paint_dirty();
+    }
+
+    StyleClassId SoaKernel::style_class(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return kStyleClassInvalid;
+        return common_.style_class[idx];
+    }
+

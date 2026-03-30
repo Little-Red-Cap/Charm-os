@@ -171,6 +171,8 @@ export namespace ui::scene {
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
         void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_patch(h, token.patch); }
+        void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_->set_style_class(h, id); }
+        void clear_style_class(WidgetHandle h) noexcept { kernel_->clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
@@ -235,6 +237,8 @@ export namespace ui::scene {
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
         void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_patch(h, token.patch); }
+        void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_.set_style_class(h, id); }
+        void clear_style_class(WidgetHandle h) noexcept { kernel_.clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
 
     private:

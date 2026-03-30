@@ -118,6 +118,7 @@ export namespace player {
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
         WidgetHandle nav_library{};
+        WidgetHandle cover_debug{};
         WidgetHandle debug_text{};
     };
 
@@ -214,6 +215,28 @@ export namespace player {
             return rgba{src.r, src.g, src.b, alpha}.blend_over(bg);
         }
 
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+        static void debug_cover_theme(const cover_theme::CoverTheme& theme, std::string_view path) {
+            std::printf("[cover] theme path=%.*s backdrop=%u,%u,%u primary=%u,%u,%u surface=%u,%u,%u\n",
+                        static_cast<int>(path.size()), path.data(),
+                        theme.backdrop.r, theme.backdrop.g, theme.backdrop.b,
+                        theme.primary.r, theme.primary.g, theme.primary.b,
+                        theme.surface.r, theme.surface.g, theme.surface.b);
+        }
+
+        void update_cover_debug_label() {
+            if (!access.valid() || !handles.cover_debug) return;
+            char buf[192]{};
+            std::snprintf(buf, sizeof(buf),
+                          "avg %u,%u,%u seed %u,%u,%u back %u,%u,%u prim %u,%u,%u",
+                          cover_theme.avg_raw.r, cover_theme.avg_raw.g, cover_theme.avg_raw.b,
+                          cover_theme.seed_raw.r, cover_theme.seed_raw.g, cover_theme.seed_raw.b,
+                          cover_theme.backdrop.r, cover_theme.backdrop.g, cover_theme.backdrop.b,
+                          cover_theme.primary.r, cover_theme.primary.g, cover_theme.primary.b);
+            set_label_slot(handles.cover_debug, text_slots.cover_debug, buf);
+        }
+#endif
+
         void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
             if (!access.valid() || !handles.now_backdrop) return;
             StylePatch patch{};
@@ -257,7 +280,7 @@ export namespace player {
             if (handles.progress) {
                 StylePatch prog{};
                 prog.has_border_color = true;
-                prog.border_color = with_alpha(theme.surface_low, 200);
+                prog.border_color = with_alpha(theme.surface_low, 120);
                 prog.has_accent_color = true;
                 prog.accent_color = theme.primary;
                 access.set_style_patch(handles.progress, prog);
@@ -283,6 +306,10 @@ export namespace player {
             apply_btn(handles.now_back, side_bg, side_border, side_font);
             apply_btn(handles.now_more, side_bg, side_border, side_font);
             apply_btn(handles.btn_pause, theme.primary, theme.primary, theme.on_primary);
+
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            update_cover_debug_label();
+#endif
         }
 
         void cycle_cover_theme() noexcept {
@@ -349,6 +376,7 @@ export namespace player {
             ::ui::scene::TextSlotId btn_pause{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId bottom_title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId bottom_subtitle{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId cover_debug{::ui::scene::kInvalidTextSlot};
             std::array<::ui::scene::TextSlotId, kEqBands> eq_values{
                 ::ui::scene::kInvalidTextSlot,
                 ::ui::scene::kInvalidTextSlot,
@@ -556,6 +584,7 @@ export namespace player {
             text_slots.list_title = alloc();
             text_slots.list_hint = alloc();
             text_slots.btn_pause = alloc();
+            text_slots.cover_debug = alloc();
             for (auto& slot : text_slots.eq_values) {
                 slot = alloc();
             }
@@ -653,6 +682,9 @@ export namespace player {
                         cover_theme = derive_cover_theme(cover_image);
                         cover_tint_path.assign(cover_image.path);
                         apply_now_theme(cover_theme);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        debug_cover_theme(cover_theme, cover_image.path);
+#endif
                     }
                     return true;
                 }
@@ -670,6 +702,9 @@ export namespace player {
                     cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
                     apply_now_theme(cover_theme);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    debug_cover_theme(cover_theme, cover_image.path);
+#endif
                     return true;
                 }
                 return false;

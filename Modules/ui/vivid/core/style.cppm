@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstdint>
 #include <type_traits>
 export module charm.core.style;
@@ -235,6 +236,15 @@ struct StyleToken {
 };
 
 export
+using StyleClassId = std::uint16_t;
+
+export
+inline constexpr StyleClassId kStyleClassInvalid = 0;
+
+export
+inline constexpr std::size_t kStyleClassMax = 256;
+
+export
 inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
     if (src.has_bg_color) { dst.has_bg_color = true; dst.bg_color = src.bg_color; }
     if (src.has_border_color) { dst.has_border_color = true; dst.border_color = src.border_color; }
@@ -435,6 +445,31 @@ public:
         default_font_ptr() = &f;
     }
 
+    void set_style_class(StyleClassId id, const StylePatch& patch) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        class_patch_[id] = patch;
+        class_on_[id] = 1;
+        class_version_++;
+    }
+
+    void clear_style_class(StyleClassId id) noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return;
+        if (class_on_[id] == 0) return;
+        class_patch_[id] = StylePatch{};
+        class_on_[id] = 0;
+        class_version_++;
+    }
+
+    [[nodiscard]] const StylePatch* style_class(StyleClassId id) const noexcept {
+        if (id == kStyleClassInvalid || id >= kStyleClassMax) return nullptr;
+        if (class_on_[id] == 0) return nullptr;
+        return &class_patch_[id];
+    }
+
+    [[nodiscard]] std::uint32_t style_class_version() const noexcept {
+        return class_version_;
+    }
+
 private:
     Theme() {
         default_font_ptr() = nullptr;
@@ -457,4 +492,8 @@ private:
         }
         return &get_font(FontId::Normal);
     }
+
+    std::array<StylePatch, kStyleClassMax> class_patch_{};
+    std::array<std::uint8_t, kStyleClassMax> class_on_{};
+    std::uint32_t class_version_{0};
 };

@@ -54,6 +54,7 @@ namespace soa_detail {
         std::array<PayloadHandle, N> payload{};
         std::array<StylePatch, N> style_patch{};
         std::array<std::uint8_t, N> style_patch_on{};
+        std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
     };
@@ -87,6 +88,7 @@ public:
             common_.payload[i] = soa_detail::invalid_payload_handle();
             common_.style_patch[i] = StylePatch{};
             common_.style_patch_on[i] = 0;
+            common_.style_class[i] = kStyleClassInvalid;
             common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
         }
@@ -127,6 +129,7 @@ public:
         common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
         common_.style_patch[idx] = StylePatch{};
         common_.style_patch_on[idx] = 0;
+        common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
         const auto payload = payload_alloc(kind, idx);
@@ -147,6 +150,7 @@ public:
             common_.payload[idx] = soa_detail::invalid_payload_handle();
             common_.style_patch[idx] = StylePatch{};
             common_.style_patch_on[idx] = 0;
+            common_.style_class[idx] = kStyleClassInvalid;
             common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
             common_.free_next[idx] = free_head_;
@@ -175,6 +179,7 @@ public:
         common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
         common_.style_patch[idx] = StylePatch{};
         common_.style_patch_on[idx] = 0;
+        common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
         payload_free(old_kind, common_.payload[idx], idx);
@@ -657,6 +662,9 @@ public:
     void clear_style_patch(WidgetHandle h) noexcept;
     bool has_style_patch(WidgetHandle h) const noexcept;
     const StylePatch* style_patch(WidgetHandle h) const noexcept;
+    void set_style_class(WidgetHandle h, StyleClassId id) noexcept;
+    void clear_style_class(WidgetHandle h) noexcept;
+    StyleClassId style_class(WidgetHandle h) const noexcept;
 
     soa_detail::TextSlotId alloc_text_slot() noexcept;
     void free_text_slot(soa_detail::TextSlotId slot) noexcept;

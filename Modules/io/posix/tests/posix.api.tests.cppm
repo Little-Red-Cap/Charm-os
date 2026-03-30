@@ -130,6 +130,12 @@ namespace {
         cfg.argv = std::span<const char* const>(argv, 1);
         int pid = api.spawn(cfg);
         assert_true(pid > 0);
+        api.bind_process(posix::ProcessId{pid});
+        int newfd = api.open("/tmp/child", posix::O_WRONLY | posix::O_CREAT, 0);
+        assert_true(newfd >= 0);
+        api.unbind_process();
+        auto parent_entry = fds.get(newfd);
+        assert_true(!parent_entry);
         int status = 0;
         int wpid = api.waitpid(posix::ProcessId{pid}, &status, 0);
         assert_eq(wpid, pid);

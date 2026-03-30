@@ -179,6 +179,12 @@ export namespace posix {
             return st;
         }
 
+        FdTableType* fd_table(ProcessId pid) noexcept {
+            auto* proc = find_proc(pid);
+            if (!proc) return nullptr;
+            return &proc->fds;
+        }
+
     private:
         struct Process {
             ProcessId pid{};

@@ -48,8 +48,12 @@ export namespace posix {
               pipe_service_(&pipe_service),
               proc_service_(&proc_service) {}
 
+        void bind_process(ProcessId pid) noexcept { bound_pid_ = pid.value; }
+        void unbind_process() noexcept { bound_pid_ = -1; }
+
         int open(const char* path, int flags, int mode = 0) noexcept {
-            if (!fd_table_ || !file_service_) {
+            auto* table = current_fd_table();
+            if (!table || !file_service_) {
                 set_errno(ENOSYS);
                 return -1;
             }
@@ -62,7 +66,7 @@ export namespace posix {
                 set_errno(map_errno(entry.error()));
                 return -1;
             }
-            auto rfd = fd_table_->attach(entry.value());
+            auto rfd = table->attach(entry.value());
             if (!rfd) {
                 close_entry(entry.value());
                 set_errno(map_fd_attach_errno(rfd.error()));
@@ -72,11 +76,12 @@ export namespace posix {
         }
 
         int close(int fd) noexcept {
-            if (!fd_table_) {
+            auto* table = current_fd_table();
+            if (!table) {
                 set_errno(ENOSYS);
                 return -1;
             }
-            auto r = fd_table_->close(fd);
+            auto r = table->close(fd);
             if (!r) {
                 set_errno(map_fd_errno(r.error()));
                 return -1;
@@ -85,7 +90,8 @@ export namespace posix {
         }
 
         ssize_t read(int fd, void* buf, util::usize count) noexcept {
-            if (!fd_table_) {
+            auto* table = current_fd_table();
+            if (!table) {
                 set_errno(ENOSYS);
                 return -1;
             }
@@ -93,7 +99,7 @@ export namespace posix {
                 set_errno(EINVAL);
                 return -1;
             }
-            auto entry = fd_table_->get(fd);
+            auto entry = table->get(fd);
             if (!entry || !entry.value()->ops || !entry.value()->ops->read) {
                 set_errno(EBADF);
                 return -1;
@@ -113,7 +119,8 @@ export namespace posix {
         }
 
         ssize_t write(int fd, const void* buf, util::usize count) noexcept {
-            if (!fd_table_) {
+            auto* table = current_fd_table();
+            if (!table) {
                 set_errno(ENOSYS);
                 return -1;
             }
@@ -121,7 +128,7 @@ export namespace posix {
                 set_errno(EINVAL);
                 return -1;
             }
-            auto entry = fd_table_->get(fd);
+            auto entry = table->get(fd);
             if (!entry || !entry.value()->ops || !entry.value()->ops->write) {
                 set_errno(EBADF);
                 return -1;
@@ -144,11 +151,12 @@ export namespace posix {
         }
 
         int dup2(int from, int to) noexcept {
-            if (!fd_table_) {
+            auto* table = current_fd_table();
+            if (!table) {
                 set_errno(ENOSYS);
                 return -1;
             }
-            auto r = fd_table_->dup2(from, to);
+            auto r = table->dup2(from, to);
             if (!r) {
                 set_errno(map_fd_errno(r.error()));
                 return -1;
@@ -157,11 +165,12 @@ export namespace posix {
         }
 
         int isatty(int fd) noexcept {
-            if (!fd_table_) {
+            auto* table = current_fd_table();
+            if (!table) {
                 set_errno(ENOSYS);
                 return 0;
             }
-            auto entry = fd_table_->get(fd);
+            auto entry = table->get(fd);
             if (!entry) {
                 set_errno(EBADF);
                 return 0;
@@ -174,11 +183,12 @@ export namespace posix {
                 set_errno(EINVAL);
                 return -1;
             }
-            if (!fd_table_ || !pipe_service_) {
+            auto* table = current_fd_table();
+            if (!table || !pipe_service_) {
                 set_errno(ENOSYS);
                 return -1;
             }
-            auto r = pipe_service_->create(*fd_table_);
+            auto r = pipe_service_->create(*table);
             if (!r) {
                 set_errno(map_pipe_errno(r.error()));
                 return -1;
@@ -243,9 +253,17 @@ export namespace posix {
             return to_errno(err);
         }
 
+        FdTable<MaxFds>* current_fd_table() noexcept {
+            if (!fd_table_) return nullptr;
+            if (bound_pid_ < 0 || !proc_service_) return fd_table_;
+            auto* child = proc_service_->fd_table(ProcessId{bound_pid_});
+            return child ? child : fd_table_;
+        }
+
         FdTable<MaxFds>* fd_table_{nullptr};
         FileService<MaxFiles>* file_service_{nullptr};
         PipeService<MaxPipes, PipeCapacity>* pipe_service_{nullptr};
         ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>* proc_service_{nullptr};
+        int bound_pid_{-1};
     };
 }

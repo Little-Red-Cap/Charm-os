@@ -95,6 +95,13 @@ namespace {
         }
     }
 
+    void apply_style_adjust(ResolvedMetrics& metrics,
+                            const StylePatch& patch) noexcept {
+        if (patch.has_corner_radius) metrics.corner_radius = static_cast<std::int16_t>(patch.corner_radius);
+        if (patch.has_padding) metrics.padding = static_cast<std::int16_t>(patch.padding);
+        if (patch.has_font) metrics.font = patch.font;
+    }
+
     void draw_decoration_shadow(ui::draw_cmd::DefaultDrawCmdBuffer& out,
                                 const Rect& r,
                                 int radius,
@@ -590,16 +597,22 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     const StylePatch* class_patch = (class_id != kStyleClassInvalid)
         ? Theme::instance().style_class(class_id)
         : nullptr;
+    const auto patch_kind = kernel_.style_patch_kind(h);
     const StylePatch* local_patch = kernel_.style_patch(h);
-    if (class_patch || local_patch) {
+    const StylePatch* override_patch = (patch_kind == StylePatchKind::Override) ? local_patch : nullptr;
+    const StylePatch* adjust_patch = (patch_kind == StylePatchKind::Adjust) ? local_patch : nullptr;
+    if (class_patch || override_patch || adjust_patch) {
         patched_colors = *colors;
         patched_metrics = *metrics;
         patched_decoration = *decoration;
         if (class_patch) {
             apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *class_patch);
         }
-        if (local_patch) {
-            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *local_patch);
+        if (override_patch) {
+            apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *override_patch);
+        }
+        if (adjust_patch) {
+            apply_style_adjust(patched_metrics, *adjust_patch);
         }
         colors = &patched_colors;
         metrics = &patched_metrics;
@@ -610,13 +623,13 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
         unsupported_kind(kind);
         break;
     case WidgetKind::Container:
-        if (class_patch || local_patch) {
+        if (class_patch || override_patch) {
             const auto wants_surface = [](const StylePatch* patch) noexcept {
                 return patch && (patch->has_bg_color || patch->has_border_color ||
                     patch->has_border_width || patch->has_corner_radius ||
                     patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled);
             };
-            const bool draw_surface = wants_surface(class_patch) || wants_surface(local_patch);
+            const bool draw_surface = wants_surface(class_patch) || wants_surface(override_patch);
             if (draw_surface) {
                 record_decorated_box(out, world_rect, *colors, *metrics, *decoration, true, true);
             }

@@ -169,7 +169,7 @@ namespace player::ui_builder_detail {
         patch.padding = 0;
         patch.has_corner_radius = true;
         patch.corner_radius = 0;
-        builder.set_style_patch(h, patch);
+        builder.set_style_override(h, patch);
     }
 
     static void apply_time_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
@@ -178,7 +178,7 @@ namespace player::ui_builder_detail {
         patch.font_color = kUiTime;
         patch.has_font = true;
         patch.font = &get_font(FontId::Small);
-        builder.set_style_patch(h, patch);
+        builder.set_style_override(h, patch);
     }
 
     static void apply_info_tag_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
@@ -221,7 +221,7 @@ namespace player::ui_builder_detail {
         patch.inner_stroke_color = kUiButtonHover;
         patch.has_inner_stroke_width = true;
         patch.inner_stroke_width = 1;
-        builder.set_style_patch(h, patch);
+        builder.set_style_override(h, patch);
     }
 
     static void apply_shuffle_shadow_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
@@ -271,7 +271,7 @@ namespace player::ui_builder_detail {
             StylePatch patch{};
             patch.has_corner_radius = true;
             patch.corner_radius = 20;
-            builder.set_style_patch(h.cover, patch);
+            builder.set_style_override(h.cover, patch);
         }
 
         constexpr bool kShowCoverCollage = false;
@@ -298,7 +298,7 @@ namespace player::ui_builder_detail {
                 patch.shadow_spread = 2;
                 patch.has_shadow_radius = true;
                 patch.shadow_radius = 10;
-                builder.set_style_patch(h.cover_left, patch);
+                builder.set_style_override(h.cover_left, patch);
             }
             h.cover_right = builder.create_image();
             anchor_rect(builder, h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 18,
@@ -320,7 +320,7 @@ namespace player::ui_builder_detail {
                 patch.shadow_spread = 2;
                 patch.has_shadow_radius = true;
                 patch.shadow_radius = 10;
-                builder.set_style_patch(h.cover_right, patch);
+                builder.set_style_override(h.cover_right, patch);
             }
         }
 
@@ -497,7 +497,7 @@ namespace player::ui_builder_detail {
             patch.border_width = 0;
             patch.has_corner_radius = true;
             patch.corner_radius = 0;
-            builder.set_style_patch(h.now_backdrop, patch);
+            builder.set_style_override(h.now_backdrop, patch);
         }
 
         const WidgetHandle top_bar = builder.create_container();

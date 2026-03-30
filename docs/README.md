@@ -47,6 +47,7 @@ flowchart TD
 | POSIX spawn 草案 | `docs/system/posix_spawn_minimal_design.md` |
 | POSIX fd 表草案 | `docs/system/posix_fd_table_minimal_design.md` |
 | POSIX errno 映射 | `docs/system/posix_errno_mapping.md` |
+| POSIX 错误语义约定 | `docs/system/posix_error_semantics.md` |
 | BusyBox 验收清单 | `docs/system/posix_busybox_phase_checklist.md` |
 
 ## 按专题索引
@@ -107,6 +108,7 @@ docs/
 - `docs/system/posix_spawn_minimal_design.md`
 - `docs/system/posix_fd_table_minimal_design.md`
 - `docs/system/posix_errno_mapping.md`
+- `docs/system/posix_error_semantics.md`
 - `docs/system/posix_busybox_phase_checklist.md`
 - `docs/boot/bootloader_overview.md`
 - `docs/boot/bootloader_xymodem.md`

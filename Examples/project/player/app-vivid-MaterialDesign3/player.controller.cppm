@@ -248,7 +248,7 @@ export namespace player {
             patch.border_width = 0;
             patch.has_corner_radius = true;
             patch.corner_radius = 0;
-            access.set_style_patch(handles.now_backdrop, patch);
+            access.set_style_override(handles.now_backdrop, patch);
 
             const rgba title = theme.on_backdrop;
             const rgba subtitle = blend_on(theme.on_surface_variant, theme.backdrop, 210);
@@ -259,7 +259,7 @@ export namespace player {
                 StylePatch p{};
                 p.has_font_color = true;
                 p.font_color = color;
-                access.set_style_patch(h, p);
+                access.set_style_override(h, p);
             };
             apply_label(handles.title, title);
             apply_label(handles.subtitle, subtitle);
@@ -274,7 +274,7 @@ export namespace player {
                 tag.border_color = with_alpha(theme.outline_variant, 160);
                 tag.has_font_color = true;
                 tag.font_color = theme.on_surface;
-                access.set_style_patch(handles.info_tag, tag);
+                access.set_style_override(handles.info_tag, tag);
             }
 
             if (handles.progress) {
@@ -283,7 +283,7 @@ export namespace player {
                 prog.border_color = with_alpha(theme.surface_low, 120);
                 prog.has_accent_color = true;
                 prog.accent_color = theme.primary;
-                access.set_style_patch(handles.progress, prog);
+                access.set_style_override(handles.progress, prog);
             }
 
             auto apply_btn = [&](WidgetHandle h, const rgba& bg, const rgba& border, const rgba& font) {
@@ -295,7 +295,7 @@ export namespace player {
                 btn.border_color = border;
                 btn.has_font_color = true;
                 btn.font_color = font;
-                access.set_style_patch(h, btn);
+                access.set_style_override(h, btn);
             };
             const rgba side_bg = blend_on(theme.surface_high, theme.backdrop, 140);
             const rgba side_border = blend_on(theme.outline_variant, theme.backdrop, 120);

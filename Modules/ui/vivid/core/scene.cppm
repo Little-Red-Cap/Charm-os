@@ -169,8 +169,10 @@ export namespace ui::scene {
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
-        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
-        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_patch(h, token.patch); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
+        void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
+        void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_override(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_override(h, token.patch); }
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_->set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_->clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
@@ -235,8 +237,10 @@ export namespace ui::scene {
             kernel_.set_scrollbar_orientation(h, o);
         }
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
-        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
-        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_patch(h, token.patch); }
+        void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
+        void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
+        void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_override(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_override(h, token.patch); }
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_.set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_.clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }

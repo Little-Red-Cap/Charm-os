@@ -231,6 +231,13 @@ struct StylePatch {
 };
 
 export
+enum class StylePatchKind : std::uint8_t {
+    None = 0,
+    Adjust = 1,
+    Override = 2
+};
+
+export
 struct StyleToken {
     StylePatch patch{};
 };

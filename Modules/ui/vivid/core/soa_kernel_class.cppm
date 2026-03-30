@@ -54,6 +54,7 @@ namespace soa_detail {
         std::array<PayloadHandle, N> payload{};
         std::array<StylePatch, N> style_patch{};
         std::array<std::uint8_t, N> style_patch_on{};
+        std::array<std::uint8_t, N> style_patch_kind{};
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
@@ -88,6 +89,7 @@ public:
             common_.payload[i] = soa_detail::invalid_payload_handle();
             common_.style_patch[i] = StylePatch{};
             common_.style_patch_on[i] = 0;
+            common_.style_patch_kind[i] = static_cast<std::uint8_t>(StylePatchKind::None);
             common_.style_class[i] = kStyleClassInvalid;
             common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
@@ -129,6 +131,7 @@ public:
         common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
         common_.style_patch[idx] = StylePatch{};
         common_.style_patch_on[idx] = 0;
+        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
@@ -150,6 +153,7 @@ public:
             common_.payload[idx] = soa_detail::invalid_payload_handle();
             common_.style_patch[idx] = StylePatch{};
             common_.style_patch_on[idx] = 0;
+            common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
             common_.style_class[idx] = kStyleClassInvalid;
             common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
@@ -179,6 +183,7 @@ public:
         common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
         common_.style_patch[idx] = StylePatch{};
         common_.style_patch_on[idx] = 0;
+        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
@@ -659,9 +664,12 @@ public:
     }
 
     void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept;
+    void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept;
+    void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept;
     void clear_style_patch(WidgetHandle h) noexcept;
     bool has_style_patch(WidgetHandle h) const noexcept;
     const StylePatch* style_patch(WidgetHandle h) const noexcept;
+    StylePatchKind style_patch_kind(WidgetHandle h) const noexcept;
     void set_style_class(WidgetHandle h, StyleClassId id) noexcept;
     void clear_style_class(WidgetHandle h) noexcept;
     StyleClassId style_class(WidgetHandle h) const noexcept;

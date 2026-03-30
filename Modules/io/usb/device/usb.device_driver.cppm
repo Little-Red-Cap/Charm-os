@@ -85,7 +85,6 @@ export namespace usb::device {
                 clear_pending();
                 return;
             }
-            apply_address_immediately(setup);
         }
 
         void on_out_data(std::span<const u8> data) noexcept {
@@ -228,19 +227,6 @@ export namespace usb::device {
                     dcd_ops_.set_configured(dcd_ctx_, pending_configured_);
                 }
                 pending_config_valid_ = false;
-            }
-        }
-
-        void apply_address_immediately(const SetupPacket& setup) noexcept {
-            if (request_type(setup.bm_request_type) != RequestType::standard) {
-                return;
-            }
-            if (static_cast<StandardRequest>(setup.b_request) != StandardRequest::set_address) {
-                return;
-            }
-            if (pending_address_valid_ && dcd_ops_.set_address) {
-                dcd_ops_.set_address(dcd_ctx_, pending_address_);
-                pending_address_valid_ = false;
             }
         }
 

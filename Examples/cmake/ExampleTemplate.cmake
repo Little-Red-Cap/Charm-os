@@ -12,6 +12,7 @@ function(charm_example_init target_name)
     cmake_minimum_required(VERSION 4.0)
     project(${target_name})
     set(CMAKE_CXX_STANDARD 26)
+    set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 endfunction()
 
 function(charm_example_sources target_name base_dir)

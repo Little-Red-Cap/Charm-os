@@ -3,6 +3,7 @@ project(Charm-os)
 set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 option(CHARM_ENABLE_SDL3 "Enable SDL3-backed modules" OFF)
 option(CHARM_AUDIO_SINK_I2S "Enable I2S audio sink" OFF)
 option(CHARM_ENABLE_MEDIA "Enable media modules" ON)

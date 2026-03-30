@@ -8,6 +8,7 @@ module;
 export module posix.proc;
 
 import init.node;
+import posix.env;
 import util.core;
 import util.error;
 
@@ -85,7 +86,7 @@ export namespace posix {
         MainEntry entry{nullptr};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxPathLen = 128>
     class ProcService {
     public:
         void init() noexcept {
@@ -182,16 +183,45 @@ export namespace posix {
         }
 
         std::string_view resolve_name(const SpawnConfig& cfg) noexcept {
+            const std::string_view path = cfg.path ? std::string_view{cfg.path} : std::string_view{};
+            const std::string_view argv0 =
+                (!cfg.argv.empty() && cfg.argv[0] != nullptr) ? std::string_view{cfg.argv[0]} : std::string_view{};
+
             if (cfg.path_mode == PathMode::exact) {
-                return cfg.path ? std::string_view{cfg.path} : std::string_view{};
+                return path;
             }
-            if (cfg.path != nullptr && cfg.path[0] != '\0') {
-                return std::string_view{cfg.path};
+
+            const std::string_view target = !path.empty() ? path : argv0;
+            if (target.empty()) return {};
+
+            const auto path_list = envp_path(cfg.envp);
+            if (path_list.empty()) {
+                return target;
             }
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
-                return std::string_view{cfg.argv[0]};
+
+            resolved_path_[0] = '\0';
+            bool found = for_each_path_candidate<MaxPathLen>(path_list, target,
+                [&](std::string_view candidate) noexcept {
+                    if (find_entry(candidate) != nullptr) {
+                        const util::usize n = candidate.size() < (MaxPathLen - 1)
+                            ? candidate.size()
+                            : (MaxPathLen - 1);
+                        for (util::usize i = 0; i < n; ++i) {
+                            resolved_path_[i] = candidate[i];
+                        }
+                        resolved_path_[n] = '\0';
+                        return true;
+                    }
+                    return false;
+                });
+            if (found) {
+                return std::string_view{resolved_path_};
             }
-            return {};
+            return target;
+        }
+
+        static std::string_view envp_path(std::span<const char* const> envp) noexcept {
+            return envp_get(envp, kPathKey);
         }
 
         int alloc_slot() noexcept {
@@ -227,15 +257,16 @@ export namespace posix {
         std::array<Process, MaxProcs> procs_{};
         std::array<bool, MaxProcs> used_{};
         int next_pid_{1};
+        std::array<char, MaxPathLen> resolved_path_{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxPathLen = 128>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxPathLen>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxPathLen>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

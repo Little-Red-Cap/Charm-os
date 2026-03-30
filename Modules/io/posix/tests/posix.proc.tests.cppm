@@ -51,12 +51,14 @@ namespace {
     void test_search_path_argv0() noexcept {
         posix::ProcService<4, 4> procs{};
         procs.init();
-        auto rreg = procs.register_executable("hello", &demo_main);
+        auto rreg = procs.register_executable("/bin/hello", &demo_main);
         assert_true(rreg);
 
         const char* argv[] = {"hello", nullptr};
+        const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
         posix::SpawnConfig cfg{};
         cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
         cfg.path_mode = posix::PathMode::search_path;
 
         auto spawn = procs.spawn(cfg);

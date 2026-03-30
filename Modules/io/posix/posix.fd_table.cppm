@@ -95,6 +95,18 @@ export namespace posix {
             return util::unexpected(util::Errc::buffer_overflow);
         }
 
+        util::Result<void> clone_to(FdTable<MaxFds>& out) const noexcept {
+            out.clear();
+            for (util::usize i = 0; i < MaxFds; ++i) {
+                if (!used_[i]) continue;
+                const auto& entry = slots_[i];
+                if (!entry.inheritable) continue;
+                auto r = out.attach(entry, static_cast<int>(i));
+                if (!r) return util::unexpected(r.error());
+            }
+            return {};
+        }
+
         util::Result<void> close(int fd) noexcept {
             auto* entry = get_ptr(fd);
             if (!entry) {

@@ -91,6 +91,8 @@ export namespace posix {
     template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
     class ProcService {
     public:
+        using FdTableType = FdTable<MaxFds>;
+
         void init() noexcept {
             for (auto& p : procs_) p = {};
             for (auto& used : used_) used = false;
@@ -129,16 +131,9 @@ export namespace posix {
             if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
                 return util::unexpected(util::Errc::not_supported);
             }
-            const bool has_actions = cfg.file_actions && cfg.file_actions->count > 0;
-            const bool has_stdio = cfg.stdio_in >= 0 || cfg.stdio_out >= 0 || cfg.stdio_err >= 0;
-            if ((has_actions || has_stdio) && fd_table_ == nullptr) {
-                return util::unexpected(util::Errc::not_supported);
-            }
-            if (has_actions || has_stdio) {
-                auto r = apply_fd_overrides(cfg);
-                if (!r) {
-                    return util::unexpected(r.error());
-                }
+            auto child_table = build_child_fd_table(cfg);
+            if (!child_table) {
+                return util::unexpected(child_table.error());
             }
 
             std::string_view name = resolve_name(cfg);
@@ -157,6 +152,7 @@ export namespace posix {
             proc.pid.value = pid;
             proc.exited = false;
             proc.exit_code = 0;
+            proc.fds = child_table.value();
 
             int argc = static_cast<int>(cfg.argv.size());
             char** argv = const_cast<char**>(cfg.argv.data());
@@ -188,108 +184,31 @@ export namespace posix {
             ProcessId pid{};
             bool exited{false};
             int exit_code{0};
+            FdTableType fds{};
         };
 
-        static util::Result<void> snapshot_open(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
-            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            const util::usize idx = static_cast<util::usize>(fd);
-            snapshot.used[idx] = true;
-            snapshot.slots[idx].id = fd;
-            return {};
-        }
-
-        static util::Result<void> snapshot_close(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
-            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            const util::usize idx = static_cast<util::usize>(fd);
-            if (!snapshot.used[idx]) {
-                return util::unexpected(util::Errc::noent);
-            }
-            snapshot.slots[idx] = {};
-            snapshot.used[idx] = false;
-            return {};
-        }
-
-        static util::Result<void> snapshot_dup2(FdTableSnapshot<MaxFds>& snapshot, int from, int to) noexcept {
-            if (from < 0 || to < 0) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            if (static_cast<util::usize>(from) >= MaxFds || static_cast<util::usize>(to) >= MaxFds) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            if (from == to) return {};
-            const util::usize from_idx = static_cast<util::usize>(from);
-            if (!snapshot.used[from_idx]) {
-                return util::unexpected(util::Errc::noent);
-            }
-            const util::usize to_idx = static_cast<util::usize>(to);
-            snapshot.slots[to_idx] = snapshot.slots[from_idx];
-            snapshot.slots[to_idx].id = to;
-            snapshot.used[to_idx] = true;
-            return {};
-        }
-
-        util::Result<void> apply_fd_overrides(const SpawnConfig& cfg) noexcept {
+        util::Result<FdTableType> build_child_fd_table(const SpawnConfig& cfg) noexcept {
             if (!fd_table_) {
-                return util::unexpected(util::Errc::invalid_arg);
+                return util::unexpected(util::Errc::not_supported);
             }
-            FdTableSnapshot<MaxFds> snapshot{};
-            fd_table_->snapshot(snapshot);
-
-            if (cfg.stdio_in >= 0) {
-                auto r = snapshot_dup2(snapshot, cfg.stdio_in, 0);
-                if (!r) return r;
-            }
-            if (cfg.stdio_out >= 0) {
-                auto r = snapshot_dup2(snapshot, cfg.stdio_out, 1);
-                if (!r) return r;
-            }
-            if (cfg.stdio_err >= 0) {
-                auto r = snapshot_dup2(snapshot, cfg.stdio_err, 2);
-                if (!r) return r;
-            }
-
-            if (cfg.file_actions && cfg.file_actions->count > 0) {
-                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
-                    const auto& act = cfg.file_actions->actions[i];
-                    switch (act.kind) {
-                        case FileAction::Kind::open:
-                            if (!act.path || act.fd < 0) {
-                                return util::unexpected(util::Errc::invalid_arg);
-                            }
-                            if (file_service_ == nullptr) {
-                                return util::unexpected(util::Errc::not_supported);
-                            }
-                            if (auto r = snapshot_open(snapshot, act.fd); !r) return r;
-                            break;
-                        case FileAction::Kind::close: {
-                            auto r = snapshot_close(snapshot, act.fd);
-                            if (!r) return r;
-                            break;
-                        }
-                        case FileAction::Kind::dup2: {
-                            auto r = snapshot_dup2(snapshot, act.fd, act.newfd);
-                            if (!r) return r;
-                            break;
-                        }
-                    }
-                }
+            FdTableType child{};
+            child.init();
+            auto rc = fd_table_->clone_to(child);
+            if (!rc) {
+                return util::unexpected(rc.error());
             }
 
             if (cfg.stdio_in >= 0) {
-                auto r = fd_table_->dup2(cfg.stdio_in, 0);
-                if (!r) return r;
+                auto r = child.dup2(cfg.stdio_in, 0);
+                if (!r) return util::unexpected(r.error());
             }
             if (cfg.stdio_out >= 0) {
-                auto r = fd_table_->dup2(cfg.stdio_out, 1);
-                if (!r) return r;
+                auto r = child.dup2(cfg.stdio_out, 1);
+                if (!r) return util::unexpected(r.error());
             }
             if (cfg.stdio_err >= 0) {
-                auto r = fd_table_->dup2(cfg.stdio_err, 2);
-                if (!r) return r;
+                auto r = child.dup2(cfg.stdio_err, 2);
+                if (!r) return util::unexpected(r.error());
             }
 
             if (cfg.file_actions && cfg.file_actions->count > 0) {
@@ -297,6 +216,9 @@ export namespace posix {
                     const auto& act = cfg.file_actions->actions[i];
                     switch (act.kind) {
                         case FileAction::Kind::open: {
+                            if (!act.path || act.fd < 0) {
+                                return util::unexpected(util::Errc::invalid_arg);
+                            }
                             if (!file_service_) {
                                 return util::unexpected(util::Errc::not_supported);
                             }
@@ -304,29 +226,29 @@ export namespace posix {
                             if (!entry) {
                                 return util::unexpected(entry.error());
                             }
-                            if (auto existing = fd_table_->get(act.fd)) {
-                                auto r = fd_table_->close(act.fd);
-                                if (!r) return r;
+                            if (auto existing = child.get(act.fd)) {
+                                auto r = child.close(act.fd);
+                                if (!r) return util::unexpected(r.error());
                             }
-                            auto r = fd_table_->attach(entry.value(), act.fd);
+                            auto r = child.attach(entry.value(), act.fd);
                             if (!r) return util::unexpected(r.error());
                             break;
                         }
                         case FileAction::Kind::close: {
-                            auto r = fd_table_->close(act.fd);
-                            if (!r) return r;
+                            auto r = child.close(act.fd);
+                            if (!r) return util::unexpected(r.error());
                             break;
                         }
                         case FileAction::Kind::dup2: {
-                            auto r = fd_table_->dup2(act.fd, act.newfd);
-                            if (!r) return r;
+                            auto r = child.dup2(act.fd, act.newfd);
+                            if (!r) return util::unexpected(r.error());
                             break;
                         }
                     }
                 }
             }
 
-            return {};
+            return child;
         }
 
         ExecEntry* find_entry(std::string_view name) noexcept {

@@ -159,6 +159,14 @@ namespace {
         auto st = procs.waitpid(spawn.value().pid, 0);
         assert_true(st);
 
+        // parent table should remain unchanged after spawn
+        auto entry1 = table.get(1);
+        assert_true(entry1);
+        assert_eq(entry1.value()->id, 1);
+        auto entry4 = table.get(4);
+        assert_true(entry4);
+        assert_eq(entry4.value()->id, 4);
+
         posix::FileActions<1> open_actions{};
         assert_true(open_actions.add_open(5, "/tmp/x", 0, 0));
         cfg.file_actions = &open_actions;
@@ -199,10 +207,7 @@ namespace {
         auto spawn = procs.spawn(cfg);
         assert_true(spawn);
         auto fd_entry = table.get(3);
-        assert_true(fd_entry);
-        assert_eq(fd_entry.value()->kind, posix::FdKind::file);
-        auto close = table.close(3);
-        assert_true(close);
+        assert_true(!fd_entry);
     }
 } // namespace
 

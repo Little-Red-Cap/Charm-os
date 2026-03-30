@@ -16,7 +16,6 @@ import player.mcu_policy;
 import audio.eq;
 import audio.player;
 import audio.result;
-import alg_color_extract;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
@@ -30,6 +29,7 @@ import player.storage;
 import player.track_probe;
 import player.ui;
 import player.cover;
+import player.cover_theme;
 import player.font_cache;
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
@@ -145,6 +145,7 @@ export namespace player {
         rgba cover_tint{ui::kUiBackdropBase};
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
+        cover_theme::CoverThemeMode cover_theme_mode{cover_theme::CoverThemeMode::primary_container};
         bool fs_ready{false};
         bool track_preloaded{false};
         int preloaded_duration_sec{0};
@@ -156,15 +157,6 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
-
-        static rgba mix_rgba(const rgba& a, const rgba& b, float t) noexcept {
-            const float s = 1.0f - t;
-            auto blend = [&](std::uint8_t av, std::uint8_t bv) -> std::uint8_t {
-                const float v = static_cast<float>(av) * s + static_cast<float>(bv) * t;
-                return static_cast<std::uint8_t>(std::clamp(v, 0.0f, 255.0f));
-            };
-            return {blend(a.r, b.r), blend(a.g, b.g), blend(a.b, b.b), 255};
-        }
 
         static bool is_audio_extension(std::string_view ext) noexcept {
             if (ext.empty()) return false;
@@ -191,66 +183,13 @@ export namespace player {
             text.assign(v.substr(0, dot));
         }
 
-        static rgba derive_cover_tint(const CoverImage& img) noexcept {
-            if (img.argb.empty() || img.width <= 0 || img.height <= 0) {
-                return kUiBackdropBase;
-            }
-            const int w = img.width;
-            const int h = img.height;
-            constexpr int max_dim = 128;
-            const int max_side = std::max(w, h);
-            const int scaled_w = (max_side > max_dim) ? std::max(1, (w * max_dim) / max_side) : w;
-            const int scaled_h = (max_side > max_dim) ? std::max(1, (h * max_dim) / max_side) : h;
-            std::vector<std::uint32_t> samples;
-            samples.reserve(static_cast<std::size_t>(scaled_w * scaled_h));
-            std::uint64_t sum_r = 0;
-            std::uint64_t sum_g = 0;
-            std::uint64_t sum_b = 0;
-            std::uint64_t sum_w = 0;
-            for (int y = 0; y < scaled_h; ++y) {
-                const int src_y = (scaled_h == h) ? y : (y * h) / scaled_h;
-                const int row = src_y * w;
-                for (int x = 0; x < scaled_w; ++x) {
-                    const int src_x = (scaled_w == w) ? x : (x * w) / scaled_w;
-                    const auto argb = img.argb[static_cast<std::size_t>(row + src_x)];
-                    const std::uint8_t a = static_cast<std::uint8_t>((argb >> 24) & 0xFF);
-                    if (a < 20) continue;
-                    samples.push_back(argb);
-                    sum_r += (argb >> 16) & 0xFFu;
-                    sum_g += (argb >> 8) & 0xFFu;
-                    sum_b += argb & 0xFFu;
-                    sum_w += 1;
-                }
-            }
-            if (samples.empty()) {
-                return kUiBackdropBase;
-            }
-            const std::uint32_t avg_r = static_cast<std::uint32_t>(sum_r / sum_w) & 0xFFu;
-            const std::uint32_t avg_g = static_cast<std::uint32_t>(sum_g / sum_w) & 0xFFu;
-            const std::uint32_t avg_b = static_cast<std::uint32_t>(sum_b / sum_w) & 0xFFu;
-            const std::uint32_t avg_argb =
-                0xFF000000u | (avg_r << 16) | (avg_g << 8) | avg_b;
-
-            const auto seed_argb = alg::extract_seed_argb(samples);
-            const auto surface_argb = alg::scheme_surface_container_argb(seed_argb, true, true);
-            const rgba seed{
-                static_cast<std::uint8_t>((surface_argb >> 16) & 0xFFu),
-                static_cast<std::uint8_t>((surface_argb >> 8) & 0xFFu),
-                static_cast<std::uint8_t>(surface_argb & 0xFFu),
-                255};
-
-            const rgba mixed = mix_rgba(kUiBackdropBase, seed, 1.0f);
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-            const auto seed_hct = alg::seed_hct_metrics(seed_argb);
-            std::printf("[cover] avg=%u,%u,%u seed=%u,%u,%u mixed=%u,%u,%u\n",
-                        avg_r, avg_g, avg_b,
-                        seed.r, seed.g, seed.b,
-                        mixed.r, mixed.g, mixed.b);
-            std::printf("[cover] hct hue=%.1f chroma=%.1f tone=%.1f\n",
-                        seed_hct.hue, seed_hct.chroma, seed_hct.tone);
-#endif
-            (void)avg_argb;
-            return mixed;
+        rgba derive_cover_tint(const CoverImage& img) noexcept {
+            cover_theme::CoverThemeConfig config{};
+            config.mode = cover_theme_mode;
+            config.is_dark = true;
+            config.fallback = kUiBackdropBase;
+            const auto theme = cover_theme::compute_cover_theme(img, config);
+            return theme.backdrop;
         }
 
         void apply_now_backdrop(const rgba& tint) noexcept {
@@ -265,6 +204,19 @@ export namespace player {
             patch.has_corner_radius = true;
             patch.corner_radius = 0;
             access.set_style_patch(handles.now_backdrop, patch);
+        }
+
+        void cycle_cover_theme() noexcept {
+            if (cover_theme_mode == cover_theme::CoverThemeMode::primary_container) {
+                cover_theme_mode = cover_theme::CoverThemeMode::surface_container_high;
+            } else {
+                cover_theme_mode = cover_theme::CoverThemeMode::primary_container;
+            }
+            if (!cover_image.path.empty()) {
+                cover_tint = derive_cover_tint(cover_image);
+                cover_tint_path.assign(cover_image.path);
+                apply_now_backdrop(cover_tint);
+            }
         }
 
         PlayerPage current_page{PlayerPage::NowPlaying};
@@ -1470,19 +1422,23 @@ export namespace player {
                         }
                         continue;
                     }
-                    if (type == Event::Type::MouseUp) {
-                        if (target == handles.now_back) {
-                            set_page(PlayerPage::Library);
-                        } else if (target == handles.btn_prev) {
-                            actions.prev = true;
-                        } else if (target == handles.btn_next) {
-                            actions.next = true;
-                        } else if (target == handles.btn_pause) {
-                            actions.toggle_play = true;
-                        } else if (target == handles.btn_mode) {
-                            actions.cycle_mode = true;
-                        }
+                if (type == Event::Type::MouseUp) {
+                    if (target == handles.now_back) {
+                        set_page(PlayerPage::Library);
+                    } else if (target == handles.btn_prev) {
+                        actions.prev = true;
+                    } else if (target == handles.btn_next) {
+                        actions.next = true;
+                    } else if (target == handles.btn_pause) {
+                        actions.toggle_play = true;
+                    } else if (target == handles.btn_mode) {
+                        actions.cycle_mode = true;
+#if defined(CHARM_PLAYER_DEBUG_UI)
+                    } else if (target == handles.cover || target == handles.now_backdrop) {
+                        cycle_cover_theme();
+#endif
                     }
+                }
                 } else {
                     if (type == Event::Type::MouseUp) {
                         if (target == handles.bottom_bar || target == handles.bottom_cover

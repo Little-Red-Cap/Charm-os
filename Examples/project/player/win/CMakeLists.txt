@@ -97,6 +97,9 @@ charm_example_sources_filtered(${PLAYER_TARGET_VIVID_MD3}
     "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/*.cppm"
 )
+target_sources(${PLAYER_TARGET_VIVID_MD3} PRIVATE
+    "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.cover_theme.cppm"
+)
 charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/common/sdl3/backend.sdl3.cppm"
     "${CHARM_ROOT}/Examples/common/sdl3/sdl3.input.cppm"

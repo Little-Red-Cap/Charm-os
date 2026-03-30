@@ -258,4 +258,11 @@ export namespace alg {
         }
         return scheme.GetSurfaceContainer();
     }
+
+    inline std::uint32_t scheme_primary_container_argb(std::uint32_t seed_argb,
+                                                       bool is_dark) {
+        material_color_utilities::Hct hct(seed_argb);
+        material_color_utilities::SchemeTonalSpot scheme(hct, is_dark, 0.0);
+        return scheme.GetPrimaryContainer();
+    }
 }  // namespace alg

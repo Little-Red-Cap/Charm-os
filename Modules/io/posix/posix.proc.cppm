@@ -10,6 +10,7 @@ export module posix.proc;
 import init.node;
 import posix.env;
 import posix.fd_table;
+import posix.file;
 import util.core;
 import util.error;
 
@@ -87,7 +88,7 @@ export namespace posix {
         MainEntry entry{nullptr};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
     class ProcService {
     public:
         void init() noexcept {
@@ -99,6 +100,10 @@ export namespace posix {
 
         void bind_fd_table(FdTable<MaxFds>& table) noexcept {
             fd_table_ = &table;
+        }
+
+        void bind_file_service(FileService<MaxFiles>& file_service) noexcept {
+            file_service_ = &file_service;
         }
 
         util::Result<void> register_executable(std::string_view name, MainEntry entry) noexcept {
@@ -185,6 +190,16 @@ export namespace posix {
             int exit_code{0};
         };
 
+        static util::Result<void> snapshot_open(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
+            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const util::usize idx = static_cast<util::usize>(fd);
+            snapshot.used[idx] = true;
+            snapshot.slots[idx].id = fd;
+            return {};
+        }
+
         static util::Result<void> snapshot_close(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
             if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -242,7 +257,14 @@ export namespace posix {
                     const auto& act = cfg.file_actions->actions[i];
                     switch (act.kind) {
                         case FileAction::Kind::open:
-                            return util::unexpected(util::Errc::not_supported);
+                            if (!act.path || act.fd < 0) {
+                                return util::unexpected(util::Errc::invalid_arg);
+                            }
+                            if (file_service_ == nullptr) {
+                                return util::unexpected(util::Errc::not_supported);
+                            }
+                            if (auto r = snapshot_open(snapshot, act.fd); !r) return r;
+                            break;
                         case FileAction::Kind::close: {
                             auto r = snapshot_close(snapshot, act.fd);
                             if (!r) return r;
@@ -250,6 +272,53 @@ export namespace posix {
                         }
                         case FileAction::Kind::dup2: {
                             auto r = snapshot_dup2(snapshot, act.fd, act.newfd);
+                            if (!r) return r;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (cfg.stdio_in >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_in, 0);
+                if (!r) return r;
+            }
+            if (cfg.stdio_out >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_out, 1);
+                if (!r) return r;
+            }
+            if (cfg.stdio_err >= 0) {
+                auto r = fd_table_->dup2(cfg.stdio_err, 2);
+                if (!r) return r;
+            }
+
+            if (cfg.file_actions && cfg.file_actions->count > 0) {
+                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
+                    const auto& act = cfg.file_actions->actions[i];
+                    switch (act.kind) {
+                        case FileAction::Kind::open: {
+                            if (!file_service_) {
+                                return util::unexpected(util::Errc::not_supported);
+                            }
+                            auto entry = file_service_->open(std::string_view{act.path}, act.flags, act.mode);
+                            if (!entry) {
+                                return util::unexpected(entry.error());
+                            }
+                            if (auto existing = fd_table_->get(act.fd)) {
+                                auto r = fd_table_->close(act.fd);
+                                if (!r) return r;
+                            }
+                            auto r = fd_table_->attach(entry.value(), act.fd);
+                            if (!r) return util::unexpected(r.error());
+                            break;
+                        }
+                        case FileAction::Kind::close: {
+                            auto r = fd_table_->close(act.fd);
+                            if (!r) return r;
+                            break;
+                        }
+                        case FileAction::Kind::dup2: {
+                            auto r = fd_table_->dup2(act.fd, act.newfd);
                             if (!r) return r;
                             break;
                         }
@@ -342,17 +411,18 @@ export namespace posix {
         std::array<Process, MaxProcs> procs_{};
         std::array<bool, MaxProcs> used_{};
         FdTable<MaxFds>* fd_table_{nullptr};
+        FileService<MaxFiles>* file_service_{nullptr};
         int next_pid_{1};
         std::array<char, MaxPathLen> resolved_path_{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs, MaxFds, MaxPathLen>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxPathLen>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

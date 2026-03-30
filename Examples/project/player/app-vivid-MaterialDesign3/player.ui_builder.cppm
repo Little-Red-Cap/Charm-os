@@ -78,11 +78,13 @@ namespace player::ui_builder_detail {
         const int text_gap = 10;
         const int title_h = 36;
         const int subtitle_h = 18;
-        const int progress_h = 6;
+        const int progress_h = 4;
         const int text_col_y = header_top + 12;
         const int text_col_h = 118;
         const int controls_y = text_col_y + text_col_h + 30;
-        const int controls_w = 72 * 3 + 16 * 2;
+        const int control_size = 80;
+        const int control_gap = 16;
+        const int controls_w = control_size * 3 + control_gap * 2;
         const int controls_x = (screen_width - controls_w) / 2;
 
         const int tabs_y = top_bar_y + top_bar_h + 10;
@@ -129,7 +131,7 @@ namespace player::ui_builder_detail {
     static NowTextLayout make_now_text_layout(const UiLayout& layout) noexcept {
         const int title_h = 36;
         const int subtitle_h = 18;
-        const int progress_h = 6;
+        const int progress_h = 4;
         const int time_row_h = 14;
         const int text_gap = 10;
         const int header_top = (layout.top_bar_y + layout.top_bar_h + 12) + kCoverSize;
@@ -149,8 +151,8 @@ namespace player::ui_builder_detail {
         };
     }
 
-    static void apply_text_button_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
-                                        const Font& font) {
+    static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
+                                       const Font& font) {
         StylePatch patch{};
         patch.has_font_color = true;
         patch.font_color = color;
@@ -353,12 +355,14 @@ namespace player::ui_builder_detail {
             }
         }
 
-        h.title = builder.create_button_static("");
-        apply_text_button_style(builder, h.title, kUiTitle, get_font(FontId::Large));
+        h.title = builder.create_label_static("");
+        apply_text_label_style(builder, h.title, kUiTitle, get_font(FontId::Large));
+        builder.set_label_align(h.title, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.title, false);
 
-        h.subtitle = builder.create_button_static("");
-        apply_text_button_style(builder, h.subtitle, kUiSubtitle, get_font(FontId::Small));
+        h.subtitle = builder.create_label_static("");
+        apply_text_label_style(builder, h.subtitle, kUiSubtitle, get_font(FontId::Small));
+        builder.set_label_align(h.subtitle, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.subtitle, false);
 
         h.progress = builder.create_progress();
@@ -446,25 +450,25 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
         h.controls = builder.create_container();
-        anchor_rect(builder, h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, 72});
+        anchor_rect(builder, h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, 80});
 
-        const int small_btn = 72;
-        const int play_btn = 72;
+        const int small_btn = 80;
+        const int play_btn = 80;
         const int btn_gap = 16;
-        const Rect controls_rect{0, 0, layout.controls_w, 72};
+        const Rect controls_rect{0, 0, layout.controls_w, 80};
         auto controls_row = ::ui::scene::make_row(builder, controls_rect, btn_gap, 0,
                                                   ::ui::scene::LayoutAlign::Center);
 
         h.btn_prev = builder.create_button_static("");
         controls_row.place(h.btn_prev, small_btn, small_btn);
         builder.set_button_icon(h.btn_prev, icons.prev);
-        builder.set_button_icon_size(h.btn_prev, 18);
+        builder.set_button_icon_size(h.btn_prev, 20);
         {
             StylePatch patch{};
             patch.has_corner_radius = true;
-            patch.corner_radius = 18;
+            patch.corner_radius = 16;
             patch.has_padding = true;
-            patch.padding = (small_btn - 18) / 2;
+            patch.padding = (small_btn - 20) / 2;
             builder.set_style_patch(h.btn_prev, patch);
         }
 
@@ -479,7 +483,7 @@ namespace player::ui_builder_detail {
             patch.has_border_color = true;
             patch.border_color = kUiButtonBorder;
             patch.has_corner_radius = true;
-            patch.corner_radius = 18;
+            patch.corner_radius = 16;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -491,7 +495,7 @@ namespace player::ui_builder_detail {
             patch.has_shadow_spread = true;
             patch.shadow_spread = 8;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = play_btn / 2 + 12;
+            patch.shadow_radius = play_btn / 2 + 10;
             patch.has_inner_stroke_enabled = true;
             patch.inner_stroke_enabled = true;
             patch.has_inner_stroke_color = true;
@@ -512,13 +516,13 @@ namespace player::ui_builder_detail {
         h.btn_next = builder.create_button_static("");
         controls_row.place(h.btn_next, small_btn, small_btn);
         builder.set_button_icon(h.btn_next, icons.next);
-        builder.set_button_icon_size(h.btn_next, 18);
+        builder.set_button_icon_size(h.btn_next, 20);
         {
             StylePatch patch{};
             patch.has_corner_radius = true;
-            patch.corner_radius = 18;
+            patch.corner_radius = 16;
             patch.has_padding = true;
-            patch.padding = (small_btn - 18) / 2;
+            patch.padding = (small_btn - 20) / 2;
             builder.set_style_patch(h.btn_next, patch);
         }
 

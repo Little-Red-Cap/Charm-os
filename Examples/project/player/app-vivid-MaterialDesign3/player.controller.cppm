@@ -4,6 +4,7 @@ module;
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cmath>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -144,6 +145,8 @@ export namespace player {
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         bool fs_ready{false};
+        bool track_preloaded{false};
+        int preloaded_duration_sec{0};
         int play_mode{0};
         int last_play_button_state{-1};
         int last_list_count{-1};
@@ -162,6 +165,31 @@ export namespace player {
             return {blend(a.r, b.r), blend(a.g, b.g), blend(a.b, b.b), 255};
         }
 
+        static bool is_audio_extension(std::string_view ext) noexcept {
+            if (ext.empty()) return false;
+            auto lower = [&](char c) noexcept -> char {
+                return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            };
+            char buf[8]{};
+            const std::size_t n = std::min(ext.size(), sizeof(buf) - 1);
+            for (std::size_t i = 0; i < n; ++i) buf[i] = lower(ext[i]);
+            std::string_view v{buf, n};
+            return v == "flac" || v == "mp3" || v == "wav" || v == "aac"
+                || v == "m4a" || v == "ogg" || v == "opus" || v == "ape"
+                || v == "alac" || v == "wv";
+        }
+
+        static void strip_audio_extension(FixedString<192>& text) {
+            std::string_view v = text.view();
+            const auto dot = v.find_last_of('.');
+            if (dot == std::string_view::npos) return;
+            const auto slash = v.find_last_of("/\\");
+            if (slash != std::string_view::npos && dot < slash) return;
+            const auto ext = v.substr(dot + 1);
+            if (!is_audio_extension(ext)) return;
+            text.assign(v.substr(0, dot));
+        }
+
         static rgba derive_cover_tint(const CoverImage& img) noexcept {
             if (img.argb.empty() || img.width <= 0 || img.height <= 0) {
                 return kUiBackdropBase;
@@ -169,14 +197,15 @@ export namespace player {
             const int w = img.width;
             const int h = img.height;
             const int step = std::max(1, std::min(w, h) / 64);
-            float sum_r = 0.0f;
-            float sum_g = 0.0f;
-            float sum_b = 0.0f;
-            float sum_w = 0.0f;
             float sum_r_all = 0.0f;
             float sum_g_all = 0.0f;
             float sum_b_all = 0.0f;
             float sum_w_all = 0.0f;
+            float neutral_pop = 0.0f;
+            float total_pop = 0.0f;
+            constexpr int kBuckets = 32;
+            constexpr int kBucketCount = kBuckets * kBuckets * kBuckets;
+            int counts[kBucketCount]{};
             for (int y = 0; y < h; y += step) {
                 const int row = y * w;
                 for (int x = 0; x < w; x += step) {
@@ -195,51 +224,187 @@ export namespace player {
                     sum_g_all += gf * alpha_w;
                     sum_b_all += bf * alpha_w;
                     sum_w_all += alpha_w;
+                    total_pop += alpha_w;
+                    if (sat <= 0.1f) {
+                        neutral_pop += alpha_w;
+                    }
 
                     if (sat < 0.08f || luma < 0.08f || luma > 0.92f) {
                         continue;
                     }
-                    float weight = (sat - 0.08f) / 0.92f;
-                    const float mid = 1.0f - std::abs(luma - 0.5f) * 1.4f;
-                    weight *= std::max(0.0f, 0.6f + 0.4f * mid);
-                    if (weight <= 0.0f) continue;
-                    sum_r += rf * weight;
-                    sum_g += gf * weight;
-                    sum_b += bf * weight;
-                    sum_w += weight;
+                    const int r5 = (static_cast<int>(rf * 255.0f) >> 3) & 0x1F;
+                    const int g5 = (static_cast<int>(gf * 255.0f) >> 3) & 0x1F;
+                    const int b5 = (static_cast<int>(bf * 255.0f) >> 3) & 0x1F;
+                    const int idx = (r5 << 10) | (g5 << 5) | b5;
+                    counts[idx] += 1;
                 }
             }
             float rf = 0.0f;
             float gf = 0.0f;
             float bf = 0.0f;
-            if (sum_w > 0.001f) {
-                const float inv = 1.0f / sum_w;
-                rf = sum_r * inv;
-                gf = sum_g * inv;
-                bf = sum_b * inv;
-            } else if (sum_w_all > 0.001f) {
-                const float inv = 1.0f / sum_w_all;
-                rf = sum_r_all * inv;
-                gf = sum_g_all * inv;
-                bf = sum_b_all * inv;
+            if (total_pop > 0.0f && neutral_pop / total_pop >= 0.9f) {
+                if (sum_w_all > 0.001f) {
+                    const float inv = 1.0f / sum_w_all;
+                    rf = sum_r_all * inv;
+                    gf = sum_g_all * inv;
+                    bf = sum_b_all * inv;
+                } else {
+                    return kUiBackdropBase;
+                }
             } else {
-                return kUiBackdropBase;
+                auto hue_of = [](float r, float g, float b, float max_c, float min_c) -> float {
+                    const float sat = max_c - min_c;
+                    if (sat <= 0.0001f) return 0.0f;
+                    float hue = 0.0f;
+                    if (max_c == r) {
+                        hue = (g - b) / sat;
+                    } else if (max_c == g) {
+                        hue = 2.0f + (b - r) / sat;
+                    } else {
+                        hue = 4.0f + (r - g) / sat;
+                    }
+                    if (hue < 0.0f) hue += 6.0f;
+                    hue *= 60.0f;
+                    return hue;
+                };
+                int hue_pop[360]{};
+                double population_sum = 0.0;
+                for (int idx = 0; idx < kBucketCount; ++idx) {
+                    const int count = counts[idx];
+                    if (count <= 0) continue;
+                    const int r5 = (idx >> 10) & 0x1F;
+                    const int g5 = (idx >> 5) & 0x1F;
+                    const int b5 = idx & 0x1F;
+                    const float r = (r5 * 8 + 4) / 255.0f;
+                    const float g = (g5 * 8 + 4) / 255.0f;
+                    const float b = (b5 * 8 + 4) / 255.0f;
+                    const float max_c = std::max(r, std::max(g, b));
+                    const float min_c = std::min(r, std::min(g, b));
+                    const float sat = max_c - min_c;
+                    if (sat < 0.1f) continue;
+                    const int hue = static_cast<int>(hue_of(r, g, b, max_c, min_c));
+                    hue_pop[hue] += count;
+                    population_sum += static_cast<double>(count);
+                }
+
+                if (population_sum <= 0.0 && sum_w_all > 0.001f) {
+                    const float inv = 1.0f / sum_w_all;
+                    rf = sum_r_all * inv;
+                    gf = sum_g_all * inv;
+                    bf = sum_b_all * inv;
+                } else {
+                    double hue_excited[360]{};
+                    for (int hue = 0; hue < 360; ++hue) {
+                        const double proportion = hue_pop[hue] / population_sum;
+                        for (int n = hue - 14; n <= hue + 15; ++n) {
+                            int h = n;
+                            if (h < 0) h += 360;
+                            if (h >= 360) h -= 360;
+                            hue_excited[h] += proportion;
+                        }
+                    }
+
+                    constexpr float cutoff_sat = 0.1f;
+                    constexpr double cutoff_prop = 0.01;
+                    constexpr float target_sat = 0.5f;
+                    double best_score = -1.0;
+                    int best_idx = -1;
+                    float best_sat = 0.0f;
+                    float best_luma = 0.0f;
+                    float best_hue = 0.0f;
+                    for (int idx = 0; idx < kBucketCount; ++idx) {
+                        const int count = counts[idx];
+                        if (count <= 0) continue;
+                        const int r5 = (idx >> 10) & 0x1F;
+                        const int g5 = (idx >> 5) & 0x1F;
+                        const int b5 = idx & 0x1F;
+                        const float r = (r5 * 8 + 4) / 255.0f;
+                        const float g = (g5 * 8 + 4) / 255.0f;
+                        const float b = (b5 * 8 + 4) / 255.0f;
+                        const float max_c = std::max(r, std::max(g, b));
+                        const float min_c = std::min(r, std::min(g, b));
+                        const float sat = max_c - min_c;
+                        if (sat < cutoff_sat) continue;
+                        const float luma = r * 0.2126f + g * 0.7152f + b * 0.0722f;
+                        const float hue = hue_of(r, g, b, max_c, min_c);
+                        const int hue_i = static_cast<int>(std::round(hue)) % 360;
+                        const double excited = hue_excited[hue_i];
+                        if (excited <= cutoff_prop) continue;
+                        const double proportion_score = excited * 100.0 * 0.7;
+                        const double chroma_weight = (sat < target_sat) ? 0.4 : 0.2;
+                        const double chroma_score = (sat - target_sat) * 100.0 * chroma_weight;
+                        const double luma_w = 1.0 - std::abs(luma - 0.55f);
+                        const double score = (proportion_score + chroma_score) * (0.5 + 0.5 * luma_w);
+                        if (score > best_score) {
+                            best_score = score;
+                            best_idx = idx;
+                            best_sat = sat;
+                            best_luma = luma;
+                            best_hue = hue;
+                        }
+                    }
+
+                    if (best_idx >= 0) {
+                        const int r5 = (best_idx >> 10) & 0x1F;
+                        const int g5 = (best_idx >> 5) & 0x1F;
+                        const int b5 = best_idx & 0x1F;
+                        rf = (r5 * 8 + 4) / 255.0f;
+                        gf = (g5 * 8 + 4) / 255.0f;
+                        bf = (b5 * 8 + 4) / 255.0f;
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                        std::printf("[cover] hue=%.1f sat=%.3f luma=%.3f score=%.2f\n",
+                                    best_hue, best_sat, best_luma, best_score);
+#endif
+                    } else if (sum_w_all > 0.001f) {
+                        const float inv = 1.0f / sum_w_all;
+                        rf = sum_r_all * inv;
+                        gf = sum_g_all * inv;
+                        bf = sum_b_all * inv;
+                    } else {
+                        return kUiBackdropBase;
+                    }
+                }
             }
-            const float luma = rf * 0.299f + gf * 0.587f + bf * 0.114f;
-            const float sat = 0.65f;
-            rf = luma + (rf - luma) * sat;
-            gf = luma + (gf - luma) * sat;
-            bf = luma + (bf - luma) * sat;
-            const float dark = 0.52f;
-            rf *= dark;
-            gf *= dark;
-            bf *= dark;
+
+            const std::uint8_t raw_r = static_cast<std::uint8_t>(std::clamp(rf * 255.0f, 0.0f, 255.0f));
+            const std::uint8_t raw_g = static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f));
+            const std::uint8_t raw_b = static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f));
+
+            float pick_r = rf;
+            float pick_g = gf;
+            float pick_b = bf;
+            const float luma = pick_r * 0.299f + pick_g * 0.587f + pick_b * 0.114f;
+            const float sat = 0.95f;
+            pick_r = luma + (pick_r - luma) * sat;
+            pick_g = luma + (pick_g - luma) * sat;
+            pick_b = luma + (pick_b - luma) * sat;
+            const float dark = 0.95f;
+            rf = pick_r * dark;
+            gf = pick_g * dark;
+            bf = pick_b * dark;
             const rgba tint{
                 static_cast<std::uint8_t>(std::clamp(rf * 255.0f, 0.0f, 255.0f)),
                 static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f)),
                 static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f)),
                 255};
-            return mix_rgba(kUiBackdropBase, tint, 0.65f);
+            const auto mixed = mix_rgba(kUiBackdropBase, tint, 0.9f);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::uint8_t ar = 0;
+            std::uint8_t ag = 0;
+            std::uint8_t ab = 0;
+            if (sum_w_all > 0.001f) {
+                const float inv = 1.0f / sum_w_all;
+                ar = static_cast<std::uint8_t>(std::clamp(sum_r_all * inv * 255.0f, 0.0f, 255.0f));
+                ag = static_cast<std::uint8_t>(std::clamp(sum_g_all * inv * 255.0f, 0.0f, 255.0f));
+                ab = static_cast<std::uint8_t>(std::clamp(sum_b_all * inv * 255.0f, 0.0f, 255.0f));
+            }
+            const float neutral_ratio = (total_pop > 0.0f) ? (neutral_pop / total_pop) : 0.0f;
+            std::printf("[cover] avg=%u,%u,%u raw=%u,%u,%u base=%u,%u,%u mixed=%u,%u,%u neutral=%.3f\n",
+                        ar, ag, ab, raw_r, raw_g, raw_b,
+                        tint.r, tint.g, tint.b, mixed.r, mixed.g, mixed.b,
+                        neutral_ratio);
+#endif
+            return mixed;
         }
 
         void apply_now_backdrop(const rgba& tint) noexcept {
@@ -705,7 +870,10 @@ export namespace player {
         void set_time_label(int elapsed_sec) {
             if (elapsed_sec == last_time_sec) return;
             last_time_sec = elapsed_sec;
-            const int total = playback.duration_sec();
+            int total = playback.duration_sec();
+            if (preloaded_duration_sec > 0) {
+                total = std::max(total, preloaded_duration_sec);
+            }
             const int cur_m = elapsed_sec / 60;
             const int cur_s = elapsed_sec % 60;
             const int total_m = total / 60;
@@ -716,11 +884,19 @@ export namespace player {
             std::snprintf(right, sizeof(right), "%d:%02d", total_m, total_s);
             set_label_slot(handles.time_left, text_slots.time_left, left);
             set_label_slot(handles.time_right, text_slots.time_right, right);
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            if (elapsed_sec == 0) {
+                std::printf("[np] time_label left=%s right=%s total=%d\n", left, right, total);
+            }
+#endif
         }
 
         void update_info_label() {
             if (!access.valid() || !handles.info_tag) return;
-            const int total = playback.duration_sec();
+            int total = playback.duration_sec();
+            if (preloaded_duration_sec > 0) {
+                total = std::max(total, preloaded_duration_sec);
+            }
             if (total <= 0) return;
             std::uint32_t rate = 0;
             audio::PlayerSnapshot snap{};
@@ -859,6 +1035,11 @@ export namespace player {
 #endif
             refresh_list_view();
             update_list_placeholder();
+            if (fs_ready && storage.tracks && storage.tracks->size() > 0
+                && !playback.playing() && !playback.paused()
+                && !track_preloaded) {
+                load_track_index(track_index);
+            }
         }
 
         void update_list_title() {
@@ -941,6 +1122,9 @@ export namespace player {
         void update_duration_from_player() {
             if (!playback.update_duration_from_player()) return;
             const int dur = playback.duration_sec();
+            if (dur > 0 && preloaded_duration_sec == 0) {
+                preloaded_duration_sec = dur;
+            }
             if (progress_dragging) return;
             const int cur = playback.current_sec();
             if (cur > dur) {
@@ -1150,6 +1334,7 @@ export namespace player {
             if (idx < 0 || idx >= static_cast<int>(storage.track_titles->size())) return;
             title_text.assign((*storage.track_titles)[idx].view());
             subtitle_text.assign((*storage.track_subtitles)[idx].view());
+            strip_audio_extension(title_text);
             const std::string_view raw = title_text.view();
             const auto sep = raw.find(" - ");
             if (sep != std::string_view::npos) {
@@ -1162,15 +1347,14 @@ export namespace player {
                     }
                 }
             }
+            strip_audio_extension(title_text);
             const auto looks_like_format = [&](std::string_view v) noexcept -> bool {
                 if (v.empty()) return true;
                 if (v == "UNKNOWN") return true;
+                if (is_audio_extension(v)) return true;
                 if (v.size() > 5) return false;
                 for (char ch : v) {
                     if (!std::isalnum(static_cast<unsigned char>(ch))) return false;
-                    if (std::isalpha(static_cast<unsigned char>(ch)) && !std::isupper(static_cast<unsigned char>(ch))) {
-                        return false;
-                    }
                 }
                 return true;
             };
@@ -1208,6 +1392,7 @@ export namespace player {
             if (!status.empty()) { set_status(status.c_str()); }
             playback.set_track_path(track_path);
             playback.set_track_ready(track_ready);
+            track_preloaded = true;
             if (track_ready) {
                 cover_embedded_path.assign(vfs_path.view());
                 cover_folder_path.clear();
@@ -1239,17 +1424,22 @@ export namespace player {
             }
             update_cover_image();
             reset_duration();
+            preloaded_duration_sec = 0;
             if (track_ready) {
                 int secs = 0;
                 if (player::probe_duration_seconds(track_path, secs)) {
                     playback.set_duration_from_probe(secs);
+                    preloaded_duration_sec = secs;
                     update_info_label();
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+                    std::printf("[np] preload duration=%d path=%s\n", secs, track_path);
+#endif
                 }
             }
             set_play_button_text(false);
+            last_time_sec = -1;
             set_time_label(0);
             sync_progress_value(0);
-            last_time_sec = -1;
             sync_list_selection();
             return playback.track_ready();
         }

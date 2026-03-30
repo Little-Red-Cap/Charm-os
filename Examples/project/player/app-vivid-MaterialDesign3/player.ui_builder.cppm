@@ -264,6 +264,7 @@ namespace player::ui_builder_detail {
         const int text_col_y = text_layout.text_col_y;
         const int text_col_h = text_layout.text_col_h;
         const int text_gap = text_layout.text_gap;
+        WidgetHandle text_col_root{};
 
         h.cover = builder.create_image();
         anchor_rect(builder, h.cover, {layout.cover_x, layout.cover_y, kCoverSize, kCoverSize});
@@ -420,45 +421,45 @@ namespace player::ui_builder_detail {
 
         constexpr int control_side = 92;
         constexpr int control_play = 100;
-        h.controls = builder.create_container();
-        anchor_rect(builder, h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, control_play});
-
         const int small_btn = control_side;
         const int play_btn = control_play;
         const int btn_gap = 16;
-        const Rect controls_rect{0, 0, layout.controls_w, control_play};
-        auto controls_row = ::ui::scene::make_row(builder, controls_rect, btn_gap, 0,
-                                                  ::ui::scene::LayoutAlign::Center);
+        const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, control_play};
+        ::ui::scene::RowBuilder controls_row{builder, controls_rect, btn_gap, 0,
+                                             ::ui::scene::LayoutAlign::Center};
+        h.controls = controls_row.root();
 
         h.btn_prev = builder.create_button_static("");
-        controls_row.place(h.btn_prev, small_btn, small_btn);
+        controls_row.add(h.btn_prev, small_btn, small_btn);
         builder.set_button_icon(h.btn_prev, icons.prev);
         builder.set_button_icon_size(h.btn_prev, 22);
         apply_control_side_style(builder, h.btn_prev, small_btn, 22);
 
         h.btn_pause = builder.create_button_static("");
-        controls_row.place(h.btn_pause, play_btn, play_btn);
+        controls_row.add(h.btn_pause, play_btn, play_btn);
         builder.set_button_icon(h.btn_pause, icons.play);
         builder.set_button_icon_size(h.btn_pause, 26);
         apply_control_play_style(builder, h.btn_pause, play_btn, 26);
 
         h.btn_next = builder.create_button_static("");
-        controls_row.place(h.btn_next, small_btn, small_btn);
+        controls_row.add(h.btn_next, small_btn, small_btn);
         builder.set_button_icon(h.btn_next, icons.next);
         builder.set_button_icon_size(h.btn_next, 22);
         apply_control_side_style(builder, h.btn_next, small_btn, 22);
 
         h.btn_mode = builder.create_button_static("");
         anchor_rect(builder, h.btn_mode, {0, 0, 0, 0});
+        builder.link(h.controls, h.btn_mode);
 
         {
             const Rect text_rect{kUiPadding, text_col_y,
                                  screen_width - kUiPadding * 2, text_col_h};
-            auto text_col = ::ui::scene::make_column(builder, text_rect, text_gap, 0,
-                                                     ::ui::scene::LayoutAlign::Start);
-            text_col.place(h.title, text_rect.w, title_h);
-            text_col.place(h.subtitle, text_rect.w, subtitle_h);
-            text_col.place(h.progress, text_rect.w, progress_h);
+            ::ui::scene::ColumnBuilder text_col{builder, text_rect, text_gap, 0,
+                                                ::ui::scene::LayoutAlign::Start};
+            text_col_root = text_col.root();
+            text_col.add(h.title, text_rect.w, title_h);
+            text_col.add(h.subtitle, text_rect.w, subtitle_h);
+            text_col.add(h.progress, text_rect.w, progress_h);
         }
         {
             const int time_row_w = screen_width - kUiPadding * 2;
@@ -529,9 +530,9 @@ namespace player::ui_builder_detail {
             builder.link(now_playing, h.cover_left);
             builder.link(now_playing, h.cover_right);
         }
-        builder.link(now_playing, h.title);
-        builder.link(now_playing, h.subtitle);
-        builder.link(now_playing, h.progress);
+        if (text_col_root) {
+            builder.link(now_playing, text_col_root);
+        }
         builder.link(now_playing, h.time_left);
         builder.link(now_playing, h.time_right);
         builder.link(now_playing, h.info_tag);
@@ -557,10 +558,6 @@ namespace player::ui_builder_detail {
         builder.link(now_playing, h.clip_switch);
         builder.link(now_playing, h.clip_slider);
         builder.link(now_playing, h.clip_value);
-        builder.link(h.controls, h.btn_prev);
-        builder.link(h.controls, h.btn_pause);
-        builder.link(h.controls, h.btn_next);
-        builder.link(h.controls, h.btn_mode);
         builder.link(now_playing, h.controls);
     }
 
@@ -573,7 +570,6 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, h.list, {0, 0, 0, 0});
         builder.set_list_row_height(h.list, 40);
         builder.set_scroll_step(h.list, 40);
-        apply_list_card_style(builder, h.list);
 
         h.list_scroll = builder.create_scrollbar_for(h.list);
         anchor_rect(builder, h.list_scroll, {0, 0, 0, 0});
@@ -581,18 +577,6 @@ namespace player::ui_builder_detail {
 
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
-
-        h.bottom_bar = builder.create_container();
-        anchor_rect(builder, h.bottom_bar, {0, 0, 0, 0});
-        apply_bottom_bar_style(builder, h.bottom_bar);
-        h.bottom_cover = builder.create_image();
-        anchor_rect(builder, h.bottom_cover, {0, 0, 0, 0});
-        h.bottom_title = builder.create_label_static("");
-        anchor_rect(builder, h.bottom_title, {0, 0, 0, 0});
-        h.bottom_subtitle = builder.create_label_static("");
-        anchor_rect(builder, h.bottom_subtitle, {0, 0, 0, 0});
-        h.bottom_play = builder.create_button_static("");
-        anchor_rect(builder, h.bottom_play, {0, 0, 0, 0});
 
         h.nav_bar = builder.create_container();
         anchor_rect(builder, h.nav_bar, {0, 0, 0, 0});
@@ -639,6 +623,11 @@ namespace player::ui_builder_detail {
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
+        ::ui::scene::CardBuilder list_card{builder, list_card_rect, 0, 0,
+                                           ::ui::scene::LayoutAlign::Start,
+                                           static_cast<StyleClassId>(PlayerStyleClass::ListCard),
+                                           true};
+        const WidgetHandle list_card_root = list_card.root();
 
         builder.link(h.root, library);
         builder.link(library, lib_top);
@@ -648,6 +637,7 @@ namespace player::ui_builder_detail {
         builder.link(library, tab_albums);
         builder.link(library, tab_artist);
         builder.link(library, shuffle_btn);
+        builder.link(library, list_card_root);
         anchor_rect(builder, h.list_title, {list_card_rect.x + 12, list_card_rect.y + 8,
                                             list_card_rect.w - 24, 18});
         anchor_rect(builder, h.list, {list_card_rect.x + 8,
@@ -661,21 +651,44 @@ namespace player::ui_builder_detail {
                                            list_card_rect.y + list_card_rect.h - 22,
                                            list_card_rect.w - 24, 18});
 
-        builder.link(library, h.list);
-        builder.link(library, h.list_scroll);
-        builder.link(library, h.list_title);
-        builder.link(library, h.list_hint);
+        builder.link(list_card_root, h.list);
+        builder.link(list_card_root, h.list_scroll);
+        builder.link(list_card_root, h.list_title);
+        builder.link(list_card_root, h.list_hint);
 
-        anchor_rect(builder, h.bottom_bar, {kUiPadding, layout.bottom_bar_y,
-                                            screen_width - kUiPadding * 2, layout.bottom_bar_h});
-        anchor_rect(builder, h.bottom_cover, {kUiPadding + 12, layout.bottom_bar_y + 12, 48, 48});
-        anchor_rect(builder, h.bottom_title, {kUiPadding + 72, layout.bottom_bar_y + 10,
-                                              screen_width - kUiPadding * 2 - 140, 22});
-        anchor_rect(builder, h.bottom_subtitle, {kUiPadding + 72, layout.bottom_bar_y + 34,
-                                                 screen_width - kUiPadding * 2 - 140, 18});
-        anchor_rect(builder, h.bottom_play, {screen_width - kUiPadding - 64, layout.bottom_bar_y + 14, 48, 48});
-        builder.set_button_icon(h.bottom_play, icons.play);
-        builder.set_button_icon_size(h.bottom_play, 18);
+        {
+            const Rect bottom_bar_rect{kUiPadding, layout.bottom_bar_y,
+                                       screen_width - kUiPadding * 2, layout.bottom_bar_h};
+            const int bar_gap = 12;
+            const int bar_pad = 12;
+            const int play_size = 48;
+            ::ui::scene::RowBuilder bottom_row{builder, bottom_bar_rect, bar_gap, bar_pad,
+                                               ::ui::scene::LayoutAlign::Center};
+            h.bottom_bar = bottom_row.root();
+            apply_bottom_bar_style(builder, h.bottom_bar);
+
+            const Rect content = bottom_row.content_rect();
+            const int tile_w = std::max(0, content.w - play_size - bar_gap);
+            const int tile_h = content.h;
+            const Rect tile_rect = bottom_row.next_rect(tile_w, tile_h);
+            ::ui::scene::TileBuilder bottom_tile{builder, tile_rect, 48, 8, false,
+                                                 kStyleClassInvalid, true, ""};
+            h.bottom_cover = bottom_tile.image();
+            h.bottom_title = bottom_tile.label();
+            builder.set_label_align(h.bottom_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+            bottom_row.add_at(bottom_tile.root(), tile_rect);
+
+            h.bottom_subtitle = builder.create_label_static("");
+            anchor_rect(builder, h.bottom_subtitle, {tile_rect.x + 56, tile_rect.y + 22,
+                                                     tile_rect.w - 56, 18});
+            builder.set_label_align(h.bottom_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+
+            h.bottom_play = builder.create_button_static("");
+            bottom_row.add(h.bottom_play, play_size, play_size);
+            builder.set_button_icon(h.bottom_play, icons.play);
+            builder.set_button_icon_size(h.bottom_play, 18);
+            builder.link(h.bottom_bar, h.bottom_subtitle);
+        }
 
         anchor_rect(builder, h.nav_bar, {kUiPadding, layout.nav_y,
                                          screen_width - kUiPadding * 2, layout.nav_h});
@@ -689,10 +702,6 @@ namespace player::ui_builder_detail {
 
         builder.link(library, h.bottom_bar);
         builder.set_hit_testable(h.bottom_bar, true);
-        builder.link(h.bottom_bar, h.bottom_cover);
-        builder.link(h.bottom_bar, h.bottom_title);
-        builder.link(h.bottom_bar, h.bottom_subtitle);
-        builder.link(h.bottom_bar, h.bottom_play);
         builder.link(library, h.nav_bar);
         builder.link(h.nav_bar, h.nav_home);
         builder.link(h.nav_bar, h.nav_search);

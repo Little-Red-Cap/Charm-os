@@ -32,6 +32,8 @@ import player.ui;
 import player.cover;
 import player.cover_theme;
 import player.font_cache;
+import charm.widgets.perf_overlay;
+import charm.core.style_sheet;
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
 #else
@@ -225,7 +227,13 @@ export namespace player {
         }
 
         void update_cover_debug_label() {
-            if (!access.valid() || !handles.cover_debug) return;
+            if (!access.valid()) return;
+            if (dbg_color_avg == static_cast<std::size_t>(-1)) {
+                dbg_color_avg = perf_overlay_debug_channel("color.avg");
+                dbg_color_seed = perf_overlay_debug_channel("color.seed");
+                dbg_color_backdrop = perf_overlay_debug_channel("color.backdrop");
+                dbg_color_primary = perf_overlay_debug_channel("color.primary");
+            }
             char buf[192]{};
             std::snprintf(buf, sizeof(buf),
                           "avg %u,%u,%u seed %u,%u,%u back %u,%u,%u prim %u,%u,%u",
@@ -233,7 +241,27 @@ export namespace player {
                           cover_theme.seed_raw.r, cover_theme.seed_raw.g, cover_theme.seed_raw.b,
                           cover_theme.backdrop.r, cover_theme.backdrop.g, cover_theme.backdrop.b,
                           cover_theme.primary.r, cover_theme.primary.g, cover_theme.primary.b);
-            set_label_slot(handles.cover_debug, text_slots.cover_debug, buf);
+            if (handles.cover_debug) {
+                set_label_slot(handles.cover_debug, text_slots.cover_debug, buf);
+            }
+
+            char line3[96]{};
+            std::snprintf(line3, sizeof(line3),
+                          "avg %u,%u,%u",
+                          cover_theme.avg_raw.r, cover_theme.avg_raw.g, cover_theme.avg_raw.b);
+            set_perf_overlay_debug_channel(dbg_color_avg, line3);
+            std::snprintf(line3, sizeof(line3),
+                          "seed %u,%u,%u",
+                          cover_theme.seed_raw.r, cover_theme.seed_raw.g, cover_theme.seed_raw.b);
+            set_perf_overlay_debug_channel(dbg_color_seed, line3);
+            std::snprintf(line3, sizeof(line3),
+                          "back %u,%u,%u",
+                          cover_theme.backdrop.r, cover_theme.backdrop.g, cover_theme.backdrop.b);
+            set_perf_overlay_debug_channel(dbg_color_backdrop, line3);
+            std::snprintf(line3, sizeof(line3),
+                          "prim %u,%u,%u",
+                          cover_theme.primary.r, cover_theme.primary.g, cover_theme.primary.b);
+            set_perf_overlay_debug_channel(dbg_color_primary, line3);
         }
 #endif
 
@@ -392,6 +420,12 @@ export namespace player {
         std::uint32_t rng_state{0};
         std::uint64_t last_debug_tick_ms{0};
         bool last_running{false};
+        std::size_t dbg_color_avg{static_cast<std::size_t>(-1)};
+        std::size_t dbg_color_seed{static_cast<std::size_t>(-1)};
+        std::size_t dbg_color_backdrop{static_cast<std::size_t>(-1)};
+        std::size_t dbg_color_primary{static_cast<std::size_t>(-1)};
+        std::size_t dbg_style_button{static_cast<std::size_t>(-1)};
+        std::size_t dbg_style_progress{static_cast<std::size_t>(-1)};
 
         static bool is_flac_path(std::string_view path) noexcept {
             const auto dot = path.find_last_of('.');
@@ -1143,6 +1177,35 @@ export namespace player {
             if (last_debug_text.view() == buf) return;
             last_debug_text.assign(buf);
             set_label_slot(handles.debug_text, text_slots.debug_text, buf);
+
+            if (dbg_style_button == static_cast<std::size_t>(-1)) {
+                dbg_style_button = perf_overlay_debug_channel("style.button");
+                dbg_style_progress = perf_overlay_debug_channel("style.progress");
+            }
+            {
+                const auto mask = style_kind_state_mask(WidgetKind::Button);
+                const auto count = style_kind_state_count(WidgetKind::Button);
+                const auto offset = style_kind_state_offset(WidgetKind::Button);
+                char line[96]{};
+                std::snprintf(line, sizeof(line),
+                              "btn mask=0x%02X cnt=%u off=%u",
+                              static_cast<unsigned>(mask),
+                              static_cast<unsigned>(count),
+                              static_cast<unsigned>(offset));
+                set_perf_overlay_debug_channel(dbg_style_button, line);
+            }
+            {
+                const auto mask = style_kind_state_mask(WidgetKind::ProgressBarSimple);
+                const auto count = style_kind_state_count(WidgetKind::ProgressBarSimple);
+                const auto offset = style_kind_state_offset(WidgetKind::ProgressBarSimple);
+                char line[96]{};
+                std::snprintf(line, sizeof(line),
+                              "prog mask=0x%02X cnt=%u off=%u",
+                              static_cast<unsigned>(mask),
+                              static_cast<unsigned>(count),
+                              static_cast<unsigned>(offset));
+                set_perf_overlay_debug_channel(dbg_style_progress, line);
+            }
 #else
             (void)this;
 #endif

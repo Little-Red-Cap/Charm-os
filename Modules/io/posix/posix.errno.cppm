@@ -16,6 +16,7 @@ export namespace posix {
     inline constexpr int EPERM = 1;
     inline constexpr int ENOENT = 2;
     inline constexpr int EIO = 5;
+    inline constexpr int EBADF = 9;
     inline constexpr int EAGAIN = 11;
     inline constexpr int ENOMEM = 12;
     inline constexpr int EACCES = 13;
@@ -35,7 +36,11 @@ export namespace posix {
     inline constexpr int EINVAL = 22;
 
     inline int& errno_ref() noexcept {
+#if defined(__arm__) || defined(__thumb__)
+        static int value = 0;
+#else
         static thread_local int value = 0;
+#endif
         return value;
     }
 
@@ -70,6 +75,7 @@ export namespace posix {
             case EPERM: return util::Errc::perm;
             case ENOENT: return util::Errc::noent;
             case EIO: return util::Errc::io;
+            case EBADF: return util::Errc::noent;
             case EAGAIN: return util::Errc::again;
             case ENOMEM: return util::Errc::nomem;
             case EBUSY: return util::Errc::busy;

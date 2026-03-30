@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <span>
 #include <string_view>
 
 export module posix.file;

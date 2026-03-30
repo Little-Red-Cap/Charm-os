@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <span>
 #include <type_traits>
 
 export module posix.pipe;

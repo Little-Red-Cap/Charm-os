@@ -4,7 +4,9 @@
 #include <string_view>
 
 import fs_core;
+import fs_errno;
 import fs_ramfs;
+import fs_stream;
 import fs_vfs;
 import posix.api;
 import posix.file;

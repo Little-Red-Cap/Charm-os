@@ -588,6 +588,29 @@ namespace {
             }
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             const util::u32 part_lba = self->part_lba_;
+            if (count > 1) {
+                const util::u32 start_lba = static_cast<util::u32>(lba + part_lba);
+                const bool use_dma = board::kSdmmcUseDma && can_dma(data.data(), data.size());
+                if (use_dma) {
+                    if (CHARM_SDMMC_READ_DMA(&card, data.data(), start_lba, count) != HAL_OK) {
+                        sdmmc_log_read_fail(start_lba, count, true);
+                        return fs::Status{fs::Errc::io};
+                    }
+                } else {
+                    if (CHARM_SDMMC_READ(&card, data.data(), start_lba, count, kTimeoutMs) != HAL_OK) {
+                        sdmmc_log_read_fail(start_lba, count, false);
+                        return fs::Status{fs::Errc::io};
+                    }
+                }
+                const util::u32 start = HAL_GetTick();
+                while (CHARM_SDMMC_GET_STATE(&card) != CHARM_SDMMC_CARD_STATE_TRANSFER) {
+                    if ((HAL_GetTick() - start) > kTimeoutMs) {
+                        sdmmc_log_read_timeout(start_lba, count);
+                        return fs::Status{fs::Errc::timeout};
+                    }
+                }
+                return fs::Status{fs::Errc::ok};
+            }
             for (util::u32 i = 0; i < count; ++i) {
                 auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
                 const util::u32 lba_i = static_cast<util::u32>(lba + i + part_lba);

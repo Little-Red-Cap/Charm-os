@@ -69,10 +69,11 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
 #    app/main-bisect.cpp
-    app/main.cpp
+#    app/main.cpp
 #    app/main-player.cpp
 #    app/main-usb-as.cpp
 #    app/main-usb-audio.cpp
+    app/main-usb-self-msc.cpp
 #    app/main-usb-storage.cpp
     app/uart_bridge.c
     app/port_impl.c

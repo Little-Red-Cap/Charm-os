@@ -83,7 +83,9 @@ export namespace usb::device {
             const auto result = ep0_.on_setup(setup, resp);
             if (result != Ep0Result::ok) {
                 clear_pending();
+                return;
             }
+            apply_address_immediately(setup);
         }
 
         void on_out_data(std::span<const u8> data) noexcept {
@@ -96,7 +98,7 @@ export namespace usb::device {
 
         void on_in_complete(std::size_t sent, bool sent_zlp = false) noexcept {
             ep0_.on_in_complete(sent, sent_zlp);
-            apply_pending_if_ready();
+            apply_pending_if_ready(sent_zlp);
         }
 
         void on_reset() noexcept {
@@ -208,11 +210,14 @@ export namespace usb::device {
             }
         }
 
-        void apply_pending_if_ready() noexcept {
-            if (dev_.stage() != Ep0Stage::status_out) {
+        void apply_pending_if_ready(bool sent_zlp) noexcept {
+            if (dev_.stage() != Ep0Stage::setup) {
                 return;
             }
             if (pending_address_valid_) {
+                if (!sent_zlp) {
+                    return;
+                }
                 if (dcd_ops_.set_address) {
                     dcd_ops_.set_address(dcd_ctx_, pending_address_);
                 }
@@ -223,6 +228,19 @@ export namespace usb::device {
                     dcd_ops_.set_configured(dcd_ctx_, pending_configured_);
                 }
                 pending_config_valid_ = false;
+            }
+        }
+
+        void apply_address_immediately(const SetupPacket& setup) noexcept {
+            if (request_type(setup.bm_request_type) != RequestType::standard) {
+                return;
+            }
+            if (static_cast<StandardRequest>(setup.b_request) != StandardRequest::set_address) {
+                return;
+            }
+            if (pending_address_valid_ && dcd_ops_.set_address) {
+                dcd_ops_.set_address(dcd_ctx_, pending_address_);
+                pending_address_valid_ = false;
             }
         }
 

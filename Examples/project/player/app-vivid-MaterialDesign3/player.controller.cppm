@@ -16,6 +16,7 @@ import player.mcu_policy;
 import audio.eq;
 import audio.player;
 import audio.result;
+import alg_color_extract;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
@@ -71,6 +72,7 @@ export namespace player {
         WidgetHandle page_library{};
         WidgetHandle root{};
         WidgetHandle now_back{};
+        WidgetHandle now_more{};
         WidgetHandle now_backdrop{};
         WidgetHandle cover{};
         WidgetHandle cover_left{};
@@ -142,10 +144,11 @@ export namespace player {
         FixedString<96> last_info_text{};
         std::uint64_t track_size_bytes{0};
         CoverImage cover_image{};
-        rgba cover_tint{ui::kUiBackdropBase};
+        cover_theme::CoverTheme cover_theme{};
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         cover_theme::CoverThemeMode cover_theme_mode{cover_theme::CoverThemeMode::primary_container};
+        alg::PaletteStyle cover_palette_style{alg::PaletteStyle::tonal_spot};
         bool fs_ready{false};
         bool track_preloaded{false};
         int preloaded_duration_sec{0};
@@ -183,20 +186,39 @@ export namespace player {
             text.assign(v.substr(0, dot));
         }
 
-        rgba derive_cover_tint(const CoverImage& img) noexcept {
+        cover_theme::CoverTheme derive_cover_theme(const CoverImage& img) noexcept {
             cover_theme::CoverThemeConfig config{};
             config.mode = cover_theme_mode;
             config.is_dark = true;
+            config.palette_style = cover_palette_style;
             config.fallback = kUiBackdropBase;
-            const auto theme = cover_theme::compute_cover_theme(img, config);
-            return theme.backdrop;
+            return cover_theme::compute_cover_theme(img, config);
         }
 
-        void apply_now_backdrop(const rgba& tint) noexcept {
+        static const char* palette_style_name(alg::PaletteStyle style) noexcept {
+            switch (style) {
+            case alg::PaletteStyle::vibrant: return "vibrant";
+            case alg::PaletteStyle::expressive: return "expressive";
+            case alg::PaletteStyle::fruit_salad: return "fruit_salad";
+            case alg::PaletteStyle::tonal_spot:
+            default:
+                return "tonal_spot";
+            }
+        }
+
+        static rgba with_alpha(const rgba& c, std::uint8_t a) noexcept {
+            return {c.r, c.g, c.b, a};
+        }
+
+        static rgba blend_on(const rgba& src, const rgba& bg, std::uint8_t alpha) noexcept {
+            return rgba{src.r, src.g, src.b, alpha}.blend_over(bg);
+        }
+
+        void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
             if (!access.valid() || !handles.now_backdrop) return;
             StylePatch patch{};
             patch.has_bg_color = true;
-            patch.bg_color = tint;
+            patch.bg_color = theme.backdrop;
             patch.has_border_color = true;
             patch.border_color = {0, 0, 0, 0};
             patch.has_border_width = true;
@@ -204,6 +226,63 @@ export namespace player {
             patch.has_corner_radius = true;
             patch.corner_radius = 0;
             access.set_style_patch(handles.now_backdrop, patch);
+
+            const rgba title = theme.on_backdrop;
+            const rgba subtitle = blend_on(theme.on_surface_variant, theme.backdrop, 210);
+            const rgba time = blend_on(theme.on_surface_variant, theme.backdrop, 190);
+
+            auto apply_label = [&](WidgetHandle h, const rgba& color) {
+                if (!h) return;
+                StylePatch p{};
+                p.has_font_color = true;
+                p.font_color = color;
+                access.set_style_patch(h, p);
+            };
+            apply_label(handles.title, title);
+            apply_label(handles.subtitle, subtitle);
+            apply_label(handles.time_left, time);
+            apply_label(handles.time_right, time);
+
+            if (handles.info_tag) {
+                StylePatch tag{};
+                tag.has_bg_color = true;
+                tag.bg_color = theme.surface_low;
+                tag.has_border_color = true;
+                tag.border_color = with_alpha(theme.outline_variant, 160);
+                tag.has_font_color = true;
+                tag.font_color = theme.on_surface;
+                access.set_style_patch(handles.info_tag, tag);
+            }
+
+            if (handles.progress) {
+                StylePatch prog{};
+                prog.has_border_color = true;
+                prog.border_color = with_alpha(theme.surface_low, 200);
+                prog.has_accent_color = true;
+                prog.accent_color = theme.primary;
+                access.set_style_patch(handles.progress, prog);
+            }
+
+            auto apply_btn = [&](WidgetHandle h, const rgba& bg, const rgba& border, const rgba& font) {
+                if (!h) return;
+                StylePatch btn{};
+                btn.has_bg_color = true;
+                btn.bg_color = bg;
+                btn.has_border_color = true;
+                btn.border_color = border;
+                btn.has_font_color = true;
+                btn.font_color = font;
+                access.set_style_patch(h, btn);
+            };
+            const rgba side_bg = blend_on(theme.surface_high, theme.backdrop, 140);
+            const rgba side_border = blend_on(theme.outline_variant, theme.backdrop, 120);
+            const rgba side_font = blend_on(theme.on_surface, theme.backdrop, 220);
+            apply_btn(handles.btn_prev, side_bg, side_border, side_font);
+            apply_btn(handles.btn_next, side_bg, side_border, side_font);
+            apply_btn(handles.btn_mode, side_bg, side_border, side_font);
+            apply_btn(handles.now_back, side_bg, side_border, side_font);
+            apply_btn(handles.now_more, side_bg, side_border, side_font);
+            apply_btn(handles.btn_pause, theme.primary, theme.primary, theme.on_primary);
         }
 
         void cycle_cover_theme() noexcept {
@@ -213,10 +292,37 @@ export namespace player {
                 cover_theme_mode = cover_theme::CoverThemeMode::primary_container;
             }
             if (!cover_image.path.empty()) {
-                cover_tint = derive_cover_tint(cover_image);
+                cover_theme = derive_cover_theme(cover_image);
                 cover_tint_path.assign(cover_image.path);
-                apply_now_backdrop(cover_tint);
+                apply_now_theme(cover_theme);
             }
+        }
+
+        void cycle_palette_style() noexcept {
+            switch (cover_palette_style) {
+            case alg::PaletteStyle::tonal_spot:
+                cover_palette_style = alg::PaletteStyle::vibrant;
+                break;
+            case alg::PaletteStyle::vibrant:
+                cover_palette_style = alg::PaletteStyle::expressive;
+                break;
+            case alg::PaletteStyle::expressive:
+                cover_palette_style = alg::PaletteStyle::fruit_salad;
+                break;
+            case alg::PaletteStyle::fruit_salad:
+            default:
+                cover_palette_style = alg::PaletteStyle::tonal_spot;
+                break;
+            }
+            cover_tint_path.clear();
+            if (!cover_image.path.empty()) {
+                cover_theme = derive_cover_theme(cover_image);
+                cover_tint_path.assign(cover_image.path);
+                apply_now_theme(cover_theme);
+            }
+#if defined(CHARM_PLAYER_COVER_DEBUG)
+            std::printf("[cover] palette=%s\n", palette_style_name(cover_palette_style));
+#endif
         }
 
         PlayerPage current_page{PlayerPage::NowPlaying};
@@ -514,8 +620,8 @@ export namespace player {
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
                 release_cover_image(cover_image);
                 cover_tint_path.clear();
-                cover_tint = kUiBackdropBase;
-                apply_now_backdrop(cover_tint);
+                cover_theme = derive_cover_theme(cover_image);
+                apply_now_theme(cover_theme);
                 const auto clear_image = [&](WidgetHandle handle) {
                     if (handle && access.kind(handle) == WidgetKind::Image) {
                         access.set_image(handle, ::ui::scene::invalid_image_id());
@@ -544,9 +650,9 @@ export namespace player {
                     set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
                     if (cover_tint_path.view() != cover_image.path) {
-                        cover_tint = derive_cover_tint(cover_image);
+                        cover_theme = derive_cover_theme(cover_image);
                         cover_tint_path.assign(cover_image.path);
-                        apply_now_backdrop(cover_tint);
+                        apply_now_theme(cover_theme);
                     }
                     return true;
                 }
@@ -561,9 +667,9 @@ export namespace player {
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
                     cover_path.assign(candidate);
-                    cover_tint = derive_cover_tint(cover_image);
+                    cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
-                    apply_now_backdrop(cover_tint);
+                    apply_now_theme(cover_theme);
                     return true;
                 }
                 return false;
@@ -599,8 +705,8 @@ export namespace player {
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
             cover_tint_path.clear();
-            cover_tint = kUiBackdropBase;
-            apply_now_backdrop(cover_tint);
+            cover_theme = derive_cover_theme(cover_image);
+            apply_now_theme(cover_theme);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] load failed: %s\n", cover_path.c_str());
 #endif
@@ -762,6 +868,7 @@ export namespace player {
             update_duration_from_player();
             update_progress();
             update_play_mode_label();
+            apply_now_theme(cover_theme);
             update_debug_overlay();
         }
 
@@ -1434,7 +1541,9 @@ export namespace player {
                     } else if (target == handles.btn_mode) {
                         actions.cycle_mode = true;
 #if defined(CHARM_PLAYER_DEBUG_UI)
-                    } else if (target == handles.cover || target == handles.now_backdrop) {
+                    } else if (target == handles.cover) {
+                        cycle_palette_style();
+                    } else if (target == handles.now_backdrop) {
                         cycle_cover_theme();
 #endif
                     }

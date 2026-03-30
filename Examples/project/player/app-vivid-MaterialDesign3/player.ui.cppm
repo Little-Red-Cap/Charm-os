@@ -156,8 +156,8 @@ export namespace player::ui {
             constexpr int top = 3;
             constexpr int bottom = 12;
             constexpr int base_half = (bottom - top) / 2;
-            constexpr int apex_x = 3;
-            constexpr int base_x = 11;
+            constexpr int apex_x = 4;
+            constexpr int base_x = 12;
             for (int y = top; y <= bottom; ++y) {
                 for (int x = apex_x; x <= base_x; ++x) {
                     const int span = (x - apex_x) * base_half / (base_x - apex_x);
@@ -167,8 +167,8 @@ export namespace player::ui {
                 }
             }
             for (int y = top; y <= bottom; ++y) {
-                icon_set_pixel(buf, 1, y, color);
                 icon_set_pixel(buf, 2, y, color);
+                icon_set_pixel(buf, 3, y, color);
             }
         }
 
@@ -178,8 +178,8 @@ export namespace player::ui {
             constexpr int top = 3;
             constexpr int bottom = 12;
             constexpr int base_half = (bottom - top) / 2;
-            constexpr int base_x = 4;
-            constexpr int apex_x = 12;
+            constexpr int base_x = 3;
+            constexpr int apex_x = 11;
             for (int y = top; y <= bottom; ++y) {
                 for (int x = base_x; x <= apex_x; ++x) {
                     const int span = (apex_x - x) * base_half / (apex_x - base_x);
@@ -266,8 +266,8 @@ export namespace player::ui {
                 }
             }
             for (int y = top; y <= bottom; ++y) {
+                icon_set_pixel(buf, 12, y, color);
                 icon_set_pixel(buf, 13, y, color);
-                icon_set_pixel(buf, 14, y, color);
             }
         }
     }

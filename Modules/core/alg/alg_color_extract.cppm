@@ -9,7 +9,10 @@ module;
 
 #include "cpp/cam/hct.h"
 #include "cpp/quantize/celebi.h"
+#include "cpp/scheme/scheme_expressive.h"
+#include "cpp/scheme/scheme_fruit_salad.h"
 #include "cpp/scheme/scheme_tonal_spot.h"
+#include "cpp/scheme/scheme_vibrant.h"
 #include "cpp/utils/utils.h"
 
 export module alg_color_extract;
@@ -30,6 +33,36 @@ export namespace alg {
     struct ColorExtractionConfig {
         std::uint16_t quantizer_max_colors = 128;
         ColorScoringConfig scoring{};
+    };
+
+    enum class PaletteStyle : std::uint8_t {
+        tonal_spot,
+        vibrant,
+        expressive,
+        fruit_salad,
+    };
+
+    struct SchemeColors {
+        std::uint32_t primary{0xFF000000u};
+        std::uint32_t on_primary{0xFFFFFFFFu};
+        std::uint32_t primary_container{0xFF000000u};
+        std::uint32_t on_primary_container{0xFFFFFFFFu};
+        std::uint32_t secondary_container{0xFF000000u};
+        std::uint32_t on_secondary_container{0xFFFFFFFFu};
+        std::uint32_t surface{0xFF000000u};
+        std::uint32_t on_surface{0xFFFFFFFFu};
+        std::uint32_t surface_variant{0xFF000000u};
+        std::uint32_t on_surface_variant{0xFFFFFFFFu};
+        std::uint32_t surface_container_low{0xFF000000u};
+        std::uint32_t surface_container{0xFF000000u};
+        std::uint32_t surface_container_high{0xFF000000u};
+        std::uint32_t outline_variant{0xFF000000u};
+    };
+
+    struct SeedResult {
+        std::uint32_t seed_argb{0xFF000000u};
+        std::uint32_t fallback_argb{0xFF000000u};
+        bool force_neutral{false};
     };
 
     namespace detail {
@@ -101,6 +134,36 @@ export namespace alg {
             return neutral_ratio >= kRequiredNeutralPopulation &&
                    high_chroma_ratio <= kMaxHighChromaPopulation &&
                    mean_chroma <= kMaxWeightedChromaForNeutral;
+        }
+
+        inline bool should_use_neutral_scheme(std::uint32_t seed_argb) noexcept {
+            const material_color_utilities::Hct hct(seed_argb);
+            return hct.get_chroma() <= kGrayscaleChromaThreshold &&
+                   is_argb_near_grayscale(seed_argb);
+        }
+
+        inline std::uint32_t desaturate_argb(std::uint32_t argb) noexcept {
+            material_color_utilities::Hct hct(argb);
+            hct.set_chroma(0.0);
+            return hct.ToInt();
+        }
+
+        inline material_color_utilities::DynamicScheme make_scheme(
+            std::uint32_t seed_argb,
+            bool is_dark,
+            PaletteStyle style) {
+            material_color_utilities::Hct hct(seed_argb);
+            switch (style) {
+            case PaletteStyle::vibrant:
+                return material_color_utilities::SchemeVibrant(hct, is_dark, 0.0);
+            case PaletteStyle::expressive:
+                return material_color_utilities::SchemeExpressive(hct, is_dark, 0.0);
+            case PaletteStyle::fruit_salad:
+                return material_color_utilities::SchemeFruitSalad(hct, is_dark, 0.0);
+            case PaletteStyle::tonal_spot:
+            default:
+                return material_color_utilities::SchemeTonalSpot(hct, is_dark, 0.0);
+            }
         }
 
         struct ScoredHct {
@@ -202,10 +265,10 @@ export namespace alg {
         }
     }  // namespace detail
 
-    inline std::uint32_t extract_seed_argb(
+    inline SeedResult extract_seed_result(
         std::span<const std::uint32_t> pixels,
         const ColorExtractionConfig& config = {}) {
-        if (pixels.empty()) return 0xFF000000u;
+        if (pixels.empty()) return {};
 
         std::vector<detail::Argb> input_pixels;
         input_pixels.reserve(pixels.size());
@@ -217,13 +280,28 @@ export namespace alg {
             material_color_utilities::QuantizeCelebi(input_pixels, config.quantizer_max_colors);
         const auto& colors = quantized.color_to_count;
         const bool mostly_neutral = detail::is_mostly_neutral_artwork(colors);
+        SeedResult result{};
+        result.fallback_argb = fallback;
         if (mostly_neutral && detail::is_argb_near_grayscale(fallback)) {
-            return fallback;
+            result.seed_argb = fallback;
+            result.force_neutral = true;
+            return result;
         }
         const auto ranked =
             detail::score_quantized_colors(colors, config.scoring, fallback);
-        if (ranked.empty()) return fallback;
-        return ranked.front();
+        if (ranked.empty()) {
+            result.seed_argb = fallback;
+        } else {
+            result.seed_argb = ranked.front();
+        }
+        result.force_neutral = detail::should_use_neutral_scheme(result.seed_argb);
+        return result;
+    }
+
+    inline std::uint32_t extract_seed_argb(
+        std::span<const std::uint32_t> pixels,
+        const ColorExtractionConfig& config = {}) {
+        return extract_seed_result(pixels, config).seed_argb;
     }
 
     inline std::uint32_t tone_map_argb(std::uint32_t seed_argb,
@@ -250,19 +328,53 @@ export namespace alg {
 
     inline std::uint32_t scheme_surface_container_argb(std::uint32_t seed_argb,
                                                        bool is_dark,
-                                                       bool use_high = false) {
-        material_color_utilities::Hct hct(seed_argb);
-        material_color_utilities::SchemeTonalSpot scheme(hct, is_dark, 0.0);
-        if (use_high) {
-            return scheme.GetSurfaceContainerHigh();
+                                                       bool use_high = false,
+                                                       PaletteStyle style = PaletteStyle::tonal_spot,
+                                                       bool force_neutral = false) {
+        auto scheme = detail::make_scheme(seed_argb, is_dark, style);
+        std::uint32_t argb = use_high ? scheme.GetSurfaceContainerHigh()
+                                      : scheme.GetSurfaceContainer();
+        if (force_neutral) {
+            argb = detail::desaturate_argb(argb);
         }
-        return scheme.GetSurfaceContainer();
+        return argb;
     }
 
     inline std::uint32_t scheme_primary_container_argb(std::uint32_t seed_argb,
-                                                       bool is_dark) {
-        material_color_utilities::Hct hct(seed_argb);
-        material_color_utilities::SchemeTonalSpot scheme(hct, is_dark, 0.0);
-        return scheme.GetPrimaryContainer();
+                                                       bool is_dark,
+                                                       PaletteStyle style = PaletteStyle::tonal_spot,
+                                                       bool force_neutral = false) {
+        auto scheme = detail::make_scheme(seed_argb, is_dark, style);
+        std::uint32_t argb = scheme.GetPrimaryContainer();
+        if (force_neutral) {
+            argb = detail::desaturate_argb(argb);
+        }
+        return argb;
+    }
+
+    inline SchemeColors make_scheme_colors(std::uint32_t seed_argb,
+                                           bool is_dark,
+                                           PaletteStyle style = PaletteStyle::tonal_spot,
+                                           bool force_neutral = false) {
+        auto scheme = detail::make_scheme(seed_argb, is_dark, style);
+        auto maybe_neutral = [&](std::uint32_t argb) noexcept {
+            return force_neutral ? detail::desaturate_argb(argb) : argb;
+        };
+        return {
+            .primary = maybe_neutral(scheme.GetPrimary()),
+            .on_primary = maybe_neutral(scheme.GetOnPrimary()),
+            .primary_container = maybe_neutral(scheme.GetPrimaryContainer()),
+            .on_primary_container = maybe_neutral(scheme.GetOnPrimaryContainer()),
+            .secondary_container = maybe_neutral(scheme.GetSecondaryContainer()),
+            .on_secondary_container = maybe_neutral(scheme.GetOnSecondaryContainer()),
+            .surface = maybe_neutral(scheme.GetSurface()),
+            .on_surface = maybe_neutral(scheme.GetOnSurface()),
+            .surface_variant = maybe_neutral(scheme.GetSurfaceVariant()),
+            .on_surface_variant = maybe_neutral(scheme.GetOnSurfaceVariant()),
+            .surface_container_low = maybe_neutral(scheme.GetSurfaceContainerLow()),
+            .surface_container = maybe_neutral(scheme.GetSurfaceContainer()),
+            .surface_container_high = maybe_neutral(scheme.GetSurfaceContainerHigh()),
+            .outline_variant = maybe_neutral(scheme.GetOutlineVariant()),
+        };
     }
 }  // namespace alg

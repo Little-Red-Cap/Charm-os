@@ -180,38 +180,147 @@ namespace player::ui_builder_detail {
         builder.set_style_patch(h, patch);
     }
 
+    static const StyleToken& info_tag_token();
+
     static void apply_info_tag_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = kUiInfoTagBg;
-        patch.has_border_color = true;
-        patch.border_color = kUiButtonBorder;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 10;
-        patch.has_font_color = true;
-        patch.font_color = kUiTime;
-        patch.has_font = true;
-        patch.font = &get_font(FontId::Small);
-        builder.set_style_patch(h, patch);
+        builder.set_style_token(h, info_tag_token());
+    }
+
+    static const StyleToken& top_bar_button_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiButtonBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 12;
+            t.patch = patch;
+            return t;
+        }();
+        return token;
+    }
+
+    static const StyleToken& info_tag_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiInfoTagBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 10;
+            patch.has_font_color = true;
+            patch.font_color = kUiTime;
+            patch.has_font = true;
+            patch.font = &get_font(FontId::Small);
+            t.patch = patch;
+            return t;
+        }();
+        return token;
+    }
+
+    static const StyleToken& tab_base_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiTabBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            t.patch = patch;
+            return t;
+        }();
+        return token;
+    }
+
+    static const StyleToken& shuffle_shadow_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 3;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 3;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 16;
+            t.patch = patch;
+            return t;
+        }();
+        return token;
+    }
+
+    static const StyleToken& list_card_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiListBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 8;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 20;
+            t.patch = patch;
+            return t;
+        }();
+        return token;
+    }
+
+    static const StyleToken& bottom_bar_token() {
+        static const StyleToken token = [] {
+            StyleToken t{};
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = kUiListBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 18;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 4;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 6;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 18;
+            t.patch = patch;
+            return t;
+        }();
+        return token;
     }
 
     static void apply_top_bar_button_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = kUiButtonBg;
-        patch.has_border_color = true;
-        patch.border_color = kUiButtonBorder;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 12;
-        builder.set_style_patch(h, patch);
+        builder.set_style_token(h, top_bar_button_token());
     }
 
     static void apply_tab_base_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int radius) {
         StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = kUiTabBg;
-        patch.has_border_color = true;
-        patch.border_color = kUiButtonBorder;
+        merge_style_patch(patch, tab_base_token().patch);
         patch.has_corner_radius = true;
         patch.corner_radius = radius;
         builder.set_style_patch(h, patch);
@@ -245,43 +354,15 @@ namespace player::ui_builder_detail {
     }
 
     static void apply_shuffle_shadow_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = kUiCardShadow;
-        patch.has_shadow_offset_x = true;
-        patch.shadow_offset_x = 0;
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 3;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 3;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = 16;
-        builder.set_style_patch(h, patch);
+        builder.set_style_token(h, shuffle_shadow_token());
     }
 
     static void apply_list_card_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = kUiListBg;
-        patch.has_border_color = true;
-        patch.border_color = kUiListBorder;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 16;
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = kUiCardShadow;
-        patch.has_shadow_offset_x = true;
-        patch.shadow_offset_x = 0;
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 6;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 8;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = 20;
-        builder.set_style_patch(h, patch);
+        builder.set_style_token(h, list_card_token());
+    }
+
+    static void apply_bottom_bar_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        builder.set_style_token(h, bottom_bar_token());
     }
 
     static void build_now_playing(::ui::scene::SceneBuilder& builder, UiHandles& h,
@@ -449,13 +530,15 @@ namespace player::ui_builder_detail {
         h.clip_value = builder.create_label_static("");
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
+        constexpr int control_size = 84;
+        constexpr int control_corner = 22;
         h.controls = builder.create_container();
-        anchor_rect(builder, h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, 80});
+        anchor_rect(builder, h.controls, {layout.controls_x, layout.controls_y, layout.controls_w, control_size});
 
-        const int small_btn = 80;
-        const int play_btn = 80;
+        const int small_btn = control_size;
+        const int play_btn = control_size;
         const int btn_gap = 16;
-        const Rect controls_rect{0, 0, layout.controls_w, 80};
+        const Rect controls_rect{0, 0, layout.controls_w, control_size};
         auto controls_row = ::ui::scene::make_row(builder, controls_rect, btn_gap, 0,
                                                   ::ui::scene::LayoutAlign::Center);
 
@@ -466,7 +549,7 @@ namespace player::ui_builder_detail {
         {
             StylePatch patch{};
             patch.has_corner_radius = true;
-            patch.corner_radius = 16;
+            patch.corner_radius = control_corner;
             patch.has_padding = true;
             patch.padding = (small_btn - 20) / 2;
             builder.set_style_patch(h.btn_prev, patch);
@@ -478,12 +561,8 @@ namespace player::ui_builder_detail {
         builder.set_button_icon_size(h.btn_pause, 22);
         {
             StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiPlayBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
             patch.has_corner_radius = true;
-            patch.corner_radius = 16;
+            patch.corner_radius = control_corner;
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = true;
             patch.has_shadow_color = true;
@@ -520,7 +599,7 @@ namespace player::ui_builder_detail {
         {
             StylePatch patch{};
             patch.has_corner_radius = true;
-            patch.corner_radius = 16;
+            patch.corner_radius = control_corner;
             patch.has_padding = true;
             patch.padding = (small_btn - 20) / 2;
             builder.set_style_patch(h.btn_next, patch);
@@ -584,6 +663,7 @@ namespace player::ui_builder_detail {
         builder.set_button_icon(top_more, icons.shuffle);
         builder.set_button_icon_size(top_more, 14);
         apply_top_bar_button_style(builder, top_more);
+        h.now_more = top_more;
 
         builder.link(h.root, now_playing);
         builder.link(now_playing, h.now_backdrop);
@@ -649,6 +729,7 @@ namespace player::ui_builder_detail {
 
         h.bottom_bar = builder.create_container();
         anchor_rect(builder, h.bottom_bar, {0, 0, 0, 0});
+        apply_bottom_bar_style(builder, h.bottom_bar);
         h.bottom_cover = builder.create_image();
         anchor_rect(builder, h.bottom_cover, {0, 0, 0, 0});
         h.bottom_title = builder.create_label_static("");

@@ -67,6 +67,7 @@ export namespace ui::scene {
     struct ExecStats {
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
+        std::uint64_t alpha_blend_count{0};
         std::size_t clip_pushes{0};
         std::size_t clip_pops{0};
         std::size_t clip_push_overflow{0};
@@ -101,6 +102,7 @@ export namespace ui::scene {
         int tiles_drawn{0};
         std::size_t cmd_count{0};
         std::size_t cmd_bytes{0};
+        std::uint64_t alpha_blend_count{0};
         int tile_flush_count{0};
         std::size_t clip_push_overflow{0};
         std::size_t clip_pop_underflow{0};
@@ -168,6 +170,7 @@ export namespace ui::scene {
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_patch(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_->set_style_patch(h, token.patch); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
@@ -231,6 +234,7 @@ export namespace ui::scene {
         }
         void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_patch(h, patch); }
+        void set_style_token(WidgetHandle h, const StyleToken& token) noexcept { kernel_.set_style_patch(h, token.patch); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
 
     private:
@@ -490,7 +494,9 @@ export namespace ui::scene {
                 SceneOverlay overlay{cmd_buf_};
                 overlay_fn_(overlay, overlay_ctx_);
             }
+            reset_alpha_blend_count();
             last_exec_stats_ = to_scene_stats(cmd_exec_.execute(canvas_, cmd_buf_));
+            last_exec_stats_.alpha_blend_count = alpha_blend_count();
         }
 
         template <ui::RenderBackend Backend>
@@ -509,7 +515,10 @@ export namespace ui::scene {
                 config.clear_color,
                 config.clear_tile
             };
-            return to_scene_stats(cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buf_, cfg));
+            reset_alpha_blend_count();
+            auto stats = to_scene_stats(cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buf_, cfg));
+            stats.alpha_blend_count = alpha_blend_count();
+            return stats;
         }
 
         void dispatch_event(const Event& e) { gui_.dispatch_event(e); }

@@ -21,13 +21,25 @@ export namespace player::cover_theme {
         CoverThemeMode mode{CoverThemeMode::primary_container};
         bool is_dark{true};
         int downscale_max{128};
+        alg::PaletteStyle palette_style{alg::PaletteStyle::tonal_spot};
         rgba fallback{player::ui::kUiBackdropBase};
     };
 
     struct CoverTheme {
         rgba backdrop{player::ui::kUiBackdropBase};
+        rgba on_backdrop{player::ui::kUiTitle};
+        rgba primary{player::ui::kUiListFont};
+        rgba on_primary{player::ui::kUiListFont};
+        rgba secondary_container{player::ui::kUiButtonBg};
+        rgba on_secondary_container{player::ui::kUiListFont};
+        rgba surface_low{player::ui::kUiButtonBg};
+        rgba surface{player::ui::kUiButtonBg};
+        rgba surface_high{player::ui::kUiButtonBg};
+        rgba on_surface{player::ui::kUiListFont};
+        rgba on_surface_variant{player::ui::kUiSubtitle};
+        rgba outline_variant{player::ui::kUiButtonBorder};
         rgba seed_raw{};
-        rgba surface{};
+        bool neutral{false};
     };
 
     inline rgba rgba_from_argb(std::uint32_t argb) noexcept {
@@ -41,7 +53,20 @@ export namespace player::cover_theme {
 
     CoverTheme compute_cover_theme(const CoverImage& img, const CoverThemeConfig& cfg) noexcept {
         if (img.argb.empty() || img.width <= 0 || img.height <= 0) {
-            return {cfg.fallback, {}, {}};
+            CoverTheme fallback{};
+            fallback.backdrop = cfg.fallback;
+            fallback.on_backdrop = player::ui::kUiTitle;
+            fallback.primary = player::ui::kUiSwitchOn;
+            fallback.on_primary = player::ui::kUiListFont;
+            fallback.secondary_container = player::ui::kUiButtonBg;
+            fallback.on_secondary_container = player::ui::kUiListFont;
+            fallback.surface_low = player::ui::kUiButtonBg;
+            fallback.surface = player::ui::kUiButtonBg;
+            fallback.surface_high = player::ui::kUiButtonBg;
+            fallback.on_surface = player::ui::kUiListFont;
+            fallback.on_surface_variant = player::ui::kUiSubtitle;
+            fallback.outline_variant = player::ui::kUiButtonBorder;
+            return fallback;
         }
 
         const int w = img.width;
@@ -84,28 +109,46 @@ export namespace player::cover_theme {
         const std::uint32_t avg_argb =
             0xFF000000u | (avg_r << 16) | (avg_g << 8) | avg_b;
 
-        const auto seed_argb = alg::extract_seed_argb(samples);
-        std::uint32_t surface_argb = 0;
-        switch (cfg.mode) {
-            case CoverThemeMode::surface_container_high:
-                surface_argb = alg::scheme_surface_container_argb(seed_argb, cfg.is_dark, true);
-                break;
-            case CoverThemeMode::primary_container:
-            default:
-                surface_argb = alg::scheme_primary_container_argb(seed_argb, cfg.is_dark);
-                break;
-        }
+        const auto seed_result = alg::extract_seed_result(samples);
+        const auto scheme = alg::make_scheme_colors(
+            seed_result.seed_argb,
+            cfg.is_dark,
+            cfg.palette_style,
+            seed_result.force_neutral);
 
-        const rgba seed_raw = rgba_from_argb(seed_argb);
-        const rgba surface = rgba_from_argb(surface_argb);
-        const CoverTheme out{surface, seed_raw, surface};
+        const rgba primary_container = rgba_from_argb(scheme.primary_container);
+        const rgba surface_high = rgba_from_argb(scheme.surface_container_high);
+        const rgba backdrop = (cfg.mode == CoverThemeMode::surface_container_high)
+            ? surface_high
+            : primary_container;
+        const rgba on_backdrop = (cfg.mode == CoverThemeMode::surface_container_high)
+            ? rgba_from_argb(scheme.on_surface)
+            : rgba_from_argb(scheme.on_primary_container);
+
+        const CoverTheme out{
+            .backdrop = backdrop,
+            .on_backdrop = on_backdrop,
+            .primary = rgba_from_argb(scheme.primary),
+            .on_primary = rgba_from_argb(scheme.on_primary),
+            .secondary_container = rgba_from_argb(scheme.secondary_container),
+            .on_secondary_container = rgba_from_argb(scheme.on_secondary_container),
+            .surface_low = rgba_from_argb(scheme.surface_container_low),
+            .surface = rgba_from_argb(scheme.surface_container),
+            .surface_high = surface_high,
+            .on_surface = rgba_from_argb(scheme.on_surface),
+            .on_surface_variant = rgba_from_argb(scheme.on_surface_variant),
+            .outline_variant = rgba_from_argb(scheme.outline_variant),
+            .seed_raw = rgba_from_argb(seed_result.seed_argb),
+            .neutral = seed_result.force_neutral,
+        };
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-        const auto hct = alg::seed_hct_metrics(seed_argb);
-        std::printf("[cover] avg=%u,%u,%u seed_raw=%u,%u,%u surface=%u,%u,%u\n",
+        const auto hct = alg::seed_hct_metrics(seed_result.seed_argb);
+        std::printf("[cover] avg=%u,%u,%u seed_raw=%u,%u,%u surface=%u,%u,%u neutral=%d\n",
                     avg_r, avg_g, avg_b,
-                    seed_raw.r, seed_raw.g, seed_raw.b,
-                    surface.r, surface.g, surface.b);
+                    out.seed_raw.r, out.seed_raw.g, out.seed_raw.b,
+                    out.backdrop.r, out.backdrop.g, out.backdrop.b,
+                    seed_result.force_neutral ? 1 : 0);
         std::printf("[cover] hct hue=%.1f chroma=%.1f tone=%.1f\n",
                     hct.hue, hct.chroma, hct.tone);
 #endif

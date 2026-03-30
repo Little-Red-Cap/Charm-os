@@ -69,7 +69,10 @@ if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc")
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
     target_sources(${target_name} PRIVATE ${MATERIAL_COLOR_UTILS_SOURCES})
 endif()
 

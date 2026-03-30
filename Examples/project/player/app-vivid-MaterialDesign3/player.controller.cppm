@@ -16,6 +16,7 @@ import player.mcu_policy;
 import audio.eq;
 import audio.player;
 import audio.result;
+import alg_color_extract;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
@@ -196,214 +197,59 @@ export namespace player {
             }
             const int w = img.width;
             const int h = img.height;
-            const int step = std::max(1, std::min(w, h) / 64);
-            float sum_r_all = 0.0f;
-            float sum_g_all = 0.0f;
-            float sum_b_all = 0.0f;
-            float sum_w_all = 0.0f;
-            float neutral_pop = 0.0f;
-            float total_pop = 0.0f;
-            constexpr int kBuckets = 32;
-            constexpr int kBucketCount = kBuckets * kBuckets * kBuckets;
-            int counts[kBucketCount]{};
-            for (int y = 0; y < h; y += step) {
-                const int row = y * w;
-                for (int x = 0; x < w; x += step) {
-                    const auto argb = img.argb[static_cast<std::size_t>(row + x)];
+            constexpr int max_dim = 128;
+            const int max_side = std::max(w, h);
+            const int scaled_w = (max_side > max_dim) ? std::max(1, (w * max_dim) / max_side) : w;
+            const int scaled_h = (max_side > max_dim) ? std::max(1, (h * max_dim) / max_side) : h;
+            std::vector<std::uint32_t> samples;
+            samples.reserve(static_cast<std::size_t>(scaled_w * scaled_h));
+            std::uint64_t sum_r = 0;
+            std::uint64_t sum_g = 0;
+            std::uint64_t sum_b = 0;
+            std::uint64_t sum_w = 0;
+            for (int y = 0; y < scaled_h; ++y) {
+                const int src_y = (scaled_h == h) ? y : (y * h) / scaled_h;
+                const int row = src_y * w;
+                for (int x = 0; x < scaled_w; ++x) {
+                    const int src_x = (scaled_w == w) ? x : (x * w) / scaled_w;
+                    const auto argb = img.argb[static_cast<std::size_t>(row + src_x)];
                     const std::uint8_t a = static_cast<std::uint8_t>((argb >> 24) & 0xFF);
                     if (a < 20) continue;
-                    const float rf = static_cast<float>((argb >> 16) & 0xFF) / 255.0f;
-                    const float gf = static_cast<float>((argb >> 8) & 0xFF) / 255.0f;
-                    const float bf = static_cast<float>(argb & 0xFF) / 255.0f;
-                    const float luma = rf * 0.2126f + gf * 0.7152f + bf * 0.0722f;
-                    const float max_c = std::max(rf, std::max(gf, bf));
-                    const float min_c = std::min(rf, std::min(gf, bf));
-                    const float sat = max_c - min_c;
-                    const float alpha_w = static_cast<float>(a) / 255.0f;
-                    sum_r_all += rf * alpha_w;
-                    sum_g_all += gf * alpha_w;
-                    sum_b_all += bf * alpha_w;
-                    sum_w_all += alpha_w;
-                    total_pop += alpha_w;
-                    if (sat <= 0.1f) {
-                        neutral_pop += alpha_w;
-                    }
-
-                    if (sat < 0.08f || luma < 0.08f || luma > 0.92f) {
-                        continue;
-                    }
-                    const int r5 = (static_cast<int>(rf * 255.0f) >> 3) & 0x1F;
-                    const int g5 = (static_cast<int>(gf * 255.0f) >> 3) & 0x1F;
-                    const int b5 = (static_cast<int>(bf * 255.0f) >> 3) & 0x1F;
-                    const int idx = (r5 << 10) | (g5 << 5) | b5;
-                    counts[idx] += 1;
+                    samples.push_back(argb);
+                    sum_r += (argb >> 16) & 0xFFu;
+                    sum_g += (argb >> 8) & 0xFFu;
+                    sum_b += argb & 0xFFu;
+                    sum_w += 1;
                 }
             }
-            float rf = 0.0f;
-            float gf = 0.0f;
-            float bf = 0.0f;
-            if (total_pop > 0.0f && neutral_pop / total_pop >= 0.9f) {
-                if (sum_w_all > 0.001f) {
-                    const float inv = 1.0f / sum_w_all;
-                    rf = sum_r_all * inv;
-                    gf = sum_g_all * inv;
-                    bf = sum_b_all * inv;
-                } else {
-                    return kUiBackdropBase;
-                }
-            } else {
-                auto hue_of = [](float r, float g, float b, float max_c, float min_c) -> float {
-                    const float sat = max_c - min_c;
-                    if (sat <= 0.0001f) return 0.0f;
-                    float hue = 0.0f;
-                    if (max_c == r) {
-                        hue = (g - b) / sat;
-                    } else if (max_c == g) {
-                        hue = 2.0f + (b - r) / sat;
-                    } else {
-                        hue = 4.0f + (r - g) / sat;
-                    }
-                    if (hue < 0.0f) hue += 6.0f;
-                    hue *= 60.0f;
-                    return hue;
-                };
-                int hue_pop[360]{};
-                double population_sum = 0.0;
-                for (int idx = 0; idx < kBucketCount; ++idx) {
-                    const int count = counts[idx];
-                    if (count <= 0) continue;
-                    const int r5 = (idx >> 10) & 0x1F;
-                    const int g5 = (idx >> 5) & 0x1F;
-                    const int b5 = idx & 0x1F;
-                    const float r = (r5 * 8 + 4) / 255.0f;
-                    const float g = (g5 * 8 + 4) / 255.0f;
-                    const float b = (b5 * 8 + 4) / 255.0f;
-                    const float max_c = std::max(r, std::max(g, b));
-                    const float min_c = std::min(r, std::min(g, b));
-                    const float sat = max_c - min_c;
-                    if (sat < 0.1f) continue;
-                    const int hue = static_cast<int>(hue_of(r, g, b, max_c, min_c));
-                    hue_pop[hue] += count;
-                    population_sum += static_cast<double>(count);
-                }
-
-                if (population_sum <= 0.0 && sum_w_all > 0.001f) {
-                    const float inv = 1.0f / sum_w_all;
-                    rf = sum_r_all * inv;
-                    gf = sum_g_all * inv;
-                    bf = sum_b_all * inv;
-                } else {
-                    double hue_excited[360]{};
-                    for (int hue = 0; hue < 360; ++hue) {
-                        const double proportion = hue_pop[hue] / population_sum;
-                        for (int n = hue - 14; n <= hue + 15; ++n) {
-                            int h = n;
-                            if (h < 0) h += 360;
-                            if (h >= 360) h -= 360;
-                            hue_excited[h] += proportion;
-                        }
-                    }
-
-                    constexpr float cutoff_sat = 0.1f;
-                    constexpr double cutoff_prop = 0.01;
-                    constexpr float target_sat = 0.5f;
-                    double best_score = -1.0;
-                    int best_idx = -1;
-                    float best_sat = 0.0f;
-                    float best_luma = 0.0f;
-                    float best_hue = 0.0f;
-                    for (int idx = 0; idx < kBucketCount; ++idx) {
-                        const int count = counts[idx];
-                        if (count <= 0) continue;
-                        const int r5 = (idx >> 10) & 0x1F;
-                        const int g5 = (idx >> 5) & 0x1F;
-                        const int b5 = idx & 0x1F;
-                        const float r = (r5 * 8 + 4) / 255.0f;
-                        const float g = (g5 * 8 + 4) / 255.0f;
-                        const float b = (b5 * 8 + 4) / 255.0f;
-                        const float max_c = std::max(r, std::max(g, b));
-                        const float min_c = std::min(r, std::min(g, b));
-                        const float sat = max_c - min_c;
-                        if (sat < cutoff_sat) continue;
-                        const float luma = r * 0.2126f + g * 0.7152f + b * 0.0722f;
-                        const float hue = hue_of(r, g, b, max_c, min_c);
-                        const int hue_i = static_cast<int>(std::round(hue)) % 360;
-                        const double excited = hue_excited[hue_i];
-                        if (excited <= cutoff_prop) continue;
-                        const double proportion_score = excited * 100.0 * 0.7;
-                        const double chroma_weight = (sat < target_sat) ? 0.4 : 0.2;
-                        const double chroma_score = (sat - target_sat) * 100.0 * chroma_weight;
-                        const double luma_w = 1.0 - std::abs(luma - 0.55f);
-                        const double score = (proportion_score + chroma_score) * (0.5 + 0.5 * luma_w);
-                        if (score > best_score) {
-                            best_score = score;
-                            best_idx = idx;
-                            best_sat = sat;
-                            best_luma = luma;
-                            best_hue = hue;
-                        }
-                    }
-
-                    if (best_idx >= 0) {
-                        const int r5 = (best_idx >> 10) & 0x1F;
-                        const int g5 = (best_idx >> 5) & 0x1F;
-                        const int b5 = best_idx & 0x1F;
-                        rf = (r5 * 8 + 4) / 255.0f;
-                        gf = (g5 * 8 + 4) / 255.0f;
-                        bf = (b5 * 8 + 4) / 255.0f;
-#if defined(CHARM_PLAYER_COVER_DEBUG)
-                        std::printf("[cover] hue=%.1f sat=%.3f luma=%.3f score=%.2f\n",
-                                    best_hue, best_sat, best_luma, best_score);
-#endif
-                    } else if (sum_w_all > 0.001f) {
-                        const float inv = 1.0f / sum_w_all;
-                        rf = sum_r_all * inv;
-                        gf = sum_g_all * inv;
-                        bf = sum_b_all * inv;
-                    } else {
-                        return kUiBackdropBase;
-                    }
-                }
+            if (samples.empty()) {
+                return kUiBackdropBase;
             }
+            const std::uint32_t avg_r = static_cast<std::uint32_t>(sum_r / sum_w) & 0xFFu;
+            const std::uint32_t avg_g = static_cast<std::uint32_t>(sum_g / sum_w) & 0xFFu;
+            const std::uint32_t avg_b = static_cast<std::uint32_t>(sum_b / sum_w) & 0xFFu;
+            const std::uint32_t avg_argb =
+                0xFF000000u | (avg_r << 16) | (avg_g << 8) | avg_b;
 
-            const std::uint8_t raw_r = static_cast<std::uint8_t>(std::clamp(rf * 255.0f, 0.0f, 255.0f));
-            const std::uint8_t raw_g = static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f));
-            const std::uint8_t raw_b = static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f));
-
-            float pick_r = rf;
-            float pick_g = gf;
-            float pick_b = bf;
-            const float luma = pick_r * 0.299f + pick_g * 0.587f + pick_b * 0.114f;
-            const float sat = 0.95f;
-            pick_r = luma + (pick_r - luma) * sat;
-            pick_g = luma + (pick_g - luma) * sat;
-            pick_b = luma + (pick_b - luma) * sat;
-            const float dark = 0.95f;
-            rf = pick_r * dark;
-            gf = pick_g * dark;
-            bf = pick_b * dark;
-            const rgba tint{
-                static_cast<std::uint8_t>(std::clamp(rf * 255.0f, 0.0f, 255.0f)),
-                static_cast<std::uint8_t>(std::clamp(gf * 255.0f, 0.0f, 255.0f)),
-                static_cast<std::uint8_t>(std::clamp(bf * 255.0f, 0.0f, 255.0f)),
+            const auto seed_argb = alg::extract_seed_argb(samples);
+            const auto surface_argb = alg::scheme_surface_container_argb(seed_argb, true, true);
+            const rgba seed{
+                static_cast<std::uint8_t>((surface_argb >> 16) & 0xFFu),
+                static_cast<std::uint8_t>((surface_argb >> 8) & 0xFFu),
+                static_cast<std::uint8_t>(surface_argb & 0xFFu),
                 255};
-            const auto mixed = mix_rgba(kUiBackdropBase, tint, 0.9f);
+
+            const rgba mixed = mix_rgba(kUiBackdropBase, seed, 1.0f);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-            std::uint8_t ar = 0;
-            std::uint8_t ag = 0;
-            std::uint8_t ab = 0;
-            if (sum_w_all > 0.001f) {
-                const float inv = 1.0f / sum_w_all;
-                ar = static_cast<std::uint8_t>(std::clamp(sum_r_all * inv * 255.0f, 0.0f, 255.0f));
-                ag = static_cast<std::uint8_t>(std::clamp(sum_g_all * inv * 255.0f, 0.0f, 255.0f));
-                ab = static_cast<std::uint8_t>(std::clamp(sum_b_all * inv * 255.0f, 0.0f, 255.0f));
-            }
-            const float neutral_ratio = (total_pop > 0.0f) ? (neutral_pop / total_pop) : 0.0f;
-            std::printf("[cover] avg=%u,%u,%u raw=%u,%u,%u base=%u,%u,%u mixed=%u,%u,%u neutral=%.3f\n",
-                        ar, ag, ab, raw_r, raw_g, raw_b,
-                        tint.r, tint.g, tint.b, mixed.r, mixed.g, mixed.b,
-                        neutral_ratio);
+            const auto seed_hct = alg::seed_hct_metrics(seed_argb);
+            std::printf("[cover] avg=%u,%u,%u seed=%u,%u,%u mixed=%u,%u,%u\n",
+                        avg_r, avg_g, avg_b,
+                        seed.r, seed.g, seed.b,
+                        mixed.r, mixed.g, mixed.b);
+            std::printf("[cover] hct hue=%.1f chroma=%.1f tone=%.1f\n",
+                        seed_hct.hue, seed_hct.chroma, seed_hct.tone);
 #endif
+            (void)avg_argb;
             return mixed;
         }
 

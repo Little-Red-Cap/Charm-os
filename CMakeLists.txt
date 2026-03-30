@@ -48,6 +48,31 @@ if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_f
     charm_link_dr_libs(${target_name})
 endif()
 
+set(CHARM_MATERIAL_COLOR_UTILS_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/material_color_utils")
+if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+    target_include_directories(${target_name} PRIVATE "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
+    set(MATERIAL_COLOR_UTILS_SOURCES
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
+        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc")
+    target_sources(${target_name} PRIVATE ${MATERIAL_COLOR_UTILS_SOURCES})
+endif()
+
 
 if (CHARM_ENABLE_FATFS)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")

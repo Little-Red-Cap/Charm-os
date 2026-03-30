@@ -238,6 +238,15 @@ inline constexpr auto kKindStateCounts = build_kind_state_counts(kKindStateMasks
 inline constexpr auto kKindStateOffsets = build_kind_state_offsets(kKindVariantCounts, kKindStateCounts);
 inline constexpr std::size_t kTotalStyleSlots = count_total_style_slots(kKindVariantCounts, kKindStateCounts);
 
+inline std::array<std::uint8_t, kWidgetKindCount> g_kind_state_masks = kKindStateMasks;
+inline std::array<std::uint8_t, kWidgetKindCount> g_kind_state_counts = kKindStateCounts;
+inline std::array<std::uint16_t, kWidgetKindCount> g_kind_state_offsets = kKindStateOffsets;
+
+inline void rebuild_kind_state_tables() noexcept {
+    g_kind_state_counts = build_kind_state_counts(g_kind_state_masks);
+    g_kind_state_offsets = build_kind_state_offsets(kKindVariantCounts, g_kind_state_counts);
+}
+
 export
 struct ResolvedColors {
     rgba bg{};
@@ -654,13 +663,13 @@ public:
             return ResolvedStyleView{&fallback_colors_, &fallback_metrics_, &fallback_decoration_};
         }
         const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
-        const std::uint8_t state_count = kKindStateCounts[kind_idx];
-        const std::uint8_t state_idx = style_state_index(state, kKindStateMasks[kind_idx]);
+        const std::uint8_t state_count = g_kind_state_counts[kind_idx];
+        const std::uint8_t state_idx = style_state_index(state, g_kind_state_masks[kind_idx]);
 #ifndef NDEBUG
         if (state_idx >= state_count) assert(false && "StyleSheet state index out of range");
 #endif
         const std::size_t entry =
-            static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
+            static_cast<std::size_t>(g_kind_state_offsets[kind_idx]) + variant * state_count + state_idx;
         const std::size_t color_entry = entry;
         const std::size_t metrics_entry =
             static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant;
@@ -679,6 +688,44 @@ public:
     }
 
     void notify_base_style_changed() noexcept {
+        mark_stylesheet_dirty();
+    }
+
+    std::uint8_t kind_state_mask(WidgetKind kind) const noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return 0;
+        return g_kind_state_masks[idx];
+    }
+
+    std::uint8_t kind_state_count(WidgetKind kind) const noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return 0;
+        return g_kind_state_counts[idx];
+    }
+
+    std::uint16_t kind_state_offset(WidgetKind kind) const noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return 0;
+        return g_kind_state_offsets[idx];
+    }
+
+    void set_state_mask(WidgetKind kind, std::uint8_t mask) noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return;
+        const std::uint8_t allowed = kKindStateMasks[idx];
+        const std::uint8_t next = static_cast<std::uint8_t>(mask & allowed);
+        if (g_kind_state_masks[idx] == next) return;
+        g_kind_state_masks[idx] = next;
+        rebuild_kind_state_tables();
+        mark_stylesheet_dirty();
+    }
+
+    void reset_state_mask(WidgetKind kind) noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return;
+        if (g_kind_state_masks[idx] == kKindStateMasks[idx]) return;
+        g_kind_state_masks[idx] = kKindStateMasks[idx];
+        rebuild_kind_state_tables();
         mark_stylesheet_dirty();
     }
 
@@ -738,9 +785,9 @@ public:
         info.kind = kind;
         const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
         if (idx == kInvalidKindIndex) return info;
-        info.mask = kKindStateMasks[idx];
-        info.state_count = kKindStateCounts[idx];
-        info.state_offset = kKindStateOffsets[idx];
+        info.mask = g_kind_state_masks[idx];
+        info.state_count = g_kind_state_counts[idx];
+        info.state_offset = g_kind_state_offsets[idx];
         info.variant_count = kKindVariantCounts[idx];
         info.variant_offset = kKindVariantOffsets[idx];
         return info;
@@ -830,8 +877,8 @@ private:
             if (base_style_set_[kind_idx] == 0) assert(false && "StyleSheet base style missing");
 #endif
             const std::uint8_t variant_count = kKindVariantCounts[kind_idx];
-            const std::uint8_t state_mask_bits = kKindStateMasks[kind_idx];
-            const std::uint8_t state_count = kKindStateCounts[kind_idx];
+            const std::uint8_t state_mask_bits = g_kind_state_masks[kind_idx];
+            const std::uint8_t state_count = g_kind_state_counts[kind_idx];
             for (std::uint8_t variant = 0; variant < variant_count; ++variant) {
                 const std::size_t metrics_entry =
                     static_cast<std::size_t>(kKindVariantOffsets[kind_idx]) + variant;
@@ -909,7 +956,7 @@ private:
                     const ResolvedColors colors = build_resolved_colors(resolved, state);
                     const ResolvedDecoration deco = build_resolved_decoration(resolved);
                     const std::size_t entry =
-                        static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
+                        static_cast<std::size_t>(g_kind_state_offsets[kind_idx]) + variant * state_count + state_idx;
                     style_table_.colors[entry] = colors;
                     style_table_.decorations[entry] = deco;
                     style_table_.matched[entry] = matched
@@ -939,13 +986,13 @@ private:
         if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
         const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
-        const std::uint8_t state_count = kKindStateCounts[kind_idx];
-        const std::uint8_t state_idx = style_state_index(state, kKindStateMasks[kind_idx]);
+        const std::uint8_t state_count = g_kind_state_counts[kind_idx];
+        const std::uint8_t state_idx = style_state_index(state, g_kind_state_masks[kind_idx]);
 #ifndef NDEBUG
         if (state_idx >= state_count) assert(false && "StyleSheet state index out of range");
 #endif
         const std::size_t entry =
-            static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
+            static_cast<std::size_t>(g_kind_state_offsets[kind_idx]) + variant * state_count + state_idx;
         if (style_table_.matched[entry] == 0) return false;
         apply_resolved_colors(style, style_table_.colors[entry]);
         apply_resolved_decoration(style, style_table_.decorations[entry]);
@@ -974,13 +1021,13 @@ private:
         if (kind_idx == kInvalidKindIndex) return false;
         if (style_table_.kind_compiled[kind_idx] == 0) return false;
         const std::uint8_t variant = clamp_variant(state.variant, kKindVariantCounts[kind_idx]);
-        const std::uint8_t state_count = kKindStateCounts[kind_idx];
-        const std::uint8_t state_idx = style_state_index(state, kKindStateMasks[kind_idx]);
+        const std::uint8_t state_count = g_kind_state_counts[kind_idx];
+        const std::uint8_t state_idx = style_state_index(state, g_kind_state_masks[kind_idx]);
 #ifndef NDEBUG
         if (state_idx >= state_count) assert(false && "StyleSheet state index out of range");
 #endif
         const std::size_t entry =
-            static_cast<std::size_t>(kKindStateOffsets[kind_idx]) + variant * state_count + state_idx;
+            static_cast<std::size_t>(g_kind_state_offsets[kind_idx]) + variant * state_count + state_idx;
         if (style_table_.matched[entry] == 0) return false;
         out = base;
         apply_resolved_colors(out, style_table_.colors[entry]);
@@ -1020,4 +1067,24 @@ inline const Style& resolve_style(WidgetKind kind,
         return scratch;
     }
     return base;
+}
+
+export inline void set_style_kind_state_mask(WidgetKind kind, std::uint8_t mask) noexcept {
+    StyleSheet::instance().set_state_mask(kind, mask);
+}
+
+export inline void reset_style_kind_state_mask(WidgetKind kind) noexcept {
+    StyleSheet::instance().reset_state_mask(kind);
+}
+
+export inline std::uint8_t style_kind_state_mask(WidgetKind kind) noexcept {
+    return StyleSheet::instance().kind_state_mask(kind);
+}
+
+export inline std::uint8_t style_kind_state_count(WidgetKind kind) noexcept {
+    return StyleSheet::instance().kind_state_count(kind);
+}
+
+export inline std::uint16_t style_kind_state_offset(WidgetKind kind) noexcept {
+    return StyleSheet::instance().kind_state_offset(kind);
 }

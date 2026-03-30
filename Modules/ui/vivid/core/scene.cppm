@@ -403,6 +403,180 @@ export namespace ui::scene {
         return LayoutCursor(builder, rect, LayoutAxis::Column, gap, padding, origin_x, origin_y, cross);
     }
 
+    class RowBuilder {
+    public:
+        RowBuilder(SceneBuilder& builder,
+                   const Rect& rect,
+                   int gap = 0,
+                   int padding = 0,
+                   LayoutAlign cross = LayoutAlign::Center,
+                   StyleClassId style_class = kStyleClassInvalid,
+                   bool clip = false) noexcept
+            : builder_(&builder),
+              root_(builder.create_container()),
+              cursor_(builder, Rect{0, 0, rect.w, rect.h}, LayoutAxis::Row, gap, padding, cross) {
+            builder_->set_rect(root_, rect);
+            if (style_class != kStyleClassInvalid) {
+                builder_->set_style_class(root_, style_class);
+            }
+            if (clip) builder_->set_clip_children(root_, true);
+        }
+
+        WidgetHandle root() const noexcept { return root_; }
+
+        Rect content_rect() const noexcept { return cursor_.content_rect(); }
+
+        Rect next_rect(int w, int h) noexcept { return cursor_.place_rect(w, h); }
+
+        void add(WidgetHandle child, int w, int h) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            cursor_.place(child, w, h);
+        }
+
+        void add_at(WidgetHandle child, const Rect& r) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            builder_->set_rect(child, r);
+        }
+
+    private:
+        SceneBuilder* builder_{nullptr};
+        WidgetHandle root_{};
+        LayoutCursor cursor_;
+    };
+
+    class ColumnBuilder {
+    public:
+        ColumnBuilder(SceneBuilder& builder,
+                      const Rect& rect,
+                      int gap = 0,
+                      int padding = 0,
+                      LayoutAlign cross = LayoutAlign::Center,
+                      StyleClassId style_class = kStyleClassInvalid,
+                      bool clip = false) noexcept
+            : builder_(&builder),
+              root_(builder.create_container()),
+              cursor_(builder, Rect{0, 0, rect.w, rect.h}, LayoutAxis::Column, gap, padding, cross) {
+            builder_->set_rect(root_, rect);
+            if (style_class != kStyleClassInvalid) {
+                builder_->set_style_class(root_, style_class);
+            }
+            if (clip) builder_->set_clip_children(root_, true);
+        }
+
+        WidgetHandle root() const noexcept { return root_; }
+
+        Rect content_rect() const noexcept { return cursor_.content_rect(); }
+
+        Rect next_rect(int w, int h) noexcept { return cursor_.place_rect(w, h); }
+
+        void add(WidgetHandle child, int w, int h) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            cursor_.place(child, w, h);
+        }
+
+        void add_at(WidgetHandle child, const Rect& r) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            builder_->set_rect(child, r);
+        }
+
+    private:
+        SceneBuilder* builder_{nullptr};
+        WidgetHandle root_{};
+        LayoutCursor cursor_;
+    };
+
+    class CardBuilder {
+    public:
+        CardBuilder(SceneBuilder& builder,
+                    const Rect& rect,
+                    int gap = 0,
+                    int padding = 0,
+                    LayoutAlign cross = LayoutAlign::Center,
+                    StyleClassId style_class = kStyleClassInvalid,
+                    bool clip = true) noexcept
+            : builder_(&builder),
+              root_(builder.create_container()),
+              cursor_(builder, Rect{0, 0, rect.w, rect.h}, LayoutAxis::Column, gap, padding, cross) {
+            builder_->set_rect(root_, rect);
+            if (style_class != kStyleClassInvalid) {
+                builder_->set_style_class(root_, style_class);
+            }
+            if (clip) builder_->set_clip_children(root_, true);
+        }
+
+        WidgetHandle root() const noexcept { return root_; }
+
+        Rect content_rect() const noexcept { return cursor_.content_rect(); }
+
+        Rect next_rect(int w, int h) noexcept { return cursor_.place_rect(w, h); }
+
+        void add(WidgetHandle child, int w, int h) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            cursor_.place(child, w, h);
+        }
+
+        void add_at(WidgetHandle child, const Rect& r) noexcept {
+            if (!builder_ || !root_ || !child) return;
+            builder_->link(root_, child);
+            builder_->set_rect(child, r);
+        }
+
+    private:
+        SceneBuilder* builder_{nullptr};
+        WidgetHandle root_{};
+        LayoutCursor cursor_;
+    };
+
+    class TileBuilder {
+    public:
+        TileBuilder(SceneBuilder& builder,
+                    const Rect& rect,
+                    int image_size,
+                    int gap = 0,
+                    bool image_top = true,
+                    StyleClassId style_class = kStyleClassInvalid,
+                    bool clip = false,
+                    const char* label_text = "") noexcept
+            : builder_(&builder),
+              root_(builder.create_container()),
+              image_(builder.create_image()),
+              label_(builder.create_label_static(label_text)),
+              cursor_(builder, Rect{0, 0, rect.w, rect.h},
+                      image_top ? LayoutAxis::Column : LayoutAxis::Row,
+                      gap, 0, LayoutAlign::Center) {
+            builder_->set_rect(root_, rect);
+            if (style_class != kStyleClassInvalid) {
+                builder_->set_style_class(root_, style_class);
+            }
+            if (clip) builder_->set_clip_children(root_, true);
+            builder_->link(root_, image_);
+            builder_->link(root_, label_);
+            if (image_top) {
+                cursor_.place(image_, image_size, image_size);
+                cursor_.place(label_, rect.w, rect.h - image_size - gap);
+            } else {
+                cursor_.place(image_, image_size, image_size);
+                cursor_.place(label_, rect.w - image_size - gap, rect.h);
+            }
+        }
+
+        WidgetHandle root() const noexcept { return root_; }
+        WidgetHandle image() const noexcept { return image_; }
+        WidgetHandle label() const noexcept { return label_; }
+
+    private:
+        SceneBuilder* builder_{nullptr};
+        WidgetHandle root_{};
+        WidgetHandle image_{};
+        WidgetHandle label_{};
+        LayoutCursor cursor_;
+    };
+
     struct PageHooks {
         void (*on_show)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};
         void (*on_hide)(SceneAccess&, WidgetHandle, void*) noexcept {nullptr};

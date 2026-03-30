@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <expected>
@@ -51,6 +52,20 @@ namespace {
 }
 
 namespace perf_overlay_detail {
+    inline constexpr std::size_t kDebugLineCount = 6;
+    inline constexpr std::size_t kDebugLineSize = 96;
+    inline constexpr std::size_t kDebugNameSize = 24;
+
+    struct DebugLines {
+        std::array<std::array<char, kDebugLineSize>, kDebugLineCount> text{};
+        std::array<std::uint8_t, kDebugLineCount> len{};
+    };
+
+    struct DebugChannels {
+        std::array<std::array<char, kDebugNameSize>, kDebugLineCount> name{};
+        std::array<std::uint8_t, kDebugLineCount> len{};
+    };
+
     struct OverlayStatsState {
         std::uint32_t dispatch_groups{0};
         std::uint32_t batch_flushes{0};
@@ -74,6 +89,38 @@ namespace perf_overlay_detail {
     };
 
     inline OverlayStatsState g_overlay_stats{};
+    inline DebugLines g_debug_lines{};
+    inline DebugChannels g_debug_channels{};
+
+    inline bool channel_name_equals(std::size_t idx, std::string_view name) noexcept {
+        const auto& slot = g_debug_channels.name[idx];
+        const std::uint8_t len = g_debug_channels.len[idx];
+        return len == name.size() && std::memcmp(slot.data(), name.data(), len) == 0;
+    }
+
+    inline std::size_t find_channel(std::string_view name) noexcept {
+        for (std::size_t i = 0; i < kDebugLineCount; ++i) {
+            if (g_debug_channels.len[i] == 0) continue;
+            if (channel_name_equals(i, name)) return i;
+        }
+        return kDebugLineCount;
+    }
+
+    inline std::size_t alloc_channel(std::string_view name) noexcept {
+        for (std::size_t i = 0; i < kDebugLineCount; ++i) {
+            if (g_debug_channels.len[i] != 0) continue;
+            auto& slot = g_debug_channels.name[i];
+            const std::size_t cap = slot.size();
+            const std::size_t len = (name.size() < (cap - 1u)) ? name.size() : (cap - 1u);
+            if (len > 0) {
+                std::memcpy(slot.data(), name.data(), len);
+            }
+            slot[len] = '\0';
+            g_debug_channels.len[i] = static_cast<std::uint8_t>(len);
+            return i;
+        }
+        return kDebugLineCount;
+    }
 }
 
 export
@@ -157,6 +204,16 @@ public:
         int y = r.y + st.metrics.padding;
 
         char buf[96]{};
+        auto draw_debug_lines = [&](int& y_pos) {
+            for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
+                const std::uint8_t len = perf_overlay_detail::g_debug_lines.len[i];
+                if (len == 0) continue;
+                const char* line = perf_overlay_detail::g_debug_lines.text[i].data();
+                draw_text_baseline(cvs, start_x, y_pos + ft.baseline, line, font, ft);
+                y_pos += line_h;
+            }
+        };
+
         if (!has_sample_) {
             (void)format_to<"perf: n/a">(buf, sizeof(buf));
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
@@ -173,6 +230,8 @@ public:
                                              static_cast<unsigned long long>(text_profile.glyphs),
                                              static_cast<unsigned long long>(text_profile.pixels));
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+            y += line_h;
+            draw_debug_lines(y);
             return;
         }
 
@@ -234,7 +293,10 @@ public:
                                                                  perf_overlay_detail::g_overlay_stats.cmd_path,
                                                                  perf_overlay_detail::g_overlay_stats.cmd_other);
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
+            y += line_h;
         }
+
+        draw_debug_lines(y);
     }
 
 private:
@@ -293,6 +355,56 @@ export inline PerfOverlay::OverlayStats perf_overlay_stats() noexcept {
     out.cmd_path = perf_overlay_detail::g_overlay_stats.cmd_path;
     out.cmd_other = perf_overlay_detail::g_overlay_stats.cmd_other;
     return out;
+}
+
+export inline void set_perf_overlay_debug_line(std::size_t idx, std::string_view text) noexcept {
+    if (idx >= perf_overlay_detail::kDebugLineCount) return;
+    auto& slot = perf_overlay_detail::g_debug_lines.text[idx];
+    const std::size_t cap = slot.size();
+    const std::size_t len = (text.size() < (cap - 1u)) ? text.size() : (cap - 1u);
+    if (len > 0) {
+        std::memcpy(slot.data(), text.data(), len);
+    }
+    slot[len] = '\0';
+    perf_overlay_detail::g_debug_lines.len[idx] = static_cast<std::uint8_t>(len);
+}
+
+export inline void clear_perf_overlay_debug_line(std::size_t idx) noexcept {
+    if (idx >= perf_overlay_detail::kDebugLineCount) return;
+    perf_overlay_detail::g_debug_lines.text[idx][0] = '\0';
+    perf_overlay_detail::g_debug_lines.len[idx] = 0;
+}
+
+export inline void clear_perf_overlay_debug_lines() noexcept {
+    for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
+        perf_overlay_detail::g_debug_lines.text[i][0] = '\0';
+        perf_overlay_detail::g_debug_lines.len[i] = 0;
+    }
+}
+
+export inline std::size_t perf_overlay_debug_channel(std::string_view name) noexcept {
+    if (name.empty()) return perf_overlay_detail::kDebugLineCount;
+    const auto existing = perf_overlay_detail::find_channel(name);
+    if (existing < perf_overlay_detail::kDebugLineCount) return existing;
+    return perf_overlay_detail::alloc_channel(name);
+}
+
+export inline void set_perf_overlay_debug_channel(std::size_t idx, std::string_view text) noexcept {
+    set_perf_overlay_debug_line(idx, text);
+}
+
+export inline std::string_view perf_overlay_debug_channel_name(std::size_t idx) noexcept {
+    if (idx >= perf_overlay_detail::kDebugLineCount) return {};
+    const auto len = perf_overlay_detail::g_debug_channels.len[idx];
+    if (len == 0) return {};
+    return {perf_overlay_detail::g_debug_channels.name[idx].data(), len};
+}
+
+export inline void clear_perf_overlay_debug_channels() noexcept {
+    for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
+        perf_overlay_detail::g_debug_channels.name[i][0] = '\0';
+        perf_overlay_detail::g_debug_channels.len[i] = 0;
+    }
 }
 
 

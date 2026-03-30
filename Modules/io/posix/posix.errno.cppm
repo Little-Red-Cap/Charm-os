@@ -8,6 +8,11 @@ import util.core;
 import util.error;
 
 export namespace posix {
+    // v1 policy:
+    // - core APIs return util::Errc
+    // - POSIX-facing wrappers call to_errno() when mapping to errno
+    // - from_errno() is best-effort and intentionally lossy
+
     inline constexpr int EPERM = 1;
     inline constexpr int ENOENT = 2;
     inline constexpr int EIO = 5;
@@ -53,8 +58,8 @@ export namespace posix {
             case util::Errc::nosys: return ENOSYS;
             case util::Errc::notsup: return ENOTSUP;
             case util::Errc::timeout: return ETIMEDOUT;
-            case util::Errc::closed: return EPIPE;
-            case util::Errc::buffer_overflow: return ENOSPC;
+            case util::Errc::closed: return EIO;
+            case util::Errc::buffer_overflow: return EIO;
             default: return EIO;
         }
     }
@@ -76,7 +81,7 @@ export namespace posix {
             case ENOTSUP: return util::Errc::notsup;
             case ETIMEDOUT: return util::Errc::timeout;
             case EPIPE: return util::Errc::closed;
-            case ENOSPC: return util::Errc::buffer_overflow;
+            case ENOSPC: return util::Errc::io;
             default: return util::Errc::io;
         }
     }

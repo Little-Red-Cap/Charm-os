@@ -80,6 +80,7 @@ export namespace usb {
         u16 w_length{0};
     };
 
+    #pragma pack(push, 1)
     struct DescriptorHeader {
         u8 length{0};
         DescriptorType type{DescriptorType::device};
@@ -174,6 +175,7 @@ export namespace usb {
         u8 length{2};
         DescriptorType type{DescriptorType::string};
     };
+    #pragma pack(pop)
 
     struct DescriptorWriter {
         std::span<u8> buffer{};

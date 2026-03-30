@@ -10,6 +10,7 @@
 
 #include "stm32h7xx_hal.h"
 #include "fmc.h"
+#include "i2s.h"
 #include "tim.h"
 #include "usb_device.h"
 #include "stm32h7xx_hal_pcd.h"
@@ -120,7 +121,6 @@ extern "C" {
     void MX_I2S1_Init(void);
     void MX_SDMMC2_SD_Init(void);
     void MX_DMA_Init(void);
-    void MX_USB_OTG_FS_PCD_Init(void);
     void MX_SPI5_Init(void);
     void MX_TIM8_Init(void);
     void MX_USART1_UART_Init(void);
@@ -130,7 +130,7 @@ extern "C" {
     extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 }
 
-void early_uart_print(const char* s) noexcept;
+using player::stm32h7::board::early_uart_print;
 
 namespace {
     void early_uart_print_sv(std::string_view s) noexcept {
@@ -193,22 +193,22 @@ namespace {
     constexpr util::usize kTxCap = player::stm32h7::app::config::kTxCap;
     constexpr bool kBringupKeySelect = player::stm32h7::app::config::kBringupKeySelect;
     constexpr bool kBringupWaitKey = player::stm32h7::app::config::kBringupWaitKey;
-    constexpr bool kFmcInitOnBoot = player::stm32h7::app::config::kFmcInitOnBoot;
-    constexpr bool kSdramSelftestOnBoot = player::stm32h7::app::config::kSdramSelftestOnBoot;
-    constexpr bool kSdramSelftestInBringup = player::stm32h7::app::config::kSdramSelftestInBringup;
-    constexpr bool kEnableSdmmcInit = player::stm32h7::app::config::kEnableSdmmcInit;
-    constexpr bool kEnableUsbMsc = player::stm32h7::app::config::kEnableUsbMsc;
-    constexpr bool kUseStUsbStack = player::stm32h7::app::config::kUseStUsbStack;
+    constexpr bool kFmcInitOnBoot = player::stm32h7::board::kFmcInitOnBoot;
+    constexpr bool kSdramSelftestOnBoot = player::stm32h7::board::kSdramSelftestOnBoot;
+    constexpr bool kSdramSelftestInBringup = player::stm32h7::board::kSdramSelftestInBringup;
+    constexpr bool kEnableSdmmcInit = player::stm32h7::board::kEnableSdmmcInit;
+    constexpr bool kEnableUsbMsc = player::stm32h7::board::kEnableUsbMsc;
+    constexpr bool kUseStUsbStack = player::stm32h7::board::kUseStUsbStack;
     constexpr bool kEnableAudio = player::stm32h7::app::config::kEnableAudio;
-    constexpr bool kEnableUsbAudio = player::stm32h7::app::config::kEnableUsbAudio;
-    constexpr bool kUseUsbAudioOnBoot = player::stm32h7::app::config::kUseUsbAudioOnBoot;
-    constexpr bool kEnableDisplay = player::stm32h7::app::config::kEnableDisplay;
+    constexpr bool kEnableUsbAudio = player::stm32h7::board::kEnableUsbAudio;
+    constexpr bool kUseUsbAudioOnBoot = player::stm32h7::board::kUseUsbAudioOnBoot;
+    constexpr bool kEnableDisplay = player::stm32h7::board::kEnableDisplay;
     constexpr bool kDebugStopAfterBringup = player::stm32h7::app::config::kDebugStopAfterBringup;
     constexpr bool kDebugStopAfterChannel = player::stm32h7::app::config::kDebugStopAfterChannel;
     constexpr bool kDebugStopAfterFs = player::stm32h7::app::config::kDebugStopAfterFs;
     constexpr bool kDebugDumpRoot = player::stm32h7::app::config::kDebugDumpRoot;
-    constexpr bool kUseOutLoggerEarly = player::stm32h7::app::config::kUseOutLoggerEarly;
-    constexpr bool kUseDmaConsole = player::stm32h7::app::config::kUseDmaConsole;
+    constexpr bool kUseOutLoggerEarly = player::stm32h7::board::kUseOutLoggerEarly;
+    constexpr bool kUseDmaConsole = player::stm32h7::board::kUseDmaConsole;
     constexpr bool kEncoderTestOnBoot = player::stm32h7::app::config::kEncoderTestOnBoot;
     constexpr util::u32 kEncoderTestMs = player::stm32h7::app::config::kEncoderTestMs;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
@@ -455,10 +455,6 @@ namespace {
 
     void wait_key_press() noexcept;
 
-    void early_uart_print(const char* msg) noexcept {
-        player::stm32h7::board::early_uart_print(msg);
-    }
-
     void early_sleep_ms(util::u32 ms) noexcept {
         HAL_Delay(ms);
     }
@@ -583,9 +579,6 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
-extern "C" CHARM_WEAK void MX_USB_OTG_FS_PCD_Init(void) {
-}
-
 int main() {
     HAL_Init();
     // MPU_Config();
@@ -632,12 +625,28 @@ int main() {
         player::stm32h7::board::sdmmc_hw_init();
     }
     MX_I2S1_Init();
-    MX_SPI5_Init();
-    if (kUseStUsbStack) {
-        MX_USB_OTG_FS_PCD_Init();
-    } else {
-        player::stm32h7::board::usb_hw_init();
+    {
+#if defined(RCC_PERIPHCLK_SPI123)
+        const util::u32 i2s_clk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI123);
+#elif defined(RCC_PERIPHCLK_SPI1)
+        const util::u32 i2s_clk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI1);
+#else
+        const util::u32 i2s_clk = 0;
+#endif
+        char buf[96]{};
+        const int n = std::snprintf(
+            buf,
+            sizeof(buf),
+            "boot: i2s ker_clk=%luHz target_mclk=%luHz freq=%lu\n",
+            static_cast<unsigned long>(i2s_clk),
+            static_cast<unsigned long>(48000U * 256U),
+            static_cast<unsigned long>(hi2s1.Init.AudioFreq));
+        if (n > 0) {
+            early_uart_print(buf);
+        }
     }
+    MX_SPI5_Init();
+    player::stm32h7::board::usb_init_early(kUseStUsbStack);
 
     auto caps = platform::board::stn32h747xi::make_board_caps();
     using PumpTask = charm::system::ReactorPumpTask;

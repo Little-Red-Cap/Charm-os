@@ -9,6 +9,7 @@ export module posix.proc;
 
 import init.node;
 import posix.env;
+import posix.fd_table;
 import util.core;
 import util.error;
 
@@ -86,7 +87,7 @@ export namespace posix {
         MainEntry entry{nullptr};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxPathLen = 128>
     class ProcService {
     public:
         void init() noexcept {
@@ -94,6 +95,10 @@ export namespace posix {
             for (auto& used : used_) used = false;
             exec_count_ = 0;
             next_pid_ = 1;
+        }
+
+        void bind_fd_table(FdTable<MaxFds>& table) noexcept {
+            fd_table_ = &table;
         }
 
         util::Result<void> register_executable(std::string_view name, MainEntry entry) noexcept {
@@ -119,11 +124,16 @@ export namespace posix {
             if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
                 return util::unexpected(util::Errc::not_supported);
             }
-            if (cfg.file_actions && cfg.file_actions->count > 0) {
+            const bool has_actions = cfg.file_actions && cfg.file_actions->count > 0;
+            const bool has_stdio = cfg.stdio_in >= 0 || cfg.stdio_out >= 0 || cfg.stdio_err >= 0;
+            if ((has_actions || has_stdio) && fd_table_ == nullptr) {
                 return util::unexpected(util::Errc::not_supported);
             }
-            if (cfg.stdio_in >= 0 || cfg.stdio_out >= 0 || cfg.stdio_err >= 0) {
-                return util::unexpected(util::Errc::not_supported);
+            if (has_actions || has_stdio) {
+                auto r = apply_fd_overrides(cfg);
+                if (!r) {
+                    return util::unexpected(r.error());
+                }
             }
 
             std::string_view name = resolve_name(cfg);
@@ -174,6 +184,81 @@ export namespace posix {
             bool exited{false};
             int exit_code{0};
         };
+
+        static util::Result<void> snapshot_close(FdTableSnapshot<MaxFds>& snapshot, int fd) noexcept {
+            if (fd < 0 || static_cast<util::usize>(fd) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            const util::usize idx = static_cast<util::usize>(fd);
+            if (!snapshot.used[idx]) {
+                return util::unexpected(util::Errc::noent);
+            }
+            snapshot.slots[idx] = {};
+            snapshot.used[idx] = false;
+            return {};
+        }
+
+        static util::Result<void> snapshot_dup2(FdTableSnapshot<MaxFds>& snapshot, int from, int to) noexcept {
+            if (from < 0 || to < 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (static_cast<util::usize>(from) >= MaxFds || static_cast<util::usize>(to) >= MaxFds) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if (from == to) return {};
+            const util::usize from_idx = static_cast<util::usize>(from);
+            if (!snapshot.used[from_idx]) {
+                return util::unexpected(util::Errc::noent);
+            }
+            const util::usize to_idx = static_cast<util::usize>(to);
+            snapshot.slots[to_idx] = snapshot.slots[from_idx];
+            snapshot.slots[to_idx].id = to;
+            snapshot.used[to_idx] = true;
+            return {};
+        }
+
+        util::Result<void> apply_fd_overrides(const SpawnConfig& cfg) noexcept {
+            if (!fd_table_) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            FdTableSnapshot<MaxFds> snapshot{};
+            fd_table_->snapshot(snapshot);
+
+            if (cfg.stdio_in >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_in, 0);
+                if (!r) return r;
+            }
+            if (cfg.stdio_out >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_out, 1);
+                if (!r) return r;
+            }
+            if (cfg.stdio_err >= 0) {
+                auto r = snapshot_dup2(snapshot, cfg.stdio_err, 2);
+                if (!r) return r;
+            }
+
+            if (cfg.file_actions && cfg.file_actions->count > 0) {
+                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
+                    const auto& act = cfg.file_actions->actions[i];
+                    switch (act.kind) {
+                        case FileAction::Kind::open:
+                            return util::unexpected(util::Errc::not_supported);
+                        case FileAction::Kind::close: {
+                            auto r = snapshot_close(snapshot, act.fd);
+                            if (!r) return r;
+                            break;
+                        }
+                        case FileAction::Kind::dup2: {
+                            auto r = snapshot_dup2(snapshot, act.fd, act.newfd);
+                            if (!r) return r;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return {};
+        }
 
         ExecEntry* find_entry(std::string_view name) noexcept {
             for (util::usize i = 0; i < exec_count_; ++i) {
@@ -256,17 +341,18 @@ export namespace posix {
         util::usize exec_count_{0};
         std::array<Process, MaxProcs> procs_{};
         std::array<bool, MaxProcs> used_{};
+        FdTable<MaxFds>* fd_table_{nullptr};
         int next_pid_{1};
         std::array<char, MaxPathLen> resolved_path_{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxPathLen = 128>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs, MaxPathLen>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxPathLen>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxPathLen>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxPathLen>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

@@ -22,6 +22,7 @@ target_compile_definitions(${target_name} PRIVATE
     POSIX_FD_TABLE_SMOKE_TEST=1
     POSIX_PIPE_SMOKE_TEST=1
     POSIX_PROC_SMOKE_TEST=1
+    POSIX_PROGRAMS_SMOKE_TEST=1
     POSIX_API_SMOKE_TEST=1
 )
 
@@ -36,4 +37,5 @@ target_sources(${target_name}
         "${CHARM_ROOT}/Examples/posix/tests/posix.fd_table.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.pipe.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.proc.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.programs.tests.cppm"
 )

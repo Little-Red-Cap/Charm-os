@@ -42,6 +42,20 @@
 - toybox 小集
 - 选定 Linux 程序样本可跑
 
+## 程序驱动矩阵（最小样本）
+
+| 程序 | 最小验收命令/期望 | 依赖能力 | 阻塞点 | 架构风险 | 优先级 | 负责人 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| hello | `hello`；stdout 固定字符串，exit=0 | spawn/映像加载/argv/envp/stdio | 映像加载、入口 ABI | spawn 被做成 task launcher | P0 | TBD | TODO |
+| argv_dump | `argv_dump a b`；打印 argv[0..2] | argv/envp 传递/stdio | argv/envp 内存布局 | 入口 ABI 与内部函数混用 | P0 | TBD | TODO |
+| stderr_demo | `stderr_demo`；stdout/stderr 分流可观测 | stdio 绑定/dup2/isatty | 0/1/2 独立绑定、分流、dup2 覆盖 | console 旁路残留 | P0 | TBD | TODO |
+| exit_code | `exit_code 7`；wait 得到 7 | waitpid/exit status | WaitStatus 结构化语义 | 退出码被简化成 task completion | P0 | TBD | TODO |
+| echo > out.txt | `echo hi > out.txt`；`cat out.txt` 输出 hi | open/write/dup2/close/stat | fd_table 统一路径、close 可见性 | 文件写入路径分叉 | P1 | TBD | TODO |
+| cat < out.txt | `cat < out.txt`；输出 hi | open/read/close | EOF 语义 | 读取路径非 fd_table | P1 | TBD | TODO |
+| echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
+| echo hi \| cat \| cat | `echo hi | cat | cat`；输出 hi | 多段 pipe/多子进程 | 多 pipe 生命周期管理 | parent/child close 失衡 | P2 | TBD | TODO |
+| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | TODO |
+
 ## 模块清单（按依赖顺序）
 
 | 模块 | 关键能力 | 依赖 |
@@ -54,6 +68,24 @@
 | posix.env | PATH/envp | 无 |
 | posix.errno | errno 映射 | util::Errc |
 | posix.api | POSIX wrapper | 上述全部 |
+
+## 闭环任务拆分（程序驱动）
+
+### P0-A 单程序启动闭环
+- 验收：`hello`、`argv_dump`、`exit_code`
+- 子任务：最小映像加载、用户入口 ABI、argv/envp 布局、stdio 0/1/2 attach、exit/wait status
+
+### P0-B stdio 分流闭环
+- 验收：`stderr_demo`
+- 子任务：0/1/2 独立 fd、`isatty(term)=1`、stdout/stderr 分流、`dup2(...,2)` 覆盖
+
+### P1-A 文件重定向闭环
+- 验收：`echo > out.txt`、`cat < out.txt`
+- 子任务：file-backed fd entry、open/read/write/close、`dup2` 重定向、EOF、基础 `stat/fstat`
+
+### P1-B 单管道闭环
+- 验收：`echo hi | cat`
+- 子任务：pipe endpoints、EOF/EPIPE、fd 继承、close 策略、waitpid
 
 ## 详细执行清单（模块/接口/测试）
 

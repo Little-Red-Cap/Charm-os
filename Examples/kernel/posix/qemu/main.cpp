@@ -18,6 +18,7 @@ import posix.errno.tests;
 import posix.fd_table.tests;
 import posix.pipe.tests;
 import posix.proc.tests;
+import posix.programs.tests;
 import util.core;
 import util.error;
 
@@ -291,6 +292,7 @@ void run_posix_smoke_tests() noexcept {
     run_posix_fd_table_smoke_tests();
     run_posix_pipe_smoke_tests();
     run_posix_proc_smoke_tests();
+    run_posix_programs_smoke_tests();
     run_posix_api_smoke_tests();
     demo::log_line("[posix-smoke] end ok");
 }

@@ -806,6 +806,12 @@ namespace {
         hdr.phoff = sizeof(hdr) + 8;
         auto bad_phoff = posix::load_elf_image(cfg);
         check_true("elf-header-bad-phoff", !bad_phoff && bad_phoff.error() == util::Errc::invalid_arg);
+
+        hdr.phoff = sizeof(hdr);
+        hdr.phentsize = sizeof(posix::ElfProgramHeader64);
+        hdr.phnum = 2;
+        auto bad_phrange = posix::load_elf_image(cfg);
+        check_true("elf-header-bad-phrange", !bad_phrange && bad_phrange.error() == util::Errc::invalid_arg);
     }
 
     void test_sh_c_redir_and_pipe() noexcept {

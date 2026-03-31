@@ -17,7 +17,9 @@ export namespace posix {
         bad_endian,
         bad_header,
         bad_phoff,
-        bad_phentsize
+        bad_phentsize,
+        bad_phnum,
+        bad_ph_range
     };
 
     struct ElfHeader64 {
@@ -61,6 +63,12 @@ export namespace posix {
         if (hdr->phentsize != 0 && hdr->phentsize < sizeof(ElfProgramHeader64)) {
             return ElfErrc::bad_phentsize;
         }
+        if (hdr->phnum != 0 && hdr->phentsize == 0) return ElfErrc::bad_phnum;
+        if (hdr->phnum != 0) {
+            const auto ph_bytes = static_cast<util::u64>(hdr->phnum) * hdr->phentsize;
+            const auto end = static_cast<util::u64>(hdr->phoff) + ph_bytes;
+            if (end > size) return ElfErrc::bad_ph_range;
+        }
         return ElfErrc::ok;
     }
 
@@ -84,6 +92,15 @@ export namespace posix {
         const auto* hdr = static_cast<const ElfHeader64*>(cfg.image_base);
         if (hdr->phoff != 0 && hdr->phentsize == 0) {
             return util::unexpected(util::Errc::invalid_arg);
+        }
+        if (hdr->phnum != 0) {
+            const auto* base = static_cast<const util::u8*>(cfg.image_base);
+            const auto* ph = reinterpret_cast<const ElfProgramHeader64*>(base + hdr->phoff);
+            for (util::u16 i = 0; i < hdr->phnum; ++i) {
+                if (ph[i].offset + ph[i].filesz > cfg.image_size) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
+            }
         }
         return util::unexpected(util::Errc::not_supported);
     }

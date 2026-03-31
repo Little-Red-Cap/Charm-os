@@ -154,6 +154,61 @@ export namespace posix {
             return static_cast<ssize_t>(r.value());
         }
 
+        int fstat(int fd, PosixStat* out) noexcept {
+            auto* table = current_fd_table();
+            if (!table) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!out) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry) {
+                set_errno(EBADF);
+                return -1;
+            }
+            if (!entry.value()->ops || !entry.value()->ops->stat) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = entry.value()->ops->stat(entry.value()->ctx, *out);
+            if (!r) {
+                set_errno(map_fd_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int stat(const char* path, PosixStat* out) noexcept {
+            if (!file_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (!path || !out) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = file_service_->open(std::string_view{path}, O_RDONLY, 0);
+            if (!entry) {
+                set_errno(map_errno(entry.error()));
+                return -1;
+            }
+            if (!entry.value().ops || !entry.value().ops->stat) {
+                close_entry(entry.value());
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = entry.value().ops->stat(entry.value().ctx, *out);
+            close_entry(entry.value());
+            if (!r) {
+                set_errno(map_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
         int dup2(int from, int to) noexcept {
             auto* table = current_fd_table();
             if (!table) {

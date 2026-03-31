@@ -113,7 +113,7 @@ export namespace posix {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             for (util::usize i = 0; i < exec_count_; ++i) {
-                if (execs_[i].name == name) {
+                if (execs_[i].name.compare(name) == 0) {
                     return util::unexpected(util::Errc::exist);
                 }
             }
@@ -138,6 +138,9 @@ export namespace posix {
 
             std::string_view name = resolve_name(cfg);
             auto* entry = find_entry(name);
+            if (!entry && cfg.path_mode == PathMode::search_path) {
+                entry = find_entry_by_argv0(cfg.argv);
+            }
             if (!entry) {
                 return util::unexpected(util::Errc::noent);
             }
@@ -257,9 +260,28 @@ export namespace posix {
             return child;
         }
 
+        static bool match_exec_name(std::string_view exec_name, std::string_view query) noexcept {
+            if (exec_name.compare(query) == 0) return true;
+            if (query.empty()) return false;
+            if (exec_name.size() <= query.size()) return false;
+            const auto suffix_pos = exec_name.size() - query.size();
+            if (suffix_pos == 0) return false;
+            if (exec_name[suffix_pos - 1] != '/') return false;
+            return exec_name.substr(suffix_pos).compare(query) == 0;
+        }
+
         ExecEntry* find_entry(std::string_view name) noexcept {
             for (util::usize i = 0; i < exec_count_; ++i) {
-                if (execs_[i].name == name) return &execs_[i];
+                if (match_exec_name(execs_[i].name, name)) return &execs_[i];
+            }
+            return nullptr;
+        }
+
+        ExecEntry* find_entry_by_argv0(std::span<const char* const> argv) noexcept {
+            if (argv.empty() || argv[0] == nullptr) return nullptr;
+            const std::string_view name{argv[0]};
+            for (util::usize i = 0; i < exec_count_; ++i) {
+                if (match_exec_name(execs_[i].name, name)) return &execs_[i];
             }
             return nullptr;
         }

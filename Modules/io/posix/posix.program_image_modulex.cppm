@@ -12,6 +12,17 @@ import util.core;
 import util.error;
 
 export namespace posix {
+    inline ImageEntry resolve_modulex_entry_symbol(const modulex::LoadResult& loaded,
+                                                   std::string_view symbol) noexcept {
+        for (util::u32 i = 0; i < loaded.sym_count; ++i) {
+            auto v = loaded.sym_reader.at(loaded.symtab[i]);
+            if (v.name == symbol) {
+                return modulex::addr_to_ptr<ImageEntry>(loaded.symtab[i].value);
+            }
+        }
+        return nullptr;
+    }
+
     struct ModuleXLoadConfig {
         modulex::ResolveExternal resolve_external{nullptr};
         modulex::ResolveDependency resolve_dependency{nullptr};
@@ -64,13 +75,7 @@ export namespace posix {
         } else if (cfg.use_entry_symbol) {
             const std::string_view needle = cfg.entry_symbol ? std::string_view{cfg.entry_symbol}
                                                              : std::string_view{"entry"};
-            for (util::u32 i = 0; i < loaded.sym_count; ++i) {
-                auto v = loaded.sym_reader.at(loaded.symtab[i]);
-                if (v.name == needle) {
-                    image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.symtab[i].value);
-                    break;
-                }
-            }
+            image.entry = resolve_modulex_entry_symbol(loaded, needle);
         } else {
             image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.entry);
         }

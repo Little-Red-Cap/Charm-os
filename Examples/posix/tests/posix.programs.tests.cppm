@@ -88,6 +88,20 @@ namespace {
         static inline ApiType* api{nullptr};
     };
 
+    inline void on_process_enter(posix::ProcessId pid, void* ctx) noexcept {
+        auto* api = static_cast<ApiType*>(ctx);
+        if (api) {
+            api->bind_process(pid);
+        }
+    }
+
+    inline void on_process_exit(posix::ProcessId, void* ctx) noexcept {
+        auto* api = static_cast<ApiType*>(ctx);
+        if (api) {
+            api->unbind_process();
+        }
+    }
+
     inline int write_text(int fd, std::string_view text) noexcept {
         if (!ProgramEnv::api) return 1;
         auto w = ProgramEnv::api->write(fd, text.data(), text.size());
@@ -300,6 +314,7 @@ namespace {
             pipes.init();
             procs.init();
             procs.bind_fd_table(fds);
+            procs.bind_process_hooks(&on_process_enter, &on_process_exit, &api);
         }
 
         void bind_env() noexcept { ProgramEnv::api = &api; }

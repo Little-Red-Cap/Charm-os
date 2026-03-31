@@ -97,6 +97,7 @@ export namespace posix {
     class ProcService {
     public:
         using FdTableType = FdTable<MaxFds>;
+        using ProcHook = void (*)(ProcessId pid, void* ctx) noexcept;
 
         void init() noexcept {
             for (auto& p : procs_) p = {};
@@ -111,6 +112,12 @@ export namespace posix {
 
         void bind_file_service(FileService<MaxFiles>& file_service) noexcept {
             file_service_ = &file_service;
+        }
+
+        void bind_process_hooks(ProcHook on_enter, ProcHook on_exit, void* ctx = nullptr) noexcept {
+            on_enter_ = on_enter;
+            on_exit_ = on_exit;
+            hook_ctx_ = ctx;
         }
 
         util::Result<void> register_executable(std::string_view name, ImageEntryV0 entry) noexcept {
@@ -186,7 +193,7 @@ export namespace posix {
             proc.exit_code = 0;
             proc.fds = child_table.value();
 
-            const auto code = start_image(image.value(), cfg);
+            const auto code = start_image(proc.pid, image.value(), cfg);
             if (!code) {
                 release_proc(proc);
                 return util::unexpected(code.error());
@@ -439,12 +446,23 @@ export namespace posix {
             return view;
         }
 
-        util::Result<int> start_image(const ProgramImage& image, const SpawnConfig& cfg) noexcept {
+        util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
             ArgvEnvpBuffer args{};
             auto argv_envp = build_argv_envp(cfg, args);
             if (!argv_envp) {
                 return util::unexpected(argv_envp.error());
             }
+            if (on_enter_) {
+                on_enter_(pid, hook_ctx_);
+            }
+            struct Guard {
+                ProcHook hook;
+                ProcessId pid;
+                void* ctx;
+                ~Guard() noexcept {
+                    if (hook) hook(pid, ctx);
+                }
+            } exit_guard{on_exit_, pid, hook_ctx_};
             if (image.entry) {
                 return image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
             }
@@ -462,6 +480,9 @@ export namespace posix {
         FileService<MaxFiles>* file_service_{nullptr};
         int next_pid_{1};
         std::array<char, MaxPathLen> resolved_path_{};
+        ProcHook on_enter_{nullptr};
+        ProcHook on_exit_{nullptr};
+        void* hook_ctx_{nullptr};
     };
 
     template <util::usize MaxProcs,

@@ -57,6 +57,33 @@ namespace demo {
         UartCmsdk::write("\n");
     }
 
+    struct StdioDevice {
+        static util::Result<util::usize> read(void*, posix::MutByteView) noexcept {
+            return util::unexpected(util::Errc::would_block);
+        }
+        static util::Result<util::usize> write(void*, posix::ByteView buf) noexcept {
+            for (auto ch : buf) {
+                UartCmsdk::write_byte(static_cast<char>(ch));
+            }
+            return buf.size();
+        }
+        static util::Result<void> close(void*) noexcept { return {}; }
+        static util::Result<void> stat(void*, posix::PosixStat& out) noexcept {
+            out.mode = 0;
+            out.size = 0;
+            return {};
+        }
+        static const posix::FdOps& ops() noexcept {
+            static const posix::FdOps kOps{
+                &StdioDevice::read,
+                &StdioDevice::write,
+                &StdioDevice::close,
+                &StdioDevice::stat
+            };
+            return kOps;
+        }
+    };
+
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
     struct RamFsMount {
         fs::RamFs<BlockSize, MaxFiles, MaxBlocks> fs{};
@@ -132,6 +159,24 @@ namespace demo {
             files.init();
             pipes.init();
             procs.init();
+            attach_stdio();
+        }
+
+        void attach_stdio() noexcept {
+            posix::FdEntry in{};
+            in.kind = posix::FdKind::term;
+            in.flags = posix::FdFlags::read_only;
+            in.ops = &StdioDevice::ops();
+            in.ctx = nullptr;
+
+            posix::FdEntry out = in;
+            out.flags = posix::FdFlags::write_only;
+
+            posix::FdEntry err = out;
+
+            (void)fds.attach(in, 0);
+            (void)fds.attach(out, 1);
+            (void)fds.attach(err, 2);
         }
 
         bool write_file(const char* path, std::string_view text) noexcept {
@@ -195,15 +240,36 @@ namespace demo {
         if (!st) return false;
 
         Smoke smoke{};
-        if (!smoke.write_file("/out.txt", "hello\n")) return false;
+        if (!smoke.write_file("/out.txt", "hello\n")) {
+            log_line("bb2 step1 fail");
+            return false;
+        }
         std::array<char, 16> buf{};
         util::usize out_size = 0;
-        if (!smoke.read_file("/out.txt", buf, out_size)) return false;
-        if (std::string_view{buf.data(), out_size} != "hello\n") return false;
-        if (!smoke.pipe_roundtrip("hello")) return false;
-        if (!smoke.pipeline_roundtrip("hello")) return false;
-        if (!smoke.write_file("/a.txt", "hi\n")) return false;
-        if (!smoke.write_file("/b.txt", "hi\n")) return false;
+        if (!smoke.read_file("/out.txt", buf, out_size)) {
+            log_line("bb2 step2 fail");
+            return false;
+        }
+        if (std::string_view{buf.data(), out_size} != "hello\n") {
+            log_line("bb2 step3 fail");
+            return false;
+        }
+        if (!smoke.pipe_roundtrip("hello")) {
+            log_line("bb2 step4 fail");
+            return false;
+        }
+        if (!smoke.pipeline_roundtrip("hello")) {
+            log_line("bb2 step5 fail");
+            return false;
+        }
+        if (!smoke.write_file("/a.txt", "hi\n")) {
+            log_line("bb2 step6 fail");
+            return false;
+        }
+        if (!smoke.write_file("/b.txt", "hi\n")) {
+            log_line("bb2 step7 fail");
+            return false;
+        }
         return true;
     }
 }

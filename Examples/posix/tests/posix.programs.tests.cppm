@@ -714,9 +714,9 @@ namespace {
         check_eq("modulex-pipe", h.api.pipe(pipefd), 0);
         check_true("modulex-dup2", h.fds.dup2(pipefd[1], 1));
 
-        const char* argv[] = {"modulex_stub", nullptr};
+        const char* argv[] = {"modulex:modulex_stub", nullptr};
         posix::SpawnConfig scfg{};
-        scfg.path = "modulex_stub";
+        scfg.path = "modulex:modulex_stub";
         scfg.argv = std::span<const char* const>(argv, 1);
         auto sp = h.procs.spawn(scfg);
         check_true("modulex-spawn", sp);

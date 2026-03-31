@@ -902,11 +902,17 @@ namespace {
         Harness h{};
         h.bind_env();
         h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.set_elf_exec_stub(&modulex_entry_main);
         int fd = h.api.open("/elf_stub.bin", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("elf-file-open", fd >= 0);
         auto w = h.api.write(fd, &stub, sizeof(stub));
         check_true("elf-file-write", w == static_cast<posix::ssize_t>(sizeof(stub)));
         (void)h.api.close(fd);
+
+        int pipefd[2]{-1, -1};
+        check_eq("elf-file-pipe", h.api.pipe(pipefd), 0);
+        check_true("elf-file-dup2", h.fds.dup2(pipefd[1], 1));
 
         const char* argv[] = {"elf:/elf_stub.bin", nullptr};
         posix::SpawnConfig cfg{};
@@ -915,7 +921,17 @@ namespace {
         auto img = h.procs.load_image(cfg);
         check_true("elf-file-load", img);
         auto sp = h.procs.spawn(cfg);
-        check_true("elf-file-spawn", !sp && sp.error() == util::Errc::not_supported);
+        check_true("elf-file-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+        std::array<char, 8> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("elf-file-out", out, std::string_view{"mx\n"});
+        h.procs.set_elf_exec_stub(nullptr);
+        h.procs.enable_elf_exec(false);
         h.unbind_env();
     }
 

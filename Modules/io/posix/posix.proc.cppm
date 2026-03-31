@@ -545,6 +545,9 @@ export namespace posix {
         }
 
         util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
+            if (image.kind == ImageKind::elf) {
+                return util::unexpected(util::Errc::not_supported);
+            }
             ArgvEnvpBuffer args{};
             auto argv_envp = build_argv_envp(cfg, args);
             if (!argv_envp) {

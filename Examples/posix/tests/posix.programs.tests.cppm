@@ -855,6 +855,54 @@ namespace {
         check_true("elf-load-too-small", !too_small && too_small.error() == util::Errc::invalid_arg);
     }
 
+    void test_elf_file_spawn() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("elf-file-mount", st);
+
+        struct ElfFileStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr{};
+            util::u8 payload[4]{};
+        } stub{};
+        stub.header.ident[0] = 0x7f;
+        stub.header.ident[1] = 'E';
+        stub.header.ident[2] = 'L';
+        stub.header.ident[3] = 'F';
+        stub.header.ident[4] = 2;
+        stub.header.ident[5] = 1;
+        stub.header.entry = 0x1000;
+        stub.header.phoff = static_cast<util::u64>(offsetof(ElfFileStub, phdr));
+        stub.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        stub.header.phnum = 1;
+        stub.phdr.type = posix::kElfPtLoad;
+        stub.phdr.offset = static_cast<util::u64>(offsetof(ElfFileStub, payload));
+        stub.phdr.vaddr = 0x1000;
+        stub.phdr.filesz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload);
+        stub.payload[0] = 0xAA;
+        stub.payload[1] = 0xBB;
+        stub.payload[2] = 0xCC;
+        stub.payload[3] = 0xDD;
+
+        Harness h{};
+        h.bind_env();
+        int fd = h.api.open("/elf_stub.bin", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elf-file-open", fd >= 0);
+        auto w = h.api.write(fd, &stub, sizeof(stub));
+        check_true("elf-file-write", w == static_cast<posix::ssize_t>(sizeof(stub)));
+        (void)h.api.close(fd);
+
+        const char* argv[] = {"elf:/elf_stub.bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/elf_stub.bin";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-file-spawn", !sp && sp.error() == util::Errc::not_supported);
+        h.unbind_env();
+    }
+
     void test_sh_c_redir_and_pipe() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -920,6 +968,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_modulex_register();
     test_elf_prefix_stub();
     test_elf_header_stub();
+    test_elf_file_spawn();
     test_echo_to_file();
     test_cat_from_file();
     test_echo_pipe_cat();

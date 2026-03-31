@@ -19,6 +19,11 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import fs_core;
+import fs_errno;
+import fs_ramfs;
+import fs_stream;
+import fs_vfs;
 import util.core;
 import util.error;
 
@@ -116,6 +121,90 @@ namespace {
         if (argc < 2 || !argv || !argv[1]) return 0;
         return std::strtol(argv[1], nullptr, 10);
     }
+
+    int echo_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc > 1 && argv && argv[1]) {
+            if (write_text(1, std::string_view{argv[1]}) != 0) return 2;
+        }
+        return write_text(1, "\n");
+    }
+
+    int cat_main(int, char**) {
+        if (!ProgramEnv::api) return 1;
+        std::array<char, 16> buf{};
+        while (true) {
+            auto r = ProgramEnv::api->read(0, buf.data(), buf.size());
+            if (r == 0) break;
+            if (r < 0) return 2;
+            auto w = ProgramEnv::api->write(1, buf.data(), static_cast<util::usize>(r));
+            if (w != r) return 3;
+        }
+        return 0;
+    }
+
+    template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
+    struct RamFsMount {
+        fs::RamFs<BlockSize, MaxFiles, MaxBlocks> fs{};
+        fs::Mount mount{};
+
+        RamFsMount() noexcept {
+            mount.ops = &ops_;
+            mount.data = this;
+        }
+
+        fs::Mount* mount_point() noexcept { return &mount; }
+
+        static fs::Status open_impl(fs::Mount* m, std::string_view path, fs::File& out, fs::OpenFlags flags) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.open(path, out, flags);
+        }
+
+        static fs::Status mkdir_impl(fs::Mount* m, std::string_view path) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.mkdir(path);
+        }
+
+        static fs::Status unlink_impl(fs::Mount* m, std::string_view path) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.unlink(path);
+        }
+
+        static fs::Status truncate_impl(fs::Mount* m, std::string_view path, util::u64 size) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.truncate(path, size);
+        }
+
+        static fs::Status rename_impl(fs::Mount* m, std::string_view from, std::string_view to) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.rename(from, to);
+        }
+
+        static fs::Status list_impl(fs::Mount* m, std::string_view path, void* ctx, fs::MountOps::ListFn fn) noexcept {
+            auto* self = static_cast<RamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.list(path, ctx, fn);
+        }
+
+        static fs::MountOps ops_;
+    };
+
+    template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
+    fs::MountOps RamFsMount<BlockSize, MaxFiles, MaxBlocks>::ops_{
+        &RamFsMount::open_impl,
+        nullptr,
+        nullptr,
+        &RamFsMount::unlink_impl,
+        &RamFsMount::rename_impl,
+        &RamFsMount::truncate_impl,
+        &RamFsMount::mkdir_impl,
+        &RamFsMount::list_impl
+    };
 
     struct Harness {
         posix::FdTable<16> fds{};
@@ -259,6 +348,83 @@ namespace {
         check_eq("exit-code", st.value().code, 7);
         h.unbind_env();
     }
+
+    void test_echo_to_file() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("echo-mount", st);
+
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("echo", &echo_main);
+        check_true("echo-register", rreg);
+
+        int fd = h.api.open("/out.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("echo-open", fd >= 0);
+        check_true("echo-dup2", h.fds.dup2(fd, 1));
+
+        const char* argv[] = {"echo", "hi", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "echo";
+        cfg.argv = std::span<const char* const>(argv, 2);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("echo-spawn", sp);
+        auto w = h.procs.waitpid(sp.value().pid, 0);
+        check_true("echo-wait", w);
+
+        check_eq("echo-close", h.api.close(fd), 0);
+
+        int rfd = h.api.open("/out.txt", posix::O_RDONLY, 0);
+        check_true("echo-read-open", rfd >= 0);
+        std::array<char, 16> buf{};
+        auto r = h.api.read(rfd, buf.data(), buf.size());
+        check_eq("echo-read", r, 3);
+        check_eq("echo-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        (void)h.api.close(rfd);
+        h.unbind_env();
+    }
+
+    void test_cat_from_file() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("cat-mount", st);
+
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("cat", &cat_main);
+        check_true("cat-register", rreg);
+
+        int wfd = h.api.open("/in.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-open", wfd >= 0);
+        check_eq("cat-write", h.api.write(wfd, "ok\n", 3), 3);
+        (void)h.api.close(wfd);
+
+        int rfd = h.api.open("/in.txt", posix::O_RDONLY, 0);
+        check_true("cat-open-r", rfd >= 0);
+        int ofd = h.api.open("/out.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-open-out", ofd >= 0);
+        check_true("cat-dup2-in", h.fds.dup2(rfd, 0));
+        check_true("cat-dup2-out", h.fds.dup2(ofd, 1));
+
+        const char* argv[] = {"cat", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "cat";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("cat-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        std::array<char, 16> buf{};
+        int rfd2 = h.api.open("/out.txt", posix::O_RDONLY, 0);
+        check_true("cat-read-open", rfd2 >= 0);
+        auto r = h.api.read(rfd2, buf.data(), buf.size());
+        check_true("cat-read-len", r >= 3);
+        check_eq("cat-text", std::string_view{buf.data(), 3}, std::string_view{"ok\n"});
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_programs_smoke_tests() noexcept {
@@ -267,6 +433,8 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_argv_dump();
     test_stderr_demo();
     test_exit_code();
+    test_echo_to_file();
+    test_cat_from_file();
     log_line("[posix-smoke] programs end ok");
 }
 

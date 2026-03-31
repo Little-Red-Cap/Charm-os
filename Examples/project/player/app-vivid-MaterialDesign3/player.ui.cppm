@@ -3,6 +3,8 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <span>
+#include <string_view>
 
 export module player.ui;
 
@@ -44,6 +46,7 @@ import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
 import charm.widgets.slider;
 import charm.widgets.dropdown;
+import charm.gfx.svg;
 
 export namespace player::ui {
     enum class PlayerStyleClass : StyleClassId {
@@ -150,10 +153,7 @@ export namespace player::ui {
         constexpr int kIconSize = 32;
         constexpr int kIconStride = kIconSize * 4;
         using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
-        struct FPoint {
-            float x{};
-            float y{};
-        };
+        constexpr ::ui::gfx::svg::ViewBox kIconView{960.0f, 960.0f};
 
         void icon_clear(IconBuffer& buf) {
             buf.fill(std::byte{0});
@@ -168,167 +168,84 @@ export namespace player::ui {
             buf[idx + 3] = std::byte{color.b};
         }
 
-        void fill_rect(IconBuffer& buf, int size, float x0, float y0, float x1, float y1, const rgba& color) {
-            const int ix0 = std::max(0, static_cast<int>(x0 * size));
-            const int iy0 = std::max(0, static_cast<int>(y0 * size));
-            const int ix1 = std::min(size - 1, static_cast<int>(x1 * size));
-            const int iy1 = std::min(size - 1, static_cast<int>(y1 * size));
-            for (int y = iy0; y <= iy1; ++y) {
-                for (int x = ix0; x <= ix1; ++x) {
-                    icon_set_pixel(buf, x, y, color);
-                }
-            }
+        bool rasterize_svg_path(IconBuffer& buf, std::string_view path, const rgba& color) {
+            const ::ui::gfx::svg::RasterConfig cfg{.width = kIconSize, .height = kIconSize, .view = kIconView};
+            return ::ui::gfx::svg::rasterize_path(path, cfg,
+                                                std::span<std::byte>(buf.data(), buf.size()),
+                                                color, true);
         }
 
-        void fill_triangle(IconBuffer& buf, int size, FPoint a, FPoint b, FPoint c, const rgba& color) {
-            const auto to_px = [&](FPoint p) noexcept {
-                return FPoint{p.x * (size - 1), p.y * (size - 1)};
-            };
-            a = to_px(a);
-            b = to_px(b);
-            c = to_px(c);
-            const float min_y = std::min(a.y, std::min(b.y, c.y));
-            const float max_y = std::max(a.y, std::max(b.y, c.y));
-            const int y0 = std::max(0, static_cast<int>(std::floor(min_y)));
-            const int y1 = std::min(size - 1, static_cast<int>(std::ceil(max_y)));
-            for (int y = y0; y <= y1; ++y) {
-                float xs[3];
-                int hits = 0;
-                auto edge_hit = [&](FPoint p0, FPoint p1) {
-                    if ((y < p0.y && y < p1.y) || (y > p0.y && y > p1.y) || (p0.y == p1.y)) return;
-                    const float t = (y - p0.y) / (p1.y - p0.y);
-                    xs[hits++] = p0.x + (p1.x - p0.x) * t;
-                };
-                edge_hit(a, b);
-                edge_hit(b, c);
-                edge_hit(c, a);
-                if (hits < 2) continue;
-                float x_min = xs[0];
-                float x_max = xs[1];
-                if (x_min > x_max) std::swap(x_min, x_max);
-                const int ix0 = std::max(0, static_cast<int>(std::floor(x_min)));
-                const int ix1 = std::min(size - 1, static_cast<int>(std::ceil(x_max)));
-                for (int x = ix0; x <= ix1; ++x) {
-                    icon_set_pixel(buf, x, y, color);
-                }
-            }
-        }
-
-        void stroke_line(IconBuffer& buf, int size, FPoint a, FPoint b, int thickness, const rgba& color) {
-            const int x0 = static_cast<int>(a.x * (size - 1));
-            const int y0 = static_cast<int>(a.y * (size - 1));
-            const int x1 = static_cast<int>(b.x * (size - 1));
-            const int y1 = static_cast<int>(b.y * (size - 1));
-            const int dx = std::abs(x1 - x0);
-            const int dy = std::abs(y1 - y0);
-            const int sx = (x0 < x1) ? 1 : -1;
-            const int sy = (y0 < y1) ? 1 : -1;
-            int err = dx - dy;
-            int x = x0;
-            int y = y0;
-            const int half = std::max(0, thickness / 2);
-            while (true) {
-                for (int oy = -half; oy <= half; ++oy) {
-                    for (int ox = -half; ox <= half; ++ox) {
-                        icon_set_pixel(buf, x + ox, y + oy, color);
-                    }
-                }
-                if (x == x1 && y == y1) break;
-                const int e2 = 2 * err;
-                if (e2 > -dy) {
-                    err -= dy;
-                    x += sx;
-                }
-                if (e2 < dx) {
-                    err += dx;
-                    y += sy;
-                }
-            }
-        }
+        constexpr std::string_view kPathPrev =
+            "M220,680L220,280Q220,263 231.5,251.5Q243,240 260,240Q277,240 288.5,251.5Q300,263 300,280L300,680Q300,697 288.5,708.5Q277,720 260,720Q243,720 231.5,708.5Q220,697 220,680Z"
+            "M678,679L430,513Q421,507 416.5,498.5Q412,490 412,480Q412,470 416.5,461.5Q421,453 430,447L678,281Q683,277 689,276Q695,275 700,275Q716,275 728,286Q740,297 740,315L740,645Q740,663 728,674Q716,685 700,685Q695,685 689,684Q683,683 678,679Z"
+            "M660,480L660,480L660,480Z"
+            "M660,570L660,390L524,480L660,570Z";
+        constexpr std::string_view kPathPlay =
+            "M320,687L320,273Q320,256 332,244.5Q344,233 360,233Q365,233 370.5,234.5Q376,236 381,239L707,446Q716,452 720.5,461Q725,470 725,480Q725,490 720.5,499Q716,508 707,514L381,721Q376,724 370.5,725.5Q365,727 360,727Q344,727 332,715.5Q320,704 320,687Z"
+            "M400,480L400,480L400,480Z"
+            "M400,614L610,480L400,346L400,614Z";
+        constexpr std::string_view kPathPause =
+            "M600,760Q567,760 543.5,736.5Q520,713 520,680L520,280Q520,247 543.5,223.5Q567,200 600,200L680,200Q713,200 736.5,223.5Q760,247 760,280L760,680Q760,713 736.5,736.5Q713,760 680,760L600,760Z"
+            "M280,760Q247,760 223.5,736.5Q200,713 200,680L200,280Q200,247 223.5,223.5Q247,200 280,200L360,200Q393,200 416.5,223.5Q440,247 440,280L440,680Q440,713 416.5,736.5Q393,760 360,760L280,760Z"
+            "M600,680L680,680L680,280L600,280L600,680Z"
+            "M280,680L360,680L360,280L280,280L280,680Z";
+        constexpr std::string_view kPathNext =
+            "M660,680L660,280Q660,263 671.5,251.5Q683,240 700,240Q717,240 728.5,251.5Q740,263 740,280L740,680Q740,697 728.5,708.5Q717,720 700,720Q683,720 671.5,708.5Q660,697 660,680Z"
+            "M220,645L220,315Q220,297 232,286Q244,275 260,275Q265,275 271,276Q277,277 282,281L530,447Q539,453 543.5,461.5Q548,470 548,480Q548,490 543.5,498.5Q539,507 530,513L282,679Q277,683 271,684Q265,685 260,685Q244,685 232,674Q220,663 220,645Z"
+            "M300,480L300,480L300,480Z"
+            "M300,570L436,480L300,390L300,570Z";
+        constexpr std::string_view kPathFolder =
+            "M120,260H360L440,340H840V760H120Z";
 
         void build_prev_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            fill_rect(buf, kIconSize, 0.12f, 0.22f, 0.20f, 0.78f, color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.76f, 0.22f},
-                          FPoint{0.76f, 0.78f},
-                          FPoint{0.24f, 0.50f},
-                          color);
+            rasterize_svg_path(buf, kPathPrev, color);
         }
 
         void build_play_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.30f, 0.20f},
-                          FPoint{0.30f, 0.80f},
-                          FPoint{0.82f, 0.50f},
-                          color);
+            rasterize_svg_path(buf, kPathPlay, color);
         }
 
         void build_pause_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            fill_rect(buf, kIconSize, 0.32f, 0.22f, 0.44f, 0.78f, color);
-            fill_rect(buf, kIconSize, 0.56f, 0.22f, 0.68f, 0.78f, color);
+            rasterize_svg_path(buf, kPathPause, color);
         }
 
         void build_loop_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            const int thick = 2;
-            stroke_line(buf, kIconSize, {0.24f, 0.30f}, {0.76f, 0.30f}, thick, color);
-            stroke_line(buf, kIconSize, {0.76f, 0.30f}, {0.76f, 0.70f}, thick, color);
-            stroke_line(buf, kIconSize, {0.76f, 0.70f}, {0.24f, 0.70f}, thick, color);
-            stroke_line(buf, kIconSize, {0.24f, 0.70f}, {0.24f, 0.30f}, thick, color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.66f, 0.18f},
-                          FPoint{0.84f, 0.30f},
-                          FPoint{0.66f, 0.42f},
-                          color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.34f, 0.58f},
-                          FPoint{0.16f, 0.70f},
-                          FPoint{0.34f, 0.82f},
-                          color);
+            rasterize_svg_path(buf,
+                               "M274,760L308,794Q320,806 319.5,822Q319,838 308,850Q296,862 279.5,862.5Q263,863 251,851L148,748Q142,742 139.5,735Q137,728 137,720Q137,712 139.5,705Q142,698 148,692L251,589Q263,577 279.5,577.5Q296,578 308,590Q319,602 319.5,618Q320,634 308,646L274,680L680,680Q680,680 680,680Q680,680 680,680L680,560Q680,543 691.5,531.5Q703,520 720,520Q737,520 748.5,531.5Q760,543 760,560L760,680Q760,713 736.5,736.5Q713,760 680,760L274,760Z"
+                               "M686,280L280,280Q280,280 280,280Q280,280 280,280L280,400Q280,417 268.5,428.5Q257,440 240,440Q223,440 211.5,428.5Q200,417 200,400L200,280Q200,247 223.5,223.5Q247,200 280,200L686,200L652,166Q640,154 640.5,138Q641,122 652,110Q664,98 680.5,97.5Q697,97 709,109L812,212Q818,218 820.5,225Q823,232 823,240Q823,248 820.5,255Q818,262 812,268L709,371Q697,383 680.5,382.5Q664,382 652,370Q641,358 640.5,342Q640,326 652,314L686,280Z",
+                               color);
         }
 
         void build_single_icon(IconBuffer& buf, const rgba& color) {
             build_loop_icon(buf, color);
-            fill_rect(buf, kIconSize, 0.48f, 0.32f, 0.52f, 0.68f, color);
-            fill_rect(buf, kIconSize, 0.44f, 0.32f, 0.56f, 0.36f, color);
+            rasterize_svg_path(buf,
+                               "M460,420L430,420Q417,420 408.5,411.5Q400,403 400,390Q400,377 408.5,368.5Q417,360 430,360L480,360Q497,360 508.5,371.5Q520,383 520,400L520,570Q520,583 511.5,591.5Q503,600 490,600Q477,600 468.5,591.5Q460,583 460,570L460,420Z"
+                               "M274,760L308,794Q320,806 319.5,822Q319,838 308,850Q296,862 279.5,862.5Q263,863 251,851L148,748Q142,742 139.5,735Q137,728 137,720Q137,712 139.5,705Q142,698 148,692L251,589Q263,577 279.5,577.5Q296,578 308,590Q319,602 319.5,618Q320,634 308,646L274,680L680,680Q680,680 680,680Q680,680 680,680L680,560Q680,543 691.5,531.5Q703,520 720,520Q737,520 748.5,531.5Q760,543 760,560L760,680Q760,713 736.5,736.5Q713,760 680,760L274,760Z"
+                               "M686,280L280,280Q280,280 280,280Q280,280 280,280L280,400Q280,417 268.5,428.5Q257,440 240,440Q223,440 211.5,428.5Q200,417 200,400L200,280Q200,247 223.5,223.5Q247,200 280,200L686,200L652,166Q640,154 640.5,138Q641,122 652,110Q664,98 680.5,97.5Q697,97 709,109L812,212Q818,218 820.5,225Q823,232 823,240Q823,248 820.5,255Q818,262 812,268L709,371Q697,383 680.5,382.5Q664,382 652,370Q641,358 640.5,342Q640,326 652,314L686,280Z",
+                               color);
         }
 
         void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            const int thick = 2;
-            stroke_line(buf, kIconSize, {0.22f, 0.30f}, {0.78f, 0.70f}, thick, color);
-            stroke_line(buf, kIconSize, {0.22f, 0.70f}, {0.78f, 0.30f}, thick, color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.70f, 0.22f},
-                          FPoint{0.86f, 0.30f},
-                          FPoint{0.70f, 0.38f},
-                          color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.70f, 0.62f},
-                          FPoint{0.86f, 0.70f},
-                          FPoint{0.70f, 0.78f},
-                          color);
+            rasterize_svg_path(buf,
+                               "M600,800Q583,800 571.5,788.5Q560,777 560,760Q560,743 571.5,731.5Q583,720 600,720L664,720L565,621Q553,609 553.5,592.5Q554,576 566,564Q578,552 594.5,552Q611,552 623,564L720,662L720,600Q720,583 731.5,571.5Q743,560 760,560Q777,560 788.5,571.5Q800,583 800,600L800,760Q800,777 788.5,788.5Q777,800 760,800L600,800Z"
+                               "M172,788Q161,777 161,760Q161,743 172,732L664,240L600,240Q583,240 571.5,228.5Q560,217 560,200Q560,183 571.5,171.5Q583,160 600,160L760,160Q777,160 788.5,171.5Q800,183 800,200L800,360Q800,377 788.5,388.5Q777,400 760,400Q743,400 731.5,388.5Q720,377 720,360L720,296L228,788Q217,799 200,799Q183,799 172,788Z"
+                               "M171,228Q160,217 160,200Q160,183 171,172Q182,161 198.5,161Q215,161 227,172L395,339Q406,350 406.5,366.5Q407,383 395,395Q384,406 367,406Q350,406 339,395L171,228Z",
+                               color);
         }
 
         void build_next_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            fill_rect(buf, kIconSize, 0.80f, 0.22f, 0.88f, 0.78f, color);
-            fill_triangle(buf, kIconSize,
-                          FPoint{0.24f, 0.22f},
-                          FPoint{0.24f, 0.78f},
-                          FPoint{0.76f, 0.50f},
-                          color);
+            rasterize_svg_path(buf, kPathNext, color);
         }
 
         void build_folder_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            fill_rect(buf, kIconSize, 0.18f, 0.40f, 0.82f, 0.80f, color);
-            fill_rect(buf, kIconSize, 0.26f, 0.26f, 0.58f, 0.44f, color);
-            fill_rect(buf, kIconSize, 0.18f, 0.36f, 0.26f, 0.42f, color);
-            fill_rect(buf, kIconSize, 0.58f, 0.36f, 0.82f, 0.42f, color);
+            rasterize_svg_path(buf, kPathFolder, color);
         }
     }
 

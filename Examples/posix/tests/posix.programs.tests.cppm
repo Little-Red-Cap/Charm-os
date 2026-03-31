@@ -425,6 +425,62 @@ namespace {
         check_eq("cat-text", std::string_view{buf.data(), 3}, std::string_view{"ok\n"});
         h.unbind_env();
     }
+
+    void test_echo_pipe_cat() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto reg_echo = h.procs.register_executable("echo", &echo_main);
+        check_true("pipe-register-echo", reg_echo);
+        auto reg_cat = h.procs.register_executable("cat", &cat_main);
+        check_true("pipe-register-cat", reg_cat);
+
+        int p1[2]{-1, -1};
+        int p2[2]{-1, -1};
+        check_eq("pipe-p1", h.api.pipe(p1), 0);
+        check_eq("pipe-p2", h.api.pipe(p2), 0);
+
+        const char* argv_echo[] = {"echo", "hi", nullptr};
+        posix::SpawnConfig cfg_echo{};
+        cfg_echo.path = "echo";
+        cfg_echo.argv = std::span<const char* const>(argv_echo, 2);
+
+        check_true("pipe-dup2-echo", h.fds.dup2(p1[1], 1));
+        auto sp_echo = h.procs.spawn(cfg_echo);
+        check_true("pipe-spawn-echo", sp_echo);
+        (void)h.procs.waitpid(sp_echo.value().pid, 0);
+        if (p1[1] != 1) {
+            (void)h.api.close(p1[1]);
+        }
+
+        const char* argv_cat[] = {"cat", nullptr};
+        posix::SpawnConfig cfg_cat{};
+        cfg_cat.path = "cat";
+        cfg_cat.argv = std::span<const char* const>(argv_cat, 1);
+
+        check_true("pipe-dup2-cat-in", h.fds.dup2(p1[0], 0));
+        check_true("pipe-dup2-cat-out", h.fds.dup2(p2[1], 1));
+        auto sp_cat = h.procs.spawn(cfg_cat);
+        check_true("pipe-spawn-cat", sp_cat);
+        (void)h.procs.waitpid(sp_cat.value().pid, 0);
+
+        if (p1[0] != 0) {
+            (void)h.api.close(p1[0]);
+        }
+        if (p2[1] != 1) {
+            (void)h.api.close(p2[1]);
+        }
+
+        std::array<char, 16> buf{};
+        int p2_read = p2[0];
+        if (p2_read == 0 || p2_read == 1 || p2_read == 2) {
+            check_true("pipe-move-read", h.fds.dup2(p2_read, 7));
+            p2_read = 7;
+        }
+        auto r = h.api.read(p2_read, buf.data(), buf.size());
+        check_true("pipe-read-len", r >= 3);
+        check_eq("pipe-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_programs_smoke_tests() noexcept {
@@ -435,6 +491,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_exit_code();
     test_echo_to_file();
     test_cat_from_file();
+    test_echo_pipe_cat();
     log_line("[posix-smoke] programs end ok");
 }
 

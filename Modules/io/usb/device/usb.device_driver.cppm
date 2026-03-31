@@ -93,6 +93,7 @@ export namespace usb::device {
             if (result != Ep0Result::ok) {
                 clear_pending();
             }
+            apply_pending_if_ready(true);
         }
 
         void on_in_complete(std::size_t sent, bool sent_zlp = false) noexcept {

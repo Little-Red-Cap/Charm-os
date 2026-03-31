@@ -27,6 +27,8 @@ import util.core;
 extern "C" {
 void Error_Handler(void);
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+bool charm_usb_use_poll_irq(void);
+void MX_USB_DEVICE_Init(void);
 }
 
 namespace {
@@ -36,13 +38,15 @@ constexpr auto kVendorStr = usb::make_ascii_string_descriptor("Charm");
 constexpr auto kProductStr = usb::make_ascii_string_descriptor("Charm Self MSC");
 constexpr auto kSerialStr = usb::make_ascii_string_descriptor("0001");
 
-constexpr bool kDumpUsbDesc = false;
+constexpr bool kDumpUsbDesc = true;
 constexpr bool kDumpUsbRegs = false;
 constexpr bool kDumpLba0 = true;
 constexpr bool kDumpMscIo = true;
+constexpr bool kDiagBypassEp0 = false;
+constexpr bool kUseStEp0Diag = false;
 constexpr bool kUsbMscRemovable = false;
 constexpr bool kUsbMscUseBpbCapacity = true;
-constexpr bool kUsbPollIrqInLoop = false;
+constexpr bool kUsbPollIrqInLoop = true;
 constexpr std::uint32_t kUsbPollBurst = 8;
 
 static const usb::StringTable<4> kUsbStrings{
@@ -174,8 +178,6 @@ int main() {
 
     player::stm32h7::board::usb_hw_init();
     player::stm32h7::board::usb_enable_hooks(true);
-    reinterpret_cast<USB_OTG_DeviceTypeDef*>(
-        USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)->DCTL |= USB_OTG_DCTL_SDIS;
     {
         const auto hw = player::stm32h7::board::usb_hw_diag_snapshot();
         out::println<"usb: hw rcc_src=0x{:08X} fs_clk={} gpioa_moder=0x{:08X} afr0=0x{:08X} afr1=0x{:08X} pupd=0x{:08X} dm={} dp={}">(
@@ -187,6 +189,29 @@ int main() {
             hw.gpioa_pupd,
             hw.pin_dm,
             hw.pin_dp);
+        out::println<"usb: ep0 mps init={} in0_mps={} out0_mps={}">(
+            static_cast<unsigned>(hpcd_USB_OTG_FS.Init.ep0_mps),
+            static_cast<unsigned>(hpcd_USB_OTG_FS.IN_ep[0].maxpacket),
+            static_cast<unsigned>(hpcd_USB_OTG_FS.OUT_ep[0].maxpacket));
+    }
+    if (kUseStEp0Diag) {
+        player::stm32h7::board::usb_enable_hooks(false);
+        MX_USB_DEVICE_Init();
+        out::println<"boot: usb st ep0 enabled">();
+        while (true) {
+            static std::uint32_t last_ms = 0;
+            static std::uint32_t irq_poll_calls = 0;
+            const auto now = static_cast<std::uint32_t>(charm::port::now_ms(nullptr));
+            if (kUsbPollIrqInLoop) {
+                HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+                irq_poll_calls++;
+            }
+            if ((now - last_ms) >= 1000u) {
+                last_ms = now;
+                out::println<"usb: st ep0 tick irq_poll={}">(
+                    static_cast<unsigned long>(irq_poll_calls));
+            }
+        }
     }
 
     usb::device::MscBlockDesc msc_desc{};
@@ -219,10 +244,10 @@ int main() {
         out::println<"boot: usb msc init failed {}">(static_cast<int>(init_st.error()));
         Error_Handler();
     }
+    const auto dev_desc = std::span<const usb::u8>(
+        binding.dev_desc.data(), binding.dev_desc.size());
+    const auto cfg_desc = binding.tree.view;
     if (kDumpUsbDesc) {
-        const auto dev_desc = std::span<const usb::u8>(
-            binding.dev_desc.data(), binding.dev_desc.size());
-        const auto cfg_desc = binding.tree.view;
         out::println<"usb: dev_desc size={}">(static_cast<unsigned>(sizeof(usb::DeviceDescriptor)));
         out::println<"usb: dev_desc bytes={} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}">(
             dev_desc[0], dev_desc[1], dev_desc[2], dev_desc[3],
@@ -261,11 +286,23 @@ int main() {
                 static_cast<unsigned>(cfg_desc.size()));
         }
     }
+    if (kDiagBypassEp0) {
+        player::stm32h7::board::usb_set_diag_descriptors(true, dev_desc, cfg_desc);
+        out::println<"usb: diag ep0 enabled">();
+    } else {
+        player::stm32h7::board::usb_set_diag_descriptors(
+            false, std::span<const usb::u8>{}, std::span<const usb::u8>{});
+    }
     if (HAL_PCD_Start(&hpcd_USB_OTG_FS) != HAL_OK) {
         out::println<"boot: usb start failed">();
     }
-    reinterpret_cast<USB_OTG_DeviceTypeDef*>(
-        USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)->DCTL &= ~USB_OTG_DCTL_SDIS;
+    (void)HAL_PCD_EP_Open(&hpcd_USB_OTG_FS, 0x00, 64, EP_TYPE_CTRL);
+    (void)HAL_PCD_EP_Open(&hpcd_USB_OTG_FS, 0x80, 64, EP_TYPE_CTRL);
+    out::println<"usb: ep0 open in_mps={} out_mps={}">(
+        static_cast<unsigned>(hpcd_USB_OTG_FS.IN_ep[0].maxpacket),
+        static_cast<unsigned>(hpcd_USB_OTG_FS.OUT_ep[0].maxpacket));
+    player::stm32h7::board::usb_set_started(true);
+    (void)player::stm32h7::board::usb_dcd_ops().connect(&hpcd_USB_OTG_FS, true);
     out::println<"boot: usb start ok">();
     out::println<"boot: usb self msc ok">();
     if (kDumpUsbRegs) {
@@ -302,7 +339,7 @@ int main() {
         }
         if ((now - last_ms) >= 1000u) {
             const auto diag = player::stm32h7::board::usb_diag_snapshot();
-            out::println<"usb: setup={} out0={} in0={} out1={} in1={} reset={} conn={} set_cfg={} last_cfg={} cfg_ok={} cfg_out_ok={} cfg_in_ok={} cfg_arm_ok={} set_addr={} last_addr={} addr_ok={} set_addr_nz={} last_addr_nz={} class_setup={} class_bm=0x{:02X} class_b=0x{:02X} class_wv=0x{:04X} class_wl=0x{:04X} ep0_in={} ep0_fail={} ep0_bytes={} ep0_zlp={} ep0_last_len={} ep0_last_zlp={} irq_poll={} bm=0x{:02X} b=0x{:02X} wv=0x{:04X} wi=0x{:04X} wl=0x{:04X} raw={:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}">(
+            out::println<"usb: setup={} out0={} in0={} out1={} in1={} reset={} conn={} set_cfg={} last_cfg={} cfg_ok={} cfg_out_ok={} cfg_in_ok={} cfg_arm_ok={} set_addr={} last_addr={} addr_ok={} set_addr_nz={} last_addr_nz={} class_setup={} class_bm=0x{:02X} class_b=0x{:02X} class_wv=0x{:04X} class_wl=0x{:04X} ep0_in={} ep0_fail={} ep0_bytes={} ep0_zlp={} ep0_last_len={} ep0_last_zlp={} diag_hits={} diag_tx={} diag_bytes={} diag_zlp={} diag_out_zlp={} diag_out_len={} irq_poll={} bm=0x{:02X} b=0x{:02X} wv=0x{:04X} wi=0x{:04X} wl=0x{:04X} raw={:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}">(
                 diag.setup_calls,
                 diag.out0_calls,
                 diag.in0_calls,
@@ -332,6 +369,12 @@ int main() {
                 diag.ep0_in_zlp,
                 diag.ep0_last_len,
                 diag.ep0_last_zlp,
+                diag.diag_ep0_hits,
+                diag.diag_ep0_tx,
+                diag.diag_ep0_bytes,
+                diag.diag_ep0_zlp,
+                diag.diag_ep0_out_zlp,
+                diag.diag_ep0_out_last_len,
                 irq_poll_calls,
                 diag.bm_request_type,
                 diag.b_request,
@@ -403,4 +446,7 @@ int main() {
         }
         charm::system::time::sleep_ms(1);
     }
+}
+extern "C" bool charm_usb_use_poll_irq(void) {
+    return kUsbPollIrqInLoop;
 }

@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <algorithm>
 
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_pcd.h"
@@ -28,6 +29,10 @@ export namespace player::stm32h7::board {
 
     void usb_hw_init() noexcept;
     void usb_enable_hooks(bool enable) noexcept;
+    void usb_set_started(bool started) noexcept;
+    void usb_set_diag_descriptors(bool enable,
+                                  std::span<const usb::u8> dev_desc,
+                                  std::span<const usb::u8> cfg_desc) noexcept;
     void usb_set_ready(void* ctx,
                        usb::class_driver::MscBot* bot,
                        const usb::class_driver::MscConfig* cfg) noexcept;
@@ -63,6 +68,12 @@ export namespace player::stm32h7::board {
         std::uint32_t ep0_in_zlp;
         std::uint32_t ep0_last_len;
         std::uint8_t ep0_last_zlp;
+        std::uint32_t diag_ep0_hits;
+        std::uint32_t diag_ep0_tx;
+        std::uint32_t diag_ep0_bytes;
+        std::uint32_t diag_ep0_zlp;
+        std::uint32_t diag_ep0_out_zlp;
+        std::uint32_t diag_ep0_out_last_len;
         std::array<std::uint8_t, 8> setup_raw;
         std::array<std::uint8_t, 4> setup_bm{};
         std::array<std::uint8_t, 4> setup_b{};
@@ -104,6 +115,14 @@ namespace {
     std::array<usb::u16, 16> g_usb_out_mps{};
     bool g_usb_hooks_enabled = false;
     bool g_usb_ep0_prepared = false;
+    bool g_usb_started = false;
+    bool g_diag_ep0_enabled = false;
+    const usb::u8* g_diag_ep0_ptr = nullptr;
+    std::uint16_t g_diag_ep0_len = 0;
+    std::uint16_t g_diag_ep0_sent = 0;
+    bool g_diag_ep0_need_zlp = false;
+    std::span<const usb::u8> g_diag_dev_desc{};
+    std::span<const usb::u8> g_diag_cfg_desc{};
     std::uint32_t g_setup_calls = 0;
     std::uint32_t g_out0_calls = 0;
     std::uint32_t g_in0_calls = 0;
@@ -133,6 +152,12 @@ namespace {
     std::uint32_t g_ep0_in_zlp = 0;
     std::uint32_t g_ep0_last_len = 0;
     std::uint8_t g_ep0_last_zlp = 0;
+    std::uint32_t g_diag_ep0_hits = 0;
+    std::uint32_t g_diag_ep0_tx = 0;
+    std::uint32_t g_diag_ep0_bytes = 0;
+    std::uint32_t g_diag_ep0_zlp = 0;
+    std::uint32_t g_diag_ep0_out_zlp = 0;
+    std::uint32_t g_diag_ep0_out_last_len = 0;
     std::array<std::uint8_t, 8> g_setup_raw{};
     std::array<std::uint8_t, 4> g_setup_hist_bm{};
     std::array<std::uint8_t, 4> g_setup_hist_b{};
@@ -156,6 +181,8 @@ namespace {
         g_usb_out_mps[0] = ep0_mps;
         (void)HAL_PCD_EP_Open(pcd, 0x00, ep0_mps, USBD_EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Open(pcd, 0x80, ep0_mps, USBD_EP_TYPE_CTRL);
+        pcd->IN_ep[0].data_pid_start = 1;
+        pcd->OUT_ep[0].data_pid_start = 1;
         (void)HAL_PCD_EP_Receive(pcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
         g_usb_ep0_prepared = true;
     }
@@ -253,6 +280,12 @@ namespace {
         auto* pcd = usb_pcd(ctx);
         if (!pcd) return false;
         const auto ok = (HAL_PCD_SetAddress(pcd, address) == HAL_OK);
+        auto* dev = reinterpret_cast<USB_OTG_DeviceTypeDef*>(
+            USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
+        dev->DCFG = (dev->DCFG & ~0x000007F0u) | ((address & 0x7Fu) << 4);
+        (void)HAL_PCD_EP_Transmit(pcd, 0x80, nullptr, 0);
+        g_usb_ep0_prepared = false;
+        usb_prepare_ep0(pcd);
         g_set_addr_calls++;
         g_set_addr_last = address;
         g_set_addr_last_ok = ok ? 1u : 0u;
@@ -327,6 +360,9 @@ namespace {
     bool usb_connect(void* ctx, bool enable) noexcept {
         auto* pcd = usb_pcd(ctx);
         if (!pcd) return false;
+        if (enable && !g_usb_started) {
+            return false;
+        }
         if (enable) {
             usb_prepare_ep0(pcd);
             return HAL_PCD_DevConnect(pcd) == HAL_OK;
@@ -342,6 +378,10 @@ namespace {
 #endif
 
 extern "C" CHARM_WEAK void MX_USB_OTG_FS_PCD_Init(void) {
+}
+
+extern "C" CHARM_WEAK bool charm_usb_use_poll_irq(void) {
+    return false;
 }
 
 export namespace player::stm32h7::board {
@@ -375,6 +415,10 @@ export namespace player::stm32h7::board {
         static USBD_HandleTypeDef g_usb_ll{};
         if (inited) return;
         inited = true;
+        MX_USB_OTG_FS_PCD_Init();
+        hpcd_USB_OTG_FS.Init.ep0_mps = EP_MPS_64;
+        hpcd_USB_OTG_FS.IN_ep[0].maxpacket = 64;
+        hpcd_USB_OTG_FS.OUT_ep[0].maxpacket = 64;
         g_usb_out_mps[0] = 64;
         g_usb_ll.id = DEVICE_FS;
         (void)USBD_LL_Init(&g_usb_ll);
@@ -412,6 +456,24 @@ export namespace player::stm32h7::board {
         g_usb_hooks_enabled = enable;
     }
 
+    void usb_set_started(bool started) noexcept {
+        g_usb_started = started;
+    }
+
+    void usb_set_diag_descriptors(bool enable,
+                                  std::span<const usb::u8> dev_desc,
+                                  std::span<const usb::u8> cfg_desc) noexcept {
+        g_diag_ep0_enabled = enable;
+        g_diag_dev_desc = dev_desc;
+        g_diag_cfg_desc = cfg_desc;
+        g_diag_ep0_hits = 0;
+        g_diag_ep0_tx = 0;
+        g_diag_ep0_bytes = 0;
+        g_diag_ep0_zlp = 0;
+        g_diag_ep0_out_zlp = 0;
+        g_diag_ep0_out_last_len = 0;
+    }
+
     UsbDiag usb_diag_snapshot() noexcept {
         return UsbDiag{
             g_setup_calls,
@@ -443,6 +505,12 @@ export namespace player::stm32h7::board {
             g_ep0_in_zlp,
             g_ep0_last_len,
             g_ep0_last_zlp,
+            g_diag_ep0_hits,
+            g_diag_ep0_tx,
+            g_diag_ep0_bytes,
+            g_diag_ep0_zlp,
+            g_diag_ep0_out_zlp,
+            g_diag_ep0_out_last_len,
             g_setup_raw,
             g_setup_hist_bm,
             g_setup_hist_b,
@@ -473,6 +541,9 @@ export namespace player::stm32h7::board {
 }
 
 extern "C" CHARM_WEAK void OTG_FS_IRQHandler(void) {
+    if (charm_usb_use_poll_irq()) {
+        return;
+    }
     HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 }
 
@@ -632,12 +703,61 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
     g_last_w_value = setup.w_value;
     g_last_w_index = setup.w_index;
     g_last_w_length = setup.w_length;
+    hpcd->IN_ep[0].data_pid_start = 1;
+    hpcd->OUT_ep[0].data_pid_start = 1;
     if (usb::request_type(setup.bm_request_type) == usb::RequestType::class_request) {
         g_class_setup_calls++;
         g_class_last_bm = setup.bm_request_type;
         g_class_last_b = setup.b_request;
         g_class_last_wv = setup.w_value;
         g_class_last_wl = setup.w_length;
+    }
+    if (g_diag_ep0_enabled &&
+        usb::request_type(setup.bm_request_type) == usb::RequestType::standard &&
+        setup.b_request == 0x06 &&
+        (setup.bm_request_type & 0x80u) != 0u) {
+        const std::uint8_t desc_type = static_cast<std::uint8_t>((setup.w_value >> 8) & 0xFFu);
+        std::span<const usb::u8> desc{};
+        std::uint16_t desc_len = 0;
+        if (desc_type == 0x01) {
+            desc = g_diag_dev_desc;
+            if (!desc.empty()) {
+                desc_len = desc[0];
+            }
+        } else if (desc_type == 0x02) {
+            desc = g_diag_cfg_desc;
+            if (desc.size() >= 4) {
+                desc_len = static_cast<std::uint16_t>(desc[2] | (desc[3] << 8));
+            }
+        }
+        if (!desc.empty() && desc_len > 0) {
+            g_diag_ep0_hits++;
+            hpcd->IN_ep[0].data_pid_start = 1;
+            hpcd->OUT_ep[0].data_pid_start = 1;
+            const auto total = static_cast<std::uint16_t>(
+                std::min<std::size_t>(setup.w_length,
+                    std::min<std::size_t>(desc_len, desc.size())));
+            g_diag_ep0_ptr = desc.data();
+            g_diag_ep0_len = total;
+            g_diag_ep0_sent = 0;
+            const std::uint16_t ep0_mps = 64;
+            g_diag_ep0_need_zlp = (total < setup.w_length) && (total % ep0_mps == 0);
+            const auto first = static_cast<std::uint16_t>(std::min<std::uint16_t>(ep0_mps, total));
+            g_diag_ep0_sent = first;
+            if (first > 0) {
+                hpcd->IN_ep[0].data_pid_start = 1;
+                g_diag_ep0_tx++;
+                g_diag_ep0_bytes += first;
+                (void)HAL_PCD_EP_Transmit(hpcd, 0x80,
+                    const_cast<std::uint8_t*>(g_diag_ep0_ptr), first);
+            } else {
+                g_diag_ep0_tx++;
+                g_diag_ep0_zlp++;
+                (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
+                g_diag_ep0_need_zlp = false;
+            }
+            return 1;
+        }
     }
     if (usb::request_type(setup.bm_request_type) == usb::RequestType::standard &&
             setup.b_request == 0x01 &&
@@ -653,6 +773,9 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
         (void)HAL_PCD_EP_Receive(hpcd, 0x00,
             g_usb_out_bufs[0].data(),
             g_usb_out_mps[0]);
+    } else {
+        (void)HAL_PCD_EP_Receive(hpcd, 0x00,
+            g_usb_out_bufs[0].data(), 0);
     }
     return 1;
 }
@@ -663,6 +786,14 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
         const auto len = hpcd->OUT_ep[0].xfer_count;
         const auto* buf = hpcd->OUT_ep[0].xfer_buff;
         g_out0_calls++;
+        if (g_diag_ep0_enabled) {
+            g_diag_ep0_out_last_len = len;
+            if (len == 0) {
+                g_diag_ep0_out_zlp++;
+            }
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+            return 1;
+        }
         if (buf && len > 0) {
             g_usb_adapter.handle_out_data(std::span<const usb::u8>(buf, len));
         } else {
@@ -692,6 +823,34 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         const bool sent_zlp = (hpcd->IN_ep[0].xfer_len == 0);
         g_in0_calls++;
+        if (g_diag_ep0_enabled && g_diag_ep0_ptr) {
+            const std::uint16_t ep0_mps = 64;
+            if (g_diag_ep0_sent < g_diag_ep0_len) {
+                const auto remaining = static_cast<std::uint16_t>(g_diag_ep0_len - g_diag_ep0_sent);
+                const auto chunk = static_cast<std::uint16_t>(
+                    std::min<std::uint16_t>(ep0_mps, remaining));
+                g_diag_ep0_tx++;
+                g_diag_ep0_bytes += chunk;
+                (void)HAL_PCD_EP_Transmit(hpcd, 0x80,
+                    const_cast<std::uint8_t*>(g_diag_ep0_ptr + g_diag_ep0_sent),
+                    chunk);
+                g_diag_ep0_sent = static_cast<std::uint16_t>(g_diag_ep0_sent + chunk);
+                return 1;
+            }
+            if (g_diag_ep0_need_zlp) {
+                g_diag_ep0_need_zlp = false;
+                g_diag_ep0_tx++;
+                g_diag_ep0_zlp++;
+                (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
+                return 1;
+            }
+            g_diag_ep0_ptr = nullptr;
+            g_diag_ep0_len = 0;
+            g_diag_ep0_sent = 0;
+            g_diag_ep0_need_zlp = false;
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+            return 1;
+        }
         (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
         g_usb_adapter.handle_in_complete(sent, sent_zlp);
         return 1;

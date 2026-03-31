@@ -801,6 +801,7 @@ namespace {
         cfg.image_size = sizeof(hdr);
         cfg.load_base = nullptr;
         cfg.load_size = 0;
+        cfg.load_align = 16;
         auto ok = posix::load_elf_image(cfg);
         check_true("elf-header-nosupport", !ok && ok.error() == util::Errc::not_supported);
 
@@ -844,6 +845,7 @@ namespace {
         cfg.image_size = sizeof(stub);
         cfg.load_base = load_buf.data();
         cfg.load_size = load_buf.size();
+        cfg.load_align = 16;
         auto ok = posix::load_elf_image(cfg);
         check_true("elf-header-ptload", ok);
         auto expected_entry = reinterpret_cast<void*>(load_buf.data() + 2);
@@ -853,6 +855,17 @@ namespace {
         cfg.load_size = 2;
         auto too_small = posix::load_elf_image(cfg);
         check_true("elf-load-too-small", !too_small && too_small.error() == util::Errc::invalid_arg);
+
+        cfg.load_base = load_buf.data() + 1;
+        cfg.load_size = load_buf.size() - 1;
+        auto unaligned = posix::load_elf_image(cfg);
+        check_true("elf-load-unaligned", !unaligned && unaligned.error() == util::Errc::invalid_arg);
+
+        stub.phdr.flags = posix::kElfPfW | posix::kElfPfX;
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto wx = posix::load_elf_image(cfg);
+        check_true("elf-load-wx", !wx && wx.error() == util::Errc::invalid_arg);
     }
 
     void test_elf_file_spawn() noexcept {

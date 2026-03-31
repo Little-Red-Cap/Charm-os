@@ -103,6 +103,7 @@ export namespace posix {
     public:
         using FdTableType = FdTable<MaxFds>;
         using ProcHook = void (*)(ProcessId pid, void* ctx) noexcept;
+        void enable_elf_exec(bool enabled) noexcept { elf_exec_enabled_ = enabled; }
 
         void init() noexcept {
             for (auto& p : procs_) p = {};
@@ -208,6 +209,7 @@ export namespace posix {
                 elf_cfg.image_size = total;
                 elf_cfg.load_base = elf_load_.data();
                 elf_cfg.load_size = elf_load_.size();
+                elf_cfg.load_align = 16;
                 return load_elf_image(elf_cfg);
             }
             std::string_view name = resolve_name(cfg);
@@ -545,7 +547,7 @@ export namespace posix {
         }
 
         util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
-            if (image.kind == ImageKind::elf) {
+            if (image.kind == ImageKind::elf && !elf_exec_enabled_) {
                 return util::unexpected(util::Errc::not_supported);
             }
             ArgvEnvpBuffer args{};
@@ -586,6 +588,7 @@ export namespace posix {
         ProcHook on_enter_{nullptr};
         ProcHook on_exit_{nullptr};
         void* hook_ctx_{nullptr};
+        bool elf_exec_enabled_{false};
     };
 
     template <util::usize MaxProcs,

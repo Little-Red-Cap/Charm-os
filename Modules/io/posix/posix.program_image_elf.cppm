@@ -53,6 +53,9 @@ export namespace posix {
     };
 
     constexpr util::u32 kElfPtLoad = 1;
+    constexpr util::u32 kElfPfX = 0x1;
+    constexpr util::u32 kElfPfW = 0x2;
+    constexpr util::u32 kElfPfR = 0x4;
 
     inline ElfErrc validate_elf_header(const void* base, util::usize size) noexcept {
         if (!base || size < sizeof(ElfHeader64)) return ElfErrc::bad_header;
@@ -81,6 +84,7 @@ export namespace posix {
         util::usize image_size{0};
         void* load_base{nullptr};
         util::usize load_size{0};
+        util::usize load_align{16};
     };
 
     inline util::Result<ProgramImage> load_elf_image(const ElfLoadConfig& cfg) noexcept {
@@ -96,6 +100,12 @@ export namespace posix {
         }
         if (cfg.load_size == 0) {
             return util::unexpected(util::Errc::invalid_arg);
+        }
+        if (cfg.load_align != 0) {
+            const auto addr = modulex::to_addr(cfg.load_base);
+            if ((addr % cfg.load_align) != 0) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
         }
         const auto* hdr = static_cast<const ElfHeader64*>(cfg.image_base);
         if (hdr->entry == 0) {
@@ -118,6 +128,15 @@ export namespace posix {
                     }
                 }
                 if (ph[i].offset + ph[i].filesz > cfg.image_size) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
+                if (ph[i].memsz < ph[i].filesz) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
+                if ((ph[i].flags & kElfPfW) && (ph[i].flags & kElfPfX)) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
+                if (ph[i].align != 0 && (ph[i].vaddr % ph[i].align) != 0) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
             }

@@ -315,6 +315,12 @@ export namespace usb::device {
             class_ops_ = ops;
             ep0_.set_class(ctx, ops);
         }
+        void apply_address(u8 addr) noexcept { ep0_.set_address(addr); }
+        void apply_configuration(u8 cfg) noexcept {
+            configuration_ = cfg;
+            ep0_.set_configured(configuration_ != 0);
+        }
+        void apply_interface(u8 alt) noexcept { interface_alt_ = alt; }
 
         DeviceState state() const noexcept { return ep0_.state(); }
         Ep0Stage stage() const noexcept { return ep0_.stage(); }
@@ -454,13 +460,10 @@ export namespace usb::device {
                 return false;
             }
             case StandardRequest::set_address:
-                ep0_.set_address(static_cast<u8>(setup.w_value & 0x7F));
                 resp.data = {};
                 resp.zlp = true;
                 return true;
             case StandardRequest::set_configuration:
-                configuration_ = static_cast<u8>(setup.w_value & 0xFF);
-                ep0_.set_configured(configuration_ != 0);
                 resp.data = {};
                 resp.zlp = true;
                 return true;
@@ -473,7 +476,6 @@ export namespace usb::device {
                 resp.zlp = false;
                 return true;
             case StandardRequest::set_interface:
-                interface_alt_ = static_cast<u8>(setup.w_value & 0xFF);
                 resp.data = {};
                 resp.zlp = true;
                 return true;

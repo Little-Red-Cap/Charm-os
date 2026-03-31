@@ -12,6 +12,19 @@ export namespace player::stm32h7::app::config {
     constexpr bool kBringupKeySelect = true;
     constexpr bool kBringupWaitKey = true;
     constexpr bool kEnableAudio = true;
+    constexpr bool kEnableSdmmcInit = false;
+    constexpr bool kEnableUsbMsc = true;
+    constexpr bool kUseStUsbStack = true;
+    constexpr bool kEnableUsbAudio = true;
+    constexpr bool kUseUsbAudioOnBoot = true;
+    constexpr bool kEnableDisplay = false;
+    constexpr bool kUseOutLoggerEarly = false;
+    constexpr bool kUseDmaConsole = false;
+    constexpr bool kFmcInitOnBoot = true;
+    constexpr bool kSdramSelftestOnBoot = true;
+    constexpr bool kSdramSelftestInBringup = false;
+    constexpr bool kEnableI2sInit = true;
+    constexpr bool kEnableSpi5Init = true;
 
     constexpr bool kDebugStopAfterBringup = false;
     constexpr bool kDebugStopAfterChannel = false;

@@ -203,7 +203,12 @@ export namespace usb::device {
                 break;
             case StandardRequest::set_configuration:
                 pending_config_valid_ = true;
-                pending_configured_ = (static_cast<u8>(setup.w_value & 0xFF) != 0);
+                pending_config_ = static_cast<u8>(setup.w_value & 0xFF);
+                pending_configured_ = (pending_config_ != 0);
+                break;
+            case StandardRequest::set_interface:
+                pending_interface_valid_ = true;
+                pending_interface_ = static_cast<u8>(setup.w_value & 0xFF);
                 break;
             default:
                 break;
@@ -221,19 +226,26 @@ export namespace usb::device {
                 if (dcd_ops_.set_address) {
                     dcd_ops_.set_address(dcd_ctx_, pending_address_);
                 }
+                dev_.apply_address(pending_address_);
                 pending_address_valid_ = false;
             }
             if (pending_config_valid_) {
                 if (dcd_ops_.set_configured) {
                     dcd_ops_.set_configured(dcd_ctx_, pending_configured_);
                 }
+                dev_.apply_configuration(pending_config_);
                 pending_config_valid_ = false;
+            }
+            if (pending_interface_valid_) {
+                dev_.apply_interface(pending_interface_);
+                pending_interface_valid_ = false;
             }
         }
 
         void clear_pending() noexcept {
             pending_address_valid_ = false;
             pending_config_valid_ = false;
+            pending_interface_valid_ = false;
         }
 
         Device& dev_;
@@ -244,6 +256,9 @@ export namespace usb::device {
         u8 pending_address_{0};
         bool pending_config_valid_{false};
         bool pending_configured_{false};
+        u8 pending_config_{0};
+        bool pending_interface_valid_{false};
+        u8 pending_interface_{0};
     };
 
     namespace examples {

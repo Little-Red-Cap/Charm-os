@@ -115,6 +115,7 @@ namespace {
     std::array<usb::u16, 16> g_usb_out_mps{};
     bool g_usb_hooks_enabled = false;
     bool g_usb_ep0_prepared = false;
+    bool g_ep0_expect_status_out = false;
     bool g_usb_started = false;
     bool g_diag_ep0_enabled = false;
     const usb::u8* g_diag_ep0_ptr = nullptr;
@@ -184,6 +185,7 @@ namespace {
         pcd->IN_ep[0].data_pid_start = 1;
         pcd->OUT_ep[0].data_pid_start = 1;
         (void)HAL_PCD_EP_Receive(pcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        g_ep0_expect_status_out = false;
         g_usb_ep0_prepared = true;
     }
 
@@ -705,6 +707,7 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
     g_last_w_length = setup.w_length;
     hpcd->IN_ep[0].data_pid_start = 1;
     hpcd->OUT_ep[0].data_pid_start = 1;
+    g_ep0_expect_status_out = ((setup.bm_request_type & 0x80u) != 0u);
     if (usb::request_type(setup.bm_request_type) == usb::RequestType::class_request) {
         g_class_setup_calls++;
         g_class_last_bm = setup.bm_request_type;
@@ -773,9 +776,6 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
         (void)HAL_PCD_EP_Receive(hpcd, 0x00,
             g_usb_out_bufs[0].data(),
             g_usb_out_mps[0]);
-    } else {
-        (void)HAL_PCD_EP_Receive(hpcd, 0x00,
-            g_usb_out_bufs[0].data(), 0);
     }
     return 1;
 }
@@ -798,6 +798,9 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             g_usb_adapter.handle_out_data(std::span<const usb::u8>(buf, len));
         } else {
             g_usb_adapter.handle_out_data(std::span<const usb::u8>{});
+        }
+        if (len == 0 && g_ep0_expect_status_out) {
+            g_ep0_expect_status_out = false;
         }
         return 1;
     }
@@ -851,7 +854,11 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
             return 1;
         }
-        (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        if (g_ep0_expect_status_out) {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), 0);
+        } else {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        }
         g_usb_adapter.handle_in_complete(sent, sent_zlp);
         return 1;
     }
@@ -872,6 +879,7 @@ extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef* hpcd) {
     if (!g_usb_hooks_enabled || !hpcd) return 0;
     g_reset_calls++;
     g_usb_ep0_prepared = false;
+    g_ep0_expect_status_out = false;
     usb_prepare_ep0(hpcd);
     g_usb_adapter.handle_reset();
     return 1;

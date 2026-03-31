@@ -21,6 +21,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.gfx.color;
+import charm.gfx.image;
 import charm.ui.scene;
 import charm.font.typography;
 import charm.system.clock;
@@ -170,6 +171,7 @@ export namespace player {
         int last_list_selected{-1};
         ListSort list_sort{ListSort::NameAsc};
         std::vector<int> list_order{};
+        std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};
             CoverImage image{};
@@ -1041,7 +1043,11 @@ export namespace player {
             if (!is_audio_path(path.view())) {
                 return self->icons.folder;
             }
-            const auto cover_id = self->resolve_list_cover_icon(path.view());
+            std::string_view cover_path{};
+            if (track_index < static_cast<int>(self->list_cover_paths.size())) {
+                cover_path = self->list_cover_paths[static_cast<std::size_t>(track_index)].view();
+            }
+            const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
             return self->icons.play;
         }
@@ -1059,7 +1065,11 @@ export namespace player {
         bool resolve_cover_path_for_track(std::string_view track_path, FixedString<260>& out_path) const {
             if (track_path.empty()) return false;
             FixedString<260> folder_path;
-            const bool has_folder = fs_utils::find_cover_for_track(track_path, folder_path);
+            bool has_folder = false;
+            if (cover_strategy == CoverStrategy::folder_only
+                || cover_strategy == CoverStrategy::folder_first) {
+                has_folder = fs_utils::find_cover_for_track(track_path, folder_path);
+            }
             switch (cover_strategy) {
             case CoverStrategy::embedded_only:
                 out_path.assign(track_path);
@@ -1078,16 +1088,42 @@ export namespace player {
             return !out_path.empty();
         }
 
-        ::ui::scene::ImageId resolve_list_cover_icon(std::string_view track_path) {
+        void build_list_cover_paths() {
+            list_cover_paths.clear();
+            const auto* tracks = storage.tracks;
+            if (!tracks) return;
+            const std::size_t count = tracks->size();
+            list_cover_paths.reserve(count);
+            for (std::size_t i = 0; i < count; ++i) {
+                FixedString<260> cover_path;
+                const auto& track_path = (*tracks)[i];
+                cover_path.assign(track_path.view());
+                list_cover_paths.push_back(cover_path);
+            }
+        }
+
+        ::ui::scene::ImageId resolve_list_cover_icon(std::string_view track_path,
+                                                     std::string_view cover_path_view) {
             FixedString<260> cover_path;
-            if (!resolve_cover_path_for_track(track_path, cover_path)) {
+            if (!cover_path_view.empty()) {
+                cover_path.assign(cover_path_view);
+            } else if (!track_path.empty()) {
+                cover_path.assign(track_path);
+            } else {
                 return ::ui::scene::invalid_image_id();
+            }
+            if (cover_image.path == cover_path.view()
+                && ::ui::scene::image_id_valid(cover_image.image_id)) {
+                return cover_image.image_id;
             }
             for (auto& entry : list_cover_cache) {
                 if (entry.path.view() == cover_path.view()
                     && ::ui::scene::image_id_valid(entry.image.image_id)) {
                     return entry.image.image_id;
                 }
+            }
+            if (::ui::gfx::image_registry_locked()) {
+                return ::ui::scene::invalid_image_id();
             }
             auto& slot = list_cover_cache[list_cover_next % kListCoverCache];
             list_cover_next += 1;
@@ -1172,6 +1208,7 @@ export namespace player {
             mount_status.assign(storage.mount_status);
             clear_list_cover_cache();
             refresh_track_labels();
+            build_list_cover_paths();
             if (!storage.status.empty()) { set_status(storage.status.data()); }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             if (player::font_cache::ready()) {
@@ -1215,7 +1252,8 @@ export namespace player {
                 return;
             }
             bool all_music = true;
-            for (const auto& path : *tracks) {
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                const auto& path = (*tracks)[i];
                 if (!path.view().starts_with("/music")) {
                     all_music = false;
                     break;
@@ -1597,7 +1635,11 @@ export namespace player {
                 cover_embedded_path.assign(vfs_path.view());
                 cover_folder_path.clear();
                 FixedString<260> folder_path;
-                const bool has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
+                bool has_folder = false;
+                if (cover_strategy == CoverStrategy::folder_only
+                    || cover_strategy == CoverStrategy::folder_first) {
+                    has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
+                }
                 cover_folder_path.assign(folder_path.view());
                 cover_ready = true;
                 switch (cover_strategy) {

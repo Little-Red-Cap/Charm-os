@@ -13,6 +13,7 @@ import posix.file;
 import posix.fd_table;
 import posix.pipe;
 import posix.proc;
+import posix.smoke;
 import util.core;
 import util.error;
 
@@ -275,6 +276,7 @@ namespace demo {
 }
 
 int main() {
+    run_posix_smoke_tests();
     if (demo::run_busybox_phase2_smoke()) {
         demo::log_line("bb2 all ok");
     } else {

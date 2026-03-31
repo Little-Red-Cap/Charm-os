@@ -143,6 +143,22 @@ namespace {
         return write_text(1, "mx\n");
     }
 
+    template <typename T>
+    bool init_modulex_entry_stub(T& img, const void* entry_ptr) noexcept {
+        const auto base = modulex::to_addr(&img);
+        const auto entry = modulex::to_addr(entry_ptr);
+        if (entry < base) return false;
+        const auto diff = static_cast<util::u64>(entry - base);
+        if (diff > static_cast<util::u64>(std::numeric_limits<util::u32>::max())) return false;
+        img.hdr.magic = modulex::k_magic;
+        img.hdr.version = modulex::k_version;
+        img.hdr.text_offset = static_cast<util::u32>(diff);
+        img.hdr.text_size = 1;
+        img.hdr.entry_offset = 0;
+        img.hdr.image_size = static_cast<util::u32>(sizeof(T));
+        return true;
+    }
+
     int echo_main(int argc, char** argv) {
         if (!ProgramEnv::api) return 1;
         if (argc > 1 && argv && argv[1]) {
@@ -699,21 +715,8 @@ namespace {
         };
 
         ModuleXStub img{};
-        img.hdr.magic = modulex::k_magic;
-        img.hdr.version = modulex::k_version;
-        const auto base = modulex::to_addr(&img);
-        const auto entry = modulex::to_addr(reinterpret_cast<const void*>(&modulex_entry_main));
-        if (entry < base) {
-            check_true("modulex-entry-offset", false);
-        }
-        const auto diff = static_cast<util::u64>(entry - base);
-        if (diff > static_cast<util::u64>(std::numeric_limits<util::u32>::max())) {
-            check_true("modulex-entry-offset", false);
-        }
-        img.hdr.text_offset = static_cast<util::u32>(diff);
-        img.hdr.text_size = 1;
-        img.hdr.entry_offset = 0;
-        img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
+        check_true("modulex-entry-offset",
+            init_modulex_entry_stub(img, reinterpret_cast<const void*>(&modulex_entry_main)));
 
         posix::ModuleXLoadConfig cfg{};
         auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);

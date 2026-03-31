@@ -17,7 +17,7 @@ export namespace posix {
         modulex::ResolveDependency resolve_dependency{nullptr};
         modulex::ResolveDependencyCtx resolve_dependency_ctx{nullptr};
         void* dep_ctx{nullptr};
-        ImageEntry entry_override{nullptr};
+        ImageEntry entry_override{nullptr}; // test-only escape hatch; avoid in real images.
     };
 
     inline util::Result<ProgramImage> load_modulex_image(std::string_view name,

@@ -7,13 +7,11 @@ module;
 
 export module posix.smoke;
 
-#if defined(POSIX_SMOKE_TEST) && POSIX_SMOKE_TEST
-
-import posix.api.tests;
-import posix.errno.tests;
-import posix.fd_table.tests;
-import posix.pipe.tests;
-import posix.proc.tests;
+export import posix.api.tests;
+export import posix.errno.tests;
+export import posix.fd_table.tests;
+export import posix.pipe.tests;
+export import posix.proc.tests;
 
 export void run_posix_smoke_tests() noexcept {
     std::printf("[posix-smoke] begin\n");
@@ -24,5 +22,3 @@ export void run_posix_smoke_tests() noexcept {
     run_posix_api_smoke_tests();
     std::printf("[posix-smoke] end ok\n");
 }
-
-#endif

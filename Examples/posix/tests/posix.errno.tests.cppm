@@ -15,9 +15,21 @@ import posix.errno;
 import util.error;
 
 namespace {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+    extern "C" void posix_smoke_emit(const char* msg) noexcept;
+#endif
     [[noreturn]] inline void fail() noexcept { std::abort(); }
+    inline void log_line(const char* msg) noexcept {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+        posix_smoke_emit(msg);
+#else
+        std::printf("%s\n", msg);
+#endif
+    }
     inline void log_step(const char* label, bool ok) noexcept {
-        std::printf("[posix-smoke] errno %s %s\n", label, ok ? "ok" : "fail");
+        char buf[96]{};
+        std::snprintf(buf, sizeof(buf), "[posix-smoke] errno %s %s", label, ok ? "ok" : "fail");
+        log_line(buf);
     }
     template <class T>
     inline long long to_ll(const T& v) noexcept {
@@ -37,8 +49,11 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            std::printf("[posix-smoke] errno %s fail: expected=%lld actual=%lld\n",
+            char buf[128]{};
+            std::snprintf(buf, sizeof(buf),
+                "[posix-smoke] errno %s fail: expected=%lld actual=%lld",
                 label, to_ll(b), to_ll(a));
+            log_line(buf);
             fail();
         }
         log_step(label, true);
@@ -65,10 +80,10 @@ namespace {
 } // namespace
 
 export void run_posix_errno_smoke_tests() noexcept {
-    std::printf("[posix-smoke] errno begin\n");
+    log_line("[posix-smoke] errno begin");
     test_errno_roundtrip();
     test_mapping();
-    std::printf("[posix-smoke] errno end ok\n");
+    log_line("[posix-smoke] errno end ok");
 }
 
 #endif

@@ -16,3 +16,24 @@ set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
+target_compile_definitions(${target_name} PRIVATE
+    POSIX_SMOKE_USE_UART=1
+    POSIX_ERRNO_SMOKE_TEST=1
+    POSIX_FD_TABLE_SMOKE_TEST=1
+    POSIX_PIPE_SMOKE_TEST=1
+    POSIX_PROC_SMOKE_TEST=1
+    POSIX_API_SMOKE_TEST=1
+)
+
+target_sources(${target_name}
+    PRIVATE
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS
+        "${CHARM_ROOT}"
+    FILES
+        "${CHARM_ROOT}/Examples/posix/tests/posix.api.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.errno.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.fd_table.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.pipe.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.proc.tests.cppm"
+)

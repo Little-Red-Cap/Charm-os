@@ -790,6 +790,11 @@ namespace {
         hdr.ident[3] = 'F';
         hdr.ident[4] = 2;
         hdr.ident[5] = 1;
+        hdr.entry = 1;
+        posix::ElfProgramHeader64 ph{};
+        ph.type = posix::kElfPtLoad;
+        ph.offset = 0;
+        ph.filesz = 0;
 
         posix::ElfLoadConfig cfg{};
         cfg.image_base = &hdr;
@@ -812,6 +817,21 @@ namespace {
         hdr.phnum = 2;
         auto bad_phrange = posix::load_elf_image(cfg);
         check_true("elf-header-bad-phrange", !bad_phrange && bad_phrange.error() == util::Errc::invalid_arg);
+
+        struct ElfStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr{};
+        } stub{};
+        stub.header = hdr;
+        stub.header.phoff = static_cast<util::u64>(offsetof(ElfStub, phdr));
+        stub.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        stub.header.phnum = 1;
+        stub.phdr = ph;
+        cfg.image_base = &stub;
+        cfg.image_size = sizeof(stub);
+        cfg.load_base = reinterpret_cast<void*>(0x1);
+        auto ok = posix::load_elf_image(cfg);
+        check_true("elf-header-ptload", ok);
     }
 
     void test_sh_c_redir_and_pipe() noexcept {

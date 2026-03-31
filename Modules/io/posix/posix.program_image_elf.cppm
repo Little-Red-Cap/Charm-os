@@ -6,6 +6,7 @@ module;
 export module posix.program_image_elf;
 
 import posix.program_image;
+import module_core;
 import util.core;
 import util.error;
 
@@ -50,6 +51,8 @@ export namespace posix {
         util::u64 align{0};
     };
 
+    constexpr util::u32 kElfPtLoad = 1;
+
     inline ElfErrc validate_elf_header(const void* base, util::usize size) noexcept {
         if (!base || size < sizeof(ElfHeader64)) return ElfErrc::bad_header;
         const auto* hdr = static_cast<const ElfHeader64*>(base);
@@ -90,18 +93,35 @@ export namespace posix {
             return util::unexpected(util::Errc::not_supported);
         }
         const auto* hdr = static_cast<const ElfHeader64*>(cfg.image_base);
+        if (hdr->entry == 0) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
         if (hdr->phoff != 0 && hdr->phentsize == 0) {
             return util::unexpected(util::Errc::invalid_arg);
         }
         if (hdr->phnum != 0) {
             const auto* base = static_cast<const util::u8*>(cfg.image_base);
             const auto* ph = reinterpret_cast<const ElfProgramHeader64*>(base + hdr->phoff);
+            bool has_load = false;
             for (util::u16 i = 0; i < hdr->phnum; ++i) {
+                if (ph[i].type == kElfPtLoad) {
+                    has_load = true;
+                }
                 if (ph[i].offset + ph[i].filesz > cfg.image_size) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
             }
+            if (!has_load) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
         }
-        return util::unexpected(util::Errc::not_supported);
+        ProgramImage image{};
+        image.kind = ImageKind::elf;
+        image.name = {};
+        image.entry = modulex::addr_to_ptr<ImageEntry>(static_cast<modulex::Addr>(hdr->entry));
+        if (!image.entry) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        return image;
     }
 }

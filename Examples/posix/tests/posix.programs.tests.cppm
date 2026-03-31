@@ -21,6 +21,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import posix.program_image_elf;
 import posix.program_image_modulex;
 import module_core;
 import fs_core;
@@ -781,6 +782,27 @@ namespace {
         h.unbind_env();
     }
 
+    void test_elf_header_stub() noexcept {
+        posix::ElfHeader64 hdr{};
+        hdr.ident[0] = 0x7f;
+        hdr.ident[1] = 'E';
+        hdr.ident[2] = 'L';
+        hdr.ident[3] = 'F';
+        hdr.ident[4] = 2;
+        hdr.ident[5] = 1;
+
+        posix::ElfLoadConfig cfg{};
+        cfg.image_base = &hdr;
+        cfg.image_size = sizeof(hdr);
+        cfg.load_base = nullptr;
+        auto ok = posix::load_elf_image(cfg);
+        check_true("elf-header-nosupport", !ok && ok.error() == util::Errc::not_supported);
+
+        hdr.ident[0] = 0x00;
+        auto bad = posix::load_elf_image(cfg);
+        check_true("elf-header-bad", !bad && bad.error() == util::Errc::invalid_arg);
+    }
+
     void test_sh_c_redir_and_pipe() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -845,6 +867,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_exit_code();
     test_modulex_register();
     test_elf_prefix_stub();
+    test_elf_header_stub();
     test_echo_to_file();
     test_cat_from_file();
     test_echo_pipe_cat();

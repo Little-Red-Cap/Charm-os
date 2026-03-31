@@ -13,6 +13,7 @@ import posix.fd_table;
 import posix.file;
 import posix.program_image;
 import posix.program_image_modulex;
+import posix.program_image_elf;
 import module_core;
 import util.core;
 import util.error;

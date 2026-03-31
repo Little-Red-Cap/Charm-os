@@ -4,7 +4,9 @@
 
 module;
 #include <array>
+#include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 
 export module posix.proc.tests;
 
@@ -20,9 +22,33 @@ import util.error;
 
 namespace {
     [[noreturn]] inline void fail() noexcept { std::abort(); }
-    inline void assert_true(bool v) noexcept { if (!v) fail(); }
+    inline void log_step(const char* label, bool ok) noexcept {
+        std::printf("[posix-smoke] proc %s %s\n", label, ok ? "ok" : "fail");
+    }
+    template <class T>
+    inline long long to_ll(const T& v) noexcept {
+        if constexpr (std::is_enum_v<T>) {
+            return static_cast<long long>(static_cast<std::underlying_type_t<T>>(v));
+        } else {
+            return static_cast<long long>(v);
+        }
+    }
+    inline void check_true(const char* label, bool v) noexcept {
+        if (!v) {
+            log_step(label, false);
+            fail();
+        }
+        log_step(label, true);
+    }
     template <class A, class B>
-    inline void assert_eq(const A& a, const B& b) noexcept { if (!(a == b)) fail(); }
+    inline void check_eq(const char* label, const A& a, const B& b) noexcept {
+        if (!(a == b)) {
+            std::printf("[posix-smoke] proc %s fail: expected=%lld actual=%lld\n",
+                label, to_ll(b), to_ll(a));
+            fail();
+        }
+        log_step(label, true);
+    }
 
     int demo_main(int argc, char** argv) {
         if (argc < 1 || argv == nullptr) return 7;
@@ -76,7 +102,7 @@ namespace {
         posix::ProcService<4, 4, 8, 4> procs{};
         procs.init();
         auto rreg = procs.register_executable("demo", &demo_main);
-        assert_true(rreg);
+        check_true("spawn-register", rreg);
 
         const char* argv[] = {"demo", nullptr};
         posix::SpawnConfig cfg{};
@@ -85,21 +111,21 @@ namespace {
         cfg.path_mode = posix::PathMode::exact;
 
         auto spawn = procs.spawn(cfg);
-        assert_true(spawn);
+        check_true("spawn-basic", spawn);
         const auto pid = spawn.value().pid;
 
         auto st = procs.waitpid(pid, 0);
-        assert_true(st);
-        assert_eq(st.value().pid.value, pid.value);
-        assert_eq(st.value().code, 42);
-        assert_eq(st.value().kind, posix::WaitKind::exited);
+        check_true("wait-basic", st);
+        check_eq("wait-pid", st.value().pid.value, pid.value);
+        check_eq("wait-code", st.value().code, 42);
+        check_eq("wait-kind", st.value().kind, posix::WaitKind::exited);
     }
 
     void test_search_path_argv0() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
         procs.init();
         auto rreg = procs.register_executable("/bin/hello", &demo_main);
-        assert_true(rreg);
+        check_true("search-register", rreg);
 
         const char* argv[] = {"hello", nullptr};
         const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
@@ -109,9 +135,9 @@ namespace {
         cfg.path_mode = posix::PathMode::search_path;
 
         auto spawn = procs.spawn(cfg);
-        assert_true(spawn);
+        check_true("search-spawn", spawn);
         auto st = procs.waitpid(spawn.value().pid, 0);
-        assert_true(st);
+        check_true("search-wait", st);
     }
 
     void test_stdio_and_actions() noexcept {
@@ -122,7 +148,7 @@ namespace {
         procs.bind_fd_table(table);
 
         auto rreg = procs.register_executable("demo", &demo_main);
-        assert_true(rreg);
+        check_true("stdio-register", rreg);
 
         static const posix::FdOps kOps{
             &dummy_read,
@@ -138,13 +164,13 @@ namespace {
         entry.ctx = nullptr;
 
         auto rfd3 = table.attach(entry, 3);
-        assert_true(rfd3);
+        check_true("stdio-attach-3", rfd3);
         auto rfd4 = table.attach(entry, 4);
-        assert_true(rfd4);
+        check_true("stdio-attach-4", rfd4);
 
         posix::FileActions<4> actions{};
-        assert_true(actions.add_dup2(3, 1));
-        assert_true(actions.add_close(4));
+        check_true("stdio-action-dup2", actions.add_dup2(3, 1));
+        check_true("stdio-action-close", actions.add_close(4));
 
         const char* argv[] = {"demo", nullptr};
         posix::SpawnConfig cfg{};
@@ -155,24 +181,24 @@ namespace {
         cfg.stdio_out = 4;
 
         auto spawn = procs.spawn(cfg);
-        assert_true(spawn);
+        check_true("stdio-spawn", spawn);
         auto st = procs.waitpid(spawn.value().pid, 0);
-        assert_true(st);
+        check_true("stdio-wait", st);
 
         // parent table should remain unchanged after spawn
         auto entry1 = table.get(1);
-        assert_true(entry1);
-        assert_eq(entry1.value()->id, 1);
+        check_true("stdio-parent-1", entry1);
+        check_eq("stdio-parent-1-id", entry1.value()->id, 1);
         auto entry4 = table.get(4);
-        assert_true(entry4);
-        assert_eq(entry4.value()->id, 4);
+        check_true("stdio-parent-4", entry4);
+        check_eq("stdio-parent-4-id", entry4.value()->id, 4);
 
         posix::FileActions<1> open_actions{};
-        assert_true(open_actions.add_open(5, "/tmp/x", 0, 0));
+        check_true("stdio-open-action", open_actions.add_open(5, "/tmp/x", 0, 0));
         cfg.file_actions = &open_actions;
         auto spawn_open = procs.spawn(cfg);
-        assert_true(!spawn_open);
-        assert_eq(spawn_open.error(), util::Errc::not_supported);
+        check_true("stdio-open-fail", !spawn_open);
+        check_eq("stdio-open-err", spawn_open.error(), util::Errc::not_supported);
     }
 
     void test_open_action() noexcept {
@@ -181,7 +207,7 @@ namespace {
         mount.ops = &dummy_mount_ops;
         mount.data = nullptr;
         auto st = fs::add_mount("", &mount);
-        assert_true(st);
+        check_true("open-mount", st);
 
         posix::ProcService<4, 4, 8, 4> procs{};
         posix::FdTable<8> table{};
@@ -193,10 +219,10 @@ namespace {
         procs.bind_file_service(files);
 
         auto rreg = procs.register_executable("demo", &demo_main);
-        assert_true(rreg);
+        check_true("open-register", rreg);
 
         posix::FileActions<2> actions{};
-        assert_true(actions.add_open(3, "/tmp/x", posix::O_WRONLY | posix::O_CREAT, 0));
+        check_true("open-action", actions.add_open(3, "/tmp/x", posix::O_WRONLY | posix::O_CREAT, 0));
 
         const char* argv[] = {"demo", nullptr};
         posix::SpawnConfig cfg{};
@@ -205,17 +231,19 @@ namespace {
         cfg.file_actions = &actions;
 
         auto spawn = procs.spawn(cfg);
-        assert_true(spawn);
+        check_true("open-spawn", spawn);
         auto fd_entry = table.get(3);
-        assert_true(!fd_entry);
+        check_true("open-parent-unchanged", !fd_entry);
     }
 } // namespace
 
 export void run_posix_proc_smoke_tests() noexcept {
+    std::printf("[posix-smoke] proc begin\n");
     test_spawn_wait();
     test_search_path_argv0();
     test_stdio_and_actions();
     test_open_action();
+    std::printf("[posix-smoke] proc end ok\n");
 }
 
 #endif

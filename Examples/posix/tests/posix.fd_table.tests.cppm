@@ -4,7 +4,9 @@
 
 module;
 #include <array>
+#include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 
 export module posix.fd_table.tests;
 
@@ -16,9 +18,33 @@ import util.error;
 
 namespace {
     [[noreturn]] inline void fail() noexcept { std::abort(); }
-    inline void assert_true(bool v) noexcept { if (!v) fail(); }
+    inline void log_step(const char* label, bool ok) noexcept {
+        std::printf("[posix-smoke] fd_table %s %s\n", label, ok ? "ok" : "fail");
+    }
+    template <class T>
+    inline long long to_ll(const T& v) noexcept {
+        if constexpr (std::is_enum_v<T>) {
+            return static_cast<long long>(static_cast<std::underlying_type_t<T>>(v));
+        } else {
+            return static_cast<long long>(v);
+        }
+    }
+    inline void check_true(const char* label, bool v) noexcept {
+        if (!v) {
+            log_step(label, false);
+            fail();
+        }
+        log_step(label, true);
+    }
     template <class A, class B>
-    inline void assert_eq(const A& a, const B& b) noexcept { if (!(a == b)) fail(); }
+    inline void check_eq(const char* label, const A& a, const B& b) noexcept {
+        if (!(a == b)) {
+            std::printf("[posix-smoke] fd_table %s fail: expected=%lld actual=%lld\n",
+                label, to_ll(b), to_ll(a));
+            fail();
+        }
+        log_step(label, true);
+    }
 
     struct Counter {
         util::u32 closes{0};
@@ -62,33 +88,33 @@ namespace {
         e0.ops = &ops;
         e0.ctx = &a;
         auto r0 = table.attach(e0, 0);
-        assert_true(r0);
-        assert_eq(r0.value(), 0);
+        check_true("attach-0", r0);
+        check_eq("attach-0-id", r0.value(), 0);
 
         posix::FdEntry e1 = e0;
         e1.ctx = &b;
         auto r1 = table.attach(e1, 1);
-        assert_true(r1);
-        assert_eq(r1.value(), 1);
+        check_true("attach-1", r1);
+        check_eq("attach-1-id", r1.value(), 1);
 
         posix::FdEntry e2 = e0;
         e2.ctx = &a;
         auto r2 = table.attach(e2, 2);
-        assert_true(r2);
-        assert_eq(r2.value(), 2);
+        check_true("attach-2", r2);
+        check_eq("attach-2-id", r2.value(), 2);
 
         auto rdup = table.dup2(1, 2);
-        assert_true(rdup);
-        assert_eq(a.closes, 1u);
+        check_true("dup2-1-2", rdup);
+        check_eq("dup2-close", a.closes, 1u);
 
         auto rget = table.get(2);
-        assert_true(rget);
-        assert_true(rget.value()->ctx == &b);
+        check_true("get-2", rget);
+        check_true("get-2-ctx", rget.value()->ctx == &b);
 
         auto rclose = table.close(0);
-        assert_true(rclose);
-        assert_eq(a.closes, 2u);
-        assert_true(!table.get(0));
+        check_true("close-0", rclose);
+        check_eq("close-0-count", a.closes, 2u);
+        check_true("get-0-closed", !table.get(0));
     }
 
     void test_clone_entry() noexcept {
@@ -108,18 +134,20 @@ namespace {
         e0.ops = &ops;
         e0.ctx = &c;
         auto r0 = table.attach(e0, 0);
-        assert_true(r0);
+        check_true("clone-attach-0", r0);
 
         auto clone = table.clone_entry(0);
-        assert_true(clone);
-        assert_eq(clone.value().id, -1);
-        assert_true(clone.value().ops == &ops);
+        check_true("clone-entry", clone);
+        check_eq("clone-id", clone.value().id, -1);
+        check_true("clone-ops", clone.value().ops == &ops);
     }
 } // namespace
 
 export void run_posix_fd_table_smoke_tests() noexcept {
+    std::printf("[posix-smoke] fd_table begin\n");
     test_attach_dup_close();
     test_clone_entry();
+    std::printf("[posix-smoke] fd_table end ok\n");
 }
 
 #endif

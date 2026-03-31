@@ -4,7 +4,9 @@
 
 module;
 #include <array>
+#include <cstdio>
 #include <cstdlib>
+#include <type_traits>
 
 export module posix.api.tests;
 
@@ -22,9 +24,33 @@ import util.error;
 
 namespace {
     [[noreturn]] inline void fail() noexcept { std::abort(); }
-    inline void assert_true(bool v) noexcept { if (!v) fail(); }
+    inline void log_step(const char* label, bool ok) noexcept {
+        std::printf("[posix-smoke] api %s %s\n", label, ok ? "ok" : "fail");
+    }
+    template <class T>
+    inline long long to_ll(const T& v) noexcept {
+        if constexpr (std::is_enum_v<T>) {
+            return static_cast<long long>(static_cast<std::underlying_type_t<T>>(v));
+        } else {
+            return static_cast<long long>(v);
+        }
+    }
+    inline void check_true(const char* label, bool v) noexcept {
+        if (!v) {
+            log_step(label, false);
+            fail();
+        }
+        log_step(label, true);
+    }
     template <class A, class B>
-    inline void assert_eq(const A& a, const B& b) noexcept { if (!(a == b)) fail(); }
+    inline void check_eq(const char* label, const A& a, const B& b) noexcept {
+        if (!(a == b)) {
+            std::printf("[posix-smoke] api %s fail: expected=%lld actual=%lld\n",
+                label, to_ll(b), to_ll(a));
+            fail();
+        }
+        log_step(label, true);
+    }
 
     fs::Status dummy_node_read(fs::Node&, std::span<util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
     fs::Status dummy_node_write(fs::Node&, std::span<const util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
@@ -71,7 +97,7 @@ namespace {
         mount.ops = &dummy_mount_ops;
         mount.data = nullptr;
         auto st = fs::add_mount("", &mount);
-        assert_true(st);
+        check_true("open-mount", st);
 
         posix::FdTable<8> fds{};
         posix::FileService<4> files{};
@@ -84,8 +110,8 @@ namespace {
 
         posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
         int fd = api.open("/tmp/x", posix::O_WRONLY | posix::O_CREAT, 0);
-        assert_true(fd >= 0);
-        assert_eq(api.close(fd), 0);
+        check_true("open-basic", fd >= 0);
+        check_eq("close-basic", api.close(fd), 0);
     }
 
     void test_api_pipe_rw() noexcept {
@@ -100,13 +126,13 @@ namespace {
 
         posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
         int fds_arr[2]{-1, -1};
-        assert_eq(api.pipe(fds_arr), 0);
+        check_eq("pipe-create", api.pipe(fds_arr), 0);
         const char msg[] = "hi";
         auto w = api.write(fds_arr[1], msg, 2);
-        assert_eq(w, 2);
+        check_eq("pipe-write", w, 2);
         char out[2]{};
         auto r = api.read(fds_arr[0], out, 2);
-        assert_eq(r, 2);
+        check_eq("pipe-read", r, 2);
     }
 
     void test_api_spawn_wait() noexcept {
@@ -121,7 +147,7 @@ namespace {
         procs.bind_fd_table(fds);
         procs.bind_file_service(files);
         auto rreg = procs.register_executable("demo", &demo_main);
-        assert_true(rreg);
+        check_true("spawn-register", rreg);
 
         posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
         const char* argv[] = {"demo", nullptr};
@@ -129,16 +155,16 @@ namespace {
         cfg.path = "demo";
         cfg.argv = std::span<const char* const>(argv, 1);
         int pid = api.spawn(cfg);
-        assert_true(pid > 0);
+        check_true("spawn-basic", pid > 0);
         api.bind_process(posix::ProcessId{pid});
         int newfd = api.open("/tmp/child", posix::O_WRONLY | posix::O_CREAT, 0);
-        assert_true(newfd >= 0);
+        check_true("spawn-child-open", newfd >= 0);
         api.unbind_process();
         auto parent_entry = fds.get(newfd);
-        assert_true(!parent_entry);
+        check_true("spawn-parent-unchanged", !parent_entry);
         int status = 0;
         int wpid = api.waitpid(posix::ProcessId{pid}, &status, 0);
-        assert_eq(wpid, pid);
+        check_eq("spawn-waitpid", wpid, pid);
     }
 
     void test_api_dev_null_and_isatty() noexcept {
@@ -147,7 +173,7 @@ namespace {
         mount.ops = &dummy_mount_ops;
         mount.data = nullptr;
         auto st = fs::add_mount("", &mount);
-        assert_true(st);
+        check_true("devnull-mount", st);
 
         posix::FdTable<8> fds{};
         posix::FileService<4> files{};
@@ -160,13 +186,13 @@ namespace {
 
         posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
         int fd = api.open("/dev/null", posix::O_WRONLY, 0);
-        assert_true(fd >= 0);
+        check_true("devnull-open", fd >= 0);
         const char msg[] = "abc";
         auto w = api.write(fd, msg, 3);
-        assert_eq(w, 3);
+        check_eq("devnull-write", w, 3);
         auto r = api.read(fd, nullptr, 0);
-        assert_eq(r, 0);
-        assert_eq(api.close(fd), 0);
+        check_eq("devnull-read0", r, 0);
+        check_eq("devnull-close", api.close(fd), 0);
 
         static const posix::FdOps kOps{
             nullptr,
@@ -180,17 +206,19 @@ namespace {
         term.ops = &kOps;
         term.ctx = nullptr;
         auto rfd = fds.attach(term, 3);
-        assert_true(rfd);
-        assert_eq(api.isatty(3), 1);
-        assert_eq(api.isatty(4), 0);
+        check_true("isatty-attach", rfd);
+        check_eq("isatty-term", api.isatty(3), 1);
+        check_eq("isatty-nonterm", api.isatty(4), 0);
     }
 } // namespace
 
 export void run_posix_api_smoke_tests() noexcept {
+    std::printf("[posix-smoke] api begin\n");
     test_api_open_close();
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_dev_null_and_isatty();
+    std::printf("[posix-smoke] api end ok\n");
 }
 
 #endif

@@ -801,6 +801,11 @@ namespace {
         hdr.ident[0] = 0x00;
         auto bad = posix::load_elf_image(cfg);
         check_true("elf-header-bad", !bad && bad.error() == util::Errc::invalid_arg);
+
+        hdr.ident[0] = 0x7f;
+        hdr.phoff = sizeof(hdr) + 8;
+        auto bad_phoff = posix::load_elf_image(cfg);
+        check_true("elf-header-bad-phoff", !bad_phoff && bad_phoff.error() == util::Errc::invalid_arg);
     }
 
     void test_sh_c_redir_and_pipe() noexcept {

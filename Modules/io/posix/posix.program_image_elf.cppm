@@ -15,7 +15,9 @@ export namespace posix {
         bad_magic,
         bad_class,
         bad_endian,
-        bad_header
+        bad_header,
+        bad_phoff,
+        bad_phentsize
     };
 
     struct ElfHeader64 {
@@ -35,6 +37,17 @@ export namespace posix {
         util::u16 shstrndx{0};
     };
 
+    struct ElfProgramHeader64 {
+        util::u32 type{0};
+        util::u32 flags{0};
+        util::u64 offset{0};
+        util::u64 vaddr{0};
+        util::u64 paddr{0};
+        util::u64 filesz{0};
+        util::u64 memsz{0};
+        util::u64 align{0};
+    };
+
     inline ElfErrc validate_elf_header(const void* base, util::usize size) noexcept {
         if (!base || size < sizeof(ElfHeader64)) return ElfErrc::bad_header;
         const auto* hdr = static_cast<const ElfHeader64*>(base);
@@ -44,6 +57,10 @@ export namespace posix {
         }
         if (hdr->ident[4] != 2) return ElfErrc::bad_class;  // 64-bit only (v0)
         if (hdr->ident[5] != 1) return ElfErrc::bad_endian; // little-endian only (v0)
+        if (hdr->phoff > size) return ElfErrc::bad_phoff;
+        if (hdr->phentsize != 0 && hdr->phentsize < sizeof(ElfProgramHeader64)) {
+            return ElfErrc::bad_phentsize;
+        }
         return ElfErrc::ok;
     }
 
@@ -63,6 +80,10 @@ export namespace posix {
         }
         if (!cfg.load_base) {
             return util::unexpected(util::Errc::not_supported);
+        }
+        const auto* hdr = static_cast<const ElfHeader64*>(cfg.image_base);
+        if (hdr->phoff != 0 && hdr->phentsize == 0) {
+            return util::unexpected(util::Errc::invalid_arg);
         }
         return util::unexpected(util::Errc::not_supported);
     }

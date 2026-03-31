@@ -832,12 +832,13 @@ namespace {
         stub.phdr.offset = static_cast<util::u64>(offsetof(ElfStub, payload));
         stub.phdr.vaddr = 0x1000;
         stub.phdr.filesz = sizeof(stub.payload);
-        stub.phdr.memsz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload) + 4;
         stub.payload[0] = 0x11;
         stub.payload[1] = 0x22;
         stub.payload[2] = 0x33;
         stub.payload[3] = 0x44;
         std::array<util::u8, 16> load_buf{};
+        load_buf.fill(0xFF);
         cfg.image_base = &stub;
         cfg.image_size = sizeof(stub);
         cfg.load_base = load_buf.data();
@@ -845,6 +846,7 @@ namespace {
         check_true("elf-header-ptload", ok);
         auto expected_entry = reinterpret_cast<void*>(load_buf.data() + 2);
         check_true("elf-entry-addr", ok.value().entry == expected_entry);
+        check_true("elf-bss-zero", load_buf[4] == 0 && load_buf[5] == 0 && load_buf[6] == 0 && load_buf[7] == 0);
     }
 
     void test_sh_c_redir_and_pipe() noexcept {

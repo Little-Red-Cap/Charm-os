@@ -96,7 +96,9 @@ export namespace posix {
               util::usize MaxPathLen = 128,
               util::usize MaxArgc = 16,
               util::usize MaxEnvp = 16,
-              util::usize MaxArgBytes = 256>
+              util::usize MaxArgBytes = 256,
+              util::usize MaxElfImage = 4096,
+              util::usize MaxElfLoad = 4096>
     class ProcService {
     public:
         using FdTableType = FdTable<MaxFds>;
@@ -166,11 +168,48 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
-            std::string_view name = resolve_name(cfg);
-            if (is_elf_prefix(name)) {
-                const ElfLoadConfig elf_cfg{};
+            if (is_elf_prefixed(cfg)) {
+                auto elf_path = resolve_elf_path(cfg);
+                if (elf_path.empty()) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
+                if (!file_service_) {
+                    return util::unexpected(util::Errc::not_supported);
+                }
+                if (elf_path.size() >= MaxPathLen) {
+                    return util::unexpected(util::Errc::buffer_overflow);
+                }
+                auto entry = file_service_->open(elf_path, O_RDONLY, 0);
+                if (!entry) {
+                    return util::unexpected(entry.error());
+                }
+                const auto close_guard = [&]() noexcept {
+                    if (entry.value().ops) {
+                        (void)entry.value().ops->close(entry.value().ctx);
+                    }
+                };
+                util::usize total = 0;
+                while (total < elf_image_.size()) {
+                    const auto view = MutByteView{elf_image_.data() + total, elf_image_.size() - total};
+                    auto r = entry.value().ops->read(entry.value().ctx, view);
+                    if (!r) {
+                        close_guard();
+                        return util::unexpected(r.error());
+                    }
+                    if (r.value() == 0) break;
+                    total += r.value();
+                }
+                close_guard();
+                if (total == elf_image_.size()) {
+                    return util::unexpected(util::Errc::buffer_overflow);
+                }
+                ElfLoadConfig elf_cfg{};
+                elf_cfg.image_base = elf_image_.data();
+                elf_cfg.image_size = total;
+                elf_cfg.load_base = elf_load_.data();
                 return load_elf_image(elf_cfg);
             }
+            std::string_view name = resolve_name(cfg);
             auto* entry = find_entry(name);
             if (!entry && cfg.path_mode == PathMode::search_path) {
                 entry = find_entry_by_argv0(cfg.argv);
@@ -387,9 +426,36 @@ export namespace posix {
             return name;
         }
 
+        static std::string_view strip_elf_prefix(std::string_view name) noexcept {
+            constexpr std::string_view kPrefix = "elf:";
+            if (name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix) {
+                return name.substr(kPrefix.size());
+            }
+            return name;
+        }
+
         static bool is_elf_prefix(std::string_view name) noexcept {
             constexpr std::string_view kPrefix = "elf:";
             return name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix;
+        }
+
+        static bool is_elf_prefixed(const SpawnConfig& cfg) noexcept {
+            if (cfg.path && is_elf_prefix(std::string_view{cfg.path})) return true;
+            if (!cfg.argv.empty() && cfg.argv[0] != nullptr &&
+                is_elf_prefix(std::string_view{cfg.argv[0]})) {
+                return true;
+            }
+            return false;
+        }
+
+        static std::string_view resolve_elf_path(const SpawnConfig& cfg) noexcept {
+            if (cfg.path && cfg.path[0] != '\0') {
+                return strip_elf_prefix(std::string_view{cfg.path});
+            }
+            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
+                return strip_elf_prefix(std::string_view{cfg.argv[0]});
+            }
+            return {};
         }
 
         static std::string_view envp_path(std::span<const char* const> envp) noexcept {
@@ -511,6 +577,8 @@ export namespace posix {
         FileService<MaxFiles>* file_service_{nullptr};
         int next_pid_{1};
         std::array<char, MaxPathLen> resolved_path_{};
+        std::array<util::u8, MaxElfImage> elf_image_{};
+        std::array<util::u8, MaxElfLoad> elf_load_{};
         ProcHook on_enter_{nullptr};
         ProcHook on_exit_{nullptr};
         void* hook_ctx_{nullptr};
@@ -523,13 +591,17 @@ export namespace posix {
               util::usize MaxPathLen = 128,
               util::usize MaxArgc = 16,
               util::usize MaxEnvp = 16,
-              util::usize MaxArgBytes = 256>
+              util::usize MaxArgBytes = 256,
+              util::usize MaxElfImage = 4096,
+              util::usize MaxElfLoad = 4096>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes,
+                    MaxElfImage, MaxElfLoad>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp,
+                                    MaxArgBytes, MaxElfImage, MaxElfLoad>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

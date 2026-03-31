@@ -105,6 +105,7 @@ export namespace posix {
             const auto* ph = reinterpret_cast<const ElfProgramHeader64*>(base + hdr->phoff);
             bool has_load = false;
             util::u64 min_vaddr = 0;
+            // Policy: map the lowest PT_LOAD vaddr to load_base, entry is offset from that base.
             for (util::u16 i = 0; i < hdr->phnum; ++i) {
                 if (ph[i].type == kElfPtLoad) {
                     has_load = true;

@@ -97,7 +97,7 @@ export namespace ui::gfx::svg {
             const T& operator[](std::size_t idx) const noexcept { return data[idx]; }
         };
 
-        constexpr std::size_t kMaxPoints = 512;
+        constexpr std::size_t kMaxPoints = 1024;
         constexpr std::size_t kMaxContours = 16;
         constexpr std::size_t kMaxIntersections = 64;
 
@@ -134,6 +134,94 @@ export namespace ui::gfx::svg {
                 }
                 cur = p;
                 last_ctrl = c;
+                return true;
+            };
+
+            auto add_cubic = [&](PointF c1, PointF c2, PointF p) noexcept {
+                constexpr int steps = 16;
+                for (int s = 1; s <= steps; ++s) {
+                    const float t = static_cast<float>(s) / static_cast<float>(steps);
+                    const float it = 1.0f - t;
+                    const float it2 = it * it;
+                    const float t2 = t * t;
+                    PointF q{
+                        it2 * it * cur.x + 3.0f * it2 * t * c1.x + 3.0f * it * t2 * c2.x + t2 * t * p.x,
+                        it2 * it * cur.y + 3.0f * it2 * t * c1.y + 3.0f * it * t2 * c2.y + t2 * t * p.y,
+                    };
+                    if (!add_point(q)) return false;
+                }
+                cur = p;
+                last_ctrl = c2;
+                return true;
+            };
+
+            auto add_arc = [&](float rx, float ry, float x_axis_rot, bool large_arc, bool sweep, PointF p) noexcept {
+                if (rx == 0.0f || ry == 0.0f) {
+                    cur = p;
+                    return add_point(cur);
+                }
+
+                const float phi = x_axis_rot * 3.14159265f / 180.0f;
+                const float cos_phi = std::cos(phi);
+                const float sin_phi = std::sin(phi);
+                const float dx2 = (cur.x - p.x) * 0.5f;
+                const float dy2 = (cur.y - p.y) * 0.5f;
+                const float x1p = cos_phi * dx2 + sin_phi * dy2;
+                const float y1p = -sin_phi * dx2 + cos_phi * dy2;
+
+                float rxsq = rx * rx;
+                float rysq = ry * ry;
+                float x1psq = x1p * x1p;
+                float y1psq = y1p * y1p;
+
+                float lambda = x1psq / rxsq + y1psq / rysq;
+                if (lambda > 1.0f) {
+                    const float scale = std::sqrt(lambda);
+                    rx *= scale;
+                    ry *= scale;
+                    rxsq = rx * rx;
+                    rysq = ry * ry;
+                }
+
+                const float sign = (large_arc == sweep) ? -1.0f : 1.0f;
+                const float num = (rxsq * rysq) - (rxsq * y1psq) - (rysq * x1psq);
+                const float den = (rxsq * y1psq) + (rysq * x1psq);
+                float coef = (den == 0.0f) ? 0.0f : sign * std::sqrt(std::max(0.0f, num / den));
+                const float cxp = coef * (rx * y1p / ry);
+                const float cyp = coef * (-ry * x1p / rx);
+
+                const float cx = cos_phi * cxp - sin_phi * cyp + (cur.x + p.x) * 0.5f;
+                const float cy = sin_phi * cxp + cos_phi * cyp + (cur.y + p.y) * 0.5f;
+
+                auto angle = [](float ux, float uy, float vx, float vy) noexcept {
+                    const float dot = ux * vx + uy * vy;
+                    const float det = ux * vy - uy * vx;
+                    return std::atan2(det, dot);
+                };
+
+                const float ux = (x1p - cxp) / rx;
+                const float uy = (y1p - cyp) / ry;
+                const float vx = (-x1p - cxp) / rx;
+                const float vy = (-y1p - cyp) / ry;
+
+                float theta1 = angle(1.0f, 0.0f, ux, uy);
+                float delta = angle(ux, uy, vx, vy);
+                if (!sweep && delta > 0.0f) delta -= 2.0f * 3.14159265f;
+                if (sweep && delta < 0.0f) delta += 2.0f * 3.14159265f;
+
+                const int steps = std::max(8, static_cast<int>(std::ceil(std::abs(delta) / (3.14159265f / 8.0f))));
+                for (int s = 1; s <= steps; ++s) {
+                    const float t = static_cast<float>(s) / static_cast<float>(steps);
+                    const float ang = theta1 + delta * t;
+                    const float cos_ang = std::cos(ang);
+                    const float sin_ang = std::sin(ang);
+                    PointF q{
+                        cx + rx * cos_phi * cos_ang - ry * sin_phi * sin_ang,
+                        cy + rx * sin_phi * cos_ang + ry * cos_phi * sin_ang,
+                    };
+                    if (!add_point(q)) return false;
+                }
+                cur = p;
                 return true;
             };
 
@@ -212,6 +300,43 @@ export namespace ui::gfx::svg {
                         y += cur.y;
                     }
                     if (!add_quad(PointF{x1, y1}, PointF{x, y})) return false;
+                    break;
+                }
+                case 'C':
+                case 'c': {
+                    float x1{}, y1{}, x2{}, y2{}, x{}, y{};
+                    if (!parse_number(d, i, x1) || !parse_number(d, i, y1)
+                        || !parse_number(d, i, x2) || !parse_number(d, i, y2)
+                        || !parse_number(d, i, x) || !parse_number(d, i, y)) {
+                        return false;
+                    }
+                    if (cmd == 'c') {
+                        x1 += cur.x;
+                        y1 += cur.y;
+                        x2 += cur.x;
+                        y2 += cur.y;
+                        x += cur.x;
+                        y += cur.y;
+                    }
+                    if (!add_cubic(PointF{x1, y1}, PointF{x2, y2}, PointF{x, y})) return false;
+                    break;
+                }
+                case 'A':
+                case 'a': {
+                    float rx{}, ry{}, xrot{}, laf{}, sf{}, x{}, y{};
+                    if (!parse_number(d, i, rx) || !parse_number(d, i, ry)
+                        || !parse_number(d, i, xrot) || !parse_number(d, i, laf)
+                        || !parse_number(d, i, sf) || !parse_number(d, i, x)
+                        || !parse_number(d, i, y)) {
+                        return false;
+                    }
+                    if (cmd == 'a') {
+                        x += cur.x;
+                        y += cur.y;
+                    }
+                    const bool large_arc = (laf != 0.0f);
+                    const bool sweep = (sf != 0.0f);
+                    if (!add_arc(std::abs(rx), std::abs(ry), xrot, large_arc, sweep, PointF{x, y})) return false;
                     break;
                 }
                 case 'Z':

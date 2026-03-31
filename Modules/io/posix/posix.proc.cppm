@@ -341,10 +341,11 @@ export namespace posix {
                 (!cfg.argv.empty() && cfg.argv[0] != nullptr) ? std::string_view{cfg.argv[0]} : std::string_view{};
 
             if (cfg.path_mode == PathMode::exact) {
-                return path;
+                return strip_modulex_prefix(path);
             }
 
-            const std::string_view target = !path.empty() ? path : argv0;
+            const std::string_view target = !path.empty() ? strip_modulex_prefix(path)
+                                                          : strip_modulex_prefix(argv0);
             if (target.empty()) return {};
 
             const auto path_list = envp_path(cfg.envp);
@@ -371,6 +372,14 @@ export namespace posix {
                 return std::string_view{resolved_path_};
             }
             return target;
+        }
+
+        static std::string_view strip_modulex_prefix(std::string_view name) noexcept {
+            constexpr std::string_view kPrefix = "modulex:";
+            if (name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix) {
+                return name.substr(kPrefix.size());
+            }
+            return name;
         }
 
         static std::string_view envp_path(std::span<const char* const> envp) noexcept {

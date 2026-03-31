@@ -143,6 +143,27 @@ namespace {
         return 0;
     }
 
+    int sh_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 3 || !argv || !argv[1] || !argv[2]) return 2;
+        if (std::string_view{argv[1]} != "-c") return 2;
+        std::string_view cmd{argv[2]};
+        if (cmd.rfind("echo ", 0) == 0 && cmd.size() > 5) {
+            const std::string_view arg = cmd.substr(5);
+            const char* echo_argv[] = {"echo", arg.data(), nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "echo";
+            cfg.argv = std::span<const char* const>(echo_argv, 2);
+            const int pid = ProgramEnv::api->spawn(cfg);
+            if (pid < 0) return 3;
+            int status = 0;
+            const int wpid = ProgramEnv::api->waitpid(posix::ProcessId{pid}, &status, 0);
+            if (wpid != pid) return 4;
+            return (status >> 8) & 0xff;
+        }
+        return 127;
+    }
+
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
     struct RamFsMount {
         fs::RamFs<BlockSize, MaxFiles, MaxBlocks> fs{};
@@ -549,6 +570,42 @@ namespace {
         check_eq("chain-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         h.unbind_env();
     }
+
+    void test_sh_c_echo() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto reg_echo = h.procs.register_executable("echo", &echo_main);
+        check_true("sh-register-echo", reg_echo);
+        auto reg_sh = h.procs.register_executable("sh", &sh_main);
+        check_true("sh-register-sh", reg_sh);
+
+        int pipefd[2]{-1, -1};
+        check_eq("sh-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("sh-move-read", h.fds.dup2(read_fd, 7));
+            read_fd = 7;
+        }
+        check_true("sh-dup2-out", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"sh", "-c", "echo hi", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("sh-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 16> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("sh-read-len", r >= 3);
+        check_eq("sh-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_programs_smoke_tests() noexcept {
@@ -561,6 +618,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_cat_from_file();
     test_echo_pipe_cat();
     test_echo_pipe_cat_chain();
+    test_sh_c_echo();
     log_line("[posix-smoke] programs end ok");
 }
 

@@ -58,7 +58,7 @@ export namespace player::ui {
     };
 
     inline constexpr int kUiPadding = 18;
-    inline constexpr int kCoverSize = 320;
+    inline constexpr int kCoverSize = 340;
     inline constexpr int kDemoGap = 16;
     inline constexpr int kHeaderTitleOffset = 18;
     inline constexpr int kHeaderSubtitleOffset = 44;

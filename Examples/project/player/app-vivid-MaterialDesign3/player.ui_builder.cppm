@@ -81,9 +81,9 @@ namespace player::ui_builder_detail {
         const int progress_h = 3;
         const int text_col_y = header_top + 12;
         const int text_col_h = title_h + subtitle_h + progress_h + text_gap * 2;
-        const int controls_y = text_col_y + text_col_h + 48;
-        const int control_side = 92;
-        const int control_play = 100;
+        const int controls_y = text_col_y + text_col_h + 58;
+        const int control_side = 104;
+        const int control_play = 120;
         const int control_gap = 16;
         const int controls_w = control_side * 2 + control_play + control_gap * 2;
         const int controls_x = (screen_width - controls_w) / 2;
@@ -422,8 +422,8 @@ namespace player::ui_builder_detail {
         h.clip_value = builder.create_label_static("");
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
-        constexpr int control_side = 92;
-        constexpr int control_play = 100;
+        constexpr int control_side = 104;
+        constexpr int control_play = 120;
         const int small_btn = control_side;
         const int play_btn = control_play;
         const int btn_gap = 16;
@@ -435,20 +435,20 @@ namespace player::ui_builder_detail {
         h.btn_prev = builder.create_button_static("");
         controls_row.add(h.btn_prev, small_btn, small_btn);
         builder.set_button_icon(h.btn_prev, icons.prev);
-        builder.set_button_icon_size(h.btn_prev, 22);
-        apply_control_side_style(builder, h.btn_prev, small_btn, 22);
+        builder.set_button_icon_size(h.btn_prev, 26);
+        apply_control_side_style(builder, h.btn_prev, small_btn, 26);
 
         h.btn_pause = builder.create_button_static("");
         controls_row.add(h.btn_pause, play_btn, play_btn);
         builder.set_button_icon(h.btn_pause, icons.play);
-        builder.set_button_icon_size(h.btn_pause, 26);
-        apply_control_play_style(builder, h.btn_pause, play_btn, 26);
+        builder.set_button_icon_size(h.btn_pause, 32);
+        apply_control_play_style(builder, h.btn_pause, play_btn, 32);
 
         h.btn_next = builder.create_button_static("");
         controls_row.add(h.btn_next, small_btn, small_btn);
         builder.set_button_icon(h.btn_next, icons.next);
-        builder.set_button_icon_size(h.btn_next, 22);
-        apply_control_side_style(builder, h.btn_next, small_btn, 22);
+        builder.set_button_icon_size(h.btn_next, 26);
+        apply_control_side_style(builder, h.btn_next, small_btn, 26);
 
         h.btn_mode = builder.create_button_static("");
         anchor_rect(builder, h.btn_mode, {0, 0, 0, 0});
@@ -482,12 +482,15 @@ namespace player::ui_builder_detail {
         }
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-        h.cover_debug = builder.create_label_static("");
-        apply_time_label_style(builder, h.cover_debug);
-        builder.set_label_align(h.cover_debug, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.cover_debug, {kUiPadding, time_row_y + time_row_h + 4,
-                                             screen_width - kUiPadding * 2, 12});
-        builder.set_hit_testable(h.cover_debug, false);
+        constexpr bool kShowCoverDebugLabel = false;
+        if constexpr (kShowCoverDebugLabel) {
+            h.cover_debug = builder.create_label_static("");
+            apply_time_label_style(builder, h.cover_debug);
+            builder.set_label_align(h.cover_debug, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+            anchor_rect(builder, h.cover_debug, {kUiPadding, time_row_y + time_row_h + 4,
+                                                 screen_width - kUiPadding * 2, 12});
+            builder.set_hit_testable(h.cover_debug, false);
+        }
 #endif
 
         const WidgetHandle now_playing = builder.create_container();

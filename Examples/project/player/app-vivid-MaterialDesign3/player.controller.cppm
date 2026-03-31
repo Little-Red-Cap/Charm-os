@@ -883,9 +883,12 @@ export namespace player {
         void set_time_label(int elapsed_sec) {
             if (elapsed_sec == last_time_sec) return;
             last_time_sec = elapsed_sec;
-            int total = playback.duration_sec();
-            if (preloaded_duration_sec > 0) {
-                total = std::max(total, preloaded_duration_sec);
+            int total = 0;
+            if (track_preloaded) {
+                total = playback.duration_sec();
+                if (preloaded_duration_sec > 0) {
+                    total = std::max(total, preloaded_duration_sec);
+                }
             }
             const int cur_m = elapsed_sec / 60;
             const int cur_s = elapsed_sec % 60;

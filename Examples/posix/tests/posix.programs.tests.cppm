@@ -148,20 +148,80 @@ namespace {
         if (argc < 3 || !argv || !argv[1] || !argv[2]) return 2;
         if (std::string_view{argv[1]} != "-c") return 2;
         std::string_view cmd{argv[2]};
-        if (cmd.rfind("echo ", 0) == 0 && cmd.size() > 5) {
-            const std::string_view arg = cmd.substr(5);
-            const char* echo_argv[] = {"echo", arg.data(), nullptr};
+        if (cmd.rfind("echo ", 0) != 0 || cmd.size() <= 5) return 127;
+
+        auto spawn_echo = [&](std::string_view arg, int stdio_out) noexcept -> int {
+            char arg_buf[64]{};
+            const auto n = arg.size() < (sizeof(arg_buf) - 1) ? arg.size() : (sizeof(arg_buf) - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                arg_buf[i] = arg[i];
+            }
+            const char* echo_argv[] = {"echo", arg_buf, nullptr};
             posix::SpawnConfig cfg{};
             cfg.path = "echo";
             cfg.argv = std::span<const char* const>(echo_argv, 2);
+            cfg.stdio_out = stdio_out;
             const int pid = ProgramEnv::api->spawn(cfg);
-            if (pid < 0) return 3;
+            if (pid < 0) return -1;
             int status = 0;
             const int wpid = ProgramEnv::api->waitpid(posix::ProcessId{pid}, &status, 0);
-            if (wpid != pid) return 4;
+            if (wpid != pid) return -2;
             return (status >> 8) & 0xff;
+        };
+
+        const auto pipe_pos = cmd.find(" | cat");
+        if (pipe_pos != std::string_view::npos) {
+            const std::string_view arg = cmd.substr(5, pipe_pos - 5);
+            int fds[2]{-1, -1};
+            if (ProgramEnv::api->pipe(fds) != 0) return 5;
+            char buf[68]{};
+            const auto n = arg.size() < (sizeof(buf) - 2) ? arg.size() : (sizeof(buf) - 2);
+            for (util::usize i = 0; i < n; ++i) {
+                buf[i] = arg[i];
+            }
+            buf[n] = '\n';
+            const auto w = ProgramEnv::api->write(fds[1], buf, static_cast<util::usize>(n + 1));
+            (void)ProgramEnv::api->close(fds[1]);
+            if (w < 0) return 6;
+            auto r = ProgramEnv::api->read(fds[0], buf, sizeof(buf));
+            if (r < 0) return 7;
+            auto w2 = ProgramEnv::api->write(1, buf, static_cast<util::usize>(r));
+            if (w2 < 0) return 8;
+            return 0;
         }
-        return 127;
+
+        const auto redir_pos = cmd.find(" > ");
+        if (redir_pos != std::string_view::npos) {
+            const std::string_view arg = cmd.substr(5, redir_pos - 5);
+            const std::string_view path = cmd.substr(redir_pos + 3);
+            char path_buf[64]{};
+            util::usize offset = 0;
+            if (!path.empty() && path[0] != '/') {
+                path_buf[0] = '/';
+                offset = 1;
+            }
+            const auto pn = path.size() < (sizeof(path_buf) - 1 - offset)
+                ? path.size()
+                : (sizeof(path_buf) - 1 - offset);
+            for (util::usize i = 0; i < pn; ++i) {
+                path_buf[offset + i] = path[i];
+            }
+            const int fd = ProgramEnv::api->open(path_buf, posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            if (fd < 0) return 9;
+            char buf[68]{};
+            const auto n = arg.size() < (sizeof(buf) - 2) ? arg.size() : (sizeof(buf) - 2);
+            for (util::usize i = 0; i < n; ++i) {
+                buf[i] = arg[i];
+            }
+            buf[n] = '\n';
+            auto w = ProgramEnv::api->write(fd, buf, static_cast<util::usize>(n + 1));
+            (void)ProgramEnv::api->close(fd);
+            return w < 0 ? 10 : 0;
+        }
+
+        const std::string_view arg = cmd.substr(5);
+        const int rc = spawn_echo(arg, -1);
+        return rc < 0 ? 10 : rc;
     }
 
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
@@ -606,6 +666,61 @@ namespace {
         check_eq("sh-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         h.unbind_env();
     }
+
+    void test_sh_c_redir_and_pipe() noexcept {
+        fs::clear_mounts();
+        RamFsMount<64, 32, 64> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("sh2-mount", st);
+
+        Harness h{};
+        h.bind_env();
+        auto reg_echo = h.procs.register_executable("echo", &echo_main);
+        check_true("sh2-register-echo", reg_echo);
+        auto reg_cat = h.procs.register_executable("cat", &cat_main);
+        check_true("sh2-register-cat", reg_cat);
+        auto reg_sh = h.procs.register_executable("sh", &sh_main);
+        check_true("sh2-register-sh", reg_sh);
+
+        const char* argv_redir[] = {"sh", "-c", "echo hi > out.txt", nullptr};
+        posix::SpawnConfig cfg_redir{};
+        cfg_redir.path = "sh";
+        cfg_redir.argv = std::span<const char* const>(argv_redir, 3);
+        auto sp1 = h.procs.spawn(cfg_redir);
+        check_true("sh2-spawn-redir", sp1);
+        (void)h.procs.waitpid(sp1.value().pid, 0);
+
+        int rfd = h.api.open("/out.txt", posix::O_RDONLY, 0);
+        check_true("sh2-open-read", rfd >= 0);
+        std::array<char, 16> buf{};
+        auto r = h.api.read(rfd, buf.data(), buf.size());
+        check_true("sh2-read-len", r >= 3);
+        check_eq("sh2-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+
+        int pipefd[2]{-1, -1};
+        check_eq("sh2-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("sh2-move-read", h.fds.dup2(read_fd, 8));
+            read_fd = 8;
+        }
+        check_true("sh2-dup2-out", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv_pipe[] = {"sh", "-c", "echo hi | cat", nullptr};
+        posix::SpawnConfig cfg_pipe{};
+        cfg_pipe.path = "sh";
+        cfg_pipe.argv = std::span<const char* const>(argv_pipe, 3);
+        auto sp2 = h.procs.spawn(cfg_pipe);
+        check_true("sh2-spawn-pipe", sp2);
+        (void)h.procs.waitpid(sp2.value().pid, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+        auto r2 = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("sh2-read2-len", r2 >= 3);
+        check_eq("sh2-read2-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_programs_smoke_tests() noexcept {
@@ -619,6 +734,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_echo_pipe_cat();
     test_echo_pipe_cat_chain();
     test_sh_c_echo();
+    test_sh_c_redir_and_pipe();
     log_line("[posix-smoke] programs end ok");
 }
 

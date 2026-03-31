@@ -168,7 +168,8 @@ export namespace posix {
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
             std::string_view name = resolve_name(cfg);
             if (is_elf_prefix(name)) {
-                return util::unexpected(util::Errc::not_supported);
+                const ElfLoadConfig elf_cfg{};
+                return load_elf_image(elf_cfg);
             }
             auto* entry = find_entry(name);
             if (!entry && cfg.path_mode == PathMode::search_path) {

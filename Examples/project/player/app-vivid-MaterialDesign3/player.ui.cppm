@@ -479,23 +479,11 @@ export namespace player::ui {
             play.has_shadow_offset_x = true;
             play.shadow_offset_x = 0;
             play.has_shadow_offset_y = true;
-            play.shadow_offset_y = 8;
+            play.shadow_offset_y = 6;
             play.has_shadow_spread = true;
-            play.shadow_spread = 8;
+            play.shadow_spread = 0;
             play.has_shadow_radius = true;
-            play.shadow_radius = 56;
-            play.has_inner_stroke_enabled = true;
-            play.inner_stroke_enabled = true;
-            play.has_inner_stroke_color = true;
-            play.inner_stroke_color = {0, 0, 0, 120};
-            play.has_inner_stroke_width = true;
-            play.inner_stroke_width = 3;
-            play.has_outline_enabled = true;
-            play.outline_enabled = true;
-            play.has_outline_color = true;
-            play.outline_color = {80, 92, 130, 140};
-            play.has_outline_width = true;
-            play.outline_width = 2;
+            play.shadow_radius = 18;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlPlay), play);
         }
 
@@ -551,11 +539,11 @@ export namespace player::ui {
             patch.has_shadow_offset_x = true;
             patch.shadow_offset_x = 0;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 6;
+            patch.shadow_offset_y = 4;
             patch.has_shadow_spread = true;
-            patch.shadow_spread = 8;
+            patch.shadow_spread = 4;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 20;
+            patch.shadow_radius = 18;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ListCard), patch);
         }
 

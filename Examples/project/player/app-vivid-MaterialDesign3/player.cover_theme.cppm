@@ -32,6 +32,7 @@ export namespace player::cover_theme {
         rgba on_backdrop{player::ui::kUiTitle};
         rgba primary{player::ui::kUiListFont};
         rgba on_primary{player::ui::kUiListFont};
+        rgba primary_container{player::ui::kUiButtonBg};
         rgba secondary_container{player::ui::kUiButtonBg};
         rgba on_secondary_container{player::ui::kUiListFont};
         rgba surface_low{player::ui::kUiButtonBg};
@@ -210,6 +211,7 @@ export namespace player::cover_theme {
             .on_backdrop = on_backdrop,
             .primary = rgba_from_argb(scheme.primary),
             .on_primary = rgba_from_argb(scheme.on_primary),
+            .primary_container = primary_container,
             .secondary_container = rgba_from_argb(scheme.secondary_container),
             .on_secondary_container = rgba_from_argb(scheme.on_secondary_container),
             .surface_low = rgba_from_argb(scheme.surface_container_low),

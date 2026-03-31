@@ -545,7 +545,7 @@ namespace player::ui_builder_detail {
                                          layout.top_bar_w - 96, 24});
         const WidgetHandle top_more = builder.create_button_static("");
         anchor_rect(builder, top_more, {layout.top_bar_x + layout.top_bar_w - 40, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(top_more, icons.shuffle);
+        builder.set_button_icon(top_more, icons.more);
         builder.set_button_icon_size(top_more, 14);
         apply_top_bar_button_style(builder, top_more);
         h.now_more = top_more;
@@ -739,12 +739,12 @@ namespace player::ui_builder_detail {
                                             layout.top_bar_w, layout.top_bar_h});
         const WidgetHandle home_settings = builder.create_button_static("");
         anchor_rect(builder, home_settings, {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(home_settings, icons.loop);
+        builder.set_button_icon(home_settings, icons.settings);
         builder.set_button_icon_size(home_settings, 14);
         apply_top_bar_button_style(builder, home_settings);
         const WidgetHandle home_more = builder.create_button_static("");
         anchor_rect(builder, home_more, {layout.top_bar_x + layout.top_bar_w - 92, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(home_more, icons.shuffle);
+        builder.set_button_icon(home_more, icons.more);
         builder.set_button_icon_size(home_more, 14);
         apply_top_bar_button_style(builder, home_more);
 
@@ -788,11 +788,11 @@ namespace player::ui_builder_detail {
 
         h.nav_bar = builder.create_container();
         anchor_rect(builder, h.nav_bar, {0, 0, 0, 0});
-        h.nav_home = builder.create_button_static("Home");
+        h.nav_home = builder.create_button_static("");
         anchor_rect(builder, h.nav_home, {0, 0, 0, 0});
-        h.nav_search = builder.create_button_static("Search");
+        h.nav_search = builder.create_button_static("");
         anchor_rect(builder, h.nav_search, {0, 0, 0, 0});
-        h.nav_library = builder.create_button_static("Library");
+        h.nav_library = builder.create_button_static("");
         anchor_rect(builder, h.nav_library, {0, 0, 0, 0});
 
         const WidgetHandle library = builder.create_container();
@@ -806,7 +806,7 @@ namespace player::ui_builder_detail {
                                          layout.top_bar_w - 56, 24});
         const WidgetHandle lib_settings = builder.create_button_static("");
         anchor_rect(builder, lib_settings, {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(lib_settings, icons.loop);
+        builder.set_button_icon(lib_settings, icons.settings);
         builder.set_button_icon_size(lib_settings, 14);
         apply_top_bar_button_style(builder, lib_settings);
 
@@ -978,6 +978,12 @@ namespace player::ui_builder_detail {
             nav_row.add(h.nav_home, nav_btn_w, layout.nav_h);
             nav_row.add(h.nav_search, nav_btn_w, layout.nav_h);
             nav_row.add(h.nav_library, nav_btn_w, layout.nav_h);
+            builder.set_button_icon(h.nav_home, icons.home);
+            builder.set_button_icon_size(h.nav_home, 18);
+            builder.set_button_icon(h.nav_search, icons.search);
+            builder.set_button_icon_size(h.nav_search, 18);
+            builder.set_button_icon(h.nav_library, icons.folder);
+            builder.set_button_icon_size(h.nav_library, 18);
         }
 
         builder.link(h.root, h.bottom_bar);

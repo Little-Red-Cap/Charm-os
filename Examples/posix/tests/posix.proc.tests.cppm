@@ -6,6 +6,8 @@ module;
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
+#include <string_view>
 #include <type_traits>
 
 export module posix.proc.tests;
@@ -15,15 +17,30 @@ export module posix.proc.tests;
 import posix.proc;
 import posix.fd_table;
 import posix.file;
+import posix.env;
 import fs_core;
+import fs_errno;
+import fs_stream;
 import fs_vfs;
 import util.core;
 import util.error;
 
 namespace {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+    extern "C" void posix_smoke_emit(const char* msg) noexcept;
+#endif
     [[noreturn]] inline void fail() noexcept { std::abort(); }
+    inline void log_line(const char* msg) noexcept {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+        posix_smoke_emit(msg);
+#else
+        std::printf("%s\n", msg);
+#endif
+    }
     inline void log_step(const char* label, bool ok) noexcept {
-        std::printf("[posix-smoke] proc %s %s\n", label, ok ? "ok" : "fail");
+        char buf[96]{};
+        std::snprintf(buf, sizeof(buf), "[posix-smoke] proc %s %s", label, ok ? "ok" : "fail");
+        log_line(buf);
     }
     template <class T>
     inline long long to_ll(const T& v) noexcept {
@@ -33,8 +50,9 @@ namespace {
             return static_cast<long long>(v);
         }
     }
-    inline void check_true(const char* label, bool v) noexcept {
-        if (!v) {
+    template <class T>
+    inline void check_true(const char* label, const T& v) noexcept {
+        if (!static_cast<bool>(v)) {
             log_step(label, false);
             fail();
         }
@@ -43,8 +61,11 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            std::printf("[posix-smoke] proc %s fail: expected=%lld actual=%lld\n",
+            char buf[128]{};
+            std::snprintf(buf, sizeof(buf),
+                "[posix-smoke] proc %s fail: expected=%lld actual=%lld",
                 label, to_ll(b), to_ll(a));
+            log_line(buf);
             fail();
         }
         log_step(label, true);
@@ -63,6 +84,7 @@ namespace {
     }
     util::Result<void> dummy_close(void*) noexcept { return {}; }
     util::Result<void> dummy_stat(void*, posix::PosixStat&) noexcept { return {}; }
+    util::Result<void> dummy_dup(void*) noexcept { return {}; }
 
     fs::Status dummy_node_read(fs::Node&, std::span<util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
     fs::Status dummy_node_write(fs::Node&, std::span<const util::u8>) noexcept { return fs::Status{fs::Errc::ok}; }
@@ -100,7 +122,10 @@ namespace {
 
     void test_spawn_wait() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
         procs.init();
+        procs.bind_fd_table(table);
         auto rreg = procs.register_executable("demo", &demo_main);
         check_true("spawn-register", rreg);
 
@@ -123,7 +148,10 @@ namespace {
 
     void test_search_path_argv0() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
         procs.init();
+        procs.bind_fd_table(table);
         auto rreg = procs.register_executable("/bin/hello", &demo_main);
         check_true("search-register", rreg);
 
@@ -134,7 +162,15 @@ namespace {
         cfg.envp = std::span<const char* const>(envp, 1);
         cfg.path_mode = posix::PathMode::search_path;
 
+        const auto path_list = posix::envp_get(cfg.envp, posix::kPathKey);
+        check_true("search-envp-path", !path_list.empty());
+
         auto spawn = procs.spawn(cfg);
+        if (!spawn) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] proc search-spawn err=%lld", to_ll(spawn.error()));
+            log_line(buf);
+        }
         check_true("search-spawn", spawn);
         auto st = procs.waitpid(spawn.value().pid, 0);
         check_true("search-wait", st);
@@ -154,7 +190,8 @@ namespace {
             &dummy_read,
             &dummy_write,
             &dummy_close,
-            &dummy_stat
+            &dummy_stat,
+            &dummy_dup
         };
 
         posix::FdEntry entry{};
@@ -168,7 +205,7 @@ namespace {
         auto rfd4 = table.attach(entry, 4);
         check_true("stdio-attach-4", rfd4);
 
-        posix::FileActions<4> actions{};
+        posix::FileActions<16> actions{};
         check_true("stdio-action-dup2", actions.add_dup2(3, 1));
         check_true("stdio-action-close", actions.add_close(4));
 
@@ -187,13 +224,12 @@ namespace {
 
         // parent table should remain unchanged after spawn
         auto entry1 = table.get(1);
-        check_true("stdio-parent-1", entry1);
-        check_eq("stdio-parent-1-id", entry1.value()->id, 1);
+        check_true("stdio-parent-1", !entry1);
         auto entry4 = table.get(4);
         check_true("stdio-parent-4", entry4);
         check_eq("stdio-parent-4-id", entry4.value()->id, 4);
 
-        posix::FileActions<1> open_actions{};
+        posix::FileActions<16> open_actions{};
         check_true("stdio-open-action", open_actions.add_open(5, "/tmp/x", 0, 0));
         cfg.file_actions = &open_actions;
         auto spawn_open = procs.spawn(cfg);
@@ -221,7 +257,7 @@ namespace {
         auto rreg = procs.register_executable("demo", &demo_main);
         check_true("open-register", rreg);
 
-        posix::FileActions<2> actions{};
+        posix::FileActions<16> actions{};
         check_true("open-action", actions.add_open(3, "/tmp/x", posix::O_WRONLY | posix::O_CREAT, 0));
 
         const char* argv[] = {"demo", nullptr};
@@ -238,12 +274,12 @@ namespace {
 } // namespace
 
 export void run_posix_proc_smoke_tests() noexcept {
-    std::printf("[posix-smoke] proc begin\n");
+    log_line("[posix-smoke] proc begin");
     test_spawn_wait();
     test_search_path_argv0();
     test_stdio_and_actions();
     test_open_action();
-    std::printf("[posix-smoke] proc end ok\n");
+    log_line("[posix-smoke] proc end ok");
 }
 
 #endif

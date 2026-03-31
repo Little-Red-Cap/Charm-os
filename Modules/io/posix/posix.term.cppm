@@ -57,7 +57,8 @@ export namespace posix {
                 &TermDevice::read,
                 &TermDevice::write,
                 &TermDevice::close,
-                &TermDevice::stat
+                &TermDevice::stat,
+                &TermDevice::dup
             };
             return kOps;
         }
@@ -86,6 +87,8 @@ export namespace posix {
             out.size = 0;
             return {};
         }
+
+        static util::Result<void> dup(void*) noexcept { return {}; }
     };
 
     template <typename RegistryT>

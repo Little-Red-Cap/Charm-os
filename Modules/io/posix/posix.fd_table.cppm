@@ -45,6 +45,7 @@ export namespace posix {
         util::Result<util::usize> (*write)(void* ctx, ByteView) noexcept {nullptr};
         util::Result<void> (*close)(void* ctx) noexcept {nullptr};
         util::Result<void> (*stat)(void* ctx, PosixStat& out) noexcept {nullptr};
+        util::Result<void> (*dup)(void* ctx) noexcept {nullptr};
     };
 
     struct FdEntry {
@@ -101,6 +102,10 @@ export namespace posix {
                 if (!used_[i]) continue;
                 const auto& entry = slots_[i];
                 if (!entry.inheritable) continue;
+                if (entry.ops && entry.ops->dup) {
+                    auto rdup = entry.ops->dup(entry.ctx);
+                    if (!rdup) return util::unexpected(rdup.error());
+                }
                 auto r = out.attach(entry, static_cast<int>(i));
                 if (!r) return util::unexpected(r.error());
             }
@@ -136,6 +141,10 @@ export namespace posix {
             if (used_[static_cast<util::usize>(to)]) {
                 auto r = close(to);
                 if (!r) return r;
+            }
+            if (src->ops && src->ops->dup) {
+                auto rdup = src->ops->dup(src->ctx);
+                if (!rdup) return rdup;
             }
             FdEntry copy = *src;
             copy.id = to;

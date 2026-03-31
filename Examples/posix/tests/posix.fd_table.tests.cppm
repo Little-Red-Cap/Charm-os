@@ -17,9 +17,21 @@ import util.core;
 import util.error;
 
 namespace {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+    extern "C" void posix_smoke_emit(const char* msg) noexcept;
+#endif
     [[noreturn]] inline void fail() noexcept { std::abort(); }
+    inline void log_line(const char* msg) noexcept {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+        posix_smoke_emit(msg);
+#else
+        std::printf("%s\n", msg);
+#endif
+    }
     inline void log_step(const char* label, bool ok) noexcept {
-        std::printf("[posix-smoke] fd_table %s %s\n", label, ok ? "ok" : "fail");
+        char buf[96]{};
+        std::snprintf(buf, sizeof(buf), "[posix-smoke] fd_table %s %s", label, ok ? "ok" : "fail");
+        log_line(buf);
     }
     template <class T>
     inline long long to_ll(const T& v) noexcept {
@@ -29,8 +41,9 @@ namespace {
             return static_cast<long long>(v);
         }
     }
-    inline void check_true(const char* label, bool v) noexcept {
-        if (!v) {
+    template <class T>
+    inline void check_true(const char* label, const T& v) noexcept {
+        if (!static_cast<bool>(v)) {
             log_step(label, false);
             fail();
         }
@@ -39,8 +52,11 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            std::printf("[posix-smoke] fd_table %s fail: expected=%lld actual=%lld\n",
+            char buf[128]{};
+            std::snprintf(buf, sizeof(buf),
+                "[posix-smoke] fd_table %s fail: expected=%lld actual=%lld",
                 label, to_ll(b), to_ll(a));
+            log_line(buf);
             fail();
         }
         log_step(label, true);
@@ -70,6 +86,8 @@ namespace {
         return {};
     }
 
+    util::Result<void> dummy_dup(void*) noexcept { return {}; }
+
     void test_attach_dup_close() noexcept {
         posix::FdTable<4> table{};
         table.init();
@@ -80,7 +98,8 @@ namespace {
             &dummy_read,
             &dummy_write,
             &dummy_close,
-            &dummy_stat
+            &dummy_stat,
+            &dummy_dup
         };
 
         posix::FdEntry e0{};
@@ -126,7 +145,8 @@ namespace {
             &dummy_read,
             &dummy_write,
             &dummy_close,
-            &dummy_stat
+            &dummy_stat,
+            &dummy_dup
         };
 
         posix::FdEntry e0{};
@@ -141,13 +161,51 @@ namespace {
         check_eq("clone-id", clone.value().id, -1);
         check_true("clone-ops", clone.value().ops == &ops);
     }
+
+    void test_attach_errors() noexcept {
+        posix::FdTable<2> table{};
+        table.init();
+
+        posix::FdEntry bad{};
+        auto rbad = table.attach(bad, 0);
+        check_true("err-null-ops", !rbad);
+        check_eq("err-null-ops-code", rbad.error(), util::Errc::invalid_arg);
+
+        posix::FdOps ops{
+            &dummy_read,
+            &dummy_write,
+            &dummy_close,
+            &dummy_stat,
+            &dummy_dup
+        };
+        posix::FdEntry e{};
+        e.kind = posix::FdKind::file;
+        e.ops = &ops;
+
+        auto r0 = table.attach(e, 0);
+        check_true("err-attach-0", r0);
+        auto rexist = table.attach(e, 0);
+        check_true("err-exist", !rexist);
+        check_eq("err-exist-code", rexist.error(), util::Errc::exist);
+
+        auto rbadidx = table.attach(e, 5);
+        check_true("err-bad-index", !rbadidx);
+        check_eq("err-bad-index-code", rbadidx.error(), util::Errc::invalid_arg);
+
+        auto r1 = table.attach(e, 1);
+        check_true("err-attach-1", r1);
+        auto rfull = table.attach(e);
+        check_true("err-full", !rfull);
+        check_eq("err-full-code", rfull.error(), util::Errc::buffer_overflow);
+    }
 } // namespace
 
 export void run_posix_fd_table_smoke_tests() noexcept {
-    std::printf("[posix-smoke] fd_table begin\n");
+    log_line("[posix-smoke] fd_table begin");
     test_attach_dup_close();
     test_clone_entry();
-    std::printf("[posix-smoke] fd_table end ok\n");
+    test_attach_errors();
+    log_line("[posix-smoke] fd_table end ok");
 }
 
 #endif

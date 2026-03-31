@@ -13,7 +13,11 @@ import posix.file;
 import posix.fd_table;
 import posix.pipe;
 import posix.proc;
-import posix.smoke;
+import posix.api.tests;
+import posix.errno.tests;
+import posix.fd_table.tests;
+import posix.pipe.tests;
+import posix.proc.tests;
 import util.core;
 import util.error;
 
@@ -74,12 +78,14 @@ namespace demo {
             out.size = 0;
             return {};
         }
+        static util::Result<void> dup(void*) noexcept { return {}; }
         static const posix::FdOps& ops() noexcept {
             static const posix::FdOps kOps{
                 &StdioDevice::read,
                 &StdioDevice::write,
                 &StdioDevice::close,
-                &StdioDevice::stat
+                &StdioDevice::stat,
+                &StdioDevice::dup
             };
             return kOps;
         }
@@ -273,6 +279,20 @@ namespace demo {
         }
         return true;
     }
+}
+
+extern "C" void posix_smoke_emit(const char* msg) noexcept {
+    demo::log_line(msg);
+}
+
+void run_posix_smoke_tests() noexcept {
+    demo::log_line("[posix-smoke] begin");
+    run_posix_errno_smoke_tests();
+    run_posix_fd_table_smoke_tests();
+    run_posix_pipe_smoke_tests();
+    run_posix_proc_smoke_tests();
+    run_posix_api_smoke_tests();
+    demo::log_line("[posix-smoke] end ok");
 }
 
 int main() {

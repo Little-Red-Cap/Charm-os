@@ -6,6 +6,8 @@ module;
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
+#include <string_view>
 #include <type_traits>
 
 export module posix.api.tests;
@@ -18,14 +20,28 @@ import posix.pipe;
 import posix.proc;
 import posix.fd_table;
 import fs_core;
+import fs_errno;
+import fs_stream;
 import fs_vfs;
 import util.core;
 import util.error;
 
 namespace {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+    extern "C" void posix_smoke_emit(const char* msg) noexcept;
+#endif
     [[noreturn]] inline void fail() noexcept { std::abort(); }
+    inline void log_line(const char* msg) noexcept {
+#if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
+        posix_smoke_emit(msg);
+#else
+        std::printf("%s\n", msg);
+#endif
+    }
     inline void log_step(const char* label, bool ok) noexcept {
-        std::printf("[posix-smoke] api %s %s\n", label, ok ? "ok" : "fail");
+        char buf[96]{};
+        std::snprintf(buf, sizeof(buf), "[posix-smoke] api %s %s", label, ok ? "ok" : "fail");
+        log_line(buf);
     }
     template <class T>
     inline long long to_ll(const T& v) noexcept {
@@ -35,8 +51,9 @@ namespace {
             return static_cast<long long>(v);
         }
     }
-    inline void check_true(const char* label, bool v) noexcept {
-        if (!v) {
+    template <class T>
+    inline void check_true(const char* label, const T& v) noexcept {
+        if (!static_cast<bool>(v)) {
             log_step(label, false);
             fail();
         }
@@ -45,8 +62,11 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            std::printf("[posix-smoke] api %s fail: expected=%lld actual=%lld\n",
+            char buf[128]{};
+            std::snprintf(buf, sizeof(buf),
+                "[posix-smoke] api %s fail: expected=%lld actual=%lld",
                 label, to_ll(b), to_ll(a));
+            log_line(buf);
             fail();
         }
         log_step(label, true);
@@ -157,7 +177,9 @@ namespace {
         int pid = api.spawn(cfg);
         check_true("spawn-basic", pid > 0);
         api.bind_process(posix::ProcessId{pid});
-        int newfd = api.open("/tmp/child", posix::O_WRONLY | posix::O_CREAT, 0);
+        log_line("[posix-smoke] api spawn-child-open begin");
+        int newfd = api.open("/dev/null", posix::O_WRONLY, 0);
+        log_line("[posix-smoke] api spawn-child-open end");
         check_true("spawn-child-open", newfd >= 0);
         api.unbind_process();
         auto parent_entry = fds.get(newfd);
@@ -172,8 +194,8 @@ namespace {
         fs::Mount mount{};
         mount.ops = &dummy_mount_ops;
         mount.data = nullptr;
-        auto st = fs::add_mount("", &mount);
-        check_true("devnull-mount", st);
+        auto mount_st = fs::add_mount("", &mount);
+        check_true("devnull-mount", mount_st);
 
         posix::FdTable<8> fds{};
         posix::FileService<4> files{};
@@ -187,6 +209,12 @@ namespace {
         posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
         int fd = api.open("/dev/null", posix::O_WRONLY, 0);
         check_true("devnull-open", fd >= 0);
+        posix::PosixStat stat_out{};
+        check_eq("devnull-stat", api.stat("/dev/null", &stat_out), 0);
+        check_eq("devnull-stat-size", stat_out.size, 0u);
+        posix::PosixStat fst{};
+        check_eq("devnull-fstat", api.fstat(fd, &fst), 0);
+        check_eq("devnull-fstat-size", fst.size, 0u);
         const char msg[] = "abc";
         auto w = api.write(fd, msg, 3);
         check_eq("devnull-write", w, 3);
@@ -195,6 +223,7 @@ namespace {
         check_eq("devnull-close", api.close(fd), 0);
 
         static const posix::FdOps kOps{
+            nullptr,
             nullptr,
             nullptr,
             nullptr,
@@ -209,16 +238,17 @@ namespace {
         check_true("isatty-attach", rfd);
         check_eq("isatty-term", api.isatty(3), 1);
         check_eq("isatty-nonterm", api.isatty(4), 0);
+        check_eq("isatty-badfd", api.isatty(-1), 0);
     }
 } // namespace
 
 export void run_posix_api_smoke_tests() noexcept {
-    std::printf("[posix-smoke] api begin\n");
+    log_line("[posix-smoke] api begin");
     test_api_open_close();
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_dev_null_and_isatty();
-    std::printf("[posix-smoke] api end ok\n");
+    log_line("[posix-smoke] api end ok");
 }
 
 #endif

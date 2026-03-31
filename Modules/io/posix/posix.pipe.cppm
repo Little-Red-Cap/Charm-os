@@ -82,7 +82,7 @@ export namespace posix {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (buf.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
+                return util::usize{0};
             }
             auto* state = ep->state;
             if (state->buffer.empty()) {
@@ -105,7 +105,7 @@ export namespace posix {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (buf.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
+                return util::usize{0};
             }
             auto* state = ep->state;
             if (state->readers == 0) {
@@ -150,12 +150,27 @@ export namespace posix {
             return {};
         }
 
+        static util::Result<void> dup(void* ctx) noexcept {
+            auto* ep = static_cast<Endpoint*>(ctx);
+            if (!ep || !ep->state) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            auto* state = ep->state;
+            if (ep->is_reader) {
+                ++state->readers;
+            } else {
+                ++state->writers;
+            }
+            return {};
+        }
+
         static const FdOps& ops() noexcept {
             static const FdOps kOps{
                 &PipeImpl::read,
                 &PipeImpl::write,
                 &PipeImpl::close,
-                &PipeImpl::stat
+                &PipeImpl::stat,
+                &PipeImpl::dup
             };
             return kOps;
         }

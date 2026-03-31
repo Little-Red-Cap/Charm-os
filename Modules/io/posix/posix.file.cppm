@@ -133,7 +133,8 @@ export namespace posix {
                     &NullDevice::read,
                     &NullDevice::write,
                     &NullDevice::close,
-                    &NullDevice::stat
+                    &NullDevice::stat,
+                    nullptr
                 };
                 return kOps;
             }
@@ -143,6 +144,7 @@ export namespace posix {
             fs::File file{};
             bool append{false};
             FileService* owner{nullptr};
+            util::u32 refs{1};
         };
 
         static FdFlags flags_to_fd_flags(int flags) noexcept {
@@ -198,6 +200,10 @@ export namespace posix {
             if (!handle || !handle->owner) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
+            if (handle->refs > 1) {
+                --handle->refs;
+                return {};
+            }
             auto st = fs::vfs_close(handle->file);
             if (!st) {
                 return util::unexpected(st.err);
@@ -216,12 +222,22 @@ export namespace posix {
             return {};
         }
 
+        static util::Result<void> dup(void* ctx) noexcept {
+            auto* handle = static_cast<Handle*>(ctx);
+            if (!handle) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            ++handle->refs;
+            return {};
+        }
+
         static const FdOps& ops() noexcept {
             static const FdOps kOps{
                 &FileService::read,
                 &FileService::write,
                 &FileService::close,
-                &FileService::stat
+                &FileService::stat,
+                &FileService::dup
             };
             return kOps;
         }

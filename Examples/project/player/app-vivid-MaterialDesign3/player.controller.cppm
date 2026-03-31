@@ -21,6 +21,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.gfx.color;
+import charm.gfx.image;
 import charm.ui.scene;
 import charm.font.typography;
 import charm.system.clock;
@@ -69,12 +70,18 @@ export namespace player {
         Library,
     };
 
+    enum class ListSort : std::uint8_t {
+        NameAsc,
+        NameDesc,
+    };
+
     struct UiHandles {
         WidgetHandle page_now_playing{};
         WidgetHandle page_library{};
         WidgetHandle root{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
+        WidgetHandle now_lyrics{};
         WidgetHandle now_backdrop{};
         WidgetHandle cover{};
         WidgetHandle cover_left{};
@@ -103,6 +110,8 @@ export namespace player {
         WidgetHandle clip_value{};
         WidgetHandle list{};
         WidgetHandle list_title{};
+        WidgetHandle list_path{};
+        WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
         WidgetHandle mode_hint{};
@@ -160,6 +169,16 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        ListSort list_sort{ListSort::NameAsc};
+        std::vector<int> list_order{};
+        std::vector<FixedString<260>> list_cover_paths{};
+        struct ListCoverCacheEntry {
+            FixedString<260> path{};
+            CoverImage image{};
+        };
+        static constexpr std::size_t kListCoverCache = 12;
+        std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
+        std::size_t list_cover_next{0};
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
@@ -176,6 +195,12 @@ export namespace player {
             return v == "flac" || v == "mp3" || v == "wav" || v == "aac"
                 || v == "m4a" || v == "ogg" || v == "opus" || v == "ape"
                 || v == "alac" || v == "wv";
+        }
+
+        static bool is_audio_path(std::string_view path) noexcept {
+            const auto dot = path.find_last_of('.');
+            if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
+            return is_audio_extension(path.substr(dot + 1));
         }
 
         static void strip_audio_extension(FixedString<192>& text) {
@@ -236,8 +261,7 @@ export namespace player {
             }
             char buf[192]{};
             std::snprintf(buf, sizeof(buf),
-                          "avg %u,%u,%u seed %u,%u,%u back %u,%u,%u prim %u,%u,%u",
-                          cover_theme.avg_raw.r, cover_theme.avg_raw.g, cover_theme.avg_raw.b,
+                          "seed %u,%u,%u back %u,%u,%u prim %u,%u,%u",
                           cover_theme.seed_raw.r, cover_theme.seed_raw.g, cover_theme.seed_raw.b,
                           cover_theme.backdrop.r, cover_theme.backdrop.g, cover_theme.backdrop.b,
                           cover_theme.primary.r, cover_theme.primary.g, cover_theme.primary.b);
@@ -279,8 +303,8 @@ export namespace player {
             access.set_style_override(handles.now_backdrop, patch);
 
             const rgba title = theme.on_backdrop;
-            const rgba subtitle = blend_on(theme.on_surface_variant, theme.backdrop, 210);
-            const rgba time = blend_on(theme.on_surface_variant, theme.backdrop, 190);
+            const rgba subtitle = blend_on(theme.on_backdrop, theme.backdrop, 200);
+            const rgba time = blend_on(theme.on_backdrop, theme.backdrop, 170);
 
             auto apply_label = [&](WidgetHandle h, const rgba& color) {
                 if (!h) return;
@@ -297,18 +321,18 @@ export namespace player {
             if (handles.info_tag) {
                 StylePatch tag{};
                 tag.has_bg_color = true;
-                tag.bg_color = theme.surface_low;
+                tag.bg_color = theme.surface_high;
                 tag.has_border_color = true;
-                tag.border_color = with_alpha(theme.outline_variant, 160);
+                tag.border_color = with_alpha(theme.outline_variant, 90);
                 tag.has_font_color = true;
-                tag.font_color = theme.on_surface;
+                tag.font_color = blend_on(theme.on_backdrop, theme.surface_high, 200);
                 access.set_style_override(handles.info_tag, tag);
             }
 
             if (handles.progress) {
                 StylePatch prog{};
                 prog.has_border_color = true;
-                prog.border_color = with_alpha(theme.surface_low, 120);
+                prog.border_color = with_alpha(theme.on_backdrop, 70);
                 prog.has_accent_color = true;
                 prog.accent_color = theme.primary;
                 access.set_style_override(handles.progress, prog);
@@ -325,14 +349,19 @@ export namespace player {
                 btn.font_color = font;
                 access.set_style_override(h, btn);
             };
-            const rgba side_bg = blend_on(theme.surface_high, theme.backdrop, 140);
-            const rgba side_border = blend_on(theme.outline_variant, theme.backdrop, 120);
-            const rgba side_font = blend_on(theme.on_surface, theme.backdrop, 220);
-            apply_btn(handles.btn_prev, side_bg, side_border, side_font);
-            apply_btn(handles.btn_next, side_bg, side_border, side_font);
-            apply_btn(handles.btn_mode, side_bg, side_border, side_font);
-            apply_btn(handles.now_back, side_bg, side_border, side_font);
-            apply_btn(handles.now_more, side_bg, side_border, side_font);
+            const rgba top_bg = blend_on(theme.surface_high, theme.backdrop, 140);
+            const rgba top_border = blend_on(theme.outline_variant, theme.backdrop, 120);
+            const rgba top_font = blend_on(theme.on_surface, theme.backdrop, 220);
+            apply_btn(handles.now_back, top_bg, top_border, top_font);
+            apply_btn(handles.now_more, top_bg, top_border, top_font);
+            apply_btn(handles.now_lyrics, top_bg, top_border, top_font);
+
+            const rgba control_bg = theme.secondary_container;
+            const rgba control_border = with_alpha(theme.secondary_container, 0);
+            const rgba control_font = theme.on_secondary_container;
+            apply_btn(handles.btn_prev, control_bg, control_border, control_font);
+            apply_btn(handles.btn_next, control_bg, control_border, control_font);
+            apply_btn(handles.btn_mode, control_bg, control_border, control_font);
             apply_btn(handles.btn_pause, theme.primary, theme.primary, theme.on_primary);
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
@@ -341,10 +370,17 @@ export namespace player {
         }
 
         void cycle_cover_theme() noexcept {
-            if (cover_theme_mode == cover_theme::CoverThemeMode::primary_container) {
+            switch (cover_theme_mode) {
+            case cover_theme::CoverThemeMode::primary_container:
                 cover_theme_mode = cover_theme::CoverThemeMode::surface_container_high;
-            } else {
+                break;
+            case cover_theme::CoverThemeMode::surface_container_high:
+                cover_theme_mode = cover_theme::CoverThemeMode::seed_backdrop;
+                break;
+            case cover_theme::CoverThemeMode::seed_backdrop:
+            default:
                 cover_theme_mode = cover_theme::CoverThemeMode::primary_container;
+                break;
             }
             if (!cover_image.path.empty()) {
                 cover_theme = derive_cover_theme(cover_image);
@@ -400,6 +436,8 @@ export namespace player {
             ::ui::scene::TextSlotId info_tag{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId mode_hint{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_title{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId list_path{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId list_sort{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId list_hint{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId btn_pause{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId bottom_title{::ui::scene::kInvalidTextSlot};
@@ -616,6 +654,8 @@ export namespace player {
             text_slots.info_tag = alloc();
             text_slots.mode_hint = alloc();
             text_slots.list_title = alloc();
+            text_slots.list_path = alloc();
+            text_slots.list_sort = alloc();
             text_slots.list_hint = alloc();
             text_slots.btn_pause = alloc();
             text_slots.cover_debug = alloc();
@@ -943,8 +983,41 @@ export namespace player {
 
         void refresh_library() {
             update_list_title();
+            update_list_path();
+            update_list_sort_label();
             update_list_placeholder();
             update_debug_overlay();
+        }
+
+        static int compare_ci(std::string_view a, std::string_view b) noexcept {
+            const std::size_t n = std::min(a.size(), b.size());
+            for (std::size_t i = 0; i < n; ++i) {
+                const char ca = static_cast<char>(std::tolower(static_cast<unsigned char>(a[i])));
+                const char cb = static_cast<char>(std::tolower(static_cast<unsigned char>(b[i])));
+                if (ca < cb) return -1;
+                if (ca > cb) return 1;
+            }
+            if (a.size() < b.size()) return -1;
+            if (a.size() > b.size()) return 1;
+            return 0;
+        }
+
+        int list_index_to_track(int list_index) const noexcept {
+            if (list_index < 0) return -1;
+            if (list_order.empty()) return list_index;
+            if (list_index >= static_cast<int>(list_order.size())) return -1;
+            return list_order[static_cast<std::size_t>(list_index)];
+        }
+
+        int track_index_to_list(int track_index) const noexcept {
+            if (track_index < 0) return -1;
+            if (list_order.empty()) return track_index;
+            for (std::size_t i = 0; i < list_order.size(); ++i) {
+                if (list_order[i] == track_index) {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
         }
 
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
@@ -952,8 +1025,117 @@ export namespace player {
             if (!self) return "";
             const auto* labels = self->storage.track_labels;
             if (!labels) return "";
-            if (index >= labels->size()) return "";
-            return (*labels)[index].c_str();
+            const int track_index = self->list_index_to_track(static_cast<int>(index));
+            if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return "";
+            return (*labels)[static_cast<std::size_t>(track_index)].c_str();
+        }
+
+        static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
+            if (!self) return ::ui::scene::invalid_image_id();
+            const auto* tracks = self->storage.tracks;
+            if (!tracks) return ::ui::scene::invalid_image_id();
+            const int track_index = self->list_index_to_track(static_cast<int>(index));
+            if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                return ::ui::scene::invalid_image_id();
+            }
+            const auto& path = (*tracks)[static_cast<std::size_t>(track_index)];
+            if (!is_audio_path(path.view())) {
+                return self->icons.folder;
+            }
+            std::string_view cover_path{};
+            if (track_index < static_cast<int>(self->list_cover_paths.size())) {
+                cover_path = self->list_cover_paths[static_cast<std::size_t>(track_index)].view();
+            }
+            const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
+            if (::ui::scene::image_id_valid(cover_id)) return cover_id;
+            return self->icons.play;
+        }
+
+        void clear_list_cover_cache() {
+            for (auto& entry : list_cover_cache) {
+                if (::ui::scene::image_id_valid(entry.image.image_id)) {
+                    release_cover_image(entry.image);
+                }
+                entry.path.clear();
+            }
+            list_cover_next = 0;
+        }
+
+        bool resolve_cover_path_for_track(std::string_view track_path, FixedString<260>& out_path) const {
+            if (track_path.empty()) return false;
+            FixedString<260> folder_path;
+            bool has_folder = false;
+            if (cover_strategy == CoverStrategy::folder_only
+                || cover_strategy == CoverStrategy::folder_first) {
+                has_folder = fs_utils::find_cover_for_track(track_path, folder_path);
+            }
+            switch (cover_strategy) {
+            case CoverStrategy::embedded_only:
+                out_path.assign(track_path);
+                break;
+            case CoverStrategy::folder_only:
+                out_path.assign(has_folder ? folder_path.view() : "");
+                break;
+            case CoverStrategy::folder_first:
+                out_path.assign(has_folder ? folder_path.view() : track_path);
+                break;
+            case CoverStrategy::embedded_first:
+            default:
+                out_path.assign(track_path);
+                break;
+            }
+            return !out_path.empty();
+        }
+
+        void build_list_cover_paths() {
+            list_cover_paths.clear();
+            const auto* tracks = storage.tracks;
+            if (!tracks) return;
+            const std::size_t count = tracks->size();
+            list_cover_paths.reserve(count);
+            for (std::size_t i = 0; i < count; ++i) {
+                FixedString<260> cover_path;
+                const auto& track_path = (*tracks)[i];
+                cover_path.assign(track_path.view());
+                list_cover_paths.push_back(cover_path);
+            }
+        }
+
+        ::ui::scene::ImageId resolve_list_cover_icon(std::string_view track_path,
+                                                     std::string_view cover_path_view) {
+            FixedString<260> cover_path;
+            if (!cover_path_view.empty()) {
+                cover_path.assign(cover_path_view);
+            } else if (!track_path.empty()) {
+                cover_path.assign(track_path);
+            } else {
+                return ::ui::scene::invalid_image_id();
+            }
+            if (cover_image.path == cover_path.view()
+                && ::ui::scene::image_id_valid(cover_image.image_id)) {
+                return cover_image.image_id;
+            }
+            for (auto& entry : list_cover_cache) {
+                if (entry.path.view() == cover_path.view()
+                    && ::ui::scene::image_id_valid(entry.image.image_id)) {
+                    return entry.image.image_id;
+                }
+            }
+            if (::ui::gfx::image_registry_locked()) {
+                return ::ui::scene::invalid_image_id();
+            }
+            auto& slot = list_cover_cache[list_cover_next % kListCoverCache];
+            list_cover_next += 1;
+            if (::ui::scene::image_id_valid(slot.image.image_id)) {
+                release_cover_image(slot.image);
+            }
+            slot.path.assign(cover_path.view());
+            if (load_cover_image(cover_path.view(), slot.image)) {
+                return slot.image.image_id;
+            }
+            slot.path.clear();
+            return ::ui::scene::invalid_image_id();
         }
 
         void refresh_track_labels() {
@@ -964,14 +1146,36 @@ export namespace player {
             }
         }
 
+        void rebuild_list_order() {
+            list_order.clear();
+            const auto* labels = storage.track_labels;
+            if (!labels) return;
+            const std::size_t count = labels->size();
+            list_order.reserve(count);
+            for (std::size_t i = 0; i < count; ++i) {
+                list_order.push_back(static_cast<int>(i));
+            }
+            if (count <= 1) return;
+            auto cmp = [&](int a, int b) noexcept {
+                const auto& left = (*labels)[static_cast<std::size_t>(a)];
+                const auto& right = (*labels)[static_cast<std::size_t>(b)];
+                const int res = compare_ci(left.view(), right.view());
+                return (list_sort == ListSort::NameAsc) ? (res < 0) : (res > 0);
+            };
+            std::sort(list_order.begin(), list_order.end(), cmp);
+        }
+
         void sync_list_selection() {
             if (!access.valid() || !handles.list) return;
             const auto* labels = storage.track_labels;
             if (!labels) return;
             if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
             ignore_list_select = true;
-            access.set_list_view_selected(handles.list, track_index);
-            last_list_selected = track_index;
+            const int list_index = track_index_to_list(track_index);
+            if (list_index >= 0) {
+                access.set_list_view_selected(handles.list, list_index);
+                last_list_selected = list_index;
+            }
             ignore_list_select = false;
         }
 
@@ -979,18 +1183,22 @@ export namespace player {
             if (!access.valid() || !handles.list) return;
             const auto* tracks = storage.tracks;
             const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            rebuild_list_order();
             access.set_list_view_source(handles.list,
                                          static_cast<std::uint16_t>(count),
                                          this,
                                          &PlayerController::list_view_text);
-            access.set_list_row_height(handles.list, 34);
-            access.set_scroll_step(handles.list, 34);
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 24);
+            access.set_list_row_height(handles.list, 44);
+            access.set_scroll_step(handles.list, 44);
             if (count > 0) {
                 sync_list_selection();
             } else {
                 last_list_selected = -1;
             }
             update_list_title();
+            update_list_path();
+            update_list_sort_label();
             update_list_placeholder();
         }
 
@@ -998,7 +1206,9 @@ export namespace player {
             storage = view;
             fs_ready = storage.fs_ready;
             mount_status.assign(storage.mount_status);
+            clear_list_cover_cache();
             refresh_track_labels();
+            build_list_cover_paths();
             if (!storage.status.empty()) { set_status(storage.status.data()); }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             if (player::font_cache::ready()) {
@@ -1032,6 +1242,31 @@ export namespace player {
                 set_label_slot(handles.list_title, text_slots.list_title, "Tracks");
             }
             last_list_count = count;
+        }
+
+        void update_list_path() {
+            if (!access.valid() || !handles.list_path) return;
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) {
+                set_label_slot(handles.list_path, text_slots.list_path, "/");
+                return;
+            }
+            bool all_music = true;
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                const auto& path = (*tracks)[i];
+                if (!path.view().starts_with("/music")) {
+                    all_music = false;
+                    break;
+                }
+            }
+            const char* label = all_music ? "/music" : "/";
+            set_label_slot(handles.list_path, text_slots.list_path, label);
+        }
+
+        void update_list_sort_label() {
+            if (!access.valid() || !handles.list_sort) return;
+            const char* label = (list_sort == ListSort::NameAsc) ? "Sort A-Z" : "Sort Z-A";
+            set_label_slot(handles.list_sort, text_slots.list_sort, label);
         }
 
         void update_list_placeholder() {
@@ -1400,7 +1635,11 @@ export namespace player {
                 cover_embedded_path.assign(vfs_path.view());
                 cover_folder_path.clear();
                 FixedString<260> folder_path;
-                const bool has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
+                bool has_folder = false;
+                if (cover_strategy == CoverStrategy::folder_only
+                    || cover_strategy == CoverStrategy::folder_first) {
+                    has_folder = fs_utils::find_cover_for_track(vfs_path.view(), folder_path);
+                }
                 cover_folder_path.assign(folder_path.view());
                 cover_ready = true;
                 switch (cover_strategy) {
@@ -1494,6 +1733,11 @@ export namespace player {
             set_play_mode((play_mode + 1) % 3);
         }
 
+        void cycle_list_sort() {
+            list_sort = (list_sort == ListSort::NameAsc) ? ListSort::NameDesc : ListSort::NameAsc;
+            refresh_list_view();
+        }
+
         void focus_list() {
             if (!access.valid() || !handles.list) return;
             access.set_focused(handles.list, true);
@@ -1515,8 +1759,9 @@ export namespace player {
         void nav_list_activate() {
             if (!access.valid() || !handles.list) return;
             const int selected = access.list_view_selected(handles.list);
-            if (selected >= 0) {
-                select_track_index(selected);
+            const int track_idx = list_index_to_track(selected);
+            if (track_idx >= 0) {
+                select_track_index(track_idx);
             }
         }
 
@@ -1655,6 +1900,8 @@ export namespace player {
                             set_page(PlayerPage::NowPlaying);
                         } else if (target == handles.nav_library) {
                             set_page(PlayerPage::Library);
+                        } else if (target == handles.list_sort) {
+                            cycle_list_sort();
                         }
                     }
                 }
@@ -1665,8 +1912,9 @@ export namespace player {
                 if (selected >= 0 && selected != last_list_selected) {
                     last_list_selected = selected;
                     if (!ignore_list_select) {
+                        const int track_idx = list_index_to_track(selected);
                         actions.select = true;
-                        actions.select_index = selected;
+                        actions.select_index = track_idx;
                     }
                 }
             }

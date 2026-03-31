@@ -16,6 +16,7 @@ export namespace player::cover_theme {
     enum class CoverThemeMode : std::uint8_t {
         primary_container,
         surface_container_high,
+        seed_backdrop,
     };
 
     struct CoverThemeConfig {
@@ -185,9 +186,21 @@ export namespace player::cover_theme {
 
         const rgba primary_container = rgba_from_argb(scheme.primary_container);
         const rgba surface_high = rgba_from_argb(scheme.surface_container_high);
+        const rgba seed_backdrop = rgba_from_argb(
+            (seed_result.force_neutral)
+                ? alg::scheme_surface_container_argb(seed_result.seed_argb,
+                                                     cfg.is_dark,
+                                                     true,
+                                                     cfg.palette_style,
+                                                     true)
+                : alg::tone_map_argb(seed_result.seed_argb,
+                                     cfg.is_dark ? 24.0 : 92.0,
+                                     48.0));
         const rgba backdrop = (cfg.mode == CoverThemeMode::surface_container_high)
             ? surface_high
-            : primary_container;
+            : (cfg.mode == CoverThemeMode::seed_backdrop)
+                ? seed_backdrop
+                : primary_container;
         const rgba on_backdrop = (cfg.mode == CoverThemeMode::surface_container_high)
             ? rgba_from_argb(scheme.on_surface)
             : rgba_from_argb(scheme.on_primary_container);
@@ -211,14 +224,34 @@ export namespace player::cover_theme {
         };
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-        const auto hct = alg::seed_hct_metrics(seed_result.seed_argb);
+        const auto debug = alg::extract_seed_debug(samples);
+        auto print_hct = [&](const char* label, std::uint32_t argb) {
+            const auto hct = alg::seed_hct_metrics(argb);
+            const auto rgb = rgba_from_argb(argb);
+            std::printf("[cover] %s=%u,%u,%u hct=%.1f/%.1f/%.1f\n",
+                        label, rgb.r, rgb.g, rgb.b, hct.hue, hct.chroma, hct.tone);
+        };
         std::printf("[cover] avg=%u,%u,%u seed_raw=%u,%u,%u surface=%u,%u,%u neutral=%d\n",
                     avg_r, avg_g, avg_b,
                     out.seed_raw.r, out.seed_raw.g, out.seed_raw.b,
                     out.backdrop.r, out.backdrop.g, out.backdrop.b,
                     seed_result.force_neutral ? 1 : 0);
-        std::printf("[cover] hct hue=%.1f chroma=%.1f tone=%.1f\n",
-                    hct.hue, hct.chroma, hct.tone);
+        print_hct("avg", debug.avg_argb);
+        print_hct("seed", debug.seed_argb);
+        std::printf("[cover] quantized_top=%zu scored_top=%zu\n",
+                    debug.quantized_top.size(), debug.scored_top.size());
+        for (std::size_t i = 0; i < debug.quantized_top.size(); ++i) {
+            const auto entry = debug.quantized_top[i];
+            char tag[32]{};
+            std::snprintf(tag, sizeof(tag), "q%zu pop=%u", i,
+                          static_cast<unsigned>(entry.population));
+            print_hct(tag, entry.argb);
+        }
+        for (std::size_t i = 0; i < debug.scored_top.size(); ++i) {
+            char tag[24]{};
+            std::snprintf(tag, sizeof(tag), "s%zu", i);
+            print_hct(tag, debug.scored_top[i]);
+        }
 #endif
         (void)avg_argb;
         return out;

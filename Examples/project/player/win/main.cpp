@@ -167,6 +167,7 @@ namespace {
         player::PlayerPage screenshot_page{player::PlayerPage::Library};
         bool screenshot_verbose{false};
         int screenshot_wait_frames{0};
+        bool screenshot_exit{false};
     };
 
     struct UiCiResult {
@@ -402,6 +403,12 @@ namespace {
                 }
                 state->screenshot_gif_path.clear();
             }
+            if (state->screenshot_exit
+                && state->screenshot_path.empty()
+                && state->screenshot_gif_path.empty()
+                && state->running) {
+                *state->running = false;
+            }
         }
     }
 
@@ -518,6 +525,7 @@ int main(int argc, char** argv) {
     std::string screenshot_gif_path{};
     bool screenshot_verbose = false;
     int screenshot_wait_frames = 0;
+    bool screenshot_exit = false;
     player::PlayerPage start_page = player::PlayerPage::Library;
     bool start_page_set = false;
     bool ui_ci = false;
@@ -547,6 +555,8 @@ int main(int argc, char** argv) {
             }
         } else if (arg == "--screenshot-verbose") {
             screenshot_verbose = true;
+        } else if (arg == "--screenshot-exit") {
+            screenshot_exit = true;
         } else if (arg.rfind("--screenshot-frame=", 0) == 0) {
             const std::string_view value = arg.substr(19);
             screenshot_wait_frames = std::max(0, std::atoi(std::string(value).c_str()));
@@ -631,7 +641,8 @@ int main(int argc, char** argv) {
         .screenshot_gif_path = std::move(screenshot_gif_path),
         .screenshot_page = start_page,
         .screenshot_verbose = screenshot_verbose,
-        .screenshot_wait_frames = screenshot_wait_frames
+        .screenshot_wait_frames = screenshot_wait_frames,
+        .screenshot_exit = screenshot_exit
     };
     charm::system::RunLoop<4> loop{};
     loop.bind_clock(g_clock);

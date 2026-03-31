@@ -65,6 +65,20 @@ export namespace alg {
         bool force_neutral{false};
     };
 
+    struct QuantizedColor {
+        std::uint32_t argb{0xFF000000u};
+        std::uint32_t population{0};
+    };
+
+    struct SeedDebug {
+        std::uint32_t avg_argb{0xFF000000u};
+        std::uint32_t fallback_argb{0xFF000000u};
+        std::vector<QuantizedColor> quantized_top{};
+        std::vector<std::uint32_t> scored_top{};
+        std::uint32_t seed_argb{0xFF000000u};
+        bool force_neutral{false};
+    };
+
     namespace detail {
         using material_color_utilities::Argb;
 
@@ -296,6 +310,60 @@ export namespace alg {
         }
         result.force_neutral = detail::should_use_neutral_scheme(result.seed_argb);
         return result;
+    }
+
+    inline SeedDebug extract_seed_debug(
+        std::span<const std::uint32_t> pixels,
+        const ColorExtractionConfig& config = {},
+        std::size_t max_top = 5) {
+        SeedDebug out{};
+        if (pixels.empty()) return out;
+
+        std::vector<detail::Argb> input_pixels;
+        input_pixels.reserve(pixels.size());
+        for (const auto argb : pixels) {
+            input_pixels.push_back(argb);
+        }
+
+        const auto avg = detail::average_color_argb(pixels);
+        out.avg_argb = avg;
+        out.fallback_argb = avg;
+
+        const auto quantized =
+            material_color_utilities::QuantizeCelebi(input_pixels, config.quantizer_max_colors);
+        const auto& colors = quantized.color_to_count;
+
+        std::vector<QuantizedColor> ranked;
+        ranked.reserve(colors.size());
+        for (const auto& [argb, population] : colors) {
+            if (population == 0) continue;
+            ranked.push_back({argb, population});
+        }
+        std::sort(ranked.begin(), ranked.end(),
+                  [](const QuantizedColor& a, const QuantizedColor& b) {
+                      return a.population > b.population;
+                  });
+        if (max_top == 0) max_top = 1;
+        const std::size_t keep = std::min(max_top, ranked.size());
+        out.quantized_top.assign(ranked.begin(), ranked.begin() + keep);
+
+        const bool mostly_neutral = detail::is_mostly_neutral_artwork(colors);
+        if (mostly_neutral && detail::is_argb_near_grayscale(avg)) {
+            out.seed_argb = avg;
+            out.force_neutral = true;
+            return out;
+        }
+
+        auto scored = detail::score_quantized_colors(colors, config.scoring, avg);
+        if (!scored.empty()) {
+            if (scored.size() > keep) scored.resize(keep);
+            out.scored_top.assign(scored.begin(), scored.end());
+            out.seed_argb = scored.front();
+        } else {
+            out.seed_argb = avg;
+        }
+        out.force_neutral = detail::should_use_neutral_scheme(out.seed_argb);
+        return out;
     }
 
     inline std::uint32_t extract_seed_argb(

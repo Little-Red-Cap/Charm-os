@@ -19,6 +19,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import module_core;
 import fs_core;
 import fs_errno;
 import fs_ramfs;
@@ -682,6 +683,29 @@ namespace {
         h.unbind_env();
     }
 
+    void test_modulex_register() noexcept {
+        Harness h{};
+        h.bind_env();
+
+        struct ModuleXStub {
+            modulex::ImageHeader hdr{};
+            std::array<std::byte, 4> text{};
+        };
+
+        ModuleXStub img{};
+        img.hdr.magic = modulex::k_magic;
+        img.hdr.version = modulex::k_version;
+        img.hdr.text_offset = static_cast<util::u32>(offsetof(ModuleXStub, text));
+        img.hdr.text_size = static_cast<util::u32>(img.text.size());
+        img.hdr.entry_offset = 0;
+        img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
+
+        const posix::ModuleXLoadConfig cfg{};
+        auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);
+        check_true("modulex-register", rreg);
+        h.unbind_env();
+    }
+
     void test_sh_c_redir_and_pipe() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -744,6 +768,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_argv_dump();
     test_stderr_demo();
     test_exit_code();
+    test_modulex_register();
     test_echo_to_file();
     test_cat_from_file();
     test_echo_pipe_cat();

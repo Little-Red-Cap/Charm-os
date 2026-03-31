@@ -11,6 +11,7 @@ import init.node;
 import posix.env;
 import posix.fd_table;
 import posix.file;
+import posix.program_image;
 import util.core;
 import util.error;
 
@@ -81,14 +82,18 @@ export namespace posix {
         int code{0};
     };
 
-    using MainEntry = int (*)(int, char**);
-
     struct ExecEntry {
-        std::string_view name{};
-        MainEntry entry{nullptr};
+        ProgramImage image{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs,
+              util::usize MaxExecs,
+              util::usize MaxFds,
+              util::usize MaxFiles,
+              util::usize MaxPathLen = 128,
+              util::usize MaxArgc = 16,
+              util::usize MaxEnvp = 16,
+              util::usize MaxArgBytes = 256>
     class ProcService {
     public:
         using FdTableType = FdTable<MaxFds>;
@@ -108,19 +113,35 @@ export namespace posix {
             file_service_ = &file_service;
         }
 
-        util::Result<void> register_executable(std::string_view name, MainEntry entry) noexcept {
+        util::Result<void> register_executable(std::string_view name, ImageEntryV0 entry) noexcept {
             if (name.empty() || entry == nullptr) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             for (util::usize i = 0; i < exec_count_; ++i) {
-                if (execs_[i].name.compare(name) == 0) {
+                if (execs_[i].image.name.compare(name) == 0) {
                     return util::unexpected(util::Errc::exist);
                 }
             }
             if (exec_count_ >= MaxExecs) {
                 return util::unexpected(util::Errc::buffer_overflow);
             }
-            execs_[exec_count_++] = ExecEntry{name, entry};
+            execs_[exec_count_++] = ExecEntry{make_registered_image(name, entry)};
+            return {};
+        }
+
+        util::Result<void> register_image(const ProgramImage& image) noexcept {
+            if (image.name.empty()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < exec_count_; ++i) {
+                if (execs_[i].image.name.compare(image.name) == 0) {
+                    return util::unexpected(util::Errc::exist);
+                }
+            }
+            if (exec_count_ >= MaxExecs) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            execs_[exec_count_++] = ExecEntry{image};
             return {};
         }
 
@@ -157,11 +178,12 @@ export namespace posix {
             proc.exit_code = 0;
             proc.fds = child_table.value();
 
-            int argc = static_cast<int>(cfg.argv.size());
-            char** argv = const_cast<char**>(cfg.argv.data());
-            const int code = entry->entry(argc, argv);
-
-            proc.exit_code = code;
+            const auto code = start_image(entry->image, cfg);
+            if (!code) {
+                release_proc(proc);
+                return util::unexpected(code.error());
+            }
+            proc.exit_code = code.value();
             proc.exited = true;
             return SpawnResult{ProcessId{pid}};
         }
@@ -272,7 +294,7 @@ export namespace posix {
 
         ExecEntry* find_entry(std::string_view name) noexcept {
             for (util::usize i = 0; i < exec_count_; ++i) {
-                if (match_exec_name(execs_[i].name, name)) return &execs_[i];
+                if (match_exec_name(execs_[i].image.name, name)) return &execs_[i];
             }
             return nullptr;
         }
@@ -281,7 +303,7 @@ export namespace posix {
             if (argv.empty() || argv[0] == nullptr) return nullptr;
             const std::string_view name{argv[0]};
             for (util::usize i = 0; i < exec_count_; ++i) {
-                if (match_exec_name(execs_[i].name, name)) return &execs_[i];
+                if (match_exec_name(execs_[i].image.name, name)) return &execs_[i];
             }
             return nullptr;
         }
@@ -356,6 +378,74 @@ export namespace posix {
             }
         }
 
+        struct ArgvEnvpView {
+            int argc{0};
+            char** argv{nullptr};
+            char** envp{nullptr};
+        };
+
+        struct ArgvEnvpBuffer {
+            std::array<char*, MaxArgc + 1> argv{};
+            std::array<char*, MaxEnvp + 1> envp{};
+            std::array<char, MaxArgBytes> blob{};
+        };
+
+        util::Result<ArgvEnvpView> build_argv_envp(const SpawnConfig& cfg, ArgvEnvpBuffer& buffer) noexcept {
+            util::usize blob_offset = 0;
+            util::usize argc = 0;
+            for (const auto* arg : cfg.argv) {
+                if (argc >= MaxArgc) return util::unexpected(util::Errc::buffer_overflow);
+                if (!arg) break;
+                const std::string_view s{arg};
+                if (blob_offset + s.size() + 1 > buffer.blob.size()) {
+                    return util::unexpected(util::Errc::buffer_overflow);
+                }
+                buffer.argv[argc++] = &buffer.blob[blob_offset];
+                for (util::usize i = 0; i < s.size(); ++i) {
+                    buffer.blob[blob_offset++] = s[i];
+                }
+                buffer.blob[blob_offset++] = '\0';
+            }
+            buffer.argv[argc] = nullptr;
+
+            util::usize envc = 0;
+            for (const auto* env : cfg.envp) {
+                if (envc >= MaxEnvp) return util::unexpected(util::Errc::buffer_overflow);
+                if (!env) break;
+                const std::string_view s{env};
+                if (blob_offset + s.size() + 1 > buffer.blob.size()) {
+                    return util::unexpected(util::Errc::buffer_overflow);
+                }
+                buffer.envp[envc++] = &buffer.blob[blob_offset];
+                for (util::usize i = 0; i < s.size(); ++i) {
+                    buffer.blob[blob_offset++] = s[i];
+                }
+                buffer.blob[blob_offset++] = '\0';
+            }
+            buffer.envp[envc] = nullptr;
+
+            ArgvEnvpView view{};
+            view.argc = static_cast<int>(argc);
+            view.argv = buffer.argv.data();
+            view.envp = buffer.envp.data();
+            return view;
+        }
+
+        util::Result<int> start_image(const ProgramImage& image, const SpawnConfig& cfg) noexcept {
+            ArgvEnvpBuffer args{};
+            auto argv_envp = build_argv_envp(cfg, args);
+            if (!argv_envp) {
+                return util::unexpected(argv_envp.error());
+            }
+            if (image.entry) {
+                return image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
+            }
+            if (image.entry_v0) {
+                return image.entry_v0(argv_envp.value().argc, argv_envp.value().argv);
+            }
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+
         std::array<ExecEntry, MaxExecs> execs_{};
         util::usize exec_count_{0};
         std::array<Process, MaxProcs> procs_{};
@@ -366,13 +456,20 @@ export namespace posix {
         std::array<char, MaxPathLen> resolved_path_{};
     };
 
-    template <util::usize MaxProcs, util::usize MaxExecs, util::usize MaxFds, util::usize MaxFiles, util::usize MaxPathLen = 128>
+    template <util::usize MaxProcs,
+              util::usize MaxExecs,
+              util::usize MaxFds,
+              util::usize MaxFiles,
+              util::usize MaxPathLen = 128,
+              util::usize MaxArgc = 16,
+              util::usize MaxEnvp = 16,
+              util::usize MaxArgBytes = 256>
     struct ProcServiceBinding {
-        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>* service{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes>* service{nullptr};
         std::array<init::CapId, 1> provides{};
         init::Node node{};
 
-        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>& proc_service,
+        explicit ProcServiceBinding(ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes>& proc_service,
                                     const char* cap_name = "posix.proc",
                                     init::Phase phase = init::Phase::core,
                                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept

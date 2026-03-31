@@ -1,5 +1,4 @@
-# 程序映像最小设计（Program Image v0）
-
+﻿# 程序映像最小设计（Program Image v0）
 目标：从“注册入口函数 + spawn”的世界，迈向“可加载程序映像 + 统一入口 ABI”的世界，为未来 ELF 接入预留轨道。
 
 ## 1. 目标与非目标
@@ -12,7 +11,7 @@
 
 非目标（v0 不做）：
 - 完整 ELF 解析与动态链接器。
-- 完整 POSIX 进程语义（`fork`/`execve`）。
+- 完整 POSIX 进程语义（`fork/execve`）。
 - 完整 libc/syscall 覆盖清单。
 
 ## 2. 现状与问题
@@ -25,7 +24,7 @@
 问题：
 - 无法表达真实的程序映像（文件/ELF）。
 - argv/envp 的布局/生命周期不明确。
-- 退出路径和 wait 状态只是函数返回包装。
+- 退出路径与 wait 状态只是函数返回包装。
 
 ## 3. 抽象：ProgramImage
 
@@ -49,14 +48,14 @@ struct ProgramImage {
 
 要点：
 - v0 允许 `registered` 映像：用函数指针包装为 ProgramImage。
-- v1 对接 ELF 时，仅替换加载器，不改变入口 ABI。
+- v1 接入 ELF 时，仅替换加载器，不改变入口 ABI。
 
 ## 4. 分层：load / start / spawn
 
 分层规则：
 
 ```cpp
-// v0 API 轮廓
+// v0 API 草案
 Result<ProgramImage> load_image(ImageRef ref);
 Result<ProcessId> start_image(const ProgramImage& image, const SpawnConfig& cfg);
 Result<SpawnResult> spawn(const SpawnConfig& cfg); // POSIX-ish wrapper
@@ -89,13 +88,13 @@ using ImageEntry = int (*)(int argc, char** argv, char** envp);
 ```
 
 规则：
-- 所有字符串都拷贝到连续 blob。
+- 所有字符串复制到连续 blob。
 - `argv[i]` 指向 blob 内部。
-- `argv[argc] == nullptr`；`envp[n] == nullptr`。
+- `argv[argc] == nullptr`，`envp[n] == nullptr`。
 
 容量策略（v0）：
 - 固定上限（例如 4 KB），超限返回 `ENOSPC`/`buffer_overflow`。
-- 由 loader/ProcessImage 构建时负责检查。
+- 由 loader/ProgramImage 构建时负责检查。
 
 ## 7. 用户栈与退出路径
 
@@ -135,6 +134,5 @@ v1：
 - `exit_code`
 
 要求：
-- argv/envp 经过统一布局构建。
+- argv/envp 经统一布局构建。
 - `spawn -> load_image -> start_image` 链路可追踪。
-

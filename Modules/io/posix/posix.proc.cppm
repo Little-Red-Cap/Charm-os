@@ -145,6 +145,18 @@ export namespace posix {
             return {};
         }
 
+        util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
+            std::string_view name = resolve_name(cfg);
+            auto* entry = find_entry(name);
+            if (!entry && cfg.path_mode == PathMode::search_path) {
+                entry = find_entry_by_argv0(cfg.argv);
+            }
+            if (!entry) {
+                return util::unexpected(util::Errc::noent);
+            }
+            return entry->image;
+        }
+
         util::Result<SpawnResult> spawn(const SpawnConfig& cfg) noexcept {
             if (cfg.path == nullptr && cfg.argv.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -157,13 +169,9 @@ export namespace posix {
                 return util::unexpected(child_table.error());
             }
 
-            std::string_view name = resolve_name(cfg);
-            auto* entry = find_entry(name);
-            if (!entry && cfg.path_mode == PathMode::search_path) {
-                entry = find_entry_by_argv0(cfg.argv);
-            }
-            if (!entry) {
-                return util::unexpected(util::Errc::noent);
+            auto image = load_image(cfg);
+            if (!image) {
+                return util::unexpected(image.error());
             }
 
             const auto slot = alloc_slot();
@@ -178,7 +186,7 @@ export namespace posix {
             proc.exit_code = 0;
             proc.fds = child_table.value();
 
-            const auto code = start_image(entry->image, cfg);
+            const auto code = start_image(image.value(), cfg);
             if (!code) {
                 release_proc(proc);
                 return util::unexpected(code.error());

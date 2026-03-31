@@ -17,6 +17,7 @@ export namespace posix {
         modulex::ResolveDependency resolve_dependency{nullptr};
         modulex::ResolveDependencyCtx resolve_dependency_ctx{nullptr};
         void* dep_ctx{nullptr};
+        ImageEntry entry_override{nullptr};
     };
 
     inline util::Result<ProgramImage> load_modulex_image(std::string_view name,
@@ -56,7 +57,11 @@ export namespace posix {
         ProgramImage image{};
         image.kind = ImageKind::modulex;
         image.name = name;
-        image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.entry);
+        if (cfg.entry_override) {
+            image.entry = cfg.entry_override;
+        } else {
+            image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.entry);
+        }
         return image;
     }
 }

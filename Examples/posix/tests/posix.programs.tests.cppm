@@ -19,6 +19,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import posix.program_image_modulex;
 import module_core;
 import fs_core;
 import fs_errno;
@@ -135,6 +136,10 @@ namespace {
     int exit_code_main(int argc, char** argv) {
         if (argc < 2 || !argv || !argv[1]) return 0;
         return std::strtol(argv[1], nullptr, 10);
+    }
+
+    int modulex_entry_main(int, char**) {
+        return write_text(1, "mx\n");
     }
 
     int echo_main(int argc, char** argv) {
@@ -700,9 +705,29 @@ namespace {
         img.hdr.entry_offset = 0;
         img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
 
-        const posix::ModuleXLoadConfig cfg{};
+        posix::ModuleXLoadConfig cfg{};
+        cfg.entry_override = &modulex_entry_main;
         auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);
         check_true("modulex-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("modulex-pipe", h.api.pipe(pipefd), 0);
+        check_true("modulex-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"modulex_stub", nullptr};
+        posix::SpawnConfig scfg{};
+        scfg.path = "modulex_stub";
+        scfg.argv = std::span<const char* const>(argv, 1);
+        auto sp = h.procs.spawn(scfg);
+        check_true("modulex-spawn", sp);
+
+        std::array<char, 8> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("modulex-out", out, std::string_view{"mx\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("modulex-wait", st);
+
         h.unbind_env();
     }
 

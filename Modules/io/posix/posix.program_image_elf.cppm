@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 export module posix.program_image_elf;
 
@@ -103,9 +104,13 @@ export namespace posix {
             const auto* base = static_cast<const util::u8*>(cfg.image_base);
             const auto* ph = reinterpret_cast<const ElfProgramHeader64*>(base + hdr->phoff);
             bool has_load = false;
+            util::u64 min_vaddr = 0;
             for (util::u16 i = 0; i < hdr->phnum; ++i) {
                 if (ph[i].type == kElfPtLoad) {
                     has_load = true;
+                    if (min_vaddr == 0 || ph[i].vaddr < min_vaddr) {
+                        min_vaddr = ph[i].vaddr;
+                    }
                 }
                 if (ph[i].offset + ph[i].filesz > cfg.image_size) {
                     return util::unexpected(util::Errc::invalid_arg);
@@ -114,14 +119,33 @@ export namespace posix {
             if (!has_load) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
+            if (hdr->entry < min_vaddr) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::u16 i = 0; i < hdr->phnum; ++i) {
+                if (ph[i].type != kElfPtLoad) continue;
+                const auto dst_off = ph[i].vaddr - min_vaddr;
+                auto* dst = static_cast<util::u8*>(cfg.load_base) + dst_off;
+                const auto* src = base + ph[i].offset;
+                if (ph[i].filesz > 0) {
+                    std::memcpy(dst, src, static_cast<std::size_t>(ph[i].filesz));
+                }
+                if (ph[i].memsz > ph[i].filesz) {
+                    std::memset(dst + ph[i].filesz, 0,
+                        static_cast<std::size_t>(ph[i].memsz - ph[i].filesz));
+                }
+            }
+            ProgramImage image{};
+            image.kind = ImageKind::elf;
+            image.name = {};
+            const auto entry_off = static_cast<util::u64>(hdr->entry - min_vaddr);
+            image.entry = modulex::addr_to_ptr<ImageEntry>(
+                modulex::to_addr(cfg.load_base) + static_cast<modulex::Addr>(entry_off));
+            if (!image.entry) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            return image;
         }
-        ProgramImage image{};
-        image.kind = ImageKind::elf;
-        image.name = {};
-        image.entry = modulex::addr_to_ptr<ImageEntry>(static_cast<modulex::Addr>(hdr->entry));
-        if (!image.entry) {
-            return util::unexpected(util::Errc::invalid_arg);
-        }
-        return image;
+        return util::unexpected(util::Errc::invalid_arg);
     }
 }

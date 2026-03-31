@@ -55,6 +55,8 @@ export namespace player::ui {
         ListCard = 6,
         InfoTag = 7,
         BottomBar = 8,
+        BottomButton = 9,
+        BottomPlay = 10,
     };
 
     inline constexpr int kUiPadding = 18;
@@ -583,6 +585,32 @@ export namespace player::ui {
             patch.has_shadow_radius = true;
             patch.shadow_radius = 18;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomBar), patch);
+        }
+        {
+            StylePatch patch{};
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            patch.has_bg_color = true;
+            patch.bg_color = kUiButtonBg;
+            patch.has_border_color = true;
+            patch.border_color = kUiButtonBorder;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 3;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 10;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomButton), patch);
+
+            StylePatch play = patch;
+            play.corner_radius = 18;
+            play.has_shadow_offset_y = true;
+            play.shadow_offset_y = 4;
+            play.has_shadow_radius = true;
+            play.shadow_radius = 14;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::BottomPlay), play);
         }
         Style baseline = theme.get<Button>();
         baseline.font = &player_default_font();

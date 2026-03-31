@@ -253,6 +253,24 @@ namespace player::ui_builder_detail {
         builder.set_style_class(h, static_cast<StyleClassId>(PlayerStyleClass::BottomBar));
     }
 
+    static void apply_bottom_button_style(::ui::scene::SceneBuilder& builder, WidgetHandle h,
+                                          int btn_size, int icon_px) {
+        builder.set_style_class(h, static_cast<StyleClassId>(PlayerStyleClass::BottomButton));
+        StylePatch patch{};
+        patch.has_padding = true;
+        patch.padding = (btn_size - icon_px) / 2;
+        builder.set_style_patch(h, patch);
+    }
+
+    static void apply_bottom_play_style(::ui::scene::SceneBuilder& builder, WidgetHandle h,
+                                        int btn_size, int icon_px) {
+        builder.set_style_class(h, static_cast<StyleClassId>(PlayerStyleClass::BottomPlay));
+        StylePatch patch{};
+        patch.has_padding = true;
+        patch.padding = (btn_size - icon_px) / 2;
+        builder.set_style_patch(h, patch);
+    }
+
     static void build_now_playing(::ui::scene::SceneBuilder& builder, UiHandles& h,
                                   const UiLayout& layout, const NowTextLayout& text_layout,
                                   const PlayerIconIds& icons) {
@@ -604,7 +622,7 @@ namespace player::ui_builder_detail {
         const int title_x = kUiPadding;
         const int title_y = layout.top_bar_y + 8;
         const int title_w = screen_width - kUiPadding * 2 - 86;
-        const int title_line_h = 40;
+        const int title_line_h = 46;
         h.home_title_top = builder.create_label_static("Your");
         apply_text_label_style(builder, h.home_title_top, kUiTitle, get_font(FontId::Large));
         builder.set_label_align(h.home_title_top, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
@@ -618,7 +636,7 @@ namespace player::ui_builder_detail {
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
         apply_text_label_style(builder, h.home_subtitle, kUiSubtitle, get_font(FontId::Small));
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 - 4, title_w, 18});
+        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 2, title_w, 20});
 
         h.home_play = builder.create_button_static("");
         const int play_size = 72;
@@ -638,11 +656,11 @@ namespace player::ui_builder_detail {
             builder.set_style_override(h.home_play, patch);
         }
 
-        const int collage_big = 240;
-        const int collage_small = 96;
-        const int collage_small2 = 84;
-        const int collage_small3 = 80;
-        const int collage_y = title_y + 120;
+        const int collage_big = 248;
+        const int collage_small = 98;
+        const int collage_small2 = 88;
+        const int collage_small3 = 84;
+        const int collage_y = title_y + 128;
         const int collage_x = (screen_width - collage_big) / 2;
         h.home_cover_big = builder.create_image();
         anchor_rect(builder, h.home_cover_big, {collage_x, collage_y, collage_big, collage_big});
@@ -654,8 +672,8 @@ namespace player::ui_builder_detail {
         }
 
         h.home_cover_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_left, {collage_x - 28,
-                                                 collage_y + collage_big - collage_small + 6,
+        anchor_rect(builder, h.home_cover_left, {collage_x - 34,
+                                                 collage_y + collage_big - collage_small + 16,
                                                  collage_small, collage_small});
         {
             StylePatch patch{};
@@ -666,15 +684,17 @@ namespace player::ui_builder_detail {
             patch.has_shadow_color = true;
             patch.shadow_color = kUiCardShadow;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 10;
+            patch.shadow_radius = 16;
             builder.set_style_override(h.home_cover_left, patch);
         }
 
         h.home_cover_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 18,
-                                                  collage_y + collage_big / 2 + 26,
+        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 22,
+                                                  collage_y + collage_big / 2 + 18,
                                                   collage_small2, collage_small2});
         {
             StylePatch patch{};
@@ -685,15 +705,17 @@ namespace player::ui_builder_detail {
             patch.has_shadow_color = true;
             patch.shadow_color = kUiCardShadow;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 10;
+            patch.shadow_radius = 16;
             builder.set_style_override(h.home_cover_right, patch);
         }
 
         h.home_cover_small = builder.create_image();
         anchor_rect(builder, h.home_cover_small, {collage_x + collage_big / 2 - collage_small3 / 2,
-                                                  collage_y + collage_big - collage_small3 + 22,
+                                                  collage_y + collage_big - collage_small3 + 30,
                                                   collage_small3, collage_small3});
         {
             StylePatch patch{};
@@ -704,9 +726,11 @@ namespace player::ui_builder_detail {
             patch.has_shadow_color = true;
             patch.shadow_color = kUiCardShadow;
             patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
             patch.has_shadow_radius = true;
-            patch.shadow_radius = 10;
+            patch.shadow_radius = 16;
             builder.set_style_override(h.home_cover_small, patch);
         }
 
@@ -831,7 +855,7 @@ namespace player::ui_builder_detail {
         builder.link(library, tabs_root);
         builder.link(library, shuffle_root);
         builder.link(library, list_card_root);
-        const int list_header_h = 60;
+        const int list_header_h = 76;
         const int list_title_h = 18;
         const int list_path_h = 16;
         const int list_title_y = list_card_rect.y + 10;
@@ -841,7 +865,7 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, h.list_sort, {list_card_rect.x + list_card_rect.w - 66, list_title_y - 6,
                                            54, 28});
         const Rect list_path_rect{list_card_rect.x + 12, list_path_y,
-                                  list_card_rect.w - 24, list_path_h + 6};
+                                  list_card_rect.w - 24, list_path_h + 8};
         const WidgetHandle list_path_bg = builder.create_container();
         anchor_rect(builder, list_path_bg, list_path_rect);
         {
@@ -854,8 +878,14 @@ namespace player::ui_builder_detail {
             patch.corner_radius = 10;
             builder.set_style_override(list_path_bg, patch);
         }
-        anchor_rect(builder, h.list_path, {list_path_rect.x + 8, list_path_rect.y + 3,
-                                           list_path_rect.w - 16, list_path_h});
+        const WidgetHandle list_path_icon = builder.create_button_static("");
+        anchor_rect(builder, list_path_icon, {list_path_rect.x + 6, list_path_rect.y + 2,
+                                              list_path_h + 8, list_path_h + 8});
+        builder.set_button_icon(list_path_icon, icons.folder);
+        builder.set_button_icon_size(list_path_icon, 12);
+        apply_tab_base_style(builder, list_path_icon, 10);
+        anchor_rect(builder, h.list_path, {list_path_rect.x + 28, list_path_rect.y + 4,
+                                           list_path_rect.w - 36, list_path_h});
         apply_tab_base_style(builder, h.list_sort, 12);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_time_label_style(builder, h.list_path);
@@ -880,6 +910,7 @@ namespace player::ui_builder_detail {
         builder.link(list_card_root, list_path_bg);
         builder.link(list_card_root, h.list_path);
         builder.link(list_card_root, h.list_hint);
+        builder.link(list_card_root, list_path_icon);
 
         {
             const Rect bottom_bar_rect{kUiPadding, layout.bottom_bar_y,
@@ -926,12 +957,14 @@ namespace player::ui_builder_detail {
             bottom_row.add(h.bottom_play, play_size, play_size);
             builder.set_button_icon(h.bottom_play, icons.play);
             builder.set_button_icon_size(h.bottom_play, 18);
+            apply_bottom_play_style(builder, h.bottom_play, play_size, 18);
             builder.link(h.bottom_bar, h.bottom_subtitle);
 
             h.bottom_next = builder.create_button_static("");
             bottom_row.add(h.bottom_next, next_size, next_size);
             builder.set_button_icon(h.bottom_next, icons.next);
             builder.set_button_icon_size(h.bottom_next, 16);
+            apply_bottom_button_style(builder, h.bottom_next, next_size, 16);
         }
 
         {

@@ -44,6 +44,7 @@ flowchart TD
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
 | POSIX 兼容/BusyBox 验收 | `docs/system/posix_compat_roadmap.md` |
+| Linux 生态兼容任务清单 | `docs/system/posix_linux_compat_tasklist.md` |
 | POSIX spawn 草案 | `docs/system/posix_spawn_minimal_design.md` |
 | POSIX fd 表草案 | `docs/system/posix_fd_table_minimal_design.md` |
 | POSIX errno 映射 | `docs/system/posix_errno_mapping.md` |
@@ -105,6 +106,7 @@ docs/
 - `docs/system/at_system.md`
 - `docs/system/av_pipeline_overview.md`
 - `docs/system/posix_compat_roadmap.md`
+- `docs/system/posix_linux_compat_tasklist.md`
 - `docs/system/posix_spawn_minimal_design.md`
 - `docs/system/posix_fd_table_minimal_design.md`
 - `docs/system/posix_errno_mapping.md`

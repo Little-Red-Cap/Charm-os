@@ -167,6 +167,9 @@ export namespace posix {
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
             std::string_view name = resolve_name(cfg);
+            if (is_elf_prefix(name)) {
+                return util::unexpected(util::Errc::not_supported);
+            }
             auto* entry = find_entry(name);
             if (!entry && cfg.path_mode == PathMode::search_path) {
                 entry = find_entry_by_argv0(cfg.argv);
@@ -381,6 +384,11 @@ export namespace posix {
                 return name.substr(kPrefix.size());
             }
             return name;
+        }
+
+        static bool is_elf_prefix(std::string_view name) noexcept {
+            constexpr std::string_view kPrefix = "elf:";
+            return name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix;
         }
 
         static std::string_view envp_path(std::span<const char* const> envp) noexcept {

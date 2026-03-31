@@ -767,6 +767,20 @@ namespace {
         h.unbind_env();
     }
 
+    void test_elf_prefix_stub() noexcept {
+        Harness h{};
+        h.bind_env();
+
+        const char* argv[] = {"elf:/hello", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/hello";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-not-supported", !sp && sp.error() == util::Errc::not_supported);
+
+        h.unbind_env();
+    }
+
     void test_sh_c_redir_and_pipe() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -830,6 +844,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_stderr_demo();
     test_exit_code();
     test_modulex_register();
+    test_elf_prefix_stub();
     test_echo_to_file();
     test_cat_from_file();
     test_echo_pipe_cat();

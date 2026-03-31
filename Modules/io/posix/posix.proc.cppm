@@ -207,6 +207,7 @@ export namespace posix {
                 elf_cfg.image_base = elf_image_.data();
                 elf_cfg.image_size = total;
                 elf_cfg.load_base = elf_load_.data();
+                elf_cfg.load_size = elf_load_.size();
                 return load_elf_image(elf_cfg);
             }
             std::string_view name = resolve_name(cfg);

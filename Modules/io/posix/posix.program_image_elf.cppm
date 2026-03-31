@@ -80,6 +80,7 @@ export namespace posix {
         const void* image_base{nullptr};
         util::usize image_size{0};
         void* load_base{nullptr};
+        util::usize load_size{0};
     };
 
     inline util::Result<ProgramImage> load_elf_image(const ElfLoadConfig& cfg) noexcept {
@@ -92,6 +93,9 @@ export namespace posix {
         }
         if (!cfg.load_base) {
             return util::unexpected(util::Errc::not_supported);
+        }
+        if (cfg.load_size == 0) {
+            return util::unexpected(util::Errc::invalid_arg);
         }
         const auto* hdr = static_cast<const ElfHeader64*>(cfg.image_base);
         if (hdr->entry == 0) {
@@ -126,6 +130,10 @@ export namespace posix {
             for (util::u16 i = 0; i < hdr->phnum; ++i) {
                 if (ph[i].type != kElfPtLoad) continue;
                 const auto dst_off = ph[i].vaddr - min_vaddr;
+                const auto end_off = dst_off + ph[i].memsz;
+                if (end_off > cfg.load_size) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
                 auto* dst = static_cast<util::u8*>(cfg.load_base) + dst_off;
                 const auto* src = base + ph[i].offset;
                 if (ph[i].filesz > 0) {

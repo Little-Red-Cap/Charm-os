@@ -147,9 +147,13 @@ export namespace player::ui {
     };
 
     namespace detail {
-        constexpr int kIconSize = 16;
+        constexpr int kIconSize = 32;
         constexpr int kIconStride = kIconSize * 4;
         using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
+        struct FPoint {
+            float x{};
+            float y{};
+        };
 
         void icon_clear(IconBuffer& buf) {
             buf.fill(std::byte{0});
@@ -164,143 +168,167 @@ export namespace player::ui {
             buf[idx + 3] = std::byte{color.b};
         }
 
-        void build_prev_icon(IconBuffer& buf, const rgba& color) {
-            icon_clear(buf);
-            constexpr int center = 7;
-            constexpr int top = 3;
-            constexpr int bottom = 12;
-            constexpr int base_half = (bottom - top) / 2;
-            constexpr int apex_x = 4;
-            constexpr int base_x = 12;
-            for (int y = top; y <= bottom; ++y) {
-                for (int x = apex_x; x <= base_x; ++x) {
-                    const int span = (x - apex_x) * base_half / (base_x - apex_x);
-                    if (std::abs(y - center) <= span) {
-                        icon_set_pixel(buf, x, y, color);
-                    }
+        void fill_rect(IconBuffer& buf, int size, float x0, float y0, float x1, float y1, const rgba& color) {
+            const int ix0 = std::max(0, static_cast<int>(x0 * size));
+            const int iy0 = std::max(0, static_cast<int>(y0 * size));
+            const int ix1 = std::min(size - 1, static_cast<int>(x1 * size));
+            const int iy1 = std::min(size - 1, static_cast<int>(y1 * size));
+            for (int y = iy0; y <= iy1; ++y) {
+                for (int x = ix0; x <= ix1; ++x) {
+                    icon_set_pixel(buf, x, y, color);
                 }
             }
-            for (int y = top; y <= bottom; ++y) {
-                icon_set_pixel(buf, 2, y, color);
-                icon_set_pixel(buf, 3, y, color);
+        }
+
+        void fill_triangle(IconBuffer& buf, int size, FPoint a, FPoint b, FPoint c, const rgba& color) {
+            const auto to_px = [&](FPoint p) noexcept {
+                return FPoint{p.x * (size - 1), p.y * (size - 1)};
+            };
+            a = to_px(a);
+            b = to_px(b);
+            c = to_px(c);
+            const float min_y = std::min(a.y, std::min(b.y, c.y));
+            const float max_y = std::max(a.y, std::max(b.y, c.y));
+            const int y0 = std::max(0, static_cast<int>(std::floor(min_y)));
+            const int y1 = std::min(size - 1, static_cast<int>(std::ceil(max_y)));
+            for (int y = y0; y <= y1; ++y) {
+                float xs[3];
+                int hits = 0;
+                auto edge_hit = [&](FPoint p0, FPoint p1) {
+                    if ((y < p0.y && y < p1.y) || (y > p0.y && y > p1.y) || (p0.y == p1.y)) return;
+                    const float t = (y - p0.y) / (p1.y - p0.y);
+                    xs[hits++] = p0.x + (p1.x - p0.x) * t;
+                };
+                edge_hit(a, b);
+                edge_hit(b, c);
+                edge_hit(c, a);
+                if (hits < 2) continue;
+                float x_min = xs[0];
+                float x_max = xs[1];
+                if (x_min > x_max) std::swap(x_min, x_max);
+                const int ix0 = std::max(0, static_cast<int>(std::floor(x_min)));
+                const int ix1 = std::min(size - 1, static_cast<int>(std::ceil(x_max)));
+                for (int x = ix0; x <= ix1; ++x) {
+                    icon_set_pixel(buf, x, y, color);
+                }
             }
+        }
+
+        void stroke_line(IconBuffer& buf, int size, FPoint a, FPoint b, int thickness, const rgba& color) {
+            const int x0 = static_cast<int>(a.x * (size - 1));
+            const int y0 = static_cast<int>(a.y * (size - 1));
+            const int x1 = static_cast<int>(b.x * (size - 1));
+            const int y1 = static_cast<int>(b.y * (size - 1));
+            const int dx = std::abs(x1 - x0);
+            const int dy = std::abs(y1 - y0);
+            const int sx = (x0 < x1) ? 1 : -1;
+            const int sy = (y0 < y1) ? 1 : -1;
+            int err = dx - dy;
+            int x = x0;
+            int y = y0;
+            const int half = std::max(0, thickness / 2);
+            while (true) {
+                for (int oy = -half; oy <= half; ++oy) {
+                    for (int ox = -half; ox <= half; ++ox) {
+                        icon_set_pixel(buf, x + ox, y + oy, color);
+                    }
+                }
+                if (x == x1 && y == y1) break;
+                const int e2 = 2 * err;
+                if (e2 > -dy) {
+                    err -= dy;
+                    x += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    y += sy;
+                }
+            }
+        }
+
+        void build_prev_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            fill_rect(buf, kIconSize, 0.12f, 0.22f, 0.20f, 0.78f, color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.76f, 0.22f},
+                          FPoint{0.76f, 0.78f},
+                          FPoint{0.24f, 0.50f},
+                          color);
         }
 
         void build_play_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            constexpr int center = 7;
-            constexpr int top = 3;
-            constexpr int bottom = 12;
-            constexpr int base_half = (bottom - top) / 2;
-            constexpr int base_x = 3;
-            constexpr int apex_x = 11;
-            for (int y = top; y <= bottom; ++y) {
-                for (int x = base_x; x <= apex_x; ++x) {
-                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
-                    if (std::abs(y - center) <= span) {
-                        icon_set_pixel(buf, x, y, color);
-                    }
-                }
-            }
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.30f, 0.20f},
+                          FPoint{0.30f, 0.80f},
+                          FPoint{0.82f, 0.50f},
+                          color);
         }
 
         void build_pause_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int y = 3; y <= 12; ++y) {
-                icon_set_pixel(buf, 5, y, color);
-                icon_set_pixel(buf, 6, y, color);
-                icon_set_pixel(buf, 10, y, color);
-                icon_set_pixel(buf, 11, y, color);
-            }
+            fill_rect(buf, kIconSize, 0.32f, 0.22f, 0.44f, 0.78f, color);
+            fill_rect(buf, kIconSize, 0.56f, 0.22f, 0.68f, 0.78f, color);
         }
 
         void build_loop_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int x = 4; x <= 11; ++x) {
-                icon_set_pixel(buf, x, 4, color);
-                icon_set_pixel(buf, x, 11, color);
-            }
-            for (int y = 4; y <= 11; ++y) {
-                icon_set_pixel(buf, 4, y, color);
-                icon_set_pixel(buf, 11, y, color);
-            }
-            // arrow heads (top right, bottom left)
-            icon_set_pixel(buf, 10, 3, color);
-            icon_set_pixel(buf, 11, 4, color);
-            icon_set_pixel(buf, 12, 5, color);
-            icon_set_pixel(buf, 5, 12, color);
-            icon_set_pixel(buf, 4, 11, color);
-            icon_set_pixel(buf, 3, 10, color);
+            const int thick = 2;
+            stroke_line(buf, kIconSize, {0.24f, 0.30f}, {0.76f, 0.30f}, thick, color);
+            stroke_line(buf, kIconSize, {0.76f, 0.30f}, {0.76f, 0.70f}, thick, color);
+            stroke_line(buf, kIconSize, {0.76f, 0.70f}, {0.24f, 0.70f}, thick, color);
+            stroke_line(buf, kIconSize, {0.24f, 0.70f}, {0.24f, 0.30f}, thick, color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.66f, 0.18f},
+                          FPoint{0.84f, 0.30f},
+                          FPoint{0.66f, 0.42f},
+                          color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.34f, 0.58f},
+                          FPoint{0.16f, 0.70f},
+                          FPoint{0.34f, 0.82f},
+                          color);
         }
 
         void build_single_icon(IconBuffer& buf, const rgba& color) {
             build_loop_icon(buf, color);
-            for (int y = 5; y <= 10; ++y) {
-                icon_set_pixel(buf, 7, y, color);
-                icon_set_pixel(buf, 8, y, color);
-            }
-            icon_set_pixel(buf, 6, 5, color);
-            icon_set_pixel(buf, 9, 5, color);
+            fill_rect(buf, kIconSize, 0.48f, 0.32f, 0.52f, 0.68f, color);
+            fill_rect(buf, kIconSize, 0.44f, 0.32f, 0.56f, 0.36f, color);
         }
 
         void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int x = 4; x <= 11; ++x) {
-                const int y1 = 5 + (x - 4) / 2;
-                const int y2 = 10 - (x - 4) / 2;
-                icon_set_pixel(buf, x, y1, color);
-                icon_set_pixel(buf, x, y2, color);
-            }
-            // arrow heads (right side)
-            icon_set_pixel(buf, 11, 5, color);
-            icon_set_pixel(buf, 12, 6, color);
-            icon_set_pixel(buf, 11, 10, color);
-            icon_set_pixel(buf, 12, 9, color);
-            // arrow heads (left side)
-            icon_set_pixel(buf, 4, 6, color);
-            icon_set_pixel(buf, 3, 7, color);
-            icon_set_pixel(buf, 4, 9, color);
-            icon_set_pixel(buf, 3, 8, color);
+            const int thick = 2;
+            stroke_line(buf, kIconSize, {0.22f, 0.30f}, {0.78f, 0.70f}, thick, color);
+            stroke_line(buf, kIconSize, {0.22f, 0.70f}, {0.78f, 0.30f}, thick, color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.70f, 0.22f},
+                          FPoint{0.86f, 0.30f},
+                          FPoint{0.70f, 0.38f},
+                          color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.70f, 0.62f},
+                          FPoint{0.86f, 0.70f},
+                          FPoint{0.70f, 0.78f},
+                          color);
         }
 
         void build_next_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            constexpr int center = 7;
-            constexpr int top = 3;
-            constexpr int bottom = 12;
-            constexpr int base_half = (bottom - top) / 2;
-            constexpr int base_x = 4;
-            constexpr int apex_x = 12;
-            for (int y = top; y <= bottom; ++y) {
-                for (int x = base_x; x <= apex_x; ++x) {
-                    const int span = (apex_x - x) * base_half / (apex_x - base_x);
-                    if (std::abs(y - center) <= span) {
-                        icon_set_pixel(buf, x, y, color);
-                    }
-                }
-            }
-            for (int y = top; y <= bottom; ++y) {
-                icon_set_pixel(buf, 12, y, color);
-                icon_set_pixel(buf, 13, y, color);
-            }
+            fill_rect(buf, kIconSize, 0.80f, 0.22f, 0.88f, 0.78f, color);
+            fill_triangle(buf, kIconSize,
+                          FPoint{0.24f, 0.22f},
+                          FPoint{0.24f, 0.78f},
+                          FPoint{0.76f, 0.50f},
+                          color);
         }
 
         void build_folder_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
-            for (int y = 5; y <= 12; ++y) {
-                for (int x = 3; x <= 12; ++x) {
-                    icon_set_pixel(buf, x, y, color);
-                }
-            }
-            for (int y = 3; y <= 5; ++y) {
-                for (int x = 4; x <= 9; ++x) {
-                    icon_set_pixel(buf, x, y, color);
-                }
-            }
-            for (int y = 4; y <= 5; ++y) {
-                icon_set_pixel(buf, 3, y, color);
-                icon_set_pixel(buf, 12, y, color);
-            }
+            fill_rect(buf, kIconSize, 0.18f, 0.40f, 0.82f, 0.80f, color);
+            fill_rect(buf, kIconSize, 0.26f, 0.26f, 0.58f, 0.44f, color);
+            fill_rect(buf, kIconSize, 0.18f, 0.36f, 0.26f, 0.42f, color);
+            fill_rect(buf, kIconSize, 0.58f, 0.36f, 0.82f, 0.42f, color);
         }
     }
 

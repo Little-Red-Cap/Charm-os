@@ -18,6 +18,8 @@ export namespace posix {
         modulex::ResolveDependencyCtx resolve_dependency_ctx{nullptr};
         void* dep_ctx{nullptr};
         ImageEntry entry_override{nullptr}; // test-only escape hatch; avoid in real images.
+        bool use_entry_symbol{false};
+        const char* entry_symbol{nullptr};
     };
 
     inline util::Result<ProgramImage> load_modulex_image(std::string_view name,
@@ -59,8 +61,21 @@ export namespace posix {
         image.name = name;
         if (cfg.entry_override) {
             image.entry = cfg.entry_override;
+        } else if (cfg.use_entry_symbol) {
+            const std::string_view needle = cfg.entry_symbol ? std::string_view{cfg.entry_symbol}
+                                                             : std::string_view{"entry"};
+            for (util::u32 i = 0; i < loaded.sym_count; ++i) {
+                auto v = loaded.sym_reader.at(loaded.symtab[i]);
+                if (v.name == needle) {
+                    image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.symtab[i].value);
+                    break;
+                }
+            }
         } else {
             image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.entry);
+        }
+        if (!image.entry) {
+            return util::unexpected(util::Errc::invalid_arg);
         }
         return image;
     }

@@ -10,6 +10,7 @@ module;
 #include <span>
 #include <string_view>
 #include <type_traits>
+#include <cstring>
 
 export module posix.programs.tests;
 
@@ -157,6 +158,14 @@ namespace {
         img.hdr.entry_offset = 0;
         img.hdr.image_size = static_cast<util::u32>(sizeof(T));
         return true;
+    }
+
+    bool resolve_modulex_entry(std::string_view name, modulex::Addr& out_addr) noexcept {
+        if (name == "entry") {
+            out_addr = modulex::to_addr(reinterpret_cast<const void*>(&modulex_entry_main));
+            return true;
+        }
+        return false;
     }
 
     int echo_main(int argc, char** argv) {
@@ -712,13 +721,28 @@ namespace {
         struct ModuleXStub {
             modulex::ImageHeader hdr{};
             std::array<std::byte, 4> text{};
+            modulex::Symbol syms[1]{};
+            char strtab[6]{};
         };
 
         ModuleXStub img{};
         check_true("modulex-entry-offset",
             init_modulex_entry_stub(img, reinterpret_cast<const void*>(&modulex_entry_main)));
+        img.hdr.sym_offset = static_cast<util::u32>(offsetof(ModuleXStub, syms));
+        img.hdr.sym_size = static_cast<util::u32>(sizeof(img.syms));
+        img.hdr.str_offset = static_cast<util::u32>(offsetof(ModuleXStub, strtab));
+        img.hdr.str_size = static_cast<util::u32>(sizeof(img.strtab));
+        img.syms[0].name_offset = 0;
+        img.syms[0].value = 0;
+        img.syms[0].size = 0;
+        img.syms[0].kind = modulex::SymbolKind::external;
+        img.syms[0].flags = 0;
+        std::memcpy(img.strtab, "entry", 5);
 
         posix::ModuleXLoadConfig cfg{};
+        cfg.resolve_external = &resolve_modulex_entry;
+        cfg.use_entry_symbol = true;
+        cfg.entry_symbol = "entry";
         auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);
         check_true("modulex-register", rreg);
 

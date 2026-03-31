@@ -11,7 +11,8 @@ export namespace posix {
     enum class ImageKind : util::u8 {
         registered,
         flat,
-        elf
+        elf,
+        modulex
     };
 
     using ImageEntry = int (*)(int argc, char** argv, char** envp);

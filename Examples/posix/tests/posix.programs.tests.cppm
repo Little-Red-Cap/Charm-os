@@ -901,6 +901,7 @@ namespace {
 
         Harness h{};
         h.bind_env();
+        h.procs.bind_file_service(h.files);
         int fd = h.api.open("/elf_stub.bin", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("elf-file-open", fd >= 0);
         auto w = h.api.write(fd, &stub, sizeof(stub));
@@ -911,6 +912,8 @@ namespace {
         posix::SpawnConfig cfg{};
         cfg.path = "elf:/elf_stub.bin";
         cfg.argv = std::span<const char* const>(argv, 1);
+        auto img = h.procs.load_image(cfg);
+        check_true("elf-file-load", img);
         auto sp = h.procs.spawn(cfg);
         check_true("elf-file-spawn", !sp && sp.error() == util::Errc::not_supported);
         h.unbind_env();

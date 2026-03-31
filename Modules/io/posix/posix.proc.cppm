@@ -12,6 +12,8 @@ import posix.env;
 import posix.fd_table;
 import posix.file;
 import posix.program_image;
+import posix.program_image_modulex;
+import module_core;
 import util.core;
 import util.error;
 
@@ -150,6 +152,16 @@ export namespace posix {
             }
             execs_[exec_count_++] = ExecEntry{image};
             return {};
+        }
+
+        util::Result<void> register_modulex_image(std::string_view name,
+                                                  const modulex::ImageHeader* header,
+                                                  const ModuleXLoadConfig& cfg) noexcept {
+            auto image = load_modulex_image(name, header, cfg);
+            if (!image) {
+                return util::unexpected(image.error());
+            }
+            return register_image(image.value());
         }
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {

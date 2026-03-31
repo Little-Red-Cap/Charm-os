@@ -604,7 +604,7 @@ namespace player::ui_builder_detail {
         const int title_x = kUiPadding;
         const int title_y = layout.top_bar_y + 8;
         const int title_w = screen_width - kUiPadding * 2 - 86;
-        const int title_line_h = 36;
+        const int title_line_h = 40;
         h.home_title_top = builder.create_label_static("Your");
         apply_text_label_style(builder, h.home_title_top, kUiTitle, get_font(FontId::Large));
         builder.set_label_align(h.home_title_top, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
@@ -621,7 +621,7 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 - 4, title_w, 18});
 
         h.home_play = builder.create_button_static("");
-        const int play_size = 64;
+        const int play_size = 72;
         const int play_x = screen_width - kUiPadding - play_size;
         const int play_y = title_y + 10;
         anchor_rect(builder, h.home_play, {play_x, play_y, play_size, play_size});
@@ -638,11 +638,11 @@ namespace player::ui_builder_detail {
             builder.set_style_override(h.home_play, patch);
         }
 
-        const int collage_big = 220;
-        const int collage_small = 88;
-        const int collage_small2 = 76;
-        const int collage_small3 = 72;
-        const int collage_y = title_y + 110;
+        const int collage_big = 240;
+        const int collage_small = 96;
+        const int collage_small2 = 84;
+        const int collage_small3 = 80;
+        const int collage_y = title_y + 120;
         const int collage_x = (screen_width - collage_big) / 2;
         h.home_cover_big = builder.create_image();
         anchor_rect(builder, h.home_cover_big, {collage_x, collage_y, collage_big, collage_big});
@@ -887,13 +887,14 @@ namespace player::ui_builder_detail {
             const int bar_gap = 12;
             const int bar_pad = 12;
             const int play_size = 48;
+            const int next_size = 36;
             ::ui::scene::RowBuilder bottom_row{builder, bottom_bar_rect, bar_gap, bar_pad,
                                                ::ui::scene::LayoutAlign::Center};
             h.bottom_bar = bottom_row.root();
             apply_bottom_bar_style(builder, h.bottom_bar);
 
             const Rect content = bottom_row.content_rect();
-            const int tile_w = std::max(0, content.w - play_size - bar_gap);
+            const int tile_w = std::max(0, content.w - play_size - next_size - bar_gap * 2);
             const int tile_h = content.h;
             const Rect tile_rect = bottom_row.next_rect(tile_w, tile_h);
             ::ui::scene::TileBuilder bottom_tile{builder, tile_rect, 48, 8, false,
@@ -926,6 +927,11 @@ namespace player::ui_builder_detail {
             builder.set_button_icon(h.bottom_play, icons.play);
             builder.set_button_icon_size(h.bottom_play, 18);
             builder.link(h.bottom_bar, h.bottom_subtitle);
+
+            h.bottom_next = builder.create_button_static("");
+            bottom_row.add(h.bottom_next, next_size, next_size);
+            builder.set_button_icon(h.bottom_next, icons.next);
+            builder.set_button_icon_size(h.bottom_next, 16);
         }
 
         {

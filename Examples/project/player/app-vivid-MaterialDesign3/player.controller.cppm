@@ -137,6 +137,7 @@ export namespace player {
         WidgetHandle bottom_title{};
         WidgetHandle bottom_subtitle{};
         WidgetHandle bottom_play{};
+        WidgetHandle bottom_next{};
         WidgetHandle nav_bar{};
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
@@ -1979,6 +1980,8 @@ export namespace player {
                     if (type == Event::Type::MouseUp) {
                         if (target == handles.bottom_play) {
                             actions.toggle_play = true;
+                        } else if (target == handles.bottom_next) {
+                            actions.next = true;
                         } else if (target == handles.bottom_hit || target == handles.bottom_bar
                                    || target == handles.bottom_cover
                                    || target == handles.bottom_title || target == handles.bottom_subtitle) {

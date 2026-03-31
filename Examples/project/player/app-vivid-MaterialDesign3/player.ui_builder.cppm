@@ -81,7 +81,7 @@ namespace player::ui_builder_detail {
         const int progress_h = 3;
         const int text_col_y = header_top + 12;
         const int text_col_h = title_h + subtitle_h + progress_h + text_gap * 2;
-        const int controls_y = text_col_y + text_col_h + 30;
+        const int controls_y = text_col_y + text_col_h + 48;
         const int control_side = 92;
         const int control_play = 100;
         const int control_gap = 16;
@@ -526,12 +526,19 @@ namespace player::ui_builder_detail {
         apply_top_bar_button_style(builder, top_more);
         h.now_more = top_more;
 
+        const WidgetHandle top_lyrics = builder.create_button_static("Lyrics");
+        anchor_rect(builder, top_lyrics, {layout.top_bar_x + layout.top_bar_w - 88, layout.top_bar_y, 40, 40});
+        builder.set_label_align(top_lyrics, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        apply_top_bar_button_style(builder, top_lyrics);
+        h.now_lyrics = top_lyrics;
+
         builder.link(h.root, now_playing);
         builder.link(now_playing, h.now_backdrop);
         builder.link(now_playing, top_bar);
         builder.link(top_bar, h.now_back);
         builder.link(top_bar, top_title);
         builder.link(top_bar, top_more);
+        builder.link(top_bar, top_lyrics);
 
         builder.link(now_playing, h.cover);
         if (kShowCoverCollage) {
@@ -576,11 +583,15 @@ namespace player::ui_builder_detail {
         constexpr int kNavPadding = 0;
         h.list_title = builder.create_label_static("");
         anchor_rect(builder, h.list_title, {0, 0, 0, 0});
+        h.list_path = builder.create_label_static("");
+        anchor_rect(builder, h.list_path, {0, 0, 0, 0});
+        h.list_sort = builder.create_button_static("Sort");
+        anchor_rect(builder, h.list_sort, {0, 0, 0, 0});
 
         h.list = builder.create_list_view();
         anchor_rect(builder, h.list, {0, 0, 0, 0});
-        builder.set_list_row_height(h.list, 40);
-        builder.set_scroll_step(h.list, 40);
+        builder.set_list_row_height(h.list, 44);
+        builder.set_scroll_step(h.list, 44);
 
         h.list_scroll = builder.create_scrollbar_for(h.list);
         anchor_rect(builder, h.list_scroll, {0, 0, 0, 0});
@@ -658,15 +669,29 @@ namespace player::ui_builder_detail {
         builder.link(library, tabs_root);
         builder.link(library, shuffle_root);
         builder.link(library, list_card_root);
-        anchor_rect(builder, h.list_title, {list_card_rect.x + 12, list_card_rect.y + 8,
-                                            list_card_rect.w - 24, 18});
+        const int list_header_h = 52;
+        const int list_title_h = 18;
+        const int list_path_h = 16;
+        const int list_title_y = list_card_rect.y + 8;
+        const int list_path_y = list_title_y + list_title_h + 4;
+        anchor_rect(builder, h.list_title, {list_card_rect.x + 12, list_title_y,
+                                            list_card_rect.w - 84, list_title_h});
+        anchor_rect(builder, h.list_sort, {list_card_rect.x + list_card_rect.w - 64, list_title_y - 2,
+                                           52, 24});
+        anchor_rect(builder, h.list_path, {list_card_rect.x + 12, list_path_y,
+                                           list_card_rect.w - 24, list_path_h});
+        apply_tab_base_style(builder, h.list_sort, 12);
+        builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        apply_time_label_style(builder, h.list_path);
+        const int list_y = list_card_rect.y + list_header_h;
+        const int list_h = list_card_rect.h - list_header_h - 18;
         anchor_rect(builder, h.list, {list_card_rect.x + 8,
-                                      list_card_rect.y + 30,
+                                      list_y,
                                       list_card_rect.w - 16,
-                                      list_card_rect.h - 42});
+                                      list_h});
         anchor_rect(builder, h.list_scroll, {list_card_rect.x + list_card_rect.w - 10,
-                                             list_card_rect.y + 30, 8,
-                                             list_card_rect.h - 42});
+                                             list_y, 8,
+                                             list_h});
         anchor_rect(builder, h.list_hint, {list_card_rect.x + 12,
                                            list_card_rect.y + list_card_rect.h - 22,
                                            list_card_rect.w - 24, 18});
@@ -674,6 +699,8 @@ namespace player::ui_builder_detail {
         builder.link(list_card_root, h.list);
         builder.link(list_card_root, h.list_scroll);
         builder.link(list_card_root, h.list_title);
+        builder.link(list_card_root, h.list_sort);
+        builder.link(list_card_root, h.list_path);
         builder.link(list_card_root, h.list_hint);
 
         {

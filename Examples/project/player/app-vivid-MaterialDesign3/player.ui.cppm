@@ -58,7 +58,7 @@ export namespace player::ui {
     };
 
     inline constexpr int kUiPadding = 18;
-    inline constexpr int kCoverSize = 300;
+    inline constexpr int kCoverSize = 320;
     inline constexpr int kDemoGap = 16;
     inline constexpr int kHeaderTitleOffset = 18;
     inline constexpr int kHeaderSubtitleOffset = 44;
@@ -141,6 +141,7 @@ export namespace player::ui {
         ::ui::gfx::ImageId loop{};
         ::ui::gfx::ImageId single{};
         ::ui::gfx::ImageId shuffle{};
+        ::ui::gfx::ImageId folder{};
     };
 
     namespace detail {
@@ -281,6 +282,24 @@ export namespace player::ui {
                 icon_set_pixel(buf, 13, y, color);
             }
         }
+
+        void build_folder_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            for (int y = 5; y <= 12; ++y) {
+                for (int x = 3; x <= 12; ++x) {
+                    icon_set_pixel(buf, x, y, color);
+                }
+            }
+            for (int y = 3; y <= 5; ++y) {
+                for (int x = 4; x <= 9; ++x) {
+                    icon_set_pixel(buf, x, y, color);
+                }
+            }
+            for (int y = 4; y <= 5; ++y) {
+                icon_set_pixel(buf, 3, y, color);
+                icon_set_pixel(buf, 12, y, color);
+            }
+        }
     }
 
     inline ImageView icon_prev() noexcept {
@@ -395,6 +414,22 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_folder() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_folder_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline PlayerIconIds register_player_icons() noexcept {
         PlayerIconIds out{};
         auto reg = [](const ImageView& view) noexcept {
@@ -408,6 +443,7 @@ export namespace player::ui {
         out.loop = reg(icon_loop());
         out.single = reg(icon_single());
         out.shuffle = reg(icon_shuffle());
+        out.folder = reg(icon_folder());
         return out;
     }
 

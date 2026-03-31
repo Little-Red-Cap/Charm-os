@@ -6,6 +6,7 @@ module;
 #include <array>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -700,13 +701,21 @@ namespace {
         ModuleXStub img{};
         img.hdr.magic = modulex::k_magic;
         img.hdr.version = modulex::k_version;
-        img.hdr.text_offset = static_cast<util::u32>(offsetof(ModuleXStub, text));
-        img.hdr.text_size = static_cast<util::u32>(img.text.size());
+        const auto base = modulex::to_addr(&img);
+        const auto entry = modulex::to_addr(reinterpret_cast<const void*>(&modulex_entry_main));
+        if (entry < base) {
+            check_true("modulex-entry-offset", false);
+        }
+        const auto diff = static_cast<util::u64>(entry - base);
+        if (diff > static_cast<util::u64>(std::numeric_limits<util::u32>::max())) {
+            check_true("modulex-entry-offset", false);
+        }
+        img.hdr.text_offset = static_cast<util::u32>(diff);
+        img.hdr.text_size = 1;
         img.hdr.entry_offset = 0;
         img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
 
         posix::ModuleXLoadConfig cfg{};
-        cfg.entry_override = &modulex_entry_main;
         auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);
         check_true("modulex-register", rreg);
 

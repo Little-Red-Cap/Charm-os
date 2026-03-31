@@ -621,8 +621,8 @@ namespace player::ui_builder_detail {
 
         const int title_x = kUiPadding;
         const int title_y = layout.top_bar_y + 8;
-        const int title_w = screen_width - kUiPadding * 2 - 86;
-        const int title_line_h = 46;
+        const int title_w = screen_width - kUiPadding * 2 - 96;
+        const int title_line_h = 52;
         h.home_title_top = builder.create_label_static("Your");
         apply_text_label_style(builder, h.home_title_top, kUiTitle, get_font(FontId::Large));
         builder.set_label_align(h.home_title_top, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
@@ -636,12 +636,12 @@ namespace player::ui_builder_detail {
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
         apply_text_label_style(builder, h.home_subtitle, kUiSubtitle, get_font(FontId::Small));
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 2, title_w, 20});
+        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 6, title_w, 20});
 
         h.home_play = builder.create_button_static("");
-        const int play_size = 72;
+        const int play_size = 80;
         const int play_x = screen_width - kUiPadding - play_size;
-        const int play_y = title_y + 10;
+        const int play_y = title_y + 6;
         anchor_rect(builder, h.home_play, {play_x, play_y, play_size, play_size});
         builder.set_button_icon(h.home_play, icons.play);
         builder.set_button_icon_size(h.home_play, 20);
@@ -656,11 +656,11 @@ namespace player::ui_builder_detail {
             builder.set_style_override(h.home_play, patch);
         }
 
-        const int collage_big = 248;
-        const int collage_small = 98;
-        const int collage_small2 = 88;
-        const int collage_small3 = 84;
-        const int collage_y = title_y + 128;
+        const int collage_big = 260;
+        const int collage_small = 92;
+        const int collage_small2 = 86;
+        const int collage_small3 = 74;
+        const int collage_y = title_y + 136;
         const int collage_x = (screen_width - collage_big) / 2;
         h.home_cover_big = builder.create_image();
         anchor_rect(builder, h.home_cover_big, {collage_x, collage_y, collage_big, collage_big});
@@ -672,8 +672,8 @@ namespace player::ui_builder_detail {
         }
 
         h.home_cover_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_left, {collage_x - 34,
-                                                 collage_y + collage_big - collage_small + 16,
+        anchor_rect(builder, h.home_cover_left, {collage_x - 26,
+                                                 collage_y + collage_big - collage_small + 10,
                                                  collage_small, collage_small});
         {
             StylePatch patch{};
@@ -693,8 +693,8 @@ namespace player::ui_builder_detail {
         }
 
         h.home_cover_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 22,
-                                                  collage_y + collage_big / 2 + 18,
+        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 26,
+                                                  collage_y + collage_big / 2 + 14,
                                                   collage_small2, collage_small2});
         {
             StylePatch patch{};
@@ -715,7 +715,7 @@ namespace player::ui_builder_detail {
 
         h.home_cover_small = builder.create_image();
         anchor_rect(builder, h.home_cover_small, {collage_x + collage_big / 2 - collage_small3 / 2,
-                                                  collage_y + collage_big - collage_small3 + 30,
+                                                  collage_y + collage_big - collage_small3 + 20,
                                                   collage_small3, collage_small3});
         {
             StylePatch patch{};

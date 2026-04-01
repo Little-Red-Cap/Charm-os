@@ -8,11 +8,11 @@ export module player.app_test_hqzy.boot_log;
 
 import util.core;
 import util.error;
-import player.app_test_hqzy.platform_bootstrap;
+import player.app_test_hqzy.board_platform;
 
 export namespace player::app_test_hqzy::boot_log {
     inline void print(const char* msg) noexcept {
-        platform_bootstrap::write_uart(msg);
+        board_platform::write_uart(msg);
     }
 
     inline void printf(const char* fmt, ...) noexcept {
@@ -23,7 +23,7 @@ export namespace player::app_test_hqzy::boot_log {
         const int n = std::vsnprintf(buf, sizeof(buf), fmt, args);
         va_end(args);
         if (n > 0) {
-            platform_bootstrap::write_uart(buf);
+            board_platform::write_uart(buf);
         }
     }
 
@@ -32,7 +32,7 @@ export namespace player::app_test_hqzy::boot_log {
         const int n = std::snprintf(
             buf, sizeof(buf), "%s err=%d\n", tag, static_cast<int>(err));
         if (n > 0) {
-            platform_bootstrap::write_uart(buf);
+            board_platform::write_uart(buf);
         }
     }
 }

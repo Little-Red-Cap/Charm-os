@@ -130,15 +130,15 @@ set(MODULE_GROUP_PLAYER_UI
 
 set(MODULE_GROUP_APP_TEST_HQZY
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_boot_log.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_board_platform.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_entry.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_platform_bootstrap.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_runtime_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_sdmmc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_system.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_usb_glue.cppm"
 )
 
 set(MODULE_INTERFACE_UNITS
-    ${MODULE_GROUP_BASE}
     ${MODULE_GROUP_APP_TEST_HQZY}
 )
 target_sources(${CMAKE_PROJECT_NAME}

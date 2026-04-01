@@ -1,5 +1,7 @@
 module;
 
+#define CHARM_ALLOW_HAL 1
+
 #include <array>
 #include <cstdint>
 #include <span>

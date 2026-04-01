@@ -1,5 +1,7 @@
 module;
 
+#define CHARM_ALLOW_HAL 1
+
 #include <cstdint>
 
 #include "stm32h7xx_hal.h"

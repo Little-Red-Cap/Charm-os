@@ -30,7 +30,8 @@ import util.core;
 import util.error;
 import player.app_test_hqzy.usb_glue;
 import player.app_test_hqzy.sdmmc_glue;
-import player.app_test_hqzy.platform_bootstrap;
+import player.app_test_hqzy.board_platform;
+import player.app_test_hqzy.runtime_bringup;
 import player.app_test_hqzy.boot_log;
 import init.node_wrap;
 
@@ -43,7 +44,8 @@ export namespace player::app_test_hqzy::app_system {
 namespace player::app_test_hqzy::app_system {
     struct System {
         sdmmc_glue::SdmmcRuntime sdmmc{};
-        platform_bootstrap::Context platform{};
+        board_platform::Context board{};
+        runtime_bringup::Context runtime{};
         player::app_test_hqzy::usb_glue::UsbGlue usb{};
         charm::system::Clock* clock{nullptr};
     };
@@ -127,9 +129,12 @@ namespace player::app_test_hqzy::app_system {
         charm::system::UsbMscBlockInitChain<block::Registry<kMaxEndpoints>> usb_chain{
             core.block_registry, usb_desc
         };
+        static constexpr init::CapId kCapBoard = init::cap_id("board.ready");
         static constexpr init::CapId kCapPlatform = init::cap_id("platform.ready");
         static constexpr init::CapId kCapClock = init::cap_id("system.clock");
+        static constexpr init::CapId kProvidesBoard[] = {kCapBoard};
         static constexpr init::CapId kProvidesPlatform[] = {kCapPlatform};
+        static constexpr init::CapId kRequiresBoard[] = {kCapBoard};
         static constexpr init::CapId kRequiresPlatform[] = {kCapPlatform};
         static constexpr init::CapId kProvidesClock[] = {kCapClock};
 
@@ -152,23 +157,44 @@ namespace player::app_test_hqzy::app_system {
             Error_Handler();
         }
 
-        const init::Node platform_node{
-            "platform.init",
+        const init::Node board_node{
+            "board.init",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesPlatform, 1),
+            std::span<const init::CapId>(kProvidesBoard, 1),
             {},
             [](void* ctx) noexcept -> util::Result<void> {
                 auto* sys_ctx = static_cast<System*>(ctx);
                 if (!sys_ctx) return util::unexpected(util::Errc::invalid_arg);
-                auto r = platform_bootstrap::init();
+                auto r = board_platform::init();
                 if (!r) {
-                    boot_log::print_err("boot: platform init failed", r.error());
+                    boot_log::print_err("boot: board init failed", r.error());
                     return util::unexpected(r.error());
                 }
-                sys_ctx->platform = *r;
-                sys_ctx->sdmmc.sd = sys_ctx->platform.sd;
-                player::app_test_hqzy::usb_glue::init(sys_ctx->usb, sys_ctx->platform.pcd);
+                sys_ctx->board = *r;
+                return {};
+            },
+            nullptr,
+            &sys
+        };
+
+        const init::Node runtime_node{
+            "runtime.init",
+            init::Phase::early,
+            static_cast<util::u32>(init::Runlevel::all),
+            std::span<const init::CapId>(kProvidesPlatform, 1),
+            std::span<const init::CapId>(kRequiresBoard, 1),
+            [](void* ctx) noexcept -> util::Result<void> {
+                auto* sys_ctx = static_cast<System*>(ctx);
+                if (!sys_ctx) return util::unexpected(util::Errc::invalid_arg);
+                auto r = runtime_bringup::init();
+                if (!r) {
+                    boot_log::print_err("boot: runtime init failed", r.error());
+                    return util::unexpected(r.error());
+                }
+                sys_ctx->runtime = *r;
+                sys_ctx->sdmmc.sd = sys_ctx->runtime.sd;
+                player::app_test_hqzy::usb_glue::init(sys_ctx->usb, sys_ctx->runtime.pcd);
                 return {};
             },
             nullptr,
@@ -180,14 +206,14 @@ namespace player::app_test_hqzy::app_system {
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
             std::span<const init::CapId>(kProvidesClock, 1),
-            std::span<const init::CapId>(kRequiresPlatform, 1),
+            std::span<const init::CapId>(kRequiresBoard, 1),
             [](void* ctx) noexcept -> util::Result<void> {
                 auto* sys_ctx = static_cast<System*>(ctx);
                 if (!sys_ctx || !sys_ctx->clock) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
                 sys_ctx->clock->reset(nullptr, charm::system::ClockOps{
-                    &platform_bootstrap::now_ms,
+                    &board_platform::now_ms,
                     nullptr
                 });
                 return {};
@@ -199,7 +225,8 @@ namespace player::app_test_hqzy::app_system {
         init::Graph<kMaxNodes, kMaxCaps> graph{};
         std::array<const init::Node*, kMaxNodes> nodes{};
         util::usize idx = 0;
-        nodes[idx++] = &platform_node;
+        nodes[idx++] = &board_node;
+        nodes[idx++] = &runtime_node;
         nodes[idx++] = &clock_node;
         const auto core_nodes = core.node_span();
         for (util::usize i = 0; i < core_nodes.size(); ++i) {

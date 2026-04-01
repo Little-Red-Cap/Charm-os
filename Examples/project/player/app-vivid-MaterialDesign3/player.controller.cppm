@@ -1061,12 +1061,24 @@ export namespace player {
         }
 
         void refresh_home() {
+            if (handles.nav_bar) {
+                access.set_visible(handles.nav_bar, true);
+            }
+            if (handles.bottom_bar) {
+                access.set_visible(handles.bottom_bar, true);
+            }
             update_duration_from_player();
             update_info_label();
             update_debug_overlay();
         }
 
         void refresh_library() {
+            if (handles.nav_bar) {
+                access.set_visible(handles.nav_bar, true);
+            }
+            if (handles.bottom_bar) {
+                access.set_visible(handles.bottom_bar, true);
+            }
             update_list_title();
             update_list_path();
             update_list_sort_label();

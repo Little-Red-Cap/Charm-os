@@ -22,6 +22,10 @@ inline constexpr bool kPlayerAppMcuGuard =
 export namespace player {
     struct AppConfig {
         audio::PlayerConfig player_config{};
+        std::string ttf_path{};
+        int ttf_small_px{14};
+        int ttf_normal_px{16};
+        int ttf_large_px{20};
     };
 
     class App {
@@ -81,6 +85,12 @@ export namespace player {
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             apply_player_theme();
+            if (!config_.ttf_path.empty()) {
+                bind_player_freetype_font(config_.ttf_path,
+                                          config_.ttf_small_px,
+                                          config_.ttf_normal_px,
+                                          config_.ttf_large_px);
+            }
             controller.icons = register_player_icons();
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();

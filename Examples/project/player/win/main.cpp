@@ -144,7 +144,7 @@ namespace {
             int x = progress.x + 8 + phase;
             for (int i = 0; i < dot_count; ++i) {
                 const int y = wave_y + ((i % 4 == 0) ? -1 : 0);
-                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTime);
+                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTimeSoft);
                 x += dot_r * 2 + dot_gap;
                 if (x > progress.x + progress.w - 6) break;
             }
@@ -529,6 +529,10 @@ int main(int argc, char** argv) {
     player::PlayerPage start_page = player::PlayerPage::Library;
     bool start_page_set = false;
     bool ui_ci = false;
+    std::string font_ttf_path{};
+    int font_small_px = 0;
+    int font_normal_px = 0;
+    int font_large_px = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i] ? argv[i] : "";
         if (arg.rfind("--screenshot=", 0) == 0) {
@@ -537,7 +541,10 @@ int main(int argc, char** argv) {
             screenshot_gif_path.assign(arg.substr(17));
         } else if (arg.rfind("--screenshot-page=", 0) == 0) {
             const std::string_view page = arg.substr(18);
-            if (page == "now") {
+            if (page == "home") {
+                start_page = player::PlayerPage::Home;
+                start_page_set = true;
+            } else if (page == "now") {
                 start_page = player::PlayerPage::NowPlaying;
                 start_page_set = true;
             } else if (page == "library") {
@@ -546,7 +553,10 @@ int main(int argc, char** argv) {
             }
         } else if (arg.rfind("--page=", 0) == 0) {
             const std::string_view page = arg.substr(7);
-            if (page == "now") {
+            if (page == "home") {
+                start_page = player::PlayerPage::Home;
+                start_page_set = true;
+            } else if (page == "now") {
                 start_page = player::PlayerPage::NowPlaying;
                 start_page_set = true;
             } else if (page == "library") {
@@ -562,6 +572,14 @@ int main(int argc, char** argv) {
             screenshot_wait_frames = std::max(0, std::atoi(std::string(value).c_str()));
         } else if (arg == "--ui-ci") {
             ui_ci = true;
+        } else if (arg.rfind("--font-ttf=", 0) == 0) {
+            font_ttf_path.assign(arg.substr(11));
+        } else if (arg.rfind("--font-small=", 0) == 0) {
+            font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
+        } else if (arg.rfind("--font-normal=", 0) == 0) {
+            font_normal_px = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
+        } else if (arg.rfind("--font-large=", 0) == 0) {
+            font_large_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         }
     }
     if (!start_page_set && (!screenshot_path.empty() || !screenshot_gif_path.empty())) {
@@ -598,7 +616,22 @@ int main(int argc, char** argv) {
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
-    g_app.emplace(player::AppConfig{g_player_cfg}, g_clock);
+    player::AppConfig app_cfg{g_player_cfg};
+    if (!font_ttf_path.empty()) {
+        app_cfg.ttf_path = font_ttf_path;
+    } else {
+        app_cfg.ttf_path = "/font/gflex_variable.ttf";
+    }
+    if (font_small_px > 0) {
+        app_cfg.ttf_small_px = font_small_px;
+    }
+    if (font_normal_px > 0) {
+        app_cfg.ttf_normal_px = font_normal_px;
+    }
+    if (font_large_px > 0) {
+        app_cfg.ttf_large_px = font_large_px;
+    }
+    g_app.emplace(std::move(app_cfg), g_clock);
 
     g_app->bind_player(g_ctx);
     g_ctx.bind_scene(g_platform.scene_ref());

@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 
 export module player.ui;
@@ -17,6 +18,8 @@ import charm.font;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
+import charm.ui.vivid.font_package;
+import charm.font.provider_freetype;
 import player.font_cache;
 import charm.widgets.button;
 import charm.widgets.chart;
@@ -63,7 +66,7 @@ export namespace player::ui {
     };
 
     inline constexpr int kUiPadding = 18;
-    inline constexpr int kCoverSize = 340;
+    inline constexpr int kCoverSize = 360;
     inline constexpr int kDemoGap = 16;
     inline constexpr int kHeaderTitleOffset = 18;
     inline constexpr int kHeaderSubtitleOffset = 44;
@@ -107,6 +110,7 @@ export namespace player::ui {
     inline constexpr rgba kUiTitle = {240, 242, 250, 255};
     inline constexpr rgba kUiSubtitle = {170, 176, 200, 255};
     inline constexpr rgba kUiTime = {122, 132, 156, 255};
+    inline constexpr rgba kUiTimeSoft = {140, 148, 170, 200};
     inline constexpr rgba kUiStatus = {160, 166, 190, 255};
     inline constexpr rgba kUiListTitle = {210, 214, 230, 255};
     inline constexpr rgba kUiHint = {130, 138, 160, 255};
@@ -124,6 +128,10 @@ export namespace player::ui {
     inline constexpr rgba kUiTabActive = {72, 92, 132, 255};
     inline constexpr rgba kUiListBg = {34, 38, 56, 255};
     inline constexpr rgba kUiInfoTagBg = {28, 32, 46, 255};
+    inline constexpr rgba kUiInfoTagBgSoft = {28, 32, 46, 180};
+    inline constexpr rgba kUiInfoTagBorderSoft = {64, 74, 102, 120};
+    inline constexpr rgba kUiControlSideBg = {36, 40, 58, 210};
+    inline constexpr rgba kUiControlSideBorder = {64, 74, 102, 140};
     inline constexpr rgba kUiListBorder = {62, 72, 104, 255};
     inline constexpr rgba kUiListFont = {220, 228, 246, 255};
     inline constexpr rgba kUiProgressBg = {22, 26, 40, 255};
@@ -147,6 +155,10 @@ export namespace player::ui {
         ::ui::gfx::ImageId single{};
         ::ui::gfx::ImageId shuffle{};
         ::ui::gfx::ImageId folder{};
+        ::ui::gfx::ImageId home{};
+        ::ui::gfx::ImageId search{};
+        ::ui::gfx::ImageId settings{};
+        ::ui::gfx::ImageId more{};
     };
 
     namespace detail {
@@ -196,6 +208,20 @@ export namespace player::ui {
             "M300,570L436,480L300,390L300,570Z";
         constexpr std::string_view kPathFolder =
             "M120,260H360L440,340H840V760H120Z";
+        constexpr std::string_view kPathHome =
+            "M240,760L360,760L360,560Q360,543 371.5,531.5Q383,520 400,520L560,520Q577,520 588.5,531.5Q600,543 600,560L600,760L720,760L720,400L480,220L240,400L240,760Z"
+            "M160,760L160,400Q160,381 168.5,364Q177,347 192,336L432,156Q453,140 480,140Q507,140 528,156L768,336Q783,347 791.5,364Q800,381 800,400L800,760Q800,793 776.5,816.5Q753,840 720,840L560,840Q543,840 531.5,828.5Q520,817 520,800L520,600L440,600L440,800Q440,817 428.5,828.5Q417,840 400,840L240,840Q207,840 183.5,816.5Q160,793 160,760Z";
+        constexpr std::string_view kPathSearch =
+            "M380,640Q271,640 195.5,564.5Q120,489 120,380Q120,271 195.5,195.5Q271,120 380,120Q489,120 564.5,195.5Q640,271 640,380Q640,424 626,463Q612,502 588,532L812,756Q823,767 823,784Q823,801 812,812Q801,823 784,823Q767,823 756,812L532,588Q502,612 463,626Q424,640 380,640Z"
+            "M380,560Q455,560 507.5,507.5Q560,455 560,380Q560,305 507.5,252.5Q455,200 380,200Q305,200 252.5,252.5Q200,305 200,380Q200,455 252.5,507.5Q305,560 380,560Z";
+        constexpr std::string_view kPathSettings =
+            "M433,880Q406,880 386.5,862Q367,844 363,818L354,752Q341,747 329.5,740Q318,733 307,725L245,751Q220,762 195,753Q170,744 156,721L109,639Q95,616 101,590Q107,564 128,547L181,507Q180,500 180,493.5Q180,487 180,480Q180,473 180,466.5Q180,460 181,453L128,413Q107,396 101,370Q95,344 109,321L156,239Q170,216 195,207Q220,198 245,209L307,235Q318,227 330,220Q342,213 354,208L363,142Q367,116 386.5,98Q406,80 433,80L527,80Q554,80 573.5,98Q593,116 597,142L606,208Q619,213 630.5,220Q642,227 653,235L715,209Q740,198 765,207Q790,216 804,239L851,321Q865,344 859,370Q853,396 832,413L779,453Q780,460 780,466.5Q780,473 780,480Q780,487 780,493.5Q780,500 778,507L831,547Q852,564 858,590Q864,616 850,639L802,721Q788,744 763,753Q738,762 713,751L653,725Q642,733 630,740Q618,747 606,752L597,818Q593,844 573.5,862Q554,880 527,880L433,880Z"
+            "M440,800L519,800L533,694Q564,686 590.5,670.5Q617,655 639,633L738,674L777,606L691,541Q696,527 698,511.5Q700,496 700,480Q700,464 698,448.5Q696,433 691,419L777,354L738,286L639,328Q617,305 590.5,289.5Q564,274 533,266L520,160L441,160L427,266Q396,274 369.5,289.5Q343,305 321,327L222,286L183,354L269,418Q264,433 262,448Q260,463 260,480Q260,496 262,511Q264,526 269,541L183,606L222,674L321,632Q343,655 369.5,670.5Q396,686 427,694L440,800Z"
+            "M482,620Q540,620 581,579Q622,538 622,480Q622,422 581,381Q540,340 482,340Q423,340 382.5,381Q342,422 342,480Q342,538 382.5,579Q423,620 482,620Z";
+        constexpr std::string_view kPathMore =
+            "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800Z"
+            "M480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560Z"
+            "M480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z";
 
         void build_prev_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
@@ -246,6 +272,47 @@ export namespace player::ui {
         void build_folder_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
             rasterize_svg_path(buf, kPathFolder, color);
+        }
+
+        void build_home_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathHome, color);
+        }
+
+        void build_search_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathSearch, color);
+        }
+
+        void build_settings_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathSettings, color);
+        }
+
+        void build_more_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathMore, color);
+        }
+
+        struct FontPackageState {
+            charm::font::VfsFontPackage package{};
+            bool bound{false};
+        };
+
+        FontPackageState& font_package_state() {
+            static FontPackageState state{};
+            return state;
+        }
+
+        struct FreetypeLoaderState {
+            charm::font::FreetypeFontLoader loader{};
+            std::string ttf_path{};
+            bool ready{false};
+        };
+
+        FreetypeLoaderState& freetype_state() {
+            static FreetypeLoaderState state{};
+            return state;
         }
     }
 
@@ -377,6 +444,70 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_home() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_home_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_search() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_search_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_settings() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_settings_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
+    inline ImageView icon_more() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_more_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline PlayerIconIds register_player_icons() noexcept {
         PlayerIconIds out{};
         auto reg = [](const ImageView& view) noexcept {
@@ -391,6 +522,10 @@ export namespace player::ui {
         out.single = reg(icon_single());
         out.shuffle = reg(icon_shuffle());
         out.folder = reg(icon_folder());
+        out.home = reg(icon_home());
+        out.search = reg(icon_search());
+        out.settings = reg(icon_settings());
+        out.more = reg(icon_more());
         return out;
     }
 
@@ -398,12 +533,70 @@ export namespace player::ui {
         return get_font(FontId::Normal);
     }
 
+    bool font_package_bound() noexcept {
+        return detail::font_package_state().bound;
+    }
+
+    void bind_font_package(const charm::font::FontPackageConfig& config,
+                           const charm::font::VfsFontLoaderApi& loader,
+                           void* ctx) noexcept {
+        auto& state = detail::font_package_state();
+        state.package.set_config(config);
+        state.package.set_loader(loader, ctx);
+        state.package.bind();
+        state.bound = true;
+    }
+
+    void bind_player_freetype_font(std::string_view ttf_path,
+                                   int small_px,
+                                   int normal_px,
+                                   int large_px) noexcept {
+        if (ttf_path.empty()) return;
+        auto& state = detail::freetype_state();
+        state.ttf_path.assign(ttf_path.begin(), ttf_path.end());
+        const char* path = state.ttf_path.c_str();
+
+        charm::font::FontPackageConfig pkg{};
+        pkg.regular.small_path = path;
+        pkg.regular.normal_path = path;
+        pkg.regular.large_path = path;
+        pkg.regular.mono_path = path;
+        pkg.medium = pkg.regular;
+        pkg.bold = pkg.regular;
+        pkg.fallback_path = path;
+
+        charm::font::FreetypeFontLoaderConfig loader_cfg{};
+        loader_cfg.regular.small_path = path;
+        loader_cfg.regular.normal_path = path;
+        loader_cfg.regular.large_path = path;
+        loader_cfg.regular.mono_path = path;
+        loader_cfg.medium = loader_cfg.regular;
+        loader_cfg.bold = loader_cfg.regular;
+        loader_cfg.small_px = small_px;
+        loader_cfg.normal_px = normal_px;
+        loader_cfg.large_px = large_px;
+        loader_cfg.mono_px = normal_px;
+
+        state.loader.set_config(loader_cfg);
+        state.loader.bind_glyph_loader();
+        bind_font_package(pkg, state.loader.vfs_api(), &state.loader);
+        state.ready = true;
+    }
+
     inline void apply_player_theme() {
-        set_default_font(FontId::Small, &font_noto_ascii_16);
-        set_default_font(FontId::Normal, &font_noto_ascii_16);
-        set_default_font(FontId::Large, &font_noto_ascii_16);
-        set_default_font(FontId::Mono, &font_noto_ascii_16);
-        if (!player::font_cache::init()) {
+        if (!font_package_bound()) {
+            set_default_font(FontId::Small, &font_noto_ascii_16);
+            set_default_font(FontId::Normal, &font_noto_ascii_16);
+            set_default_font(FontId::Large, &font_noto_ascii_16);
+            set_default_font(FontId::Mono, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Normal, FontWeight::Regular, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
+            if (!player::font_cache::init()) {
+                set_default_fallback_font(&font_noto_sc_16);
+            }
+        } else if (!font_fallback_bound()) {
             set_default_fallback_font(&font_noto_sc_16);
         }
 
@@ -414,11 +607,31 @@ export namespace player::ui {
             StylePatch side{};
             side.has_corner_radius = true;
             side.corner_radius = 24;
+            side.has_bg_color = true;
+            side.bg_color = kUiControlSideBg;
+            side.has_border_color = true;
+            side.border_color = kUiControlSideBorder;
+            side.has_shadow_enabled = true;
+            side.shadow_enabled = true;
+            side.has_shadow_color = true;
+            side.shadow_color = kUiCardShadow;
+            side.has_shadow_offset_x = true;
+            side.shadow_offset_x = 0;
+            side.has_shadow_offset_y = true;
+            side.shadow_offset_y = 2;
+            side.has_shadow_spread = true;
+            side.shadow_spread = 0;
+            side.has_shadow_radius = true;
+            side.shadow_radius = 8;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlSide), side);
 
             StylePatch play{};
             play.has_corner_radius = true;
             play.corner_radius = 24;
+            play.has_bg_color = true;
+            play.bg_color = kUiPlayBg;
+            play.has_border_color = true;
+            play.border_color = kUiButtonBorder;
             play.has_shadow_enabled = true;
             play.shadow_enabled = true;
             play.has_shadow_color = true;
@@ -426,11 +639,11 @@ export namespace player::ui {
             play.has_shadow_offset_x = true;
             play.shadow_offset_x = 0;
             play.has_shadow_offset_y = true;
-            play.shadow_offset_y = 6;
+            play.shadow_offset_y = 8;
             play.has_shadow_spread = true;
             play.shadow_spread = 0;
             play.has_shadow_radius = true;
-            play.shadow_radius = 18;
+            play.shadow_radius = 22;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ControlPlay), play);
         }
 
@@ -497,13 +710,13 @@ export namespace player::ui {
         {
             StylePatch patch{};
             patch.has_bg_color = true;
-            patch.bg_color = kUiInfoTagBg;
+            patch.bg_color = kUiInfoTagBgSoft;
             patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
+            patch.border_color = kUiInfoTagBorderSoft;
             patch.has_corner_radius = true;
             patch.corner_radius = 10;
             patch.has_font_color = true;
-            patch.font_color = kUiTime;
+            patch.font_color = kUiTimeSoft;
             patch.has_font = true;
             patch.font = &get_font(FontId::Small);
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::InfoTag), patch);

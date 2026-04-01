@@ -69,6 +69,7 @@ struct Style {
     StyleMetrics metrics{};
     StyleDecoration decoration{};
     const Font* font{nullptr};
+    FontWeight font_weight{FontWeight::Regular};
 };
 
 export
@@ -105,6 +106,7 @@ struct StylePatch {
     bool has_glass_opacity_min{false};
     bool has_glass_opacity_max{false};
     bool has_font{false};
+    bool has_font_weight{false};
     bool has_font_color{false};
     bool has_bg_hover{false};
     bool has_bg_pressed{false};
@@ -147,6 +149,7 @@ struct StylePatch {
     int  glass_opacity_min{0};
     int  glass_opacity_max{0};
     const Font* font{nullptr};
+    FontWeight font_weight{FontWeight::Regular};
     rgba font_color{};
     rgba bg_hover{};
     rgba bg_pressed{};
@@ -190,6 +193,7 @@ struct StylePatch {
         if (has_glass_opacity_min) s.metrics.glass_opacity_min = glass_opacity_min;
         if (has_glass_opacity_max) s.metrics.glass_opacity_max = glass_opacity_max;
         if (has_font) s.font = font;
+        if (has_font_weight) s.font_weight = font_weight;
         if (has_font_color) s.colors.font_color = font_color;
         if (has_bg_hover) s.colors.bg_hover = bg_hover;
         if (has_bg_pressed) s.colors.bg_pressed = bg_pressed;
@@ -268,6 +272,7 @@ inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
     if (src.has_glass_opacity_min) { dst.has_glass_opacity_min = true; dst.glass_opacity_min = src.glass_opacity_min; }
     if (src.has_glass_opacity_max) { dst.has_glass_opacity_max = true; dst.glass_opacity_max = src.glass_opacity_max; }
     if (src.has_font) { dst.has_font = true; dst.font = src.font; }
+    if (src.has_font_weight) { dst.has_font_weight = true; dst.font_weight = src.font_weight; }
     if (src.has_font_color) { dst.has_font_color = true; dst.font_color = src.font_color; }
     if (src.has_bg_hover) { dst.has_bg_hover = true; dst.bg_hover = src.bg_hover; }
     if (src.has_bg_pressed) { dst.has_bg_pressed = true; dst.bg_pressed = src.bg_pressed; }
@@ -316,7 +321,7 @@ inline StyleState make_style_state(bool enabled,
 
 export
 inline const Font& resolve_font(const Style& st) noexcept {
-    return st.font ? *st.font : get_font(FontId::Normal);
+    return st.font ? *st.font : get_font_weighted(FontId::Normal, st.font_weight);
 }
 
 inline int luma(const rgba& c) noexcept {

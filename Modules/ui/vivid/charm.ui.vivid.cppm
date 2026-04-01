@@ -23,3 +23,5 @@ export import charm.ui.scene;
 
 export import charm.font;
 export import charm.font.typography;
+export import charm.ui.vivid.font_package;
+export import charm.font.provider_freetype;

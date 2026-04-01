@@ -8,6 +8,7 @@ export module player.ui_builder;
 import charm.core.config;
 import charm.core.geometry;
 import charm.ui.scene;
+import charm.font.typography;
 import player.controller;
 import player.ui;
 
@@ -76,15 +77,15 @@ namespace player::ui_builder_detail {
         const int cover_y = cover_top;
         const int header_top = cover_top + kCoverSize;
         const int text_gap = 6;
-        const int title_h = 32;
-        const int subtitle_h = 16;
+        const int title_h = 28;
+        const int subtitle_h = 14;
         const int progress_h = 3;
         const int text_col_y = header_top + 12;
         const int text_col_h = title_h + subtitle_h + progress_h + text_gap * 2;
-        const int controls_y = text_col_y + text_col_h + 58;
-        const int control_side = 104;
-        const int control_play = 120;
-        const int control_gap = 16;
+        const int controls_y = text_col_y + text_col_h + 64;
+        const int control_side = 96;
+        const int control_play = 116;
+        const int control_gap = 14;
         const int controls_w = control_side * 2 + control_play + control_gap * 2;
         const int controls_x = (screen_width - controls_w) / 2;
 
@@ -130,15 +131,15 @@ namespace player::ui_builder_detail {
     }
 
     static NowTextLayout make_now_text_layout(const UiLayout& layout) noexcept {
-        const int title_h = 32;
-        const int subtitle_h = 16;
+        const int title_h = 28;
+        const int subtitle_h = 14;
         const int progress_h = 3;
         const int time_row_h = 16;
         const int text_gap = 6;
         const int header_top = (layout.top_bar_y + layout.top_bar_h + 12) + kCoverSize;
         const int text_col_y = header_top + 12;
-        const int text_col_h = 118;
-        const int time_row_y = text_col_y + title_h + text_gap + subtitle_h + text_gap + progress_h + text_gap;
+        const int text_col_h = title_h + subtitle_h + progress_h + text_gap * 2;
+        const int time_row_y = text_col_y + title_h + text_gap + subtitle_h + text_gap + progress_h + text_gap + 2;
 
         return NowTextLayout{
             .text_col_y = text_col_y,
@@ -177,7 +178,7 @@ namespace player::ui_builder_detail {
         patch.has_font_color = true;
         patch.font_color = kUiTime;
         patch.has_font = true;
-        patch.font = &get_font(FontId::Small);
+        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
         builder.set_style_override(h, patch);
     }
 
@@ -271,6 +272,58 @@ namespace player::ui_builder_detail {
         builder.set_style_patch(h, patch);
     }
 
+    static void apply_nav_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        StylePatch patch{};
+        patch.has_font_color = true;
+        patch.font_color = kUiTitle;
+        patch.has_font = true;
+        patch.font = &get_font_weighted(FontId::Small, FontWeight::Medium);
+        patch.has_bg_color = true;
+        patch.bg_color = {0, 0, 0, 0};
+        patch.has_border_color = true;
+        patch.border_color = {0, 0, 0, 0};
+        patch.has_border_width = true;
+        patch.border_width = 0;
+        patch.has_padding = true;
+        patch.padding = 0;
+        patch.has_corner_radius = true;
+        patch.corner_radius = 0;
+        builder.set_style_override(h, patch);
+        builder.set_hit_testable(h, false);
+    }
+
+    static void apply_nav_bar_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int radius) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = {0, 0, 0, 0};
+        patch.has_border_color = true;
+        patch.border_color = {0, 0, 0, 0};
+        patch.has_border_width = true;
+        patch.border_width = 0;
+        patch.has_corner_radius = true;
+        patch.corner_radius = radius;
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_nav_hit_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int padding) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = {0, 0, 0, 0};
+        patch.has_border_color = true;
+        patch.border_color = {0, 0, 0, 0};
+        patch.has_border_width = true;
+        patch.border_width = 0;
+        patch.has_padding = true;
+        patch.padding = padding;
+        patch.has_corner_radius = true;
+        patch.corner_radius = 0;
+        patch.has_font_color = true;
+        patch.font_color = kUiTitle;
+        patch.has_font = true;
+        patch.font = &get_font_weighted(FontId::Small, FontWeight::Medium);
+        builder.set_style_override(h, patch);
+    }
+
     static void build_now_playing(::ui::scene::SceneBuilder& builder, UiHandles& h,
                                   const UiLayout& layout, const NowTextLayout& text_layout,
                                   const PlayerIconIds& icons) {
@@ -292,7 +345,7 @@ namespace player::ui_builder_detail {
         {
             StylePatch patch{};
             patch.has_corner_radius = true;
-            patch.corner_radius = 20;
+            patch.corner_radius = 28;
             builder.set_style_override(h.cover, patch);
         }
 
@@ -347,12 +400,14 @@ namespace player::ui_builder_detail {
         }
 
         h.title = builder.create_label_static("");
-        apply_text_label_style(builder, h.title, kUiTitle, get_font(FontId::Large));
+        apply_text_label_style(builder, h.title, kUiTitle,
+                               get_font_weighted(FontId::Large, FontWeight::Bold));
         builder.set_label_align(h.title, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.title, false);
 
         h.subtitle = builder.create_label_static("");
-        apply_text_label_style(builder, h.subtitle, kUiSubtitle, get_font(FontId::Small));
+        apply_text_label_style(builder, h.subtitle, kUiSubtitle,
+                               get_font_weighted(FontId::Small, FontWeight::Regular));
         builder.set_label_align(h.subtitle, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.subtitle, false);
 
@@ -440,11 +495,11 @@ namespace player::ui_builder_detail {
         h.clip_value = builder.create_label_static("");
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
-        constexpr int control_side = 104;
-        constexpr int control_play = 120;
+        constexpr int control_side = 96;
+        constexpr int control_play = 116;
         const int small_btn = control_side;
         const int play_btn = control_play;
-        const int btn_gap = 16;
+        const int btn_gap = 14;
         const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, control_play};
         ::ui::scene::RowBuilder controls_row{builder, controls_rect, btn_gap, kNowControlsPadding,
                                              ::ui::scene::LayoutAlign::Center};
@@ -453,20 +508,20 @@ namespace player::ui_builder_detail {
         h.btn_prev = builder.create_button_static("");
         controls_row.add(h.btn_prev, small_btn, small_btn);
         builder.set_button_icon(h.btn_prev, icons.prev);
-        builder.set_button_icon_size(h.btn_prev, 26);
-        apply_control_side_style(builder, h.btn_prev, small_btn, 26);
+        builder.set_button_icon_size(h.btn_prev, 24);
+        apply_control_side_style(builder, h.btn_prev, small_btn, 24);
 
         h.btn_pause = builder.create_button_static("");
         controls_row.add(h.btn_pause, play_btn, play_btn);
         builder.set_button_icon(h.btn_pause, icons.play);
-        builder.set_button_icon_size(h.btn_pause, 32);
-        apply_control_play_style(builder, h.btn_pause, play_btn, 32);
+        builder.set_button_icon_size(h.btn_pause, 30);
+        apply_control_play_style(builder, h.btn_pause, play_btn, 30);
 
         h.btn_next = builder.create_button_static("");
         controls_row.add(h.btn_next, small_btn, small_btn);
         builder.set_button_icon(h.btn_next, icons.next);
-        builder.set_button_icon_size(h.btn_next, 26);
-        apply_control_side_style(builder, h.btn_next, small_btn, 26);
+        builder.set_button_icon_size(h.btn_next, 24);
+        apply_control_side_style(builder, h.btn_next, small_btn, 24);
 
         constexpr bool kShowModeButton = false;
         if constexpr (kShowModeButton) {
@@ -624,24 +679,27 @@ namespace player::ui_builder_detail {
         const int title_w = screen_width - kUiPadding * 2 - 96;
         const int title_line_h = 52;
         h.home_title_top = builder.create_label_static("Your");
-        apply_text_label_style(builder, h.home_title_top, kUiTitle, get_font(FontId::Large));
+        apply_text_label_style(builder, h.home_title_top, kUiTitle,
+                               get_font_weighted(FontId::Large, FontWeight::Bold));
         builder.set_label_align(h.home_title_top, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_title_top, {title_x, title_y, title_w, title_line_h});
 
         h.home_title_bottom = builder.create_label_static("Mix");
-        apply_text_label_style(builder, h.home_title_bottom, kUiTitle, get_font(FontId::Large));
+        apply_text_label_style(builder, h.home_title_bottom, kUiTitle,
+                               get_font_weighted(FontId::Large, FontWeight::Bold));
         builder.set_label_align(h.home_title_bottom, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_title_bottom, {title_x, title_y + title_line_h, title_w, title_line_h});
 
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
-        apply_text_label_style(builder, h.home_subtitle, kUiSubtitle, get_font(FontId::Small));
+        apply_text_label_style(builder, h.home_subtitle, kUiSubtitle,
+                               get_font_weighted(FontId::Small, FontWeight::Regular));
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 6, title_w, 20});
 
         h.home_play = builder.create_button_static("");
         const int play_size = 80;
         const int play_x = screen_width - kUiPadding - play_size;
-        const int play_y = title_y + 6;
+        const int play_y = title_y + title_line_h + 10;
         anchor_rect(builder, h.home_play, {play_x, play_y, play_size, play_size});
         builder.set_button_icon(h.home_play, icons.play);
         builder.set_button_icon_size(h.home_play, 20);
@@ -786,14 +844,10 @@ namespace player::ui_builder_detail {
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
 
-        h.nav_bar = builder.create_container();
-        anchor_rect(builder, h.nav_bar, {0, 0, 0, 0});
-        h.nav_home = builder.create_button_static("");
-        anchor_rect(builder, h.nav_home, {0, 0, 0, 0});
-        h.nav_search = builder.create_button_static("");
-        anchor_rect(builder, h.nav_search, {0, 0, 0, 0});
-        h.nav_library = builder.create_button_static("");
-        anchor_rect(builder, h.nav_library, {0, 0, 0, 0});
+        h.nav_bar = {};
+        h.nav_home = {};
+        h.nav_search = {};
+        h.nav_library = {};
 
         const WidgetHandle library = builder.create_container();
         anchor_rect(builder, library, {0, 0, screen_width, screen_height});
@@ -970,20 +1024,42 @@ namespace player::ui_builder_detail {
         {
             const Rect nav_rect{kUiPadding, layout.nav_y,
                                 screen_width - kUiPadding * 2, layout.nav_h};
-            ::ui::scene::RowBuilder nav_row{builder, nav_rect, layout.nav_gap, kNavPadding,
-                                            ::ui::scene::LayoutAlign::Center};
-            h.nav_bar = nav_row.root();
+            h.nav_bar = builder.create_container();
+            anchor_rect(builder, h.nav_bar, nav_rect);
+            apply_nav_bar_style(builder, h.nav_bar, nav_rect.h / 2);
             const int nav_w = nav_rect.w;
             const int nav_btn_w = (nav_w - layout.nav_gap * 2) / 3;
-            nav_row.add(h.nav_home, nav_btn_w, layout.nav_h);
-            nav_row.add(h.nav_search, nav_btn_w, layout.nav_h);
-            nav_row.add(h.nav_library, nav_btn_w, layout.nav_h);
+            const int nav_icon = 22;
+            const int nav_label_h = 14;
+            const int nav_icon_h = 28;
+            const int nav_y = 0;
+            const int nav_x = 0;
+            const int nav_icon_pad = 12;
+
+            const int home_x = nav_x;
+            const int search_x = nav_x + nav_btn_w + layout.nav_gap;
+            const int lib_x = nav_x + (nav_btn_w + layout.nav_gap) * 2;
+
+            h.nav_home = builder.create_button_static("Home");
+            h.nav_search = builder.create_button_static("Search");
+            h.nav_library = builder.create_button_static("Library");
+            anchor_rect(builder, h.nav_home, {home_x, nav_y, nav_btn_w, layout.nav_h});
+            anchor_rect(builder, h.nav_search, {search_x, nav_y, nav_btn_w, layout.nav_h});
+            anchor_rect(builder, h.nav_library, {lib_x, nav_y, nav_btn_w, layout.nav_h});
+            apply_nav_hit_style(builder, h.nav_home, nav_icon_pad);
+            apply_nav_hit_style(builder, h.nav_search, nav_icon_pad);
+            apply_nav_hit_style(builder, h.nav_library, nav_icon_pad);
+
             builder.set_button_icon(h.nav_home, icons.home);
-            builder.set_button_icon_size(h.nav_home, 18);
+            builder.set_button_icon_size(h.nav_home, nav_icon);
             builder.set_button_icon(h.nav_search, icons.search);
-            builder.set_button_icon_size(h.nav_search, 18);
+            builder.set_button_icon_size(h.nav_search, nav_icon);
             builder.set_button_icon(h.nav_library, icons.folder);
-            builder.set_button_icon_size(h.nav_library, 18);
+            builder.set_button_icon_size(h.nav_library, nav_icon);
+
+            builder.link(h.nav_bar, h.nav_home);
+            builder.link(h.nav_bar, h.nav_search);
+            builder.link(h.nav_bar, h.nav_library);
         }
 
         builder.link(h.root, h.bottom_bar);

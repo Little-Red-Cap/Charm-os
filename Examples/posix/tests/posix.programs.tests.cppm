@@ -1050,6 +1050,49 @@ namespace {
         }
         check_true("cat-file-load", cat_img);
 
+        posix::FdOps term_ops{};
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
+
+        {
+            int err_pipe[2]{-1, -1};
+            check_eq("cat-file-err-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("cat-file-err-move-read", h.fds.dup2(err_read, 7));
+                err_read = 7;
+            }
+            check_true("cat-file-dup2-err", h.fds.dup2(err_pipe[1], 2));
+
+            auto cat_sp = h.procs.spawn(cat_cfg);
+            if (!cat_sp) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-spawn fail: err=%lld",
+                    to_ll(cat_sp.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-spawn", cat_sp);
+            auto cat_st = h.procs.waitpid(cat_sp.value().pid, 0);
+            if (!cat_st) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-wait fail: err=%lld",
+                    to_ll(cat_st.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-wait", cat_st);
+            check_eq("cat-file-code", cat_st.value().code, 0);
+
+            if (err_pipe[1] != 2) {
+                (void)h.api.close(err_pipe[1]);
+            }
+            std::array<char, 32> err_buf{};
+            util::usize err_size = 0;
+            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\n"});
+        }
+
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
         h.unbind_env();

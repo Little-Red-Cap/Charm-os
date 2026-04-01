@@ -801,6 +801,11 @@ export namespace posix {
         struct ElfHostCalls {
             util::i32 (*write)(int fd, const void* buf, util::usize len) noexcept {nullptr};
             void (*exit)(int code) noexcept {nullptr};
+            util::i32 (*open)(const char* path, int flags, int mode) noexcept {nullptr};
+            util::i32 (*close)(int fd) noexcept {nullptr};
+            util::i32 (*read)(int fd, void* buf, util::usize len) noexcept {nullptr};
+            util::i32 (*fstat)(int fd, void* st) noexcept {nullptr};
+            util::i32 (*isatty)(int fd) noexcept {nullptr};
         };
 
         struct ElfMemImage {
@@ -834,6 +839,79 @@ export namespace posix {
             elf_host_service_->elf_exit_code_ = code;
         }
 
+        struct ElfHostStat {
+            util::u64 st_size{0};
+            util::u32 st_mode{0};
+        };
+
+        static void close_entry(const FdEntry& entry) noexcept {
+            if (entry.ops && entry.ops->close) {
+                (void)entry.ops->close(entry.ctx);
+            }
+        }
+
+        static util::i32 elf_host_open(const char* path, int flags, int mode) noexcept {
+            if (!elf_host_service_ || !path) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table || !elf_host_service_->file_service_) return -1;
+            auto entry = elf_host_service_->file_service_->open(std::string_view{path}, flags, mode);
+            if (!entry) return -1;
+            auto rfd = table->attach(entry.value());
+            if (!rfd) {
+                close_entry(entry.value());
+                return -1;
+            }
+            return static_cast<util::i32>(rfd.value());
+        }
+
+        static util::i32 elf_host_close(int fd) noexcept {
+            if (!elf_host_service_) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto r = table->close(fd);
+            return r ? 0 : -1;
+        }
+
+        static util::i32 elf_host_read(int fd, void* buf, util::usize len) noexcept {
+            if (!elf_host_service_) return -1;
+            if (!buf && len > 0) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto entry = table->get(fd);
+            if (!entry || !entry.value()->ops || !entry.value()->ops->read) return -1;
+            MutByteView view{static_cast<util::u8*>(buf), len};
+            auto r = entry.value()->ops->read(entry.value()->ctx, view);
+            if (!r) {
+                if (r.error() == util::Errc::end_of_stream) return 0;
+                return -1;
+            }
+            return static_cast<util::i32>(r.value());
+        }
+
+        static util::i32 elf_host_fstat(int fd, void* st) noexcept {
+            if (!elf_host_service_ || !st) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto entry = table->get(fd);
+            if (!entry || !entry.value()->ops || !entry.value()->ops->stat) return -1;
+            PosixStat info{};
+            auto r = entry.value()->ops->stat(entry.value()->ctx, info);
+            if (!r) return -1;
+            auto* host = static_cast<ElfHostStat*>(st);
+            host->st_size = info.size;
+            host->st_mode = info.mode;
+            return 0;
+        }
+
+        static util::i32 elf_host_isatty(int fd) noexcept {
+            if (!elf_host_service_) return 0;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return 0;
+            auto entry = table->get(fd);
+            if (!entry) return 0;
+            return entry.value()->kind == FdKind::term ? 1 : 0;
+        }
+
         util::Result<void> install_elf_hostcalls() noexcept {
             if (elf_load_size() < sizeof(ElfHostCalls)) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -841,6 +919,11 @@ export namespace posix {
             auto* table = reinterpret_cast<ElfHostCalls*>(elf_load_base());
             table->write = &ProcService::elf_host_write;
             table->exit = &ProcService::elf_host_exit;
+            table->open = &ProcService::elf_host_open;
+            table->close = &ProcService::elf_host_close;
+            table->read = &ProcService::elf_host_read;
+            table->fstat = &ProcService::elf_host_fstat;
+            table->isatty = &ProcService::elf_host_isatty;
             return {};
         }
 

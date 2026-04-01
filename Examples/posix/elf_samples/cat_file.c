@@ -18,13 +18,10 @@ static void write_str(int fd, const char* s) {
     elf_hostcalls()->write(fd, s, cstr_len(s));
 }
 
-static void mark(const char* s) {
-    write_str(2, s);
-}
-
 int entry(int argc, char** argv, char** envp) {
     (void)envp;
-    mark("A\n");
+    write_str(2, "A\n");
+
     const char* path = "/cat.txt";
     if (argc > 1 && argv && argv[1]) {
         path = argv[1];
@@ -32,45 +29,47 @@ int entry(int argc, char** argv, char** envp) {
 
     int fd = elf_hostcalls()->open(path, O_RDONLY, 0);
     if (fd < 0) {
-        mark("open fail\n");
+        write_str(2, "open fail\n");
         return 11;
     }
-    mark("B\n");
+    write_str(2, "B\n");
 
     PosixStat st;
     if (elf_hostcalls()->fstat(fd, &st) != 0) {
-        mark("fstat fail\n");
+        write_str(2, "fstat fail\n");
         elf_hostcalls()->close(fd);
         return 12;
     }
-    mark("C\n");
+    write_str(2, "C\n");
 
     if (elf_hostcalls()->isatty(1) != 1) {
-        mark("stdout not tty\n");
+        write_str(2, "stdout not tty\n");
         elf_hostcalls()->close(fd);
         return 13;
     }
-    mark("D\n");
+    write_str(2, "D\n");
 
     if (elf_hostcalls()->isatty(fd) != 0) {
-        mark("file seen as tty\n");
+        write_str(2, "file seen as tty\n");
         elf_hostcalls()->close(fd);
         return 14;
     }
-    mark("E\n");
+    write_str(2, "E\n");
 
     char buf[64];
-    for (;;) {
-        int n = elf_hostcalls()->read(fd, buf, sizeof(buf));
-        if (n < 0) {
-            mark("read fail\n");
-            elf_hostcalls()->close(fd);
-            return 15;
-        }
-        if (n == 0) break;
-        elf_hostcalls()->write(1, buf, (unsigned long)n);
+    int n = elf_hostcalls()->read(fd, buf, sizeof(buf));
+    if (n < 0) {
+        write_str(2, "read fail\n");
+        elf_hostcalls()->close(fd);
+        return 15;
     }
-    mark("F\n");
+    if (n == 0) {
+        write_str(2, "empty\n");
+        elf_hostcalls()->close(fd);
+        return 16;
+    }
+    elf_hostcalls()->write(1, buf, (unsigned long)n);
+    write_str(2, "F\n");
 
     elf_hostcalls()->close(fd);
     return 0;

@@ -4,6 +4,7 @@ export module kernel.thread;
 
 import kernel.evt;
 import kernel.eda;
+import kernel.ssu;
 import util.core;
 
 export namespace kernel {
@@ -23,6 +24,16 @@ export namespace kernel {
         static constexpr EventMask mask{0xFFFF'FFFFu};
         Context context{};
         ThreadControl control{};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "kernel.thread_task",
+            };
+        }
 
         void on_start() noexcept {
             control.reset();

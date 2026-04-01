@@ -5,6 +5,7 @@
 
 import charm.foundation;
 import charm.runtime;
+import kernel.ssu;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -22,6 +23,17 @@ namespace demo {
 
     struct TaskA {
         static constexpr kernel::Priority priority{1};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "demo.task_a",
+            };
+        }
+
         void on_event(kernel::Event evt) {
             if (evt.id == kernel::EventId::init) {
                 std::printf("[A] init\n");
@@ -35,6 +47,17 @@ namespace demo {
 
     struct TaskB {
         static constexpr kernel::Priority priority{0};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "demo.task_b",
+            };
+        }
+
         void on_event(kernel::Event evt) {
             if (evt.id == kernel::EventId::init) {
                 std::printf("[B] init\n");

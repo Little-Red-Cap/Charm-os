@@ -4,6 +4,7 @@ export module kernel.thread_blocking;
 
 import kernel.evt;
 import kernel.eda;
+import kernel.ssu;
 import util.type_state;
 
 export namespace kernel {
@@ -46,6 +47,16 @@ export namespace kernel {
         Context context{};
         ThreadBlockingControl control{};
         ThreadState<Context> state{};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::may_block,
+                .name = "kernel.thread_blocking_task",
+            };
+        }
 
         void on_start() noexcept {
             control.resume();

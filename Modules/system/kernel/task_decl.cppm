@@ -6,6 +6,7 @@ export module kernel.task_decl;
 
 import kernel.eda;
 import kernel.evt;
+import kernel.ssu;
 import kernel.thread;
 
 export namespace kernel {
@@ -13,6 +14,16 @@ export namespace kernel {
     struct EdaTaskDecl {
         static constexpr Priority priority{Prio};
         Handler handler{};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "kernel.eda_decl",
+            };
+        }
 
         static constexpr EventMask mask = [] {
             if constexpr (requires { Handler::event_mask; }) {
@@ -43,6 +54,16 @@ export namespace kernel {
     struct TedaTaskDecl {
         static constexpr Priority priority{Prio};
         Handler handler{};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return {
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::event,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "kernel.teda_decl",
+            };
+        }
 
         static constexpr EventMask mask = [] {
             if constexpr (requires { Handler::event_mask; }) {

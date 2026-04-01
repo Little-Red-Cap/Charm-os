@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <string>
 #include <vector>
@@ -24,8 +24,8 @@ export namespace player {
         audio::PlayerConfig player_config{};
         std::string ttf_path{};
         int ttf_small_px{14};
-        int ttf_normal_px{16};
-        int ttf_large_px{20};
+        int ttf_normal_px{18};
+        int ttf_large_px{76};
     };
 
     class App {
@@ -86,10 +86,17 @@ export namespace player {
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             apply_player_theme();
             if (!config_.ttf_path.empty()) {
-                bind_player_freetype_font(config_.ttf_path,
-                                          config_.ttf_small_px,
-                                          config_.ttf_normal_px,
-                                          config_.ttf_large_px);
+                if constexpr (requires {
+                                  controller.set_font_config(config_.ttf_path,
+                                                             config_.ttf_small_px,
+                                                             config_.ttf_normal_px,
+                                                             config_.ttf_large_px);
+                              }) {
+                    controller.set_font_config(config_.ttf_path,
+                                               config_.ttf_small_px,
+                                               config_.ttf_normal_px,
+                                               config_.ttf_large_px);
+                }
             }
             controller.icons = register_player_icons();
             controller.handles = build_ui(builder, controller, controller.icons);
@@ -118,3 +125,4 @@ export namespace player {
         StorageState last_storage_{};
     };
 }
+

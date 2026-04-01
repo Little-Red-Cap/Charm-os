@@ -1,5 +1,6 @@
 module;
 #include <array>
+#include <cstdio>
 #include <cstddef>
 #include <string_view>
 
@@ -105,6 +106,8 @@ export namespace charm::font {
                 slot.failed = true;
                 return nullptr;
             }
+            std::fprintf(stdout, "[font] package load id=%u weight=%u path=%s\n",
+                         static_cast<unsigned>(id), static_cast<unsigned>(weight), path);
             if (!loader_.load(loader_ctx_, path, slot.font)) {
                 slot.failed = true;
                 return nullptr;

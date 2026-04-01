@@ -1,4 +1,4 @@
-import audio.player;
+﻿import audio.player;
 import audio.result;
 import player.app;
 import player.controller;
@@ -250,21 +250,32 @@ namespace {
         };
 
         ctx.set_page(player::PlayerPage::Library);
-        if (click_handle(ctx.handles.nav_home, "library_to_now")) {
-            if (ctx.current_page == player::PlayerPage::NowPlaying) {
-                ui_ci_emit("library_to_now", true, nullptr);
+        if (click_handle(ctx.handles.nav_home, "library_to_home")) {
+            if (ctx.current_page == player::PlayerPage::Home) {
+                ui_ci_emit("library_to_home", true, nullptr);
             } else {
-                ui_ci_emit("library_to_now", false, "page_not_now");
+                ui_ci_emit("library_to_home", false, "page_not_home");
                 res.ok = false;
                 res.failed++;
             }
         }
 
-        if (click_handle(ctx.handles.now_back, "now_to_library")) {
-            if (ctx.current_page == player::PlayerPage::Library) {
-                ui_ci_emit("now_to_library", true, nullptr);
+        ctx.set_page(player::PlayerPage::Home);
+        if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
+            if (ctx.current_page == player::PlayerPage::NowPlaying) {
+                ui_ci_emit("home_to_now", true, nullptr);
             } else {
-                ui_ci_emit("now_to_library", false, "page_not_library");
+                ui_ci_emit("home_to_now", false, "page_not_now");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+
+        if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
+            if (ctx.current_page == player::PlayerPage::Home) {
+                ui_ci_emit("now_back_to_home", true, nullptr);
+            } else {
+                ui_ci_emit("now_back_to_home", false, "page_not_home");
                 res.ok = false;
                 res.failed++;
             }
@@ -526,7 +537,7 @@ int main(int argc, char** argv) {
     bool screenshot_verbose = false;
     int screenshot_wait_frames = 0;
     bool screenshot_exit = false;
-    player::PlayerPage start_page = player::PlayerPage::Library;
+    player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
     bool ui_ci = false;
     std::string font_ttf_path{};
@@ -695,3 +706,4 @@ int main(int argc, char** argv) {
     SDL_Quit();
     return 0;
 }
+

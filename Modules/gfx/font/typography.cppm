@@ -167,6 +167,7 @@ const Font k_empty_font{};
 FontProvider g_font_provider{};
 FontWeightProvider g_font_weight_provider{};
 FontGlyphLoader g_font_glyph_loader{};
+FontGlyphLoaderApi g_font_glyph_loader_api{};
 
 export void set_default_font(const FontId id, const Font* font) noexcept;
 export void set_font_provider(FontProvider provider) noexcept;
@@ -262,7 +263,7 @@ inline FontId font_id_from_ptr(const Font* font) noexcept {
 export
 inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_t code) noexcept {
     const auto resolved = resolve_glyph(font, code);
-    if (resolved.glyph && resolved.glyph != font.fallback_glyph) {
+    if (resolved.glyph && resolved.font == &font && resolved.glyph != font.fallback_glyph) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         if (resolved.font && resolved.font != &font) {
             ++g_missing_glyph_fallback_count;
@@ -273,7 +274,7 @@ inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_
     if (g_font_glyph_loader.api && g_font_glyph_loader.api->ensure_glyph) {
         if (g_font_glyph_loader.api->ensure_glyph(g_font_glyph_loader.ctx, font, code)) {
             const auto retry = resolve_glyph(font, code);
-            if (retry.glyph && retry.glyph != font.fallback_glyph) {
+            if (retry.glyph && retry.font == &font && retry.glyph != font.fallback_glyph) {
 #if defined(VIVID_SOA_TRACE_INPUT)
                 if (retry.font && retry.font != &font) {
                     ++g_missing_glyph_fallback_count;
@@ -328,7 +329,13 @@ void set_font_weight_provider(FontWeightProvider provider) noexcept {
 
 export
 void set_font_glyph_loader(FontGlyphLoaderApi api, void* ctx) noexcept {
-    g_font_glyph_loader = FontGlyphLoader{ctx, &api};
+    if (api.ensure_glyph) {
+        g_font_glyph_loader_api = api;
+        g_font_glyph_loader = FontGlyphLoader{ctx, &g_font_glyph_loader_api};
+    } else {
+        g_font_glyph_loader_api = FontGlyphLoaderApi{};
+        g_font_glyph_loader = FontGlyphLoader{};
+    }
 }
 
 export

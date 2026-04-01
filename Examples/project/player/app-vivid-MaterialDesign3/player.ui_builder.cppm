@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <string_view>
 
 export module player.ui_builder;
 
@@ -277,7 +278,7 @@ namespace player::ui_builder_detail {
         patch.has_font_color = true;
         patch.font_color = kUiTitle;
         patch.has_font = true;
-        patch.font = &get_font_weighted(FontId::Small, FontWeight::Medium);
+        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
         patch.has_bg_color = true;
         patch.bg_color = {0, 0, 0, 0};
         patch.has_border_color = true;
@@ -320,7 +321,7 @@ namespace player::ui_builder_detail {
         patch.has_font_color = true;
         patch.font_color = kUiTitle;
         patch.has_font = true;
-        patch.font = &get_font_weighted(FontId::Small, FontWeight::Medium);
+        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
         builder.set_style_override(h, patch);
     }
 
@@ -401,7 +402,7 @@ namespace player::ui_builder_detail {
 
         h.title = builder.create_label_static("");
         apply_text_label_style(builder, h.title, kUiTitle,
-                               get_font_weighted(FontId::Large, FontWeight::Bold));
+                               get_font_weighted(FontId::Normal, FontWeight::Bold));
         builder.set_label_align(h.title, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.title, false);
 
@@ -592,8 +593,8 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, top_bar, {layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h});
         h.now_back = builder.create_button_static("");
         anchor_rect(builder, h.now_back, {layout.top_bar_x, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(h.now_back, icons.prev);
-        builder.set_button_icon_size(h.now_back, 16);
+        builder.set_button_icon(h.now_back, icons.down);
+        builder.set_button_icon_size(h.now_back, 20);
         apply_top_bar_button_style(builder, h.now_back);
         const WidgetHandle top_title = builder.create_label_static("Now Playing");
         anchor_rect(builder, top_title, {layout.top_bar_x + 48, layout.top_bar_y + 8,
@@ -661,6 +662,14 @@ namespace player::ui_builder_detail {
         anchor_rect(builder, home, {0, 0, screen_width, screen_height});
         h.page_home = home;
 
+        const WidgetHandle home_scroll = builder.create_scroll_container();
+        anchor_rect(builder, home_scroll, {0, 0, screen_width, layout.bottom_bar_y - 8});
+        builder.set_scroll_step(home_scroll, 32);
+
+        const int scroll_extra = 560;
+        const WidgetHandle home_content = builder.create_container();
+        anchor_rect(builder, home_content, {0, 0, screen_width, screen_height + scroll_extra});
+
         h.home_backdrop = builder.create_container();
         anchor_rect(builder, h.home_backdrop, {0, 0, screen_width, screen_height});
         {
@@ -677,7 +686,7 @@ namespace player::ui_builder_detail {
         const int title_x = kUiPadding;
         const int title_y = layout.top_bar_y + 8;
         const int title_w = screen_width - kUiPadding * 2 - 96;
-        const int title_line_h = 52;
+        const int title_line_h = 70;
         h.home_title_top = builder.create_label_static("Your");
         apply_text_label_style(builder, h.home_title_top, kUiTitle,
                                get_font_weighted(FontId::Large, FontWeight::Bold));
@@ -688,21 +697,21 @@ namespace player::ui_builder_detail {
         apply_text_label_style(builder, h.home_title_bottom, kUiTitle,
                                get_font_weighted(FontId::Large, FontWeight::Bold));
         builder.set_label_align(h.home_title_bottom, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_title_bottom, {title_x, title_y + title_line_h, title_w, title_line_h});
+        anchor_rect(builder, h.home_title_bottom, {title_x, title_y + title_line_h - 10, title_w, title_line_h});
 
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
         apply_text_label_style(builder, h.home_subtitle, kUiSubtitle,
                                get_font_weighted(FontId::Small, FontWeight::Regular));
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 6, title_w, 20});
+        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 4, title_w, 22});
 
         h.home_play = builder.create_button_static("");
-        const int play_size = 80;
+        const int play_size = 76;
         const int play_x = screen_width - kUiPadding - play_size;
-        const int play_y = title_y + title_line_h + 10;
+        const int play_y = title_y + title_line_h + 6;
         anchor_rect(builder, h.home_play, {play_x, play_y, play_size, play_size});
-        builder.set_button_icon(h.home_play, icons.play);
-        builder.set_button_icon_size(h.home_play, 20);
+        builder.set_button_icon(h.home_play, icons.shuffle);
+        builder.set_button_icon_size(h.home_play, 26);
         {
             StylePatch patch{};
             patch.has_bg_color = true;
@@ -714,11 +723,11 @@ namespace player::ui_builder_detail {
             builder.set_style_override(h.home_play, patch);
         }
 
-        const int collage_big = 260;
-        const int collage_small = 92;
-        const int collage_small2 = 86;
-        const int collage_small3 = 74;
-        const int collage_y = title_y + 136;
+        const int collage_big = 272;
+        const int collage_small = 86;
+        const int collage_small2 = 80;
+        const int collage_small3 = 66;
+        const int collage_y = title_y + 206;
         const int collage_x = (screen_width - collage_big) / 2;
         h.home_cover_big = builder.create_image();
         anchor_rect(builder, h.home_cover_big, {collage_x, collage_y, collage_big, collage_big});
@@ -730,8 +739,8 @@ namespace player::ui_builder_detail {
         }
 
         h.home_cover_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_left, {collage_x - 26,
-                                                 collage_y + collage_big - collage_small + 10,
+        anchor_rect(builder, h.home_cover_left, {collage_x - 20,
+                                                 collage_y + collage_big - collage_small + 12,
                                                  collage_small, collage_small});
         {
             StylePatch patch{};
@@ -751,8 +760,8 @@ namespace player::ui_builder_detail {
         }
 
         h.home_cover_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 26,
-                                                  collage_y + collage_big / 2 + 14,
+        anchor_rect(builder, h.home_cover_right, {collage_x + collage_big - collage_small2 + 12,
+                                                  collage_y + collage_big / 2 + 18,
                                                   collage_small2, collage_small2});
         {
             StylePatch patch{};
@@ -773,7 +782,7 @@ namespace player::ui_builder_detail {
 
         h.home_cover_small = builder.create_image();
         anchor_rect(builder, h.home_cover_small, {collage_x + collage_big / 2 - collage_small3 / 2,
-                                                  collage_y + collage_big - collage_small3 + 20,
+                                                  collage_y + collage_big - collage_small3 + 8,
                                                   collage_small3, collage_small3});
         {
             StylePatch patch{};
@@ -792,6 +801,81 @@ namespace player::ui_builder_detail {
             builder.set_style_override(h.home_cover_small, patch);
         }
 
+        h.home_cover_bottom_left = builder.create_image();
+        anchor_rect(builder, h.home_cover_bottom_left, {collage_x + collage_big / 2 - collage_small3 - 42,
+                                                        collage_y + collage_big - collage_small3 + 18,
+                                                        collage_small3, collage_small3});
+        {
+            StylePatch patch{};
+            patch.has_corner_radius = true;
+            patch.corner_radius = collage_small3 / 2;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 16;
+            builder.set_style_override(h.home_cover_bottom_left, patch);
+        }
+
+        h.home_cover_bottom_right = builder.create_image();
+        anchor_rect(builder, h.home_cover_bottom_right, {collage_x + collage_big / 2 + 42,
+                                                         collage_y + collage_big - collage_small3 + 18,
+                                                         collage_small3, collage_small3});
+        {
+            StylePatch patch{};
+            patch.has_corner_radius = true;
+            patch.corner_radius = collage_small3 / 2;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 16;
+            builder.set_style_override(h.home_cover_bottom_right, patch);
+        }
+
+        const int stat_card_h = 44;
+        const int stat_card_gap = 12;
+        const int stat_card_w = screen_width - kUiPadding * 2;
+        const int stat_card_x = kUiPadding;
+        const int stat_card_y = collage_y + collage_big + 148;
+        const std::array<std::string_view, 3> stat_titles{
+            "Daily MIX",
+            "Recently Played",
+            "Listening stats"
+        };
+        for (int i = 0; i < static_cast<int>(stat_titles.size()); ++i) {
+            const int y = stat_card_y + i * (stat_card_h + stat_card_gap);
+            const WidgetHandle card = builder.create_container();
+            anchor_rect(builder, card, {stat_card_x, y, stat_card_w, stat_card_h});
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = kUiListBg;
+                patch.has_border_color = true;
+                patch.border_color = kUiListBorder;
+                patch.has_corner_radius = true;
+                patch.corner_radius = 14;
+                builder.set_style_override(card, patch);
+            }
+            const WidgetHandle label = builder.create_label_static(stat_titles[static_cast<std::size_t>(i)].data());
+            apply_text_label_style(builder, label, kUiTitle,
+                                   get_font_weighted(FontId::Small, FontWeight::Medium));
+            builder.set_label_align(label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+            anchor_rect(builder, label, {stat_card_x + 16, y + 8, stat_card_w - 32, stat_card_h - 16});
+            builder.link(home_content, card);
+            builder.link(home_content, label);
+        }
+
         const WidgetHandle home_toolbar = builder.create_container();
         anchor_rect(builder, home_toolbar, {layout.top_bar_x, layout.top_bar_y,
                                             layout.top_bar_w, layout.top_bar_h});
@@ -807,15 +891,19 @@ namespace player::ui_builder_detail {
         apply_top_bar_button_style(builder, home_more);
 
         builder.link(home, h.home_backdrop);
-        builder.link(home, h.home_title_top);
-        builder.link(home, h.home_title_bottom);
-        builder.link(home, h.home_subtitle);
-        builder.link(home, h.home_play);
-        builder.link(home, h.home_cover_big);
-        builder.link(home, h.home_cover_left);
-        builder.link(home, h.home_cover_right);
-        builder.link(home, h.home_cover_small);
-        builder.link(home, home_toolbar);
+        builder.link(home, home_scroll);
+        builder.link(home_scroll, home_content);
+        builder.link(home_content, h.home_title_top);
+        builder.link(home_content, h.home_title_bottom);
+        builder.link(home_content, h.home_subtitle);
+        builder.link(home_content, h.home_play);
+        builder.link(home_content, h.home_cover_big);
+        builder.link(home_content, h.home_cover_left);
+        builder.link(home_content, h.home_cover_right);
+        builder.link(home_content, h.home_cover_small);
+        builder.link(home_content, h.home_cover_bottom_left);
+        builder.link(home_content, h.home_cover_bottom_right);
+        builder.link(home_content, home_toolbar);
         builder.link(home_toolbar, home_settings);
         builder.link(home_toolbar, home_more);
     }
@@ -1101,3 +1189,8 @@ export namespace player {
         return h;
     }
 }
+
+
+
+
+

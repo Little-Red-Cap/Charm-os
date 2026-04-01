@@ -1,4 +1,4 @@
-module;
+﻿module;
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <string>
 #include <string_view>
+#include <cstdio>
 
 export module player.ui;
 
@@ -19,6 +20,8 @@ import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import charm.ui.vivid.font_package;
+import out.core;
+import out.format;
 import charm.font.provider_freetype;
 import player.font_cache;
 import charm.widgets.button;
@@ -158,6 +161,7 @@ export namespace player::ui {
         ::ui::gfx::ImageId home{};
         ::ui::gfx::ImageId search{};
         ::ui::gfx::ImageId settings{};
+        ::ui::gfx::ImageId down{};
         ::ui::gfx::ImageId more{};
     };
 
@@ -218,6 +222,8 @@ export namespace player::ui {
             "M433,880Q406,880 386.5,862Q367,844 363,818L354,752Q341,747 329.5,740Q318,733 307,725L245,751Q220,762 195,753Q170,744 156,721L109,639Q95,616 101,590Q107,564 128,547L181,507Q180,500 180,493.5Q180,487 180,480Q180,473 180,466.5Q180,460 181,453L128,413Q107,396 101,370Q95,344 109,321L156,239Q170,216 195,207Q220,198 245,209L307,235Q318,227 330,220Q342,213 354,208L363,142Q367,116 386.5,98Q406,80 433,80L527,80Q554,80 573.5,98Q593,116 597,142L606,208Q619,213 630.5,220Q642,227 653,235L715,209Q740,198 765,207Q790,216 804,239L851,321Q865,344 859,370Q853,396 832,413L779,453Q780,460 780,466.5Q780,473 780,480Q780,487 780,493.5Q780,500 778,507L831,547Q852,564 858,590Q864,616 850,639L802,721Q788,744 763,753Q738,762 713,751L653,725Q642,733 630,740Q618,747 606,752L597,818Q593,844 573.5,862Q554,880 527,880L433,880Z"
             "M440,800L519,800L533,694Q564,686 590.5,670.5Q617,655 639,633L738,674L777,606L691,541Q696,527 698,511.5Q700,496 700,480Q700,464 698,448.5Q696,433 691,419L777,354L738,286L639,328Q617,305 590.5,289.5Q564,274 533,266L520,160L441,160L427,266Q396,274 369.5,289.5Q343,305 321,327L222,286L183,354L269,418Q264,433 262,448Q260,463 260,480Q260,496 262,511Q264,526 269,541L183,606L222,674L321,632Q343,655 369.5,670.5Q396,686 427,694L440,800Z"
             "M482,620Q540,620 581,579Q622,538 622,480Q622,422 581,381Q540,340 482,340Q423,340 382.5,381Q342,422 342,480Q342,538 382.5,579Q423,620 482,620Z";
+        constexpr std::string_view kPathDown =
+            "M480,608L284,412L340,356L480,496L620,356L676,412L480,608Z";
         constexpr std::string_view kPathMore =
             "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800Z"
             "M480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560Z"
@@ -289,6 +295,11 @@ export namespace player::ui {
             rasterize_svg_path(buf, kPathSettings, color);
         }
 
+        void build_down_icon(IconBuffer& buf, const rgba& color) {
+            icon_clear(buf);
+            rasterize_svg_path(buf, kPathDown, color);
+        }
+
         void build_more_icon(IconBuffer& buf, const rgba& color) {
             icon_clear(buf);
             rasterize_svg_path(buf, kPathMore, color);
@@ -307,6 +318,10 @@ export namespace player::ui {
         struct FreetypeLoaderState {
             charm::font::FreetypeFontLoader loader{};
             std::string ttf_path{};
+            std::string ttf_small{};
+            std::string ttf_normal{};
+            std::string ttf_large{};
+            std::string ttf_mono{};
             bool ready{false};
         };
 
@@ -492,6 +507,22 @@ export namespace player::ui {
                                false);
     }
 
+    inline ImageView icon_down() noexcept {
+        static detail::IconBuffer buf{};
+        static bool init = false;
+        if (!init) {
+            detail::build_down_icon(buf, kUiListFont);
+            init = true;
+        }
+        return make_image_view(PixelFormat::ARGB8888,
+                               detail::kIconSize,
+                               detail::kIconSize,
+                               detail::kIconStride,
+                               buf.data(),
+                               false,
+                               false);
+    }
+
     inline ImageView icon_more() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
@@ -537,6 +568,12 @@ export namespace player::ui {
         return detail::font_package_state().bound;
     }
 
+    void reset_player_font_package_cache() noexcept {
+        auto& state = detail::font_package_state();
+        state.package.reset_cache();
+        state.bound = false;
+    }
+
     void bind_font_package(const charm::font::FontPackageConfig& config,
                            const charm::font::VfsFontLoaderApi& loader,
                            void* ctx) noexcept {
@@ -554,22 +591,29 @@ export namespace player::ui {
         if (ttf_path.empty()) return;
         auto& state = detail::freetype_state();
         state.ttf_path.assign(ttf_path.begin(), ttf_path.end());
-        const char* path = state.ttf_path.c_str();
+        state.ttf_small = state.ttf_path + "#small";
+        state.ttf_normal = state.ttf_path + "#normal";
+        state.ttf_large = state.ttf_path + "#large";
+        state.ttf_mono = state.ttf_path + "#mono";
+        const char* path_small = state.ttf_small.c_str();
+        const char* path_normal = state.ttf_normal.c_str();
+        const char* path_large = state.ttf_large.c_str();
+        const char* path_mono = state.ttf_mono.c_str();
 
         charm::font::FontPackageConfig pkg{};
-        pkg.regular.small_path = path;
-        pkg.regular.normal_path = path;
-        pkg.regular.large_path = path;
-        pkg.regular.mono_path = path;
+        pkg.regular.small_path = path_small;
+        pkg.regular.normal_path = path_normal;
+        pkg.regular.large_path = path_large;
+        pkg.regular.mono_path = path_mono;
         pkg.medium = pkg.regular;
         pkg.bold = pkg.regular;
-        pkg.fallback_path = path;
+        pkg.fallback_path = nullptr;
 
         charm::font::FreetypeFontLoaderConfig loader_cfg{};
-        loader_cfg.regular.small_path = path;
-        loader_cfg.regular.normal_path = path;
-        loader_cfg.regular.large_path = path;
-        loader_cfg.regular.mono_path = path;
+        loader_cfg.regular.small_path = path_small;
+        loader_cfg.regular.normal_path = path_normal;
+        loader_cfg.regular.large_path = path_large;
+        loader_cfg.regular.mono_path = path_mono;
         loader_cfg.medium = loader_cfg.regular;
         loader_cfg.bold = loader_cfg.regular;
         loader_cfg.small_px = small_px;
@@ -581,6 +625,7 @@ export namespace player::ui {
         state.loader.bind_glyph_loader();
         bind_font_package(pkg, state.loader.vfs_api(), &state.loader);
         state.ready = true;
+
     }
 
     inline void apply_player_theme() {
@@ -596,7 +641,8 @@ export namespace player::ui {
             if (!player::font_cache::init()) {
                 set_default_fallback_font(&font_noto_sc_16);
             }
-        } else if (!font_fallback_bound()) {
+        } else {
+            // Ensure CJK fallback remains available even when a TTF package is bound.
             set_default_fallback_font(&font_noto_sc_16);
         }
 
@@ -989,3 +1035,5 @@ export namespace player::ui {
         sheet.rebuild_if_needed();
     }
 }
+
+

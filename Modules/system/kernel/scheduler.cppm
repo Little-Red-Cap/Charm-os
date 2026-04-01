@@ -23,12 +23,49 @@ import kernel.event_token;
 import kernel.task_state;
 import kernel.timer;
 import kernel.trace;
+import kernel.ssu;
 import util.core;
 import out.core;
 import out.format;
 import out.sink;
 
 namespace kernel::detail {
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::ExecutionDomain v) noexcept {
+        switch (v) {
+            case kernel::ssu::ExecutionDomain::isr_only: return "isr_only";
+            case kernel::ssu::ExecutionDomain::task_only: return "task_only";
+            case kernel::ssu::ExecutionDomain::anywhere: return "anywhere";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::TriggerKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::TriggerKind::event: return "event";
+            case kernel::ssu::TriggerKind::io_ready: return "io_ready";
+            case kernel::ssu::TriggerKind::timer: return "timer";
+            case kernel::ssu::TriggerKind::frame: return "frame";
+            case kernel::ssu::TriggerKind::demand: return "demand";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::BudgetKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::BudgetKind::single_step: return "single_step";
+            case kernel::ssu::BudgetKind::budgeted: return "budgeted";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::BlockingKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::BlockingKind::non_blocking: return "non_blocking";
+            case kernel::ssu::BlockingKind::may_block: return "may_block";
+        }
+        return "unknown";
+    }
+
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -705,6 +742,14 @@ export namespace kernel {
                     t.active ? 1u : 0u);
                 if (!t.ssu_name.empty()) {
                     offset = detail::append_fmt<",\"ssu\":\"{}\"">(out, max, offset, t.ssu_name);
+                    offset = detail::append_fmt<",\"ssu_domain\":\"{}\",\"ssu_trigger\":\"{}\",\"ssu_budget\":\"{}\",\"ssu_blocking\":\"{}\"">(
+                        out,
+                        max,
+                        offset,
+                        detail::to_text(t.ssu_domain),
+                        detail::to_text(t.ssu_trigger),
+                        detail::to_text(t.ssu_budget),
+                        detail::to_text(t.ssu_blocking));
                 }
                 offset = detail::append_text(out, max, offset, "}");
             }
@@ -739,7 +784,7 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    const auto ssu = registry_->task_ssu_name(rec.task);
+                    const auto meta = registry_->task_ssu_meta(rec.task);
                     if (i > 0) {
                         offset = detail::append_text(out, max, offset, ",");
                     }
@@ -753,8 +798,16 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind));
-                    if (!ssu.empty()) {
-                        offset = detail::append_fmt<",\\\"ssu\\\":\\\"{}\\\"">(out, max, offset, ssu);
+                    if (!meta.name.empty()) {
+                        offset = detail::append_fmt<",\\\"ssu\\\":\\\"{}\\\",\\\"ssu_domain\\\":\\\"{}\\\",\\\"ssu_trigger\\\":\\\"{}\\\",\\\"ssu_budget\\\":\\\"{}\\\",\\\"ssu_blocking\\\":\\\"{}\\\"">(
+                            out,
+                            max,
+                            offset,
+                            meta.name,
+                            detail::to_text(meta.domain),
+                            detail::to_text(meta.trigger),
+                            detail::to_text(meta.budget),
+                            detail::to_text(meta.blocking));
                     }
                     offset = detail::append_text(out, max, offset, "}");
                 }
@@ -765,7 +818,7 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind,ssu\n");
+            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind,ssu,ssu_domain,ssu_trigger,ssu_budget,ssu_blocking\n");
             if constexpr (!Config::enable_trace) {
                 return offset;
             } else {
@@ -773,8 +826,8 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    const auto ssu = registry_->task_ssu_name(rec.task);
-                    offset = detail::append_fmt<"{},{},{},{},{},{},{}\n">(
+                    const auto meta = registry_->task_ssu_meta(rec.task);
+                    offset = detail::append_fmt<"{},{},{},{},{},{},{},{},{},{},{}\n">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
@@ -782,7 +835,11 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind),
-                        ssu);
+                        meta.name,
+                        detail::to_text(meta.domain),
+                        detail::to_text(meta.trigger),
+                        detail::to_text(meta.budget),
+                        detail::to_text(meta.blocking));
                     if (offset >= max) {
                         break;
                     }
@@ -842,6 +899,11 @@ export namespace kernel {
             bool enabled{false};
             std::size_t priority{0};
             bool active{false};
+            std::string_view ssu_name{};
+            kernel::ssu::ExecutionDomain ssu_domain{kernel::ssu::ExecutionDomain::task_only};
+            kernel::ssu::TriggerKind ssu_trigger{kernel::ssu::TriggerKind::event};
+            kernel::ssu::BudgetKind ssu_budget{kernel::ssu::BudgetKind::single_step};
+            kernel::ssu::BlockingKind ssu_blocking{kernel::ssu::BlockingKind::non_blocking};
         };
 
         [[nodiscard]] bool set_rate_limit(TaskId task, EventId id, util::u32 gap) noexcept {
@@ -857,12 +919,18 @@ export namespace kernel {
             std::array<TaskSnapshot, Registry::count> out{};
             for (std::size_t i = 0; i < Registry::count; ++i) {
                 const TaskId id{i};
+                const auto meta = registry_->task_ssu_meta(id);
                 out[i] = TaskSnapshot{
                     id,
                     task_states_[i],
                     task_enabled_[i],
                     current_priorities_[i],
-                    registry_->template is_active<Config>(id)
+                    registry_->template is_active<Config>(id),
+                    meta.name,
+                    meta.domain,
+                    meta.trigger,
+                    meta.budget,
+                    meta.blocking
                 };
             }
             return out;

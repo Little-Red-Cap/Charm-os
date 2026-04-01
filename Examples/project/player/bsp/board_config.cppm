@@ -26,15 +26,5 @@ export namespace player::stm32h7::board {
 
     constexpr bool kKeyActiveHigh = ::board::active::kKeyActiveHigh;
 
-    constexpr bool kFmcInitOnBoot = true;
-    constexpr bool kSdramSelftestOnBoot = true;
-    constexpr bool kSdramSelftestInBringup = false;
-    constexpr bool kEnableSdmmcInit = false;
-    constexpr bool kEnableUsbMsc = true;
-    constexpr bool kUseStUsbStack = true;
-    constexpr bool kEnableUsbAudio = true;
-    constexpr bool kUseUsbAudioOnBoot = true;
-    constexpr bool kEnableDisplay = false;
-    constexpr bool kUseOutLoggerEarly = false;
-    constexpr bool kUseDmaConsole = false;
+    // board_config 仅保留硬件事实与固定能力，不承载业务/策略开关。
 }

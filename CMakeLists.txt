@@ -36,6 +36,21 @@ target_compile_options(${target_name} PRIVATE
         #        -nostdlib
 )
 
+set(CHARM_ENTRY_ENFORCE_HEADER
+    "${CMAKE_CURRENT_SOURCE_DIR}/Modules/system/entry/entry_enforce.h")
+if (EXISTS "${CHARM_ENTRY_ENFORCE_HEADER}")
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:C,CXX>:-include>
+            $<$<COMPILE_LANGUAGE:C,CXX>:${CHARM_ENTRY_ENFORCE_HEADER}>
+        )
+    elseif (MSVC)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:C,CXX>:/FI"${CHARM_ENTRY_ENFORCE_HEADER}">
+        )
+    endif()
+endif()
+
 # dr_mp3 must avoid unaligned word loads on Cortex-M7 (stream data is byte-aligned).
 if (NOT WIN32)
     set_source_files_properties(
@@ -109,6 +124,7 @@ if (CHARM_FORBID_SHARED_LIBS)
 endif()
 
 target_compile_definitions(${target_name} PRIVATE
+    CHARM_LIB_BUILD=1
     CHARM_ENABLE_MEDIA=$<BOOL:${CHARM_ENABLE_MEDIA}>
     CHARM_ENABLE_UI_INK=$<BOOL:${CHARM_ENABLE_UI_INK}>
     CHARM_ENABLE_UI_VIVID=$<BOOL:${CHARM_ENABLE_UI_VIVID}>

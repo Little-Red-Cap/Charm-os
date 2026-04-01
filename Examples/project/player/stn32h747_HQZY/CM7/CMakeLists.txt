@@ -57,6 +57,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     CORE_CM7
     STM32H747xx
+    CHARM_ENTRY_ALLOWED=1
 )
 
 # Add include paths
@@ -97,7 +98,6 @@ set(MODULE_GROUP_BASE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_keys.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdram.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_usb.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_config.cppm"
 )
@@ -106,10 +106,6 @@ set(MODULE_GROUP_FS
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_sd.cppm"
-)
-
-set(MODULE_GROUP_USB
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
 )
 
 set(MODULE_GROUP_AUDIO
@@ -132,13 +128,18 @@ set(MODULE_GROUP_PLAYER_UI
     "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
 )
 
+set(MODULE_GROUP_APP_TEST_HQZY
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_boot_log.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_board_platform.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_entry.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_runtime_bringup.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_sdmmc_glue.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_system.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_usb_glue.cppm"
+)
+
 set(MODULE_INTERFACE_UNITS
-    ${MODULE_GROUP_BASE}
-    ${MODULE_GROUP_FS}
-    ${MODULE_GROUP_USB}
-    ${MODULE_GROUP_AUDIO}
-    ${MODULE_GROUP_DISPLAY}
-    ${MODULE_GROUP_PLAYER_UI}
+    ${MODULE_GROUP_APP_TEST_HQZY}
 )
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC

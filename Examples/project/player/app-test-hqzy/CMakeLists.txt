@@ -68,6 +68,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 file(GLOB_RECURSE MODULE_INTERFACE_UNITS
     "${CMAKE_CURRENT_SOURCE_DIR}/../stn32h747_HQZY/CM7/app/*.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../bsp/*.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.cppm"
 )
 
 target_sources(${CMAKE_PROJECT_NAME}

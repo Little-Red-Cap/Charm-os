@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
 #include <span>
 #include <string_view>
 
@@ -205,6 +206,9 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+            std::fputs("[posix-elf] load_image enter\n", stderr);
+#endif
             if (is_elf_mem_prefixed(cfg)) {
                 auto mem_name = resolve_elf_mem_name(cfg);
                 if (mem_name.empty()) {
@@ -217,7 +221,17 @@ export namespace posix {
                 return load_elf_from_buffer(mem->data, mem->size);
             }
             if (is_elf_prefixed(cfg)) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] load_image elf-prefixed\n", stderr);
+#endif
                 auto elf_path = resolve_elf_path(cfg);
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                if (cfg.path) {
+                    std::fputs("[posix-elf] cfg.path=", stderr);
+                    std::fputs(cfg.path, stderr);
+                    std::fputs("\n", stderr);
+                }
+#endif
                 if (elf_path.empty()) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
@@ -551,10 +565,16 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_elf_from_file(std::string_view path) noexcept {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+            std::fputs("[posix-elf] load_elf_from_file enter\n", stderr);
+#endif
             if (path.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (!file_service_) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] file_service missing\n", stderr);
+#endif
                 return util::unexpected(util::Errc::not_supported);
             }
             if (path.size() >= MaxPathLen) {
@@ -611,6 +631,9 @@ export namespace posix {
                 return util::unexpected(util::Errc::not_supported);
             }
             if (!file_service_) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] file_service missing\n", stderr);
+#endif
                 return util::unexpected(util::Errc::not_supported);
             }
             const auto path = resolve_exec_path(cfg);

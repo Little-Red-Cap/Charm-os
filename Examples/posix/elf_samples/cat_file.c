@@ -18,24 +18,13 @@ static void write_str(int fd, const char* s) {
     elf_hostcalls()->write(fd, s, cstr_len(s));
 }
 
-static void write_uint(unsigned long v) {
-    char buf[16];
-    int i = 0;
-    if (v == 0) {
-        buf[i++] = '0';
-    } else {
-        while (v > 0 && i < (int)sizeof(buf)) {
-            buf[i++] = (char)('0' + (v % 10));
-            v /= 10;
-        }
-    }
-    while (i-- > 0) {
-        elf_hostcalls()->write(1, &buf[i], 1);
-    }
+static void mark(const char* s) {
+    write_str(2, s);
 }
 
 int entry(int argc, char** argv, char** envp) {
     (void)envp;
+    mark("A\n");
     const char* path = "/cat.txt";
     if (argc > 1 && argv && argv[1]) {
         path = argv[1];
@@ -43,44 +32,46 @@ int entry(int argc, char** argv, char** envp) {
 
     int fd = elf_hostcalls()->open(path, O_RDONLY, 0);
     if (fd < 0) {
-        write_str(2, "open fail\n");
+        mark("open fail\n");
         return 11;
     }
+    mark("B\n");
 
     PosixStat st;
     if (elf_hostcalls()->fstat(fd, &st) != 0) {
-        write_str(2, "fstat fail\n");
+        mark("fstat fail\n");
         elf_hostcalls()->close(fd);
         return 12;
     }
+    mark("C\n");
 
     if (elf_hostcalls()->isatty(1) != 1) {
-        write_str(2, "stdout not tty\n");
+        mark("stdout not tty\n");
         elf_hostcalls()->close(fd);
         return 13;
     }
+    mark("D\n");
 
     if (elf_hostcalls()->isatty(fd) != 0) {
-        write_str(2, "file seen as tty\n");
+        mark("file seen as tty\n");
         elf_hostcalls()->close(fd);
         return 14;
     }
+    mark("E\n");
 
     char buf[64];
     for (;;) {
         int n = elf_hostcalls()->read(fd, buf, sizeof(buf));
         if (n < 0) {
-            write_str(2, "read fail\n");
+            mark("read fail\n");
             elf_hostcalls()->close(fd);
             return 15;
         }
         if (n == 0) break;
         elf_hostcalls()->write(1, buf, (unsigned long)n);
     }
+    mark("F\n");
 
     elf_hostcalls()->close(fd);
-    write_str(1, "size=");
-    write_uint((unsigned long)st.st_size);
-    write_str(1, "\n");
     return 0;
 }

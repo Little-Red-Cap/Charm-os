@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 export module posix.program_image_elf;
@@ -255,6 +256,9 @@ export namespace posix {
             return util::unexpected(util::Errc::invalid_arg);
         }
         if (!cfg.load_base) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+            std::fputs("[posix-elf] load_base missing\n", stderr);
+#endif
             return util::unexpected(util::Errc::not_supported);
         }
         if (cfg.load_size == 0) {

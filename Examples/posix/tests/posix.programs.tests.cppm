@@ -145,20 +145,8 @@ namespace {
         return write_text(1, "mx\n");
     }
 
-    template <typename T>
-    bool init_modulex_entry_stub(T& img, const void* entry_ptr) noexcept {
-        const auto base = modulex::to_addr(&img);
-        const auto entry = modulex::to_addr(entry_ptr);
-        if (entry < base) return false;
-        const auto diff = static_cast<util::u64>(entry - base);
-        if (diff > static_cast<util::u64>(std::numeric_limits<util::u32>::max())) return false;
-        img.hdr.magic = modulex::k_magic;
-        img.hdr.version = modulex::k_version;
-        img.hdr.text_offset = static_cast<util::u32>(diff);
-        img.hdr.text_size = 1;
-        img.hdr.entry_offset = 0;
-        img.hdr.image_size = static_cast<util::u32>(sizeof(T));
-        return true;
+    int elf_entry_main(int argc, char** argv, char**) {
+        return modulex_entry_main(argc, argv);
     }
 
     bool resolve_modulex_entry(std::string_view name, modulex::Addr& out_addr) noexcept {
@@ -727,8 +715,12 @@ namespace {
         };
 
         ModuleXStub img{};
-        check_true("modulex-entry-offset",
-            init_modulex_entry_stub(img, reinterpret_cast<const void*>(&modulex_entry_main)));
+        img.hdr.magic = modulex::k_magic;
+        img.hdr.version = modulex::k_version;
+        img.hdr.text_offset = static_cast<util::u32>(offsetof(ModuleXStub, text));
+        img.hdr.text_size = static_cast<util::u32>(img.text.size());
+        img.hdr.entry_offset = 0;
+        img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
         img.hdr.sym_offset = static_cast<util::u32>(offsetof(ModuleXStub, syms));
         img.hdr.sym_size = static_cast<util::u32>(sizeof(img.syms));
         img.hdr.str_offset = static_cast<util::u32>(offsetof(ModuleXStub, strtab));
@@ -839,17 +831,18 @@ namespace {
         stub.payload[1] = 0x22;
         stub.payload[2] = 0x33;
         stub.payload[3] = 0x44;
-        std::array<util::u8, 16> load_buf{};
+        alignas(16) std::array<util::u8, 16> load_buf{};
         load_buf.fill(0xFF);
         cfg.image_base = &stub;
         cfg.image_size = sizeof(stub);
         cfg.load_base = load_buf.data();
         cfg.load_size = load_buf.size();
         cfg.load_align = 16;
-        auto ok = posix::load_elf_image(cfg);
-        check_true("elf-header-ptload", ok);
-        auto expected_entry = reinterpret_cast<void*>(load_buf.data() + 2);
-        check_true("elf-entry-addr", ok.value().entry == expected_entry);
+        auto ok2 = posix::load_elf_image(cfg);
+        check_true("elf-header-ptload", ok2);
+        using EntryPtr = decltype(ok2.value().entry);
+        auto expected_entry = reinterpret_cast<EntryPtr>(load_buf.data() + 2);
+        check_true("elf-entry-addr", ok2.value().entry == expected_entry);
         check_true("elf-bss-zero", load_buf[4] == 0 && load_buf[5] == 0 && load_buf[6] == 0 && load_buf[7] == 0);
 
         cfg.load_size = 2;
@@ -866,6 +859,47 @@ namespace {
         cfg.load_size = load_buf.size();
         auto wx = posix::load_elf_image(cfg);
         check_true("elf-load-wx", !wx && wx.error() == util::Errc::invalid_arg);
+
+        stub.phdr.flags = 0;
+        stub.header.entry = 0x2000;
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto bad_entry = posix::load_elf_image(cfg);
+        check_true("elf-entry-outside", !bad_entry && bad_entry.error() == util::Errc::invalid_arg);
+
+        stub.header.entry = 0x1000;
+        stub.phdr.align = 16;
+        stub.phdr.offset = static_cast<util::u64>(offsetof(ElfStub, payload)) + 1;
+        stub.phdr.vaddr = 0x1000;
+        auto bad_align = posix::load_elf_image(cfg);
+        check_true("elf-load-align-mismatch", !bad_align && bad_align.error() == util::Errc::invalid_arg);
+
+        struct ElfOverlapStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr[2]{};
+            util::u8 payload[8]{};
+        } overlap{};
+        overlap.header = hdr;
+        overlap.header.phoff = static_cast<util::u64>(offsetof(ElfOverlapStub, phdr));
+        overlap.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        overlap.header.phnum = 2;
+        overlap.header.entry = 0x1000;
+        overlap.phdr[0] = ph;
+        overlap.phdr[0].offset = static_cast<util::u64>(offsetof(ElfOverlapStub, payload));
+        overlap.phdr[0].vaddr = 0x1000;
+        overlap.phdr[0].filesz = 4;
+        overlap.phdr[0].memsz = 8;
+        overlap.phdr[1] = ph;
+        overlap.phdr[1].offset = static_cast<util::u64>(offsetof(ElfOverlapStub, payload)) + 4;
+        overlap.phdr[1].vaddr = 0x1004;
+        overlap.phdr[1].filesz = 4;
+        overlap.phdr[1].memsz = 4;
+        cfg.image_base = &overlap;
+        cfg.image_size = sizeof(overlap);
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto bad_overlap = posix::load_elf_image(cfg);
+        check_true("elf-load-overlap", !bad_overlap && bad_overlap.error() == util::Errc::invalid_arg);
     }
 
     void test_elf_file_spawn() noexcept {
@@ -903,7 +937,7 @@ namespace {
         h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
-        h.procs.set_elf_exec_stub(&modulex_entry_main);
+        h.procs.set_elf_exec_stub(&elf_entry_main);
         int fd = h.api.open("/elf_stub.bin", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("elf-file-open", fd >= 0);
         auto w = h.api.write(fd, &stub, sizeof(stub));
@@ -919,7 +953,14 @@ namespace {
         cfg.path = "elf:/elf_stub.bin";
         cfg.argv = std::span<const char* const>(argv, 1);
         auto img = h.procs.load_image(cfg);
-        check_true("elf-file-load", img);
+        if (!img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs elf-file-load fail: err=%lld",
+                to_ll(img.error()));
+            log_line(buf);
+            fail();
+        }
+        log_step("elf-file-load", true);
         auto sp = h.procs.spawn(cfg);
         check_true("elf-file-spawn", sp);
         (void)h.procs.waitpid(sp.value().pid, 0);

@@ -16,8 +16,10 @@ set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
+target_compile_definitions(Charm-os PRIVATE POSIX_TEST_BUILD=1)
 target_compile_definitions(${target_name} PRIVATE
     POSIX_SMOKE_USE_UART=1
+    POSIX_TEST_BUILD=1
     POSIX_ERRNO_SMOKE_TEST=1
     POSIX_FD_TABLE_SMOKE_TEST=1
     POSIX_PIPE_SMOKE_TEST=1

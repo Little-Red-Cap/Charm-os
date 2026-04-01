@@ -196,6 +196,22 @@ export namespace posix {
                         (void)entry.value().ops->close(entry.value().ctx);
                     }
                 };
+                bool size_known = false;
+                util::usize file_size = 0;
+                if (entry.value().ops && entry.value().ops->stat) {
+                    PosixStat st{};
+                    auto rst = entry.value().ops->stat(entry.value().ctx, st);
+                    if (!rst) {
+                        close_guard();
+                        return util::unexpected(rst.error());
+                    }
+                    size_known = true;
+                    file_size = static_cast<util::usize>(st.size);
+                    if (file_size > elf_image_.size()) {
+                        close_guard();
+                        return util::unexpected(util::Errc::buffer_overflow);
+                    }
+                }
                 util::usize total = 0;
                 while (total < elf_image_.size()) {
                     const auto view = MutByteView{elf_image_.data() + total, elf_image_.size() - total};
@@ -208,8 +224,11 @@ export namespace posix {
                     total += r.value();
                 }
                 close_guard();
-                if (total == elf_image_.size()) {
+                if (!size_known && total == elf_image_.size()) {
                     return util::unexpected(util::Errc::buffer_overflow);
+                }
+                if (size_known && total < file_size) {
+                    return util::unexpected(util::Errc::io);
                 }
                 ElfLoadConfig elf_cfg{};
                 elf_cfg.image_base = elf_image_.data();
@@ -599,7 +618,7 @@ export namespace posix {
         int next_pid_{1};
         std::array<char, MaxPathLen> resolved_path_{};
         std::array<util::u8, MaxElfImage> elf_image_{};
-        std::array<util::u8, MaxElfLoad> elf_load_{};
+        alignas(16) std::array<util::u8, MaxElfLoad> elf_load_{};
         ProcHook on_enter_{nullptr};
         ProcHook on_exit_{nullptr};
         void* hook_ctx_{nullptr};

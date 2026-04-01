@@ -12,6 +12,9 @@ import util.core;
 import util.error;
 
 export namespace posix {
+    inline ImageEntry addr_to_entry(modulex::Addr addr) noexcept {
+        return reinterpret_cast<ImageEntry>(addr);
+    }
     enum class ElfErrc : util::u8 {
         ok = 0,
         bad_magic,
@@ -139,6 +142,10 @@ export namespace posix {
                 if (ph[i].align != 0 && (ph[i].vaddr % ph[i].align) != 0) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
+                if (ph[i].align != 0 &&
+                    (ph[i].offset % ph[i].align) != (ph[i].vaddr % ph[i].align)) {
+                    return util::unexpected(util::Errc::invalid_arg);
+                }
             }
             if (!has_load) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -146,12 +153,24 @@ export namespace posix {
             if (hdr->entry < min_vaddr) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
+            bool entry_ok = false;
             for (util::u16 i = 0; i < hdr->phnum; ++i) {
                 if (ph[i].type != kElfPtLoad) continue;
                 const auto dst_off = ph[i].vaddr - min_vaddr;
                 const auto end_off = dst_off + ph[i].memsz;
                 if (end_off > cfg.load_size) {
                     return util::unexpected(util::Errc::invalid_arg);
+                }
+                for (util::u16 j = 0; j < i; ++j) {
+                    if (ph[j].type != kElfPtLoad) continue;
+                    const auto prev_off = ph[j].vaddr - min_vaddr;
+                    const auto prev_end = prev_off + ph[j].memsz;
+                    if (dst_off < prev_end && prev_off < end_off) {
+                        return util::unexpected(util::Errc::invalid_arg);
+                    }
+                }
+                if (hdr->entry >= ph[i].vaddr && hdr->entry < (ph[i].vaddr + ph[i].memsz)) {
+                    entry_ok = true;
                 }
                 auto* dst = static_cast<util::u8*>(cfg.load_base) + dst_off;
                 const auto* src = base + ph[i].offset;
@@ -163,11 +182,14 @@ export namespace posix {
                         static_cast<std::size_t>(ph[i].memsz - ph[i].filesz));
                 }
             }
+            if (!entry_ok) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
             ProgramImage image{};
             image.kind = ImageKind::elf;
             image.name = {};
             const auto entry_off = static_cast<util::u64>(hdr->entry - min_vaddr);
-            image.entry = modulex::addr_to_ptr<ImageEntry>(
+            image.entry = addr_to_entry(
                 modulex::to_addr(cfg.load_base) + static_cast<modulex::Addr>(entry_off));
             if (!image.entry) {
                 return util::unexpected(util::Errc::invalid_arg);

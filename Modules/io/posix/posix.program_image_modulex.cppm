@@ -12,12 +12,16 @@ import util.core;
 import util.error;
 
 export namespace posix {
+    inline ImageEntry addr_to_entry(modulex::Addr addr) noexcept {
+        return reinterpret_cast<ImageEntry>(addr);
+    }
+
     inline ImageEntry resolve_modulex_entry_symbol(const modulex::LoadResult& loaded,
                                                    std::string_view symbol) noexcept {
         for (util::u32 i = 0; i < loaded.sym_count; ++i) {
             auto v = loaded.sym_reader.at(loaded.symtab[i]);
             if (v.name == symbol) {
-                return modulex::addr_to_ptr<ImageEntry>(loaded.symtab[i].value);
+                return addr_to_entry(loaded.symtab[i].value);
             }
         }
         return nullptr;
@@ -77,7 +81,7 @@ export namespace posix {
                                                              : std::string_view{"entry"};
             image.entry = resolve_modulex_entry_symbol(loaded, needle);
         } else {
-            image.entry = modulex::addr_to_ptr<ImageEntry>(loaded.entry);
+            image.entry = addr_to_entry(loaded.entry);
         }
         if (!image.entry) {
             return util::unexpected(util::Errc::invalid_arg);

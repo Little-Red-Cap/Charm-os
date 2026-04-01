@@ -32,14 +32,14 @@ export namespace kernel {
             if (!waiters_.pop(task)) {
                 return false;
             }
-            return scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+            return scheduler_->post_demand(task, make_event(EventId::sync, util::u32(result)));
         }
 
         [[nodiscard]] bool post_all(WaitResult result = WaitResult::ok) noexcept {
             bool any = false;
             TaskId task{};
             while (waiters_.pop(task)) {
-                (void)scheduler_->post(task, make_event(EventId::sync, util::u32(result)));
+                (void)scheduler_->post_demand(task, make_event(EventId::sync, util::u32(result)));
                 any = true;
             }
             return any;

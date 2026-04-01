@@ -28,6 +28,8 @@
 - waker 路径使用 `io-ready-submit`，drain 后 `more` 的续推路径使用 `demand-submit`（首个 demand 样板）
 - `input.pump` 在单次 budget 用满时改走 `demand-submit` 续推，避免全部依赖下一次 timer tick（第二个 demand 样板）
 - `canopen.pump` 在 `sdo/nmt` 存在 pending 发送时走 `demand-submit` 续推（第三个 demand 样板）
+- `kernel.sync_*`（SyncBase/SyncUnified）唤醒等待者的通知路径改走 `demand-submit`（第四个 demand 样板）
+- `kernel.ipc::QueueIpc::send` 消息唤醒通知路径改走 `demand-submit`（第五个 demand 样板）
 
 ## 当前仍在 event-submit 的常见路径
 
@@ -37,9 +39,9 @@
 
 ## 下一批迁移候选（最小面）
 
-### 候选 A：扩展 demand-submit 的第四个系统样板
+### 候选 A：扩展 demand-submit 的第六个系统样板
 
-目标：在前三个样板（reactor `more` + input.pump budget续推 + canopen pending续推）之外，再选一个真实“下游需求驱动”路径落地 `post_demand(...)`。
+目标：在前五个样板（reactor `more` + input.pump budget续推 + canopen pending续推 + kernel.sync通知 + kernel.ipc消息唤醒）之外，再选一个真实“下游需求驱动”路径落地 `post_demand(...)`。
 
 建议优先：
 
@@ -62,6 +64,8 @@
 ## 一句话
 
 先把“谁从哪条 submit 进入系统”做成可审计事实，再逐步扩大迁移面。
+
+
 
 
 

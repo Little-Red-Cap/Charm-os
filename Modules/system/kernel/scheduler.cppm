@@ -6,6 +6,7 @@
 #include <expected>
 #include <optional>
 #include <string_view>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -702,6 +703,9 @@ export namespace kernel {
                     t.enabled ? 1u : 0u,
                     static_cast<unsigned>(t.priority),
                     t.active ? 1u : 0u);
+                if (!t.ssu_name.empty()) {
+                    offset = detail::append_fmt<",\"ssu\":\"{}\"">(out, max, offset, t.ssu_name);
+                }
                 offset = detail::append_text(out, max, offset, "}");
             }
             offset = detail::append_text(out, max, offset, "]");
@@ -735,12 +739,13 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
+                    const auto ssu = registry_->task_ssu_name(rec.task);
                     if (i > 0) {
                         offset = detail::append_text(out, max, offset, ",");
                     }
                     offset = detail::append_text(out, max, offset, "{");
                     offset = detail::append_fmt<
-                        "\"t\":{},\"task\":{},\"id\":{},\"payload\":{},\"count\":{},\"kind\":{}">(
+                        "\\\"t\\\":{},\\\"task\\\":{},\\\"id\\\":{},\\\"payload\\\":{},\\\"count\\\":{},\\\"kind\\\":{}">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
@@ -748,6 +753,9 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind));
+                    if (!ssu.empty()) {
+                        offset = detail::append_fmt<",\\\"ssu\\\":\\\"{}\\\"">(out, max, offset, ssu);
+                    }
                     offset = detail::append_text(out, max, offset, "}");
                 }
                 offset = detail::append_text(out, max, offset, "]");
@@ -757,7 +765,7 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind\n");
+            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind,ssu\n");
             if constexpr (!Config::enable_trace) {
                 return offset;
             } else {
@@ -765,14 +773,16 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    offset = detail::append_fmt<"{},{},{},{},{},{}\n">(
+                    const auto ssu = registry_->task_ssu_name(rec.task);
+                    offset = detail::append_fmt<"{},{},{},{},{},{},{}\n">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
                         static_cast<unsigned>(rec.id),
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
-                        static_cast<unsigned>(rec.kind));
+                        static_cast<unsigned>(rec.kind),
+                        ssu);
                     if (offset >= max) {
                         break;
                     }
@@ -780,7 +790,6 @@ export namespace kernel {
                 return offset;
             }
         }
-
         struct Snapshot {
             Stats stats{};
             std::size_t queue_depth{0};

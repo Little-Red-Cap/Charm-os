@@ -1,9 +1,10 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstddef>
 #include <compare>
 #include <tuple>
+#include <string_view>
 #include <type_traits>
 
 export module kernel.eda;
@@ -11,6 +12,7 @@ export module kernel.eda;
 import util.core;
 import util.type_list;
 import kernel.evt;
+import kernel.ssu;
 
 export namespace kernel {
     struct Priority {
@@ -32,6 +34,19 @@ export namespace kernel {
     };
 
     template <typename Task>
+    concept EdaTaskWithSsu = EdaTask<Task> && requires {
+        { Task::ssu_meta() } -> std::same_as<kernel::ssu::Meta>;
+    };
+
+    constexpr bool require_ssu_meta() noexcept {
+    #ifdef CHARM_KERNEL_REQUIRE_SSU_META
+        return CHARM_KERNEL_REQUIRE_SSU_META != 0;
+    #else
+        return false;
+    #endif
+    }
+
+    template <typename Task>
     constexpr EventMask task_mask() noexcept {
         if constexpr (requires { Task::mask; }) {
             return Task::mask;
@@ -43,6 +58,13 @@ export namespace kernel {
     template <typename Task, typename Config>
     consteval void validate_task_priority() {
         static_assert(Task::priority.value < Config::priority_levels);
+    }
+
+    template <typename Task>
+    consteval void validate_task_ssu() {
+        if constexpr (require_ssu_meta()) {
+            static_assert(EdaTaskWithSsu<Task>, "kernel task must declare ssu_meta() when CHARM_KERNEL_REQUIRE_SSU_META is enabled");
+        }
     }
 
     template <typename... Tasks>
@@ -59,6 +81,7 @@ export namespace kernel {
         template <typename Config>
         static consteval auto priority_table() {
             (validate_task_priority<Tasks, Config>(), ...);
+            (validate_task_ssu<Tasks>(), ...);
             return std::array<std::size_t, count>{Tasks::priority.value...};
         }
 
@@ -88,6 +111,13 @@ export namespace kernel {
             }
             constexpr auto table = active_table<Config>();
             return table[id.value];
+        }
+
+        [[nodiscard]] std::string_view task_ssu_name(TaskId id) const noexcept {
+            if (id.value >= count) {
+                return {};
+            }
+            return task_ssu_name_by_index<0>(id.value);
         }
 
         void init_all() {
@@ -193,6 +223,28 @@ export namespace kernel {
                 return accept_event_by_index<I + 1>(index, evt);
             } else {
                 return false;
+            }
+        }
+
+        template <std::size_t I>
+        [[nodiscard]] static consteval std::string_view task_ssu_name_for() noexcept {
+            using Task = std::tuple_element_t<I, std::tuple<Tasks...>>;
+            if constexpr (requires { Task::ssu_meta(); }) {
+                return Task::ssu_meta().name;
+            } else {
+                return {};
+            }
+        }
+
+        template <std::size_t I>
+        [[nodiscard]] std::string_view task_ssu_name_by_index(std::size_t index) const noexcept {
+            if (index == I) {
+                return task_ssu_name_for<I>();
+            }
+            if constexpr (I + 1 < count) {
+                return task_ssu_name_by_index<I + 1>(index);
+            } else {
+                return {};
             }
         }
 

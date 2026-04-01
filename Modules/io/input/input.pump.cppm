@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstdint>
@@ -12,6 +12,7 @@ import input.raw_event;
 import input.service;
 import kernel.eda;
 import kernel.evt;
+import kernel.ssu;
 import util.core;
 import util.error;
 
@@ -39,6 +40,16 @@ export namespace input {
         charm::system::ClockTick period_ms{16};
         util::usize budget{8};
         bool started{false};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return kernel::ssu::Meta{
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::timer,
+                .budget = kernel::ssu::BudgetKind::budgeted,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "input.pump",
+            };
+        }
 
         void bind(InputService& service_in,
                   charm::system::Clock& clock_in,

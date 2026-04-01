@@ -20,7 +20,7 @@ import util.error;
 
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
 namespace posix::detail {
-    inline constexpr util::usize kElfTestLoadSize = 4096;
+    inline constexpr util::usize kElfTestLoadSize = 8192;
     alignas(16) __attribute__((section(".elf_load")))
     std::array<util::u8, kElfTestLoadSize> g_elf_test_load{};
 }

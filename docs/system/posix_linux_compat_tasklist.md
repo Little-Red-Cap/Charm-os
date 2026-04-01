@@ -1,4 +1,4 @@
-﻿# Linux 生态兼容任务清单（MCU 目标）
+# Linux 生态兼容任务清单（MCU 目标）
 
 本清单以“单片机可运行 Linux 用户态软件”为目标，按依赖与收益排序。
 原则：先跑 BusyBox Phase 2/3，再扩展到更完整的 POSIX 语义。
@@ -55,6 +55,27 @@
 | echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
 | echo hi \| cat \| cat | `echo hi | cat | cat`；输出 hi | 多段 pipe/多子进程 | 多 pipe 生命周期管理 | parent/child close 失衡 | P2 | TBD | TODO |
 | busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | TODO |
+
+## ELF 样本套件（P0-next）
+
+当前已具备一套可在 QEMU 上重复回归的真实 ELF 样本，用于持续验证 Charm 的程序加载链，而不是只验证 POSIX 名字表面。
+
+| 样本 | 当前命令 | 当前输入方式 | 期望输出/状态 | 最小依赖面 | 当前状态 | 下一步 |
+| --- | --- | --- | --- | --- | --- | --- |
+| hello | `elfmem:hello` | `.elf.inc` + `register_elf_mem` | stdout=`hello\n`, exit=0 | `spawn/load_image/start_image`, `write`, stdio fd | DONE | 增加文件/VFS 输入 |
+| argv_dump | `elfmem:argv_dump a b` | `.elf.inc` + `register_elf_mem` | 打印 argv[0..2] | 入口 ABI, `write`, stdout | DONE | 增加 envp 断言 |
+| stderr_demo | `elfmem:stderr_demo` | `.elf.inc` + `register_elf_mem` | stdout/stderr 分流 | `write`, 0/1/2 fd, dup2 | DONE | 增加 `2>&1`/文件重定向 |
+| exit_code | `elfmem:exit_code 7` | `.elf.inc` + `register_elf_mem` | wait code=7 | `exit`, waitpid, argv | DONE | 增加 shell 状态传递 |
+
+配套验收：
+- 文档：`Examples/posix/elf_samples/README.md`
+- 样本生成：`Examples/posix/elf_samples/build_elf_samples.ps1`
+- 程序级 smoke：`Examples/posix/tests/posix.programs.tests.cppm`
+- QEMU 回归：`Examples/kernel/posix/qemu/run_qemu_ci.ps1`
+
+下一批重点：
+- 给上述 4 个样本补一条“非 `.elf.inc` 文件输入”验收路径
+- 在保持样本稳定的前提下，把依赖面从 `write/exit` 扩到 `read/open/close/fstat/isatty`
 
 ## 模块清单（按依赖顺序）
 

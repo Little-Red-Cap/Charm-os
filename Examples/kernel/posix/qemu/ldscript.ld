@@ -38,6 +38,13 @@ SECTIONS
     _edata = .;
   } > RAM
 
+  .elf_load 0x20080000 (NOLOAD) :
+  {
+    . = ALIGN(16);
+    *(.elf_load*)
+    . = ALIGN(16);
+  } > RAM
+
   .bss (NOLOAD) :
   {
     _sbss = .;

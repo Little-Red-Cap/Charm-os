@@ -11,6 +11,12 @@ module;
 #include <string_view>
 #include <type_traits>
 #include <cstring>
+#include <new>
+
+#include "../elf_samples/hello.elf.inc"
+#include "../elf_samples/argv_dump.elf.inc"
+#include "../elf_samples/stderr_demo.elf.inc"
+#include "../elf_samples/exit_code.elf.inc"
 
 export module posix.programs.tests;
 
@@ -21,6 +27,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import posix.errno;
 import posix.program_image_elf;
 import posix.program_image_modulex;
 import module_core;
@@ -845,6 +852,13 @@ namespace {
         check_true("elf-entry-addr", ok2.value().entry == expected_entry);
         check_true("elf-bss-zero", load_buf[4] == 0 && load_buf[5] == 0 && load_buf[6] == 0 && load_buf[7] == 0);
 
+        stub.phdr.memsz = 2;
+        stub.phdr.filesz = 4;
+        auto bad_memsz = posix::load_elf_image(cfg);
+        check_true("elf-load-memsz-too-small", !bad_memsz && bad_memsz.error() == util::Errc::invalid_arg);
+        stub.phdr.filesz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload) + 4;
+
         cfg.load_size = 2;
         auto too_small = posix::load_elf_image(cfg);
         check_true("elf-load-too-small", !too_small && too_small.error() == util::Errc::invalid_arg);
@@ -904,7 +918,8 @@ namespace {
 
     void test_elf_file_spawn() noexcept {
         fs::clear_mounts();
-        RamFsMount<64, 32, 64> ramfs{};
+        static RamFsMount<256, 32, 128> ramfs{};
+        new (&ramfs) RamFsMount<256, 32, 128>();
         auto st = fs::add_mount("", ramfs.mount_point());
         check_true("elf-file-mount", st);
 
@@ -976,6 +991,119 @@ namespace {
         h.unbind_env();
     }
 
+    void test_elf_real_samples() noexcept {
+        Harness h{};
+        h.bind_env();
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+        auto spawn_checked = [&](const char* label, const posix::SpawnConfig& cfg) noexcept {
+            auto sp = h.procs.spawn(cfg);
+            if (!sp) {
+                auto img = h.procs.load_image(cfg);
+                if (!img) {
+                    char buf2[96]{};
+                    std::snprintf(buf2, sizeof(buf2),
+                        "[posix-smoke] programs %s load fail: err=%lld", label, to_ll(img.error()));
+                    log_line(buf2);
+                }
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] programs %s fail: err=%lld", label, to_ll(sp.error()));
+                log_line(buf);
+                log_step(label, false);
+                fail();
+            }
+            log_step(label, true);
+            return sp.value();
+        };
+        check_true("elf-real-reg-hello",
+            h.procs.register_elf_mem("hello", hello_elf, hello_elf_len));
+        check_true("elf-real-reg-argv",
+            h.procs.register_elf_mem("argv_dump", argv_dump_elf, argv_dump_elf_len));
+        check_true("elf-real-reg-stderr",
+            h.procs.register_elf_mem("stderr_demo", stderr_demo_elf, stderr_demo_elf_len));
+        check_true("elf-real-reg-exit",
+            h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-hello-pipe", h.api.pipe(pipefd), 0);
+            check_true("elf-real-hello-dup2", h.fds.dup2(pipefd[1], 1));
+            const char* argv[] = {"elfmem:hello", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:hello";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            auto sp = spawn_checked("elf-real-hello-spawn", cfg);
+            (void)h.procs.waitpid(sp.pid, 0);
+            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-hello-out", out, std::string_view{"hello\n"});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-argv-pipe", h.api.pipe(pipefd), 0);
+            check_true("elf-real-argv-dup2", h.fds.dup2(pipefd[1], 1));
+            const char* argv[] = {"elfmem:argv_dump", "a", "b", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:argv_dump";
+            cfg.argv = std::span<const char* const>(argv, 3);
+            auto sp = spawn_checked("elf-real-argv-spawn", cfg);
+            (void)h.procs.waitpid(sp.pid, 0);
+            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            std::array<char, 96> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            const char expected[] = "argv[0]=elfmem:argv_dump\nargv[1]=a\nargv[2]=b\n";
+            check_eq("elf-real-argv-out", out, std::string_view{expected});
+        }
+
+        {
+            int out_pipe[2]{-1, -1};
+            int err_pipe[2]{-1, -1};
+            check_eq("elf-real-stderr-out-pipe", h.api.pipe(out_pipe), 0);
+            check_eq("elf-real-stderr-err-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("elf-real-stderr-move-read", h.fds.dup2(err_read, 6));
+                err_read = 6;
+            }
+            check_true("elf-real-stderr-dup2-out", h.fds.dup2(out_pipe[1], 1));
+            check_true("elf-real-stderr-dup2-err", h.fds.dup2(err_pipe[1], 2));
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            auto sp = spawn_checked("elf-real-stderr-spawn", cfg);
+            (void)h.procs.waitpid(sp.pid, 0);
+            std::array<char, 16> out_buf{};
+            std::array<char, 16> err_buf{};
+            util::usize out_size = 0;
+            util::usize err_size = 0;
+            auto out = read_from_fd(h.api, out_pipe[0], out_buf, out_size);
+            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            check_eq("elf-real-stderr-out", out, std::string_view{"out\n"});
+            check_eq("elf-real-stderr-err", err, std::string_view{"err\n"});
+        }
+
+        {
+            const char* argv[] = {"elfmem:exit_code", "7", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:exit_code";
+            cfg.argv = std::span<const char* const>(argv, 2);
+            auto sp = spawn_checked("elf-real-exit-spawn", cfg);
+            auto st2 = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-exit-wait", st2);
+            check_eq("elf-real-exit-code", st2.value().code, 7);
+        }
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
     void test_sh_c_redir_and_pipe() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -1042,6 +1170,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_elf_prefix_stub();
     test_elf_header_stub();
     test_elf_file_spawn();
+    test_elf_real_samples();
     test_echo_to_file();
     test_cat_from_file();
     test_echo_pipe_cat();

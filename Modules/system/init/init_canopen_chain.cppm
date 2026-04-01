@@ -68,6 +68,8 @@ export namespace charm::system {
                            clock,
                            &canopen::scheduler_schedule_at<Scheduler>,
                            &scheduler,
+                           &canopen::scheduler_post_demand<Scheduler>,
+                           &scheduler,
                            pump_id,
                            &sdo_service,
                            &nmt_service,

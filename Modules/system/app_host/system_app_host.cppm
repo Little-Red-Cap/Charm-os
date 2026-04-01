@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <cstddef>
 
@@ -57,6 +57,8 @@ export namespace charm::system {
         }
 
         PostFn post_fn() noexcept { return &charm::system::scheduler_post<Scheduler>; }
+        PostFn post_io_ready_fn() noexcept { return &charm::system::scheduler_post_io_ready<Scheduler>; }
+        PostFn post_demand_fn() noexcept { return &charm::system::scheduler_post_demand<Scheduler>; }
         void* post_ctx() noexcept { return &scheduler_; }
 
         input::ScheduleFn schedule_fn() noexcept {
@@ -74,3 +76,6 @@ export namespace charm::system {
         Scheduler scheduler_;
     };
 }
+
+
+

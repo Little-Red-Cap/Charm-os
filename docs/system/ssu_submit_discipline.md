@@ -109,6 +109,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 - `scheduler.post_demand(...)`
 - `scheduler.post_demand_token(...)`
 
+## 落地进展（当前）
+
+- scheduler 已落地三类 submit 入口：`post` / `post_io_ready` / `post_demand`
+- `system.reactor_pump` 的 host/bringup 默认接线已切到 `io-ready-submit`
+- 其余路径继续保持最小变更，避免一次性扩大改造面
 ## 旁路定义与处理
 
 以下行为视为旁路：
@@ -169,3 +174,4 @@ submit discipline 解决的是“执行入口层”的约束。
 
 新执行路径可以出现，但它不能匿名出现。
 它必须声明自己属于哪类 submit，并最终回到 SSU 主通道。
+

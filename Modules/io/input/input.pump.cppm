@@ -23,6 +23,7 @@ export namespace input {
                                 charm::system::ClockTick due) noexcept;
 
     using SinkFn = bool (*)(void* ctx, const RawInputEvent& ev) noexcept;
+    using PostFn = bool (*)(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept;
 
     struct InputPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -36,6 +37,8 @@ export namespace input {
         void* sink_ctx{nullptr};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
+        PostFn post_more{nullptr};
+        void* post_ctx{nullptr};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{16};
         util::usize budget{8};
@@ -57,6 +60,8 @@ export namespace input {
                   void* sink_ctx_in,
                   ScheduleFn schedule_fn,
                   void* schedule_ctx_in,
+                  PostFn post_more_fn,
+                  void* post_ctx_in,
                   kernel::TaskId task_id,
                   charm::system::ClockTick period_ms_in,
                   util::usize budget_in = 8) noexcept {
@@ -66,6 +71,8 @@ export namespace input {
             sink_ctx = sink_ctx_in;
             schedule = schedule_fn;
             schedule_ctx = schedule_ctx_in;
+            post_more = post_more_fn;
+            post_ctx = post_ctx_in;
             self = task_id;
             period_ms = (period_ms_in == 0) ? 1 : period_ms_in;
             budget = (budget_in == 0) ? 1 : budget_in;
@@ -98,7 +105,11 @@ export namespace input {
             }
             const auto now_tick = clock.now_ms();
             const auto now_ms = static_cast<std::uint32_t>(now_tick);
-            pump_once(now_ms);
+            const auto consumed = pump_once(now_ms);
+            if (consumed >= budget && post_more) {
+                (void)post_more(post_ctx, self, kernel::make_event(kernel::EventId::input_pump));
+                return;
+            }
             schedule_next(now_tick);
         }
 
@@ -111,9 +122,10 @@ export namespace input {
             (void)schedule(schedule_ctx, self, kernel::make_event(kernel::EventId::input_pump), due);
         }
 
-        void pump_once(std::uint32_t now_ms) noexcept {
-            if (!service) return;
-            for (util::usize i = 0; i < budget; ++i) {
+        [[nodiscard]] util::usize pump_once(std::uint32_t now_ms) noexcept {
+            if (!service) return 0;
+            util::usize consumed = 0;
+            for (; consumed < budget; ++consumed) {
                 auto ev = service->poll_raw_at(now_ms);
                 if (!ev) {
                     break;
@@ -122,6 +134,7 @@ export namespace input {
                     break;
                 }
             }
+            return consumed;
         }
     };
 
@@ -145,6 +158,8 @@ export namespace input {
         void* sink_ctx{nullptr};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
+        PostFn post_more{nullptr};
+        void* post_ctx{nullptr};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{16};
         util::usize budget{8};
@@ -157,6 +172,8 @@ export namespace input {
                          charm::system::Clock& clock_in,
                          ScheduleFn schedule_fn,
                          void* schedule_ctx_in,
+                         PostFn post_more_fn,
+                         void* post_ctx_in,
                          kernel::TaskId task_id,
                          SinkFn sink_fn = nullptr,
                          void* sink_ctx_in = nullptr,
@@ -176,6 +193,8 @@ export namespace input {
               sink_ctx(sink_ctx_in),
               schedule(schedule_fn),
               schedule_ctx(schedule_ctx_in),
+              post_more(post_more_fn),
+              post_ctx(post_ctx_in),
               self(task_id),
               period_ms((period_ms_in == 0) ? 1 : period_ms_in),
               budget((budget_in == 0) ? 1 : budget_in) {
@@ -207,6 +226,8 @@ export namespace input {
                              self->sink_ctx,
                              self->schedule,
                              self->schedule_ctx,
+                             self->post_more,
+                             self->post_ctx,
                              self->self,
                              self->period_ms,
                              self->budget);

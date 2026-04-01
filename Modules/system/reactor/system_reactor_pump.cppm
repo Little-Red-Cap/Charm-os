@@ -23,6 +23,7 @@ export namespace charm::system {
 
         io::Reactor* reactor{nullptr};
         PostFn post{nullptr};
+        PostFn post_more{nullptr};
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         util::usize budget{8};
@@ -39,11 +40,13 @@ export namespace charm::system {
 
         void bind(io::Reactor& reactor_in,
                   PostFn post_fn,
+                  PostFn post_more_fn,
                   void* ctx,
                   kernel::TaskId task,
                   util::usize budget_in = 8) noexcept {
             reactor = &reactor_in;
             post = post_fn;
+            post_more = post_more_fn ? post_more_fn : post_fn;
             post_ctx = ctx;
             self = task;
             budget = (budget_in == 0) ? 1 : budget_in;
@@ -53,12 +56,12 @@ export namespace charm::system {
             if (evt.id != kernel::EventId::reactor_drain) {
                 return;
             }
-            if (!reactor || !post) {
+            if (!reactor || !post || !post_more) {
                 return;
             }
             const bool more = reactor->drain(budget);
             if (more) {
-                (void)post(post_ctx, self, kernel::make_event(kernel::EventId::reactor_drain));
+                (void)post_more(post_ctx, self, kernel::make_event(kernel::EventId::reactor_drain));
             }
         }
     };
@@ -88,10 +91,30 @@ export namespace charm::system {
         return scheduler->post(task, evt);
     }
 
+    template <typename Scheduler>
+    inline bool scheduler_post_io_ready(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
+        auto* scheduler = static_cast<Scheduler*>(ctx);
+        if (!scheduler) {
+            return false;
+        }
+        return scheduler->post_io_ready(task, evt);
+    }
+
+    template <typename Scheduler>
+    inline bool scheduler_post_demand(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
+        auto* scheduler = static_cast<Scheduler*>(ctx);
+        if (!scheduler) {
+            return false;
+        }
+        return scheduler->post_demand(task, evt);
+    }
+
+
     struct ReactorPumpBinding {
         ReactorPumpTask* pump{nullptr};
         io::Reactor* reactor{nullptr};
         PostFn post{nullptr};
+        PostFn post_more{nullptr};
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         util::usize budget{8};
@@ -113,6 +136,7 @@ export namespace charm::system {
         ReactorPumpBinding(ReactorPumpTask& task,
                            io::Reactor& reactor_in,
                            PostFn post_fn,
+                           PostFn post_more_fn,
                            void* post_ctx_in,
                            kernel::TaskId self_id,
                            util::usize budget_in = 8,
@@ -124,6 +148,7 @@ export namespace charm::system {
             : pump(&task),
               reactor(&reactor_in),
               post(post_fn),
+              post_more(post_more_fn ? post_more_fn : post_fn),
               post_ctx(post_ctx_in),
               self(self_id),
               budget((budget_in == 0) ? 1 : budget_in),
@@ -148,10 +173,13 @@ export namespace charm::system {
             if (!self || !self->pump || !self->reactor || !self->post) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            self->pump->bind(*self->reactor, self->post, self->post_ctx, self->self, self->budget);
+            self->pump->bind(*self->reactor, self->post, self->post_more, self->post_ctx, self->self, self->budget);
             self->waker.pump = self->pump;
             self->reactor->set_waker(&ReactorWaker::wake, &self->waker);
             return {};
         }
     };
 }
+
+
+

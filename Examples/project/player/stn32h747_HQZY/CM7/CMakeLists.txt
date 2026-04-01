@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 
 #
 # This file is generated only once,
@@ -57,7 +57,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     CORE_CM7
     STM32H747xx
-    CHARM_ENTRY_ALLOWED=1
+    CHARM_ENTRY_ALLOWED=1`r`n    CHARM_KERNEL_REQUIRE_SSU_META=1
 )
 
 # Add include paths
@@ -145,7 +145,7 @@ target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES
     BASE_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.."
     FILES
         ${MODULE_INTERFACE_UNITS}
 )
@@ -171,6 +171,7 @@ set(CHARM_ENABLE_FATFS ON CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 
+target_compile_definitions(Charm-os PRIVATE CHARM_KERNEL_REQUIRE_SSU_META=1)
 target_include_directories(Charm-os PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc
@@ -187,3 +188,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 if(CMAKE_C_STANDARD LESS 11)
     message(ERROR "Generated code requires C11 or higher")
 endif()
+
+
+

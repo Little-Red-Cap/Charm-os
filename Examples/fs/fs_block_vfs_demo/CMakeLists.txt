@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+﻿cmake_minimum_required(VERSION 4.0)
 project(fs-block-vfs-demo)
 set(target_name ${PROJECT_NAME})
 

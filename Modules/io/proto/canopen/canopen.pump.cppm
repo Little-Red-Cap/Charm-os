@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstdint>
@@ -12,6 +12,7 @@ import canopen.sdo_service;
 import canopen.nmt_service;
 import kernel.eda;
 import kernel.evt;
+import kernel.ssu;
 import util.core;
 import util.error;
 
@@ -35,6 +36,16 @@ export namespace canopen {
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{10};
         bool started{false};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return kernel::ssu::Meta{
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::timer,
+                .budget = kernel::ssu::BudgetKind::single_step,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "canopen.pump",
+            };
+        }
 
         void bind(SdoService* sdo_in,
                   NmtService* nmt_in,

@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <cstddef>
 #include <span>
@@ -10,6 +10,7 @@ import init.node;
 import io.reactor;
 import kernel.eda;
 import kernel.evt;
+import kernel.ssu;
 import util.core;
 import util.error;
 
@@ -25,6 +26,16 @@ export namespace charm::system {
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         util::usize budget{8};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return kernel::ssu::Meta{
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::io_ready,
+                .budget = kernel::ssu::BudgetKind::budgeted,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "system.reactor_pump",
+            };
+        }
 
         void bind(io::Reactor& reactor_in,
                   PostFn post_fn,
@@ -84,6 +95,16 @@ export namespace charm::system {
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         util::usize budget{8};
+
+        static consteval kernel::ssu::Meta ssu_meta() noexcept {
+            return kernel::ssu::Meta{
+                .domain = kernel::ssu::ExecutionDomain::task_only,
+                .trigger = kernel::ssu::TriggerKind::io_ready,
+                .budget = kernel::ssu::BudgetKind::budgeted,
+                .blocking = kernel::ssu::BlockingKind::non_blocking,
+                .name = "system.reactor_pump",
+            };
+        }
         ReactorWaker waker{};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 2> requires_caps{};

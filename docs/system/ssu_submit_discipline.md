@@ -60,6 +60,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 - EDA task dispatch
 - 部分 timer/frame 的阶段投影
 
+#### 当前内核入口
+
+- `scheduler.post(...)`
+- `scheduler.post_token(...)`
+
 ### B. io-ready-submit
 
 #### 语义
@@ -77,6 +82,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 
 - reactor waker -> pump task -> drain
 
+#### 当前内核入口
+
+- `scheduler.post_io_ready(...)`
+- `scheduler.post_io_ready_token(...)`
+
 ### C. demand-submit
 
 #### 语义
@@ -93,6 +103,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 #### 典型映射
 
 - audio pull / DMA 节拍驱动的数据需求
+
+#### 当前内核入口
+
+- `scheduler.post_demand(...)`
+- `scheduler.post_demand_token(...)`
 
 ## 旁路定义与处理
 

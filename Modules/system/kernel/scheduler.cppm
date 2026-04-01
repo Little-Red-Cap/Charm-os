@@ -153,9 +153,16 @@ export namespace kernel {
             util::u64 debounce_filtered{0};
             util::u64 coalesce_hit{0};
             util::u64 source_post{0};
+            util::u64 source_io_ready{0};
+            util::u64 source_demand{0};
             util::u64 source_timer{0};
             util::u64 source_replay{0};
             util::u64 idle_rounds{0};
+        };
+        enum class SubmitKind : unsigned char {
+            event,
+            io_ready,
+            demand,
         };
         enum class AlertType : unsigned char {
             queue,
@@ -180,8 +187,11 @@ export namespace kernel {
             post_init_events();
         }
 
-        [[nodiscard]] EventToken post_token_with_tag(TaskId task, Event evt, util::u64 tag) noexcept {
-            ++stats_.source_post;
+        [[nodiscard]] EventToken post_token_with_tag(TaskId task,
+                                                     Event evt,
+                                                     util::u64 tag,
+                                                     SubmitKind kind = SubmitKind::event) noexcept {
+            record_submit_source(kind);
             if (task.value >= Registry::count) {
                 ++stats_.dropped;
                 return EventToken{0};
@@ -316,11 +326,27 @@ export namespace kernel {
         }
 
         [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
-            return post_token_with_tag(task, evt, next_tag());
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::event);
+        }
+
+        [[nodiscard]] EventToken post_io_ready_token(TaskId task, Event evt) noexcept {
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::io_ready);
+        }
+
+        [[nodiscard]] EventToken post_demand_token(TaskId task, Event evt) noexcept {
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::demand);
         }
 
         [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
             return post_token(task, evt).value != 0;
+        }
+
+        [[nodiscard]] bool post_io_ready(TaskId task, Event evt) noexcept {
+            return post_io_ready_token(task, evt).value != 0;
+        }
+
+        [[nodiscard]] bool post_demand(TaskId task, Event evt) noexcept {
+            return post_demand_token(task, evt).value != 0;
         }
 
         [[nodiscard]] std::size_t post_many(const PostItem* items, std::size_t count) noexcept {
@@ -688,9 +714,11 @@ export namespace kernel {
         [[nodiscard]] std::size_t format_event_source_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
             offset = detail::append_text(out, max, offset, "{");
-            offset = detail::append_fmt<"\"post\":{},\"timer\":{},\"replay\":{}">(
+            offset = detail::append_fmt<"\"post\":{},\"io_ready\":{},\"demand\":{},\"timer\":{},\"replay\":{}">(
                 out, max, offset,
                 static_cast<unsigned long long>(stats_.source_post),
+                static_cast<unsigned long long>(stats_.source_io_ready),
+                static_cast<unsigned long long>(stats_.source_demand),
                 static_cast<unsigned long long>(stats_.source_timer),
                 static_cast<unsigned long long>(stats_.source_replay));
             offset = detail::append_text(out, max, offset, "}");
@@ -1225,6 +1253,21 @@ export namespace kernel {
             } else {
                 return DropPolicy::drop_newest;
             }
+        }
+
+        void record_submit_source(SubmitKind kind) noexcept {
+            switch (kind) {
+                case SubmitKind::event:
+                    ++stats_.source_post;
+                    return;
+                case SubmitKind::io_ready:
+                    ++stats_.source_io_ready;
+                    return;
+                case SubmitKind::demand:
+                    ++stats_.source_demand;
+                    return;
+            }
+            ++stats_.source_post;
         }
     };
 

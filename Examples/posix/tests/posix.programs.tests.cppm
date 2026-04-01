@@ -17,6 +17,7 @@ module;
 #include "../elf_samples/argv_dump.elf.inc"
 #include "../elf_samples/stderr_demo.elf.inc"
 #include "../elf_samples/exit_code.elf.inc"
+#include "../elf_samples/cat_file.elf.inc"
 
 export module posix.programs.tests;
 
@@ -43,7 +44,8 @@ namespace {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
     extern "C" void posix_smoke_emit(const char* msg) noexcept;
 #endif
-    using ApiType = posix::Api<16, 8, 64, 4, 4, 16>;
+    using ProcServiceType = posix::ProcService<4, 4, 16, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
+    using ApiType = posix::Api<16, 8, 64, 4, 4, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
 
     [[noreturn]] inline void fail() noexcept { std::abort(); }
     inline void log_line(const char* msg) noexcept {
@@ -333,7 +335,7 @@ namespace {
         posix::FdTable<16> fds{};
         posix::FileService<16> files{};
         posix::PipeService<8, 64> pipes{};
-        posix::ProcService<4, 4, 16, 16> procs{};
+        ProcServiceType procs{};
         ApiType api;
 
         Harness() : api(fds, files, pipes, procs) {
@@ -991,6 +993,110 @@ namespace {
         h.unbind_env();
     }
 
+
+    void test_elf_file_samples_probe() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<256, 64, 512> ramfs{};
+        new (&ramfs) RamFsMount<256, 64, 512>();
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("cat-file-mount", st);
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int hello_fd = h.api.open("/hello.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-hello-open", hello_fd >= 0);
+        auto hello_write = h.api.write(hello_fd, hello_elf, hello_elf_len);
+        check_true("cat-file-hello-write", hello_write == static_cast<posix::ssize_t>(hello_elf_len));
+        check_eq("cat-file-hello-close", h.api.close(hello_fd), 0);
+
+        const char* hello_argv[] = {"elf:/hello.elf", nullptr};
+        posix::SpawnConfig hello_cfg{};
+        hello_cfg.path = "elf:/hello.elf";
+        hello_cfg.argv = std::span<const char* const>(hello_argv, 1);
+        auto hello_img = h.procs.load_image(hello_cfg);
+        if (!hello_img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-hello-load fail: err=%lld", to_ll(hello_img.error()));
+            log_line(buf);
+        }
+        check_true("cat-file-hello-load", hello_img);
+
+        int cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-data-open", cat_fd >= 0);
+        const char cat_payload[] = "cat-data\n";
+        auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
+        check_true("cat-file-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
+        check_eq("cat-file-data-close", h.api.close(cat_fd), 0);
+
+        int cat_elf_fd = h.api.open("/cat_file.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-elf-open", cat_elf_fd >= 0);
+        auto cat_elf_write = h.api.write(cat_elf_fd, cat_file_elf, cat_file_elf_len);
+        check_true("cat-file-elf-write", cat_elf_write == static_cast<posix::ssize_t>(cat_file_elf_len));
+        check_eq("cat-file-elf-close", h.api.close(cat_elf_fd), 0);
+
+        const char* cat_argv[] = {"elf:/cat_file.elf", "/cat.txt", nullptr};
+        posix::SpawnConfig cat_cfg{};
+        cat_cfg.path = "elf:/cat_file.elf";
+        cat_cfg.argv = std::span<const char* const>(cat_argv, 2);
+        auto cat_img = h.procs.load_image(cat_cfg);
+        if (!cat_img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-load fail: err=%lld", to_ll(cat_img.error()));
+            log_line(buf);
+        }
+        check_true("cat-file-load", cat_img);
+
+        posix::FdOps term_ops{};
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
+
+        {
+            int err_pipe[2]{-1, -1};
+            check_eq("cat-file-err-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("cat-file-err-move-read", h.fds.dup2(err_read, 7));
+                err_read = 7;
+            }
+            check_true("cat-file-dup2-err", h.fds.dup2(err_pipe[1], 2));
+
+            auto cat_sp = h.procs.spawn(cat_cfg);
+            if (!cat_sp) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-spawn fail: err=%lld",
+                    to_ll(cat_sp.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-spawn", cat_sp);
+            auto cat_st = h.procs.waitpid(cat_sp.value().pid, 0);
+            if (!cat_st) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-wait fail: err=%lld",
+                    to_ll(cat_st.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-wait", cat_st);
+            check_eq("cat-file-code", cat_st.value().code, 0);
+
+            if (err_pipe[1] != 2) {
+                (void)h.api.close(err_pipe[1]);
+            }
+            std::array<char, 32> err_buf{};
+            util::usize err_size = 0;
+            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\n"});
+        }
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
     void test_elf_real_samples() noexcept {
         Harness h{};
         h.bind_env();
@@ -1170,6 +1276,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_elf_prefix_stub();
     test_elf_header_stub();
     test_elf_file_spawn();
+    test_elf_file_samples_probe();
     test_elf_real_samples();
     test_echo_to_file();
     test_cat_from_file();

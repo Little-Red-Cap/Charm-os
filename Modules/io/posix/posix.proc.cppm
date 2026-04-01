@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
 #include <span>
 #include <string_view>
 
@@ -20,7 +21,7 @@ import util.error;
 
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
 namespace posix::detail {
-    inline constexpr util::usize kElfTestLoadSize = 4096;
+    inline constexpr util::usize kElfTestLoadSize = 8192;
     alignas(16) __attribute__((section(".elf_load")))
     std::array<util::u8, kElfTestLoadSize> g_elf_test_load{};
 }
@@ -205,6 +206,9 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+            std::fputs("[posix-elf] load_image enter\n", stderr);
+#endif
             if (is_elf_mem_prefixed(cfg)) {
                 auto mem_name = resolve_elf_mem_name(cfg);
                 if (mem_name.empty()) {
@@ -217,7 +221,17 @@ export namespace posix {
                 return load_elf_from_buffer(mem->data, mem->size);
             }
             if (is_elf_prefixed(cfg)) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] load_image elf-prefixed\n", stderr);
+#endif
                 auto elf_path = resolve_elf_path(cfg);
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                if (cfg.path) {
+                    std::fputs("[posix-elf] cfg.path=", stderr);
+                    std::fputs(cfg.path, stderr);
+                    std::fputs("\n", stderr);
+                }
+#endif
                 if (elf_path.empty()) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
@@ -551,10 +565,16 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_elf_from_file(std::string_view path) noexcept {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+            std::fputs("[posix-elf] load_elf_from_file enter\n", stderr);
+#endif
             if (path.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (!file_service_) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] file_service missing\n", stderr);
+#endif
                 return util::unexpected(util::Errc::not_supported);
             }
             if (path.size() >= MaxPathLen) {
@@ -611,6 +631,9 @@ export namespace posix {
                 return util::unexpected(util::Errc::not_supported);
             }
             if (!file_service_) {
+#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
+                std::fputs("[posix-elf] file_service missing\n", stderr);
+#endif
                 return util::unexpected(util::Errc::not_supported);
             }
             const auto path = resolve_exec_path(cfg);
@@ -778,6 +801,11 @@ export namespace posix {
         struct ElfHostCalls {
             util::i32 (*write)(int fd, const void* buf, util::usize len) noexcept {nullptr};
             void (*exit)(int code) noexcept {nullptr};
+            util::i32 (*open)(const char* path, int flags, int mode) noexcept {nullptr};
+            util::i32 (*close)(int fd) noexcept {nullptr};
+            util::i32 (*read)(int fd, void* buf, util::usize len) noexcept {nullptr};
+            util::i32 (*fstat)(int fd, void* st) noexcept {nullptr};
+            util::i32 (*isatty)(int fd) noexcept {nullptr};
         };
 
         struct ElfMemImage {
@@ -811,6 +839,79 @@ export namespace posix {
             elf_host_service_->elf_exit_code_ = code;
         }
 
+        struct ElfHostStat {
+            util::u64 st_size{0};
+            util::u32 st_mode{0};
+        };
+
+        static void close_entry(const FdEntry& entry) noexcept {
+            if (entry.ops && entry.ops->close) {
+                (void)entry.ops->close(entry.ctx);
+            }
+        }
+
+        static util::i32 elf_host_open(const char* path, int flags, int mode) noexcept {
+            if (!elf_host_service_ || !path) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table || !elf_host_service_->file_service_) return -1;
+            auto entry = elf_host_service_->file_service_->open(std::string_view{path}, flags, mode);
+            if (!entry) return -1;
+            auto rfd = table->attach(entry.value());
+            if (!rfd) {
+                close_entry(entry.value());
+                return -1;
+            }
+            return static_cast<util::i32>(rfd.value());
+        }
+
+        static util::i32 elf_host_close(int fd) noexcept {
+            if (!elf_host_service_) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto r = table->close(fd);
+            return r ? 0 : -1;
+        }
+
+        static util::i32 elf_host_read(int fd, void* buf, util::usize len) noexcept {
+            if (!elf_host_service_) return -1;
+            if (!buf && len > 0) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto entry = table->get(fd);
+            if (!entry || !entry.value()->ops || !entry.value()->ops->read) return -1;
+            MutByteView view{static_cast<util::u8*>(buf), len};
+            auto r = entry.value()->ops->read(entry.value()->ctx, view);
+            if (!r) {
+                if (r.error() == util::Errc::end_of_stream) return 0;
+                return -1;
+            }
+            return static_cast<util::i32>(r.value());
+        }
+
+        static util::i32 elf_host_fstat(int fd, void* st) noexcept {
+            if (!elf_host_service_ || !st) return -1;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return -1;
+            auto entry = table->get(fd);
+            if (!entry || !entry.value()->ops || !entry.value()->ops->stat) return -1;
+            PosixStat info{};
+            auto r = entry.value()->ops->stat(entry.value()->ctx, info);
+            if (!r) return -1;
+            auto* host = static_cast<ElfHostStat*>(st);
+            host->st_size = info.size;
+            host->st_mode = info.mode;
+            return 0;
+        }
+
+        static util::i32 elf_host_isatty(int fd) noexcept {
+            if (!elf_host_service_) return 0;
+            auto* table = elf_host_service_->fd_table(elf_host_pid_);
+            if (!table) return 0;
+            auto entry = table->get(fd);
+            if (!entry) return 0;
+            return entry.value()->kind == FdKind::term ? 1 : 0;
+        }
+
         util::Result<void> install_elf_hostcalls() noexcept {
             if (elf_load_size() < sizeof(ElfHostCalls)) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -818,6 +919,11 @@ export namespace posix {
             auto* table = reinterpret_cast<ElfHostCalls*>(elf_load_base());
             table->write = &ProcService::elf_host_write;
             table->exit = &ProcService::elf_host_exit;
+            table->open = &ProcService::elf_host_open;
+            table->close = &ProcService::elf_host_close;
+            table->read = &ProcService::elf_host_read;
+            table->fstat = &ProcService::elf_host_fstat;
+            table->isatty = &ProcService::elf_host_isatty;
             return {};
         }
 

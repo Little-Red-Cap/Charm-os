@@ -40,13 +40,19 @@ export namespace posix {
               util::usize MaxProcs,
               util::usize MaxExecs,
               util::usize MaxFiles,
-              util::usize MaxPathLen = 128>
+              util::usize MaxPathLen = 128,
+              util::usize MaxArgc = 16,
+              util::usize MaxEnvp = 16,
+              util::usize MaxArgBytes = 256,
+              util::usize MaxElfImage = 4096,
+              util::usize MaxElfLoad = 4096>
     class Api {
     public:
         Api(FdTable<MaxFds>& fd_table,
             FileService<MaxFiles>& file_service,
             PipeService<MaxPipes, PipeCapacity>& pipe_service,
-            ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>& proc_service) noexcept
+            ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes,
+                        MaxElfImage, MaxElfLoad>& proc_service) noexcept
             : fd_table_(&fd_table),
               file_service_(&file_service),
               pipe_service_(&pipe_service),
@@ -322,7 +328,7 @@ export namespace posix {
         FdTable<MaxFds>* fd_table_{nullptr};
         FileService<MaxFiles>* file_service_{nullptr};
         PipeService<MaxPipes, PipeCapacity>* pipe_service_{nullptr};
-        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen>* proc_service_{nullptr};
+        ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes, MaxElfImage, MaxElfLoad>* proc_service_{nullptr};
         int bound_pid_{-1};
     };
 }

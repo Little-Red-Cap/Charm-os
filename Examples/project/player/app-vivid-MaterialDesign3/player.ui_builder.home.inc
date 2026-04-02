@@ -1,4 +1,4 @@
-﻿    static void build_home(::ui::scene::SceneBuilder& builder, UiHandles& h,
+    static void build_home(::ui::scene::SceneBuilder& builder, UiHandles& h,
                            const UiLayout& layout, const PlayerIconIds& icons) {
         const WidgetHandle home = builder.create_container();
         anchor_rect(builder, home, {0, 0, screen_width, screen_height});
@@ -28,7 +28,7 @@
         const int title_x = kUiPadding;
         const int title_y = layout.top_bar_y + 8;
         const int title_w = screen_width - kUiPadding * 2 - 96;
-        const int title_line_h = 70;
+        const int title_line_h = 82;
         h.home_title_top = builder.create_label_static("Your");
         apply_text_label_style(builder, h.home_title_top, kUiTitle,
                                get_font_weighted(FontId::Large, FontWeight::Bold));
@@ -39,21 +39,21 @@
         apply_text_label_style(builder, h.home_title_bottom, kUiTitle,
                                get_font_weighted(FontId::Large, FontWeight::Bold));
         builder.set_label_align(h.home_title_bottom, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_title_bottom, {title_x, title_y + title_line_h - 10, title_w, title_line_h});
+        anchor_rect(builder, h.home_title_bottom, {title_x, title_y + 68, title_w, title_line_h});
 
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
         apply_text_label_style(builder, h.home_subtitle, kUiSubtitle,
                                get_font_weighted(FontId::Small, FontWeight::Regular));
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, h.home_subtitle, {title_x, title_y + title_line_h * 2 + 4, title_w, 22});
+        anchor_rect(builder, h.home_subtitle, {title_x, title_y + 160, title_w, 22});
 
         h.home_play = builder.create_button_static("");
-        const int play_size = 76;
+        const int play_size = 78;
         const int play_x = screen_width - kUiPadding - play_size;
-        const int play_y = title_y + title_line_h + 6;
+        const int play_y = title_y + 78;
         anchor_rect(builder, h.home_play, {play_x, play_y, play_size, play_size});
         builder.set_button_icon(h.home_play, icons.shuffle);
-        builder.set_button_icon_size(h.home_play, 26);
+        builder.set_button_icon_size(h.home_play, 28);
         {
             StylePatch patch{};
             patch.has_bg_color = true;
@@ -65,11 +65,11 @@
             builder.set_style_override(h.home_play, patch);
         }
 
-        const int collage_big = 272;
-        const int collage_small = 86;
-        const int collage_small2 = 80;
-        const int collage_small3 = 66;
-        const int collage_y = title_y + 206;
+        const int collage_big = 286;
+        const int collage_small = 88;
+        const int collage_small2 = 76;
+        const int collage_small3 = 70;
+        const int collage_y = title_y + 230;
         const int collage_x = (screen_width - collage_big) / 2;
         h.home_cover_big = builder.create_image();
         anchor_rect(builder, h.home_cover_big, {collage_x, collage_y, collage_big, collage_big});
@@ -81,8 +81,8 @@
         }
 
         h.home_cover_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_left, {collage_x - 20,
-                                                 collage_y + collage_big - collage_small + 12,
+        anchor_rect(builder, h.home_cover_left, {collage_x - 26,
+                                                 collage_y + collage_big - collage_small + 20,
                                                  collage_small, collage_small});
         {
             StylePatch patch{};
@@ -144,8 +144,8 @@
         }
 
         h.home_cover_bottom_left = builder.create_image();
-        anchor_rect(builder, h.home_cover_bottom_left, {collage_x + collage_big / 2 - collage_small3 - 42,
-                                                        collage_y + collage_big - collage_small3 + 18,
+        anchor_rect(builder, h.home_cover_bottom_left, {collage_x + collage_big / 2 - collage_small3 - 44,
+                                                        collage_y + collage_big - collage_small3 + 28,
                                                         collage_small3, collage_small3});
         {
             StylePatch patch{};
@@ -165,8 +165,8 @@
         }
 
         h.home_cover_bottom_right = builder.create_image();
-        anchor_rect(builder, h.home_cover_bottom_right, {collage_x + collage_big / 2 + 42,
-                                                         collage_y + collage_big - collage_small3 + 18,
+        anchor_rect(builder, h.home_cover_bottom_right, {collage_x + collage_big / 2 + 38,
+                                                         collage_y + collage_big - collage_small3 + 28,
                                                          collage_small3, collage_small3});
         {
             StylePatch patch{};
@@ -185,52 +185,30 @@
             builder.set_style_override(h.home_cover_bottom_right, patch);
         }
 
-        const int stat_card_h = 44;
-        const int stat_card_gap = 12;
+        const int stat_card_h = 76;
+        const int stat_card_gap = 14;
         const int stat_card_w = screen_width - kUiPadding * 2;
         const int stat_card_x = kUiPadding;
-        const int stat_card_y = collage_y + collage_big + 148;
-        const std::array<std::string_view, 3> stat_titles{
-            "Daily MIX",
-            "Recently Played",
-            "Listening stats"
-        };
-        for (int i = 0; i < static_cast<int>(stat_titles.size()); ++i) {
-            const int y = stat_card_y + i * (stat_card_h + stat_card_gap);
-            const WidgetHandle card = builder.create_container();
-            anchor_rect(builder, card, {stat_card_x, y, stat_card_w, stat_card_h});
-            {
-                StylePatch patch{};
-                patch.has_bg_color = true;
-                patch.bg_color = kUiListBg;
-                patch.has_border_color = true;
-                patch.border_color = kUiListBorder;
-                patch.has_corner_radius = true;
-                patch.corner_radius = 14;
-                builder.set_style_override(card, patch);
-            }
-            const WidgetHandle label = builder.create_label_static(stat_titles[static_cast<std::size_t>(i)].data());
-            apply_text_label_style(builder, label, kUiTitle,
-                                   get_font_weighted(FontId::Small, FontWeight::Medium));
-            builder.set_label_align(label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-            anchor_rect(builder, label, {stat_card_x + 16, y + 8, stat_card_w - 32, stat_card_h - 16});
-            builder.link(home_content, card);
-            builder.link(home_content, label);
-        }
+        const int stat_card_y = collage_y + collage_big + 118;
+        create_home_stat_card(builder, home_content,
+                              {stat_card_x, stat_card_y, stat_card_w, stat_card_h},
+                              "Daily MIX", "Fresh picks from your favorites", "24 tracks");
+        create_home_stat_card(builder, home_content,
+                              {stat_card_x, stat_card_y + stat_card_h + stat_card_gap, stat_card_w, stat_card_h},
+                              "Recently Played", "Resume albums and mixes you touched", "2 hours");
+        create_home_stat_card(builder, home_content,
+                              {stat_card_x, stat_card_y + (stat_card_h + stat_card_gap) * 2, stat_card_w, stat_card_h},
+                              "Listening stats", "Weekly minutes, streak and top genres", "7 days");
 
         const WidgetHandle home_toolbar = builder.create_container();
         anchor_rect(builder, home_toolbar, {layout.top_bar_x, layout.top_bar_y,
                                             layout.top_bar_w, layout.top_bar_h});
-        const WidgetHandle home_settings = builder.create_button_static("");
-        anchor_rect(builder, home_settings, {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(home_settings, icons.settings);
-        builder.set_button_icon_size(home_settings, 14);
-        apply_top_bar_button_style(builder, home_settings);
-        const WidgetHandle home_more = builder.create_button_static("");
-        anchor_rect(builder, home_more, {layout.top_bar_x + layout.top_bar_w - 92, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(home_more, icons.more);
-        builder.set_button_icon_size(home_more, 14);
-        apply_top_bar_button_style(builder, home_more);
+        const WidgetHandle home_settings = create_top_icon_button(builder,
+            {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40},
+            icons.settings, 14);
+        const WidgetHandle home_more = create_top_icon_button(builder,
+            {layout.top_bar_x + layout.top_bar_w - 92, layout.top_bar_y, 40, 40},
+            icons.more, 14);
 
         builder.link(home, h.home_backdrop);
         builder.link(home, home_scroll);

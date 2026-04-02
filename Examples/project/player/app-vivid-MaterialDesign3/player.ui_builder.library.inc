@@ -1,4 +1,4 @@
-﻿    static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
+    static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
                               const UiLayout& layout, const PlayerIconIds& icons) {
         constexpr int kTabsPadding = 0;
         constexpr int kShufflePadding = 0;
@@ -36,11 +36,9 @@
         const WidgetHandle lib_title = builder.create_label_static("Library");
         anchor_rect(builder, lib_title, {layout.top_bar_x + 8, layout.top_bar_y + 8,
                                          layout.top_bar_w - 56, 24});
-        const WidgetHandle lib_settings = builder.create_button_static("");
-        anchor_rect(builder, lib_settings, {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40});
-        builder.set_button_icon(lib_settings, icons.settings);
-        builder.set_button_icon_size(lib_settings, 14);
-        apply_top_bar_button_style(builder, lib_settings);
+        const WidgetHandle lib_settings = create_top_icon_button(builder,
+            {layout.top_bar_x + layout.top_bar_w - 44, layout.top_bar_y, 40, 40},
+            icons.settings, 14);
 
         const WidgetHandle tab_songs = builder.create_button_static("Songs");
         const WidgetHandle tab_albums = builder.create_button_static("Albums");
@@ -144,103 +142,5 @@
         builder.link(list_card_root, h.list_hint);
         builder.link(list_card_root, list_path_icon);
 
-        {
-            const Rect bottom_bar_rect{kUiPadding, layout.bottom_bar_y,
-                                       screen_width - kUiPadding * 2, layout.bottom_bar_h};
-            const int bar_gap = 12;
-            const int bar_pad = 12;
-            const int play_size = 48;
-            const int next_size = 36;
-            ::ui::scene::RowBuilder bottom_row{builder, bottom_bar_rect, bar_gap, bar_pad,
-                                               ::ui::scene::LayoutAlign::Center};
-            h.bottom_bar = bottom_row.root();
-            apply_bottom_bar_style(builder, h.bottom_bar);
-
-            const Rect content = bottom_row.content_rect();
-            const int tile_w = std::max(0, content.w - play_size - next_size - bar_gap * 2);
-            const int tile_h = content.h;
-            const Rect tile_rect = bottom_row.next_rect(tile_w, tile_h);
-            ::ui::scene::TileBuilder bottom_tile{builder, tile_rect, 48, 8, false,
-                                                 kStyleClassInvalid, true, ""};
-            h.bottom_cover = bottom_tile.image();
-            h.bottom_title = bottom_tile.label();
-            builder.set_label_align(h.bottom_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-            bottom_row.add_at(bottom_tile.root(), tile_rect);
-
-            h.bottom_subtitle = builder.create_label_static("");
-            anchor_rect(builder, h.bottom_subtitle, {tile_rect.x + 56, tile_rect.y + 22,
-                                                     tile_rect.w - 56, 18});
-            builder.set_label_align(h.bottom_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-
-            h.bottom_hit = builder.create_button_static("");
-            anchor_rect(builder, h.bottom_hit, {0, 0, bottom_bar_rect.w, bottom_bar_rect.h});
-            {
-                StylePatch patch{};
-                patch.has_bg_color = true;
-                patch.bg_color = {0, 0, 0, 0};
-                patch.has_border_color = true;
-                patch.border_color = {0, 0, 0, 0};
-                builder.set_style_override(h.bottom_hit, patch);
-            }
-            builder.set_hit_testable(h.bottom_hit, true);
-            builder.link(h.bottom_bar, h.bottom_hit);
-
-            h.bottom_play = builder.create_button_static("");
-            bottom_row.add(h.bottom_play, play_size, play_size);
-            builder.set_button_icon(h.bottom_play, icons.play);
-            builder.set_button_icon_size(h.bottom_play, 18);
-            apply_bottom_play_style(builder, h.bottom_play, play_size, 18);
-            builder.link(h.bottom_bar, h.bottom_subtitle);
-
-            h.bottom_next = builder.create_button_static("");
-            bottom_row.add(h.bottom_next, next_size, next_size);
-            builder.set_button_icon(h.bottom_next, icons.next);
-            builder.set_button_icon_size(h.bottom_next, 16);
-            apply_bottom_button_style(builder, h.bottom_next, next_size, 16);
-        }
-
-        {
-            const Rect nav_rect{kUiPadding, layout.nav_y,
-                                screen_width - kUiPadding * 2, layout.nav_h};
-            h.nav_bar = builder.create_container();
-            anchor_rect(builder, h.nav_bar, nav_rect);
-            apply_nav_bar_style(builder, h.nav_bar, nav_rect.h / 2);
-            const int nav_w = nav_rect.w;
-            const int nav_btn_w = (nav_w - layout.nav_gap * 2) / 3;
-            const int nav_icon = 22;
-            const int nav_label_h = 14;
-            const int nav_icon_h = 28;
-            const int nav_y = 0;
-            const int nav_x = 0;
-            const int nav_icon_pad = 12;
-
-            const int home_x = nav_x;
-            const int search_x = nav_x + nav_btn_w + layout.nav_gap;
-            const int lib_x = nav_x + (nav_btn_w + layout.nav_gap) * 2;
-
-            h.nav_home = builder.create_button_static("Home");
-            h.nav_search = builder.create_button_static("Search");
-            h.nav_library = builder.create_button_static("Library");
-            anchor_rect(builder, h.nav_home, {home_x, nav_y, nav_btn_w, layout.nav_h});
-            anchor_rect(builder, h.nav_search, {search_x, nav_y, nav_btn_w, layout.nav_h});
-            anchor_rect(builder, h.nav_library, {lib_x, nav_y, nav_btn_w, layout.nav_h});
-            apply_nav_hit_style(builder, h.nav_home, nav_icon_pad);
-            apply_nav_hit_style(builder, h.nav_search, nav_icon_pad);
-            apply_nav_hit_style(builder, h.nav_library, nav_icon_pad);
-
-            builder.set_button_icon(h.nav_home, icons.home);
-            builder.set_button_icon_size(h.nav_home, nav_icon);
-            builder.set_button_icon(h.nav_search, icons.search);
-            builder.set_button_icon_size(h.nav_search, nav_icon);
-            builder.set_button_icon(h.nav_library, icons.folder);
-            builder.set_button_icon_size(h.nav_library, nav_icon);
-
-            builder.link(h.nav_bar, h.nav_home);
-            builder.link(h.nav_bar, h.nav_search);
-            builder.link(h.nav_bar, h.nav_library);
-        }
-
-        builder.link(h.root, h.bottom_bar);
-        builder.set_hit_testable(h.bottom_bar, true);
-        builder.link(h.root, h.nav_bar);
+        build_bottom_chrome(builder, h, layout, icons);
     }

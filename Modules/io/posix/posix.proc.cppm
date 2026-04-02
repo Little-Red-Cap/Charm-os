@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <csetjmp>
 #include <cstdio>
 #include <span>
 #include <string_view>
@@ -10,6 +11,7 @@ export module posix.proc;
 
 import init.node;
 import posix.env;
+import posix.errno;
 import posix.fd_table;
 import posix.file;
 import posix.program_image;
@@ -287,11 +289,13 @@ export namespace posix {
 
             const auto code = start_image(proc.pid, image.value(), cfg);
             if (!code) {
+                proc.fds.close_all();
                 release_proc(proc);
                 return util::unexpected(code.error());
             }
             proc.exit_code = code.value();
             proc.exited = true;
+            proc.fds.close_all();
             return SpawnResult{ProcessId{pid}};
         }
 
@@ -753,6 +757,22 @@ export namespace posix {
             return view;
         }
 
+        struct ExecContext {
+            ProcService* service{nullptr};
+            ProcessId pid{};
+            int errno_value{0};
+            bool exit_requested{false};
+            int exit_code{0};
+            bool jump_ready{false};
+            std::jmp_buf* exit_jmp{nullptr};
+            ExecContext* previous{nullptr};
+        };
+
+        static ExecContext*& active_exec_context() noexcept {
+            static ExecContext* current = nullptr;
+            return current;
+        }
+
         util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
             if (image.kind == ImageKind::elf && !elf_exec_enabled_) {
                 return util::unexpected(util::Errc::not_supported);
@@ -762,39 +782,42 @@ export namespace posix {
             if (!argv_envp) {
                 return util::unexpected(argv_envp.error());
             }
-            const auto prev_service = elf_host_service_;
-            const auto prev_pid = elf_host_pid_;
-            elf_host_service_ = this;
-            elf_host_pid_ = pid;
-            elf_exit_requested_ = false;
-            elf_exit_code_ = 0;
+            ExecContext exec_ctx{};
+            exec_ctx.service = this;
+            exec_ctx.pid = pid;
+            exec_ctx.previous = active_exec_context();
+            active_exec_context() = &exec_ctx;
             if (on_enter_) {
                 on_enter_(pid, hook_ctx_);
             }
             struct Guard {
                 ProcHook hook;
                 ProcessId pid;
-                void* ctx;
+                void* hook_ctx;
+                ExecContext* exec_ctx;
                 ~Guard() noexcept {
-                    if (hook) hook(pid, ctx);
+                    active_exec_context() = exec_ctx ? exec_ctx->previous : nullptr;
+                    if (hook) hook(pid, hook_ctx);
                 }
-            } exit_guard{on_exit_, pid, hook_ctx_};
+            } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx};
+            auto finalize_exit = [&](int rc) noexcept -> int {
+                return exec_ctx.exit_requested ? exec_ctx.exit_code : rc;
+            };
+            std::jmp_buf exit_jmp{};
+            exec_ctx.exit_jmp = &exit_jmp;
+            exec_ctx.jump_ready = true;
+            const int jump_rc = setjmp(exit_jmp);
+            if (jump_rc != 0) {
+                return finalize_exit(exec_ctx.exit_code);
+            }
             if (image.entry) {
                 const int rc = image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
-                const int out = elf_exit_requested_ ? elf_exit_code_ : rc;
-                elf_host_service_ = prev_service;
-                elf_host_pid_ = prev_pid;
-                return out;
+                return finalize_exit(rc);
             }
             if (image.entry_v0) {
                 const int rc = image.entry_v0(argv_envp.value().argc, argv_envp.value().argv);
-                const int out = elf_exit_requested_ ? elf_exit_code_ : rc;
-                elf_host_service_ = prev_service;
-                elf_host_pid_ = prev_pid;
-                return out;
+                return finalize_exit(rc);
             }
-            elf_host_service_ = prev_service;
-            elf_host_pid_ = prev_pid;
             return util::unexpected(util::Errc::invalid_arg);
         }
 
@@ -806,6 +829,7 @@ export namespace posix {
             util::i32 (*read)(int fd, void* buf, util::usize len) noexcept {nullptr};
             util::i32 (*fstat)(int fd, void* st) noexcept {nullptr};
             util::i32 (*isatty)(int fd) noexcept {nullptr};
+            int* (*errno_location)() noexcept {nullptr};
         };
 
         struct ElfMemImage {
@@ -821,22 +845,60 @@ export namespace posix {
             return nullptr;
         }
 
+        static int errc_to_errno(util::Errc err) noexcept {
+            return posix::to_errno(err);
+        }
+
+        static ExecContext* current_exec_context() noexcept {
+            return active_exec_context();
+        }
+
+        static void set_exec_errno(util::Errc err) noexcept {
+            auto* ctx = current_exec_context();
+            if (!ctx) return;
+            ctx->errno_value = errc_to_errno(err);
+        }
+
+        static void clear_exec_errno() noexcept {
+            auto* ctx = current_exec_context();
+            if (!ctx) return;
+            ctx->errno_value = 0;
+        }
+
         static util::i32 elf_host_write(int fd, const void* buf, util::usize len) noexcept {
-            if (!elf_host_service_ || !buf) return -1;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table) return -1;
+            auto* ctx = current_exec_context();
+            if (!ctx || !buf) {
+                set_exec_errno(util::Errc::invalid_arg);
+                return -1;
+            }
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
             auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->write) return -1;
+            if (!entry || !entry.value()->ops || !entry.value()->ops->write) {
+                set_exec_errno(util::Errc::not_supported);
+                return -1;
+            }
             ByteView view{static_cast<const util::u8*>(buf), len};
             auto r = entry.value()->ops->write(entry.value()->ctx, view);
-            if (!r) return -1;
+            if (!r) {
+                set_exec_errno(r.error());
+                return -1;
+            }
+            clear_exec_errno();
             return static_cast<util::i32>(r.value());
         }
 
         static void elf_host_exit(int code) noexcept {
-            if (!elf_host_service_) return;
-            elf_host_service_->elf_exit_requested_ = true;
-            elf_host_service_->elf_exit_code_ = code;
+            auto* ctx = current_exec_context();
+            if (!ctx) return;
+            ctx->exit_requested = true;
+            ctx->exit_code = code;
+            if (ctx->jump_ready && ctx->exit_jmp) {
+                std::longjmp(*ctx->exit_jmp, 1);
+            }
         }
 
         struct ElfHostStat {
@@ -851,65 +913,134 @@ export namespace posix {
         }
 
         static util::i32 elf_host_open(const char* path, int flags, int mode) noexcept {
-            if (!elf_host_service_ || !path) return -1;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table || !elf_host_service_->file_service_) return -1;
-            auto entry = elf_host_service_->file_service_->open(std::string_view{path}, flags, mode);
-            if (!entry) return -1;
+            auto* ctx = current_exec_context();
+            if (!ctx || !path) {
+                set_exec_errno(util::Errc::invalid_arg);
+                return -1;
+            }
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table || !ctx->service->file_service_) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
+            auto entry = ctx->service->file_service_->open(std::string_view{path}, flags, mode);
+            if (!entry) {
+                set_exec_errno(entry.error());
+                return -1;
+            }
             auto rfd = table->attach(entry.value());
             if (!rfd) {
                 close_entry(entry.value());
+                set_exec_errno(rfd.error());
                 return -1;
             }
+            clear_exec_errno();
             return static_cast<util::i32>(rfd.value());
         }
 
         static util::i32 elf_host_close(int fd) noexcept {
-            if (!elf_host_service_) return -1;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table) return -1;
+            auto* ctx = current_exec_context();
+            if (!ctx) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
             auto r = table->close(fd);
-            return r ? 0 : -1;
+            if (!r) {
+                set_exec_errno(r.error());
+                return -1;
+            }
+            clear_exec_errno();
+            return 0;
         }
 
         static util::i32 elf_host_read(int fd, void* buf, util::usize len) noexcept {
-            if (!elf_host_service_) return -1;
-            if (!buf && len > 0) return -1;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table) return -1;
+            auto* ctx = current_exec_context();
+            if (!ctx || (!buf && len > 0)) {
+                set_exec_errno(util::Errc::invalid_arg);
+                return -1;
+            }
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
             auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->read) return -1;
+            if (!entry || !entry.value()->ops || !entry.value()->ops->read) {
+                set_exec_errno(util::Errc::not_supported);
+                return -1;
+            }
             MutByteView view{static_cast<util::u8*>(buf), len};
             auto r = entry.value()->ops->read(entry.value()->ctx, view);
             if (!r) {
-                if (r.error() == util::Errc::end_of_stream) return 0;
+                if (r.error() == util::Errc::end_of_stream) {
+                    clear_exec_errno();
+                    return 0;
+                }
+                set_exec_errno(r.error());
                 return -1;
             }
+            clear_exec_errno();
             return static_cast<util::i32>(r.value());
         }
 
         static util::i32 elf_host_fstat(int fd, void* st) noexcept {
-            if (!elf_host_service_ || !st) return -1;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table) return -1;
+            auto* ctx = current_exec_context();
+            if (!ctx || !st) {
+                set_exec_errno(util::Errc::invalid_arg);
+                return -1;
+            }
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
             auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->stat) return -1;
+            if (!entry) {
+                set_exec_errno(util::Errc::io);
+                return -1;
+            }
+            if (!entry.value()->ops || !entry.value()->ops->stat) {
+                set_exec_errno(util::Errc::not_supported);
+                return -1;
+            }
             PosixStat info{};
             auto r = entry.value()->ops->stat(entry.value()->ctx, info);
-            if (!r) return -1;
+            if (!r) {
+                set_exec_errno(r.error());
+                return -1;
+            }
             auto* host = static_cast<ElfHostStat*>(st);
             host->st_size = info.size;
             host->st_mode = info.mode;
+            clear_exec_errno();
             return 0;
         }
 
         static util::i32 elf_host_isatty(int fd) noexcept {
-            if (!elf_host_service_) return 0;
-            auto* table = elf_host_service_->fd_table(elf_host_pid_);
-            if (!table) return 0;
+            auto* ctx = current_exec_context();
+            if (!ctx) return 0;
+            auto* table = ctx->service->fd_table(ctx->pid);
+            if (!table) {
+                clear_exec_errno();
+                return 0;
+            }
             auto entry = table->get(fd);
-            if (!entry) return 0;
+            if (!entry) {
+                clear_exec_errno();
+                return 0;
+            }
+            clear_exec_errno();
             return entry.value()->kind == FdKind::term ? 1 : 0;
+        }
+
+        static int* elf_host_errno_location() noexcept {
+            auto* ctx = current_exec_context();
+            return ctx ? &ctx->errno_value : nullptr;
         }
 
         util::Result<void> install_elf_hostcalls() noexcept {
@@ -924,6 +1055,7 @@ export namespace posix {
             table->read = &ProcService::elf_host_read;
             table->fstat = &ProcService::elf_host_fstat;
             table->isatty = &ProcService::elf_host_isatty;
+            table->errno_location = &ProcService::elf_host_errno_location;
             return {};
         }
 
@@ -963,10 +1095,6 @@ export namespace posix {
         bool elf_exec_enabled_{false};
         ImageEntry elf_exec_stub_{nullptr};
         bool elf_hostcalls_enabled_{false};
-        bool elf_exit_requested_{false};
-        int elf_exit_code_{0};
-        static inline ProcService* elf_host_service_{nullptr};
-        static inline ProcessId elf_host_pid_{};
         std::array<ElfMemImage, 8> elf_mem_{};
         util::usize elf_mem_count_{0};
     };

@@ -260,6 +260,9 @@ struct ResolvedColors {
 export
 struct ResolvedMetrics {
     const Font* font{nullptr};
+    FontId font_role{FontId::Normal};
+    FontWeight font_weight{FontWeight::Regular};
+    bool font_explicit{false};
     std::int16_t border_width{0};
     std::int16_t corner_radius{0};
     std::int16_t padding{0};
@@ -494,6 +497,9 @@ inline ResolvedDecoration build_resolved_decoration(const Style& st) noexcept {
 inline ResolvedMetrics build_resolved_metrics(const Style& st) noexcept {
     ResolvedMetrics m{};
     m.font = &resolve_font(st);
+    m.font_role = st.font_role;
+    m.font_weight = st.font_weight;
+    m.font_explicit = st.font != nullptr;
     m.border_width = clamp_i16(st.metrics.border_width);
     m.corner_radius = clamp_i16(st.metrics.corner_radius);
     m.padding = clamp_i16(st.metrics.padding);
@@ -557,11 +563,15 @@ inline bool patch_has_metrics(const StylePatch& patch) noexcept {
         patch.has_glass_opacity_min ||
         patch.has_glass_opacity_max ||
         patch.has_font ||
+        patch.has_font_role ||
         patch.has_font_weight;
 }
 
 inline bool metrics_equal(const ResolvedMetrics& a, const ResolvedMetrics& b) noexcept {
     return a.font == b.font &&
+        a.font_role == b.font_role &&
+        a.font_weight == b.font_weight &&
+        a.font_explicit == b.font_explicit &&
         a.border_width == b.border_width &&
         a.corner_radius == b.corner_radius &&
         a.padding == b.padding &&

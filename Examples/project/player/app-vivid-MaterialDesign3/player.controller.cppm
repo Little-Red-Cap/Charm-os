@@ -334,6 +334,17 @@ export namespace player {
             std::printf("[font-px] refresh labels reapplied\n");
         }
 
+        void rebind_player_fonts() noexcept {
+            if (font_ttf_path.empty()) return;
+            reset_player_font_package_cache();
+            bind_player_freetype_font(font_ttf_path,
+                                      font_small_px,
+                                      font_normal_px,
+                                      font_large_px);
+            apply_player_theme();
+            refresh_exact_font_styles();
+        }
+
         void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
             if (!access.valid() || !handles.now_backdrop) return;
             StylePatch patch{};
@@ -1353,13 +1364,7 @@ export namespace player {
             refresh_track_labels();
             build_list_cover_paths();
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
-                reset_player_font_package_cache();
-                bind_player_freetype_font(font_ttf_path,
-                                          font_small_px,
-                                          font_normal_px,
-                                          font_large_px);
-                apply_player_theme();
-                refresh_exact_font_styles();
+                rebind_player_fonts();
                 font_retry_done = true;
             }
             if (!storage.status.empty()) { set_status(storage.status.data()); }
@@ -1406,14 +1411,11 @@ export namespace player {
             font_normal_px = normal_px;
             font_large_px = large_px;
             font_retry_done = false;
-            if (fs_ready && !font_ttf_path.empty()) {
-                reset_player_font_package_cache();
-                bind_player_freetype_font(font_ttf_path,
-                                          font_small_px,
-                                          font_normal_px,
-                                          font_large_px);
-                apply_player_theme();
-                font_retry_done = true;
+            if (!font_ttf_path.empty()) {
+                rebind_player_fonts();
+                if (fs_ready) {
+                    font_retry_done = true;
+                }
             }
         }
 

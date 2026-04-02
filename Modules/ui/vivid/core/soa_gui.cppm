@@ -51,7 +51,23 @@ namespace {
         if (patch.has_scrollbar_margin) metrics.scrollbar_margin = static_cast<std::int16_t>(patch.scrollbar_margin);
         if (patch.has_scrollbar_thumb_min) metrics.scrollbar_thumb_min =
             static_cast<std::int16_t>(patch.scrollbar_thumb_min);
-        if (patch.has_font) metrics.font = patch.font;
+        if (patch.has_font_role) {
+            metrics.font_role = patch.font_role;
+            metrics.font_explicit = false;
+            metrics.font = &get_font_weighted(metrics.font_role, metrics.font_weight);
+        }
+        if (patch.has_font_weight) {
+            metrics.font_weight = patch.font_weight;
+            if (!metrics.font_explicit) {
+                metrics.font = &get_font_weighted(metrics.font_role, metrics.font_weight);
+            }
+        }
+        if (patch.has_font) {
+            metrics.font_explicit = patch.font != nullptr;
+            metrics.font = metrics.font_explicit
+                ? patch.font
+                : &get_font_weighted(metrics.font_role, metrics.font_weight);
+        }
 
         if (patch.has_bg_color) colors.bg = patch.bg_color;
         if (patch.has_border_color) colors.border = patch.border_color;
@@ -99,7 +115,23 @@ namespace {
                             const StylePatch& patch) noexcept {
         if (patch.has_corner_radius) metrics.corner_radius = static_cast<std::int16_t>(patch.corner_radius);
         if (patch.has_padding) metrics.padding = static_cast<std::int16_t>(patch.padding);
-        if (patch.has_font) metrics.font = patch.font;
+        if (patch.has_font_role) {
+            metrics.font_role = patch.font_role;
+            metrics.font_explicit = false;
+            metrics.font = &get_font_weighted(metrics.font_role, metrics.font_weight);
+        }
+        if (patch.has_font_weight) {
+            metrics.font_weight = patch.font_weight;
+            if (!metrics.font_explicit) {
+                metrics.font = &get_font_weighted(metrics.font_role, metrics.font_weight);
+            }
+        }
+        if (patch.has_font) {
+            metrics.font_explicit = patch.font != nullptr;
+            metrics.font = metrics.font_explicit
+                ? patch.font
+                : &get_font_weighted(metrics.font_role, metrics.font_weight);
+        }
     }
 
     void draw_decoration_shadow(ui::draw_cmd::DefaultDrawCmdBuffer& out,

@@ -18,7 +18,9 @@ import charm.gfx.image;
 import charm.font;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
+import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
+import charm.ui.scene.pill_surface;
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
 import player.font_cache;
@@ -719,11 +721,11 @@ export namespace player::ui {
 
     inline void apply_player_theme() {
         if (!font_package_bound()) {
-            set_default_font(FontId::Small, &font_noto_ascii_16);
+            set_default_font(FontId::Small, &font_noto_ascii_12);
             set_default_font(FontId::Normal, &font_noto_ascii_16);
             set_default_font(FontId::Large, &font_noto_ascii_16);
             set_default_font(FontId::Mono, &font_noto_ascii_16);
-            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_12);
             set_default_font_weight(FontId::Normal, FontWeight::Regular, &font_noto_ascii_16);
             set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
             set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);
@@ -783,39 +785,37 @@ export namespace player::ui {
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiButtonBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 12;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiButtonBg,
+                .border_color = kUiButtonBorder,
+                .corner_radius = 12,
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TopBarButton), patch);
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiTabBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiTabBg,
+                .border_color = kUiButtonBorder,
+                .corner_radius = 0,
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TabBase), patch);
         }
 
         {
-            StylePatch patch{};
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_x = true;
-            patch.shadow_offset_x = 0;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 3;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 16;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .apply_bg_color = false,
+                .apply_border_color = false,
+                .apply_corner_radius = false,
+                .shadow = {
+                    .enabled = true,
+                    .color = kUiCardShadow,
+                    .offset_x = 0,
+                    .offset_y = 3,
+                    .spread = 3,
+                    .radius = 16,
+                },
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ShuffleShadow), patch);
         }
 
@@ -843,17 +843,15 @@ export namespace player::ui {
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiInfoTagBgSoft;
-            patch.has_border_color = true;
-            patch.border_color = kUiInfoTagBorderSoft;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 10;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiInfoTagBgSoft,
+                .border_color = kUiInfoTagBorderSoft,
+                .corner_radius = 10,
+            });
             patch.has_font_color = true;
             patch.font_color = kUiTimeSoft;
-            patch.has_font = true;
-            patch.font = &get_font(FontId::Small);
+            patch.has_font_role = true;
+            patch.font_role = FontId::Small;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::InfoTag), patch);
         }
 

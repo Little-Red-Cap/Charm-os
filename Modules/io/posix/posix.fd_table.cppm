@@ -178,6 +178,18 @@ export namespace posix {
             }
         }
 
+        void close_all() noexcept {
+            for (util::usize i = 0; i < MaxFds; ++i) {
+                if (!used_[i]) continue;
+                const auto& entry = slots_[i];
+                if (entry.ops && entry.ops->close) {
+                    (void)entry.ops->close(entry.ctx);
+                }
+                slots_[i] = {};
+                used_[i] = false;
+            }
+        }
+
         void snapshot(FdTableSnapshot<MaxFds>& out) const noexcept {
             out.slots = slots_;
             out.used = used_;

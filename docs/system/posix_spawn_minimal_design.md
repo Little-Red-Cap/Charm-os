@@ -116,6 +116,7 @@ Other combinations are allowed but not guaranteed for BusyBox phase 2.
 - All fds are inheritable by default.
 - `FileActions::add_close` is the only v1 mechanism to prune fds.
 - `FD_CLOEXEC` is deferred.
+- Child fd table is closed on process exit to release pipe/file refs promptly.
 
 Pipe semantics:
 

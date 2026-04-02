@@ -1,4 +1,4 @@
-﻿#include "elf_hostcall.h"
+#include "elf_hostcall.h"
 
 #ifndef O_RDONLY
 #define O_RDONLY 0
@@ -15,7 +15,7 @@ static unsigned long cstr_len(const char* s) {
 
 static void write_str(int fd, const char* s) {
     if (!s) return;
-    elf_hostcalls()->write(fd, s, cstr_len(s));
+    write(fd, s, cstr_len(s));
 }
 
 int entry(int argc, char** argv, char** envp) {
@@ -27,7 +27,7 @@ int entry(int argc, char** argv, char** envp) {
         path = argv[1];
     }
 
-    int fd = elf_hostcalls()->open(path, O_RDONLY, 0);
+    int fd = open(path, O_RDONLY, 0);
     if (fd < 0) {
         write_str(2, "open fail\n");
         return 11;
@@ -35,42 +35,50 @@ int entry(int argc, char** argv, char** envp) {
     write_str(2, "B\n");
 
     PosixStat st;
-    if (elf_hostcalls()->fstat(fd, &st) != 0) {
+    if (fstat(fd, &st) != 0) {
         write_str(2, "fstat fail\n");
-        elf_hostcalls()->close(fd);
+        close(fd);
         return 12;
     }
     write_str(2, "C\n");
 
-    if (elf_hostcalls()->isatty(1) != 1) {
+    if (isatty(1) != 1) {
         write_str(2, "stdout not tty\n");
-        elf_hostcalls()->close(fd);
+        close(fd);
         return 13;
     }
     write_str(2, "D\n");
 
-    if (elf_hostcalls()->isatty(fd) != 0) {
+    if (isatty(fd) != 0) {
         write_str(2, "file seen as tty\n");
-        elf_hostcalls()->close(fd);
+        close(fd);
         return 14;
     }
     write_str(2, "E\n");
 
     char buf[64];
-    int n = elf_hostcalls()->read(fd, buf, sizeof(buf));
-    if (n < 0) {
-        write_str(2, "read fail\n");
-        elf_hostcalls()->close(fd);
-        return 15;
+    int chunks = 0;
+    for (;;) {
+        int n = read(fd, buf, sizeof(buf));
+        if (n < 0) {
+            write_str(2, "read fail\n");
+            close(fd);
+            return 15;
+        }
+        if (n == 0) {
+            if (chunks == 0) {
+                write_str(2, "empty\n");
+                close(fd);
+                return 16;
+            }
+            write_str(2, "G\n");
+            break;
+        }
+        write(1, buf, (unsigned long)n);
+        write_str(2, "F\n");
+        ++chunks;
     }
-    if (n == 0) {
-        write_str(2, "empty\n");
-        elf_hostcalls()->close(fd);
-        return 16;
-    }
-    elf_hostcalls()->write(1, buf, (unsigned long)n);
-    write_str(2, "F\n");
 
-    elf_hostcalls()->close(fd);
+    close(fd);
     return 0;
 }

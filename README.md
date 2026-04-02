@@ -1,3 +1,7 @@
+## POSIX Sample Notes
+
+- `fd_probe`: probes fd kinds/errno paths for stdin/stdout/stderr and a file fd; runs in the QEMU posix smoke set.
+
 <div align="center">
 
 # Charm

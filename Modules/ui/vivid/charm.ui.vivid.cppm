@@ -20,6 +20,13 @@ export import charm.gfx.snapshot;
 export import charm.gfx.pixel_format;
 export import charm.gfx.render_style;
 export import charm.ui.scene;
+export import charm.ui.scene.page_header;
+export import charm.ui.scene.top_bar;
+export import charm.ui.scene.pill;
+export import charm.ui.scene.path_bar;
+export import charm.ui.scene.pill_surface;
+export import charm.ui.scene.list_card_header;
+export import charm.ui.scene.text_style;
 
 export import charm.font;
 export import charm.font.typography;

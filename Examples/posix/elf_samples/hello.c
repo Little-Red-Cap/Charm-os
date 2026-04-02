@@ -7,6 +7,6 @@ int entry(int argc, char** argv, char** envp) {
     (void)argv;
     (void)envp;
     const char msg[] = "hello\n";
-    elf_hostcalls()->write(1, msg, sizeof(msg) - 1);
+    write(1, msg, sizeof(msg) - 1);
     return 0;
 }

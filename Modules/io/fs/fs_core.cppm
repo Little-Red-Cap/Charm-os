@@ -87,13 +87,7 @@ export namespace fs {
 
     inline Status read(File& f, std::span<util::u8> buf) noexcept {
         if (!f.node.ops || !f.node.ops->read) return Status{Errc::nosys};
-        const auto before = f.node.offset;
         auto st = f.node.ops->read(f.node, buf);
-        if (st && f.node.offset >= 0) {
-            if (f.node.offset == before) {
-                f.node.offset += static_cast<util::i64>(buf.size());
-            }
-        }
         return st;
     }
 

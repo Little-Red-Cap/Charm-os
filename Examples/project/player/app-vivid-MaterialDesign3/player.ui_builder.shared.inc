@@ -74,6 +74,11 @@
         int text_padding{};
         int controls_padding{};
         int time_padding{};
+        int time_row_radius{};
+        int time_row_bg_alpha{};
+        int time_row_border_alpha{};
+        int time_label_inner_pad{};
+        int info_tag_radius{};
         int cover_corner_radius{};
         int collage_small{};
         int collage_tiny{};
@@ -290,6 +295,11 @@
             .text_padding = 0,
             .controls_padding = 0,
             .time_padding = 0,
+            .time_row_radius = 18,
+            .time_row_bg_alpha = 72,
+            .time_row_border_alpha = 96,
+            .time_label_inner_pad = 4,
+            .info_tag_radius = 12,
             .cover_corner_radius = 28,
             .collage_small = 64,
             .collage_tiny = 52,
@@ -453,8 +463,43 @@
         apply_player_text_style(builder, h, PlayerTextRole::MetaText, kUiTime);
     }
 
+    static void apply_now_time_row_style(::ui::scene::SceneBuilder& builder,
+                                         WidgetHandle h,
+                                         const NowPlayingLayout& layout) {
+        StylePatch patch = ::ui::scene::make_pill_surface_patch({
+            .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, static_cast<std::uint8_t>(layout.time_row_bg_alpha)},
+            .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b,
+                             static_cast<std::uint8_t>(layout.time_row_border_alpha)},
+            .corner_radius = layout.time_row_radius,
+        });
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_now_time_side_style(::ui::scene::SceneBuilder& builder,
+                                          WidgetHandle h,
+                                          const NowPlayingLayout& layout,
+                                          bool align_right = false) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTime);
+        patch.has_padding = true;
+        patch.padding = layout.time_label_inner_pad;
+        builder.set_style_override(h, patch);
+        builder.set_label_align(h,
+                                align_right ? ::ui::scene::TextAlignH::Right : ::ui::scene::TextAlignH::Left,
+                                ::ui::scene::TextAlignV::Center);
+    }
+
     static void apply_info_tag_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
         builder.set_style_class(h, static_cast<StyleClassId>(PlayerStyleClass::InfoTag));
+    }
+
+    static void apply_now_info_tag_style(::ui::scene::SceneBuilder& builder,
+                                         WidgetHandle h,
+                                         const NowPlayingLayout& layout) {
+        apply_info_tag_style(builder, h);
+        StylePatch patch{};
+        patch.has_corner_radius = true;
+        patch.corner_radius = layout.info_tag_radius;
+        builder.set_style_adjust(h, patch);
     }
 
     static void apply_home_cover_style(::ui::scene::SceneBuilder& builder,

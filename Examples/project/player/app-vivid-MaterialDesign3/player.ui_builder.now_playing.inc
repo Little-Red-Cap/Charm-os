@@ -62,10 +62,9 @@
         h.time_left = builder.create_label_static("");
         h.time_right = builder.create_label_static("");
         h.info_tag = builder.create_button_static("");
-        apply_time_label_style(builder, h.time_left);
-        apply_time_label_style(builder, h.time_right);
-        builder.set_label_align(h.time_right, ::ui::scene::TextAlignH::Right, ::ui::scene::TextAlignV::Center);
-        apply_info_tag_style(builder, h.info_tag);
+        apply_now_time_side_style(builder, h.time_left, now_layout, false);
+        apply_now_time_side_style(builder, h.time_right, now_layout, true);
+        apply_now_info_tag_style(builder, h.info_tag, now_layout);
         builder.set_hit_testable(h.info_tag, false);
 
         h.status = builder.create_label_static("");
@@ -193,6 +192,7 @@
             ::ui::scene::RowBuilder time_row{builder, time_row_rect, 0, row_pad + now_layout.time_padding,
                                              ::ui::scene::LayoutAlign::Center};
             time_row_root = time_row.root();
+            apply_now_time_row_style(builder, time_row_root, now_layout);
             time_row.add(h.time_left, time_side_w, time_row_h);
             time_row.add(h.info_tag, info_w, time_row_h);
             time_row.add(h.time_right, time_side_w, time_row_h);

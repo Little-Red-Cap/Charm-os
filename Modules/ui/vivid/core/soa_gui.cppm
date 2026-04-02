@@ -926,7 +926,19 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                               const ResolvedMetrics& metrics, const StyleState& state, const char* text,
                               TextAlignH align_h, TextAlignV align_v) {
         (void)state;
-        out.draw_text_box(r, text ? text : "", colors.font, font_from_metrics(metrics),
+        const Font& font = font_from_metrics(metrics);
+        if (text && (std::strcmp(text, "Your") == 0 || std::strcmp(text, "Mix") == 0
+                     || std::strcmp(text, "Today's Mix for you") == 0)) {
+            std::printf("[font-draw] text=%s line=%d base=%d rect=%d,%d,%d,%d\n",
+                        text,
+                        font.line_height,
+                        font.baseline,
+                        r.x,
+                        r.y,
+                        r.w,
+                        r.h);
+        }
+        out.draw_text_box(r, text ? text : "", colors.font, font,
                           align_h, align_v, TextWrap::None, TextEllipsis::End);
     }
 
@@ -944,13 +956,17 @@ void SoaGui::record_button(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& 
         }
         if (icon_px > r.h) icon_px = r.h;
         if (icon_px < 4) icon_px = r.h;
-        const int icon_x = r.x + metrics.padding;
+        const bool has_text = text && text[0] != '\0';
+        const int icon_x = has_text ? (r.x + metrics.padding)
+                                    : (r.x + (r.w - icon_px) / 2);
         const int icon_y = r.y + (r.h - icon_px) / 2;
         out.draw_icon(Rect{icon_x, icon_y, icon_px, icon_px}, icon);
-        text_rect.x = icon_x + icon_px + metrics.padding;
-        text_rect.w = r.x + r.w - metrics.padding - text_rect.x;
-        if (text_rect.w < 0) text_rect.w = 0;
-        align = TextAlignH::Left;
+        if (has_text) {
+            text_rect.x = icon_x + icon_px + metrics.padding;
+            text_rect.w = r.x + r.w - metrics.padding - text_rect.x;
+            if (text_rect.w < 0) text_rect.w = 0;
+            align = TextAlignH::Left;
+        }
     }
     out.draw_text_box(text_rect, text ? text : "", colors.font, font_from_metrics(metrics),
                       align, TextAlignV::Center, TextWrap::None, TextEllipsis::End);

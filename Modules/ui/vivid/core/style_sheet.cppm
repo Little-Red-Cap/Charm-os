@@ -493,7 +493,7 @@ inline ResolvedDecoration build_resolved_decoration(const Style& st) noexcept {
 
 inline ResolvedMetrics build_resolved_metrics(const Style& st) noexcept {
     ResolvedMetrics m{};
-    m.font = st.font;
+    m.font = &resolve_font(st);
     m.border_width = clamp_i16(st.metrics.border_width);
     m.corner_radius = clamp_i16(st.metrics.corner_radius);
     m.padding = clamp_i16(st.metrics.padding);
@@ -556,7 +556,8 @@ inline bool patch_has_metrics(const StylePatch& patch) noexcept {
         patch.has_glass_shadow_alpha ||
         patch.has_glass_opacity_min ||
         patch.has_glass_opacity_max ||
-        patch.has_font;
+        patch.has_font ||
+        patch.has_font_weight;
 }
 
 inline bool metrics_equal(const ResolvedMetrics& a, const ResolvedMetrics& b) noexcept {

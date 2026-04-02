@@ -124,6 +124,14 @@ export enum class FontId : uint8_t {
     Mono,
 };
 
+export enum class FontWeight : std::uint8_t {
+    Regular = 0,
+    Medium = 1,
+    Bold = 2
+};
+
+export inline constexpr std::size_t kFontWeightCount = 3;
+
 export struct FontProviderApi {
     const Font* (*get_font)(void* ctx, FontId id) noexcept;
     const Font* (*get_fallback_font)(void* ctx) noexcept;
@@ -134,13 +142,40 @@ export struct FontProvider {
     const FontProviderApi* api{nullptr};
 };
 
+export struct FontGlyphLoaderApi {
+    bool (*ensure_glyph)(void* ctx, const Font& font, std::uint32_t code) noexcept;
+};
+
+export struct FontGlyphLoader {
+    void* ctx{nullptr};
+    const FontGlyphLoaderApi* api{nullptr};
+};
+
+export struct FontWeightProviderApi {
+    const Font* (*get_font)(void* ctx, FontId id, FontWeight weight) noexcept;
+};
+
+export struct FontWeightProvider {
+    void* ctx{nullptr};
+    const FontWeightProviderApi* api{nullptr};
+};
+
 const Font* g_default_fonts[4] = {nullptr, nullptr, nullptr, nullptr};
 const Font* g_default_fallback = nullptr;
+const Font* g_weighted_fonts[4][kFontWeightCount] = {};
 const Font k_empty_font{};
 FontProvider g_font_provider{};
+FontWeightProvider g_font_weight_provider{};
+FontGlyphLoader g_font_glyph_loader{};
+FontGlyphLoaderApi g_font_glyph_loader_api{};
 
 export void set_default_font(const FontId id, const Font* font) noexcept;
 export void set_font_provider(FontProvider provider) noexcept;
+export void set_font_weight_provider(FontWeightProvider provider) noexcept;
+export void set_font_glyph_loader(FontGlyphLoaderApi api, void* ctx) noexcept;
+export bool font_glyph_loader_bound() noexcept;
+export void set_default_font_weight(FontId id, FontWeight weight, const Font* font) noexcept;
+export const Font& get_font_weighted(FontId id, FontWeight weight) noexcept;
 
 export void set_default_fallback_font(const Font* font) noexcept;
 export void set_utf8_replacement_char(std::uint32_t codepoint) noexcept;
@@ -189,6 +224,30 @@ const Font& get_font(const FontId id) noexcept {
     return k_empty_font;
 }
 
+inline std::size_t weight_index(FontWeight weight) noexcept {
+    switch (weight) {
+    case FontWeight::Medium: return 1;
+    case FontWeight::Bold: return 2;
+    case FontWeight::Regular:
+    default: return 0;
+    }
+}
+
+export
+const Font& get_font_weighted(const FontId id, FontWeight weight) noexcept {
+    if (g_font_weight_provider.api && g_font_weight_provider.api->get_font) {
+        if (const auto* font = g_font_weight_provider.api->get_font(g_font_weight_provider.ctx, id, weight)) {
+            return *font;
+        }
+    }
+    const auto idx = weight_index(weight);
+    if (idx < kFontWeightCount) {
+        const auto* font = g_weighted_fonts[static_cast<unsigned>(id)][idx];
+        if (font) return *font;
+    }
+    return get_font(id);
+}
+
 export
 inline FontId font_id_from_ptr(const Font* font) noexcept {
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -204,7 +263,7 @@ inline FontId font_id_from_ptr(const Font* font) noexcept {
 export
 inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_t code) noexcept {
     const auto resolved = resolve_glyph(font, code);
-    if (resolved.glyph && resolved.glyph != font.fallback_glyph) {
+    if (resolved.glyph && resolved.font == &font && resolved.glyph != font.fallback_glyph) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         if (resolved.font && resolved.font != &font) {
             ++g_missing_glyph_fallback_count;
@@ -212,8 +271,27 @@ inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_
 #endif
         return resolved;
     }
+    if (g_font_glyph_loader.api && g_font_glyph_loader.api->ensure_glyph) {
+        if (g_font_glyph_loader.api->ensure_glyph(g_font_glyph_loader.ctx, font, code)) {
+            const auto retry = resolve_glyph(font, code);
+            if (retry.glyph && retry.font == &font && retry.glyph != font.fallback_glyph) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+                if (retry.font && retry.font != &font) {
+                    ++g_missing_glyph_fallback_count;
+                }
+#endif
+                return retry;
+            }
+        }
+    }
     if (const auto* fallback = fallback_for(font)) {
-        const auto fb = resolve_glyph(*fallback, code);
+        auto fb = resolve_glyph(*fallback, code);
+        if ((!fb.glyph || fb.glyph == fallback->fallback_glyph)
+            && g_font_glyph_loader.api && g_font_glyph_loader.api->ensure_glyph) {
+            if (g_font_glyph_loader.api->ensure_glyph(g_font_glyph_loader.ctx, *fallback, code)) {
+                fb = resolve_glyph(*fallback, code);
+            }
+        }
 #if defined(VIVID_SOA_TRACE_INPUT)
         if (fb.glyph) {
             ++g_missing_glyph_fallback_count;
@@ -236,11 +314,42 @@ inline ResolvedGlyph resolve_glyph_fallback(const Font& font, const std::uint32_
 export
 void set_default_font(const FontId id, const Font* font) noexcept {
     g_default_fonts[static_cast<unsigned>(id)] = font;
+    g_weighted_fonts[static_cast<unsigned>(id)][weight_index(FontWeight::Regular)] = font;
 }
 
 export
 void set_font_provider(FontProvider provider) noexcept {
     g_font_provider = provider;
+}
+
+export
+void set_font_weight_provider(FontWeightProvider provider) noexcept {
+    g_font_weight_provider = provider;
+}
+
+export
+void set_font_glyph_loader(FontGlyphLoaderApi api, void* ctx) noexcept {
+    if (api.ensure_glyph) {
+        g_font_glyph_loader_api = api;
+        g_font_glyph_loader = FontGlyphLoader{ctx, &g_font_glyph_loader_api};
+    } else {
+        g_font_glyph_loader_api = FontGlyphLoaderApi{};
+        g_font_glyph_loader = FontGlyphLoader{};
+    }
+}
+
+export
+bool font_glyph_loader_bound() noexcept {
+    return g_font_glyph_loader.api != nullptr;
+}
+
+export
+void set_default_font_weight(FontId id, FontWeight weight, const Font* font) noexcept {
+    if (!font) return;
+    g_weighted_fonts[static_cast<unsigned>(id)][weight_index(weight)] = font;
+    if (weight == FontWeight::Regular) {
+        g_default_fonts[static_cast<unsigned>(id)] = font;
+    }
 }
 
 export

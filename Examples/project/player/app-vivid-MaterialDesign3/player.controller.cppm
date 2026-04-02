@@ -66,6 +66,7 @@ export namespace player {
     };
 
     enum class PlayerPage : std::uint8_t {
+        Home,
         NowPlaying,
         Library,
     };
@@ -76,9 +77,21 @@ export namespace player {
     };
 
     struct UiHandles {
+        WidgetHandle page_home{};
         WidgetHandle page_now_playing{};
         WidgetHandle page_library{};
         WidgetHandle root{};
+        WidgetHandle home_backdrop{};
+        WidgetHandle home_title_top{};
+        WidgetHandle home_title_bottom{};
+        WidgetHandle home_subtitle{};
+        WidgetHandle home_play{};
+        WidgetHandle home_cover_big{};
+        WidgetHandle home_cover_left{};
+        WidgetHandle home_cover_right{};
+        WidgetHandle home_cover_small{};
+        WidgetHandle home_cover_bottom_left{};
+        WidgetHandle home_cover_bottom_right{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
         WidgetHandle now_lyrics{};
@@ -121,10 +134,12 @@ export namespace player {
         WidgetHandle btn_mode{};
         WidgetHandle controls{};
         WidgetHandle bottom_bar{};
+        WidgetHandle bottom_hit{};
         WidgetHandle bottom_cover{};
         WidgetHandle bottom_title{};
         WidgetHandle bottom_subtitle{};
         WidgetHandle bottom_play{};
+        WidgetHandle bottom_next{};
         WidgetHandle nav_bar{};
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
@@ -182,6 +197,11 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+        std::string font_ttf_path{};
+        int font_small_px{0};
+        int font_normal_px{0};
+        int font_large_px{0};
+        bool font_retry_done{false};
 
         static bool is_audio_extension(std::string_view ext) noexcept {
             if (ext.empty()) return false;
@@ -289,6 +309,31 @@ export namespace player {
         }
 #endif
 
+        void refresh_exact_font_styles() noexcept {
+            if (!access.valid()) return;
+            const Font& title_font = get_player_font_px(72, FontWeight::Bold);
+            const Font& subtitle_font = get_player_font_px(18, FontWeight::Regular);
+            std::printf("[font-px] refresh begin title(line=%d base=%d) subtitle(line=%d base=%d)\n",
+                        title_font.line_height,
+                        title_font.baseline,
+                        subtitle_font.line_height,
+                        subtitle_font.baseline);
+            auto apply_font = [&](WidgetHandle h, const Font& font) {
+                if (!h) return;
+                StylePatch patch{};
+                patch.has_font = true;
+                patch.font = &font;
+                access.set_style_override(h, patch);
+            };
+            apply_font(handles.home_title_top, title_font);
+            apply_font(handles.home_title_bottom, title_font);
+            apply_font(handles.home_subtitle, subtitle_font);
+            access.set_text(handles.home_title_top, "Your");
+            access.set_text(handles.home_title_bottom, "Mix");
+            access.set_text(handles.home_subtitle, "Today's Mix for you");
+            std::printf("[font-px] refresh labels reapplied\n");
+        }
+
         void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
             if (!access.valid() || !handles.now_backdrop) return;
             StylePatch patch{};
@@ -317,6 +362,15 @@ export namespace player {
             apply_label(handles.subtitle, subtitle);
             apply_label(handles.time_left, time);
             apply_label(handles.time_right, time);
+
+            if (handles.bottom_bar) {
+                StylePatch bar{};
+                bar.has_bg_color = true;
+                bar.bg_color = theme.primary_container;
+                bar.has_border_color = true;
+                bar.border_color = with_alpha(theme.outline_variant, 90);
+                access.set_style_override(handles.bottom_bar, bar);
+            }
 
             if (handles.info_tag) {
                 StylePatch tag{};
@@ -416,10 +470,12 @@ export namespace player {
 #endif
         }
 
-        PlayerPage current_page{PlayerPage::NowPlaying};
-        PlayerPage start_page{PlayerPage::Library};
+        PlayerPage current_page{PlayerPage::Home};
+        PlayerPage start_page{PlayerPage::Home};
+        PlayerPage return_page{PlayerPage::Home};
         ::ui::scene::PageLayer page_now_layer{};
         ::ui::scene::PageLayer page_library_layer{};
+        ::ui::scene::PageLayer page_home_layer{};
         audio::EqConfig eq_config{};
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
@@ -525,8 +581,19 @@ export namespace player {
         }
 
         void set_page(PlayerPage page) noexcept {
+            if (page == PlayerPage::NowPlaying && current_page != PlayerPage::NowPlaying) {
+                return_page = current_page;
+            } else if (page != PlayerPage::NowPlaying) {
+                return_page = page;
+            }
             current_page = page;
             if (!access.valid()) return;
+            if (page_home_layer.root()) {
+                if (page == PlayerPage::Home) page_home_layer.show(access);
+                else page_home_layer.hide(access);
+            } else if (handles.page_home) {
+                access.set_visible(handles.page_home, page == PlayerPage::Home);
+            }
             if (page_now_layer.root()) {
                 if (page == PlayerPage::NowPlaying) page_now_layer.show(access);
                 else page_now_layer.hide(access);
@@ -542,11 +609,31 @@ export namespace player {
             if (handles.debug_text) {
                 access.set_visible(handles.debug_text, false);
             }
+            if (handles.bottom_bar) {
+                const bool show_bottom = (page == PlayerPage::Home || page == PlayerPage::Library);
+                access.set_visible(handles.bottom_bar, show_bottom);
+            }
+            if (handles.nav_bar) {
+                const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
+                access.set_visible(handles.nav_bar, show_nav);
+            }
             if (page == PlayerPage::Library) {
                 refresh_library();
+            } else if (page == PlayerPage::Home) {
+                refresh_home();
             } else {
                 refresh_now_playing();
             }
+        }
+
+        static void on_show_home(::ui::scene::SceneAccess& access,
+                                 WidgetHandle root,
+                                 void* ctx) noexcept {
+            (void)access;
+            (void)root;
+            auto* self = static_cast<PlayerController*>(ctx);
+            if (!self) return;
+            self->refresh_home();
         }
 
         static void on_show_now_playing(::ui::scene::SceneAccess& access,
@@ -571,6 +658,14 @@ export namespace player {
         }
 
         void init_pages() noexcept {
+            if (handles.page_home) {
+                page_home_layer.set_root(handles.page_home);
+                page_home_layer.set_hooks(::ui::scene::PageHooks{
+                    .on_show = &PlayerController::on_show_home,
+                    .ctx = this,
+                });
+                page_home_layer.set_visible(access, false);
+            }
             if (handles.page_now_playing) {
                 page_now_layer.set_root(handles.page_now_playing);
                 page_now_layer.set_hooks(::ui::scene::PageHooks{
@@ -586,6 +681,9 @@ export namespace player {
                     .ctx = this,
                 });
                 page_library_layer.set_visible(access, false);
+            }
+            if (handles.btn_mode) {
+                access.set_visible(handles.btn_mode, false);
             }
             set_page(start_page);
         }
@@ -716,6 +814,12 @@ export namespace player {
             clear_image(handles.cover_left);
             clear_image(handles.cover_right);
             clear_image(handles.bottom_cover);
+            clear_image(handles.home_cover_big);
+            clear_image(handles.home_cover_left);
+            clear_image(handles.home_cover_right);
+            clear_image(handles.home_cover_small);
+            clear_image(handles.home_cover_bottom_left);
+            clear_image(handles.home_cover_bottom_right);
         }
 
         void update_cover_image() {
@@ -734,6 +838,12 @@ export namespace player {
                 clear_image(handles.cover_left);
                 clear_image(handles.cover_right);
                 clear_image(handles.bottom_cover);
+                clear_image(handles.home_cover_big);
+                clear_image(handles.home_cover_left);
+                clear_image(handles.home_cover_right);
+                clear_image(handles.home_cover_small);
+                clear_image(handles.home_cover_bottom_left);
+                clear_image(handles.home_cover_bottom_right);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
                 std::printf("[cover] no cover for track\n");
 #endif
@@ -751,6 +861,12 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
+                    set_image(handles.home_cover_big);
+                    set_image(handles.home_cover_left);
+                    set_image(handles.home_cover_right);
+                    set_image(handles.home_cover_small);
+                    set_image(handles.home_cover_bottom_left);
+                    set_image(handles.home_cover_bottom_right);
                     cover_path.assign(candidate);
                     if (cover_tint_path.view() != cover_image.path) {
                         cover_theme = derive_cover_theme(cover_image);
@@ -772,6 +888,12 @@ export namespace player {
                     set_image(handles.cover_left);
                     set_image(handles.cover_right);
                     set_image(handles.bottom_cover);
+                    set_image(handles.home_cover_big);
+                    set_image(handles.home_cover_left);
+                    set_image(handles.home_cover_right);
+                    set_image(handles.home_cover_small);
+                    set_image(handles.home_cover_bottom_left);
+                    set_image(handles.home_cover_bottom_right);
                     cover_path.assign(candidate);
                     cover_theme = derive_cover_theme(cover_image);
                     cover_tint_path.assign(cover_image.path);
@@ -883,9 +1005,12 @@ export namespace player {
         void set_time_label(int elapsed_sec) {
             if (elapsed_sec == last_time_sec) return;
             last_time_sec = elapsed_sec;
-            int total = playback.duration_sec();
-            if (preloaded_duration_sec > 0) {
-                total = std::max(total, preloaded_duration_sec);
+            int total = 0;
+            if (track_preloaded) {
+                total = playback.duration_sec();
+                if (preloaded_duration_sec > 0) {
+                    total = std::max(total, preloaded_duration_sec);
+                }
             }
             const int cur_m = elapsed_sec / 60;
             const int cur_s = elapsed_sec % 60;
@@ -981,7 +1106,25 @@ export namespace player {
             update_debug_overlay();
         }
 
+        void refresh_home() {
+            if (handles.nav_bar) {
+                access.set_visible(handles.nav_bar, true);
+            }
+            if (handles.bottom_bar) {
+                access.set_visible(handles.bottom_bar, true);
+            }
+            update_duration_from_player();
+            update_info_label();
+            update_debug_overlay();
+        }
+
         void refresh_library() {
+            if (handles.nav_bar) {
+                access.set_visible(handles.nav_bar, true);
+            }
+            if (handles.bottom_bar) {
+                access.set_visible(handles.bottom_bar, true);
+            }
             update_list_title();
             update_list_path();
             update_list_sort_label();
@@ -1188,9 +1331,9 @@ export namespace player {
                                          static_cast<std::uint16_t>(count),
                                          this,
                                          &PlayerController::list_view_text);
-            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 24);
-            access.set_list_row_height(handles.list, 44);
-            access.set_scroll_step(handles.list, 44);
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
+            access.set_list_row_height(handles.list, 60);
+            access.set_scroll_step(handles.list, 60);
             if (count > 0) {
                 sync_list_selection();
             } else {
@@ -1209,6 +1352,16 @@ export namespace player {
             clear_list_cover_cache();
             refresh_track_labels();
             build_list_cover_paths();
+            if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
+                reset_player_font_package_cache();
+                bind_player_freetype_font(font_ttf_path,
+                                          font_small_px,
+                                          font_normal_px,
+                                          font_large_px);
+                apply_player_theme();
+                refresh_exact_font_styles();
+                font_retry_done = true;
+            }
             if (!storage.status.empty()) { set_status(storage.status.data()); }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             if (player::font_cache::ready()) {
@@ -1242,6 +1395,26 @@ export namespace player {
                 set_label_slot(handles.list_title, text_slots.list_title, "Tracks");
             }
             last_list_count = count;
+        }
+
+        void set_font_config(std::string_view path,
+                             int small_px,
+                             int normal_px,
+                             int large_px) {
+            font_ttf_path.assign(path.begin(), path.end());
+            font_small_px = small_px;
+            font_normal_px = normal_px;
+            font_large_px = large_px;
+            font_retry_done = false;
+            if (fs_ready && !font_ttf_path.empty()) {
+                reset_player_font_package_cache();
+                bind_player_freetype_font(font_ttf_path,
+                                          font_small_px,
+                                          font_normal_px,
+                                          font_large_px);
+                apply_player_theme();
+                font_retry_done = true;
+            }
         }
 
         void update_list_path() {
@@ -1874,7 +2047,7 @@ export namespace player {
                     }
                 if (type == Event::Type::MouseUp) {
                     if (target == handles.now_back) {
-                        set_page(PlayerPage::Library);
+                        set_page(return_page);
                     } else if (target == handles.btn_prev) {
                         actions.prev = true;
                     } else if (target == handles.btn_next) {
@@ -1893,11 +2066,16 @@ export namespace player {
                 }
                 } else {
                     if (type == Event::Type::MouseUp) {
-                        if (target == handles.bottom_bar || target == handles.bottom_cover
+                        if (target == handles.bottom_play) {
+                            actions.toggle_play = true;
+                        } else if (target == handles.bottom_next) {
+                            actions.next = true;
+                        } else if (target == handles.bottom_hit || target == handles.bottom_bar
+                                   || target == handles.bottom_cover
                                    || target == handles.bottom_title || target == handles.bottom_subtitle) {
                             set_page(PlayerPage::NowPlaying);
                         } else if (target == handles.nav_home) {
-                            set_page(PlayerPage::NowPlaying);
+                            set_page(PlayerPage::Home);
                         } else if (target == handles.nav_library) {
                             set_page(PlayerPage::Library);
                         } else if (target == handles.list_sort) {

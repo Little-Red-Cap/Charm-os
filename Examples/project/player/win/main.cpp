@@ -144,7 +144,7 @@ namespace {
             int x = progress.x + 8 + phase;
             for (int i = 0; i < dot_count; ++i) {
                 const int y = wave_y + ((i % 4 == 0) ? -1 : 0);
-                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTime);
+                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTimeSoft);
                 x += dot_r * 2 + dot_gap;
                 if (x > progress.x + progress.w - 6) break;
             }
@@ -250,21 +250,32 @@ namespace {
         };
 
         ctx.set_page(player::PlayerPage::Library);
-        if (click_handle(ctx.handles.nav_home, "library_to_now")) {
-            if (ctx.current_page == player::PlayerPage::NowPlaying) {
-                ui_ci_emit("library_to_now", true, nullptr);
+        if (click_handle(ctx.handles.nav_home, "library_to_home")) {
+            if (ctx.current_page == player::PlayerPage::Home) {
+                ui_ci_emit("library_to_home", true, nullptr);
             } else {
-                ui_ci_emit("library_to_now", false, "page_not_now");
+                ui_ci_emit("library_to_home", false, "page_not_home");
                 res.ok = false;
                 res.failed++;
             }
         }
 
-        if (click_handle(ctx.handles.now_back, "now_to_library")) {
-            if (ctx.current_page == player::PlayerPage::Library) {
-                ui_ci_emit("now_to_library", true, nullptr);
+        ctx.set_page(player::PlayerPage::Home);
+        if (click_handle(ctx.handles.bottom_hit, "home_to_now")) {
+            if (ctx.current_page == player::PlayerPage::NowPlaying) {
+                ui_ci_emit("home_to_now", true, nullptr);
             } else {
-                ui_ci_emit("now_to_library", false, "page_not_library");
+                ui_ci_emit("home_to_now", false, "page_not_now");
+                res.ok = false;
+                res.failed++;
+            }
+        }
+
+        if (click_handle(ctx.handles.now_back, "now_back_to_home")) {
+            if (ctx.current_page == player::PlayerPage::Home) {
+                ui_ci_emit("now_back_to_home", true, nullptr);
+            } else {
+                ui_ci_emit("now_back_to_home", false, "page_not_home");
                 res.ok = false;
                 res.failed++;
             }
@@ -526,9 +537,13 @@ int main(int argc, char** argv) {
     bool screenshot_verbose = false;
     int screenshot_wait_frames = 0;
     bool screenshot_exit = false;
-    player::PlayerPage start_page = player::PlayerPage::Library;
+    player::PlayerPage start_page = player::PlayerPage::Home;
     bool start_page_set = false;
     bool ui_ci = false;
+    std::string font_ttf_path{};
+    int font_small_px = 0;
+    int font_normal_px = 0;
+    int font_large_px = 0;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i] ? argv[i] : "";
         if (arg.rfind("--screenshot=", 0) == 0) {
@@ -537,7 +552,10 @@ int main(int argc, char** argv) {
             screenshot_gif_path.assign(arg.substr(17));
         } else if (arg.rfind("--screenshot-page=", 0) == 0) {
             const std::string_view page = arg.substr(18);
-            if (page == "now") {
+            if (page == "home") {
+                start_page = player::PlayerPage::Home;
+                start_page_set = true;
+            } else if (page == "now") {
                 start_page = player::PlayerPage::NowPlaying;
                 start_page_set = true;
             } else if (page == "library") {
@@ -546,7 +564,10 @@ int main(int argc, char** argv) {
             }
         } else if (arg.rfind("--page=", 0) == 0) {
             const std::string_view page = arg.substr(7);
-            if (page == "now") {
+            if (page == "home") {
+                start_page = player::PlayerPage::Home;
+                start_page_set = true;
+            } else if (page == "now") {
                 start_page = player::PlayerPage::NowPlaying;
                 start_page_set = true;
             } else if (page == "library") {
@@ -562,6 +583,14 @@ int main(int argc, char** argv) {
             screenshot_wait_frames = std::max(0, std::atoi(std::string(value).c_str()));
         } else if (arg == "--ui-ci") {
             ui_ci = true;
+        } else if (arg.rfind("--font-ttf=", 0) == 0) {
+            font_ttf_path.assign(arg.substr(11));
+        } else if (arg.rfind("--font-small=", 0) == 0) {
+            font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
+        } else if (arg.rfind("--font-normal=", 0) == 0) {
+            font_normal_px = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
+        } else if (arg.rfind("--font-large=", 0) == 0) {
+            font_large_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
         }
     }
     if (!start_page_set && (!screenshot_path.empty() || !screenshot_gif_path.empty())) {
@@ -598,17 +627,34 @@ int main(int argc, char** argv) {
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
-    g_app.emplace(player::AppConfig{g_player_cfg}, g_clock);
+    player::AppConfig app_cfg{g_player_cfg};
+    if (!font_ttf_path.empty()) {
+        app_cfg.ttf_path = font_ttf_path;
+    } else {
+        app_cfg.ttf_path = "/font/gflex_variable.ttf";
+    }
+    if (font_small_px > 0) {
+        app_cfg.ttf_small_px = font_small_px;
+    }
+    if (font_normal_px > 0) {
+        app_cfg.ttf_normal_px = font_normal_px;
+    }
+    if (font_large_px > 0) {
+        app_cfg.ttf_large_px = font_large_px;
+    }
+    g_app.emplace(std::move(app_cfg), g_clock);
 
+    player::init_storage(player::default_storage_config());
     g_app->bind_player(g_ctx);
     g_ctx.bind_scene(g_platform.scene_ref());
     g_ctx.set_start_page(start_page);
+    (void)g_app->scan_storage();
+    g_ctx.apply_storage_view(g_app->storage_view());
     g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
         g_app->bind_ui(builder, g_ctx);
     });
     g_ctx.set_page(start_page);
 
-    player::init_storage(player::default_storage_config());
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

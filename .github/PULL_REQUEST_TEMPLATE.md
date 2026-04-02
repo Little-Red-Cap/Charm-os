@@ -1,4 +1,4 @@
-﻿## Summary
+## Summary
 
 - What changed
 - Why this change is needed
@@ -31,3 +31,9 @@ For any added/modified `RunLoop::add_step(...)`:
 ## Notes
 
 - Anything intentionally deferred
+
+## SSU Submit Gate (Required when submit paths change)
+
+Run:
+
+- scripts/ssu_submit_gate.ps1`n

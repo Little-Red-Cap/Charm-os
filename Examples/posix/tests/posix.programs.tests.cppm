@@ -1113,6 +1113,45 @@ namespace {
         h.unbind_env();
     }
 
+    void test_elf_file_direct_exec() noexcept {
+        check_true("elf-direct-mount", fs::mount_count() > 0);
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int hello_fd = h.api.open("/hello.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elf-direct-open", hello_fd >= 0);
+        auto hello_write = h.api.write(hello_fd, hello_elf, hello_elf_len);
+        check_true("elf-direct-write", hello_write == static_cast<posix::ssize_t>(hello_elf_len));
+        check_eq("elf-direct-close", h.api.close(hello_fd), 0);
+
+        int pipefd[2]{-1, -1};
+        check_eq("elf-direct-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"hello", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "/hello.elf";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.stdio_out = pipefd[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-direct-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        (void)h.api.close(pipefd[1]);
+
+        std::array<char, 16> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("elf-direct-out", out, std::string_view{"hello\n"});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
     void test_elf_file_fd_probe() noexcept {
         fs::clear_mounts();
         static RamFsMount<256, 64, 512> ramfs{};
@@ -1463,6 +1502,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_elf_header_stub();
     test_elf_file_spawn();
     test_elf_file_samples_probe();
+    test_elf_file_direct_exec();
     test_elf_file_fd_probe();
     test_elf_file_stat_probe();
     test_elf_real_samples();

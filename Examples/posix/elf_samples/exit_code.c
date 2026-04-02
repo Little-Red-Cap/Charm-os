@@ -19,6 +19,10 @@ static int parse_int(const char* s) {
 
 int entry(int argc, char** argv, char** envp) {
     (void)envp;
-    if (argc < 2 || !argv || !argv[1]) return 0;
-    return parse_int(argv[1]);
+    if (argc < 2 || !argv || !argv[1]) {
+        _exit(0);
+    }
+    _exit(parse_int(argv[1]));
+    write(1, "after-exit\n", 11);
+    return 99;
 }

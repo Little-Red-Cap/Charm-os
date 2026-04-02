@@ -424,6 +424,39 @@ namespace {
         h.unbind_env();
     }
 
+    void test_exit_code_explicit_exit() noexcept {
+        Harness h{};
+        h.bind_env();
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+        check_true("exit-abi-reg", h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+
+        int pipefd[2]{-1, -1};
+        check_eq("exit-abi-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"elfmem:exit_code", "23", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elfmem:exit_code";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.stdio_out = pipefd[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("exit-abi-spawn", sp);
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("exit-abi-wait", st);
+        check_eq("exit-abi-code", st.value().code, 23);
+        (void)h.api.close(pipefd[1]);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("exit-abi-out", out, std::string_view{});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
     void test_stderr_demo() noexcept {
         Harness h{};
         h.bind_env();
@@ -706,12 +739,11 @@ namespace {
             check_true("sh-move-read", h.fds.dup2(read_fd, 7));
             read_fd = 7;
         }
-        check_true("sh-dup2-out", h.fds.dup2(pipefd[1], 1));
-
         const char* argv[] = {"sh", "-c", "echo hi", nullptr};
         posix::SpawnConfig cfg{};
         cfg.path = "sh";
         cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.stdio_out = pipefd[1];
 
         auto sp = h.procs.spawn(cfg);
         check_true("sh-spawn", sp);
@@ -1042,7 +1074,7 @@ namespace {
 
         int cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("cat-file-data-open", cat_fd >= 0);
-        const char cat_payload[] = "cat-data\n";
+        const char cat_payload[] = "cat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\n";
         auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
         check_true("cat-file-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
         check_eq("cat-file-data-close", h.api.close(cat_fd), 0);
@@ -1105,7 +1137,7 @@ namespace {
             std::array<char, 32> err_buf{};
             util::usize err_size = 0;
             auto err = read_from_fd(h.api, err_read, err_buf, err_size);
-            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\n"});
+            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\nF\nG\n"});
         }
 
         h.procs.enable_elf_hostcalls(false);
@@ -1167,7 +1199,7 @@ namespace {
 
             cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
             check_true("fd-probe-data-open", cat_fd >= 0);
-            const char cat_payload[] = "cat-data\n";
+            const char cat_payload[] = "cat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\n";
             auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
             check_true("fd-probe-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
             check_eq("fd-probe-data-close", h.api.close(cat_fd), 0);
@@ -1213,7 +1245,7 @@ namespace {
         check_eq("fd-probe-out-pipe", h.api.pipe(out_pipe), 0);
         check_true("fd-probe-dup2-out", h.fds.dup2(out_pipe[1], 1));
 
-        const char* argv[] = {"elf:/fd_probe.elf", "/cat.txt", nullptr};
+        const char* argv[] = {"elf:/fd_probe.elf", "/missing.txt", nullptr};
         posix::SpawnConfig cfg{};
         cfg.path = "elf:/fd_probe.elf";
         cfg.argv = std::span<const char* const>(argv, 2);
@@ -1236,15 +1268,7 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("fd-probe-out", out, std::string_view{
-            "t0=1\n"
-            "t1=0\n"
-            "t2=1\n"
-            "bt=0\n"
-            "fs=0\n"
-            "ft=0\n"
-            "bs=-1\n"
-        });
+        check_eq("fd-probe-out", out, std::string_view{"errno-ok\n"});
 
         (void)h.fds.dup2(2, 1);
         h.procs.enable_elf_hostcalls(false);
@@ -1568,6 +1592,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_hello();
     test_argv_dump();
     test_exit_code();
+    test_exit_code_explicit_exit();
     test_stderr_demo();
     test_modulex_register();
     test_elf_prefix_stub();

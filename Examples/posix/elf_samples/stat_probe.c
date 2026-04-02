@@ -16,7 +16,7 @@ static unsigned long cstr_len(const char* s) {
 static int write_all(int fd, const char* buf, unsigned long len) {
     unsigned long off = 0;
     while (off < len) {
-        int w = elf_hostcalls()->write(fd, buf + off, len - off);
+        int w = write(fd, buf + off, len - off);
         if (w <= 0) return -1;
         off += (unsigned long)w;
     }
@@ -72,7 +72,7 @@ int entry(int argc, char** argv, char** envp) {
         path = argv[1];
     }
 
-    int fd = elf_hostcalls()->open(path, O_RDONLY, 0);
+    int fd = open(path, O_RDONLY, 0);
     if (fd < 0) {
         const char* msg = "open fail\n";
         (void)write_all(1, msg, cstr_len(msg));
@@ -80,9 +80,9 @@ int entry(int argc, char** argv, char** envp) {
     }
 
     PosixStat st;
-    int st_rc = elf_hostcalls()->fstat(fd, &st);
-    int bad_rc = elf_hostcalls()->fstat(-1, &st);
-    elf_hostcalls()->close(fd);
+    int st_rc = fstat(fd, &st);
+    int bad_rc = fstat(-1, &st);
+    close(fd);
 
     char out[96];
     unsigned long len = 0;

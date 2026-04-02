@@ -803,19 +803,19 @@ export namespace player::ui {
         }
 
         {
-            StylePatch patch{};
-            patch.has_shadow_enabled = true;
-            patch.shadow_enabled = true;
-            patch.has_shadow_color = true;
-            patch.shadow_color = kUiCardShadow;
-            patch.has_shadow_offset_x = true;
-            patch.shadow_offset_x = 0;
-            patch.has_shadow_offset_y = true;
-            patch.shadow_offset_y = 3;
-            patch.has_shadow_spread = true;
-            patch.shadow_spread = 3;
-            patch.has_shadow_radius = true;
-            patch.shadow_radius = 16;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .apply_bg_color = false,
+                .apply_border_color = false,
+                .apply_corner_radius = false,
+                .shadow = {
+                    .enabled = true,
+                    .color = kUiCardShadow,
+                    .offset_x = 0,
+                    .offset_y = 3,
+                    .spread = 3,
+                    .radius = 16,
+                },
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ShuffleShadow), patch);
         }
 

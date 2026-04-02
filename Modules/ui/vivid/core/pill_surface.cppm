@@ -13,6 +13,9 @@ export namespace ui::scene {
     };
 
     struct PillSurfaceSpec {
+        bool apply_bg_color{true};
+        bool apply_border_color{true};
+        bool apply_corner_radius{true};
         rgba bg_color{};
         rgba border_color{};
         int corner_radius{};
@@ -24,12 +27,18 @@ export namespace ui::scene {
 
     inline StylePatch make_pill_surface_patch(const PillSurfaceSpec& spec) noexcept {
         StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = spec.bg_color;
-        patch.has_border_color = true;
-        patch.border_color = spec.border_color;
-        patch.has_corner_radius = true;
-        patch.corner_radius = spec.corner_radius;
+        if (spec.apply_bg_color) {
+            patch.has_bg_color = true;
+            patch.bg_color = spec.bg_color;
+        }
+        if (spec.apply_border_color) {
+            patch.has_border_color = true;
+            patch.border_color = spec.border_color;
+        }
+        if (spec.apply_corner_radius) {
+            patch.has_corner_radius = true;
+            patch.corner_radius = spec.corner_radius;
+        }
 
         if (spec.shadow.enabled) {
             patch.has_shadow_enabled = true;

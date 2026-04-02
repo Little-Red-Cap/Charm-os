@@ -62,6 +62,14 @@
 - `Modules/ui/vivid/core/pill_surface.cppm`
 - `charm.ui.scene.pill_surface`
 
+其中 `pill_surface` 已经开始承接：
+- 顶栏按钮表面
+- Tab 基础表面
+- InfoTag 表面
+- 路径条背景
+- 激活 Tab 的阴影/内描边变体
+- Shuffle 按钮的阴影变体
+
 说明：
 - 这说明顶栏已经不只是某页私有布局，而是“同一种模式的不同配置”
 

@@ -468,29 +468,22 @@
     }
 
     static void apply_tab_active_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = kUiTabActive;
-        patch.has_border_color = true;
-        patch.border_color = kUiTabActive;
-        patch.has_shadow_enabled = true;
-        patch.shadow_enabled = true;
-        patch.has_shadow_color = true;
-        patch.shadow_color = kUiCardShadow;
-        patch.has_shadow_offset_x = true;
-        patch.shadow_offset_x = 0;
-        patch.has_shadow_offset_y = true;
-        patch.shadow_offset_y = 2;
-        patch.has_shadow_spread = true;
-        patch.shadow_spread = 2;
-        patch.has_shadow_radius = true;
-        patch.shadow_radius = 10;
-        patch.has_inner_stroke_enabled = true;
-        patch.inner_stroke_enabled = true;
-        patch.has_inner_stroke_color = true;
-        patch.inner_stroke_color = kUiButtonHover;
-        patch.has_inner_stroke_width = true;
-        patch.inner_stroke_width = 1;
+        StylePatch patch = ::ui::scene::make_pill_surface_patch({
+            .bg_color = kUiTabActive,
+            .border_color = kUiTabActive,
+            .corner_radius = 0,
+            .shadow = {
+                .enabled = true,
+                .color = kUiCardShadow,
+                .offset_x = 0,
+                .offset_y = 2,
+                .spread = 2,
+                .radius = 10,
+            },
+            .inner_stroke_enabled = true,
+            .inner_stroke_color = kUiButtonHover,
+            .inner_stroke_width = 1,
+        });
         builder.set_style_override(h, patch);
     }
 

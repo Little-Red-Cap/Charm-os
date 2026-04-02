@@ -55,6 +55,8 @@
 当前已开始上收为 `Vivid` 公共 helper：
 - `Modules/ui/vivid/core/page_header_layout.cppm`
 - `charm.ui.scene.page_header`
+- `Modules/ui/vivid/core/top_bar_layout.cppm`
+- `charm.ui.scene.top_bar`
 - `Modules/ui/vivid/core/pill_layout.cppm`
 - `charm.ui.scene.pill`
 - `Modules/ui/vivid/core/list_card_header_layout.cppm`
@@ -72,10 +74,23 @@
 
 说明：
 - 这说明顶栏已经不只是某页私有布局，而是“同一种模式的不同配置”
+- `TopBarLayout` 已经覆盖 Player 的三种主变体：
+  - `Home`：无标题，仅右侧双按钮
+  - `Library`：标题 + 右侧单按钮
+  - `Now Playing`：左返回 + 标题 + 右侧双控件
+
+这一轮的演进可以理解为：
+- 第一阶段：`page_header_*_rect(...)` 只提供单个矩形计算
+- 第二阶段：`TopBarLayout` 把一整个顶栏变体需要的关键矩形一起产出
+
+这一步的价值：
+- 页面侧不再重复推导左右按钮和标题的相对关系
+- 顶栏变体开始具备“组合 spec”意义，而不再只是若干零散 helper
+- 后续如果继续演进到 `TopBarBuilder`，也已经有了稳定的中间层
 
 建议上收方向：
-- 后续可整理为 `TopBarLayoutSpec`
-- 再进一步可形成 `TopBarBuilder` 或 `PageHeaderBuilder`
+- 当前先保持 `TopBarLayout` 这一层轻量、稳定、可配置
+- 等第二个真实页面族也复用后，再考虑是否继续形成 `TopBarBuilder` 或 `PageHeaderBuilder`
 
 ### 3. 封面卡片模式
 

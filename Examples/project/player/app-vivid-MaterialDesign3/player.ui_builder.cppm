@@ -10,6 +10,7 @@ import charm.core.config;
 import charm.core.geometry;
 import charm.ui.scene;
 import charm.ui.scene.page_header;
+import charm.ui.scene.top_bar;
 import charm.ui.scene.pill;
 import charm.ui.scene.pill_surface;
 import charm.ui.scene.list_card_header;

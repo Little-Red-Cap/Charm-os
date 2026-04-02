@@ -231,43 +231,52 @@
 
         const WidgetHandle top_bar = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
+        const ::ui::scene::TopBarButtonSpec now_left_spec{
+            .width = now_layout.top_button_size,
+            .height = now_layout.top_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarTitleSpec now_title_spec{
+            .left_gap = now_layout.top_title_x,
+            .top_gap = now_layout.top_title_y,
+            .right_gap = now_layout.top_title_side_gap,
+            .height = now_layout.top_title_h,
+        };
+        const ::ui::scene::TopBarButtonSpec now_right_more_spec{
+            .width = now_layout.top_button_size,
+            .height = now_layout.top_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarButtonSpec now_right_lyrics_spec{
+            .width = now_layout.lyrics_button_w,
+            .height = now_layout.top_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarLayout now_top_layout = ::ui::scene::make_top_bar_layout(
+            top_bar_rect,
+            &now_left_spec,
+            &now_title_spec,
+            &now_right_more_spec,
+            now_layout.top_button_size,
+            &now_right_lyrics_spec,
+            now_layout.lyrics_button_w + now_layout.top_button_size + 8);
         anchor_rect(builder, top_bar, top_bar_rect);
         h.now_back = builder.create_button_static("");
-        anchor_rect(builder, h.now_back,
-                    ::ui::scene::page_header_left_rect(top_bar_rect,
-                                                       {.width = now_layout.top_button_size,
-                                                        .height = now_layout.top_button_size,
-                                                        .top_gap = 0}));
+        anchor_rect(builder, h.now_back, now_top_layout.left_rect);
         builder.set_button_icon(h.now_back, icons.down);
         builder.set_button_icon_size(h.now_back, now_layout.top_back_icon);
         apply_top_bar_button_style(builder, h.now_back);
         const WidgetHandle top_title = builder.create_label_static("Now Playing");
-        anchor_rect(builder, top_title,
-                    ::ui::scene::page_header_title_rect(top_bar_rect,
-                                                        now_layout.top_title_x,
-                                                        now_layout.top_title_y,
-                                                        now_layout.top_title_side_gap,
-                                                        now_layout.top_title_h));
+        anchor_rect(builder, top_title, now_top_layout.title_rect);
         const WidgetHandle top_more = builder.create_button_static("");
-        anchor_rect(builder, top_more,
-                    ::ui::scene::page_header_right_rect(top_bar_rect,
-                                                        {.width = now_layout.top_button_size,
-                                                         .height = now_layout.top_button_size,
-                                                         .top_gap = 0},
-                                                        now_layout.top_button_size));
+        anchor_rect(builder, top_more, now_top_layout.right_primary_rect);
         builder.set_button_icon(top_more, icons.more);
         builder.set_button_icon_size(top_more, now_layout.top_more_icon);
         apply_top_bar_button_style(builder, top_more);
         h.now_more = top_more;
 
         const WidgetHandle top_lyrics = builder.create_button_static("Lyrics");
-        const Rect lyrics_rect = ::ui::scene::page_header_right_rect(top_bar_rect,
-                                                                     {.width = now_layout.lyrics_button_w,
-                                                                      .height = now_layout.top_button_size,
-                                                                      .top_gap = 0},
-                                                                     now_layout.lyrics_button_w + now_layout.top_button_size + 8);
-        anchor_rect(builder, top_lyrics,
-                    lyrics_rect);
+        anchor_rect(builder, top_lyrics, now_top_layout.right_secondary_rect);
         builder.set_label_align(top_lyrics, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_top_bar_button_style(builder, top_lyrics);
         h.now_lyrics = top_lyrics;

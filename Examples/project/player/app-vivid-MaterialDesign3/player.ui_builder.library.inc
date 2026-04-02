@@ -31,20 +31,28 @@
 
         const WidgetHandle lib_top = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
+        const ::ui::scene::TopBarTitleSpec lib_title_spec{
+            .left_gap = lib_layout.top_title_x,
+            .top_gap = lib_layout.top_title_y,
+            .right_gap = lib_layout.top_title_right_gap,
+            .height = lib_layout.top_title_h,
+        };
+        const ::ui::scene::TopBarButtonSpec lib_right_spec{
+            .width = lib_layout.top_button_size,
+            .height = lib_layout.top_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarLayout lib_top_layout = ::ui::scene::make_top_bar_layout(
+            top_bar_rect,
+            nullptr,
+            &lib_title_spec,
+            &lib_right_spec,
+            lib_layout.top_button_right_gap);
         anchor_rect(builder, lib_top, top_bar_rect);
         const WidgetHandle lib_title = builder.create_label_static("Library");
-        anchor_rect(builder, lib_title,
-                    ::ui::scene::page_header_title_rect(top_bar_rect,
-                                                        lib_layout.top_title_x,
-                                                        lib_layout.top_title_y,
-                                                        lib_layout.top_title_right_gap,
-                                                        lib_layout.top_title_h));
+        anchor_rect(builder, lib_title, lib_top_layout.title_rect);
         const WidgetHandle lib_settings = create_top_icon_button(builder,
-            ::ui::scene::page_header_right_rect(top_bar_rect,
-                                                {.width = lib_layout.top_button_size,
-                                                 .height = lib_layout.top_button_size,
-                                                 .top_gap = 0},
-                                                lib_layout.top_button_right_gap),
+            lib_top_layout.right_primary_rect,
             icons.settings, lib_layout.top_icon_px);
 
         const WidgetHandle tab_songs = builder.create_button_static("Songs");

@@ -607,22 +607,7 @@
     }
 
     static void apply_nav_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_font_color = true;
-        patch.font_color = kUiTitle;
-        patch.has_font = true;
-        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
-        patch.has_bg_color = true;
-        patch.bg_color = {0, 0, 0, 0};
-        patch.has_border_color = true;
-        patch.border_color = {0, 0, 0, 0};
-        patch.has_border_width = true;
-        patch.border_width = 0;
-        patch.has_padding = true;
-        patch.padding = 0;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 0;
-        builder.set_style_override(h, patch);
+        apply_player_text_style(builder, h, PlayerTextRole::MetaText, kUiTitle);
         builder.set_hit_testable(h, false);
     }
 
@@ -640,21 +625,9 @@
     }
 
     static void apply_nav_hit_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, int padding) {
-        StylePatch patch{};
-        patch.has_bg_color = true;
-        patch.bg_color = {0, 0, 0, 0};
-        patch.has_border_color = true;
-        patch.border_color = {0, 0, 0, 0};
-        patch.has_border_width = true;
-        patch.border_width = 0;
+        StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTitle);
         patch.has_padding = true;
         patch.padding = padding;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 0;
-        patch.has_font_color = true;
-        patch.font_color = kUiTitle;
-        patch.has_font = true;
-        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
         builder.set_style_override(h, patch);
     }
 

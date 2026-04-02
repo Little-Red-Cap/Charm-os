@@ -1426,6 +1426,26 @@ namespace {
         }
 
         {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-stderr-merge-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
+            cfg.stdio_err = pipefd[1];
+            auto sp = spawn_checked("elf-real-stderr-merge-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-merge-wait", st);
+            check_eq("elf-real-stderr-merge-code", st.value().code, 0);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-stderr-merge-out", out, std::string_view{"out\nerr\n"});
+        }
+
+        {
             const char* argv[] = {"elfmem:exit_code", "7", nullptr};
             posix::SpawnConfig cfg{};
             cfg.path = "elfmem:exit_code";

@@ -287,11 +287,13 @@ export namespace posix {
 
             const auto code = start_image(proc.pid, image.value(), cfg);
             if (!code) {
+                proc.fds.close_all();
                 release_proc(proc);
                 return util::unexpected(code.error());
             }
             proc.exit_code = code.value();
             proc.exited = true;
+            proc.fds.close_all();
             return SpawnResult{ProcessId{pid}};
         }
 

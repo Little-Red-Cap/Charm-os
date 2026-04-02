@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -20,8 +20,6 @@ import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import charm.ui.vivid.font_package;
-import out.core;
-import out.format;
 import charm.font.provider_freetype;
 import player.font_cache;
 import charm.widgets.button;
@@ -315,6 +313,14 @@ export namespace player::ui {
             return state;
         }
 
+        struct ExactFontSlot {
+            Font font{};
+            std::string path{};
+            int px{0};
+            FontWeight weight{FontWeight::Regular};
+            bool loaded{false};
+        };
+
         struct FreetypeLoaderState {
             charm::font::FreetypeFontLoader loader{};
             std::string ttf_path{};
@@ -322,12 +328,34 @@ export namespace player::ui {
             std::string ttf_normal{};
             std::string ttf_large{};
             std::string ttf_mono{};
+            std::array<ExactFontSlot, 8> exact_fonts{};
             bool ready{false};
         };
 
         FreetypeLoaderState& freetype_state() {
             static FreetypeLoaderState state{};
             return state;
+        }
+
+        void reset_exact_font_cache(FreetypeLoaderState& state) noexcept {
+            const auto api = state.loader.vfs_api();
+            for (auto& slot : state.exact_fonts) {
+                if (api.reset) {
+                    api.reset(&state.loader, slot.font);
+                } else {
+                    slot.font = Font{};
+                }
+                slot.path.clear();
+                slot.px = 0;
+                slot.weight = FontWeight::Regular;
+                slot.loaded = false;
+            }
+        }
+
+        const Font& fallback_font_for_px(int px, FontWeight weight) noexcept {
+            if (px >= 48) return get_font_weighted(FontId::Large, weight);
+            if (px <= 14) return get_font_weighted(FontId::Small, weight);
+            return get_font_weighted(FontId::Normal, weight);
         }
     }
 
@@ -572,6 +600,7 @@ export namespace player::ui {
         auto& state = detail::font_package_state();
         state.package.reset_cache();
         state.bound = false;
+        detail::reset_exact_font_cache(detail::freetype_state());
     }
 
     void bind_font_package(const charm::font::FontPackageConfig& config,
@@ -590,6 +619,7 @@ export namespace player::ui {
                                    int large_px) noexcept {
         if (ttf_path.empty()) return;
         auto& state = detail::freetype_state();
+        detail::reset_exact_font_cache(state);
         state.ttf_path.assign(ttf_path.begin(), ttf_path.end());
         state.ttf_small = state.ttf_path + "#small";
         state.ttf_normal = state.ttf_path + "#normal";
@@ -625,7 +655,66 @@ export namespace player::ui {
         state.loader.bind_glyph_loader();
         bind_font_package(pkg, state.loader.vfs_api(), &state.loader);
         state.ready = true;
+    }
 
+    const Font& get_player_font_px(int px, FontWeight weight) noexcept {
+        auto& state = detail::freetype_state();
+        if (!state.ready || state.ttf_path.empty()) {
+            const auto& fallback = detail::fallback_font_for_px(px, weight);
+            std::printf("[font-px] fallback reason=not_ready px=%d weight=%d\n", px, static_cast<int>(weight));
+            return fallback;
+        }
+        for (auto& slot : state.exact_fonts) {
+            if (slot.loaded && slot.px == px && slot.weight == weight) {
+                std::printf("[font-px] cache-hit px=%d weight=%d path=%s\n", px, static_cast<int>(weight), slot.path.c_str());
+                return slot.font;
+            }
+        }
+        auto* free_slot = &state.exact_fonts[0];
+        for (auto& slot : state.exact_fonts) {
+            if (!slot.loaded) {
+                free_slot = &slot;
+                break;
+            }
+        }
+        free_slot->path = state.ttf_path;
+        free_slot->path += "#px";
+        free_slot->path += std::to_string(px);
+        switch (weight) {
+        case FontWeight::Bold:
+            free_slot->path += "_bold";
+            break;
+        case FontWeight::Medium:
+            free_slot->path += "_medium";
+            break;
+        case FontWeight::Regular:
+        default:
+            break;
+        }
+        free_slot->px = px;
+        free_slot->weight = weight;
+        free_slot->loaded = false;
+        free_slot->font = Font{};
+        const auto api = state.loader.vfs_api();
+        if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
+            free_slot->loaded = true;
+            std::printf("[font-px] load-ok px=%d weight=%d path=%s line_h=%d baseline=%d\n",
+                        px,
+                        static_cast<int>(weight),
+                        free_slot->path.c_str(),
+                        free_slot->font.line_height,
+                        free_slot->font.baseline);
+            return free_slot->font;
+        }
+        if (api.reset) {
+            api.reset(&state.loader, free_slot->font);
+        }
+        free_slot->path.clear();
+        free_slot->px = 0;
+        free_slot->weight = FontWeight::Regular;
+        const auto& fallback = detail::fallback_font_for_px(px, weight);
+        std::printf("[font-px] fallback reason=load_failed px=%d weight=%d\n", px, static_cast<int>(weight));
+        return fallback;
     }
 
     inline void apply_player_theme() {

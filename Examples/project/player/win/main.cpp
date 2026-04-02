@@ -1,4 +1,4 @@
-﻿import audio.player;
+import audio.player;
 import audio.result;
 import player.app;
 import player.controller;
@@ -644,15 +644,17 @@ int main(int argc, char** argv) {
     }
     g_app.emplace(std::move(app_cfg), g_clock);
 
+    player::init_storage(player::default_storage_config());
     g_app->bind_player(g_ctx);
     g_ctx.bind_scene(g_platform.scene_ref());
     g_ctx.set_start_page(start_page);
+    (void)g_app->scan_storage();
+    g_ctx.apply_storage_view(g_app->storage_view());
     g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
         g_app->bind_ui(builder, g_ctx);
     });
     g_ctx.set_page(start_page);
 
-    player::init_storage(player::default_storage_config());
     const bool has_track = g_app->bootstrap_player(g_ctx, 0, false);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");

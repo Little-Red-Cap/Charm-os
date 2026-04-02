@@ -309,6 +309,31 @@ export namespace player {
         }
 #endif
 
+        void refresh_exact_font_styles() noexcept {
+            if (!access.valid()) return;
+            const Font& title_font = get_player_font_px(72, FontWeight::Bold);
+            const Font& subtitle_font = get_player_font_px(18, FontWeight::Regular);
+            std::printf("[font-px] refresh begin title(line=%d base=%d) subtitle(line=%d base=%d)\n",
+                        title_font.line_height,
+                        title_font.baseline,
+                        subtitle_font.line_height,
+                        subtitle_font.baseline);
+            auto apply_font = [&](WidgetHandle h, const Font& font) {
+                if (!h) return;
+                StylePatch patch{};
+                patch.has_font = true;
+                patch.font = &font;
+                access.set_style_override(h, patch);
+            };
+            apply_font(handles.home_title_top, title_font);
+            apply_font(handles.home_title_bottom, title_font);
+            apply_font(handles.home_subtitle, subtitle_font);
+            access.set_text(handles.home_title_top, "Your");
+            access.set_text(handles.home_title_bottom, "Mix");
+            access.set_text(handles.home_subtitle, "Today's Mix for you");
+            std::printf("[font-px] refresh labels reapplied\n");
+        }
+
         void apply_now_theme(const cover_theme::CoverTheme& theme) noexcept {
             if (!access.valid() || !handles.now_backdrop) return;
             StylePatch patch{};
@@ -1334,6 +1359,7 @@ export namespace player {
                                           font_normal_px,
                                           font_large_px);
                 apply_player_theme();
+                refresh_exact_font_styles();
                 font_retry_done = true;
             }
             if (!storage.status.empty()) { set_status(storage.status.data()); }
@@ -1379,6 +1405,16 @@ export namespace player {
             font_small_px = small_px;
             font_normal_px = normal_px;
             font_large_px = large_px;
+            font_retry_done = false;
+            if (fs_ready && !font_ttf_path.empty()) {
+                reset_player_font_package_cache();
+                bind_player_freetype_font(font_ttf_path,
+                                          font_small_px,
+                                          font_normal_px,
+                                          font_large_px);
+                apply_player_theme();
+                font_retry_done = true;
+            }
         }
 
         void update_list_path() {

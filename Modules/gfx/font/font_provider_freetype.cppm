@@ -432,6 +432,15 @@ export namespace charm::font {
                 if (suffix == "normal") return config_.normal_px;
                 if (suffix == "large") return config_.large_px;
                 if (suffix == "mono") return config_.mono_px;
+                if (suffix.starts_with("px")) {
+                    int value = 0;
+                    for (std::size_t i = 2; i < suffix.size(); ++i) {
+                        const char c = suffix[i];
+                        if (c < '0' || c > '9') break;
+                        value = value * 10 + (c - '0');
+                    }
+                    if (value > 0) return value;
+                }
             }
             if (path_matches(config_.regular.small_path, path)
                 || path_matches(config_.medium.small_path, path)
@@ -452,6 +461,16 @@ export namespace charm::font {
         }
 
         FontWeight resolve_weight(std::string_view path) const noexcept {
+            const std::size_t pos = path.find('#');
+            if (pos != std::string_view::npos) {
+                const std::string_view suffix = path.substr(pos + 1);
+                if (suffix.find("bold") != std::string_view::npos) {
+                    return FontWeight::Bold;
+                }
+                if (suffix.find("medium") != std::string_view::npos) {
+                    return FontWeight::Medium;
+                }
+            }
             if (path_matches(config_.bold.small_path, path)
                 || path_matches(config_.bold.normal_path, path)
                 || path_matches(config_.bold.large_path, path)

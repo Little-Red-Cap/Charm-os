@@ -1,4 +1,4 @@
-﻿module;
+module;
 
 #include <string>
 #include <vector>
@@ -84,7 +84,6 @@ export namespace player {
 
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
-            apply_player_theme();
             if (!config_.ttf_path.empty()) {
                 if constexpr (requires {
                                   controller.set_font_config(config_.ttf_path,
@@ -98,6 +97,7 @@ export namespace player {
                                                config_.ttf_large_px);
                 }
             }
+            apply_player_theme();
             controller.icons = register_player_icons();
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();

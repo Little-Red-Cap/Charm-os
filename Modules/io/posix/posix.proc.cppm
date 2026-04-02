@@ -1000,7 +1000,11 @@ export namespace posix {
                 return -1;
             }
             auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->stat) {
+            if (!entry) {
+                set_exec_errno(util::Errc::io);
+                return -1;
+            }
+            if (!entry.value()->ops || !entry.value()->ops->stat) {
                 set_exec_errno(util::Errc::not_supported);
                 return -1;
             }

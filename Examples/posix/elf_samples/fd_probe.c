@@ -6,13 +6,6 @@
 
 volatile struct ElfHostCalls elf_hostcalls_table;
 
-static unsigned long cstr_len(const char* s) {
-    unsigned long n = 0;
-    if (!s) return 0;
-    while (s[n] != '\0') n++;
-    return n;
-}
-
 static int write_all(int fd, const char* buf, unsigned long len) {
     unsigned long off = 0;
     while (off < len) {
@@ -50,6 +43,17 @@ int entry(int argc, char** argv, char** envp) {
     if (errno != 0) {
         write_all(1, "isatty-errno\n", 13);
         return 24;
+    }
+
+    PosixStat st;
+    if (fstat(-1, &st) != -1) {
+        write_all(1, "fstat-ok\n", 9);
+        return 25;
+    }
+
+    if (errno != 5) {
+        write_all(1, "fstat-errno\n", 12);
+        return 26;
     }
 
     write_all(1, "errno-ok\n", 9);

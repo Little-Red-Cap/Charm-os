@@ -24,6 +24,15 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
+set(PLAYER_PROFILE "USB_SELF_MSC" CACHE STRING
+    "Player startup profile for stm32h747 HQZY CM7")
+set_property(CACHE PLAYER_PROFILE PROPERTY STRINGS
+    LEGACY_MAIN
+    USB_AS
+    USB_AUDIO
+    USB_SELF_MSC
+    USB_STORAGE)
+
 # Compiler options
 set(STM32_MCU_FLAGS  "-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard " )
 
@@ -67,15 +76,55 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
+set(PLAYER_PROFILE_SOURCE "")
+set(PLAYER_PROFILE_IMPL_SOURCES "")
+set(PLAYER_PROFILE_MODULE_GROUPS "")
+
+if (PLAYER_PROFILE STREQUAL "LEGACY_MAIN")
+    set(PLAYER_PROFILE_SOURCE app/main.cpp)
+    set(PLAYER_PROFILE_MODULE_GROUPS
+        MODULE_GROUP_BASE
+        MODULE_GROUP_FS
+        MODULE_GROUP_AUDIO
+        MODULE_GROUP_DISPLAY
+        MODULE_GROUP_PLAYER_UI
+        MODULE_GROUP_LEGACY_RUNTIME)
+elseif (PLAYER_PROFILE STREQUAL "USB_AS")
+    set(PLAYER_PROFILE_SOURCE app/main-usb-as.cpp)
+    set(PLAYER_PROFILE_IMPL_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_as.cpp")
+    set(PLAYER_PROFILE_MODULE_GROUPS
+        MODULE_GROUP_BASE
+        MODULE_GROUP_FS
+        MODULE_GROUP_USB_STORAGE_RUNTIME)
+elseif (PLAYER_PROFILE STREQUAL "USB_AUDIO")
+    set(PLAYER_PROFILE_SOURCE app/main-usb-audio.cpp)
+    set(PLAYER_PROFILE_IMPL_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_audio.cpp")
+elseif (PLAYER_PROFILE STREQUAL "USB_SELF_MSC")
+    set(PLAYER_PROFILE_SOURCE app/main-usb-self-msc.cpp)
+    set(PLAYER_PROFILE_MODULE_GROUPS
+        MODULE_GROUP_PLAYER_PROFILES
+        MODULE_GROUP_HQZY_CM7_RUNTIME
+        MODULE_GROUP_HQZY_CM7_PROFILE_SYSTEM)
+elseif (PLAYER_PROFILE STREQUAL "USB_STORAGE")
+    set(PLAYER_PROFILE_SOURCE app/main-usb-storage.cpp)
+    set(PLAYER_PROFILE_IMPL_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_storage.cpp")
+    set(PLAYER_PROFILE_MODULE_GROUPS
+        MODULE_GROUP_BASE
+        MODULE_GROUP_FS
+        MODULE_GROUP_USB_STORAGE_RUNTIME)
+else()
+    message(FATAL_ERROR "Unsupported PLAYER_PROFILE: ${PLAYER_PROFILE}")
+endif()
+
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PROFILE: ${PLAYER_PROFILE}")
+
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
-#    app/main-bisect.cpp
-#    app/main.cpp
-#    app/main-player.cpp
-#    app/main-usb-as.cpp
-#    app/main-usb-audio.cpp
-    app/main-usb-self-msc.cpp
-#    app/main-usb-storage.cpp
+    app/profile_main.cpp
+    ${PLAYER_PROFILE_SOURCE}
+    ${PLAYER_PROFILE_IMPL_SOURCES}
     app/uart_bridge.c
     app/port_impl.c
     C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
@@ -97,6 +146,7 @@ set(MODULE_GROUP_BASE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_console.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_keys.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_usb.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdram.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_config.cppm"
@@ -128,19 +178,43 @@ set(MODULE_GROUP_PLAYER_UI
     "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
 )
 
-set(MODULE_GROUP_APP_TEST_HQZY
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_boot_log.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_board_platform.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_entry.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_runtime_bringup.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_sdmmc_glue.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_system.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-test-hqzy/app_usb_glue.cppm"
+set(MODULE_GROUP_LEGACY_RUNTIME
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_boot_debug.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_boot_fs.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_init_graph.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_post_bringup.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_pre_bringup.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_run_modes.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/system_entry.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
 )
 
-set(MODULE_INTERFACE_UNITS
-    ${MODULE_GROUP_APP_TEST_HQZY}
+set(MODULE_GROUP_USB_STORAGE_RUNTIME
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
 )
+
+set(MODULE_GROUP_PLAYER_PROFILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.cppm"
+)
+
+set(MODULE_GROUP_HQZY_CM7_RUNTIME
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/boot_log.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/board_platform.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/runtime_bringup.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/sdmmc_glue.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"
+)
+
+set(MODULE_GROUP_HQZY_CM7_PROFILE_SYSTEM
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.system.cppm"
+)
+
+set(MODULE_INTERFACE_UNITS)
+foreach(module_group IN LISTS PLAYER_PROFILE_MODULE_GROUPS)
+    list(APPEND MODULE_INTERFACE_UNITS ${${module_group}})
+endforeach()
+list(REMOVE_DUPLICATES MODULE_INTERFACE_UNITS)
+
 target_sources(${CMAKE_PROJECT_NAME}
     PUBLIC
     FILE_SET modules TYPE CXX_MODULES

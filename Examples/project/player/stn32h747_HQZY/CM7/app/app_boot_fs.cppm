@@ -8,6 +8,9 @@ module;
 
 export module player.stm32h7.app_boot_fs;
 
+import fs_core;
+import fs_errno;
+import fs_stream;
 import fs_vfs;
 import player.stm32h7.board_console;
 
@@ -59,7 +62,7 @@ export namespace player::stm32h7::app::boot_fs {
             board::early_uart_print(path);
             board::early_uart_print(" err=");
             char buf[16]{};
-            const int n = std::snprintf(buf, sizeof(buf), "%d", static_cast<int>(st.error()));
+            const int n = std::snprintf(buf, sizeof(buf), "%d", static_cast<int>(st.err));
             if (n > 0) board::early_uart_print(buf);
             board::early_uart_print("\n");
             return;

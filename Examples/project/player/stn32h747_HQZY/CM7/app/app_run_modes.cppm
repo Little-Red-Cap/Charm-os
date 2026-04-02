@@ -4,7 +4,6 @@ module;
 
 export module player.stm32h7.app_run_modes;
 
-import fs_demo;
 import out.api;
 import out.channel;
 import player.stm32h7.audio_mp3_demo;

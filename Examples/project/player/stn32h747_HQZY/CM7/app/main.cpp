@@ -413,7 +413,7 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
-int main() {
+int charm_player_selected_profile_main() {
     HAL_Init();
     // MPU_Config();
     SystemClock_Config();

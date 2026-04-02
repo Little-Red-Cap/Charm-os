@@ -11,7 +11,7 @@ export module posix.proc;
 
 import init.node;
 import posix.env;
-import posix.errno;
+import posix__errno;
 import posix.fd_table;
 import posix.file;
 import posix.program_image;
@@ -846,7 +846,7 @@ export namespace posix {
         }
 
         static int errc_to_errno(util::Errc err) noexcept {
-            return posix::to_errno(err);
+            return to_errno(err);
         }
 
         static ExecContext* current_exec_context() noexcept {

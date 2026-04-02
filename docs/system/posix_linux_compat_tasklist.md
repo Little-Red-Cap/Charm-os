@@ -50,6 +50,7 @@
 | argv_dump | `argv_dump a b`；打印 argv[0..2] | argv/envp 传递/stdio | argv/envp 内存布局 | 入口 ABI 与内部函数混用 | P0 | TBD | TODO |
 | stderr_demo | `stderr_demo`；stdout/stderr 分流可观测 | stdio 绑定/dup2/isatty | 0/1/2 独立绑定、分流、dup2 覆盖 | console 旁路残留 | P0 | TBD | TODO |
 | exit_code | `exit_code 7`；wait 得到 7 | waitpid/exit status | WaitStatus 结构化语义 | 退出码被简化成 task completion | P0 | TBD | TODO |
+| fd_probe | elf:/fd_probe.elf /cat.txt | file-ELF | stdout=fd summary, exit=0 | open/read/fstat/isatty | DONE | fd semantics probe |
 | echo > out.txt | `echo hi > out.txt`；`cat out.txt` 输出 hi | open/write/dup2/close/stat | fd_table 统一路径、close 可见性 | 文件写入路径分叉 | P1 | TBD | TODO |
 | cat < out.txt | `cat < out.txt`；输出 hi | open/read/close | EOF 语义 | 读取路径非 fd_table | P1 | TBD | TODO |
 | echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
@@ -268,7 +269,6 @@
 - `docs/system/posix_spawn_minimal_design.md`
 - `docs/system/posix_fd_table_minimal_design.md`
 - `docs/system/posix_error_semantics.md`
-
 
 
 

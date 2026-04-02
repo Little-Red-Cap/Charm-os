@@ -18,6 +18,7 @@ module;
 #include "../elf_samples/stderr_demo.elf.inc"
 #include "../elf_samples/exit_code.elf.inc"
 #include "../elf_samples/cat_file.elf.inc"
+#include "../elf_samples/fd_probe.elf.inc"
 
 export module posix.programs.tests;
 
@@ -1097,6 +1098,88 @@ namespace {
         h.procs.enable_elf_exec(false);
         h.unbind_env();
     }
+
+    void test_elf_file_fd_probe() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<256, 64, 512> ramfs{};
+        new (&ramfs) RamFsMount<256, 64, 512>();
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("fd-probe-mount", st);
+
+        int cat_fd = -1;
+        {
+            Harness h{};
+            h.bind_env();
+            h.procs.bind_file_service(h.files);
+
+            cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("fd-probe-data-open", cat_fd >= 0);
+            const char cat_payload[] = "cat-data\n";
+            auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
+            check_true("fd-probe-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
+            check_eq("fd-probe-data-close", h.api.close(cat_fd), 0);
+            h.unbind_env();
+        }
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int fd_elf = h.api.open("/fd_probe.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("fd-probe-elf-open", fd_elf >= 0);
+        auto elf_write = h.api.write(fd_elf, fd_probe_elf, fd_probe_elf_len);
+        check_true("fd-probe-elf-write", elf_write == static_cast<posix::ssize_t>(fd_probe_elf_len));
+        check_eq("fd-probe-elf-close", h.api.close(fd_elf), 0);
+
+        posix::FdOps term_ops{};
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("fd-probe-attach-stdin", h.fds.attach(term_entry, 0));
+        check_true("fd-probe-attach-stdout", h.fds.attach(term_entry, 1));
+        check_true("fd-probe-attach-stderr", h.fds.attach(term_entry, 2));
+
+        int out_pipe[2]{-1, -1};
+        check_eq("fd-probe-out-pipe", h.api.pipe(out_pipe), 0);
+        check_true("fd-probe-dup2-out", h.fds.dup2(out_pipe[1], 1));
+
+        const char* argv[] = {"elf:/fd_probe.elf", "/cat.txt", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/fd_probe.elf";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        auto sp = h.procs.spawn(cfg);
+        check_true("fd-probe-spawn", sp);
+        auto st2 = h.procs.waitpid(sp.value().pid, 0);
+        check_true("fd-probe-wait", st2);
+        check_eq("fd-probe-code", st2.value().code, 0);
+
+        if (out_pipe[1] != 1) {
+            (void)h.api.close(out_pipe[1]);
+        }
+        std::array<char, 128> out_buf{};
+        util::usize out_size = 0;
+        while (out_size < out_buf.size()) {
+            auto r = h.api.read(out_pipe[0], out_buf.data() + out_size, out_buf.size() - out_size);
+            if (r <= 0) break;
+            out_size += static_cast<util::usize>(r);
+        }
+        auto out = std::string_view{out_buf.data(), out_size};
+        check_eq("fd-probe-out", out, std::string_view{
+            "t0=1\n"
+            "t1=0\n"
+            "t2=1\n"
+            "bt=0\n"
+            "fs=0\n"
+            "ft=0\n"
+            "bs=-1\n"
+        });
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
     void test_elf_real_samples() noexcept {
         Harness h{};
         h.bind_env();
@@ -1277,6 +1360,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_elf_header_stub();
     test_elf_file_spawn();
     test_elf_file_samples_probe();
+    test_elf_file_fd_probe();
     test_elf_real_samples();
     test_echo_to_file();
     test_cat_from_file();

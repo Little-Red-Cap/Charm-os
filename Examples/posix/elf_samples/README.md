@@ -12,6 +12,8 @@
 | `stderr_demo` | `elfmem:stderr_demo` / `elf:/stderr_demo.elf` | stdout: `out\n`, stderr: `err\n`, exit=0 | `0/1/2` 分流、stderr 重定向 | `.elf.inc` 内嵌 + `register_elf_mem`；RAMFS 文件输入 | 增加 `2>&1`/文件重定向 |
 | `exit_code` | `elfmem:exit_code 7` / `elf:/exit_code.elf 7` | wait status code=7 | 入口参数、退出码回收 | `.elf.inc` 内嵌 + `register_elf_mem`；RAMFS 文件输入 | 增加 shell/管道状态传递 |
 | `cat_file` | `elf:/cat_file.elf /cat.txt` | stdout: `cat-data\nsize=9\n`, stderr: empty, exit=0 | `open/read/close/fstat/isatty` 最小文件链 | RAMFS 文件输入 | 推进到真实 VFS/包输入，并补 stdin 版本 |
+| `fd_probe` | `elf:/fd_probe.elf /cat.txt` | stdout: fd summary, exit=0 | fd 语义探针 (`isatty/fstat` + 错误路径) | RAMFS 文件输入 | 扩展到更多 fd 类型对照 |
+| d_probe | elf:/fd_probe.elf /cat.txt | stdout: fd summary, exit=0 | fd 语义探针 (isatty/fstat + 错误路径) | RAMFS 文件输入 | 扩展到更多 fd 类型对照 |
 
 ## 生成方式
 

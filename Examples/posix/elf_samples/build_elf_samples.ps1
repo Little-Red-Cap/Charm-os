@@ -54,7 +54,8 @@ $samples = @(
     "argv_dump",
     "stderr_demo",
     "exit_code",
-    "cat_file"
+    "cat_file",
+    "fd_probe"
 )
 
 foreach ($name in $samples) {

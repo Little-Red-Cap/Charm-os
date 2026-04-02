@@ -61,3 +61,5 @@
 - 严格模式收口：`Examples/kernel/windows/CMakeLists.txt` 对可执行目标与 `Charm-os` 同时开启 `CHARM_KERNEL_REQUIRE_SSU_META=1`。
 - 构建命令：`cmake -S Examples/kernel/windows -B Examples/kernel/windows/build-ninja -G Ninja -DCMAKE_BUILD_TYPE=Debug`，`cmake --build Examples/kernel/windows/build-ninja -j 8`。
 - 当前结果：严格模式构建通过；样板已接入 `EventSource/SsuOverview/SsuHotspots` 导出调用。
+
+- run_loop 审计输出样例已接入 `Examples/project/player/win/main.cpp`，启动可见 `[runloop.audit]`。

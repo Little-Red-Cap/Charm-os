@@ -646,9 +646,12 @@ int main(int argc, char** argv) {
     };
     charm::system::RunLoop<4> loop{};
     loop.bind_clock(g_clock);
-    (void)loop.add_step(charm::system::LoopPhase::io, &loop_poll_events, &loop_state, "player_io", charm::system::kSubmitProjectionEvent);
-    (void)loop.add_step(charm::system::LoopPhase::update, &loop_update, &loop_state, "player_update", charm::system::kSubmitProjectionEvent);
-    (void)loop.add_step(charm::system::LoopPhase::render, &loop_render, &loop_state, "player_render", charm::system::kSubmitProjectionEvent);
+    (void)loop.add_step(charm::system::LoopPhase::io, charm::system::SubmitProjection::event, &loop_poll_events, &loop_state, "player_io");
+    (void)loop.add_step(charm::system::LoopPhase::update, charm::system::SubmitProjection::event, &loop_update, &loop_state, "player_update");
+    (void)loop.add_step(charm::system::LoopPhase::render, charm::system::SubmitProjection::event, &loop_render, &loop_state, "player_render");
+    std::array<char, 384> run_loop_audit{};
+    (void)loop.format_audit_json(run_loop_audit.data(), run_loop_audit.size());
+    std::printf("[runloop.audit] %s\n", run_loop_audit.data());
     while (running) {
         loop.run_once();
         (void)win_w;

@@ -53,7 +53,7 @@ static void append_kv(char* out, unsigned long cap, unsigned long* len, const ch
 static int write_all(int fd, const char* buf, unsigned long len) {
     unsigned long off = 0;
     while (off < len) {
-        int w = elf_hostcalls()->write(fd, buf + off, len - off);
+        int w = write(fd, buf + off, len - off);
         if (w <= 0) return -1;
         off += (unsigned long)w;
     }
@@ -71,12 +71,12 @@ int entry(int argc, char** argv, char** envp) {
     unsigned long len = 0;
     out[0] = '\0';
 
-    append_kv(out, sizeof(out), &len, "t0=", elf_hostcalls()->isatty(0));
-    append_kv(out, sizeof(out), &len, "t1=", elf_hostcalls()->isatty(1));
-    append_kv(out, sizeof(out), &len, "t2=", elf_hostcalls()->isatty(2));
-    append_kv(out, sizeof(out), &len, "bt=", elf_hostcalls()->isatty(-1));
+    append_kv(out, sizeof(out), &len, "t0=", isatty(0));
+    append_kv(out, sizeof(out), &len, "t1=", isatty(1));
+    append_kv(out, sizeof(out), &len, "t2=", isatty(2));
+    append_kv(out, sizeof(out), &len, "bt=", isatty(-1));
 
-    int fd = elf_hostcalls()->open(path, O_RDONLY, 0);
+    int fd = open(path, O_RDONLY, 0);
     if (fd < 0) {
         const char* msg = "open fail\n";
         (void)write_all(1, msg, cstr_len(msg));
@@ -84,13 +84,13 @@ int entry(int argc, char** argv, char** envp) {
     }
 
     PosixStat st;
-    int st_rc = elf_hostcalls()->fstat(fd, &st);
+    int st_rc = fstat(fd, &st);
     append_kv(out, sizeof(out), &len, "fs=", st_rc);
-    append_kv(out, sizeof(out), &len, "ft=", elf_hostcalls()->isatty(fd));
-    append_kv(out, sizeof(out), &len, "bs=", elf_hostcalls()->fstat(-1, &st));
+    append_kv(out, sizeof(out), &len, "ft=", isatty(fd));
+    append_kv(out, sizeof(out), &len, "bs=", fstat(-1, &st));
 
     (void)write_all(1, out, len);
 
-    elf_hostcalls()->close(fd);
+    close(fd);
     return 0;
 }

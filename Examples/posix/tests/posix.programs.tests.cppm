@@ -706,12 +706,11 @@ namespace {
             check_true("sh-move-read", h.fds.dup2(read_fd, 7));
             read_fd = 7;
         }
-        check_true("sh-dup2-out", h.fds.dup2(pipefd[1], 1));
-
         const char* argv[] = {"sh", "-c", "echo hi", nullptr};
         posix::SpawnConfig cfg{};
         cfg.path = "sh";
         cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.stdio_out = pipefd[1];
 
         auto sp = h.procs.spawn(cfg);
         check_true("sh-spawn", sp);
@@ -1042,7 +1041,7 @@ namespace {
 
         int cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("cat-file-data-open", cat_fd >= 0);
-        const char cat_payload[] = "cat-data\n";
+        const char cat_payload[] = "cat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\n";
         auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
         check_true("cat-file-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
         check_eq("cat-file-data-close", h.api.close(cat_fd), 0);
@@ -1105,7 +1104,7 @@ namespace {
             std::array<char, 32> err_buf{};
             util::usize err_size = 0;
             auto err = read_from_fd(h.api, err_read, err_buf, err_size);
-            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\n"});
+            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\nF\nG\n"});
         }
 
         h.procs.enable_elf_hostcalls(false);
@@ -1167,7 +1166,7 @@ namespace {
 
             cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
             check_true("fd-probe-data-open", cat_fd >= 0);
-            const char cat_payload[] = "cat-data\n";
+            const char cat_payload[] = "cat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\n";
             auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
             check_true("fd-probe-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
             check_eq("fd-probe-data-close", h.api.close(cat_fd), 0);

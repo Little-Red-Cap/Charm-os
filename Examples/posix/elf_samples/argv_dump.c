@@ -11,7 +11,7 @@ static unsigned long cstr_len(const char* s) {
 
 static void write_str(const char* s) {
     if (!s) return;
-    elf_hostcalls()->write(1, s, cstr_len(s));
+    write(1, s, cstr_len(s));
 }
 
 static void write_uint(unsigned int v) {
@@ -26,7 +26,7 @@ static void write_uint(unsigned int v) {
         }
     }
     for (int j = i - 1; j >= 0; --j) {
-        elf_hostcalls()->write(1, &buf[j], 1);
+        write(1, &buf[j], 1);
     }
 }
 

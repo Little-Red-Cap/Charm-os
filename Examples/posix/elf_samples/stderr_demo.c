@@ -8,7 +8,7 @@ int entry(int argc, char** argv, char** envp) {
     (void)envp;
     const char out[] = "out\n";
     const char err[] = "err\n";
-    elf_hostcalls()->write(1, out, sizeof(out) - 1);
-    elf_hostcalls()->write(2, err, sizeof(err) - 1);
+    write(1, out, sizeof(out) - 1);
+    write(2, err, sizeof(err) - 1);
     return 0;
 }

@@ -6,12 +6,15 @@ module;
 #include <cstdio>
 #include <span>
 #include <string_view>
+#ifdef errno
+#undef errno
+#endif
 
 export module posix.proc;
 
 import init.node;
 import posix.env;
-import posix__errno;
+import posix.errno;
 import posix.fd_table;
 import posix.file;
 import posix.program_image;

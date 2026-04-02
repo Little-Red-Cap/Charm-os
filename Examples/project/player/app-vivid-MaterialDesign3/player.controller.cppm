@@ -1177,11 +1177,21 @@ export namespace player {
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            const auto* labels = self->storage.track_labels;
-            if (!labels) return "";
+            const auto* titles = self->storage.track_titles;
+            if (!titles) return "";
             const int track_index = self->list_index_to_track(static_cast<int>(index));
-            if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return "";
-            return (*labels)[static_cast<std::size_t>(track_index)].c_str();
+            if (track_index < 0 || track_index >= static_cast<int>(titles->size())) return "";
+            return (*titles)[static_cast<std::size_t>(track_index)].c_str();
+        }
+
+        static const char* list_view_subtitle(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return "";
+            const auto* subtitles = self->storage.track_subtitles;
+            if (!subtitles) return "";
+            const int track_index = self->list_index_to_track(static_cast<int>(index));
+            if (track_index < 0 || track_index >= static_cast<int>(subtitles->size())) return "";
+            return (*subtitles)[static_cast<std::size_t>(track_index)].c_str();
         }
 
         static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
@@ -1342,9 +1352,10 @@ export namespace player {
                                          static_cast<std::uint16_t>(count),
                                          this,
                                          &PlayerController::list_view_text);
+            access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
-            access.set_list_row_height(handles.list, 60);
-            access.set_scroll_step(handles.list, 60);
+            access.set_list_row_height(handles.list, 72);
+            access.set_scroll_step(handles.list, 72);
             if (count > 0) {
                 sync_list_selection();
             } else {

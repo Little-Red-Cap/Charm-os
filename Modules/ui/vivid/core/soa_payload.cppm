@@ -270,6 +270,7 @@ export namespace soa_detail {
     };
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
+    using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = ImageId (*)(const void*, std::uint16_t) noexcept;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TableViewHeaderFn = const char* (*)(const void*, std::uint8_t) noexcept;
@@ -281,6 +282,8 @@ export namespace soa_detail {
     struct ListViewPayload {
         const void* text_ctx{nullptr};
         ListViewTextFn text_fn{nullptr};
+        const void* subtitle_ctx{nullptr};
+        ListViewSubtitleFn subtitle_fn{nullptr};
         const void* icon_ctx{nullptr};
         ListViewIconFn icon_fn{nullptr};
         std::uint16_t count{0};

@@ -1021,9 +1021,15 @@ export namespace posix {
             auto* ctx = current_exec_context();
             if (!ctx) return 0;
             auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) return 0;
+            if (!table) {
+                clear_exec_errno();
+                return 0;
+            }
             auto entry = table->get(fd);
-            if (!entry) return 0;
+            if (!entry) {
+                clear_exec_errno();
+                return 0;
+            }
             clear_exec_errno();
             return entry.value()->kind == FdKind::term ? 1 : 0;
         }

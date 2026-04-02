@@ -1245,7 +1245,7 @@ namespace {
         check_eq("fd-probe-out-pipe", h.api.pipe(out_pipe), 0);
         check_true("fd-probe-dup2-out", h.fds.dup2(out_pipe[1], 1));
 
-        const char* argv[] = {"elf:/fd_probe.elf", "/cat.txt", nullptr};
+        const char* argv[] = {"elf:/fd_probe.elf", "/missing.txt", nullptr};
         posix::SpawnConfig cfg{};
         cfg.path = "elf:/fd_probe.elf";
         cfg.argv = std::span<const char* const>(argv, 2);
@@ -1268,15 +1268,7 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("fd-probe-out", out, std::string_view{
-            "t0=1\n"
-            "t1=0\n"
-            "t2=1\n"
-            "bt=0\n"
-            "fs=0\n"
-            "ft=0\n"
-            "bs=-1\n"
-        });
+        check_eq("fd-probe-out", out, std::string_view{"errno-ok\n"});
 
         (void)h.fds.dup2(2, 1);
         h.procs.enable_elf_hostcalls(false);

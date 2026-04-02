@@ -1365,7 +1365,9 @@ namespace {
             cfg.path = "elfmem:hello";
             cfg.argv = std::span<const char* const>(argv, 1);
             auto sp = spawn_checked("elf-real-hello-spawn", cfg);
-            (void)h.procs.waitpid(sp.pid, 0);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-hello-wait", st);
+            check_eq("elf-real-hello-code", st.value().code, 0);
             if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
             std::array<char, 16> buf{};
             util::usize out_size = 0;
@@ -1382,7 +1384,9 @@ namespace {
             cfg.path = "elfmem:argv_dump";
             cfg.argv = std::span<const char* const>(argv, 3);
             auto sp = spawn_checked("elf-real-argv-spawn", cfg);
-            (void)h.procs.waitpid(sp.pid, 0);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-argv-wait", st);
+            check_eq("elf-real-argv-code", st.value().code, 0);
             if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
             std::array<char, 96> buf{};
             util::usize out_size = 0;
@@ -1408,7 +1412,9 @@ namespace {
             cfg.path = "elfmem:stderr_demo";
             cfg.argv = std::span<const char* const>(argv, 1);
             auto sp = spawn_checked("elf-real-stderr-spawn", cfg);
-            (void)h.procs.waitpid(sp.pid, 0);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-wait", st);
+            check_eq("elf-real-stderr-code", st.value().code, 0);
             std::array<char, 16> out_buf{};
             std::array<char, 16> err_buf{};
             util::usize out_size = 0;

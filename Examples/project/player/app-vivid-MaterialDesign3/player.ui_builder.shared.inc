@@ -383,62 +383,42 @@
     };
 
     static StylePatch make_player_text_patch(PlayerTextRole role, const rgba& color) {
-        StylePatch patch{};
-        patch.has_font_color = true;
-        patch.font_color = color;
+        ::ui::scene::TextStyleSpec spec{};
+        spec.color = color;
         switch (role) {
         case PlayerTextRole::HeroTitle:
-            patch.has_font = true;
-            patch.font = &get_player_font_px(72, FontWeight::Bold);
+            spec.explicit_font = &get_player_font_px(72, FontWeight::Bold);
+            spec.emphasis = ::ui::scene::TextEmphasis::Emphasis;
             break;
         case PlayerTextRole::HeroSubtitle:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Normal;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Regular;
+            spec.font_role = FontId::Normal;
+            spec.font_weight = FontWeight::Regular;
             break;
         case PlayerTextRole::PageTitle:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Normal;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Bold;
+            spec.font_role = FontId::Normal;
+            spec.font_weight = FontWeight::Bold;
+            spec.emphasis = ::ui::scene::TextEmphasis::Emphasis;
             break;
         case PlayerTextRole::PageSubtitle:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Small;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Regular;
+            spec.font_role = FontId::Small;
+            spec.font_weight = FontWeight::Regular;
             break;
         case PlayerTextRole::CardTitle:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Normal;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Bold;
+            spec.font_role = FontId::Normal;
+            spec.font_weight = FontWeight::Bold;
+            spec.emphasis = ::ui::scene::TextEmphasis::Emphasis;
             break;
         case PlayerTextRole::CardBody:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Small;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Regular;
+            spec.font_role = FontId::Small;
+            spec.font_weight = FontWeight::Regular;
             break;
         case PlayerTextRole::MetaText:
-            patch.has_font_role = true;
-            patch.font_role = FontId::Small;
-            patch.has_font_weight = true;
-            patch.font_weight = FontWeight::Regular;
+            spec.font_role = FontId::Small;
+            spec.font_weight = FontWeight::Regular;
+            spec.emphasis = ::ui::scene::TextEmphasis::Meta;
             break;
         }
-        patch.has_bg_color = true;
-        patch.bg_color = {0, 0, 0, 0};
-        patch.has_border_color = true;
-        patch.border_color = {0, 0, 0, 0};
-        patch.has_border_width = true;
-        patch.border_width = 0;
-        patch.has_padding = true;
-        patch.padding = 0;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 0;
-        return patch;
+        return ::ui::scene::make_text_style_patch(spec);
     }
 
     static void apply_player_text_style(::ui::scene::SceneBuilder& builder,

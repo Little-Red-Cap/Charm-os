@@ -24,6 +24,7 @@ export import charm.ui.scene.page_header;
 export import charm.ui.scene.pill;
 export import charm.ui.scene.pill_surface;
 export import charm.ui.scene.list_card_header;
+export import charm.ui.scene.text_style;
 
 export import charm.font;
 export import charm.font.typography;

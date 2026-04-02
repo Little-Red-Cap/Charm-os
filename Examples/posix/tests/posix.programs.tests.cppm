@@ -424,6 +424,39 @@ namespace {
         h.unbind_env();
     }
 
+    void test_exit_code_explicit_exit() noexcept {
+        Harness h{};
+        h.bind_env();
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+        check_true("exit-abi-reg", h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+
+        int pipefd[2]{-1, -1};
+        check_eq("exit-abi-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"elfmem:exit_code", "23", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elfmem:exit_code";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.stdio_out = pipefd[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("exit-abi-spawn", sp);
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("exit-abi-wait", st);
+        check_eq("exit-abi-code", st.value().code, 23);
+        (void)h.api.close(pipefd[1]);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("exit-abi-out", out, std::string_view{});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
     void test_stderr_demo() noexcept {
         Harness h{};
         h.bind_env();
@@ -1567,6 +1600,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_hello();
     test_argv_dump();
     test_exit_code();
+    test_exit_code_explicit_exit();
     test_stderr_demo();
     test_modulex_register();
     test_elf_prefix_stub();

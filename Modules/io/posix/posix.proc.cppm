@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <csetjmp>
 #include <cstdio>
 #include <span>
 #include <string_view>
@@ -762,6 +763,8 @@ export namespace posix {
             int errno_value{0};
             bool exit_requested{false};
             int exit_code{0};
+            bool jump_ready{false};
+            std::jmp_buf* exit_jmp{nullptr};
             ExecContext* previous{nullptr};
         };
 
@@ -797,13 +800,23 @@ export namespace posix {
                     if (hook) hook(pid, hook_ctx);
                 }
             } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx};
+            auto finalize_exit = [&](int rc) noexcept -> int {
+                return exec_ctx.exit_requested ? exec_ctx.exit_code : rc;
+            };
+            std::jmp_buf exit_jmp{};
+            exec_ctx.exit_jmp = &exit_jmp;
+            exec_ctx.jump_ready = true;
+            const int jump_rc = setjmp(exit_jmp);
+            if (jump_rc != 0) {
+                return finalize_exit(exec_ctx.exit_code);
+            }
             if (image.entry) {
                 const int rc = image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
-                return exec_ctx.exit_requested ? exec_ctx.exit_code : rc;
+                return finalize_exit(rc);
             }
             if (image.entry_v0) {
                 const int rc = image.entry_v0(argv_envp.value().argc, argv_envp.value().argv);
-                return exec_ctx.exit_requested ? exec_ctx.exit_code : rc;
+                return finalize_exit(rc);
             }
             return util::unexpected(util::Errc::invalid_arg);
         }
@@ -883,6 +896,9 @@ export namespace posix {
             if (!ctx) return;
             ctx->exit_requested = true;
             ctx->exit_code = code;
+            if (ctx->jump_ready && ctx->exit_jmp) {
+                std::longjmp(*ctx->exit_jmp, 1);
+            }
         }
 
         struct ElfHostStat {

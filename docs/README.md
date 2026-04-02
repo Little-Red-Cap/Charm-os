@@ -138,3 +138,4 @@ docs/
 
 ### UI
 - `docs/ui/player_ui.md`
+- `docs/ui/player_vivid_patterns.md`

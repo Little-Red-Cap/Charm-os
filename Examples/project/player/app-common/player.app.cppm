@@ -102,6 +102,9 @@ export namespace player {
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.init_pages();
+            if constexpr (requires { controller.refresh_exact_font_styles(); }) {
+                controller.refresh_exact_font_styles();
+            }
             controller.focus_list();
             controller.set_time_label(0);
             controller.mount_status.assign("Mounting storage...");

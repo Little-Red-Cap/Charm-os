@@ -40,6 +40,119 @@
         int text_gap{};
     };
 
+    struct HomeLayout {
+        int scroll_bottom_gap{};
+        int scroll_step{};
+        int scroll_extra{};
+        int title_x{};
+        int title_y{};
+        int title_w{};
+        int title_line_h{};
+        int title_line_gap{};
+        int subtitle_y{};
+        int subtitle_h{};
+        int play_size{};
+        int play_icon_px{};
+        int play_y{};
+        int collage_x{};
+        int collage_y{};
+        int collage_big{};
+        int collage_small_left{};
+        int collage_small_right{};
+        int collage_small_center{};
+        int stat_card_x{};
+        int stat_card_y{};
+        int stat_card_w{};
+        int stat_card_h{};
+        int stat_card_gap{};
+        int toolbar_button_size{};
+        int toolbar_icon_px{};
+        int toolbar_button_gap{};
+    };
+
+    struct NowPlayingLayout {
+        int text_padding{};
+        int controls_padding{};
+        int time_padding{};
+        int cover_corner_radius{};
+        int collage_small{};
+        int collage_tiny{};
+        int collage_left_dx{};
+        int collage_left_dy{};
+        int collage_right_dx{};
+        int collage_right_dy{};
+        int collage_corner_radius{};
+        int collage_shadow_alpha{};
+        int collage_shadow_offset_y{};
+        int collage_shadow_spread{};
+        int collage_shadow_radius{};
+        int control_side{};
+        int control_play{};
+        int control_gap{};
+        int control_side_icon{};
+        int control_play_icon{};
+        int time_side_w{};
+        int time_min_info_w{};
+        int time_inner_gap{};
+        int top_button_size{};
+        int top_back_icon{};
+        int top_more_icon{};
+        int top_title_x{};
+        int top_title_y{};
+        int top_title_h{};
+        int top_title_side_gap{};
+        int lyrics_button_w{};
+        int cover_debug_gap{};
+        int cover_debug_h{};
+    };
+
+    struct LibraryLayout {
+        int tabs_padding{};
+        int shuffle_padding{};
+        int nav_padding{};
+        int top_title_x{};
+        int top_title_y{};
+        int top_title_h{};
+        int top_title_right_gap{};
+        int top_button_size{};
+        int top_icon_px{};
+        int top_button_right_gap{};
+        int shuffle_w{};
+        int list_row_h{};
+        int list_header_h{};
+        int list_title_h{};
+        int list_path_h{};
+        int list_title_top_gap{};
+        int list_title_left_gap{};
+        int list_title_right_gap{};
+        int list_sort_w{};
+        int list_sort_h{};
+        int list_sort_top_offset{};
+        int list_sort_right_gap{};
+        int list_path_top_gap{};
+        int list_path_side_gap{};
+        int list_path_bg_h_extra{};
+        int list_path_bg_radius{};
+        int list_path_icon_left_gap{};
+        int list_path_icon_top_gap{};
+        int list_path_icon_size{};
+        int list_path_icon_px{};
+        int list_path_text_left{};
+        int list_path_text_top{};
+        int list_path_text_right_gap{};
+        int list_sort_radius{};
+        int list_path_icon_radius{};
+        int list_body_top_gap{};
+        int list_body_bottom_gap{};
+        int list_body_side_gap{};
+        int list_scroll_w{};
+        int list_scroll_right_gap{};
+        int list_hint_left_gap{};
+        int list_hint_bottom_gap{};
+        int list_hint_h{};
+        int list_hint_right_gap{};
+    };
+
     static void anchor_rect(::ui::scene::SceneBuilder& builder, WidgetHandle h, const Rect& r) noexcept {
         builder.set_rect(h, r);
     }
@@ -138,6 +251,127 @@
         };
     }
 
+    static HomeLayout make_home_layout(const UiLayout& layout) noexcept {
+        const int title_y = layout.top_bar_y + 8;
+        const int collage_big = 286;
+        return HomeLayout{
+            .scroll_bottom_gap = 8,
+            .scroll_step = 32,
+            .scroll_extra = 560,
+            .title_x = kUiPadding,
+            .title_y = title_y,
+            .title_w = screen_width - kUiPadding * 2 - 96,
+            .title_line_h = 102,
+            .title_line_gap = 86,
+            .subtitle_y = title_y + 194,
+            .subtitle_h = 30,
+            .play_size = 78,
+            .play_icon_px = 28,
+            .play_y = title_y + 78,
+            .collage_x = (screen_width - collage_big) / 2,
+            .collage_y = title_y + 230,
+            .collage_big = collage_big,
+            .collage_small_left = 88,
+            .collage_small_right = 76,
+            .collage_small_center = 70,
+            .stat_card_x = kUiPadding,
+            .stat_card_y = title_y + 230 + collage_big + 118,
+            .stat_card_w = screen_width - kUiPadding * 2,
+            .stat_card_h = 76,
+            .stat_card_gap = 14,
+            .toolbar_button_size = 40,
+            .toolbar_icon_px = 14,
+            .toolbar_button_gap = 48,
+        };
+    }
+
+    static NowPlayingLayout make_now_playing_layout() noexcept {
+        return NowPlayingLayout{
+            .text_padding = 0,
+            .controls_padding = 0,
+            .time_padding = 0,
+            .cover_corner_radius = 28,
+            .collage_small = 64,
+            .collage_tiny = 52,
+            .collage_left_dx = -18,
+            .collage_left_dy = -8,
+            .collage_right_dx = 18,
+            .collage_right_dy = 28,
+            .collage_corner_radius = 12,
+            .collage_shadow_alpha = 80,
+            .collage_shadow_offset_y = 2,
+            .collage_shadow_spread = 2,
+            .collage_shadow_radius = 10,
+            .control_side = 96,
+            .control_play = 116,
+            .control_gap = 14,
+            .control_side_icon = 24,
+            .control_play_icon = 30,
+            .time_side_w = 52,
+            .time_min_info_w = 170,
+            .time_inner_gap = 16,
+            .top_button_size = 40,
+            .top_back_icon = 20,
+            .top_more_icon = 14,
+            .top_title_x = 48,
+            .top_title_y = 8,
+            .top_title_h = 24,
+            .top_title_side_gap = 96,
+            .lyrics_button_w = 40,
+            .cover_debug_gap = 4,
+            .cover_debug_h = 12,
+        };
+    }
+
+    static LibraryLayout make_library_layout() noexcept {
+        return LibraryLayout{
+            .tabs_padding = 0,
+            .shuffle_padding = 0,
+            .nav_padding = 0,
+            .top_title_x = 8,
+            .top_title_y = 8,
+            .top_title_h = 24,
+            .top_title_right_gap = 56,
+            .top_button_size = 40,
+            .top_icon_px = 14,
+            .top_button_right_gap = 44,
+            .shuffle_w = 120,
+            .list_row_h = 60,
+            .list_header_h = 76,
+            .list_title_h = 18,
+            .list_path_h = 16,
+            .list_title_top_gap = 10,
+            .list_title_left_gap = 12,
+            .list_title_right_gap = 84,
+            .list_sort_w = 54,
+            .list_sort_h = 28,
+            .list_sort_top_offset = -6,
+            .list_sort_right_gap = 66,
+            .list_path_top_gap = 6,
+            .list_path_side_gap = 12,
+            .list_path_bg_h_extra = 8,
+            .list_path_bg_radius = 10,
+            .list_path_icon_left_gap = 6,
+            .list_path_icon_top_gap = 2,
+            .list_path_icon_size = 24,
+            .list_path_icon_px = 12,
+            .list_path_text_left = 28,
+            .list_path_text_top = 4,
+            .list_path_text_right_gap = 36,
+            .list_sort_radius = 12,
+            .list_path_icon_radius = 10,
+            .list_body_top_gap = 18,
+            .list_body_bottom_gap = 18,
+            .list_body_side_gap = 8,
+            .list_scroll_w = 8,
+            .list_scroll_right_gap = 10,
+            .list_hint_left_gap = 12,
+            .list_hint_bottom_gap = 22,
+            .list_hint_h = 18,
+            .list_hint_right_gap = 24,
+        };
+    }
+
     static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
                                        const Font& font) {
         StylePatch patch{};
@@ -169,6 +403,56 @@
 
     static void apply_info_tag_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
         builder.set_style_class(h, static_cast<StyleClassId>(PlayerStyleClass::InfoTag));
+    }
+
+    static void apply_home_cover_style(::ui::scene::SceneBuilder& builder,
+                                       WidgetHandle h,
+                                       int size,
+                                       bool with_shadow) {
+        StylePatch patch{};
+        patch.has_corner_radius = true;
+        patch.corner_radius = size / 2;
+        if (with_shadow) {
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 6;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 2;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 16;
+        }
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_now_cover_style(::ui::scene::SceneBuilder& builder,
+                                      WidgetHandle h,
+                                      int corner_radius,
+                                      bool with_shadow,
+                                      std::uint8_t shadow_alpha,
+                                      int shadow_offset_y,
+                                      int shadow_spread,
+                                      int shadow_radius) {
+        StylePatch patch{};
+        patch.has_corner_radius = true;
+        patch.corner_radius = corner_radius;
+        if (with_shadow) {
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = {0, 0, 0, shadow_alpha};
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = shadow_offset_y;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = shadow_spread;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = shadow_radius;
+        }
+        builder.set_style_override(h, patch);
     }
 
     static void apply_top_bar_button_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {

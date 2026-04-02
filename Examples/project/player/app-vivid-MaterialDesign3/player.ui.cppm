@@ -18,6 +18,7 @@ import charm.gfx.image;
 import charm.font;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
+import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
@@ -719,11 +720,11 @@ export namespace player::ui {
 
     inline void apply_player_theme() {
         if (!font_package_bound()) {
-            set_default_font(FontId::Small, &font_noto_ascii_16);
+            set_default_font(FontId::Small, &font_noto_ascii_12);
             set_default_font(FontId::Normal, &font_noto_ascii_16);
             set_default_font(FontId::Large, &font_noto_ascii_16);
             set_default_font(FontId::Mono, &font_noto_ascii_16);
-            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_16);
+            set_default_font_weight(FontId::Small, FontWeight::Regular, &font_noto_ascii_12);
             set_default_font_weight(FontId::Normal, FontWeight::Regular, &font_noto_ascii_16);
             set_default_font_weight(FontId::Large, FontWeight::Regular, &font_noto_ascii_16);
             set_default_font_weight(FontId::Mono, FontWeight::Regular, &font_noto_ascii_16);

@@ -9,6 +9,8 @@ export module player.ui_builder;
 import charm.core.config;
 import charm.core.geometry;
 import charm.ui.scene;
+import charm.ui.scene.page_header;
+import charm.ui.scene.pill;
 import charm.font.typography;
 import player.controller;
 import player.ui;

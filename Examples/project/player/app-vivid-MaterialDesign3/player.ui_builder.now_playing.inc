@@ -1,9 +1,7 @@
 ﻿    static void build_now_playing(::ui::scene::SceneBuilder& builder, UiHandles& h,
                                   const UiLayout& layout, const NowTextLayout& text_layout,
                                   const PlayerIconIds& icons) {
-        constexpr int kNowTextPadding = 0;
-        constexpr int kNowControlsPadding = 0;
-        constexpr int kNowTimePadding = 0;
+        const NowPlayingLayout now_layout = make_now_playing_layout();
         const int title_h = text_layout.title_h;
         const int subtitle_h = text_layout.subtitle_h;
         const int progress_h = text_layout.progress_h;
@@ -16,61 +14,34 @@
 
         h.cover = builder.create_image();
         anchor_rect(builder, h.cover, {layout.cover_x, layout.cover_y, kCoverSize, kCoverSize});
-        {
-            StylePatch patch{};
-            patch.has_corner_radius = true;
-            patch.corner_radius = 28;
-            builder.set_style_override(h.cover, patch);
-        }
+        apply_now_cover_style(builder, h.cover, now_layout.cover_corner_radius, false, 0, 0, 0, 0);
 
         constexpr bool kShowCoverCollage = false;
         if (kShowCoverCollage) {
-            const int collage_small = 64;
-            const int collage_tiny = 52;
+            const int collage_small = now_layout.collage_small;
+            const int collage_tiny = now_layout.collage_tiny;
             h.cover_left = builder.create_image();
-            anchor_rect(builder, h.cover_left, {layout.cover_x - 18,
-                                                layout.cover_y + kCoverSize - collage_small - 8,
+            anchor_rect(builder, h.cover_left, {layout.cover_x + now_layout.collage_left_dx,
+                                                layout.cover_y + kCoverSize - collage_small + now_layout.collage_left_dy,
                                                 collage_small, collage_small});
-            {
-                StylePatch patch{};
-                patch.has_corner_radius = true;
-                patch.corner_radius = 12;
-                patch.has_shadow_enabled = true;
-                patch.shadow_enabled = true;
-                patch.has_shadow_color = true;
-                patch.shadow_color = {0, 0, 0, 80};
-                patch.has_shadow_offset_x = true;
-                patch.shadow_offset_x = 0;
-                patch.has_shadow_offset_y = true;
-                patch.shadow_offset_y = 2;
-                patch.has_shadow_spread = true;
-                patch.shadow_spread = 2;
-                patch.has_shadow_radius = true;
-                patch.shadow_radius = 10;
-                builder.set_style_override(h.cover_left, patch);
-            }
+            apply_now_cover_style(builder, h.cover_left,
+                                  now_layout.collage_corner_radius,
+                                  true,
+                                  static_cast<std::uint8_t>(now_layout.collage_shadow_alpha),
+                                  now_layout.collage_shadow_offset_y,
+                                  now_layout.collage_shadow_spread,
+                                  now_layout.collage_shadow_radius);
             h.cover_right = builder.create_image();
-            anchor_rect(builder, h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + 18,
-                                                 layout.cover_y + kCoverSize / 2 + 28,
+            anchor_rect(builder, h.cover_right, {layout.cover_x + kCoverSize - collage_tiny + now_layout.collage_right_dx,
+                                                 layout.cover_y + kCoverSize / 2 + now_layout.collage_right_dy,
                                                  collage_tiny, collage_tiny});
-            {
-                StylePatch patch{};
-                patch.has_corner_radius = true;
-                patch.corner_radius = 12;
-                patch.has_shadow_enabled = true;
-                patch.shadow_enabled = true;
-                patch.has_shadow_color = true;
-                patch.shadow_color = {0, 0, 0, 80};
-                patch.has_shadow_offset_x = true;
-                patch.shadow_offset_x = 0;
-                patch.has_shadow_offset_y = true;
-                patch.shadow_offset_y = 2;
-                patch.has_shadow_spread = true;
-                patch.shadow_spread = 2;
-                patch.has_shadow_radius = true;
-                patch.shadow_radius = 10;
-                builder.set_style_override(h.cover_right, patch);
-            }
+            apply_now_cover_style(builder, h.cover_right,
+                                  now_layout.collage_corner_radius,
+                                  true,
+                                  static_cast<std::uint8_t>(now_layout.collage_shadow_alpha),
+                                  now_layout.collage_shadow_offset_y,
+                                  now_layout.collage_shadow_spread,
+                                  now_layout.collage_shadow_radius);
         }
 
         h.title = builder.create_label_static("");
@@ -169,33 +140,30 @@
         h.clip_value = builder.create_label_static("");
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
-        constexpr int control_side = 96;
-        constexpr int control_play = 116;
-        const int small_btn = control_side;
-        const int play_btn = control_play;
-        const int btn_gap = 14;
-        const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, control_play};
-        ::ui::scene::RowBuilder controls_row{builder, controls_rect, btn_gap, kNowControlsPadding,
+        const int small_btn = now_layout.control_side;
+        const int play_btn = now_layout.control_play;
+        const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, now_layout.control_play};
+        ::ui::scene::RowBuilder controls_row{builder, controls_rect, now_layout.control_gap, now_layout.controls_padding,
                                              ::ui::scene::LayoutAlign::Center};
         h.controls = controls_row.root();
 
         h.btn_prev = builder.create_button_static("");
         controls_row.add(h.btn_prev, small_btn, small_btn);
         builder.set_button_icon(h.btn_prev, icons.prev);
-        builder.set_button_icon_size(h.btn_prev, 24);
-        apply_control_side_style(builder, h.btn_prev, small_btn, 24);
+        builder.set_button_icon_size(h.btn_prev, now_layout.control_side_icon);
+        apply_control_side_style(builder, h.btn_prev, small_btn, now_layout.control_side_icon);
 
         h.btn_pause = builder.create_button_static("");
         controls_row.add(h.btn_pause, play_btn, play_btn);
         builder.set_button_icon(h.btn_pause, icons.play);
-        builder.set_button_icon_size(h.btn_pause, 30);
-        apply_control_play_style(builder, h.btn_pause, play_btn, 30);
+        builder.set_button_icon_size(h.btn_pause, now_layout.control_play_icon);
+        apply_control_play_style(builder, h.btn_pause, play_btn, now_layout.control_play_icon);
 
         h.btn_next = builder.create_button_static("");
         controls_row.add(h.btn_next, small_btn, small_btn);
         builder.set_button_icon(h.btn_next, icons.next);
-        builder.set_button_icon_size(h.btn_next, 24);
-        apply_control_side_style(builder, h.btn_next, small_btn, 24);
+        builder.set_button_icon_size(h.btn_next, now_layout.control_side_icon);
+        apply_control_side_style(builder, h.btn_next, small_btn, now_layout.control_side_icon);
 
         constexpr bool kShowModeButton = false;
         if constexpr (kShowModeButton) {
@@ -207,7 +175,7 @@
         {
             const Rect text_rect{kUiPadding, text_col_y,
                                  screen_width - kUiPadding * 2, text_col_h};
-            ::ui::scene::ColumnBuilder text_col{builder, text_rect, text_gap, kNowTextPadding,
+            ::ui::scene::ColumnBuilder text_col{builder, text_rect, text_gap, now_layout.text_padding,
                                                 ::ui::scene::LayoutAlign::Start};
             text_col_root = text_col.root();
             text_col.add(h.title, text_rect.w, title_h);
@@ -218,12 +186,13 @@
         {
             const int time_row_w = screen_width - kUiPadding * 2;
             const int time_row_x = kUiPadding;
-            const int time_side_w = 52;
-            const int info_w = std::max(170, time_row_w - time_side_w * 2 - 16);
+            const int time_side_w = now_layout.time_side_w;
+            const int info_w = std::max(now_layout.time_min_info_w,
+                                        time_row_w - time_side_w * 2 - now_layout.time_inner_gap);
             const int extra = time_row_w - (time_side_w * 2 + info_w);
             const int row_pad = (extra > 0) ? (extra / 2) : 0;
             const Rect time_row_rect{time_row_x, time_row_y, time_row_w, time_row_h};
-            ::ui::scene::RowBuilder time_row{builder, time_row_rect, 0, row_pad + kNowTimePadding,
+            ::ui::scene::RowBuilder time_row{builder, time_row_rect, 0, row_pad + now_layout.time_padding,
                                              ::ui::scene::LayoutAlign::Center};
             time_row_root = time_row.root();
             time_row.add(h.time_left, time_side_w, time_row_h);
@@ -237,8 +206,8 @@
             h.cover_debug = builder.create_label_static("");
             apply_time_label_style(builder, h.cover_debug);
             builder.set_label_align(h.cover_debug, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-            anchor_rect(builder, h.cover_debug, {kUiPadding, time_row_y + time_row_h + 4,
-                                                 screen_width - kUiPadding * 2, 12});
+            anchor_rect(builder, h.cover_debug, {kUiPadding, time_row_y + time_row_h + now_layout.cover_debug_gap,
+                                                 screen_width - kUiPadding * 2, now_layout.cover_debug_h});
             builder.set_hit_testable(h.cover_debug, false);
         }
 #endif
@@ -263,24 +232,44 @@
         }
 
         const WidgetHandle top_bar = builder.create_container();
-        anchor_rect(builder, top_bar, {layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h});
+        const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
+        anchor_rect(builder, top_bar, top_bar_rect);
         h.now_back = builder.create_button_static("");
-        anchor_rect(builder, h.now_back, {layout.top_bar_x, layout.top_bar_y, 40, 40});
+        anchor_rect(builder, h.now_back,
+                    ::ui::scene::page_header_left_rect(top_bar_rect,
+                                                       {.width = now_layout.top_button_size,
+                                                        .height = now_layout.top_button_size,
+                                                        .top_gap = 0}));
         builder.set_button_icon(h.now_back, icons.down);
-        builder.set_button_icon_size(h.now_back, 20);
+        builder.set_button_icon_size(h.now_back, now_layout.top_back_icon);
         apply_top_bar_button_style(builder, h.now_back);
         const WidgetHandle top_title = builder.create_label_static("Now Playing");
-        anchor_rect(builder, top_title, {layout.top_bar_x + 48, layout.top_bar_y + 8,
-                                         layout.top_bar_w - 96, 24});
+        anchor_rect(builder, top_title,
+                    ::ui::scene::page_header_title_rect(top_bar_rect,
+                                                        now_layout.top_title_x,
+                                                        now_layout.top_title_y,
+                                                        now_layout.top_title_side_gap,
+                                                        now_layout.top_title_h));
         const WidgetHandle top_more = builder.create_button_static("");
-        anchor_rect(builder, top_more, {layout.top_bar_x + layout.top_bar_w - 40, layout.top_bar_y, 40, 40});
+        anchor_rect(builder, top_more,
+                    ::ui::scene::page_header_right_rect(top_bar_rect,
+                                                        {.width = now_layout.top_button_size,
+                                                         .height = now_layout.top_button_size,
+                                                         .top_gap = 0},
+                                                        now_layout.top_button_size));
         builder.set_button_icon(top_more, icons.more);
-        builder.set_button_icon_size(top_more, 14);
+        builder.set_button_icon_size(top_more, now_layout.top_more_icon);
         apply_top_bar_button_style(builder, top_more);
         h.now_more = top_more;
 
         const WidgetHandle top_lyrics = builder.create_button_static("Lyrics");
-        anchor_rect(builder, top_lyrics, {layout.top_bar_x + layout.top_bar_w - 88, layout.top_bar_y, 40, 40});
+        const Rect lyrics_rect = ::ui::scene::page_header_right_rect(top_bar_rect,
+                                                                     {.width = now_layout.lyrics_button_w,
+                                                                      .height = now_layout.top_button_size,
+                                                                      .top_gap = 0},
+                                                                     now_layout.lyrics_button_w + now_layout.top_button_size + 8);
+        anchor_rect(builder, top_lyrics,
+                    lyrics_rect);
         builder.set_label_align(top_lyrics, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_top_bar_button_style(builder, top_lyrics);
         h.now_lyrics = top_lyrics;

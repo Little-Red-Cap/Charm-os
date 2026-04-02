@@ -1,4 +1,4 @@
-set(CHARM_FREETYPE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Modules/thirdparty/freetype")
+﻿set(CHARM_FREETYPE_DIR "${CMAKE_CURRENT_LIST_DIR}/../Modules/thirdparty/freetype")
 
 function(charm_link_freetype target_name)
     if (TARGET freetype)
@@ -15,8 +15,10 @@ function(charm_link_freetype target_name)
         set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
         set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
         add_subdirectory(${CHARM_FREETYPE_DIR} ${CMAKE_BINARY_DIR}/freetype)
+        target_compile_definitions(freetype PRIVATE CHARM_LIB_BUILD=1)
         target_link_libraries(${target_name} PRIVATE freetype)
         target_include_directories(${target_name} PRIVATE ${CHARM_FREETYPE_DIR}/include)
         target_compile_definitions(${target_name} PRIVATE CHARM_ENABLE_FREETYPE=1)
     endif()
 endfunction()
+

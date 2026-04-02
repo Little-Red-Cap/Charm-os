@@ -29,6 +29,30 @@
         anchor_rect(builder, library, {0, 0, screen_width, screen_height});
         h.page_library = library;
 
+        const WidgetHandle library_bg_top = builder.create_container();
+        anchor_rect(builder, library_bg_top, {0, 0, screen_width, screen_height / 2});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {52, 96, 146, 120};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            builder.set_style_patch(library_bg_top, patch);
+            builder.set_hit_testable(library_bg_top, false);
+        }
+
+        const WidgetHandle library_bg_bottom = builder.create_container();
+        anchor_rect(builder, library_bg_bottom, {0, screen_height / 3, screen_width, screen_height - screen_height / 3});
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {8, 24, 54, 165};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            builder.set_style_patch(library_bg_bottom, patch);
+            builder.set_hit_testable(library_bg_bottom, false);
+        }
+
         const WidgetHandle lib_top = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
         const ::ui::scene::TopBarTitleSpec lib_title_spec{
@@ -120,6 +144,8 @@
         const WidgetHandle list_card_root = list_card.root();
 
         builder.link(h.root, library);
+        builder.link(library, library_bg_top);
+        builder.link(library, library_bg_bottom);
         builder.link(library, lib_top);
         builder.link(lib_top, lib_title);
         builder.link(lib_top, lib_settings);

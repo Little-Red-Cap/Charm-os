@@ -141,6 +141,9 @@ export namespace player {
         WidgetHandle bottom_play{};
         WidgetHandle bottom_next{};
         WidgetHandle nav_bar{};
+        WidgetHandle nav_home_indicator{};
+        WidgetHandle nav_search_indicator{};
+        WidgetHandle nav_library_indicator{};
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
         WidgetHandle nav_library{};
@@ -624,18 +627,35 @@ export namespace player {
                 const bool show_bottom = (page == PlayerPage::Home || page == PlayerPage::Library);
                 access.set_visible(handles.bottom_bar, show_bottom);
             }
-            if (handles.nav_bar) {
-                const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
-                access.set_visible(handles.nav_bar, show_nav);
-            }
-            if (page == PlayerPage::Library) {
-                refresh_library();
-            } else if (page == PlayerPage::Home) {
-                refresh_home();
-            } else {
-                refresh_now_playing();
-            }
-        }
+              if (handles.nav_bar) {
+                  const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
+                  access.set_visible(handles.nav_bar, show_nav);
+              }
+              update_nav_page_indicator();
+              if (page == PlayerPage::Library) {
+                  refresh_library();
+              } else if (page == PlayerPage::Home) {
+                  refresh_home();
+              } else {
+                  refresh_now_playing();
+              }
+          }
+
+          void update_nav_page_indicator() {
+              if (!access.valid()) return;
+              auto set_indicator = [&](WidgetHandle h, bool active) {
+                  if (!h) return;
+                  StylePatch patch{};
+                  patch.has_bg_color = true;
+                  patch.bg_color = active ? kUiOk : rgba{0, 0, 0, 0};
+                  patch.has_border_color = true;
+                  patch.border_color = active ? kUiOk : rgba{0, 0, 0, 0};
+                  access.set_style_override(h, patch);
+              };
+              set_indicator(handles.nav_home_indicator, current_page == PlayerPage::Home);
+              set_indicator(handles.nav_search_indicator, false);
+              set_indicator(handles.nav_library_indicator, current_page == PlayerPage::Library);
+          }
 
         static void on_show_home(::ui::scene::SceneAccess& access,
                                  WidgetHandle root,
@@ -1124,6 +1144,7 @@ export namespace player {
             if (handles.bottom_bar) {
                 access.set_visible(handles.bottom_bar, true);
             }
+            update_nav_page_indicator();
             update_duration_from_player();
             update_info_label();
             update_debug_overlay();
@@ -1136,6 +1157,7 @@ export namespace player {
             if (handles.bottom_bar) {
                 access.set_visible(handles.bottom_bar, true);
             }
+            update_nav_page_indicator();
             update_list_title();
             update_list_path();
             update_list_sort_label();

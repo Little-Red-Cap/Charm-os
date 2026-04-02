@@ -175,7 +175,6 @@ set(MODULE_GROUP_PLAYER_UI
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_controller.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_fs_utils.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_ui_ink.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/player_entry.cppm"
 )
 
 set(MODULE_GROUP_LEGACY_RUNTIME
@@ -185,12 +184,11 @@ set(MODULE_GROUP_LEGACY_RUNTIME
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_post_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_pre_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_run_modes.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/system_entry.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
 )
 
 set(MODULE_GROUP_USB_STORAGE_RUNTIME
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
 )
 
 set(MODULE_GROUP_PLAYER_PROFILES
@@ -203,6 +201,7 @@ set(MODULE_GROUP_HQZY_CM7_RUNTIME
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/runtime_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/sdmmc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
 )
 
 set(MODULE_GROUP_HQZY_CM7_PROFILE_SYSTEM

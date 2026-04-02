@@ -13,7 +13,7 @@ import init.node;
 import player.stm32h7.board_usb;
 import player.stm32h7.display_st7305;
 import player.stm32h7.fs_demo;
-import player.stm32h7.usb_system;
+import player.runtime.hqzy_cm7.usb_storage_bridge;
 import util.core;
 import util.error;
 

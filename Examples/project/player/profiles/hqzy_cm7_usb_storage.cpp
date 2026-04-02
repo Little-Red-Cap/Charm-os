@@ -8,7 +8,7 @@ import charm.port;
 import charm.system.clock;
 import charm.system.time;
 import player.stm32h7.fs_demo_mmc;
-import player.stm32h7.usb_system;
+import player.runtime.hqzy_cm7.usb_storage_bridge;
 
 extern "C" {
 void MX_SDMMC1_MMC_Init(void);

@@ -2,7 +2,7 @@ export module player.stm32h7.player_entry;
 
 import charm.system.time;
 import player.stm32h7.fs_demo_mmc;
-import player.stm32h7.usb_system;
+import player.runtime.hqzy_cm7.usb_storage_bridge;
 
 extern "C" {
 struct PCD_HandleTypeDef;
@@ -46,15 +46,15 @@ constexpr ServiceItem kServices[] = {
 };
 }
 
-export void player_boot() {}
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] void player_boot() {}
 
-export bool player_init_fs() { return init_fs(); }
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] bool player_init_fs() { return init_fs(); }
 
-export void player_init_audio() { (void)init_audio(); }
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] void player_init_audio() { (void)init_audio(); }
 
-export bool player_init_usb() { return init_usb(); }
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] bool player_init_usb() { return init_usb(); }
 
-export bool player_init_services() {
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] bool player_init_services() {
     for (const auto& item : kServices) {
         if (item.init && !item.init()) {
             return false;
@@ -63,7 +63,7 @@ export bool player_init_services() {
     return true;
 }
 
-export void player_loop() {
+export [[deprecated("改用 PLAYER_PROFILE + profiles/ 主线")]] void player_loop() {
     while (true) {
         charm::system::time::sleep_ms(1000);
     }

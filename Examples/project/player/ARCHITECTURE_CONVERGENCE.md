@@ -198,6 +198,11 @@ Examples/project/player/
 - 不再扩展依赖
 - 后续作为迁移兼容层或直接删除对象
 
+当前状态：
+
+- `player_entry.cppm`、`system_entry.cppm` 保留导出，但已不属于主线模块组
+- `usb_system.cppm` 仅保留为对 `runtime/hqzy_cm7/usb_storage_bridge.cppm` 的兼容 re-export
+
 ### 必须收敛的入口文件
 
 - `stn32h747_HQZY/CM7/app/main.cpp`

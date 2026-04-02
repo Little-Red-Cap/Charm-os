@@ -103,7 +103,7 @@ import player.stm32h7.ink_demo;
 import player.stm32h7.app_config;
 import player.stm32h7.app_boot_debug;
 import player.stm32h7.app_boot_fs;
-import player.stm32h7.usb_system;
+import player.runtime.hqzy_cm7.usb_storage_bridge;
 import player.stm32h7.app_init_graph;
 import player.stm32h7.app_pre_bringup;
 import player.stm32h7.app_post_bringup;

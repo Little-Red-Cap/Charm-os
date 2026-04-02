@@ -372,13 +372,62 @@
         };
     }
 
-    static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
-                                       const Font& font) {
+    enum class PlayerTextRole : std::uint8_t {
+        HeroTitle,
+        HeroSubtitle,
+        PageTitle,
+        PageSubtitle,
+        CardTitle,
+        CardBody,
+        MetaText,
+    };
+
+    static StylePatch make_player_text_patch(PlayerTextRole role, const rgba& color) {
         StylePatch patch{};
         patch.has_font_color = true;
         patch.font_color = color;
-        patch.has_font = true;
-        patch.font = &font;
+        switch (role) {
+        case PlayerTextRole::HeroTitle:
+            patch.has_font = true;
+            patch.font = &get_player_font_px(72, FontWeight::Bold);
+            break;
+        case PlayerTextRole::HeroSubtitle:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Normal;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Regular;
+            break;
+        case PlayerTextRole::PageTitle:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Normal;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Bold;
+            break;
+        case PlayerTextRole::PageSubtitle:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Small;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Regular;
+            break;
+        case PlayerTextRole::CardTitle:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Normal;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Bold;
+            break;
+        case PlayerTextRole::CardBody:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Small;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Regular;
+            break;
+        case PlayerTextRole::MetaText:
+            patch.has_font_role = true;
+            patch.font_role = FontId::Small;
+            patch.has_font_weight = true;
+            patch.font_weight = FontWeight::Regular;
+            break;
+        }
         patch.has_bg_color = true;
         patch.bg_color = {0, 0, 0, 0};
         patch.has_border_color = true;
@@ -389,6 +438,21 @@
         patch.padding = 0;
         patch.has_corner_radius = true;
         patch.corner_radius = 0;
+        return patch;
+    }
+
+    static void apply_player_text_style(::ui::scene::SceneBuilder& builder,
+                                        WidgetHandle h,
+                                        PlayerTextRole role,
+                                        const rgba& color) {
+        builder.set_style_override(h, make_player_text_patch(role, color));
+    }
+
+    static void apply_text_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h, const rgba& color,
+                                       const Font& font) {
+        StylePatch patch = make_player_text_patch(PlayerTextRole::CardBody, color);
+        patch.has_font = true;
+        patch.font = &font;
         builder.set_style_override(h, patch);
     }
 
@@ -397,35 +461,16 @@
                                             const rgba& color,
                                             FontId role,
                                             FontWeight weight = FontWeight::Regular) {
-        StylePatch patch{};
-        patch.has_font_color = true;
-        patch.font_color = color;
+        StylePatch patch = make_player_text_patch(PlayerTextRole::CardBody, color);
         patch.has_font_role = true;
         patch.font_role = role;
         patch.has_font_weight = true;
         patch.font_weight = weight;
-        patch.has_bg_color = true;
-        patch.bg_color = {0, 0, 0, 0};
-        patch.has_border_color = true;
-        patch.border_color = {0, 0, 0, 0};
-        patch.has_border_width = true;
-        patch.border_width = 0;
-        patch.has_padding = true;
-        patch.padding = 0;
-        patch.has_corner_radius = true;
-        patch.corner_radius = 0;
         builder.set_style_override(h, patch);
     }
 
     static void apply_time_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_font_color = true;
-        patch.font_color = kUiTime;
-        patch.has_font_role = true;
-        patch.font_role = FontId::Small;
-        patch.has_font_weight = true;
-        patch.font_weight = FontWeight::Regular;
-        builder.set_style_override(h, patch);
+        apply_player_text_style(builder, h, PlayerTextRole::MetaText, kUiTime);
     }
 
     static void apply_info_tag_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
@@ -638,15 +683,13 @@
         const WidgetHandle root = card.root();
 
         const WidgetHandle title_label = builder.create_label_static(title.data());
-        apply_text_label_style(builder, title_label, kUiTitle,
-                               get_font_weighted(FontId::Normal, FontWeight::Bold));
+        apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, title_label, {16, 12, rect.w - 120, 24});
         builder.link(root, title_label);
 
         const WidgetHandle body_label = builder.create_label_static(body.data());
-        apply_text_label_style(builder, body_label, kUiSubtitle,
-                               get_font_weighted(FontId::Small, FontWeight::Regular));
+        apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, body_label, {16, 38, rect.w - 120, 18});
         builder.link(root, body_label);

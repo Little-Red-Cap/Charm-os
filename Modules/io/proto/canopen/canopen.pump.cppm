@@ -21,6 +21,7 @@ export namespace canopen {
                                 kernel::TaskId task,
                                 kernel::Event evt,
                                 charm::system::ClockTick due) noexcept;
+    using PostFn = bool (*)(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept;
 
     struct CanopenPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -33,6 +34,8 @@ export namespace canopen {
         charm::system::ClockRef clock{};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
+        PostFn post_more{nullptr};
+        void* post_ctx{nullptr};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{10};
         bool started{false};
@@ -52,6 +55,8 @@ export namespace canopen {
                   charm::system::Clock& clock_in,
                   ScheduleFn schedule_fn,
                   void* schedule_ctx_in,
+                  PostFn post_more_fn,
+                  void* post_ctx_in,
                   kernel::TaskId task_id,
                   charm::system::ClockTick period_ms_in = 10) noexcept {
             sdo = sdo_in;
@@ -59,6 +64,8 @@ export namespace canopen {
             clock.reset(clock_in);
             schedule = schedule_fn;
             schedule_ctx = schedule_ctx_in;
+            post_more = post_more_fn;
+            post_ctx = post_ctx_in;
             self = task_id;
             period_ms = (period_ms_in == 0) ? 1 : period_ms_in;
             started = false;
@@ -91,6 +98,11 @@ export namespace canopen {
             if (sdo) {
                 (void)sdo->poll_time(now_ms);
             }
+            const bool more = (nmt && nmt->has_pending()) || (sdo && sdo->has_pending());
+            if (more && post_more) {
+                (void)post_more(post_ctx, self, kernel::make_event(kernel::EventId::canopen_pump));
+                return;
+            }
             schedule_next(now_tick);
         }
 
@@ -116,6 +128,15 @@ export namespace canopen {
         return scheduler->schedule_at(due, task, evt);
     }
 
+    template <typename Scheduler>
+    inline bool scheduler_post_demand(void* ctx, kernel::TaskId task, kernel::Event evt) noexcept {
+        auto* scheduler = static_cast<Scheduler*>(ctx);
+        if (!scheduler) {
+            return false;
+        }
+        return scheduler->post_demand(task, evt);
+    }
+
     struct CanopenPumpBinding {
         CanopenPumpTask* pump{nullptr};
         SdoService* sdo{nullptr};
@@ -123,6 +144,8 @@ export namespace canopen {
         charm::system::Clock* clock{nullptr};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
+        PostFn post_more{nullptr};
+        void* post_ctx{nullptr};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{10};
         std::array<init::CapId, 1> provides{};
@@ -134,6 +157,8 @@ export namespace canopen {
                            charm::system::Clock& clock_in,
                            ScheduleFn schedule_fn,
                            void* schedule_ctx_in,
+                           PostFn post_more_fn,
+                           void* post_ctx_in,
                            kernel::TaskId task_id,
                            SdoService* sdo_in = nullptr,
                            NmtService* nmt_in = nullptr,
@@ -151,6 +176,8 @@ export namespace canopen {
               clock(&clock_in),
               schedule(schedule_fn),
               schedule_ctx(schedule_ctx_in),
+              post_more(post_more_fn),
+              post_ctx(post_ctx_in),
               self(task_id),
               period_ms((period_ms_in == 0) ? 1 : period_ms_in) {
             provides[0] = init::cap_id(cap_name);
@@ -188,6 +215,8 @@ export namespace canopen {
                              *self->clock,
                              self->schedule,
                              self->schedule_ctx,
+                             self->post_more,
+                             self->post_ctx,
                              self->self,
                              self->period_ms);
             self->pump->start();

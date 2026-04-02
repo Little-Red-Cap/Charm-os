@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <span>
 #include <string_view>
+#include <span>
 
 export module posix.file;
 

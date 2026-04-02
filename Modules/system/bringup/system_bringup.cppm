@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <optional>
@@ -41,6 +41,8 @@ export namespace charm::system {
             input::InputPumpTask* pump{nullptr};
             input::ScheduleFn schedule{nullptr};
             void* schedule_ctx{nullptr};
+            input::PostFn post_more{nullptr};
+            void* post_ctx{nullptr};
             kernel::TaskId pump_id{};
             input::SinkFn sink{nullptr};
             void* sink_ctx{nullptr};
@@ -51,6 +53,8 @@ export namespace charm::system {
                                                 input::InputPumpTask& pump,
                                                 input::ScheduleFn schedule,
                                                 void* schedule_ctx,
+                                                input::PostFn post_more,
+                                                void* post_ctx,
                                                 kernel::TaskId pump_id,
                                                 input::SinkFn sink = nullptr,
                                                 void* sink_ctx = nullptr,
@@ -60,6 +64,8 @@ export namespace charm::system {
             out.pump = &pump;
             out.schedule = schedule;
             out.schedule_ctx = schedule_ctx;
+            out.post_more = post_more;
+            out.post_ctx = post_ctx;
             out.pump_id = pump_id;
             out.sink = sink;
             out.sink_ctx = sink_ctx;
@@ -77,6 +83,8 @@ export namespace charm::system {
                                    host.input_pump(),
                                    host.schedule_fn(),
                                    host.schedule_ctx(),
+                                   host.post_demand_fn(),
+                                   host.post_ctx(),
                                    host.input_pump_id(),
                                    sink,
                                    sink_ctx,
@@ -99,7 +107,8 @@ export namespace charm::system {
                              caps.sdmmc0,
                              caps.flash0,
                              host.pump(),
-                             host.post_fn(),
+                             host.post_io_ready_fn(),
+                             host.post_demand_fn(),
                              host.post_ctx(),
                              host.pump_id(),
                              budget,
@@ -117,6 +126,7 @@ export namespace charm::system {
                        const platform::board::SpiFlashDesc& flash_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
+                       PostFn post_more_fn,
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
@@ -124,7 +134,7 @@ export namespace charm::system {
             : uart_(uart),
               core_(charm::system::ClockOps{clock_desc.now_ms, clock_desc.now_us},
                     clock_desc.ctx,
-                    pump_task, post_fn, post_ctx, pump_id, budget),
+                    pump_task, post_fn, post_more_fn, post_ctx, pump_id, budget),
               board_(core_.registry, core_.reactor,
                      uart.handle, uart.config, uart.io_cap, uart.hal_cap),
               input_desc_(input_desc),
@@ -152,6 +162,8 @@ export namespace charm::system {
                                *input.pump,
                                input.schedule,
                                input.schedule_ctx,
+                               input.post_more,
+                               input.post_ctx,
                                input.pump_id,
                                input.sink,
                                input.sink_ctx,
@@ -230,6 +242,7 @@ export namespace charm::system {
                        const platform::board::CanDesc& can_desc,
                        ReactorPumpTask& pump_task,
                        PostFn post_fn,
+                       PostFn post_more_fn,
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
@@ -244,6 +257,7 @@ export namespace charm::system {
                              platform::board::SpiFlashDesc{},
                              pump_task,
                              post_fn,
+                             post_more_fn,
                              post_ctx,
                              pump_id,
                              budget,
@@ -326,3 +340,5 @@ export namespace charm::system {
     };
 
 }
+
+

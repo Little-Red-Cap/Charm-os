@@ -38,6 +38,10 @@ export namespace canopen {
             return poll_impl(now_ms, true);
         }
 
+        [[nodiscard]] bool has_pending() const noexcept {
+            return pending_;
+        }
+
     private:
         util::Result<void> poll_impl(util::u32 now_ms, bool use_time) noexcept {
             if (!node_ || !transport_) {

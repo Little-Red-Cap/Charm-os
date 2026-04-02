@@ -39,6 +39,7 @@ export namespace charm::system {
                         void* clock_ctx,
                         ReactorPumpTask& pump_task,
                         PostFn post_fn,
+                        PostFn post_more_fn,
                         void* post_ctx,
                         kernel::TaskId pump_id,
                         util::usize budget = 8) noexcept
@@ -51,7 +52,7 @@ export namespace charm::system {
               block_registry_binding(block_registry),
               reactor_binding(reactor),
               eda_binding(),
-              pump_binding(pump_task, reactor, post_fn, post_ctx, pump_id, budget) {
+              pump_binding(pump_task, reactor, post_fn, post_more_fn, post_ctx, pump_id, budget) {
             nodes = {
                 &clock_binding.node,
                 &registry_binding.node,

@@ -171,6 +171,11 @@
 - `system.reactor_pump`
 - `input.pump`
 - `canopen.pump`
+- `kernel.eda_decl`（通用 EDA task 包装）
+- `kernel.teda_decl`（通用 TEDA task 包装）
+- `kernel.thread_task`（通用 thread task 包装）
+- `kernel.thread_blocking_task`（通用 blocking thread task 包装）
+- `Examples/kernel/windows` 第一批 demo task
 
 ## 当前应优先排查的下一批对象
 

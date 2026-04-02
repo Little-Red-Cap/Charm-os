@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <span>
@@ -31,7 +31,8 @@ export namespace charm::system {
               core_(charm::system::ClockOps{caps.clock.now_ms, caps.clock.now_us},
                     caps.clock.ctx,
                     host.pump(),
-                    host.post_fn(),
+                    host.post_io_ready_fn(),
+                    host.post_demand_fn(),
                     host.post_ctx(),
                     host.pump_id(),
                     budget) {}
@@ -70,3 +71,4 @@ export namespace charm::system {
         init::Graph<MaxNodes, MaxCaps> graph_{};
     };
 }
+

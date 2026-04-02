@@ -86,6 +86,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     CHARM_DAP_USB_PROFILE=2
     STM32F103xx
     USE_HAL_DRIVER
+    CHARM_KERNEL_REQUIRE_SSU_META=1
 )
 
 # Ensure Charm-os is built with the same feature flags.
@@ -110,6 +111,10 @@ add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 # Provide CubeMX headers to Charm-os so platform adapters can include generated HAL headers.
 target_include_directories(Charm-os PRIVATE
     $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+target_compile_definitions(Charm-os PRIVATE
+    CHARM_KERNEL_REQUIRE_SSU_META=1
 )
 
 # Add linked libraries

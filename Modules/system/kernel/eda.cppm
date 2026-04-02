@@ -120,6 +120,13 @@ export namespace kernel {
             return task_ssu_name_by_index<0>(id.value);
         }
 
+        [[nodiscard]] kernel::ssu::Meta task_ssu_meta(TaskId id) const noexcept {
+            if (id.value >= count) {
+                return {};
+            }
+            return task_ssu_meta_by_index<0>(id.value);
+        }
+
         void init_all() {
             (init_one<Tasks>(), ...);
         }
@@ -243,6 +250,28 @@ export namespace kernel {
             }
             if constexpr (I + 1 < count) {
                 return task_ssu_name_by_index<I + 1>(index);
+            } else {
+                return {};
+            }
+        }
+
+        template <std::size_t I>
+        [[nodiscard]] static consteval kernel::ssu::Meta task_ssu_meta_for() noexcept {
+            using Task = std::tuple_element_t<I, std::tuple<Tasks...>>;
+            if constexpr (requires { Task::ssu_meta(); }) {
+                return Task::ssu_meta();
+            } else {
+                return {};
+            }
+        }
+
+        template <std::size_t I>
+        [[nodiscard]] kernel::ssu::Meta task_ssu_meta_by_index(std::size_t index) const noexcept {
+            if (index == I) {
+                return task_ssu_meta_for<I>();
+            }
+            if constexpr (I + 1 < count) {
+                return task_ssu_meta_by_index<I + 1>(index);
             } else {
                 return {};
             }

@@ -1,5 +1,6 @@
 param(
-    [string]$Root = (Resolve-Path "$PSScriptRoot\..").Path
+    [string]$Root = (Resolve-Path "$PSScriptRoot\..").Path,
+    [switch]$EnableSsuSubmitGate
 )
 
 Set-StrictMode -Version Latest
@@ -272,6 +273,21 @@ foreach ($file in $bridgeFiles) {
     }
 }
 
+
+
+# Optional gate: SSU submit mapping documentation.
+if ($EnableSsuSubmitGate) {
+    $gate = Join-Path $Root "scripts/ssu_submit_gate.ps1"
+    if (Test-Path $gate) {
+        & $gate -Root $Root
+        if ($LASTEXITCODE -ne 0) {
+            $failed = $true
+        }
+    } else {
+        Write-Host "[arch_lint] ssu_submit_gate.ps1 not found"
+        $failed = $true
+    }
+}
 if ($failed) {
     Write-Host ""
     Write-Host "[arch_lint] FAILED"
@@ -279,5 +295,6 @@ if ($failed) {
 }
 
 Write-Host "[arch_lint] OK"
+
 
 

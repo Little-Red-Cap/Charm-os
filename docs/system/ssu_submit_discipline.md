@@ -1,4 +1,4 @@
-﻿# SSU 提交纪律（草案）
+# SSU 提交纪律（草案）
 
 ## 目的
 
@@ -60,6 +60,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 - EDA task dispatch
 - 部分 timer/frame 的阶段投影
 
+#### 当前内核入口
+
+- `scheduler.post(...)`
+- `scheduler.post_token(...)`
+
 ### B. io-ready-submit
 
 #### 语义
@@ -76,6 +81,11 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 #### 典型映射
 
 - reactor waker -> pump task -> drain
+
+#### 当前内核入口
+
+- `scheduler.post_io_ready(...)`
+- `scheduler.post_io_ready_token(...)`
 
 ### C. demand-submit
 
@@ -94,6 +104,16 @@ timer/frame 在本阶段允许投影到 `event-submit`，
 
 - audio pull / DMA 节拍驱动的数据需求
 
+#### 当前内核入口
+
+- `scheduler.post_demand(...)`
+- `scheduler.post_demand_token(...)`
+
+## 落地进展（当前）
+
+- scheduler 已落地三类 submit 入口：`post` / `post_io_ready` / `post_demand`
+- `system.reactor_pump` 的 host/bringup 默认接线已切到 `io-ready-submit`
+- 其余路径继续保持最小变更，避免一次性扩大改造面
 ## 旁路定义与处理
 
 以下行为视为旁路：
@@ -154,3 +174,19 @@ submit discipline 解决的是“执行入口层”的约束。
 
 新执行路径可以出现，但它不能匿名出现。
 它必须声明自己属于哪类 submit，并最终回到 SSU 主通道。
+
+
+
+
+## 机制化落地（最小版）
+
+- PR 模板：`.github/PULL_REQUEST_TEMPLATE.md`
+  - 新增/修改执行路径时，必须填写 `SSU Submit Mapping`
+- 评审清单：`docs/system/ssu_review_checklist.md`
+  - 评审必须给出 submit 映射结论
+
+> 本阶段先做“模板 + 清单”机制化，不做自动化阻断。
+
+## Review Gate (Mechanized)
+
+- 提交前运行：scripts/ssu_submit_gate.ps1`n- 若变更涉及 submit 路径/RunLoop step 且未更新提交纪律文档，脚本将失败。

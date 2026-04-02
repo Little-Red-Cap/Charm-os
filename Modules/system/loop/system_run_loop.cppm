@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 export module charm.system.run_loop;
 
@@ -18,10 +19,38 @@ export namespace charm::system {
         idle = 3
     };
 
+    enum class SubmitProjection : util::u8 {
+        event = 0,
+        io_ready = 1,
+        demand = 2,
+        frame = 3,
+    };
+
+    [[nodiscard]] constexpr const char* to_text(LoopPhase phase) noexcept {
+        switch (phase) {
+            case LoopPhase::io: return "io";
+            case LoopPhase::update: return "update";
+            case LoopPhase::render: return "render";
+            case LoopPhase::idle: return "idle";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] constexpr const char* to_text(SubmitProjection projection) noexcept {
+        switch (projection) {
+            case SubmitProjection::event: return "event-submit";
+            case SubmitProjection::io_ready: return "io-ready-submit";
+            case SubmitProjection::demand: return "demand-submit";
+            case SubmitProjection::frame: return "frame-submit";
+        }
+        return "unknown-submit";
+    }
+
     using LoopFn = void (*)(void* ctx, ClockTick now_us, ClockTick dt_us) noexcept;
 
     struct LoopStep {
         LoopPhase phase{};
+        SubmitProjection submit_projection{SubmitProjection::event};
         void* ctx{nullptr};
         LoopFn fn{nullptr};
         const char* name{nullptr};
@@ -35,14 +64,45 @@ export namespace charm::system {
         void bind_clock(Clock& clock) noexcept { clock_.reset(clock); }
 
         [[nodiscard]] bool add_step(LoopPhase phase,
+                                    SubmitProjection projection,
                                     LoopFn fn,
                                     void* ctx,
                                     const char* name = nullptr) noexcept {
             if (count_ >= Capacity || fn == nullptr) {
                 return false;
             }
-            steps_[count_++] = LoopStep{phase, ctx, fn, name};
+            steps_[count_++] = LoopStep{phase, projection, ctx, fn, name};
             return true;
+        }
+
+        [[nodiscard]] std::size_t format_audit_json(char* out, std::size_t max) const noexcept {
+            if (!out || max == 0) {
+                return 0;
+            }
+            std::size_t offset = 0;
+            offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "["));
+            for (std::size_t i = 0; i < count_ && offset < max; ++i) {
+                const auto& step = steps_[i];
+                if (i > 0) {
+                    offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, ","));
+                }
+                offset += static_cast<std::size_t>(std::snprintf(
+                    out + offset,
+                    max - offset,
+                    "{\"index\":%llu,\"phase\":\"%s\",\"submit\":\"%s\",\"name\":\"%s\"}",
+                    static_cast<unsigned long long>(i),
+                    to_text(step.phase),
+                    to_text(step.submit_projection),
+                    step.name ? step.name : ""));
+            }
+            if (offset < max) {
+                offset += static_cast<std::size_t>(std::snprintf(out + offset, max - offset, "]"));
+            }
+            if (offset >= max) {
+                out[max - 1] = '\0';
+                return max - 1;
+            }
+            return offset;
         }
 
         void reset_time() noexcept { last_us_ = 0; }
@@ -115,7 +175,7 @@ export namespace charm::system {
                                                  const char* name = nullptr) noexcept {
         step.scheduler = &scheduler;
         step.budget = budget;
-        return loop.add_step(phase, &SchedulerLoopStep<Scheduler>::run, &step, name);
+        return loop.add_step(phase, SubmitProjection::event, &SchedulerLoopStep<Scheduler>::run, &step, name);
     }
 
     template <std::size_t Capacity, typename Reactor>
@@ -127,6 +187,6 @@ export namespace charm::system {
                                                const char* name = nullptr) noexcept {
         step.reactor = &reactor;
         step.budget = budget;
-        return loop.add_step(phase, &ReactorLoopStep<Reactor>::run, &step, name);
+        return loop.add_step(phase, SubmitProjection::io_ready, &ReactorLoopStep<Reactor>::run, &step, name);
     }
 }

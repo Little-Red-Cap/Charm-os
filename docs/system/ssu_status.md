@@ -113,9 +113,21 @@ SSU 的提出，就是为了解决这个问题：
 - `tasks.json`
 - `trace.json`
 - `trace.csv`
+- `ssu_overview.json`（通过 `scheduler.format_ssu_overview_json(...)` 输出 trigger/budget/blocking/domain 分布）
+- `ssu_hotspots.json`（通过 `scheduler.format_ssu_hotspots_json(...)` 输出 dominant submit、demand 占比与风险等级）
 
 这一步非常关键：
 SSU 已经进入 observability，而不是只停留在类型声明层。
+
+示例（来自 `Examples/kernel/windows/main_m3.cpp`）：
+
+```json
+{"tasks":2,"unnamed":0,"trigger":{"event":2,"io_ready":0,"timer":0,"frame":0,"demand":0},"budget":{"single_step":2,"budgeted":0},"blocking":{"non_blocking":2,"may_block":0},"domain":{"isr_only":0,"task_only":2,"anywhere":0}}
+```
+
+```json
+{"dominant_submit":"post","submit":{"post":4,"io_ready":0,"demand":0,"timer":0,"replay":0},"submit_total":4,"demand_share_permille":0,"unnamed_count":0,"risk_level":"error","risk":{"unnamed_tasks":0,"no_demand_submit":1,"low_demand_share_warn":1,"low_demand_share_error":1},"unnamed_tasks":[]}
+```
 
 ### 6. 真实 task 接入
 
@@ -152,7 +164,45 @@ SSU 已经进入 observability，而不是只停留在类型声明层。
 - SSU 规则已不只是建议
 - 至少在一个真实主线 target 上，它已经是编译事实
 
-### 样板二尝试：`fs_block_vfs_demo`
+### 样板二：`project/daplink`
+
+目标：
+
+- `Examples/project/daplink`
+
+操作：
+
+- 为可执行目标与 `Charm-os` 同时开启 `CHARM_KERNEL_REQUIRE_SSU_META=1`
+
+结果：
+
+- 构建成功（ARM/GCC）
+
+意义：
+
+- 第二个干净样板成立
+- SSU 严格模式具备重复施工能力，不再是单点样板
+
+### 样板三：`kernel/rtos/qemu`
+
+目标：
+
+- `Examples/kernel/rtos/qemu`
+
+操作：
+
+- 为可执行目标与 `Charm-os` 同时开启 `CHARM_KERNEL_REQUIRE_SSU_META=1`
+
+结果：
+
+- 构建成功（ARM/GCC）
+
+意义：
+
+- 第三个干净样板成立
+- SSU 严格模式完成跨场景三样板验证（player CM7 / daplink / rtos-qemu）
+
+### 样板筛选失败案例：`fs_block_vfs_demo`
 
 目标：
 
@@ -196,16 +246,21 @@ SSU 已经完成了以下跃迁：
 目前 scheduler “看见了 SSU”，但还没有按 SSU 做更高层次的执行策略统一。
 当前仍然是“观测先行”，不是“行为统一已完成”。
 
-### 3. 第二样板尚未建立
+### 3. 样板验证阶段已完成，进入迁移扩张阶段
 
-目前只有一个真实 target（CM7 USB 自研入口）证明了严格模式是稳定可行的。
-第二个样板需要重新挑选一个更干净的目标。
+当前已经有三个真实 target 证明了严格模式可行：
+
+- `project/player/stn32h747_HQZY/CM7`
+- `project/daplink`
+- `kernel/rtos/qemu`
+
+下一步重点从“样板数量”转向“高价值 task 迁移覆盖与提交纪律落地”。
 
 ## 下一步建议
 
-### P0：建立第二个干净样板
+### P0：第三个干净样板（已完成）
 
-继续寻找一个不会被第三方兼容问题先淹没的真实 target，作为第二个严格模式样板。
+第三个严格模式样板已建立，P0 关闭。
 
 ### P1：继续补齐常见 task 的 `ssu_meta()`
 
@@ -231,3 +286,17 @@ SSU 已经完成了以下跃迁：
 
 SSU 已经不是 Charm 的提案。
 它已经成为 Charm 主线中一条正在成形、并且已进入编译事实与运行时观测面的系统语义主轴。
+
+
+
+
+
+
+## Phase 2 看板
+
+- `docs/system/ssu_phase2_board.md`
+
+- 阈值可配置：`KernelConfig::ssu_demand_warn_permille`、`KernelConfig::ssu_demand_err_permille`。
+
+- 阈值默认值：`warn=50`（5%）、`err=10`（1%）。
+- 可按 target 覆写：例如 `Examples/kernel/windows/main_m3.cpp` 使用 `warn=300`、`err=100` 以放大低 demand 占比告警。

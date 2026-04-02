@@ -1,4 +1,4 @@
-﻿module;
+module;
 
 #include <array>
 #include <cstddef>
@@ -23,12 +23,49 @@ import kernel.event_token;
 import kernel.task_state;
 import kernel.timer;
 import kernel.trace;
+import kernel.ssu;
 import util.core;
 import out.core;
 import out.format;
 import out.sink;
 
 namespace kernel::detail {
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::ExecutionDomain v) noexcept {
+        switch (v) {
+            case kernel::ssu::ExecutionDomain::isr_only: return "isr_only";
+            case kernel::ssu::ExecutionDomain::task_only: return "task_only";
+            case kernel::ssu::ExecutionDomain::anywhere: return "anywhere";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::TriggerKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::TriggerKind::event: return "event";
+            case kernel::ssu::TriggerKind::io_ready: return "io_ready";
+            case kernel::ssu::TriggerKind::timer: return "timer";
+            case kernel::ssu::TriggerKind::frame: return "frame";
+            case kernel::ssu::TriggerKind::demand: return "demand";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::BudgetKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::BudgetKind::single_step: return "single_step";
+            case kernel::ssu::BudgetKind::budgeted: return "budgeted";
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] inline std::string_view to_text(kernel::ssu::BlockingKind v) noexcept {
+        switch (v) {
+            case kernel::ssu::BlockingKind::non_blocking: return "non_blocking";
+            case kernel::ssu::BlockingKind::may_block: return "may_block";
+        }
+        return "unknown";
+    }
+
     struct trunc_sink {
         char* buf{nullptr};
         std::size_t cap{0};
@@ -116,9 +153,16 @@ export namespace kernel {
             util::u64 debounce_filtered{0};
             util::u64 coalesce_hit{0};
             util::u64 source_post{0};
+            util::u64 source_io_ready{0};
+            util::u64 source_demand{0};
             util::u64 source_timer{0};
             util::u64 source_replay{0};
             util::u64 idle_rounds{0};
+        };
+        enum class SubmitKind : unsigned char {
+            event,
+            io_ready,
+            demand,
         };
         enum class AlertType : unsigned char {
             queue,
@@ -143,8 +187,11 @@ export namespace kernel {
             post_init_events();
         }
 
-        [[nodiscard]] EventToken post_token_with_tag(TaskId task, Event evt, util::u64 tag) noexcept {
-            ++stats_.source_post;
+        [[nodiscard]] EventToken post_token_with_tag(TaskId task,
+                                                     Event evt,
+                                                     util::u64 tag,
+                                                     SubmitKind kind = SubmitKind::event) noexcept {
+            record_submit_source(kind);
             if (task.value >= Registry::count) {
                 ++stats_.dropped;
                 return EventToken{0};
@@ -279,11 +326,27 @@ export namespace kernel {
         }
 
         [[nodiscard]] EventToken post_token(TaskId task, Event evt) noexcept {
-            return post_token_with_tag(task, evt, next_tag());
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::event);
+        }
+
+        [[nodiscard]] EventToken post_io_ready_token(TaskId task, Event evt) noexcept {
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::io_ready);
+        }
+
+        [[nodiscard]] EventToken post_demand_token(TaskId task, Event evt) noexcept {
+            return post_token_with_tag(task, evt, next_tag(), SubmitKind::demand);
         }
 
         [[nodiscard]] bool post(TaskId task, Event evt) noexcept {
             return post_token(task, evt).value != 0;
+        }
+
+        [[nodiscard]] bool post_io_ready(TaskId task, Event evt) noexcept {
+            return post_io_ready_token(task, evt).value != 0;
+        }
+
+        [[nodiscard]] bool post_demand(TaskId task, Event evt) noexcept {
+            return post_demand_token(task, evt).value != 0;
         }
 
         [[nodiscard]] std::size_t post_many(const PostItem* items, std::size_t count) noexcept {
@@ -651,12 +714,162 @@ export namespace kernel {
         [[nodiscard]] std::size_t format_event_source_json(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
             offset = detail::append_text(out, max, offset, "{");
-            offset = detail::append_fmt<"\"post\":{},\"timer\":{},\"replay\":{}">(
+            offset = detail::append_fmt<"\"post\":{},\"io_ready\":{},\"demand\":{},\"timer\":{},\"replay\":{}">(
                 out, max, offset,
                 static_cast<unsigned long long>(stats_.source_post),
+                static_cast<unsigned long long>(stats_.source_io_ready),
+                static_cast<unsigned long long>(stats_.source_demand),
                 static_cast<unsigned long long>(stats_.source_timer),
                 static_cast<unsigned long long>(stats_.source_replay));
             offset = detail::append_text(out, max, offset, "}");
+            return offset;
+        }
+
+        [[nodiscard]] std::size_t format_ssu_overview_json(char* out, std::size_t max) const noexcept {
+            std::array<util::u64, 5> trigger{};
+            std::array<util::u64, 2> budget{};
+            std::array<util::u64, 2> blocking{};
+            std::array<util::u64, 3> domain{};
+            util::u64 unnamed{0};
+
+            const auto tasks = task_snapshot();
+            for (const auto& task : tasks) {
+                ++trigger[static_cast<std::size_t>(task.ssu_trigger)];
+                ++budget[static_cast<std::size_t>(task.ssu_budget)];
+                ++blocking[static_cast<std::size_t>(task.ssu_blocking)];
+                ++domain[static_cast<std::size_t>(task.ssu_domain)];
+                if (task.ssu_name.empty()) {
+                    ++unnamed;
+                }
+            }
+
+            std::size_t offset = 0;
+            offset = detail::append_text(out, max, offset, R"({"tasks":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(Registry::count));
+            offset = detail::append_text(out, max, offset, R"(,"unnamed":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed));
+
+            offset = detail::append_text(out, max, offset, R"(,"trigger":{"event":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[0]));
+            offset = detail::append_text(out, max, offset, R"(,"io_ready":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[1]));
+            offset = detail::append_text(out, max, offset, R"(,"timer":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[2]));
+            offset = detail::append_text(out, max, offset, R"(,"frame":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[3]));
+            offset = detail::append_text(out, max, offset, R"(,"demand":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[4]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"budget":{"single_step":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(budget[0]));
+            offset = detail::append_text(out, max, offset, R"(,"budgeted":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(budget[1]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"blocking":{"non_blocking":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(blocking[0]));
+            offset = detail::append_text(out, max, offset, R"(,"may_block":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(blocking[1]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"domain":{"isr_only":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[0]));
+            offset = detail::append_text(out, max, offset, R"(,"task_only":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[1]));
+            offset = detail::append_text(out, max, offset, R"(,"anywhere":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[2]));
+            offset = detail::append_text(out, max, offset, R"(}})");
+            return offset;
+        }
+
+        [[nodiscard]] std::size_t format_ssu_hotspots_json(char* out, std::size_t max) const noexcept {
+            const std::array<util::u64, 5> submit_counts{
+                stats_.source_post,
+                stats_.source_io_ready,
+                stats_.source_demand,
+                stats_.source_timer,
+                stats_.source_replay,
+            };
+            const std::array<std::string_view, 5> submit_names{
+                "post",
+                "io_ready",
+                "demand",
+                "timer",
+                "replay",
+            };
+
+            std::size_t dominant = 0;
+            for (std::size_t i = 1; i < submit_counts.size(); ++i) {
+                if (submit_counts[i] > submit_counts[dominant]) {
+                    dominant = i;
+                }
+            }
+
+            std::array<TaskId, Registry::count> unnamed{};
+            std::size_t unnamed_count = 0;
+            const auto tasks = task_snapshot();
+            for (const auto& task : tasks) {
+                if (task.ssu_name.empty() && unnamed_count < unnamed.size()) {
+                    unnamed[unnamed_count++] = task.id;
+                }
+            }
+
+            const util::u64 submit_total = submit_counts[0] + submit_counts[1] + submit_counts[2] + submit_counts[3] + submit_counts[4];
+            const util::u64 demand_share_permille = submit_total == 0 ? 0 : (submit_counts[2] * 1000ull) / submit_total;
+            const auto kDemandWarnPermille = static_cast<util::u64>(Config::ssu_demand_warn_permille);
+            const auto kDemandErrorPermille = static_cast<util::u64>(Config::ssu_demand_err_permille);
+
+            const bool no_demand_submit = submit_counts[2] == 0;
+            const bool low_demand_share_warn = submit_total > 0 && demand_share_permille < kDemandWarnPermille;
+            const bool low_demand_share_error = submit_total > 0 && demand_share_permille < kDemandErrorPermille;
+            const bool has_unnamed_tasks = unnamed_count > 0;
+
+            std::string_view risk_level = "ok";
+            if (has_unnamed_tasks || no_demand_submit || low_demand_share_error) {
+                risk_level = "error";
+            } else if (low_demand_share_warn) {
+                risk_level = "warning";
+            }
+
+            std::size_t offset = 0;
+            offset = detail::append_text(out, max, offset, R"({"dominant_submit":")");
+            offset = detail::append_text(out, max, offset, submit_names[dominant]);
+            offset = detail::append_text(out, max, offset, R"(","submit":{"post":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[0]));
+            offset = detail::append_text(out, max, offset, R"(,"io_ready":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[1]));
+            offset = detail::append_text(out, max, offset, R"(,"demand":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[2]));
+            offset = detail::append_text(out, max, offset, R"(,"timer":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[3]));
+            offset = detail::append_text(out, max, offset, R"(,"replay":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[4]));
+            offset = detail::append_text(out, max, offset, R"(},"submit_total":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_total));
+            offset = detail::append_text(out, max, offset, R"(,"demand_share_permille":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(demand_share_permille));
+            offset = detail::append_text(out, max, offset, R"(,"unnamed_count":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed_count));
+            offset = detail::append_text(out, max, offset, R"(,"risk_level":")");
+            offset = detail::append_text(out, max, offset, risk_level);
+            offset = detail::append_text(out, max, offset, R"(","risk":{"unnamed_tasks":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, has_unnamed_tasks ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"no_demand_submit":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, no_demand_submit ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"low_demand_share_warn":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, low_demand_share_warn ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"low_demand_share_error":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, low_demand_share_error ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(},"unnamed_tasks":[)");
+
+            for (std::size_t i = 0; i < unnamed_count; ++i) {
+                if (i > 0) {
+                    offset = detail::append_text(out, max, offset, ",");
+                }
+                offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed[i].value));
+            }
+            offset = detail::append_text(out, max, offset, R"(]})");
             return offset;
         }
 
@@ -705,6 +918,14 @@ export namespace kernel {
                     t.active ? 1u : 0u);
                 if (!t.ssu_name.empty()) {
                     offset = detail::append_fmt<",\"ssu\":\"{}\"">(out, max, offset, t.ssu_name);
+                    offset = detail::append_fmt<",\"ssu_domain\":\"{}\",\"ssu_trigger\":\"{}\",\"ssu_budget\":\"{}\",\"ssu_blocking\":\"{}\"">(
+                        out,
+                        max,
+                        offset,
+                        detail::to_text(t.ssu_domain),
+                        detail::to_text(t.ssu_trigger),
+                        detail::to_text(t.ssu_budget),
+                        detail::to_text(t.ssu_blocking));
                 }
                 offset = detail::append_text(out, max, offset, "}");
             }
@@ -739,7 +960,7 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    const auto ssu = registry_->task_ssu_name(rec.task);
+                    const auto meta = registry_->task_ssu_meta(rec.task);
                     if (i > 0) {
                         offset = detail::append_text(out, max, offset, ",");
                     }
@@ -753,8 +974,16 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind));
-                    if (!ssu.empty()) {
-                        offset = detail::append_fmt<",\\\"ssu\\\":\\\"{}\\\"">(out, max, offset, ssu);
+                    if (!meta.name.empty()) {
+                        offset = detail::append_fmt<",\\\"ssu\\\":\\\"{}\\\",\\\"ssu_domain\\\":\\\"{}\\\",\\\"ssu_trigger\\\":\\\"{}\\\",\\\"ssu_budget\\\":\\\"{}\\\",\\\"ssu_blocking\\\":\\\"{}\\\"">(
+                            out,
+                            max,
+                            offset,
+                            meta.name,
+                            detail::to_text(meta.domain),
+                            detail::to_text(meta.trigger),
+                            detail::to_text(meta.budget),
+                            detail::to_text(meta.blocking));
                     }
                     offset = detail::append_text(out, max, offset, "}");
                 }
@@ -765,7 +994,7 @@ export namespace kernel {
 
         [[nodiscard]] std::size_t format_trace_csv(char* out, std::size_t max) const noexcept {
             std::size_t offset = 0;
-            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind,ssu\n");
+            offset = detail::append_text(out, max, offset, "trace_v1,t,task,id,payload,count,kind,ssu,ssu_domain,ssu_trigger,ssu_budget,ssu_blocking\n");
             if constexpr (!Config::enable_trace) {
                 return offset;
             } else {
@@ -773,8 +1002,8 @@ export namespace kernel {
                 for (std::size_t i = 0; i < trace_.size(); ++i) {
                     const auto idx = (trace_.head() + Config::trace_capacity - trace_.size() + i) % Config::trace_capacity;
                     const auto& rec = data[idx];
-                    const auto ssu = registry_->task_ssu_name(rec.task);
-                    offset = detail::append_fmt<"{},{},{},{},{},{},{}\n">(
+                    const auto meta = registry_->task_ssu_meta(rec.task);
+                    offset = detail::append_fmt<"{},{},{},{},{},{},{},{},{},{},{}\n">(
                         out, max, offset,
                         static_cast<unsigned long long>(rec.time),
                         static_cast<unsigned long long>(rec.task.value),
@@ -782,7 +1011,11 @@ export namespace kernel {
                         static_cast<unsigned long long>(rec.payload),
                         static_cast<unsigned>(rec.count),
                         static_cast<unsigned>(rec.kind),
-                        ssu);
+                        meta.name,
+                        detail::to_text(meta.domain),
+                        detail::to_text(meta.trigger),
+                        detail::to_text(meta.budget),
+                        detail::to_text(meta.blocking));
                     if (offset >= max) {
                         break;
                     }
@@ -842,6 +1075,11 @@ export namespace kernel {
             bool enabled{false};
             std::size_t priority{0};
             bool active{false};
+            std::string_view ssu_name{};
+            kernel::ssu::ExecutionDomain ssu_domain{kernel::ssu::ExecutionDomain::task_only};
+            kernel::ssu::TriggerKind ssu_trigger{kernel::ssu::TriggerKind::event};
+            kernel::ssu::BudgetKind ssu_budget{kernel::ssu::BudgetKind::single_step};
+            kernel::ssu::BlockingKind ssu_blocking{kernel::ssu::BlockingKind::non_blocking};
         };
 
         [[nodiscard]] bool set_rate_limit(TaskId task, EventId id, util::u32 gap) noexcept {
@@ -857,12 +1095,18 @@ export namespace kernel {
             std::array<TaskSnapshot, Registry::count> out{};
             for (std::size_t i = 0; i < Registry::count; ++i) {
                 const TaskId id{i};
+                const auto meta = registry_->task_ssu_meta(id);
                 out[i] = TaskSnapshot{
                     id,
                     task_states_[i],
                     task_enabled_[i],
                     current_priorities_[i],
-                    registry_->template is_active<Config>(id)
+                    registry_->template is_active<Config>(id),
+                    meta.name,
+                    meta.domain,
+                    meta.trigger,
+                    meta.budget,
+                    meta.blocking
                 };
             }
             return out;
@@ -1157,6 +1401,21 @@ export namespace kernel {
             } else {
                 return DropPolicy::drop_newest;
             }
+        }
+
+        void record_submit_source(SubmitKind kind) noexcept {
+            switch (kind) {
+                case SubmitKind::event:
+                    ++stats_.source_post;
+                    return;
+                case SubmitKind::io_ready:
+                    ++stats_.source_io_ready;
+                    return;
+                case SubmitKind::demand:
+                    ++stats_.source_demand;
+                    return;
+            }
+            ++stats_.source_post;
         }
     };
 

@@ -135,20 +135,30 @@
 
         const WidgetHandle home_toolbar = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
+        const ::ui::scene::TopBarButtonSpec home_primary_spec{
+            .width = home_layout.toolbar_button_size,
+            .height = home_layout.toolbar_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarButtonSpec home_secondary_spec{
+            .width = home_layout.toolbar_button_size,
+            .height = home_layout.toolbar_button_size,
+            .top_gap = 0,
+        };
+        const ::ui::scene::TopBarLayout home_top_layout = ::ui::scene::make_top_bar_layout(
+            top_bar_rect,
+            nullptr,
+            nullptr,
+            &home_primary_spec,
+            home_layout.toolbar_button_size + 4,
+            &home_secondary_spec,
+            home_layout.toolbar_button_size + home_layout.toolbar_button_gap + 4);
         anchor_rect(builder, home_toolbar, top_bar_rect);
         const WidgetHandle home_settings = create_top_icon_button(builder,
-            ::ui::scene::page_header_right_rect(top_bar_rect,
-                                                {.width = home_layout.toolbar_button_size,
-                                                 .height = home_layout.toolbar_button_size,
-                                                 .top_gap = 0},
-                                                home_layout.toolbar_button_size + 4),
+            home_top_layout.right_primary_rect,
             icons.settings, home_layout.toolbar_icon_px);
         const WidgetHandle home_more = create_top_icon_button(builder,
-            ::ui::scene::page_header_right_rect(top_bar_rect,
-                                                {.width = home_layout.toolbar_button_size,
-                                                 .height = home_layout.toolbar_button_size,
-                                                 .top_gap = 0},
-                                                home_layout.toolbar_button_size + home_layout.toolbar_button_gap + 4),
+            home_top_layout.right_secondary_rect,
             icons.more, home_layout.toolbar_icon_px);
 
         builder.link(home, h.home_backdrop);

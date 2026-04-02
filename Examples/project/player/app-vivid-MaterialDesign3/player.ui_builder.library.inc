@@ -140,7 +140,7 @@
             builder.set_style_override(list_path_bg, patch);
         }
         const WidgetHandle list_path_icon = builder.create_button_static("");
-        const ::ui::scene::PillContentSpec list_path_spec{
+        const ::ui::scene::PathBarSpec list_path_spec{
             .left_gap = lib_layout.list_path_icon_left_gap,
             .right_gap = lib_layout.list_path_text_right_gap,
             .icon_top_gap = lib_layout.list_path_icon_top_gap,
@@ -149,11 +149,13 @@
             .icon_gap = lib_layout.list_path_text_left - lib_layout.list_path_icon_left_gap - lib_layout.list_path_icon_size,
             .content_h = lib_layout.list_path_h,
         };
-        anchor_rect(builder, list_path_icon, ::ui::scene::pill_icon_rect(list_path_rect, list_path_spec));
+        const ::ui::scene::PathBarLayout list_path_layout =
+            ::ui::scene::make_path_bar_layout(list_path_rect, list_path_spec);
+        anchor_rect(builder, list_path_icon, list_path_layout.icon_rect);
         builder.set_button_icon(list_path_icon, icons.folder);
         builder.set_button_icon_size(list_path_icon, lib_layout.list_path_icon_px);
         apply_tab_base_style(builder, list_path_icon, lib_layout.list_path_icon_radius);
-        anchor_rect(builder, h.list_path, ::ui::scene::pill_label_rect(list_path_rect, list_path_spec));
+        anchor_rect(builder, h.list_path, list_path_layout.label_rect);
         apply_tab_base_style(builder, h.list_sort, lib_layout.list_sort_radius);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_time_label_style(builder, h.list_path);

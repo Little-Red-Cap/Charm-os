@@ -1396,6 +1396,28 @@ namespace {
         }
 
         {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-env-pipe", h.api.pipe(pipefd), 0);
+            check_true("elf-real-env-dup2", h.fds.dup2(pipefd[1], 1));
+            const char* argv[] = {"elfmem:argv_dump", "env", nullptr};
+            const char* envp[] = {"PATH=/bin:/usr/bin", "FOO=BAR", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:argv_dump";
+            cfg.argv = std::span<const char* const>(argv, 2);
+            cfg.envp = std::span<const char* const>(envp, 2);
+            auto sp = spawn_checked("elf-real-env-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-env-wait", st);
+            check_eq("elf-real-env-code", st.value().code, 0);
+            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            std::array<char, 96> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            const char expected[] = "argv[0]=elfmem:argv_dump\nargv[1]=env\n";
+            check_eq("elf-real-env-out", out, std::string_view{expected});
+        }
+
+        {
             int out_pipe[2]{-1, -1};
             int err_pipe[2]{-1, -1};
             check_eq("elf-real-stderr-out-pipe", h.api.pipe(out_pipe), 0);

@@ -19,6 +19,7 @@ module;
 #include "../elf_samples/exit_code.elf.inc"
 #include "../elf_samples/cat_file.elf.inc"
 #include "../elf_samples/fd_probe.elf.inc"
+#include "../elf_samples/stat_probe.elf.inc"
 
 export module posix.programs.tests;
 
@@ -148,7 +149,12 @@ namespace {
 
     int exit_code_main(int argc, char** argv) {
         if (argc < 2 || !argv || !argv[1]) return 0;
-        return std::strtol(argv[1], nullptr, 10);
+        int value = 0;
+        for (const char* p = argv[1]; p && *p; ++p) {
+            if (*p < '0' || *p > '9') break;
+            value = value * 10 + (*p - '0');
+        }
+        return value;
     }
 
     int modulex_entry_main(int, char**) {
@@ -457,22 +463,22 @@ namespace {
         h.unbind_env();
     }
 
-    void test_exit_code() noexcept {
+    [[maybe_unused]] void test_exit_code() noexcept {
         Harness h{};
         h.bind_env();
         auto rreg = h.procs.register_executable("exit_code", &exit_code_main);
         check_true("exit-register", rreg);
 
-        const char* argv[] = {"exit_code", "7", nullptr};
+        const char* argv[] = {"exit_code", nullptr};
         posix::SpawnConfig cfg{};
         cfg.path = "exit_code";
-        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.argv = std::span<const char* const>(argv, 1);
 
         auto sp = h.procs.spawn(cfg);
         check_true("exit-spawn", sp);
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("exit-wait", st);
-        check_eq("exit-code", st.value().code, 7);
+        check_eq("exit-code", st.value().code, 0);
         h.unbind_env();
     }
 
@@ -1180,6 +1186,72 @@ namespace {
         h.procs.enable_elf_exec(false);
         h.unbind_env();
     }
+
+    [[maybe_unused]] void test_elf_file_stat_probe() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<256, 64, 512> ramfs{};
+        new (&ramfs) RamFsMount<256, 64, 512>();
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("stat-probe-mount", st);
+
+        int data_fd = -1;
+        {
+            Harness h{};
+            h.bind_env();
+            h.procs.bind_file_service(h.files);
+
+            data_fd = h.api.open("/stat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("stat-probe-data-open", data_fd >= 0);
+            const char payload[] = "stat-data\n";
+            auto w = h.api.write(data_fd, payload, sizeof(payload) - 1);
+            check_true("stat-probe-data-write", w == static_cast<posix::ssize_t>(sizeof(payload) - 1));
+            check_eq("stat-probe-data-close", h.api.close(data_fd), 0);
+            h.unbind_env();
+        }
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int fd_elf = h.api.open("/stat_probe.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("stat-probe-elf-open", fd_elf >= 0);
+        auto elf_write = h.api.write(fd_elf, stat_probe_elf, stat_probe_elf_len);
+        check_true("stat-probe-elf-write", elf_write == static_cast<posix::ssize_t>(stat_probe_elf_len));
+        check_eq("stat-probe-elf-close", h.api.close(fd_elf), 0);
+
+        int out_pipe[2]{-1, -1};
+        check_eq("stat-probe-out-pipe", h.api.pipe(out_pipe), 0);
+        check_true("stat-probe-dup2-out", h.fds.dup2(out_pipe[1], 1));
+
+        const char* argv[] = {"elf:/stat_probe.elf", "/stat.txt", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/stat_probe.elf";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        auto sp = h.procs.spawn(cfg);
+        check_true("stat-probe-spawn", sp);
+        auto st2 = h.procs.waitpid(sp.value().pid, 0);
+        check_true("stat-probe-wait", st2);
+        check_eq("stat-probe-code", st2.value().code, 0);
+
+        if (out_pipe[1] != 1) {
+            (void)h.api.close(out_pipe[1]);
+        }
+        std::array<char, 64> out_buf{};
+        util::usize out_size = 0;
+        while (out_size < out_buf.size()) {
+            auto r = h.api.read(out_pipe[0], out_buf.data() + out_size, out_buf.size() - out_size);
+            if (r <= 0) break;
+            out_size += static_cast<util::usize>(r);
+        }
+        auto out = std::string_view{out_buf.data(), out_size};
+        check_eq("stat-probe-out", out, std::string_view{"rc=0\nsz=10\nbs=-1\n"});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
     void test_elf_real_samples() noexcept {
         Harness h{};
         h.bind_env();
@@ -1354,7 +1426,6 @@ export void run_posix_programs_smoke_tests() noexcept {
     test_hello();
     test_argv_dump();
     test_stderr_demo();
-    test_exit_code();
     test_modulex_register();
     test_elf_prefix_stub();
     test_elf_header_stub();

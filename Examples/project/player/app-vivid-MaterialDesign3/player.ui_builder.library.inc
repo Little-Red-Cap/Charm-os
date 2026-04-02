@@ -124,13 +124,11 @@
         const WidgetHandle list_path_bg = builder.create_container();
         anchor_rect(builder, list_path_bg, list_path_rect);
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiButtonBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
-            patch.has_corner_radius = true;
-            patch.corner_radius = lib_layout.list_path_bg_radius;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiButtonBg,
+                .border_color = kUiButtonBorder,
+                .corner_radius = lib_layout.list_path_bg_radius,
+            });
             builder.set_style_override(list_path_bg, patch);
         }
         const WidgetHandle list_path_icon = builder.create_button_static("");

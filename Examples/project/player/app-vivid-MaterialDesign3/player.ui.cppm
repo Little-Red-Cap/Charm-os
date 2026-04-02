@@ -20,6 +20,7 @@ import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
+import charm.ui.scene.pill_surface;
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
 import player.font_cache;
@@ -784,22 +785,20 @@ export namespace player::ui {
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiButtonBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 12;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiButtonBg,
+                .border_color = kUiButtonBorder,
+                .corner_radius = 12,
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TopBarButton), patch);
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiTabBg;
-            patch.has_border_color = true;
-            patch.border_color = kUiButtonBorder;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiTabBg,
+                .border_color = kUiButtonBorder,
+                .corner_radius = 0,
+            });
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::TabBase), patch);
         }
 
@@ -844,13 +843,11 @@ export namespace player::ui {
         }
 
         {
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = kUiInfoTagBgSoft;
-            patch.has_border_color = true;
-            patch.border_color = kUiInfoTagBorderSoft;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 10;
+            StylePatch patch = ::ui::scene::make_pill_surface_patch({
+                .bg_color = kUiInfoTagBgSoft,
+                .border_color = kUiInfoTagBorderSoft,
+                .corner_radius = 10,
+            });
             patch.has_font_color = true;
             patch.font_color = kUiTimeSoft;
             patch.has_font = true;

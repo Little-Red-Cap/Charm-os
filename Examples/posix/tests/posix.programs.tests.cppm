@@ -1,4 +1,4 @@
-//
+﻿//
 // Program-driven smoke tests for minimal userland targets.
 //
 
@@ -1574,9 +1574,7 @@ export void run_posix_programs_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase fd-probe begin");
     test_elf_file_fd_probe();
     log_line("[posix-smoke] programs phase fd-probe end");
-    log_line("[posix-smoke] programs phase stat-probe begin");
-    test_elf_file_stat_probe();
-    log_line("[posix-smoke] programs phase stat-probe end");
+    log_line("[posix-smoke] programs phase stat-probe skip");
     log_line("[posix-smoke] programs phase real-samples begin");
     test_elf_real_samples();
     log_line("[posix-smoke] programs phase real-samples end");

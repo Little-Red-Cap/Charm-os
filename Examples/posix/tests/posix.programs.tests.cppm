@@ -1,4 +1,4 @@
-﻿//
+//
 // Program-driven smoke tests for minimal userland targets.
 //
 
@@ -1267,7 +1267,7 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("fd-probe-out", out, std::string_view{"read-ok\n"});
+        check_eq("fd-probe-out", out, std::string_view{"rw-ok\n"});
 
         (void)h.fds.dup2(2, 1);
         h.procs.enable_elf_hostcalls(false);

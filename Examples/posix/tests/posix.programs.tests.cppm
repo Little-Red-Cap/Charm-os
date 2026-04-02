@@ -1359,16 +1359,16 @@ namespace {
         {
             int pipefd[2]{-1, -1};
             check_eq("elf-real-hello-pipe", h.api.pipe(pipefd), 0);
-            check_true("elf-real-hello-dup2", h.fds.dup2(pipefd[1], 1));
             const char* argv[] = {"elfmem:hello", nullptr};
             posix::SpawnConfig cfg{};
             cfg.path = "elfmem:hello";
             cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
             auto sp = spawn_checked("elf-real-hello-spawn", cfg);
             auto st = h.procs.waitpid(sp.pid, 0);
             check_true("elf-real-hello-wait", st);
             check_eq("elf-real-hello-code", st.value().code, 0);
-            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            (void)h.api.close(pipefd[1]);
             std::array<char, 16> buf{};
             util::usize out_size = 0;
             auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
@@ -1378,16 +1378,16 @@ namespace {
         {
             int pipefd[2]{-1, -1};
             check_eq("elf-real-argv-pipe", h.api.pipe(pipefd), 0);
-            check_true("elf-real-argv-dup2", h.fds.dup2(pipefd[1], 1));
             const char* argv[] = {"elfmem:argv_dump", "a", "b", nullptr};
             posix::SpawnConfig cfg{};
             cfg.path = "elfmem:argv_dump";
             cfg.argv = std::span<const char* const>(argv, 3);
+            cfg.stdio_out = pipefd[1];
             auto sp = spawn_checked("elf-real-argv-spawn", cfg);
             auto st = h.procs.waitpid(sp.pid, 0);
             check_true("elf-real-argv-wait", st);
             check_eq("elf-real-argv-code", st.value().code, 0);
-            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            (void)h.api.close(pipefd[1]);
             std::array<char, 96> buf{};
             util::usize out_size = 0;
             auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
@@ -1465,6 +1465,30 @@ namespace {
             util::usize out_size = 0;
             auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
             check_eq("elf-real-stderr-merge-out", out, std::string_view{"out\nerr\n"});
+        }
+
+        {
+            int err_pipe[2]{-1, -1};
+            check_eq("elf-real-stderr-only-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("elf-real-stderr-only-move-read", h.fds.dup2(err_read, 7));
+                err_read = 7;
+            }
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_err = err_pipe[1];
+            auto sp = spawn_checked("elf-real-stderr-only-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-only-wait", st);
+            check_eq("elf-real-stderr-only-code", st.value().code, 0);
+            (void)h.api.close(err_pipe[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, err_read, buf, out_size);
+            check_eq("elf-real-stderr-only-out", out, std::string_view{"err\n"});
         }
 
         {

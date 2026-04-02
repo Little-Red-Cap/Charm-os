@@ -733,6 +733,8 @@ public:
     std::uint16_t list_view_count(WidgetHandle h) const noexcept ;
     int list_view_selected(WidgetHandle h) const noexcept ;
     void set_list_view_selected(WidgetHandle h, int index) noexcept ;
+    int list_view_active(WidgetHandle h) const noexcept ;
+    void set_list_view_active(WidgetHandle h, int index) noexcept ;
     const char* list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept ;
     const char* list_view_item_subtitle(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept ;

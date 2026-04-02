@@ -288,6 +288,7 @@ export namespace soa_detail {
         ListViewIconFn icon_fn{nullptr};
         std::uint16_t count{0};
         std::int16_t selected{-1};
+        std::int16_t active{-1};
         int scroll_y{0};
         int row_height{28};
         int wheel_step{24};

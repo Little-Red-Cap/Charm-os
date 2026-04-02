@@ -178,7 +178,9 @@ export namespace ui::scene {
             kernel_->set_list_view_icon_source(h, ctx, icon_fn, size);
         }
         void set_list_view_selected(WidgetHandle h, int index) noexcept { kernel_->set_list_view_selected(h, index); }
+        void set_list_view_active(WidgetHandle h, int index) noexcept { kernel_->set_list_view_active(h, index); }
         int list_view_selected(WidgetHandle h) const noexcept { return kernel_->list_view_selected(h); }
+        int list_view_active(WidgetHandle h) const noexcept { return kernel_->list_view_active(h); }
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }

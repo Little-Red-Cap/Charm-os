@@ -1336,6 +1336,7 @@ export namespace player {
             if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
             ignore_list_select = true;
             const int list_index = track_index_to_list(track_index);
+            access.set_list_view_active(handles.list, list_index);
             if (list_index >= 0) {
                 access.set_list_view_selected(handles.list, list_index);
                 last_list_selected = list_index;
@@ -1359,6 +1360,7 @@ export namespace player {
             if (count > 0) {
                 sync_list_selection();
             } else {
+                access.set_list_view_active(handles.list, -1);
                 last_list_selected = -1;
             }
             update_list_title();

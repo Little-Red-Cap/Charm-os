@@ -15,12 +15,6 @@ inline void sync_style_sheet_bases() noexcept {
     sheet.rebuild_if_needed();
 }
 
-inline void ensure_style_font(Style& s) noexcept {
-    if (!s.font) {
-        s.font = &get_font(FontId::Normal);
-    }
-}
-
 export
 struct ThemePreset {
     bool has_label{false};
@@ -57,7 +51,6 @@ export
 inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     auto& sheet = StyleSheet::instance();
     auto set_base = [&](Style s, WidgetKind kind) {
-        ensure_style_font(s);
         sheet.set_base_style(kind, s);
     };
 #if CHARM_VIVID_ENABLE_WIDGET_Label
@@ -111,10 +104,8 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
 export
 inline void apply_baseline_theme_preset(const Style& base) noexcept {
     auto& sheet = StyleSheet::instance();
-    Style base_copy = base;
-    ensure_style_font(base_copy);
     for (const auto kind : enabled_widget_kinds) {
-        sheet.set_base_style(kind, base_copy);
+        sheet.set_base_style(kind, base);
     }
     sync_style_sheet_bases();
 }

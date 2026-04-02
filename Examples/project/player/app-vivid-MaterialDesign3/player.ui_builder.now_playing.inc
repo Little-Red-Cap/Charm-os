@@ -45,14 +45,14 @@
         }
 
         h.title = builder.create_label_static("");
-        apply_text_label_style(builder, h.title, kUiTitle,
-                               get_font_weighted(FontId::Normal, FontWeight::Bold));
+        apply_text_label_role_style(builder, h.title, kUiTitle,
+                                    FontId::Normal, FontWeight::Bold);
         builder.set_label_align(h.title, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.title, false);
 
         h.subtitle = builder.create_label_static("");
-        apply_text_label_style(builder, h.subtitle, kUiSubtitle,
-                               get_font_weighted(FontId::Small, FontWeight::Regular));
+        apply_text_label_role_style(builder, h.subtitle, kUiSubtitle,
+                                    FontId::Small, FontWeight::Regular);
         builder.set_label_align(h.subtitle, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.subtitle, false);
 

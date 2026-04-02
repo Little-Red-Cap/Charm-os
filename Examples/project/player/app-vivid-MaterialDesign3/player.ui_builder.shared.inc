@@ -392,12 +392,39 @@
         builder.set_style_override(h, patch);
     }
 
+    static void apply_text_label_role_style(::ui::scene::SceneBuilder& builder,
+                                            WidgetHandle h,
+                                            const rgba& color,
+                                            FontId role,
+                                            FontWeight weight = FontWeight::Regular) {
+        StylePatch patch{};
+        patch.has_font_color = true;
+        patch.font_color = color;
+        patch.has_font_role = true;
+        patch.font_role = role;
+        patch.has_font_weight = true;
+        patch.font_weight = weight;
+        patch.has_bg_color = true;
+        patch.bg_color = {0, 0, 0, 0};
+        patch.has_border_color = true;
+        patch.border_color = {0, 0, 0, 0};
+        patch.has_border_width = true;
+        patch.border_width = 0;
+        patch.has_padding = true;
+        patch.padding = 0;
+        patch.has_corner_radius = true;
+        patch.corner_radius = 0;
+        builder.set_style_override(h, patch);
+    }
+
     static void apply_time_label_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
         StylePatch patch{};
         patch.has_font_color = true;
         patch.font_color = kUiTime;
-        patch.has_font = true;
-        patch.font = &get_font_weighted(FontId::Small, FontWeight::Regular);
+        patch.has_font_role = true;
+        patch.font_role = FontId::Small;
+        patch.has_font_weight = true;
+        patch.font_weight = FontWeight::Regular;
         builder.set_style_override(h, patch);
     }
 

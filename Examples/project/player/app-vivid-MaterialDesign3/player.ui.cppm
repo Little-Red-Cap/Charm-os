@@ -850,8 +850,8 @@ export namespace player::ui {
             });
             patch.has_font_color = true;
             patch.font_color = kUiTimeSoft;
-            patch.has_font = true;
-            patch.font = &get_font(FontId::Small);
+            patch.has_font_role = true;
+            patch.font_role = FontId::Small;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::InfoTag), patch);
         }
 

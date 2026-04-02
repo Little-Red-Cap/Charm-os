@@ -46,8 +46,8 @@
                      home_layout.title_line_h});
 
         h.home_subtitle = builder.create_label_static("Today's Mix for you");
-        apply_text_label_style(builder, h.home_subtitle, kUiSubtitle,
-                               get_player_font_px(18, FontWeight::Regular));
+        apply_text_label_role_style(builder, h.home_subtitle, kUiSubtitle,
+                                    FontId::Normal, FontWeight::Regular);
         builder.set_label_align(h.home_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.home_subtitle,
                     {home_layout.title_x, home_layout.subtitle_y, home_layout.title_w, home_layout.subtitle_h});

@@ -7,6 +7,7 @@ import out.api;
 import charm.port;
 import charm.system.clock;
 import charm.system.time;
+import player.bundle.hqzy_cm7_usb_storage;
 import player.stm32h7.fs_demo_mmc;
 import player.runtime.hqzy_cm7.usb_storage_bridge;
 
@@ -30,7 +31,8 @@ int charm_player_profile_usb_storage_run() {
     } else {
         out::println<"boot: fs mount ok">();
     }
-    usb_system_init(fs_sd_block_device(), false);
+    auto usb_cfg = player::bundle::hqzy_cm7_usb_storage::make_default_config();
+    usb_system_init(fs_sd_block_device(), usb_cfg.read_only);
 
     MX_USB_DEVICE_Init();
     out::println<"usb: device init ok">();

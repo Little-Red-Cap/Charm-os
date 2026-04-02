@@ -21,6 +21,7 @@ import block.sdmmc;
 import init.graph;
 import init.node;
 import kernel.capabilities;
+import player.bundle.hqzy_cm7_usb_storage;
 import usb.class_msc_block;
 import usb.class_msc_block.node;
 import usb.common;
@@ -49,24 +50,6 @@ namespace player::app_test_hqzy::app_system {
         player::app_test_hqzy::usb_glue::UsbGlue usb{};
         charm::system::Clock* clock{nullptr};
     };
-
-    namespace detail {
-        constexpr usb::u16 kLangs[] = { 0x0409 };
-        constexpr auto kLangDesc = usb::make_lang_id_descriptor(kLangs);
-        constexpr auto kVendorStr = usb::make_ascii_string_descriptor("Charm");
-        constexpr auto kProductStr = usb::make_ascii_string_descriptor("Charm MSC");
-        constexpr auto kSerialStr = usb::make_ascii_string_descriptor("0001");
-
-        static const usb::StringTable<4> kUsbStrings{
-            std::array<std::span<const usb::u8>, 4>{
-                std::span<const usb::u8>(kLangDesc.data(), kLangDesc.size()),
-                std::span<const usb::u8>(kVendorStr.data(), kVendorStr.size()),
-                std::span<const usb::u8>(kProductStr.data(), kProductStr.size()),
-                std::span<const usb::u8>(kSerialStr.data(), kSerialStr.size()),
-            }
-        };
-
-    } // namespace detail
 
     int run() {
         System sys{};
@@ -107,29 +90,9 @@ namespace player::app_test_hqzy::app_system {
             "block.sd0"
         };
 
-        usb::device::MscBlockDesc usb_desc{};
-        usb_desc.cap_name = "usb.msc0";
-        usb_desc.block_cap = "block.sd0";
-        usb_desc.dcd = player::app_test_hqzy::usb_glue::dcd_ops(sys.usb);
-        usb_desc.dcd_ctx = &sys.usb;
-        usb_desc.adapter = &player::app_test_hqzy::usb_glue::adapter(sys.usb);
-        usb_desc.dev_info.vendor_id = 0x1209;
-        usb_desc.dev_info.product_id = 0x0002;
-        usb_desc.dev_info.i_manufacturer = 1;
-        usb_desc.dev_info.i_product = 2;
-        usb_desc.dev_info.i_serial = 3;
-        usb_desc.msc_cfg.ep_out = 0x01;
-        usb_desc.msc_cfg.ep_in = 0x81;
-        usb_desc.msc_cfg.ep_mps = 64;
-        usb_desc.strings = std::span<const std::span<const usb::u8>>(
-            detail::kUsbStrings.entries.data(), detail::kUsbStrings.entries.size());
-        usb_desc.storage_cfg.read_only = true;
-        usb_desc.on_ready = &player::app_test_hqzy::usb_glue::on_ready;
-        usb_desc.on_ready_ctx = &sys.usb;
+        auto usb_cfg = player::bundle::hqzy_cm7_usb_storage::make_default_config();
 
-        charm::system::UsbMscBlockInitChain<block::Registry<kMaxEndpoints>> usb_chain{
-            core.block_registry, usb_desc
-        };
+        auto usb_plan = player::bundle::hqzy_cm7_usb_storage::build(core.block_registry, sys.usb, usb_cfg);
         static constexpr init::CapId kCapBoard = init::cap_id("board.ready");
         static constexpr init::CapId kCapPlatform = init::cap_id("platform.ready");
         static constexpr init::CapId kCapClock = init::cap_id("system.clock");
@@ -142,7 +105,7 @@ namespace player::app_test_hqzy::app_system {
         static constexpr util::usize kMaxSdmmcNodes =
             std::tuple_size_v<decltype(sdmmc_chain.nodes)>;
         static constexpr util::usize kMaxUsbNodes =
-            std::tuple_size_v<decltype(usb_chain.nodes)>;
+            std::tuple_size_v<decltype(usb_plan.nodes)>;
         auto sdmmc_wrapped = init::wrap_nodes_with_requires<decltype(sdmmc_chain), kMaxSdmmcNodes>(
             sdmmc_chain,
             std::span<const init::CapId>(kRequiresPlatform, 1));
@@ -150,8 +113,8 @@ namespace player::app_test_hqzy::app_system {
             boot_log::print_err("boot: sdmmc nodes wrap failed", sdmmc_wrapped.error());
             Error_Handler();
         }
-        auto usb_wrapped = init::wrap_nodes_with_requires<decltype(usb_chain), kMaxUsbNodes>(
-            usb_chain,
+        auto usb_wrapped = init::wrap_nodes_with_requires<decltype(usb_plan), kMaxUsbNodes>(
+            usb_plan,
             std::span<const init::CapId>(kRequiresPlatform, 1));
         if (!usb_wrapped) {
             boot_log::print_err("boot: usb nodes wrap failed", usb_wrapped.error());
@@ -237,7 +200,7 @@ namespace player::app_test_hqzy::app_system {
         for (util::usize i = 0; i < sd_nodes.size(); ++i) {
             nodes[idx++] = sdmmc_wrapped->ptrs[i];
         }
-        const auto usb_nodes = usb_chain.node_span();
+        const auto usb_nodes = usb_plan.node_span();
         for (util::usize i = 0; i < usb_nodes.size(); ++i) {
             nodes[idx++] = usb_wrapped->ptrs[i];
         }

@@ -57,6 +57,8 @@
 - `charm.ui.scene.page_header`
 - `Modules/ui/vivid/core/pill_layout.cppm`
 - `charm.ui.scene.pill`
+- `Modules/ui/vivid/core/list_card_header_layout.cppm`
+- `charm.ui.scene.list_card_header`
 
 说明：
 - 这说明顶栏已经不只是某页私有布局，而是“同一种模式的不同配置”

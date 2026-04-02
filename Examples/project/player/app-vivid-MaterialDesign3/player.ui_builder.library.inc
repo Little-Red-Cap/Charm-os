@@ -79,6 +79,32 @@
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
+        const ::ui::scene::ListCardHeaderLayout list_header_layout =
+            ::ui::scene::make_list_card_header_layout(
+                list_card_rect,
+                {
+                    .title_left_gap = lib_layout.list_title_left_gap,
+                    .title_top_gap = lib_layout.list_title_top_gap,
+                    .title_w_reduce = lib_layout.list_title_right_gap,
+                    .title_h = lib_layout.list_title_h,
+                    .action_w = lib_layout.list_sort_w,
+                    .action_h = lib_layout.list_sort_h,
+                    .action_right_gap = lib_layout.list_sort_right_gap,
+                    .action_top_offset = lib_layout.list_sort_top_offset,
+                    .path_top_gap = lib_layout.list_path_top_gap,
+                    .path_side_gap = lib_layout.list_path_side_gap,
+                    .path_h = lib_layout.list_path_h,
+                    .path_bg_h_extra = lib_layout.list_path_bg_h_extra,
+                    .body_top_gap = lib_layout.list_header_h,
+                    .body_side_gap = lib_layout.list_body_side_gap,
+                    .body_bottom_gap = lib_layout.list_body_bottom_gap,
+                    .scroll_w = lib_layout.list_scroll_w,
+                    .scroll_right_gap = lib_layout.list_scroll_right_gap,
+                    .hint_left_gap = lib_layout.list_hint_left_gap,
+                    .hint_right_gap = lib_layout.list_hint_right_gap,
+                    .hint_bottom_gap = lib_layout.list_hint_bottom_gap,
+                    .hint_h = lib_layout.list_hint_h,
+                });
         ::ui::scene::CardBuilder list_card{builder, list_card_rect, 0, 0,
                                            ::ui::scene::LayoutAlign::Start,
                                            static_cast<StyleClassId>(PlayerStyleClass::ListCard),
@@ -92,19 +118,9 @@
         builder.link(library, tabs_root);
         builder.link(library, shuffle_root);
         builder.link(library, list_card_root);
-        const int list_title_y = list_card_rect.y + lib_layout.list_title_top_gap;
-        const int list_path_y = list_title_y + lib_layout.list_title_h + lib_layout.list_path_top_gap;
-        anchor_rect(builder, h.list_title, {list_card_rect.x + lib_layout.list_title_left_gap, list_title_y,
-                                            list_card_rect.w - lib_layout.list_title_right_gap, lib_layout.list_title_h});
-        anchor_rect(builder, h.list_sort,
-                    {list_card_rect.x + list_card_rect.w - lib_layout.list_sort_right_gap,
-                     list_title_y + lib_layout.list_sort_top_offset,
-                     lib_layout.list_sort_w,
-                     lib_layout.list_sort_h});
-        const Rect list_path_rect{list_card_rect.x + lib_layout.list_path_side_gap,
-                                  list_path_y,
-                                  list_card_rect.w - lib_layout.list_path_side_gap * 2,
-                                  lib_layout.list_path_h + lib_layout.list_path_bg_h_extra};
+        anchor_rect(builder, h.list_title, list_header_layout.title_rect);
+        anchor_rect(builder, h.list_sort, list_header_layout.action_rect);
+        const Rect list_path_rect = list_header_layout.path_rect;
         const WidgetHandle list_path_bg = builder.create_container();
         anchor_rect(builder, list_path_bg, list_path_rect);
         {
@@ -136,18 +152,9 @@
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_time_label_style(builder, h.list_path);
         builder.set_label_align(h.list_path, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        const int list_y = list_card_rect.y + lib_layout.list_header_h;
-        const int list_h = list_card_rect.h - lib_layout.list_header_h - lib_layout.list_body_bottom_gap;
-        anchor_rect(builder, h.list, {list_card_rect.x + lib_layout.list_body_side_gap,
-                                      list_y,
-                                      list_card_rect.w - lib_layout.list_body_side_gap * 2,
-                                      list_h});
-        anchor_rect(builder, h.list_scroll, {list_card_rect.x + list_card_rect.w - lib_layout.list_scroll_right_gap,
-                                             list_y, lib_layout.list_scroll_w,
-                                             list_h});
-        anchor_rect(builder, h.list_hint, {list_card_rect.x + lib_layout.list_hint_left_gap,
-                                           list_card_rect.y + list_card_rect.h - lib_layout.list_hint_bottom_gap,
-                                           list_card_rect.w - lib_layout.list_hint_right_gap, lib_layout.list_hint_h});
+        anchor_rect(builder, h.list, list_header_layout.body_rect);
+        anchor_rect(builder, h.list_scroll, list_header_layout.scroll_rect);
+        anchor_rect(builder, h.list_hint, list_header_layout.hint_rect);
 
         builder.link(list_card_root, h.list);
         builder.link(list_card_root, h.list_scroll);

@@ -22,6 +22,7 @@ export import charm.gfx.render_style;
 export import charm.ui.scene;
 export import charm.ui.scene.page_header;
 export import charm.ui.scene.pill;
+export import charm.ui.scene.list_card_header;
 
 export import charm.font;
 export import charm.font.typography;

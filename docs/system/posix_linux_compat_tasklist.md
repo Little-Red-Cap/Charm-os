@@ -165,7 +165,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | P0 | posix.fd_table | attach/get/close/dup2/clone 语义收敛 | TBD | TODO | QEMU smoke | EMFILE/ENFILE 语义明确 |
 | P0 | posix.pipe | EOF/EPIPE 语义完善 | TBD | TODO | QEMU smoke | 阻塞/非阻塞先不做 |
-| P0 | posix.proc | spawn/waitpid + 子 fd 表隔离 | TBD | TODO | QEMU smoke | file_actions 顺序固定 |
+| P0 | posix.proc | spawn/waitpid + 子 fd 表隔离 | TBD | TODO | QEMU smoke | file_actions 顺序固定 | / child fd close on exit
 | P0 | posix.term | stdio 绑定 + isatty | TBD | TODO | QEMU smoke | term vs file/pipe |
 | P0 | posix.file | open/read/write/stat 基础 | TBD | TODO | BusyBox Phase 2 | /dev/null 已有 |
 | P0 | posix.errno | to_errno 主路径 | TBD | TODO | 单测 | from_errno 有限回转 |
@@ -189,7 +189,7 @@
 
 ### P0.3 posix.proc
 - 接口：spawn/waitpid + 子 fd 表隔离
-- 语义：file_actions 顺序、父表不变
+- 语义：file_actions 顺序、父表不变 / child fd close on exit
 - 验收：`posix.proc.tests` + QEMU smoke
 
 ### P0.4 posix.term

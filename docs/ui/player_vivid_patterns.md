@@ -146,7 +146,43 @@ Player 内部已经多次出现：
 - 先保留在 Player 内作为 `ListCardHeader` 模式
 - 等第二个页面也复用后，再考虑变为 `Vivid` 通用布局助手
 
-### 6. 文本语义与 Text Recipe
+### 6. Path Bar 组合层
+
+`Library` 页的路径条最初是由多个已存在 helper 组合出来的：
+- 背景走 `pill_surface`
+- 图标和文本位置走 `pill_layout`
+- 文本样式走 `MetaText`
+
+这说明它一开始确实可以被看成“胶囊模式的一种特例”。
+
+但在实际推进中，它已经表现出独立组合层特征：
+- 需要明确的 `bar / icon / label` 三段矩形
+- 语义上更接近“路径条”而不是一般按钮或 chip
+- 后续很可能会被搜索页、文件页、浏览页复用
+
+当前已上收的公共 helper：
+- `Modules/ui/vivid/core/path_bar_layout.cppm`
+- `charm.ui.scene.path_bar`
+
+当前公共 helper 提供：
+- `PathBarSpec`
+- `PathBarLayout`
+- `make_path_bar_layout(...)`
+
+这一轮的演进可以理解为：
+- 第一阶段：路径条复用 `pill_layout` 的内容布局能力
+- 第二阶段：路径条作为独立 pattern，拥有自己的组合层 helper
+
+这一步的价值：
+- 页面侧不再把“路径条”当成泛化的 pill 手工拼接
+- `PathBar` 开始具备明确 pattern 身份，便于后续扩展更多浏览类页面
+- 同时仍保持轻量，不急着过早做独立 widget
+
+建议上收方向：
+- 当前先保持 `PathBarLayout` 这一层轻量 helper
+- 如果未来出现第二个真实页面复用，再考虑是否继续增加 `PathBarBuilder` 或状态变体 helper
+
+### 7. 文本语义与 Text Recipe
 
 这一轮推进后，Player 的文本样式已经不再直接散落 `FontId / FontWeight / 显式字号`。
 
@@ -213,9 +249,10 @@ Player 当前保留的页面级语义包括：
 1. 顶栏布局助手
 2. 胶囊/Chip 类 surface helper
 3. 通用文本样式 helper
-4. 封面视觉样式 spec
-5. 列表卡片头布局 helper
-6. 页面级 builder 组合器
+4. 路径条组合层 helper
+5. 封面视觉样式 spec
+6. 列表卡片头布局 helper
+7. 页面级 builder 组合器
 
 理由：
 - 先上收低语义、高复用的模式

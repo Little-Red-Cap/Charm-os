@@ -1457,14 +1457,16 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const Font& subtitle_font = get_font(FontId::Small);
             const int title_h = title_font.line_height;
             const int subtitle_h = subtitle_font.line_height;
-            const int total_h = title_h + subtitle_h;
+            const int line_gap = row_h >= 68 ? 3 : 2;
+            const int total_h = title_h + line_gap + subtitle_h;
             int top = row.y + (row_h - total_h) / 2;
             if (top < row.y) top = row.y;
             const Rect title_rect{text_x, top, text_w, title_h};
-            const Rect subtitle_rect{text_x, top + title_h, text_w, subtitle_h};
+            const Rect subtitle_rect{text_x, top + title_h + line_gap, text_w, subtitle_h};
+            const auto subtitle_color = selected ? colors.on_accent : colors.border;
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
-            out.draw_text_box(subtitle_rect, subtitle, colors.border, subtitle_font,
+            out.draw_text_box(subtitle_rect, subtitle, subtitle_color, subtitle_font,
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         } else {
             out.draw_text_box(text_rect, title ? title : "", font, font_from_metrics(metrics),

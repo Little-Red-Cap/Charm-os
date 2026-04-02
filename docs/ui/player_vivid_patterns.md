@@ -131,11 +131,59 @@ Player 内部已经多次出现：
 - 先保留在 Player 内作为 `ListCardHeader` 模式
 - 等第二个页面也复用后，再考虑变为 `Vivid` 通用布局助手
 
+### 6. 文本语义与 Text Recipe
+
+这一轮推进后，Player 的文本样式已经不再直接散落 `FontId / FontWeight / 显式字号`。
+
+当前结构分成两层：
+- `Vivid` 提供通用文本样式 helper
+- `Player` 提供页面级文本语义映射
+
+当前已上收的公共 helper：
+- `Modules/ui/vivid/core/text_style.cppm`
+- `charm.ui.scene.text_style`
+
+当前公共 helper 提供：
+- `TextStyleSpec`
+- `make_text_style_patch(...)`
+
+它解决的问题：
+- 统一“文本颜色 + font role + font weight + 可选显式字体”的 patch 生成
+- 明确了 `explicit font > font_role > default` 的优先级落点
+- 避免每个页面都手写一遍透明背景、零边框、零 padding 的文本 patch
+
+Player 当前保留的页面级语义包括：
+- `HeroTitle`
+- `HeroSubtitle`
+- `PageTitle`
+- `PageSubtitle`
+- `CardTitle`
+- `CardBody`
+- `MetaText`
+
+其中更适合继续留在 Player 的：
+- `HeroTitle`
+- `HeroSubtitle`
+
+原因：
+- 这类语义仍明显带有播放器页面特征
+- 其中 `HeroTitle` 还绑定了显式大字号逃逸层
+
+更适合继续上收到 `Vivid` 的：
+- 文本 patch 的通用生成逻辑
+- 页面内常见的 `title / subtitle / body / meta` 配方能力
+
+建议后续方向：
+- 暂时不要把 `PlayerTextRole` 直接搬进 `Vivid`
+- 先让更多页面通过 `TextStyleSpec` 组合出自己的语义层
+- 当第二个真实项目也出现稳定的 `title / subtitle / meta` 分层后，再考虑上收更高层 typography recipe
+
 ## 暂不建议直接上收的部分
 
 以下内容目前仍更偏 Player 私有：
 - 具体页面文案
 - 音乐播放器专属控件语义
+- `HeroTitle / HeroSubtitle` 这类页面级文本命名
 - EQ / Volume / Clip 这类业务面板布局
 - 专辑封面提取色和主题应用逻辑
 
@@ -149,9 +197,10 @@ Player 内部已经多次出现：
 
 1. 顶栏布局助手
 2. 胶囊/Chip 类 surface helper
-3. 封面视觉样式 spec
-4. 列表卡片头布局 helper
-5. 页面级 builder 组合器
+3. 通用文本样式 helper
+4. 封面视觉样式 spec
+5. 列表卡片头布局 helper
+6. 页面级 builder 组合器
 
 理由：
 - 先上收低语义、高复用的模式

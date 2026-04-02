@@ -1200,6 +1200,7 @@ export namespace player {
             const auto* tracks = self->storage.tracks;
             if (!tracks) return ::ui::scene::invalid_image_id();
             const int track_index = self->list_index_to_track(static_cast<int>(index));
+            const bool is_active = track_index == self->track_index;
             if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
                 return ::ui::scene::invalid_image_id();
             }
@@ -1213,6 +1214,9 @@ export namespace player {
             }
             const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
+            if (is_active) {
+                return self->is_paused() ? self->icons.pause : self->icons.play;
+            }
             return self->icons.play;
         }
 

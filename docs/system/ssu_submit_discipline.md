@@ -189,4 +189,6 @@ submit discipline 解决的是“执行入口层”的约束。
 
 ## Review Gate (Mechanized)
 
-- 提交前运行：scripts/ssu_submit_gate.ps1`n- 若变更涉及 submit 路径/RunLoop step 且未更新提交纪律文档，脚本将失败。
+- 本地提交前运行：`scripts/ssu_submit_gate.ps1 -Staged`
+- CI 运行：`scripts/ssu_submit_gate.ps1 -DiffRange origin/<base>...HEAD`
+- 若变更涉及 submit 路径/RunLoop step 且未更新提交纪律文档，脚本将失败。

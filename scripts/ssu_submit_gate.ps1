@@ -1,5 +1,6 @@
 ﻿param(
     [string]$Root = (Resolve-Path "$PSScriptRoot\.." ).Path,
+    [string]$DiffRange,
     [switch]$Staged
 )
 
@@ -11,6 +12,9 @@ function Test-Command([string]$Name) {
 }
 
 function Get-DiffText {
+    if ($DiffRange) {
+        return & git diff $DiffRange -U0
+    }
     if ($Staged) {
         return & git diff --cached -U0
     }
@@ -18,6 +22,9 @@ function Get-DiffText {
 }
 
 function Get-ChangedFiles {
+    if ($DiffRange) {
+        return & git diff $DiffRange --name-only
+    }
     if ($Staged) {
         return & git diff --cached --name-only
     }

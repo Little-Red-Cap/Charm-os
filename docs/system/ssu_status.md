@@ -113,9 +113,21 @@ SSU 的提出，就是为了解决这个问题：
 - `tasks.json`
 - `trace.json`
 - `trace.csv`
+- `ssu_overview.json`（通过 `scheduler.format_ssu_overview_json(...)` 输出 trigger/budget/blocking/domain 分布）
+- `ssu_hotspots.json`（通过 `scheduler.format_ssu_hotspots_json(...)` 输出 dominant submit、demand 占比与风险等级）
 
 这一步非常关键：
 SSU 已经进入 observability，而不是只停留在类型声明层。
+
+示例（来自 `Examples/kernel/windows/main_m3.cpp`）：
+
+```json
+{"tasks":2,"unnamed":0,"trigger":{"event":2,"io_ready":0,"timer":0,"frame":0,"demand":0},"budget":{"single_step":2,"budgeted":0},"blocking":{"non_blocking":2,"may_block":0},"domain":{"isr_only":0,"task_only":2,"anywhere":0}}
+```
+
+```json
+{"dominant_submit":"post","submit":{"post":4,"io_ready":0,"demand":0,"timer":0,"replay":0},"submit_total":4,"demand_share_permille":0,"unnamed_count":0,"risk_level":"error","risk":{"unnamed_tasks":0,"no_demand_submit":1,"low_demand_share_warn":1,"low_demand_share_error":1},"unnamed_tasks":[]}
+```
 
 ### 6. 真实 task 接入
 
@@ -279,3 +291,12 @@ SSU 已经不是 Charm 的提案。
 
 
 
+
+## Phase 2 看板
+
+- `docs/system/ssu_phase2_board.md`
+
+- 阈值可配置：`KernelConfig::ssu_demand_warn_permille`、`KernelConfig::ssu_demand_err_permille`。
+
+- 阈值默认值：`warn=50`（5%）、`err=10`（1%）。
+- 可按 target 覆写：例如 `Examples/kernel/windows/main_m3.cpp` 使用 `warn=300`、`err=100` 以放大低 demand 占比告警。

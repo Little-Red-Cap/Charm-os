@@ -38,6 +38,8 @@ export namespace kernel {
         static constexpr bool drop_oldest = false;
         static constexpr bool enable_trace = false;
         static constexpr std::size_t trace_capacity = 0;
+        static constexpr std::size_t ssu_demand_warn_permille = 50;
+        static constexpr std::size_t ssu_demand_err_permille = 10;
     };
 
     template <typename Config>
@@ -75,6 +77,10 @@ export namespace kernel {
                 || Config::alert_queue_err > 0 || Config::alert_timer_err > 0 || Config::alert_filtered_err > 0,
                 "alert enabled but thresholds are zero");
         }
+        static_assert(Config::ssu_demand_warn_permille <= 1000, "ssu_demand_warn_permille must be <= 1000");
+        static_assert(Config::ssu_demand_err_permille <= 1000, "ssu_demand_err_permille must be <= 1000");
+        static_assert(Config::ssu_demand_err_permille <= Config::ssu_demand_warn_permille,
+            "ssu_demand_err_permille must be <= ssu_demand_warn_permille");
     }
 
     template <typename Config>

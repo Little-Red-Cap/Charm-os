@@ -1,4 +1,4 @@
-import audio.player;
+﻿import audio.player;
 import audio.result;
 import player.app;
 import player.controller;
@@ -646,9 +646,9 @@ int main(int argc, char** argv) {
     };
     charm::system::RunLoop<4> loop{};
     loop.bind_clock(g_clock);
-    (void)loop.add_step(charm::system::LoopPhase::io, &loop_poll_events, &loop_state, "player_io");
-    (void)loop.add_step(charm::system::LoopPhase::update, &loop_update, &loop_state, "player_update");
-    (void)loop.add_step(charm::system::LoopPhase::render, &loop_render, &loop_state, "player_render");
+    (void)loop.add_step(charm::system::LoopPhase::io, &loop_poll_events, &loop_state, "player_io", charm::system::kSubmitProjectionEvent);
+    (void)loop.add_step(charm::system::LoopPhase::update, &loop_update, &loop_state, "player_update", charm::system::kSubmitProjectionEvent);
+    (void)loop.add_step(charm::system::LoopPhase::render, &loop_render, &loop_state, "player_render", charm::system::kSubmitProjectionEvent);
     while (running) {
         loop.run_once();
         (void)win_w;
@@ -662,3 +662,4 @@ int main(int argc, char** argv) {
     SDL_Quit();
     return 0;
 }
+

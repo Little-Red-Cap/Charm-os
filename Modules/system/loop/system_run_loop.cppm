@@ -1,4 +1,4 @@
-module;
+﻿module;
 
 #include <array>
 #include <cstddef>
@@ -20,11 +20,13 @@ export namespace charm::system {
 
     using LoopFn = void (*)(void* ctx, ClockTick now_us, ClockTick dt_us) noexcept;
 
+    // submit_projection is an audit tag only, not scheduling behavior.
     struct LoopStep {
         LoopPhase phase{};
         void* ctx{nullptr};
         LoopFn fn{nullptr};
         const char* name{nullptr};
+        const char* submit_projection{nullptr};
     };
 
     template <std::size_t Capacity>
@@ -37,11 +39,12 @@ export namespace charm::system {
         [[nodiscard]] bool add_step(LoopPhase phase,
                                     LoopFn fn,
                                     void* ctx,
-                                    const char* name = nullptr) noexcept {
+                                    const char* name = nullptr,
+                                    const char* submit_projection = nullptr) noexcept {
             if (count_ >= Capacity || fn == nullptr) {
                 return false;
             }
-            steps_[count_++] = LoopStep{phase, ctx, fn, name};
+            steps_[count_++] = LoopStep{phase, ctx, fn, name, submit_projection};
             return true;
         }
 
@@ -106,6 +109,9 @@ export namespace charm::system {
         }
     };
 
+    inline constexpr const char* kSubmitProjectionEvent = "event-submit";
+    inline constexpr const char* kSubmitProjectionIoReady = "io-ready-submit";
+
     template <std::size_t Capacity, typename Scheduler>
     [[nodiscard]] inline bool add_scheduler_step(RunLoop<Capacity>& loop,
                                                  Scheduler& scheduler,
@@ -115,7 +121,7 @@ export namespace charm::system {
                                                  const char* name = nullptr) noexcept {
         step.scheduler = &scheduler;
         step.budget = budget;
-        return loop.add_step(phase, &SchedulerLoopStep<Scheduler>::run, &step, name);
+        return loop.add_step(phase, &SchedulerLoopStep<Scheduler>::run, &step, name, kSubmitProjectionEvent);
     }
 
     template <std::size_t Capacity, typename Reactor>
@@ -127,6 +133,6 @@ export namespace charm::system {
                                                const char* name = nullptr) noexcept {
         step.reactor = &reactor;
         step.budget = budget;
-        return loop.add_step(phase, &ReactorLoopStep<Reactor>::run, &step, name);
+        return loop.add_step(phase, &ReactorLoopStep<Reactor>::run, &step, name, kSubmitProjectionIoReady);
     }
 }

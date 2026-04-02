@@ -124,6 +124,8 @@ SSU 已经完成了从概念到主线事实层的第一轮跃迁：
 
 本阶段的目标交付物包括：
 
+- Phase 2 看板（任务-验收-风险）
+
 - 第三个严格模式样板 target（已完成）
 - SSU 迁移优先级清单
 - SSU observability 扩展项清单
@@ -170,3 +172,12 @@ SSU 当前的最小闭环已经很明确：
 4. 写出 submit discipline 草案
 
 在这四步完成前，不急着继续升级 scheduler 的行为统一能力。
+
+
+## 11. 观测面增量
+
+- scheduler 新增 `format_ssu_overview_json(...)`，可导出 trigger/budget/blocking/domain 分布与未命名 task 数。
+- scheduler 新增 `format_ssu_hotspots_json(...)`，可导出 dominant submit、demand 占比与风险等级（`ok/warning/error`）。
+- 对应看板项：`docs/system/ssu_phase2_board.md` 的任务 D（问题导向观测）。
+
+- hotspots 风险阈值已外置到 `KernelConfig`（`ssu_demand_warn_permille` / `ssu_demand_err_permille`）。

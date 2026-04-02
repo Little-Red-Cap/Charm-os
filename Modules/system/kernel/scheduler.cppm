@@ -1,4 +1,4 @@
-﻿module;
+module;
 
 #include <array>
 #include <cstddef>
@@ -725,6 +725,127 @@ export namespace kernel {
             return offset;
         }
 
+        [[nodiscard]] std::size_t format_ssu_overview_json(char* out, std::size_t max) const noexcept {
+            std::array<util::u64, 5> trigger{};
+            std::array<util::u64, 2> budget{};
+            std::array<util::u64, 2> blocking{};
+            std::array<util::u64, 3> domain{};
+            util::u64 unnamed{0};
+
+            const auto tasks = task_snapshot();
+            for (const auto& task : tasks) {
+                ++trigger[static_cast<std::size_t>(task.ssu_trigger)];
+                ++budget[static_cast<std::size_t>(task.ssu_budget)];
+                ++blocking[static_cast<std::size_t>(task.ssu_blocking)];
+                ++domain[static_cast<std::size_t>(task.ssu_domain)];
+                if (task.ssu_name.empty()) {
+                    ++unnamed;
+                }
+            }
+
+            std::size_t offset = 0;
+            offset = detail::append_text(out, max, offset, "{");
+            offset = detail::append_fmt<"\"tasks\":{},\"unnamed\":{},\"trigger\":{\"event\":{},\"io_ready\":{},\"timer\":{},\"frame\":{},\"demand\":{}},">(
+                out, max, offset,
+                static_cast<unsigned long long>(Registry::count),
+                static_cast<unsigned long long>(unnamed),
+                static_cast<unsigned long long>(trigger[0]),
+                static_cast<unsigned long long>(trigger[1]),
+                static_cast<unsigned long long>(trigger[2]),
+                static_cast<unsigned long long>(trigger[3]),
+                static_cast<unsigned long long>(trigger[4]));
+            offset = detail::append_fmt<"\"budget\":{\"single_step\":{},\"budgeted\":{}},\"blocking\":{\"non_blocking\":{},\"may_block\":{}},">(
+                out, max, offset,
+                static_cast<unsigned long long>(budget[0]),
+                static_cast<unsigned long long>(budget[1]),
+                static_cast<unsigned long long>(blocking[0]),
+                static_cast<unsigned long long>(blocking[1]));
+            offset = detail::append_fmt<"\"domain\":{\"isr_only\":{},\"task_only\":{},\"anywhere\":{}}}">(
+                out, max, offset,
+                static_cast<unsigned long long>(domain[0]),
+                static_cast<unsigned long long>(domain[1]),
+                static_cast<unsigned long long>(domain[2]));
+            return offset;
+        }
+        [[nodiscard]] std::size_t format_ssu_hotspots_json(char* out, std::size_t max) const noexcept {
+            const std::array<util::u64, 5> submit_counts{
+                stats_.source_post,
+                stats_.source_io_ready,
+                stats_.source_demand,
+                stats_.source_timer,
+                stats_.source_replay,
+            };
+            const std::array<std::string_view, 5> submit_names{
+                "post",
+                "io_ready",
+                "demand",
+                "timer",
+                "replay",
+            };
+
+            std::size_t dominant = 0;
+            for (std::size_t i = 1; i < submit_counts.size(); ++i) {
+                if (submit_counts[i] > submit_counts[dominant]) {
+                    dominant = i;
+                }
+            }
+
+            std::array<TaskId, Registry::count> unnamed{};
+            std::size_t unnamed_count = 0;
+            const auto tasks = task_snapshot();
+            for (const auto& task : tasks) {
+                if (task.ssu_name.empty() && unnamed_count < unnamed.size()) {
+                    unnamed[unnamed_count++] = task.id;
+                }
+            }
+
+            const util::u64 submit_total = submit_counts[0] + submit_counts[1] + submit_counts[2] + submit_counts[3] + submit_counts[4];
+            const util::u64 demand_share_permille = submit_total == 0 ? 0 : (submit_counts[2] * 1000ull) / submit_total;
+            const auto kDemandWarnPermille = static_cast<util::u64>(Config::ssu_demand_warn_permille);
+            const auto kDemandErrorPermille = static_cast<util::u64>(Config::ssu_demand_err_permille);
+
+            const bool no_demand_submit = submit_counts[2] == 0;
+            const bool low_demand_share_warn = submit_total > 0 && demand_share_permille < kDemandWarnPermille;
+            const bool low_demand_share_error = submit_total > 0 && demand_share_permille < kDemandErrorPermille;
+            const bool has_unnamed_tasks = unnamed_count > 0;
+
+            std::string_view risk_level = "ok";
+            if (has_unnamed_tasks || no_demand_submit || low_demand_share_error) {
+                risk_level = "error";
+            } else if (low_demand_share_warn) {
+                risk_level = "warning";
+            }
+
+            std::size_t offset = 0;
+            offset = detail::append_text(out, max, offset, "{");
+            offset = detail::append_fmt<"\"dominant_submit\":\"{}\",\"submit\":{\"post\":{},\"io_ready\":{},\"demand\":{},\"timer\":{},\"replay\":{}},\"submit_total\":{},\"demand_share_permille\":{},\"unnamed_count\":{},\"risk_level\":\"{}\",\"risk\":{\"unnamed_tasks\":{},\"no_demand_submit\":{},\"low_demand_share_warn\":{},\"low_demand_share_error\":{}},\"unnamed_tasks\":[">(
+                out, max, offset,
+                submit_names[dominant],
+                static_cast<unsigned long long>(submit_counts[0]),
+                static_cast<unsigned long long>(submit_counts[1]),
+                static_cast<unsigned long long>(submit_counts[2]),
+                static_cast<unsigned long long>(submit_counts[3]),
+                static_cast<unsigned long long>(submit_counts[4]),
+                static_cast<unsigned long long>(submit_total),
+                static_cast<unsigned long long>(demand_share_permille),
+                static_cast<unsigned long long>(unnamed_count),
+                risk_level,
+                has_unnamed_tasks ? 1u : 0u,
+                no_demand_submit ? 1u : 0u,
+                low_demand_share_warn ? 1u : 0u,
+                low_demand_share_error ? 1u : 0u);
+
+            for (std::size_t i = 0; i < unnamed_count; ++i) {
+                if (i > 0) {
+                    offset = detail::append_text(out, max, offset, ",");
+                }
+                offset = detail::append_fmt<"{}">(
+                    out, max, offset,
+                    static_cast<unsigned long long>(unnamed[i].value));
+            }
+            offset = detail::append_text(out, max, offset, "]}");
+            return offset;
+        }
         [[nodiscard]] std::size_t replay_recent(std::size_t count, EventMask mask = 0xFFFF'FFFFu) noexcept {
             if constexpr (!Config::enable_trace) {
                 return 0;

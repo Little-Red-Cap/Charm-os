@@ -177,3 +177,12 @@ submit discipline 解决的是“执行入口层”的约束。
 
 
 
+
+## 机制化落地（最小版）
+
+- PR 模板：`.github/PULL_REQUEST_TEMPLATE.md`
+  - 新增/修改执行路径时，必须填写 `SSU Submit Mapping`
+- 评审清单：`docs/system/ssu_review_checklist.md`
+  - 评审必须给出 submit 映射结论
+
+> 本阶段先做“模板 + 清单”机制化，不做自动化阻断。

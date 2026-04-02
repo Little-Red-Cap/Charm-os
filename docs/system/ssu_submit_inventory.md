@@ -34,7 +34,7 @@
 ## 当前仍在 event-submit 的常见路径
 
 - EDA 任务间离散消息与状态推进（预期继续保留）
-- run loop / phase 推进（当前阶段允许）
+- run_loop / phase 推进（已完成 submit_projection 审计，当前以 event 投影为主）
 - 定时器投影到 event（当前阶段允许）
 
 ## 下一批迁移候选（最小面）
@@ -64,6 +64,7 @@
 ## 一句话
 
 先把“谁从哪条 submit 进入系统”做成可审计事实，再逐步扩大迁移面。
+
 
 
 

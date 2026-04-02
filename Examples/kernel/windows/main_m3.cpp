@@ -19,6 +19,9 @@ namespace demo {
         static constexpr std::size_t timer_capacity = 8;
         static constexpr bool enable_trace = true;
         static constexpr std::size_t trace_capacity = 4;
+        // Demo override: use stricter SSU demand thresholds to surface warning in sample output.
+        static constexpr std::size_t ssu_demand_warn_permille = 300;
+        static constexpr std::size_t ssu_demand_err_permille = 100;
     };
 
     struct TaskA {
@@ -91,6 +94,7 @@ int main() {
     const auto base = Caps::TimeSource::now();
     (void)running.schedule_at(base + 1000, a_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(1)));
     (void)running.schedule_at(base + 1000, b_id, kernel::make_event(kernel::EventId::tick, static_cast<std::uint32_t>(2)));
+    (void)running.post_demand(a_id, kernel::make_event(kernel::EventId::message, static_cast<std::uint32_t>(3)));
 
     Caps::TimeSource::advance(1000);
     const auto t1 = Caps::TimeSource::now();
@@ -101,9 +105,18 @@ int main() {
 
     char stats_buf[256]{};
     char trace_json[256]{};
+    char event_src_json[160]{};
+    char ssu_overview_json[256]{};
+    char ssu_hotspots_json[320]{};
     (void)running.format_snapshot(stats_buf, sizeof(stats_buf));
     (void)running.format_trace_json(trace_json, sizeof(trace_json));
+    (void)running.format_event_source_json(event_src_json, sizeof(event_src_json));
+    (void)running.format_ssu_overview_json(ssu_overview_json, sizeof(ssu_overview_json));
+    (void)running.format_ssu_hotspots_json(ssu_hotspots_json, sizeof(ssu_hotspots_json));
     std::printf("[Stats] %s\n", stats_buf);
+    std::printf("[EventSource.json] %s\n", event_src_json);
+    std::printf("[SsuOverview.json] %s\n", ssu_overview_json);
+    std::printf("[SsuHotspots.json] %s\n", ssu_hotspots_json);
     std::printf("[Trace.json] %s\n", trace_json);
 
     return 0;

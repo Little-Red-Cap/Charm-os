@@ -3,9 +3,17 @@
 #include <cstdio>
 #include <utility>
 
-import charm.foundation;
-import charm.runtime;
+import kernel.capabilities;
+import kernel.config;
+import kernel.eda;
+import kernel.event_token;
+import kernel.evt;
+import kernel.ipc;
+import kernel.scheduler;
 import kernel.ssu;
+import kernel.sync_base;
+import kernel.sync_unified;
+import kernel.wait_token;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;
@@ -119,10 +127,23 @@ int main() {
 
     Caps::TimeSource::advance(1000);
     const auto t1 = Caps::TimeSource::now();
-    while (running.tick(t1)) {
+    for (std::size_t i = 0; i < 128 && running.tick(t1); ++i) {
     }
-    while (running.run_once()) {
+    for (std::size_t i = 0; i < 512 && running.run_once(); ++i) {
     }
+
+    char snapshot[256]{};
+    char event_src_json[192]{};
+    char ssu_overview_json[256]{};
+    char ssu_hotspots_json[320]{};
+    (void)running.format_snapshot(snapshot, sizeof(snapshot));
+    (void)running.format_event_source_json(event_src_json, sizeof(event_src_json));
+    (void)running.format_ssu_overview_json(ssu_overview_json, sizeof(ssu_overview_json));
+    (void)running.format_ssu_hotspots_json(ssu_hotspots_json, sizeof(ssu_hotspots_json));
+    std::printf("[M1.Stats] %s\n", snapshot);
+    std::printf("[M1.EventSource.json] %s\n", event_src_json);
+    std::printf("[M1.SsuOverview.json] %s\n", ssu_overview_json);
+    std::printf("[M1.SsuHotspots.json] %s\n", ssu_hotspots_json);
 
     return 0;
 }

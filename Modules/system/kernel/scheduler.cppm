@@ -744,29 +744,45 @@ export namespace kernel {
             }
 
             std::size_t offset = 0;
-            offset = detail::append_text(out, max, offset, "{");
-            offset = detail::append_fmt<"\"tasks\":{},\"unnamed\":{},\"trigger\":{\"event\":{},\"io_ready\":{},\"timer\":{},\"frame\":{},\"demand\":{}},">(
-                out, max, offset,
-                static_cast<unsigned long long>(Registry::count),
-                static_cast<unsigned long long>(unnamed),
-                static_cast<unsigned long long>(trigger[0]),
-                static_cast<unsigned long long>(trigger[1]),
-                static_cast<unsigned long long>(trigger[2]),
-                static_cast<unsigned long long>(trigger[3]),
-                static_cast<unsigned long long>(trigger[4]));
-            offset = detail::append_fmt<"\"budget\":{\"single_step\":{},\"budgeted\":{}},\"blocking\":{\"non_blocking\":{},\"may_block\":{}},">(
-                out, max, offset,
-                static_cast<unsigned long long>(budget[0]),
-                static_cast<unsigned long long>(budget[1]),
-                static_cast<unsigned long long>(blocking[0]),
-                static_cast<unsigned long long>(blocking[1]));
-            offset = detail::append_fmt<"\"domain\":{\"isr_only\":{},\"task_only\":{},\"anywhere\":{}}}">(
-                out, max, offset,
-                static_cast<unsigned long long>(domain[0]),
-                static_cast<unsigned long long>(domain[1]),
-                static_cast<unsigned long long>(domain[2]));
+            offset = detail::append_text(out, max, offset, R"({"tasks":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(Registry::count));
+            offset = detail::append_text(out, max, offset, R"(,"unnamed":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed));
+
+            offset = detail::append_text(out, max, offset, R"(,"trigger":{"event":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[0]));
+            offset = detail::append_text(out, max, offset, R"(,"io_ready":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[1]));
+            offset = detail::append_text(out, max, offset, R"(,"timer":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[2]));
+            offset = detail::append_text(out, max, offset, R"(,"frame":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[3]));
+            offset = detail::append_text(out, max, offset, R"(,"demand":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(trigger[4]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"budget":{"single_step":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(budget[0]));
+            offset = detail::append_text(out, max, offset, R"(,"budgeted":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(budget[1]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"blocking":{"non_blocking":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(blocking[0]));
+            offset = detail::append_text(out, max, offset, R"(,"may_block":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(blocking[1]));
+            offset = detail::append_text(out, max, offset, R"(})");
+
+            offset = detail::append_text(out, max, offset, R"(,"domain":{"isr_only":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[0]));
+            offset = detail::append_text(out, max, offset, R"(,"task_only":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[1]));
+            offset = detail::append_text(out, max, offset, R"(,"anywhere":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(domain[2]));
+            offset = detail::append_text(out, max, offset, R"(}})");
             return offset;
         }
+
         [[nodiscard]] std::size_t format_ssu_hotspots_json(char* out, std::size_t max) const noexcept {
             const std::array<util::u64, 5> submit_counts{
                 stats_.source_post,
@@ -817,35 +833,46 @@ export namespace kernel {
             }
 
             std::size_t offset = 0;
-            offset = detail::append_text(out, max, offset, "{");
-            offset = detail::append_fmt<"\"dominant_submit\":\"{}\",\"submit\":{\"post\":{},\"io_ready\":{},\"demand\":{},\"timer\":{},\"replay\":{}},\"submit_total\":{},\"demand_share_permille\":{},\"unnamed_count\":{},\"risk_level\":\"{}\",\"risk\":{\"unnamed_tasks\":{},\"no_demand_submit\":{},\"low_demand_share_warn\":{},\"low_demand_share_error\":{}},\"unnamed_tasks\":[">(
-                out, max, offset,
-                submit_names[dominant],
-                static_cast<unsigned long long>(submit_counts[0]),
-                static_cast<unsigned long long>(submit_counts[1]),
-                static_cast<unsigned long long>(submit_counts[2]),
-                static_cast<unsigned long long>(submit_counts[3]),
-                static_cast<unsigned long long>(submit_counts[4]),
-                static_cast<unsigned long long>(submit_total),
-                static_cast<unsigned long long>(demand_share_permille),
-                static_cast<unsigned long long>(unnamed_count),
-                risk_level,
-                has_unnamed_tasks ? 1u : 0u,
-                no_demand_submit ? 1u : 0u,
-                low_demand_share_warn ? 1u : 0u,
-                low_demand_share_error ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"({"dominant_submit":")");
+            offset = detail::append_text(out, max, offset, submit_names[dominant]);
+            offset = detail::append_text(out, max, offset, R"(","submit":{"post":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[0]));
+            offset = detail::append_text(out, max, offset, R"(,"io_ready":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[1]));
+            offset = detail::append_text(out, max, offset, R"(,"demand":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[2]));
+            offset = detail::append_text(out, max, offset, R"(,"timer":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[3]));
+            offset = detail::append_text(out, max, offset, R"(,"replay":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_counts[4]));
+            offset = detail::append_text(out, max, offset, R"(},"submit_total":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(submit_total));
+            offset = detail::append_text(out, max, offset, R"(,"demand_share_permille":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(demand_share_permille));
+            offset = detail::append_text(out, max, offset, R"(,"unnamed_count":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed_count));
+            offset = detail::append_text(out, max, offset, R"(,"risk_level":")");
+            offset = detail::append_text(out, max, offset, risk_level);
+            offset = detail::append_text(out, max, offset, R"(","risk":{"unnamed_tasks":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, has_unnamed_tasks ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"no_demand_submit":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, no_demand_submit ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"low_demand_share_warn":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, low_demand_share_warn ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(,"low_demand_share_error":)");
+            offset = detail::append_fmt<"{}">(out, max, offset, low_demand_share_error ? 1u : 0u);
+            offset = detail::append_text(out, max, offset, R"(},"unnamed_tasks":[)");
 
             for (std::size_t i = 0; i < unnamed_count; ++i) {
                 if (i > 0) {
                     offset = detail::append_text(out, max, offset, ",");
                 }
-                offset = detail::append_fmt<"{}">(
-                    out, max, offset,
-                    static_cast<unsigned long long>(unnamed[i].value));
+                offset = detail::append_fmt<"{}">(out, max, offset, static_cast<unsigned long long>(unnamed[i].value));
             }
-            offset = detail::append_text(out, max, offset, "]}");
+            offset = detail::append_text(out, max, offset, R"(]})");
             return offset;
         }
+
         [[nodiscard]] std::size_t replay_recent(std::size_t count, EventMask mask = 0xFFFF'FFFFu) noexcept {
             if constexpr (!Config::enable_trace) {
                 return 0;

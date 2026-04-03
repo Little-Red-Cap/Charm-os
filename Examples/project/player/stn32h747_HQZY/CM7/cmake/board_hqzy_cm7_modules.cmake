@@ -28,6 +28,7 @@ set(MODULE_GROUP_STORAGE_BOARD_MIN
 set(MODULE_GROUP_HQZY_CM7_RUNTIME
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/boot_log.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/board_platform.cppm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/foundation.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/runtime_bringup.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/sdmmc_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"

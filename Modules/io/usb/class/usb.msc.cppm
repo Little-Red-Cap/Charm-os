@@ -158,9 +158,7 @@ export namespace usb::class_driver {
                 resp.zlp = true;
                 return true;
             }
-            resp.data = {};
-            resp.zlp = true;
-            return true;
+            return false;
         }
 
         static void handle_reset(void* ctx) noexcept {
@@ -197,6 +195,8 @@ export namespace usb::class_driver {
 
     class MscBot {
     public:
+        enum class TraceInResult : u8 { none = 0, data = 1, csw = 2, blocked_wait_csw = 3 };
+
         MscBot(std::span<MscStorage> luns, std::span<u8> io_buf) noexcept
             : luns_(luns), io_buf_(io_buf) {
             sense_.set(0x00, 0x00, 0x00);
@@ -229,6 +229,8 @@ export namespace usb::class_driver {
             } else {
                 stall_out_pending_ = false;
             }
+            last_clear_stall_in_ep_ = in_ep;
+            ++clear_stall_count_;
             stall_wait_csw_ = false;
         }
         u8 last_scsi_cmd() const noexcept { return last_scsi_cmd_; }
@@ -250,6 +252,12 @@ export namespace usb::class_driver {
         u8 last_csw_status() const noexcept { return last_csw_status_; }
         u32 last_csw_residue() const noexcept { return last_csw_residue_; }
         u32 last_csw_tag() const noexcept { return last_csw_tag_; }
+        u8 phase_code() const noexcept { return static_cast<u8>(phase_); }
+        bool stall_wait_csw() const noexcept { return stall_wait_csw_; }
+        bool out_rearm_pending() const noexcept { return out_rearm_pending_; }
+        u8 last_in_result() const noexcept { return last_in_result_; }
+        bool last_clear_stall_in_ep() const noexcept { return last_clear_stall_in_ep_; }
+        u32 clear_stall_count() const noexcept { return clear_stall_count_; }
 
         void reset() noexcept {
             phase_ = Phase::cbw;
@@ -271,6 +279,9 @@ export namespace usb::class_driver {
             stall_out_pending_ = false;
             out_rearm_pending_ = true;
             stall_wait_csw_ = false;
+            last_in_result_ = static_cast<u8>(TraceInResult::none);
+            last_clear_stall_in_ep_ = false;
+            clear_stall_count_ = 0;
         }
 
         u8 max_lun() const noexcept {
@@ -291,15 +302,21 @@ export namespace usb::class_driver {
 
         std::span<const u8> on_in_request(std::size_t max_len) noexcept {
             if (phase_ == Phase::data_in) {
-                return handle_data_in(max_len);
+                auto out = handle_data_in(max_len);
+                last_in_result_ = out.empty() ? static_cast<u8>(TraceInResult::none)
+                                              : static_cast<u8>(TraceInResult::data);
+                return out;
             }
             if (phase_ == Phase::csw) {
                 if (stall_wait_csw_) {
+                    last_in_result_ = static_cast<u8>(TraceInResult::blocked_wait_csw);
                     return {};
                 }
                 phase_ = Phase::cbw;
+                last_in_result_ = static_cast<u8>(TraceInResult::csw);
                 return make_csw();
             }
+            last_in_result_ = static_cast<u8>(TraceInResult::none);
             return {};
         }
 
@@ -917,6 +934,9 @@ export namespace usb::class_driver {
         bool stall_out_pending_{false};
         bool out_rearm_pending_{false};
         bool stall_wait_csw_{false};
+        u8 last_in_result_{static_cast<u8>(TraceInResult::none)};
+        bool last_clear_stall_in_ep_{false};
+        u32 clear_stall_count_{0};
     };
 
     inline MscOps make_msc_ops(MscBot& bot) noexcept {

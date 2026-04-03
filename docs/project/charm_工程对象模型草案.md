@@ -72,6 +72,23 @@ Windows / Linux / MCU 不应被视为完全割裂的世界，而应统一在同�
 
 下面分别说明。
 
+## 4.1 运行时分层补充
+
+上述对象定义的是工程对象视角。
+
+在运行时层面，`Charm` 还需要一个更早、更稳定的基础运行时层，以承接：
+
+- 最小日志输出
+- 最小 panic / fault 输出
+- 最小时间基准
+- 最小 identity 访问
+
+这层建议正式定义为 `Foundation Runtime`。
+
+关于它与统一应用入口模型的详细说明，见：
+
+- `docs/project/charm_foundation_runtime_与统一应用入口模型草案.md`
+
 ## 5. `Product`
 
 `Product` 表示一个产品级或项目级组织单元。

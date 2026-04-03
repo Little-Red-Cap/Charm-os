@@ -34,6 +34,7 @@ import player.runtime.hqzy_cm7.sdmmc_glue;
 import player.runtime.hqzy_cm7.board_platform;
 import player.runtime.hqzy_cm7.runtime_bringup;
 import player.runtime.hqzy_cm7.boot_log;
+import player.runtime.hqzy_cm7.foundation;
 import init.node_wrap;
 
 extern "C" void Error_Handler(void);
@@ -45,7 +46,7 @@ export namespace player::app_test_hqzy::app_system {
 namespace player::app_test_hqzy::app_system {
     struct System {
         sdmmc_glue::SdmmcRuntime sdmmc{};
-        board_platform::Context board{};
+        player::foundation::Runtime foundation{};
         runtime_bringup::Context runtime{};
         player::app_test_hqzy::usb_glue::UsbGlue usb{};
         charm::system::Clock* clock{nullptr};
@@ -53,6 +54,17 @@ namespace player::app_test_hqzy::app_system {
 
     int run() {
         System sys{};
+        auto foundation = player::foundation::init({
+            "player",
+            "stm32h747-hal",
+            "hqzy_cm7",
+            "usb_self_msc"
+        });
+        if (!foundation) {
+            Error_Handler();
+        }
+        sys.foundation = *foundation;
+        player::foundation::print(sys.foundation, "msc: enter run\n");
 
         using PumpCaps = charm::system::SystemCaps<
             kernel::NoopIrqGuard,
@@ -75,6 +87,7 @@ namespace player::app_test_hqzy::app_system {
             host.pump_id(),
             8
         };
+        player::foundation::print(sys.foundation, "msc: core chain ok\n");
         sys.clock = &core.clock;
 
         block::SdmmcHandle sdmmc_handle{&sys.sdmmc, &sdmmc_glue::kOps};
@@ -95,12 +108,10 @@ namespace player::app_test_hqzy::app_system {
         auto usb_plan = player::bundle::hqzy_cm7_usb_storage::build(core.block_registry, sys.usb, usb_cfg);
         static constexpr init::CapId kCapBoard = init::cap_id("board.ready");
         static constexpr init::CapId kCapPlatform = init::cap_id("platform.ready");
-        static constexpr init::CapId kCapClock = init::cap_id("system.clock");
         static constexpr init::CapId kProvidesBoard[] = {kCapBoard};
         static constexpr init::CapId kProvidesPlatform[] = {kCapPlatform};
         static constexpr init::CapId kRequiresBoard[] = {kCapBoard};
         static constexpr init::CapId kRequiresPlatform[] = {kCapPlatform};
-        static constexpr init::CapId kProvidesClock[] = {kCapClock};
 
         static constexpr util::usize kMaxSdmmcNodes =
             std::tuple_size_v<decltype(sdmmc_chain.nodes)>;
@@ -109,6 +120,7 @@ namespace player::app_test_hqzy::app_system {
         auto sdmmc_wrapped = init::wrap_nodes_with_requires<decltype(sdmmc_chain), kMaxSdmmcNodes>(
             sdmmc_chain,
             std::span<const init::CapId>(kRequiresPlatform, 1));
+        player::foundation::print(sys.foundation, "msc: sd wrap called\n");
         if (!sdmmc_wrapped) {
             boot_log::print_err("boot: sdmmc nodes wrap failed", sdmmc_wrapped.error());
             Error_Handler();
@@ -116,6 +128,7 @@ namespace player::app_test_hqzy::app_system {
         auto usb_wrapped = init::wrap_nodes_with_requires<decltype(usb_plan), kMaxUsbNodes>(
             usb_plan,
             std::span<const init::CapId>(kRequiresPlatform, 1));
+        player::foundation::print(sys.foundation, "msc: usb wrap called\n");
         if (!usb_wrapped) {
             boot_log::print_err("boot: usb nodes wrap failed", usb_wrapped.error());
             Error_Handler();
@@ -130,12 +143,13 @@ namespace player::app_test_hqzy::app_system {
             [](void* ctx) noexcept -> util::Result<void> {
                 auto* sys_ctx = static_cast<System*>(ctx);
                 if (!sys_ctx) return util::unexpected(util::Errc::invalid_arg);
-                auto r = board_platform::init();
-                if (!r) {
-                    boot_log::print_err("boot: board init failed", r.error());
-                    return util::unexpected(r.error());
+                player::foundation::print(sys_ctx->foundation, "foundation: board node reuse\n");
+                if (sys_ctx->clock) {
+                    sys_ctx->clock->reset(nullptr, charm::system::ClockOps{
+                        &board_platform::now_ms,
+                        nullptr
+                    });
                 }
-                sys_ctx->board = *r;
                 return {};
             },
             nullptr,
@@ -165,33 +179,11 @@ namespace player::app_test_hqzy::app_system {
             &sys
         };
 
-        const init::Node clock_node{
-            "clock.init",
-            init::Phase::early,
-            static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesClock, 1),
-            std::span<const init::CapId>(kRequiresBoard, 1),
-            [](void* ctx) noexcept -> util::Result<void> {
-                auto* sys_ctx = static_cast<System*>(ctx);
-                if (!sys_ctx || !sys_ctx->clock) {
-                    return util::unexpected(util::Errc::invalid_arg);
-                }
-                sys_ctx->clock->reset(nullptr, charm::system::ClockOps{
-                    &board_platform::now_ms,
-                    nullptr
-                });
-                return {};
-            },
-            nullptr,
-            &sys
-        };
-
         init::Graph<kMaxNodes, kMaxCaps> graph{};
         std::array<const init::Node*, kMaxNodes> nodes{};
         util::usize idx = 0;
         nodes[idx++] = &board_node;
         nodes[idx++] = &runtime_node;
-        nodes[idx++] = &clock_node;
         const auto core_nodes = core.node_span();
         for (util::usize i = 0; i < core_nodes.size(); ++i) {
             nodes[idx++] = core_nodes[i];
@@ -208,21 +200,46 @@ namespace player::app_test_hqzy::app_system {
         auto r = graph.build(std::span<const init::Node* const>(nodes.data(), idx),
                              static_cast<util::u32>(init::Runlevel::all),
                              init::Phase::app);
+        player::foundation::print(sys.foundation, "msc: graph build returned\n");
         if (!r) {
             boot_log::print_err("boot: graph build failed", r.error());
             Error_Handler();
         }
         auto r_start = graph.start();
+        player::foundation::print(sys.foundation, "msc: graph start returned\n");
         if (!r_start) {
             boot_log::print_err("boot: graph start failed", r_start.error());
             Error_Handler();
         }
 
-        boot_log::print("boot: usb msc ready\n");
+        player::foundation::print(sys.foundation, "boot: usb msc ready\n");
 
         while (true) {
             (void)host.run_once();
             player::app_test_hqzy::usb_glue::poll_msc(sys.usb);
+            if (sys.usb.msc_bot && charm::system::time::bound()) {
+                static util::u64 last_trace_ms = 0;
+                const auto now = charm::system::time::now_ms();
+                if ((now - last_trace_ms) >= 1000u) {
+                    last_trace_ms = now;
+                    const auto& bot = *sys.usb.msc_bot;
+                    boot_log::printf(
+                        "msc: phase=%u scsi=0x%02X st=%u sense=%u/%u/%u csw=%u resid=%lu in=%u wait=%u clr=%lu clr_in=%u rearm=%u\n",
+                        static_cast<unsigned>(bot.phase_code()),
+                        static_cast<unsigned>(bot.last_scsi_cmd()),
+                        static_cast<unsigned>(bot.last_scsi_status()),
+                        static_cast<unsigned>(bot.last_sense_key()),
+                        static_cast<unsigned>(bot.last_sense_asc()),
+                        static_cast<unsigned>(bot.last_sense_ascq()),
+                        static_cast<unsigned>(bot.last_csw_status()),
+                        static_cast<unsigned long>(bot.last_csw_residue()),
+                        static_cast<unsigned>(bot.last_in_result()),
+                        static_cast<unsigned>(bot.stall_wait_csw() ? 1u : 0u),
+                        static_cast<unsigned long>(bot.clear_stall_count()),
+                        static_cast<unsigned>(bot.last_clear_stall_in_ep() ? 1u : 0u),
+                        static_cast<unsigned>(bot.out_rearm_pending() ? 1u : 0u));
+                }
+            }
         }
     }
 }

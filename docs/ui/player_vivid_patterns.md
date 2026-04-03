@@ -229,6 +229,38 @@ Player 当前保留的页面级语义包括：
 - 先让更多页面通过 `TextStyleSpec` 组合出自己的语义层
 - 当第二个真实项目也出现稳定的 `title / subtitle / meta` 分层后，再考虑上收更高层 typography recipe
 
+### 8. 最小线性渐变背景能力
+
+这一轮推进后，`Vivid` 已经补上了一类非常克制但实用的背景能力：
+- 两色线性渐变
+- 方向目前只支持 `vertical / horizontal`
+- 支持圆角裁剪
+- 当前优先服务 `Container` 类背景
+
+这项能力的落点不是“为了做炫技渐变”，而是为了让 `Player` 的 `Library` 页面这类真实场景不再只能用“多层半透明色块近似”。
+
+当前这版能力适合处理的场景：
+- 页面背景的上下层次渐变
+- 大容器 / 面板 / Hero 背景的轻渐变过渡
+- 不需要复杂 stop 的主题化底色
+
+当前明确不做的范围：
+- 多 stop 渐变
+- 任意角度线性渐变
+- radial / conical gradient
+- 渐变描边
+- 通用 shader / 缓存系统
+
+为什么先只做这一版：
+- `arm-2d` 一类 MCU 场景实践说明，固定方向的最小渐变已经很有价值
+- `lvgl` 那类完整 gradient descriptor 虽然更强，但对当前阶段来说偏重
+- `Player` 的 `Library` 背景已经证明：两色、固定方向、圆角裁剪，这个组合就足够解决第一批真实问题
+
+建议上收方向：
+- 目前先把它视为 `surface background capability`，不是独立 widget
+- 先继续观察 `Library`、未来 `Home Hero`、信息条背景是否稳定复用
+- 等第二个以上真实 pattern 复用后，再决定是否增加更高层的 `GradientSurfaceSpec`
+
 ## 暂不建议直接上收的部分
 
 以下内容目前仍更偏 Player 私有：

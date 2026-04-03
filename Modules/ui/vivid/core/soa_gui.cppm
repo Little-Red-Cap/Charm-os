@@ -187,10 +187,14 @@ namespace {
                               bool draw_fill,
                               bool draw_border) {
         const int rad = metrics.corner_radius;
-        draw_decoration_shadow(out, r, rad, deco);
-        if (draw_fill) {
-            out.fill_round_rect(r, rad, colors.bg);
-        }
+      draw_decoration_shadow(out, r, rad, deco);
+      if (draw_fill) {
+          if (colors.gradient_enabled) {
+              out.fill_linear_gradient_rect(r, colors.gradient_start, colors.gradient_end, rad, colors.gradient_direction == 0);
+          } else {
+              out.fill_round_rect(r, rad, colors.bg);
+          }
+      }
         if (draw_border) {
             out.stroke_round_rect(r, rad, colors.border);
         }

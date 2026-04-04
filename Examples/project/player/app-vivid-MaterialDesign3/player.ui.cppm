@@ -664,12 +664,10 @@ export namespace player::ui {
         auto& state = detail::freetype_state();
         if (!state.ready || state.ttf_path.empty()) {
             const auto& fallback = detail::fallback_font_for_px(px, weight);
-            std::printf("[font-px] fallback reason=not_ready px=%d weight=%d\n", px, static_cast<int>(weight));
             return fallback;
         }
         for (auto& slot : state.exact_fonts) {
             if (slot.loaded && slot.px == px && slot.weight == weight) {
-                std::printf("[font-px] cache-hit px=%d weight=%d path=%s\n", px, static_cast<int>(weight), slot.path.c_str());
                 return slot.font;
             }
         }
@@ -701,12 +699,6 @@ export namespace player::ui {
         const auto api = state.loader.vfs_api();
         if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
             free_slot->loaded = true;
-            std::printf("[font-px] load-ok px=%d weight=%d path=%s line_h=%d baseline=%d\n",
-                        px,
-                        static_cast<int>(weight),
-                        free_slot->path.c_str(),
-                        free_slot->font.line_height,
-                        free_slot->font.baseline);
             return free_slot->font;
         }
         if (api.reset) {
@@ -716,7 +708,6 @@ export namespace player::ui {
         free_slot->px = 0;
         free_slot->weight = FontWeight::Regular;
         const auto& fallback = detail::fallback_font_for_px(px, weight);
-        std::printf("[font-px] fallback reason=load_failed px=%d weight=%d\n", px, static_cast<int>(weight));
         return fallback;
     }
 

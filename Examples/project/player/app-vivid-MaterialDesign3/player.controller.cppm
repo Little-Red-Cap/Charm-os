@@ -79,9 +79,15 @@ export namespace player {
 
     struct UiHandles {
         WidgetHandle page_probe{};
+        WidgetHandle probe_backdrop{};
         WidgetHandle probe_panel{};
         WidgetHandle probe_title{};
         WidgetHandle probe_hint{};
+        WidgetHandle probe_hero_top{};
+        WidgetHandle probe_hero_bottom{};
+        WidgetHandle probe_hero_subtitle{};
+        WidgetHandle probe_ref_title{};
+        WidgetHandle probe_ref_meta{};
         WidgetHandle page_home{};
         WidgetHandle page_now_playing{};
         WidgetHandle page_library{};
@@ -321,11 +327,6 @@ export namespace player {
             if (!access.valid()) return;
             const Font& title_font = get_player_font_px(72, FontWeight::Bold);
             const Font& subtitle_font = get_player_font_px(18, FontWeight::Regular);
-            std::printf("[font-px] refresh begin title(line=%d base=%d) subtitle(line=%d base=%d)\n",
-                        title_font.line_height,
-                        title_font.baseline,
-                        subtitle_font.line_height,
-                        subtitle_font.baseline);
             auto apply_font = [&](WidgetHandle h, const Font& font) {
                 if (!h) return;
                 StylePatch patch{};
@@ -336,10 +337,15 @@ export namespace player {
             apply_font(handles.home_title_top, title_font);
             apply_font(handles.home_title_bottom, title_font);
             apply_font(handles.home_subtitle, subtitle_font);
+            apply_font(handles.probe_hero_top, title_font);
+            apply_font(handles.probe_hero_bottom, title_font);
+            apply_font(handles.probe_hero_subtitle, subtitle_font);
             access.set_text(handles.home_title_top, "Your");
             access.set_text(handles.home_title_bottom, "Mix");
             access.set_text(handles.home_subtitle, "Today's Mix for you");
-            std::printf("[font-px] refresh labels reapplied\n");
+            access.set_text(handles.probe_hero_top, "Your");
+            access.set_text(handles.probe_hero_bottom, "Mix");
+            access.set_text(handles.probe_hero_subtitle, "Today's Mix for you");
         }
 
         void rebind_player_fonts() noexcept {

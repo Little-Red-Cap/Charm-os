@@ -969,17 +969,6 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
                               TextAlignH align_h, TextAlignV align_v) {
         (void)state;
         const Font& font = font_from_metrics(metrics);
-        if (text && (std::strcmp(text, "Your") == 0 || std::strcmp(text, "Mix") == 0
-                     || std::strcmp(text, "Today's Mix for you") == 0)) {
-            std::printf("[font-draw] text=%s line=%d base=%d rect=%d,%d,%d,%d\n",
-                        text,
-                        font.line_height,
-                        font.baseline,
-                        r.x,
-                        r.y,
-                        r.w,
-                        r.h);
-        }
         out.draw_text_box(r, text ? text : "", colors.font, font,
                           align_h, align_v, TextWrap::None, TextEllipsis::End);
     }

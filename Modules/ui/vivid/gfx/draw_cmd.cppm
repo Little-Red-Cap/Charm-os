@@ -141,6 +141,7 @@ export namespace ui::draw_cmd {
     struct CmdTextBox {
         rgba color{};
         TextSpan text{};
+        const Font* font_ptr{nullptr};
         FontId font{FontId::Normal};
         TextAlignH align_h{TextAlignH::Left};
         TextAlignV align_v{TextAlignV::Top};
@@ -213,6 +214,7 @@ export namespace ui::draw_cmd {
     struct CmdGlyphRun {
         rgba color{};
         BlobRef blob{};
+        const Font* font_ptr{nullptr};
         FontId font{FontId::Normal};
         TextAlignH align_h{TextAlignH::Left};
         TextAlignV align_v{TextAlignV::Top};
@@ -257,6 +259,7 @@ export namespace ui::draw_cmd {
         TextSpan text{};
         BlobRef blob{};
         ImageId image{};
+        const Font* font_ptr{nullptr};
         FontId font{FontId::Normal};
         TextAlignH align_h{TextAlignH::Left};
         TextAlignV align_v{TextAlignV::Top};
@@ -533,6 +536,7 @@ export namespace ui::draw_cmd {
             const auto payload = read_payload<CmdTextBox>(header);
             out.color = payload.color;
             out.text = payload.text;
+            out.font_ptr = payload.font_ptr;
             out.font = payload.font;
             out.align_h = payload.align_h;
             out.align_v = payload.align_v;
@@ -602,6 +606,7 @@ export namespace ui::draw_cmd {
             const auto payload = read_payload<CmdGlyphRun>(header);
             out.color = payload.color;
             out.blob = payload.blob;
+            out.font_ptr = payload.font_ptr;
             out.font = payload.font;
             out.align_h = payload.align_h;
             out.align_v = payload.align_v;
@@ -971,6 +976,7 @@ export namespace ui::draw_cmd {
             auto cmd = make_cmd(CmdType::DrawTextBox, rect);
             cmd.color = color;
             cmd.text = span;
+            cmd.font_ptr = &font;
             cmd.font = font_id_from_ptr(&font);
             cmd.align_h = align_h;
             cmd.align_v = align_v;
@@ -1087,6 +1093,7 @@ export namespace ui::draw_cmd {
 
             auto can_merge_text = [](const DrawCmd& a, const DrawCmd& b) noexcept {
                 return rgba_equal(a.color, b.color)
+                    && a.font_ptr == b.font_ptr
                     && a.font == b.font
                     && a.align_h == b.align_h
                     && a.align_v == b.align_v
@@ -1424,6 +1431,7 @@ export namespace ui::draw_cmd {
                             batch_cmd.type = CmdType::GlyphRun;
                             batch_cmd.rect = bounds;
                             batch_cmd.color = cmd.color;
+                            batch_cmd.font_ptr = cmd.font_ptr;
                             batch_cmd.font = cmd.font;
                             batch_cmd.align_h = cmd.align_h;
                             batch_cmd.align_v = cmd.align_v;
@@ -1911,6 +1919,7 @@ export namespace ui::draw_cmd {
                 CmdTextBox payload{};
                 payload.color = cmd.color;
                 payload.text = cmd.text;
+                payload.font_ptr = cmd.font_ptr;
                 payload.font = cmd.font;
                 payload.align_h = cmd.align_h;
                 payload.align_v = cmd.align_v;
@@ -1980,6 +1989,7 @@ export namespace ui::draw_cmd {
                 CmdGlyphRun payload{};
                 payload.color = cmd.color;
                 payload.blob = cmd.blob;
+                payload.font_ptr = cmd.font_ptr;
                 payload.font = cmd.font;
                 payload.align_h = cmd.align_h;
                 payload.align_v = cmd.align_v;
@@ -2568,7 +2578,7 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const GlyphRunItem>(
                     reinterpret_cast<const GlyphRunItem*>(blob.data()), count);
-                const Font& font = get_font(cur.font);
+                const Font& font = cur.font_ptr ? *cur.font_ptr : get_font(cur.font);
                 for (const auto& item : items) {
                     if (!buf.text_span_valid(item.text)) {
                         fail_text();
@@ -2760,7 +2770,7 @@ export namespace ui::draw_cmd {
                         return;
                     }
                     const char* text = buf.text_at(cur.text.offset);
-                    const Font& font = get_font(cur.font);
+                    const Font& font = cur.font_ptr ? *cur.font_ptr : get_font(cur.font);
                     draw_text_box(canvas, cur.rect, text, cur.color, font,
                                   cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
                     break;
@@ -2854,6 +2864,7 @@ export namespace ui::draw_cmd {
             };
             auto text_params_match = [&](const DrawCmd& a, const DrawCmd& b) noexcept {
                 return rgba_equal(a.color, b.color)
+                    && a.font_ptr == b.font_ptr
                     && a.font == b.font
                     && a.align_h == b.align_h
                     && a.align_v == b.align_v

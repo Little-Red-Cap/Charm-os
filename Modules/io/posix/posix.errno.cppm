@@ -57,6 +57,8 @@ export namespace posix {
             case util::Errc::nomem: return ENOMEM;
             case util::Errc::busy: return EBUSY;
             case util::Errc::exist: return EEXIST;
+            case util::Errc::notdir: return ENOTDIR;
+            case util::Errc::isdir: return EISDIR;
             case util::Errc::inval: return EINVAL;
             case util::Errc::rofs: return EROFS;
             case util::Errc::nametoolong: return ENAMETOOLONG;
@@ -80,6 +82,8 @@ export namespace posix {
             case ENOMEM: return util::Errc::nomem;
             case EBUSY: return util::Errc::busy;
             case EEXIST: return util::Errc::exist;
+            case ENOTDIR: return util::Errc::notdir;
+            case EISDIR: return util::Errc::isdir;
             case EINVAL: return util::Errc::inval;
             case EROFS: return util::Errc::rofs;
             case ENAMETOOLONG: return util::Errc::nametoolong;

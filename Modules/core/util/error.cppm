@@ -19,6 +19,8 @@ export namespace util {
         nomem = -12,
         busy = -16,
         exist = -17,
+        notdir = -20,
+        isdir = -21,
         inval = -22,
         rofs = -30,
         nametoolong = -36,
@@ -31,6 +33,8 @@ export namespace util {
         not_supported = notsup,
         invalid = inval,
         invalid_arg = inval,
+        not_dir = notdir,
+        is_dir = isdir,
         no_memory = nomem,
         would_block = again,
 

@@ -29,6 +29,42 @@
         anchor_rect(builder, library, {0, 0, screen_width, screen_height});
         h.page_library = library;
 
+        const WidgetHandle library_bg_top = builder.create_container();
+        anchor_rect(builder, library_bg_top, {0, 0, screen_width, screen_height / 2});
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {88, 142, 198, 180};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {26, 58, 108, 70};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            builder.set_style_patch(library_bg_top, patch);
+            builder.set_hit_testable(library_bg_top, false);
+        }
+
+        const WidgetHandle library_bg_bottom = builder.create_container();
+        anchor_rect(builder, library_bg_bottom, {0, screen_height / 3, screen_width, screen_height - screen_height / 3});
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {18, 42, 82, 120};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {4, 12, 32, 220};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            builder.set_style_patch(library_bg_bottom, patch);
+            builder.set_hit_testable(library_bg_bottom, false);
+        }
+
         const WidgetHandle lib_top = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
         const ::ui::scene::TopBarTitleSpec lib_title_spec{
@@ -120,6 +156,8 @@
         const WidgetHandle list_card_root = list_card.root();
 
         builder.link(h.root, library);
+        builder.link(library, library_bg_top);
+        builder.link(library, library_bg_bottom);
         builder.link(library, lib_top);
         builder.link(lib_top, lib_title);
         builder.link(lib_top, lib_settings);

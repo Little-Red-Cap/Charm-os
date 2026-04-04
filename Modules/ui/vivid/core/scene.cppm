@@ -40,6 +40,7 @@ export namespace ui::scene {
     using TextAlignV = ::TextAlignV;
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
+    using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = soa_detail::ListViewIconFn;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
@@ -165,6 +166,11 @@ export namespace ui::scene {
                                   ListViewTextFn text_fn) noexcept {
             kernel_->set_list_view_source(h, count, ctx, text_fn);
         }
+        void set_list_view_subtitle_source(WidgetHandle h,
+                                           const void* ctx,
+                                           ListViewSubtitleFn subtitle_fn) noexcept {
+            kernel_->set_list_view_subtitle_source(h, ctx, subtitle_fn);
+        }
         void set_list_view_icon_source(WidgetHandle h,
                                        const void* ctx,
                                        ListViewIconFn icon_fn,
@@ -172,7 +178,9 @@ export namespace ui::scene {
             kernel_->set_list_view_icon_source(h, ctx, icon_fn, size);
         }
         void set_list_view_selected(WidgetHandle h, int index) noexcept { kernel_->set_list_view_selected(h, index); }
+        void set_list_view_active(WidgetHandle h, int index) noexcept { kernel_->set_list_view_active(h, index); }
         int list_view_selected(WidgetHandle h) const noexcept { return kernel_->list_view_selected(h); }
+        int list_view_active(WidgetHandle h) const noexcept { return kernel_->list_view_active(h); }
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }

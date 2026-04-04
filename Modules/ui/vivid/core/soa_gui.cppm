@@ -187,10 +187,14 @@ namespace {
                               bool draw_fill,
                               bool draw_border) {
         const int rad = metrics.corner_radius;
-        draw_decoration_shadow(out, r, rad, deco);
-        if (draw_fill) {
-            out.fill_round_rect(r, rad, colors.bg);
-        }
+      draw_decoration_shadow(out, r, rad, deco);
+      if (draw_fill) {
+          if (colors.gradient_enabled) {
+              out.fill_linear_gradient_rect(r, colors.gradient_start, colors.gradient_end, rad, colors.gradient_direction == 0);
+          } else {
+              out.fill_round_rect(r, rad, colors.bg);
+          }
+      }
         if (draw_border) {
             out.stroke_round_rect(r, rad, colors.border);
         }
@@ -1424,14 +1428,20 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
     int end = start + visible;
     if (end > static_cast<int>(count)) end = static_cast<int>(count);
     const int selected = kernel.list_view_selected(h);
+    const int active = kernel.list_view_active(h);
 
     const int icon_size_raw = static_cast<int>(kernel.list_view_icon_size(h));
     for (int i = start; i < end; ++i) {
         Rect row{clip_rect.x, y, clip_rect.w, row_h};
         if (i == selected) {
             out.fill_rect(row, colors.accent);
+        } else if (i == active) {
+            out.stroke_rect(row, colors.accent);
         }
-        const rgba font = (i == selected) ? colors.on_accent : colors.font;
+        const bool row_selected = (i == selected);
+        const bool row_active = (i == active);
+        const rgba font = row_selected ? colors.on_accent
+                                       : (row_active ? colors.accent : colors.font);
         const auto icon = kernel.list_view_item_icon(h, static_cast<std::uint16_t>(i));
         int text_x = row.x + pad;
         int text_w = row.w - pad * 2;
@@ -1450,9 +1460,29 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         }
         if (text_w < 0) text_w = 0;
         const Rect text_rect{text_x, row.y, text_w, row_h};
-        const char* text = kernel.list_view_item_text(h, static_cast<std::uint16_t>(i));
-        out.draw_text_box(text_rect, text ? text : "", font, font_from_metrics(metrics),
-                          TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        const char* title = kernel.list_view_item_text(h, static_cast<std::uint16_t>(i));
+        const char* subtitle = kernel.list_view_item_subtitle(h, static_cast<std::uint16_t>(i));
+        if (subtitle && subtitle[0] != '\0' && row_h >= 44) {
+            const Font& title_font = font_from_metrics(metrics);
+            const Font& subtitle_font = get_font(FontId::Small);
+            const int title_h = title_font.line_height;
+            const int subtitle_h = subtitle_font.line_height;
+            const int line_gap = row_h >= 68 ? 3 : 2;
+            const int total_h = title_h + line_gap + subtitle_h;
+            int top = row.y + (row_h - total_h) / 2;
+            if (top < row.y) top = row.y;
+            const Rect title_rect{text_x, top, text_w, title_h};
+            const Rect subtitle_rect{text_x, top + title_h + line_gap, text_w, subtitle_h};
+            const auto subtitle_color = row_selected ? colors.on_accent
+                                                     : (row_active ? colors.accent : colors.border);
+            out.draw_text_box(title_rect, title ? title : "", font, title_font,
+                              TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+            out.draw_text_box(subtitle_rect, subtitle, subtitle_color, subtitle_font,
+                              TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        } else {
+            out.draw_text_box(text_rect, title ? title : "", font, font_from_metrics(metrics),
+                              TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
         y += row_h;
     }
 

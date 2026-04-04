@@ -141,6 +141,9 @@ export namespace player {
         WidgetHandle bottom_play{};
         WidgetHandle bottom_next{};
         WidgetHandle nav_bar{};
+        WidgetHandle nav_home_indicator{};
+        WidgetHandle nav_search_indicator{};
+        WidgetHandle nav_library_indicator{};
         WidgetHandle nav_home{};
         WidgetHandle nav_search{};
         WidgetHandle nav_library{};
@@ -624,18 +627,35 @@ export namespace player {
                 const bool show_bottom = (page == PlayerPage::Home || page == PlayerPage::Library);
                 access.set_visible(handles.bottom_bar, show_bottom);
             }
-            if (handles.nav_bar) {
-                const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
-                access.set_visible(handles.nav_bar, show_nav);
-            }
-            if (page == PlayerPage::Library) {
-                refresh_library();
-            } else if (page == PlayerPage::Home) {
-                refresh_home();
-            } else {
-                refresh_now_playing();
-            }
-        }
+              if (handles.nav_bar) {
+                  const bool show_nav = (page == PlayerPage::Home || page == PlayerPage::Library);
+                  access.set_visible(handles.nav_bar, show_nav);
+              }
+              update_nav_page_indicator();
+              if (page == PlayerPage::Library) {
+                  refresh_library();
+              } else if (page == PlayerPage::Home) {
+                  refresh_home();
+              } else {
+                  refresh_now_playing();
+              }
+          }
+
+          void update_nav_page_indicator() {
+              if (!access.valid()) return;
+              auto set_indicator = [&](WidgetHandle h, bool active) {
+                  if (!h) return;
+                  StylePatch patch{};
+                  patch.has_bg_color = true;
+                  patch.bg_color = active ? kUiOk : rgba{0, 0, 0, 0};
+                  patch.has_border_color = true;
+                  patch.border_color = active ? kUiOk : rgba{0, 0, 0, 0};
+                  access.set_style_override(h, patch);
+              };
+              set_indicator(handles.nav_home_indicator, current_page == PlayerPage::Home);
+              set_indicator(handles.nav_search_indicator, false);
+              set_indicator(handles.nav_library_indicator, current_page == PlayerPage::Library);
+          }
 
         static void on_show_home(::ui::scene::SceneAccess& access,
                                  WidgetHandle root,
@@ -1124,6 +1144,7 @@ export namespace player {
             if (handles.bottom_bar) {
                 access.set_visible(handles.bottom_bar, true);
             }
+            update_nav_page_indicator();
             update_duration_from_player();
             update_info_label();
             update_debug_overlay();
@@ -1136,6 +1157,7 @@ export namespace player {
             if (handles.bottom_bar) {
                 access.set_visible(handles.bottom_bar, true);
             }
+            update_nav_page_indicator();
             update_list_title();
             update_list_path();
             update_list_sort_label();
@@ -1177,11 +1199,21 @@ export namespace player {
         static const char* list_view_text(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
-            const auto* labels = self->storage.track_labels;
-            if (!labels) return "";
+            const auto* titles = self->storage.track_titles;
+            if (!titles) return "";
             const int track_index = self->list_index_to_track(static_cast<int>(index));
-            if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return "";
-            return (*labels)[static_cast<std::size_t>(track_index)].c_str();
+            if (track_index < 0 || track_index >= static_cast<int>(titles->size())) return "";
+            return (*titles)[static_cast<std::size_t>(track_index)].c_str();
+        }
+
+        static const char* list_view_subtitle(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return "";
+            const auto* subtitles = self->storage.track_subtitles;
+            if (!subtitles) return "";
+            const int track_index = self->list_index_to_track(static_cast<int>(index));
+            if (track_index < 0 || track_index >= static_cast<int>(subtitles->size())) return "";
+            return (*subtitles)[static_cast<std::size_t>(track_index)].c_str();
         }
 
         static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
@@ -1190,6 +1222,7 @@ export namespace player {
             const auto* tracks = self->storage.tracks;
             if (!tracks) return ::ui::scene::invalid_image_id();
             const int track_index = self->list_index_to_track(static_cast<int>(index));
+            const bool is_active = track_index == self->track_index;
             if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
                 return ::ui::scene::invalid_image_id();
             }
@@ -1203,6 +1236,9 @@ export namespace player {
             }
             const auto cover_id = self->resolve_list_cover_icon(path.view(), cover_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
+            if (is_active) {
+                return self->is_paused() ? self->icons.pause : self->icons.play;
+            }
             return self->icons.play;
         }
 
@@ -1326,6 +1362,7 @@ export namespace player {
             if (track_index < 0 || track_index >= static_cast<int>(labels->size())) return;
             ignore_list_select = true;
             const int list_index = track_index_to_list(track_index);
+            access.set_list_view_active(handles.list, list_index);
             if (list_index >= 0) {
                 access.set_list_view_selected(handles.list, list_index);
                 last_list_selected = list_index;
@@ -1342,12 +1379,14 @@ export namespace player {
                                          static_cast<std::uint16_t>(count),
                                          this,
                                          &PlayerController::list_view_text);
+            access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
-            access.set_list_row_height(handles.list, 60);
-            access.set_scroll_step(handles.list, 60);
+            access.set_list_row_height(handles.list, 72);
+            access.set_scroll_step(handles.list, 72);
             if (count > 0) {
                 sync_list_selection();
             } else {
+                access.set_list_view_active(handles.list, -1);
                 last_list_selected = -1;
             }
             update_list_title();

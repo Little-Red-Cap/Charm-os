@@ -66,6 +66,7 @@ export namespace player::ui {
         BottomBar = 8,
         BottomButton = 9,
         BottomPlay = 10,
+        LibraryListCard = 11,
     };
 
     inline constexpr int kUiPadding = 18;
@@ -840,6 +841,35 @@ export namespace player::ui {
             patch.has_shadow_radius = true;
             patch.shadow_radius = 18;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ListCard), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {48, 86, 136, 188};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {14, 24, 48, 228};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 4;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 4;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 18;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 
         {

@@ -479,11 +479,20 @@ export namespace ui::draw_cmd {
             return true;
         }
         case CmdType::FillRect:
-        case CmdType::FillLinearGradientRect:
         case CmdType::StrokeRect: {
             if (!payload_fits(header, sizeof(CmdColor))) return false;
             const auto payload = read_payload<CmdColor>(header);
             out.color = payload.color;
+            return true;
+        }
+        case CmdType::FillLinearGradientRect: {
+            if (!payload_fits(header, sizeof(CmdColorP0P1P2P3))) return false;
+            const auto payload = read_payload<CmdColorP0P1P2P3>(header);
+            out.color = payload.color;
+            out.p0 = payload.p0;
+            out.p1 = payload.p1;
+            out.p2 = payload.p2;
+            out.p3 = payload.p3;
             return true;
         }
         case CmdType::FillRoundRect:
@@ -1851,9 +1860,18 @@ export namespace ui::draw_cmd {
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
             case CmdType::FillRect:
-            case CmdType::FillLinearGradientRect:
             case CmdType::StrokeRect: {
                 CmdColor payload{cmd.color};
+                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+            }
+            case CmdType::FillLinearGradientRect: {
+                CmdColorP0P1P2P3 payload{};
+                payload.color = cmd.color;
+                payload.p0 = cmd.p0;
+                payload.p1 = cmd.p1;
+                payload.p2 = cmd.p2;
+                payload.p3 = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
                                  cmd.type, cmd.rect, &payload, sizeof(payload));
             }
@@ -2169,9 +2187,10 @@ export namespace ui::draw_cmd {
                 if (!rgba_equal(a.color, b.color)) return false;
                 switch (a.type) {
                 case CmdType::FillRect:
-                case CmdType::FillLinearGradientRect:
                 case CmdType::StrokeRect:
                     return true;
+                case CmdType::FillLinearGradientRect:
+                    return a.p0 == b.p0 && a.p1 == b.p1 && a.p2 == b.p2 && a.p3 == b.p3;
                 case CmdType::FillRoundRect:
                 case CmdType::StrokeRoundRect:
                 case CmdType::FillCircle:
@@ -2188,6 +2207,48 @@ export namespace ui::draw_cmd {
                 case CmdType::FillRect:
                     ui::render::draw_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.color, true);
                     break;
+                case CmdType::FillLinearGradientRect: {
+                    const int radius = cur.p0;
+                    const bool vertical = cur.p1 != 0;
+                    const rgba start = cur.color;
+                    const rgba end{
+                        static_cast<std::uint8_t>((static_cast<std::uint16_t>(cur.p2) >> 8) & 0xFF),
+                        static_cast<std::uint8_t>(static_cast<std::uint16_t>(cur.p2) & 0xFF),
+                        static_cast<std::uint8_t>((static_cast<std::uint16_t>(cur.p3) >> 8) & 0xFF),
+                        static_cast<std::uint8_t>(static_cast<std::uint16_t>(cur.p3) & 0xFF)
+                    };
+                    auto inside_round = [&](int x, int y, const Rect& rr) noexcept {
+                        if (radius <= 0) return true;
+                        const int left = rr.x;
+                        const int top = rr.y;
+                        const int right = rr.x + rr.w - 1;
+                        const int bottom = rr.y + rr.h - 1;
+                        if (x >= left + radius && x <= right - radius) return true;
+                        if (y >= top + radius && y <= bottom - radius) return true;
+                        const int cx = (x < left + radius) ? (left + radius) : (right - radius);
+                        const int cy = (y < top + radius) ? (top + radius) : (bottom - radius);
+                        const int dx = x - cx;
+                        const int dy = y - cy;
+                        return dx * dx + dy * dy <= radius * radius;
+                    };
+                    const int span = vertical ? std::max(1, rect.h - 1) : std::max(1, rect.w - 1);
+                    for (int y = rect.y; y < rect.y + rect.h; ++y) {
+                        for (int x = rect.x; x < rect.x + rect.w; ++x) {
+                            if (!inside_round(x, y, rect)) continue;
+                            const int t = vertical ? (y - rect.y) : (x - rect.x);
+                            const auto lerp = [&](std::uint8_t a, std::uint8_t b) noexcept -> std::uint8_t {
+                                return static_cast<std::uint8_t>(a + (static_cast<int>(b) - static_cast<int>(a)) * t / span);
+                            };
+                            canvas.set_pixel(x, y, rgba{
+                                lerp(start.r, end.r),
+                                lerp(start.g, end.g),
+                                lerp(start.b, end.b),
+                                lerp(start.a, end.a)
+                            });
+                        }
+                    }
+                    break;
+                }
                 case CmdType::StrokeRect:
                     ui::render::draw_rect(canvas, rect.x, rect.y, rect.w, rect.h, cur.color, false);
                     break;
@@ -2612,6 +2673,7 @@ export namespace ui::draw_cmd {
             auto group_kind = [](CmdType type) noexcept -> GroupKind {
                 switch (type) {
                 case CmdType::FillRect:
+                case CmdType::FillLinearGradientRect:
                 case CmdType::StrokeRect:
                 case CmdType::FillRoundRect:
                 case CmdType::StrokeRoundRect:

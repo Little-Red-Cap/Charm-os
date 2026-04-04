@@ -362,7 +362,7 @@ namespace {
         }
         state->platform->framebuffer_ref().clear(kUiBackground);
         state->platform->begin_frame();
-            state->platform->scene_ref().set_overlay(
+        state->platform->scene_ref().set_overlay(
             [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
                 auto* state = static_cast<PlayerLoopState*>(ctx);
                 if (!state || !state->ctx || !state->scene) return;
@@ -552,7 +552,10 @@ int main(int argc, char** argv) {
             screenshot_gif_path.assign(arg.substr(17));
         } else if (arg.rfind("--screenshot-page=", 0) == 0) {
             const std::string_view page = arg.substr(18);
-            if (page == "home") {
+            if (page == "probe") {
+                start_page = player::PlayerPage::Probe;
+                start_page_set = true;
+            } else if (page == "home") {
                 start_page = player::PlayerPage::Home;
                 start_page_set = true;
             } else if (page == "now") {
@@ -564,7 +567,10 @@ int main(int argc, char** argv) {
             }
         } else if (arg.rfind("--page=", 0) == 0) {
             const std::string_view page = arg.substr(7);
-            if (page == "home") {
+            if (page == "probe") {
+                start_page = player::PlayerPage::Probe;
+                start_page_set = true;
+            } else if (page == "home") {
                 start_page = player::PlayerPage::Home;
                 start_page_set = true;
             } else if (page == "now") {

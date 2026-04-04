@@ -75,6 +75,10 @@ namespace {
         if (patch.has_accent_color) colors.accent = patch.accent_color;
         if (patch.has_on_accent) colors.on_accent = patch.on_accent;
         if (patch.has_border_focus) colors.border_focus = patch.border_focus;
+        if (patch.has_gradient_enabled) colors.gradient_enabled = patch.gradient_enabled ? 1 : 0;
+        if (patch.has_gradient_start) colors.gradient_start = patch.gradient_start;
+        if (patch.has_gradient_end) colors.gradient_end = patch.gradient_end;
+        if (patch.has_gradient_direction) colors.gradient_direction = patch.gradient_direction;
         if (patch.has_shadow_enabled) decoration.shadow_enabled = patch.shadow_enabled ? 1 : 0;
         if (patch.has_shadow_color) decoration.shadow_color = patch.shadow_color;
         if (patch.has_shadow_offset_x) decoration.shadow_offset_x = static_cast<std::int16_t>(patch.shadow_offset_x);
@@ -187,8 +191,8 @@ namespace {
                               bool draw_fill,
                               bool draw_border) {
         const int rad = metrics.corner_radius;
-      draw_decoration_shadow(out, r, rad, deco);
-      if (draw_fill) {
+        draw_decoration_shadow(out, r, rad, deco);
+        if (draw_fill) {
           if (colors.gradient_enabled) {
               out.fill_linear_gradient_rect(r, colors.gradient_start, colors.gradient_end, rad, colors.gradient_direction == 0);
           } else {
@@ -637,10 +641,10 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
     const StylePatch* local_patch = kernel_.style_patch(h);
     const StylePatch* override_patch = (patch_kind == StylePatchKind::Override) ? local_patch : nullptr;
     const StylePatch* adjust_patch = (patch_kind == StylePatchKind::Adjust) ? local_patch : nullptr;
-    if (class_patch || override_patch || adjust_patch) {
-        patched_colors = *colors;
-        patched_metrics = *metrics;
-        patched_decoration = *decoration;
+      if (class_patch || override_patch || adjust_patch) {
+          patched_colors = *colors;
+          patched_metrics = *metrics;
+          patched_decoration = *decoration;
         if (class_patch) {
             apply_style_patch(patched_colors, patched_metrics, patched_decoration, state, *class_patch);
         }
@@ -663,7 +667,9 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             const auto wants_surface = [](const StylePatch* patch) noexcept {
                 return patch && (patch->has_bg_color || patch->has_border_color ||
                     patch->has_border_width || patch->has_corner_radius ||
-                    patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled);
+                    patch->has_shadow_enabled || patch->has_inner_stroke_enabled || patch->has_outline_enabled ||
+                    patch->has_gradient_enabled || patch->has_gradient_start ||
+                    patch->has_gradient_end || patch->has_gradient_direction);
             };
             const bool draw_surface = wants_surface(class_patch) || wants_surface(override_patch);
             if (draw_surface) {

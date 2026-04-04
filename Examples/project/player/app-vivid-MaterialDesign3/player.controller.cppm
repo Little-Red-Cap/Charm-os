@@ -66,6 +66,7 @@ export namespace player {
     };
 
     enum class PlayerPage : std::uint8_t {
+        Probe,
         Home,
         NowPlaying,
         Library,
@@ -77,6 +78,10 @@ export namespace player {
     };
 
     struct UiHandles {
+        WidgetHandle page_probe{};
+        WidgetHandle probe_panel{};
+        WidgetHandle probe_title{};
+        WidgetHandle probe_hint{};
         WidgetHandle page_home{};
         WidgetHandle page_now_playing{};
         WidgetHandle page_library{};
@@ -486,7 +491,9 @@ export namespace player {
 
         PlayerPage current_page{PlayerPage::Home};
         PlayerPage start_page{PlayerPage::Home};
+        PlayerPage default_page{PlayerPage::Home};
         PlayerPage return_page{PlayerPage::Home};
+        ::ui::scene::PageLayer page_probe_layer{};
         ::ui::scene::PageLayer page_now_layer{};
         ::ui::scene::PageLayer page_library_layer{};
         ::ui::scene::PageLayer page_home_layer{};
@@ -592,6 +599,7 @@ export namespace player {
 
         void set_start_page(PlayerPage page) noexcept {
             start_page = page;
+            if (page != PlayerPage::Probe) default_page = page;
         }
 
         void set_page(PlayerPage page) noexcept {
@@ -602,6 +610,12 @@ export namespace player {
             }
             current_page = page;
             if (!access.valid()) return;
+            if (page_probe_layer.root()) {
+                if (page == PlayerPage::Probe) page_probe_layer.show(access);
+                else page_probe_layer.hide(access);
+            } else if (handles.page_probe) {
+                access.set_visible(handles.page_probe, page == PlayerPage::Probe);
+            }
             if (page_home_layer.root()) {
                 if (page == PlayerPage::Home) page_home_layer.show(access);
                 else page_home_layer.hide(access);
@@ -636,7 +650,7 @@ export namespace player {
                   refresh_library();
               } else if (page == PlayerPage::Home) {
                   refresh_home();
-              } else {
+              } else if (page == PlayerPage::NowPlaying) {
                   refresh_now_playing();
               }
           }
@@ -689,6 +703,10 @@ export namespace player {
         }
 
         void init_pages() noexcept {
+            if (handles.page_probe) {
+                page_probe_layer.set_root(handles.page_probe);
+                page_probe_layer.set_visible(access, false);
+            }
             if (handles.page_home) {
                 page_home_layer.set_root(handles.page_home);
                 page_home_layer.set_hooks(::ui::scene::PageHooks{
@@ -719,6 +737,10 @@ export namespace player {
             set_page(start_page);
         }
 
+        void dismiss_probe() noexcept {
+            set_page(default_page);
+        }
+
         const char* track_path() const noexcept {
             return playback.track_path();
         }
@@ -738,6 +760,10 @@ export namespace player {
         }
 
         void handle_key_action(UiKey key) {
+            if (current_page == PlayerPage::Probe) {
+                dismiss_probe();
+                return;
+            }
             switch (key) {
             case UiKey::Up:
                 focus_list();
@@ -2066,6 +2092,13 @@ export namespace player {
                 const auto& item = access.input_event(i);
                 const auto target = item.target;
                 const auto type = item.event.type;
+                if (current_page == PlayerPage::Probe) {
+                    if (type == Event::Type::MouseDown || type == Event::Type::MouseUp
+                        || type == Event::Type::DragStart || type == Event::Type::DragEnd) {
+                        dismiss_probe();
+                    }
+                    continue;
+                }
                 if (current_page == PlayerPage::NowPlaying) {
                     if (target == handles.progress) {
                         if (type == Event::Type::MouseDown) {

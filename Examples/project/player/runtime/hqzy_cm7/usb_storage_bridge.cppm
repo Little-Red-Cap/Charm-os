@@ -5,7 +5,11 @@ import usb.msc_storage_bridge;
 
 extern "C" void MX_USB_DEVICE_Init(void);
 
-export void usb_system_init(block::Device* dev, bool read_only) noexcept {
+export void usb_storage_bind_device(block::Device* dev, bool read_only) noexcept {
     usb::msc::bridge::set_block_device(dev, read_only);
+}
+
+export void usb_system_init(block::Device* dev, bool read_only) noexcept {
+    usb_storage_bind_device(dev, read_only);
     MX_USB_DEVICE_Init();
 }

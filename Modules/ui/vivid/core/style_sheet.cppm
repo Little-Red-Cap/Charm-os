@@ -255,6 +255,10 @@ struct ResolvedColors {
     rgba accent{};
     rgba on_accent{};
     rgba border_focus{};
+    rgba gradient_start{};
+    rgba gradient_end{};
+    std::uint8_t gradient_enabled{0};
+    std::uint8_t gradient_direction{0};
 };
 
 export
@@ -324,7 +328,7 @@ static_assert(std::is_trivially_copyable_v<ResolvedColors>);
 static_assert(std::is_trivially_copyable_v<ResolvedMetrics>);
 static_assert(std::is_trivially_copyable_v<ResolvedDecoration>);
 static_assert(std::is_trivially_copyable_v<ResolvedStyleView>);
-static_assert(sizeof(ResolvedColors) <= 32);
+static_assert(sizeof(ResolvedColors) <= 40);
 static_assert(sizeof(ResolvedMetrics) <= 32);
 static_assert(sizeof(ResolvedDecoration) <= 32);
 static_assert(sizeof(ResolvedStyleView) <= 32);
@@ -468,7 +472,12 @@ inline ResolvedColors build_resolved_colors(const Style& st, const StyleState& s
     rgba font{};
     resolve_colors(st, state, bg, border, font);
     const rgba accent = resolve_accent(st, state);
-    return ResolvedColors{bg, border, font, accent, st.colors.on_accent, st.colors.border_focus};
+    ResolvedColors out{bg, border, font, accent, st.colors.on_accent, st.colors.border_focus};
+    out.gradient_start = st.decoration.gradient_start;
+    out.gradient_end = st.decoration.gradient_end;
+    out.gradient_enabled = static_cast<std::uint8_t>(st.decoration.gradient_enabled ? 1 : 0);
+    out.gradient_direction = st.decoration.gradient_direction;
+    return out;
 }
 
 inline std::int16_t clamp_i16(int v) noexcept {

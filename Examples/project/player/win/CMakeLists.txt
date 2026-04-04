@@ -1,15 +1,21 @@
 cmake_minimum_required(VERSION 4.0)
 project(charm-player-win)
 set(CMAKE_CXX_STANDARD 26)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_identity.cmake")
+
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PRODUCT: ${PLAYER_PRODUCT}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PLATFORM: ${PLAYER_PLATFORM}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_BOARD: ${PLAYER_BOARD}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_SCENARIO: ${PLAYER_SCENARIO}")
+
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 option(CHARM_PLAYER_COVER_DEBUG "Enable cover debug log" OFF)
 
-set(PLAYER_MAIN_VIVID main.cpp)
-set(PLAYER_MAIN_INK main_ink.cpp)
-set(PLAYER_TARGET_VIVID charm-player-win-vivid)
-set(PLAYER_TARGET_INK charm-player-win-ink)
-set(PLAYER_TARGET_VIVID_MD3 charm-player-win-vivid-md3)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_scenarios.cmake")
+
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_HOST_SCENARIO_TARGET: ${PLAYER_HOST_SCENARIO_TARGET}")
 
 add_executable(${PLAYER_TARGET_VIVID}
     ${PLAYER_MAIN_VIVID}
@@ -28,6 +34,9 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
         CHARM_VIVID_SCREEN_WIDTH=480
         CHARM_VIVID_SCREEN_HEIGHT=960
         CHARM_PLAYER_PC_FONT_CACHE=1
+        CHARM_PLAYER_PRODUCT="${PLAYER_PRODUCT}"
+        CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
+        CHARM_PLAYER_BOARD="${PLAYER_BOARD}"
     )
     if (CHARM_PLAYER_DEBUG_UI)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_DEBUG_UI=1)
@@ -40,6 +49,10 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_COVER_DEBUG=0)
     endif()
 endforeach()
+
+target_compile_definitions(${PLAYER_TARGET_INK} PRIVATE
+    CHARM_PLAYER_SCENARIO_UI_PREVIEW_INK=1
+)
 
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")

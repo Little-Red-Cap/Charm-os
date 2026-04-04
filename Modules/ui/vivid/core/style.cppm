@@ -61,6 +61,11 @@ struct StyleDecoration {
     bool outline_enabled{false};
     rgba outline_color{0, 0, 0, 0};
     std::int16_t outline_width{0};
+
+    bool gradient_enabled{false};
+    rgba gradient_start{0, 0, 0, 0};
+    rgba gradient_end{0, 0, 0, 0};
+    std::uint8_t gradient_direction{0};
 };
 
 export
@@ -135,6 +140,10 @@ struct StylePatch {
     bool has_outline_enabled{false};
     bool has_outline_color{false};
     bool has_outline_width{false};
+    bool has_gradient_enabled{false};
+    bool has_gradient_start{false};
+    bool has_gradient_end{false};
+    bool has_gradient_direction{false};
 
     rgba bg_color{};
     rgba border_color{};
@@ -179,6 +188,10 @@ struct StylePatch {
     bool outline_enabled{false};
     rgba outline_color{};
     std::int16_t outline_width{0};
+    bool gradient_enabled{false};
+    rgba gradient_start{};
+    rgba gradient_end{};
+    std::uint8_t gradient_direction{0};
 
     void apply_to(Style& s) const noexcept {
         if (has_bg_color) s.colors.bg_color = bg_color;
@@ -240,6 +253,10 @@ struct StylePatch {
         if (has_outline_enabled) s.decoration.outline_enabled = outline_enabled;
         if (has_outline_color) s.decoration.outline_color = outline_color;
         if (has_outline_width) s.decoration.outline_width = outline_width;
+        if (has_gradient_enabled) s.decoration.gradient_enabled = gradient_enabled;
+        if (has_gradient_start) s.decoration.gradient_start = gradient_start;
+        if (has_gradient_end) s.decoration.gradient_end = gradient_end;
+        if (has_gradient_direction) s.decoration.gradient_direction = gradient_direction;
     }
 };
 
@@ -309,7 +326,11 @@ inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
     if (src.has_outline_enabled) { dst.has_outline_enabled = true; dst.outline_enabled = src.outline_enabled; }
     if (src.has_outline_color) { dst.has_outline_color = true; dst.outline_color = src.outline_color; }
     if (src.has_outline_width) { dst.has_outline_width = true; dst.outline_width = src.outline_width; }
-}
+    if (src.has_gradient_enabled) { dst.has_gradient_enabled = true; dst.gradient_enabled = src.gradient_enabled; }
+    if (src.has_gradient_start) { dst.has_gradient_start = true; dst.gradient_start = src.gradient_start; }
+    if (src.has_gradient_end) { dst.has_gradient_end = true; dst.gradient_end = src.gradient_end; }
+    if (src.has_gradient_direction) { dst.has_gradient_direction = true; dst.gradient_direction = src.gradient_direction; }
+  }
 
 export
 struct StyleState {

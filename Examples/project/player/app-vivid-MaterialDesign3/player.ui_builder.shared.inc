@@ -656,6 +656,18 @@
         builder.set_style_override(h, patch);
     }
 
+    static void apply_nav_indicator_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        StylePatch patch{};
+        patch.has_bg_color = true;
+        patch.bg_color = {0, 0, 0, 0};
+        patch.has_border_color = true;
+        patch.border_color = {0, 0, 0, 0};
+        patch.has_corner_radius = true;
+        patch.corner_radius = 4;
+        builder.set_style_patch(h, patch);
+        builder.set_hit_testable(h, false);
+    }
+
     static WidgetHandle create_top_icon_button(::ui::scene::SceneBuilder& builder,
                                                const Rect& rect,
                                                ::ui::gfx::ImageId icon,
@@ -768,16 +780,28 @@
         const int nav_btn_w = (nav_rect.w - layout.nav_gap * 2) / 3;
         const int nav_icon = 22;
         const int nav_icon_pad = 12;
+        const int indicator_w = 36;
+        const int indicator_h = 4;
+        const int indicator_y = layout.nav_h - 8;
 
         h.nav_home = builder.create_button_static("Home");
         h.nav_search = builder.create_button_static("Search");
         h.nav_library = builder.create_button_static("Library");
+        h.nav_home_indicator = builder.create_container();
+        h.nav_search_indicator = builder.create_container();
+        h.nav_library_indicator = builder.create_container();
         anchor_rect(builder, h.nav_home, {0, 0, nav_btn_w, layout.nav_h});
         anchor_rect(builder, h.nav_search, {nav_btn_w + layout.nav_gap, 0, nav_btn_w, layout.nav_h});
         anchor_rect(builder, h.nav_library, {(nav_btn_w + layout.nav_gap) * 2, 0, nav_btn_w, layout.nav_h});
+        anchor_rect(builder, h.nav_home_indicator, {(nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
+        anchor_rect(builder, h.nav_search_indicator, {nav_btn_w + layout.nav_gap + (nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
+        anchor_rect(builder, h.nav_library_indicator, {(nav_btn_w + layout.nav_gap) * 2 + (nav_btn_w - indicator_w) / 2, indicator_y, indicator_w, indicator_h});
         apply_nav_hit_style(builder, h.nav_home, nav_icon_pad);
         apply_nav_hit_style(builder, h.nav_search, nav_icon_pad);
         apply_nav_hit_style(builder, h.nav_library, nav_icon_pad);
+        apply_nav_indicator_style(builder, h.nav_home_indicator);
+        apply_nav_indicator_style(builder, h.nav_search_indicator);
+        apply_nav_indicator_style(builder, h.nav_library_indicator);
 
         builder.set_button_icon(h.nav_home, icons.home);
         builder.set_button_icon_size(h.nav_home, nav_icon);
@@ -789,6 +813,9 @@
         builder.link(h.nav_bar, h.nav_home);
         builder.link(h.nav_bar, h.nav_search);
         builder.link(h.nav_bar, h.nav_library);
+        builder.link(h.nav_bar, h.nav_home_indicator);
+        builder.link(h.nav_bar, h.nav_search_indicator);
+        builder.link(h.nav_bar, h.nav_library_indicator);
 
         builder.link(h.root, h.bottom_bar);
         builder.set_hit_testable(h.bottom_bar, true);

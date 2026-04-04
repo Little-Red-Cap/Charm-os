@@ -137,7 +137,7 @@
         h.clip_value = builder.create_label_static("");
         anchor_rect(builder, h.clip_value, {0, clip_y, 0, 0});
 
-        const int small_btn = now_layout.control_side;
+        const int small_btn = now_layout.control_play;
         const int play_btn = now_layout.control_play;
         const Rect controls_rect{layout.controls_x, layout.controls_y, layout.controls_w, now_layout.control_play};
         ::ui::scene::RowBuilder controls_row{builder, controls_rect, now_layout.control_gap, now_layout.controls_padding,

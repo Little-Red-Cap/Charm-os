@@ -24,26 +24,8 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-set(PLAYER_PROFILE "USB_SELF_MSC" CACHE STRING
-    "Player startup profile for stm32h747 HQZY CM7")
-set_property(CACHE PLAYER_PROFILE PROPERTY STRINGS
-    LEGACY_MAIN
-    USB_AS
-    USB_AUDIO
-    USB_SELF_MSC
-    USB_STORAGE)
-
-# Compiler options
-set(STM32_MCU_FLAGS  "-mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard " )
-
-#Linker options
-#set(STM32_LINKER_SCRIPT stm32h747xx_flash_CM7.ld)
-set(STM32_LINKER_SCRIPT STM32H747XIHX_FLASH.ld)
-#set(STM32_LINKER_SCRIPT STM32H747XIHX_RAM.ld)
-set(STM32_LINKER_OPTION  )
-
-# Include toolchain file
-include("../gcc-arm-none-eabi.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_identity.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/platform_stm32h747_hal.cmake")
 
 # Set the project name
 set(CMAKE_PROJECT_NAME stn32h747_hqzy_CM7)
@@ -51,9 +33,7 @@ project(${CMAKE_PROJECT_NAME})
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
-
-# Include mx-generated 
-include("mx-generated.cmake")
+platform_stm32h747_hal_attach_target(${CMAKE_PROJECT_NAME})
 
 # Enable CMake support for ASM and C languages
 enable_language(C ASM CXX)
@@ -61,152 +41,22 @@ enable_language(C ASM CXX)
 # In order to use CMake for cross-compiling
 set(CMAKE_CXX_COMPILER_FORCED "true") 
 
-# Add project symbols (macros)
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE 
-    # Add user defined symbols
-    CORE_CM7
-    STM32H747xx
-    CHARM_ENTRY_ALLOWED=1`r`n    CHARM_KERNEL_REQUIRE_SSU_META=1
-)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/target_player_base.cmake")
 
-# Add include paths
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc
-)
-
-# Add sources to executable
-set(PLAYER_PROFILE_SOURCE "")
-set(PLAYER_PROFILE_IMPL_SOURCES "")
-set(PLAYER_PROFILE_MODULE_GROUPS "")
-
-if (PLAYER_PROFILE STREQUAL "LEGACY_MAIN")
-    set(PLAYER_PROFILE_SOURCE app/main.cpp)
-    set(PLAYER_PROFILE_MODULE_GROUPS
-        MODULE_GROUP_BASE
-        MODULE_GROUP_FS
-        MODULE_GROUP_AUDIO
-        MODULE_GROUP_DISPLAY
-        MODULE_GROUP_PLAYER_UI
-        MODULE_GROUP_LEGACY_RUNTIME)
-elseif (PLAYER_PROFILE STREQUAL "USB_AS")
-    set(PLAYER_PROFILE_SOURCE app/main-usb-as.cpp)
-    set(PLAYER_PROFILE_IMPL_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_as.cpp")
-    set(PLAYER_PROFILE_MODULE_GROUPS
-        MODULE_GROUP_BASE
-        MODULE_GROUP_FS
-        MODULE_GROUP_USB_STORAGE_RUNTIME)
-elseif (PLAYER_PROFILE STREQUAL "USB_AUDIO")
-    set(PLAYER_PROFILE_SOURCE app/main-usb-audio.cpp)
-    set(PLAYER_PROFILE_IMPL_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_audio.cpp")
-elseif (PLAYER_PROFILE STREQUAL "USB_SELF_MSC")
-    set(PLAYER_PROFILE_SOURCE app/main-usb-self-msc.cpp)
-    set(PLAYER_PROFILE_MODULE_GROUPS
-        MODULE_GROUP_PLAYER_PROFILES
-        MODULE_GROUP_HQZY_CM7_RUNTIME
-        MODULE_GROUP_HQZY_CM7_PROFILE_SYSTEM)
-elseif (PLAYER_PROFILE STREQUAL "USB_STORAGE")
-    set(PLAYER_PROFILE_SOURCE app/main-usb-storage.cpp)
-    set(PLAYER_PROFILE_IMPL_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_storage.cpp")
-    set(PLAYER_PROFILE_MODULE_GROUPS
-        MODULE_GROUP_BASE
-        MODULE_GROUP_FS
-        MODULE_GROUP_USB_STORAGE_RUNTIME)
-else()
-    message(FATAL_ERROR "Unsupported PLAYER_PROFILE: ${PLAYER_PROFILE}")
-endif()
-
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PRODUCT: ${PLAYER_PRODUCT}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PLATFORM: ${PLAYER_PLATFORM}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_BOARD: ${PLAYER_BOARD}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_SCENARIO: ${PLAYER_SCENARIO}")
 message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PROFILE: ${PLAYER_PROFILE}")
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    app/profile_main.cpp
+    ${PLAYER_PLATFORM_COMMON_SOURCES}
     ${PLAYER_PROFILE_SOURCE}
     ${PLAYER_PROFILE_IMPL_SOURCES}
-    app/uart_bridge.c
-    app/port_impl.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
-    C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Src/usbd_composite_builder.c
-    USB_DEVICE/Class/usbd_msc.c
-    USB_DEVICE/Class/usbd_msc_bot.c
-    USB_DEVICE/Class/usbd_msc_data.c
-    USB_DEVICE/Class/usbd_msc_scsi.c
-    USB_DEVICE/App/usbd_storage_if.c
 )
 
-set(MODULE_GROUP_BASE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_active.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_hqzy.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_caps.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_config.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_console.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_keys.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_usb.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdram.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_config.cppm"
-)
-
-set(MODULE_GROUP_FS
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_mmc.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/fs_demo_sd.cppm"
-)
-
-set(MODULE_GROUP_AUDIO
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/audio_mp3_demo.cppm"
-)
-
-set(MODULE_GROUP_DISPLAY
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/display_st7305.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/ink_demo.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.panels.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/st7305.transform.cppm"
-)
-
-set(MODULE_GROUP_PLAYER_UI
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_app_state.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_controller.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_fs_utils.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../app-ink/hqzy/player_ui_ink.cppm"
-)
-
-set(MODULE_GROUP_LEGACY_RUNTIME
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_boot_debug.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_boot_fs.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_init_graph.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_post_bringup.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_pre_bringup.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_run_modes.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/usb_system.cppm"
-)
-
-set(MODULE_GROUP_USB_STORAGE_RUNTIME
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
-)
-
-set(MODULE_GROUP_PLAYER_PROFILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.cppm"
-)
-
-set(MODULE_GROUP_HQZY_CM7_RUNTIME
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/boot_log.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/board_platform.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/runtime_bringup.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/sdmmc_glue.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
-)
-
-set(MODULE_GROUP_HQZY_CM7_PROFILE_SYSTEM
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.system.cppm"
-)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/board_hqzy_cm7_modules.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_modules.cmake")
 
 set(MODULE_INTERFACE_UNITS)
 foreach(module_group IN LISTS PLAYER_PROFILE_MODULE_GROUPS)
@@ -257,10 +107,123 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     Charm-os
 )
 
+function(charm_configure_usb_audio_target target_name)
+    add_executable(${target_name})
+
+    target_compile_definitions(${target_name} PRIVATE
+        CORE_CM7
+        STM32H747xx
+        CHARM_ENTRY_ALLOWED=1
+        CHARM_KERNEL_REQUIRE_SSU_META=1
+        USE_HAL_DRIVER
+        USE_PWR_LDO_SUPPLY
+        $<$<CONFIG:Debug>:DEBUG>
+    )
+
+    target_include_directories(${target_name} PRIVATE
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc
+        ./Core/Inc
+        ./USB_DEVICE/App
+        ./USB_DEVICE/Target
+        ./USB_DEVICE/Class
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include
+    )
+
+    target_sources(${target_name} PRIVATE
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c
+        ./USB_DEVICE/Target/usbd_conf.c
+        ./USB_DEVICE/App/usb_device.c
+        ./USB_DEVICE/App/usbd_desc.c
+        ./USB_DEVICE/App/usbd_audio_if.c
+        ./Core/Src/main.c
+        ./Core/Src/gpio.c
+        ./Core/Src/dma.c
+        ./Core/Src/fmc.c
+        ./Core/Src/i2s.c
+        ./Core/Src/sdmmc.c
+        ./Core/Src/spi.c
+        ./Core/Src/tim.c
+        ./Core/Src/usart.c
+        ./Core/Src/stm32h7xx_it.c
+        ./Core/Src/stm32h7xx_hal_msp.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hsem.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_exti.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_fmc.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_nor.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sram.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_nand.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sdram.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2s.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2s_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_sdmmc.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_delayblock.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sd.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sd_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mmc.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mmc_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_spi_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c
+        C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c
+        ../Common/Src/system_stm32h7xx_dualcore_boot_cm4_cm7.c
+        ./USB_DEVICE/Class/usbd_audio.c
+        ./Core/Src/sysmem.c
+        ./Core/Src/syscalls.c
+        ./Core/Startup/startup_stm32h747xx_CM7.s
+        app/profile_main.cpp
+        app/main-usb-audio.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_audio.cpp
+        app/uart_bridge.c
+        app/port_impl.c
+    )
+
+    target_link_directories(${target_name} PRIVATE)
+    target_link_libraries(${target_name} PRIVATE Charm-os)
+endfunction()
+
+charm_configure_usb_audio_target(stn32h747_hqzy_CM7_usb_audio)
+
+function(add_player_profile_hint_target target_name profile_name)
+    add_custom_target(${target_name}
+        COMMAND ${CMAKE_COMMAND} -E echo "在独立构建目录中配置并构建 ${profile_name}:"
+        COMMAND ${CMAKE_COMMAND} -E echo "cmake -S ${CMAKE_CURRENT_SOURCE_DIR} -B cmake-build-${target_name} -G Ninja -DPLAYER_PROFILE=${profile_name}"
+        COMMAND ${CMAKE_COMMAND} -E echo "cmake --build cmake-build-${target_name} -j 22"
+        COMMENT "IDE 场景目标：${target_name} -> ${profile_name}"
+        VERBATIM
+    )
+endfunction()
+
+add_player_profile_hint_target(player_hqzy_cm7_usb_audio USB_AUDIO)
+add_player_profile_hint_target(player_hqzy_cm7_usb_self_msc USB_SELF_MSC)
+add_player_profile_hint_target(player_hqzy_cm7_usb_storage USB_STORAGE)
+
 # Validate that STM32CubeMX code is compatible with C standard
 if(CMAKE_C_STANDARD LESS 11)
     message(ERROR "Generated code requires C11 or higher")
 endif()
-
-
-

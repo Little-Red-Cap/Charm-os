@@ -1204,6 +1204,18 @@ import alg_list_scroll;
         return payload ? payload->selected : -1;
     }
 
+    int SoaKernel::list_view_active(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return -1;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return -1;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->active : -1;
+    }
+
     void SoaKernel::set_list_view_selected(WidgetHandle h, int index) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1228,6 +1240,22 @@ import alg_list_scroll;
             0,
             payload->scroll_y,
             max_scroll_value);
+        mark_paint_dirty();
+    }
+
+    void SoaKernel::set_list_view_active(WidgetHandle h, int index) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        if (index < -1 || index >= payload->count) index = -1;
+        if (payload->active == index) return;
+        payload->active = index;
         mark_paint_dirty();
     }
 

@@ -6,6 +6,7 @@ module;
 
 #include "stm32h7xx_hal.h"
 #include "sdmmc.h"
+#include "usbd_def.h"
 
 export module player.runtime.hqzy_cm7.runtime_bringup;
 
@@ -17,6 +18,7 @@ extern "C" {
     void Error_Handler(void);
     extern SD_HandleTypeDef hsd2;
     extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+    USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef* pdev);
 }
 
 export namespace player::app_test_hqzy::runtime_bringup {
@@ -27,6 +29,7 @@ export namespace player::app_test_hqzy::runtime_bringup {
 
     inline void init_usb_pcd(PCD_HandleTypeDef* pcd) noexcept {
         if (!pcd) return;
+        static USBD_HandleTypeDef usb_ll{};
         pcd->Instance = USB_OTG_FS;
         pcd->Init.dev_endpoints = 8;
         pcd->Init.speed = PCD_SPEED_FULL;
@@ -44,6 +47,8 @@ export namespace player::app_test_hqzy::runtime_bringup {
         (void)HAL_PCDEx_SetTxFiFo(pcd, 0, 0x40);
         (void)HAL_PCDEx_SetTxFiFo(pcd, 1, 0x20);
         (void)HAL_PCDEx_SetTxFiFo(pcd, 2, 0x40);
+        usb_ll.id = DEVICE_FS;
+        (void)USBD_LL_Init(&usb_ll);
     }
 
     inline util::Result<Context> init() noexcept {

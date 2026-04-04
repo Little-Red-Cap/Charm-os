@@ -31,6 +31,8 @@ export namespace player::app_test_hqzy::usb_glue {
         std::array<usb::u16, 16> out_mps{};
         PCD_HandleTypeDef* pcd{nullptr};
         util::u64 last_msc_ms{0};
+        bool ep0_prepared{false};
+        bool ep0_expect_status_out{false};
     };
 
     namespace detail {
@@ -42,6 +44,19 @@ export namespace player::app_test_hqzy::usb_glue {
 
         inline UsbGlue* from_pcd(PCD_HandleTypeDef* pcd) noexcept {
             return pcd ? static_cast<UsbGlue*>(pcd->pData) : nullptr;
+        }
+
+        inline void prepare_ep0(UsbGlue& glue) noexcept {
+            if (!glue.pcd || glue.ep0_prepared) return;
+            constexpr std::uint8_t ep0_mps = 64;
+            glue.out_mps[0] = ep0_mps;
+            (void)HAL_PCD_EP_Open(glue.pcd, 0x00, ep0_mps, EP_TYPE_CTRL);
+            (void)HAL_PCD_EP_Open(glue.pcd, 0x80, ep0_mps, EP_TYPE_CTRL);
+            glue.pcd->IN_ep[0].data_pid_start = 1;
+            glue.pcd->OUT_ep[0].data_pid_start = 1;
+            (void)HAL_PCD_EP_Receive(glue.pcd, 0x00, glue.out_bufs[0].data(), glue.out_mps[0]);
+            glue.ep0_expect_status_out = false;
+            glue.ep0_prepared = true;
         }
 
         bool ep_open(void* ctx, const usb::driver::EpConfig& cfg,
@@ -132,6 +147,7 @@ export namespace player::app_test_hqzy::usb_glue {
         glue.dcd_ops.set_address = &detail::set_address;
         glue.dcd_ops.set_configured = &detail::set_configured;
         glue.dcd_ops.connect = &detail::connect;
+        detail::prepare_ep0(glue);
         detail::g_usb = &glue;
     }
 
@@ -173,6 +189,7 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
     setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
     setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
     setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
+    glue->ep0_expect_status_out = ((setup.bm_request_type & 0x80u) != 0u);
     glue->adapter.handle_setup(setup);
     return 1;
 }
@@ -181,6 +198,19 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return 0;
     auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
     if (!glue) return 0;
+    if (epnum == 0) {
+        const auto len = hpcd->OUT_ep[0].xfer_count;
+        const auto* buf = hpcd->OUT_ep[0].xfer_buff;
+        if (buf && len > 0) {
+            glue->adapter.handle_out_data(std::span<const usb::u8>(buf, len));
+        } else {
+            glue->adapter.handle_out_data(std::span<const usb::u8>{});
+        }
+        if (len == 0 && glue->ep0_expect_status_out) {
+            glue->ep0_expect_status_out = false;
+        }
+        return 1;
+    }
     const auto len = hpcd->OUT_ep[epnum].xfer_count;
     auto& cb = glue->out_cbs[epnum];
     if (cb.on_out && len > 0) {
@@ -198,6 +228,19 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!hpcd) return 0;
     auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
     if (!glue) return 0;
+    if (epnum == 0) {
+        const auto sent = (hpcd->IN_ep[0].xfer_len >= hpcd->IN_ep[0].xfer_count)
+            ? static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len - hpcd->IN_ep[0].xfer_count)
+            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
+        const bool sent_zlp = (hpcd->IN_ep[0].xfer_len == 0);
+        if (glue->ep0_expect_status_out) {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), 0);
+        } else {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), glue->out_mps[0]);
+        }
+        glue->adapter.handle_in_complete(sent, sent_zlp);
+        return 1;
+    }
     auto& cb = glue->in_cbs[epnum];
     if (cb.on_in_complete) {
         const auto sent = hpcd->IN_ep[epnum].xfer_count;
@@ -209,6 +252,9 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
 extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef*) {
     auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
     if (glue) {
+        glue->ep0_prepared = false;
+        glue->ep0_expect_status_out = false;
+        player::app_test_hqzy::usb_glue::detail::prepare_ep0(*glue);
         glue->adapter.handle_reset();
         return 1;
     }

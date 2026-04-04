@@ -65,10 +65,9 @@
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "STMicroelectronics"
-#define USBD_PID_FS     22338
-#define USBD_PRODUCT_STRING_FS     "STM32 Audio+Storage"
-#define USBD_CONFIGURATION_STRING_FS     "AUDIO+MSC Config"
-#define USBD_INTERFACE_STRING_FS     "Composite Interface"
+#define USBD_PID_FS_AUDIO     22336
+#define USBD_PID_FS_STORAGE   22337
+#define USBD_PID_FS_COMPOSITE 22338
 
 #define USB_SIZ_BOS_DESC            0x0C
 
@@ -81,6 +80,92 @@
   */
 
 /* USER CODE BEGIN 0 */
+extern uint8_t USBD_FS_DeviceDesc[USB_LEN_DEV_DESC];
+
+static USBD_DescModeTypeDef g_usbd_desc_mode = USBD_DESC_MODE_AUDIO_STORAGE;
+
+static const char *USBD_ProductStringForMode(void)
+{
+  switch (g_usbd_desc_mode)
+  {
+    case USBD_DESC_MODE_AUDIO:
+      return "STM32 Audio";
+    case USBD_DESC_MODE_STORAGE:
+      return "STM32 Storage";
+    case USBD_DESC_MODE_AUDIO_STORAGE:
+    default:
+      return "STM32 Audio+Storage";
+  }
+}
+
+static const char *USBD_ConfigStringForMode(void)
+{
+  switch (g_usbd_desc_mode)
+  {
+    case USBD_DESC_MODE_AUDIO:
+      return "AUDIO Config";
+    case USBD_DESC_MODE_STORAGE:
+      return "MSC Config";
+    case USBD_DESC_MODE_AUDIO_STORAGE:
+    default:
+      return "AUDIO+MSC Config";
+  }
+}
+
+static const char *USBD_InterfaceStringForMode(void)
+{
+  switch (g_usbd_desc_mode)
+  {
+    case USBD_DESC_MODE_AUDIO:
+      return "Audio Interface";
+    case USBD_DESC_MODE_STORAGE:
+      return "MSC Interface";
+    case USBD_DESC_MODE_AUDIO_STORAGE:
+    default:
+      return "Composite Interface";
+  }
+}
+
+static uint16_t USBD_ProductIdForMode(void)
+{
+  switch (g_usbd_desc_mode)
+  {
+    case USBD_DESC_MODE_AUDIO:
+      return USBD_PID_FS_AUDIO;
+    case USBD_DESC_MODE_STORAGE:
+      return USBD_PID_FS_STORAGE;
+    case USBD_DESC_MODE_AUDIO_STORAGE:
+    default:
+      return USBD_PID_FS_COMPOSITE;
+  }
+}
+
+static void USBD_RefreshDeviceDescriptor(void)
+{
+  const uint16_t pid = USBD_ProductIdForMode();
+
+  if (g_usbd_desc_mode == USBD_DESC_MODE_AUDIO_STORAGE)
+  {
+    USBD_FS_DeviceDesc[4] = 0xEF;
+    USBD_FS_DeviceDesc[5] = 0x02;
+    USBD_FS_DeviceDesc[6] = 0x01;
+  }
+  else
+  {
+    USBD_FS_DeviceDesc[4] = 0x00;
+    USBD_FS_DeviceDesc[5] = 0x00;
+    USBD_FS_DeviceDesc[6] = 0x00;
+  }
+
+  USBD_FS_DeviceDesc[10] = LOBYTE(pid);
+  USBD_FS_DeviceDesc[11] = HIBYTE(pid);
+}
+
+void USBD_DESC_SetMode(USBD_DescModeTypeDef mode)
+{
+  g_usbd_desc_mode = mode;
+  USBD_RefreshDeviceDescriptor();
+}
 
 /* USER CODE END 0 */
 
@@ -164,8 +249,8 @@ __ALIGN_BEGIN uint8_t USBD_FS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
   USB_MAX_EP0_SIZE,           /*bMaxPacketSize*/
   LOBYTE(USBD_VID),           /*idVendor*/
   HIBYTE(USBD_VID),           /*idVendor*/
-  LOBYTE(USBD_PID_FS),        /*idProduct*/
-  HIBYTE(USBD_PID_FS),        /*idProduct*/
+  LOBYTE(USBD_PID_FS_COMPOSITE),        /*idProduct*/
+  HIBYTE(USBD_PID_FS_COMPOSITE),        /*idProduct*/
   0x03,                       /*bcdDevice rel. 2.03*/
   0x02,
   USBD_IDX_MFC_STR,           /*Index of manufacturer  string*/
@@ -265,6 +350,7 @@ __ALIGN_BEGIN uint8_t USBD_StringSerial[USB_SIZ_STRING_SERIAL] __ALIGN_END = {
 uint8_t * USBD_FS_DeviceDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
   UNUSED(speed);
+  USBD_RefreshDeviceDescriptor();
   *length = sizeof(USBD_FS_DeviceDesc);
   return USBD_FS_DeviceDesc;
 }
@@ -292,11 +378,11 @@ uint8_t * USBD_FS_ProductStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length
 {
   if(speed == 0)
   {
-    USBD_GetString((uint8_t *)USBD_PRODUCT_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_ProductStringForMode(), USBD_StrDesc, length);
   }
   else
   {
-    USBD_GetString((uint8_t *)USBD_PRODUCT_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_ProductStringForMode(), USBD_StrDesc, length);
   }
   return USBD_StrDesc;
 }
@@ -344,11 +430,11 @@ uint8_t * USBD_FS_ConfigStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
   if(speed == USBD_SPEED_HIGH)
   {
-    USBD_GetString((uint8_t *)USBD_CONFIGURATION_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_ConfigStringForMode(), USBD_StrDesc, length);
   }
   else
   {
-    USBD_GetString((uint8_t *)USBD_CONFIGURATION_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_ConfigStringForMode(), USBD_StrDesc, length);
   }
   return USBD_StrDesc;
 }
@@ -363,11 +449,11 @@ uint8_t * USBD_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *leng
 {
   if(speed == 0)
   {
-    USBD_GetString((uint8_t *)USBD_INTERFACE_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_InterfaceStringForMode(), USBD_StrDesc, length);
   }
   else
   {
-    USBD_GetString((uint8_t *)USBD_INTERFACE_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)USBD_InterfaceStringForMode(), USBD_StrDesc, length);
   }
   return USBD_StrDesc;
 }

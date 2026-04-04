@@ -44,9 +44,19 @@ Examples/project/player/
 
 ## MCU Profile 选择
 
-- `stn32h747_HQZY/CM7` 现已改为通过 `PLAYER_PROFILE` 选择启动场景，不再通过注释切换 `main`。
-- 示例：`cmake -S Examples/project/player/stn32h747_HQZY/CM7 -B build/player-cm7 -G Ninja -DPLAYER_PROFILE=USB_SELF_MSC`
-- 当前可选值见 `Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt` 中的 `PLAYER_PROFILE` 定义。
+- `stn32h747_HQZY/CM7` 现已优先通过 `PLAYER_SCENARIO` 选择启动场景，不再通过注释切换 `main`。
+- 示例：`cmake -S Examples/project/player/stn32h747_HQZY/CM7 -B build/player-cm7 -G Ninja -DPLAYER_SCENARIO=usb_self_msc`
+- 当前可选值见 `Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt` 中的 `PLAYER_SCENARIO` 定义。
+- `PLAYER_PROFILE` 目前仍保留兼容映射，但后续建议逐步退到兼容层。
+
+## CLion / CMake Presets
+
+- `stn32h747_HQZY/CM7/CMakePresets.json` 已提供独立场景预设，每个 profile 对应单独构建目录。
+- 当前可选预设：`player-cm7-usb-audio`、`player-cm7-usb-self-msc`、`player-cm7-usb-storage`
+- 在 CLion 中推荐直接选择这些 preset，而不是在同一个 `cmake-build-debug` 目录里反复切 target。
+- 当前 MCU 侧真正的固件 target 统一为 `stn32h747_hqzy_CM7`；场景差异由 preset 对应的独立构建目录承载。
+- 这样切换场景时会真正重新配置并生成独立 `elf`，不会继续复用上一份 profile 的构建缓存。
+- CLion 具体使用建议见：`Examples/project/player/stn32h747_HQZY/CM7/CLION_WORKFLOW.md`
 
 ## 资源
 

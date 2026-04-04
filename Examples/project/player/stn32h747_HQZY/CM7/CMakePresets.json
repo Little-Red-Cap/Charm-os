@@ -1,60 +1,66 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "default",
-            "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/CM7/build/${presetName}",
-		    "toolchainFile": "${sourceDir}/gcc-arm-none-eabi.cmake",
-            "cacheVariables": {
-            }
-        },
-        {
-            "name": "Debug",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "RelWithDebInfo",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
-        },
-        {
-            "name": "Release",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-            "name": "MinSizeRel",
-            "inherits": "default",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "MinSizeRel"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "Debug",
-            "configurePreset": "Debug"
-        },
-        {
-            "name": "RelWithDebInfo",
-            "configurePreset": "RelWithDebInfo"
-        },
-        {
-            "name": "Release",
-            "configurePreset": "Release"
-        },
-        {
-            "name": "MinSizeRel",
-            "configurePreset": "MinSizeRel"
-        }
-    ]
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 0,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "player-cm7-usb-audio",
+      "displayName": "Player CM7 USB Audio",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-player-usb-audio",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PLAYER_SCENARIO": "usb_audio"
+      }
+    },
+    {
+      "name": "player-cm7-usb-self-msc",
+      "displayName": "Player CM7 USB Self MSC",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-player-usb-self-msc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PLAYER_SCENARIO": "usb_self_msc"
+      }
+    },
+    {
+      "name": "player-cm7-usb-storage",
+      "displayName": "Player CM7 USB Storage",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-player-usb-storage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PLAYER_SCENARIO": "usb_storage"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-player-cm7-usb-audio",
+      "displayName": "Build Player CM7 USB Audio",
+      "configurePreset": "player-cm7-usb-audio",
+      "targets": [
+        "stn32h747_hqzy_CM7"
+      ]
+    },
+    {
+      "name": "build-player-cm7-usb-self-msc",
+      "displayName": "Build Player CM7 USB Self MSC",
+      "configurePreset": "player-cm7-usb-self-msc",
+      "targets": [
+        "stn32h747_hqzy_CM7"
+      ]
+    },
+    {
+      "name": "build-player-cm7-usb-storage",
+      "displayName": "Build Player CM7 USB Storage",
+      "configurePreset": "player-cm7-usb-storage",
+      "targets": [
+        "stn32h747_hqzy_CM7"
+      ]
+    }
+  ]
 }

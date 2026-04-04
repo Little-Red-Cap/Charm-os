@@ -43,8 +43,7 @@ static volatile uint32_t g_audio_init_calls = 0;
 static volatile uint32_t g_audio_cmd_calls = 0;
 static volatile uint32_t g_audio_ring_overflows = 0;
 
-// static uint8_t g_audio_ring[524288];
-static uint8_t g_audio_ring[409600];
+static uint8_t g_audio_ring[32768];
 static volatile uint32_t g_audio_ring_wr = 0;
 static volatile uint32_t g_audio_ring_rd = 0;
 static volatile uint32_t g_audio_ring_used = 0;

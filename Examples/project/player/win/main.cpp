@@ -91,6 +91,8 @@ namespace {
         bool screenshot_exit{false};
     };
 
+#include "main.screenshot.inc"
+
     struct UiCiResult {
         bool ok{true};
         int failed{0};
@@ -275,12 +277,7 @@ namespace {
         if (!state || !state->platform || !state->ctx || !state->scene || !state->renderer || !state->texture) {
             return;
         }
-        if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
-            if (state->ctx->current_page != state->screenshot_page) {
-                state->ctx->set_page(state->screenshot_page);
-                if (state->screenshot_wait_frames < 1) state->screenshot_wait_frames = 1;
-            }
-        }
+        prepare_screenshot_page(*state);
         state->platform->framebuffer_ref().clear(kUiBackground);
         state->platform->begin_frame();
         state->platform->scene_ref().set_overlay(
@@ -301,49 +298,8 @@ namespace {
         SDL_RenderClear(state->renderer);
         SDL_RenderTexture(state->renderer, state->texture, nullptr, nullptr);
         SDL_RenderPresent(state->renderer);
-
-        if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
-            if (state->screenshot_wait_frames > 0) {
-                state->screenshot_wait_frames--;
-                return;
-            }
-            auto& fb = state->platform->framebuffer_ref();
-            ::FrameBufferView view{
-                screen_pixel_format,
-                fb.data(),
-                static_cast<std::size_t>(screen_width),
-                static_cast<std::size_t>(screen_height),
-                state->platform->stride_bytes()
-            };
-            if (state->screenshot_verbose) {
-                dump_font_probe_metrics(*state->platform, *state->scene, *state->ctx);
-            }
-            if (!state->screenshot_path.empty()) {
-                const bool ok = ::charm::gfx::snapshot::write_ppm(state->screenshot_path.c_str(), view);
-                if (state->screenshot_verbose) {
-                    std::printf("[ui] screenshot ppm=%s ok=%d\n", state->screenshot_path.c_str(), ok ? 1 : 0);
-                }
-                state->screenshot_path.clear();
-            }
-            if (!state->screenshot_gif_path.empty()) {
-                std::vector<std::vector<std::uint8_t>> frames{};
-                frames.push_back(::charm::gfx::snapshot::capture_indexed_332(view));
-                const bool ok = ::charm::gfx::snapshot::write_gif(state->screenshot_gif_path.c_str(),
-                                                                  static_cast<int>(view.width),
-                                                                  static_cast<int>(view.height),
-                                                                  frames,
-                                                                  8);
-                if (state->screenshot_verbose) {
-                    std::printf("[ui] screenshot gif=%s ok=%d\n", state->screenshot_gif_path.c_str(), ok ? 1 : 0);
-                }
-                state->screenshot_gif_path.clear();
-            }
-            if (state->screenshot_exit
-                && state->screenshot_path.empty()
-                && state->screenshot_gif_path.empty()
-                && state->running) {
-                *state->running = false;
-            }
+        if (flush_screenshot(*state)) {
+            return;
         }
     }
 

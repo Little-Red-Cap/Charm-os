@@ -78,6 +78,12 @@
   */
 
 /* USER CODE BEGIN EXPORTED_TYPES */
+typedef enum
+{
+  USBD_DESC_MODE_AUDIO = 0,
+  USBD_DESC_MODE_STORAGE = 1,
+  USBD_DESC_MODE_AUDIO_STORAGE = 2,
+} USBD_DescModeTypeDef;
 
 /* USER CODE END EXPORTED_TYPES */
 
@@ -120,6 +126,7 @@ extern USBD_DescriptorsTypeDef FS_Desc;
   */
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
+void USBD_DESC_SetMode(USBD_DescModeTypeDef mode);
 
 /* USER CODE END EXPORTED_FUNCTIONS */
 

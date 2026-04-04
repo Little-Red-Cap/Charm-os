@@ -13,3 +13,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_scenarios.cmake")
+
+if (PLAYER_PROFILE_COMPILE_DEFINITIONS)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+        ${PLAYER_PROFILE_COMPILE_DEFINITIONS})
+endif()

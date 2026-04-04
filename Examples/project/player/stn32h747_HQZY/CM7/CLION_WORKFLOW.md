@@ -6,7 +6,9 @@
 
 - 使用 `CMakePresets.json` 中的独立场景 preset。
 - 不要在同一个 `cmake-build-debug` 目录里反复切换 `PLAYER_PROFILE`。
+- 当前 MCU 侧统一只使用一个真实固件 target：`stn32h747_hqzy_CM7`。
 - `Target` 只负责构建当前 preset 下的产物，真正决定场景的是 preset 对应的独立构建目录。
+- 不再使用 `player_hqzy_cm7_usb_audio` 这类历史辅助 target。
 
 ## 当前可用 preset
 

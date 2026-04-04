@@ -76,6 +76,9 @@
 
 /** USB Device initialization function. */
 void MX_USB_DEVICE_Init(void);
+void MX_USB_DEVICE_AUDIO_Init(void);
+void MX_USB_DEVICE_STORAGE_Init(void);
+void MX_USB_DEVICE_AUDIO_STORAGE_Init(void);
 
 /*
  * -- Insert functions declaration here --

@@ -34,7 +34,7 @@ int charm_player_profile_usb_storage_run() {
     auto usb_cfg = player::bundle::hqzy_cm7_usb_storage::make_default_config();
     usb_system_init(fs_sd_block_device(), usb_cfg.read_only);
 
-    MX_USB_DEVICE_Init();
+    MX_USB_DEVICE_STORAGE_Init();
     out::println<"usb: device init ok">();
     if (HAL_PCD_Start(&hpcd_USB_OTG_FS) != HAL_OK) {
         out::println<"usb: start failed">();

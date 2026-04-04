@@ -1,4 +1,4 @@
-﻿# Charm 架构全景（收敛版）
+# Charm 架构全景（收敛版）
 
 本页是 Charm 的全局架构图与依赖红线说明。  
 不承担文档路由或新同学入门职责。
@@ -28,7 +28,7 @@
 Charm（统一架构）
 ├─ Core（util/trace/service/alg/init）
 ├─ System（Kernel/ModuleX/Boot/InitChain）
-├─ IO（Channel/Reactor/Registry/HAL/FS/Shell/Out）
+├─ IO（Channel/Reactor/Registry/HAL/FS/Shell/Out/POSIX）
 ├─ Media（Audio）
 ├─ UI/Ink（低资源 UI）
 └─ UI/Vivid（富 UI）
@@ -68,6 +68,7 @@ graph TD
     IO --> F[FS/VFS]
     IO --> SH[Shell]
     IO --> OUT[Out]
+    IO --> PX[POSIX Compat]
     IO --> USB[USB]
 ```
 
@@ -136,7 +137,26 @@ Draft/        # 计划/草案（可变动）
 - VSF 对照与可借鉴清单：`docs/reference/vsf/vsf_comparison.md`
 - Service/Component 初始化顺序：`docs/system/service_component_init.md`
 - InitGraph 契约：`docs/system/init_graph_contract.md`
+- POSIX 兼容总览：`docs/system/posix_support_overview.md`
+- POSIX 阶段进度：`docs/system/posix_stage_summary.md`
 
+## 1.1.2 POSIX 兼容执行面（当前已落地）
+
+POSIX 兼容执行面当前归在 Runtime/IO 侧，代码主目录为 `Modules/io/posix/*`。
+它的职责不是“把 Charm 变成 Linux 内核”，而是提供一条最小、可验证、能逐步承接 Linux 用户态程序的执行面。
+
+当前已经落地的能力包括：
+- `posix.api`、`fd_table`、`pipe`、`spawn / waitpid`、`dup2`、`isatty`、`errno`。
+- 文件路径 ELF 装载与执行：`spawn -> load_image -> start_image`。
+- `_exit(code)` 统一退出语义：通过 `ExecContext + setjmp/longjmp` 收束。
+- QEMU 回归链路：`posix smoke + busybox phase2 smoke`。
+
+当前边界也必须明确：
+- 这是 same-address-space 的 v0 用户程序执行模型。
+- 目标是先跑一批真实 Linux 用户态样本，再逐步补齐语义。
+- 还不承诺 `fork`、signals、动态链接与完整 Linux 进程隔离模型。
+
+详见：`docs/system/posix_support_overview.md`
 ## 1.2 依赖红线（单向依赖）
 
 这是“允许真实耦合”的安全网：只允许向上依赖，禁止反向渗透。

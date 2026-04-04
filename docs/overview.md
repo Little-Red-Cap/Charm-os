@@ -1,4 +1,4 @@
-﻿# Charm 文档入门
+# Charm 文档入门
 
 本页是 Charm 的 10 分钟入门入口。  
 读完本页后，再进入 `docs/architecture_overview.md` 或具体专题文档。
@@ -17,6 +17,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 3. `docs/io/io_channel_contract.md`：非阻塞通道契约
 4. `docs/io/io_reactor_contract.md`：事件驱动 IO
 5. `docs/input/input_layering_decision.md`：输入链路统一
+6. `docs/system/posix_support_overview.md`：如果你关心 Linux 用户态兼容，从这里进入
 
 ## 核心术语（最少认知）
 - 能力（Capability）：可被依赖/装配的系统能力（如 `io.uart1`、`block.sd0`）
@@ -49,6 +50,7 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - IO 分层：`docs/io/io_layering_overview.md`
 - 存储：`docs/storage/*`
 - 系统：`docs/system/*`
+- Linux 用户态兼容：`docs/system/posix_support_overview.md`
 - 音频：`docs/system/charm_audio_architecture.md`
 - 协作入口：`docs/agent/README.md`
 - 代码审查：`docs/agent/skills/code-review/`

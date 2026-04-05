@@ -1,4 +1,4 @@
-﻿# Charm Capability Map
+# Charm Capability Map
 
 Charm 将系统功能组织为 **Capability（能力）**，并通过能力图进行装配。
 
@@ -108,6 +108,7 @@ Charm 使用三层结构组织系统能力：
 | DeviceModel | 设备/驱动注册与组织模型 | `device.registry` | `docs/architecture/device_model_overview.md` | — | draft |
 | ModuleX | 模块加载、链接与依赖管理 | `module.loader` | — | — | draft |
 | Bootloader | 启动、升级与引导策略 | `boot.*` | `docs/boot/bootloader_overview.md` | — | draft |
+| POSIXCompat | 面向 Linux 用户态程序的最小兼容执行面，覆盖 fd/pipe/spawn/wait/ELF/errno，代码位于 `Modules/io/posix` | `posix.api`, `posix.proc`, `posix.exec_context`, `posix.exec_loader`, `posix.elf_hostcall` | `docs/system/posix_support_overview.md` | `Examples/kernel/posix/qemu` | draft |
 
 ---
 

@@ -54,7 +54,19 @@ int entry(int argc, char** argv, char** envp) {
         return 35;
     }
 
-    write_all(1, "read-ok\n", 8);
+    if (write(-1, &ch, 1) != -1) {
+        write_all(1, "write-bad\n", 10);
+        close(fd);
+        return 36;
+    }
+
+    if (errno != 95) {
+        write_all(1, "write-errno\n", 12);
+        close(fd);
+        return 37;
+    }
+
+    write_all(1, "rw-ok\n", 6);
     close(fd);
     return 0;
 }

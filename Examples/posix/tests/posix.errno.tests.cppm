@@ -74,6 +74,8 @@ namespace {
         check_eq("map-notsup", posix::to_errno(util::Errc::notsup), posix::ENOTSUP);
         check_eq("map-timeout", posix::to_errno(util::Errc::timeout), posix::ETIMEDOUT);
         check_eq("map-exist", posix::to_errno(util::Errc::exist), posix::EEXIST);
+        check_eq("map-notdir", posix::to_errno(util::Errc::notdir), posix::ENOTDIR);
+        check_eq("map-isdir", posix::to_errno(util::Errc::isdir), posix::EISDIR);
         check_eq("map-eacces-back", posix::from_errno(posix::EACCES), util::Errc::io);
         check_eq("map-unknown-back", posix::from_errno(123456), util::Errc::io);
     }

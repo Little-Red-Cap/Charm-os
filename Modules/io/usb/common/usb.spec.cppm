@@ -57,6 +57,11 @@ export namespace usb::spec {
         MscFunctionSpec msc{};
     };
 
+    struct CdcDeviceSpec {
+        DeviceSpec device{};
+        CdcFunctionSpec cdc{};
+    };
+
     struct MscCdcDeviceSpec {
         DeviceSpec device{};
         MscFunctionSpec msc{};
@@ -66,6 +71,11 @@ export namespace usb::spec {
     inline constexpr MscDeviceSpec msc_device(const DeviceSpec& device,
                                               const MscFunctionSpec& msc) noexcept {
         return MscDeviceSpec{device, msc};
+    }
+
+    inline constexpr CdcDeviceSpec cdc_device(const DeviceSpec& device,
+                                              const CdcFunctionSpec& cdc) noexcept {
+        return CdcDeviceSpec{device, cdc};
     }
 
     inline constexpr MscCdcDeviceSpec msc_cdc_device(const DeviceSpec& device,

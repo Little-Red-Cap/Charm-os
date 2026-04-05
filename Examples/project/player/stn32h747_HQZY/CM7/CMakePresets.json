@@ -27,6 +27,16 @@
       }
     },
     {
+      "name": "player-cm7-usb-self-cdc",
+      "displayName": "Player CM7 USB Self CDC",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-player-usb-self-cdc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "PLAYER_SCENARIO": "usb_self_cdc"
+      }
+    },
+    {
       "name": "player-cm7-usb-storage",
       "displayName": "Player CM7 USB Storage",
       "generator": "Ninja",
@@ -50,6 +60,14 @@
       "name": "build-player-cm7-usb-self-msc",
       "displayName": "Build Player CM7 USB Self MSC",
       "configurePreset": "player-cm7-usb-self-msc",
+      "targets": [
+        "stn32h747_hqzy_CM7"
+      ]
+    },
+    {
+      "name": "build-player-cm7-usb-self-cdc",
+      "displayName": "Build Player CM7 USB Self CDC",
+      "configurePreset": "player-cm7-usb-self-cdc",
       "targets": [
         "stn32h747_hqzy_CM7"
       ]

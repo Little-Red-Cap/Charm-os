@@ -191,18 +191,14 @@ namespace {
         const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
         if (cfg.direction == usb::driver::EpDirection::out) {
             g_usb_out_cbs[ep_num] = cb;
-            g_usb_out_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_out)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
+            g_usb_out_ctx[ep_num] = cb.ctx;
             g_usb_out_mps[ep_num] = cfg.max_packet_size;
             (void)HAL_PCD_EP_Receive(pcd, cfg.address,
                 g_usb_out_bufs[ep_num].data(),
                 g_usb_out_mps[ep_num]);
         } else {
             g_usb_in_cbs[ep_num] = cb;
-            g_usb_in_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_in)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
+            g_usb_in_ctx[ep_num] = cb.ctx;
             if (g_msc_cfg && cfg.address == g_msc_cfg->ep_in) {
                 g_msc_in_busy = false;
             }

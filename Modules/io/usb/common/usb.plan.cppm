@@ -80,6 +80,11 @@ export namespace usb::plan {
         MscFunctionPlan msc{};
     };
 
+    struct CdcDevicePlan {
+        DevicePlan device{};
+        CdcFunctionPlan cdc{};
+    };
+
     struct MscCdcDevicePlan {
         DevicePlan device{};
         MscFunctionPlan msc{};
@@ -192,7 +197,8 @@ export namespace usb::plan {
             if (info.max_packet_size == 0) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            if (info.type != usb::EndpointType::bulk) {
+            if (info.type != usb::EndpointType::bulk &&
+                info.type != usb::EndpointType::interrupt) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (info.max_packet_size > constraints.max_bulk_mps) {
@@ -375,6 +381,58 @@ export namespace usb::plan {
         auto ep_ok = validate_endpoint_allocations(plan.msc.endpoint_allocations(), constraints);
         if (!ep_ok) {
             return util::unexpected(ep_ok.error());
+        }
+
+        return plan;
+    }
+
+    inline util::Result<CdcDevicePlan> build(const usb::model::CdcDeviceModel& model,
+                                             const FsTargetConstraints& constraints = stm32_fs_constraints()) noexcept {
+        CdcDevicePlan plan{};
+        plan.device.dev_info = model.device.dev_info;
+        plan.device.cfg_info = model.device.cfg_info;
+        plan.device.strings = model.device.strings;
+
+        auto dev_ok = validate_device_plan(plan.device, constraints);
+        if (!dev_ok) {
+            return util::unexpected(dev_ok.error());
+        }
+
+        plan.cdc.cap_name = model.cdc.cap_name;
+        plan.cdc.cdc_cfg = model.cdc.cdc_cfg;
+
+        AllocationCursor cursor{};
+        auto iface_ok = allocate_interfaces(
+            std::span<InterfaceAllocation>(plan.cdc.interfaces.data(), plan.cdc.interfaces.size()),
+            model.cdc.interface_intents(),
+            cursor,
+            constraints);
+        if (!iface_ok) {
+            return util::unexpected(iface_ok.error());
+        }
+
+        auto ep_ok = allocate_endpoints(
+            std::span<EndpointAllocation>(plan.cdc.endpoints.data(), plan.cdc.endpoints.size()),
+            model.cdc.endpoint_intents(),
+            cursor,
+            constraints);
+        if (!ep_ok) {
+            return util::unexpected(ep_ok.error());
+        }
+
+        plan.cdc.cdc_cfg = materialize_cdc_config(
+            model.cdc.cdc_cfg,
+            plan.cdc.interface_allocations(),
+            plan.cdc.endpoint_allocations());
+
+        auto iface_valid = validate_interface_allocations(plan.cdc.interface_allocations());
+        if (!iface_valid) {
+            return util::unexpected(iface_valid.error());
+        }
+
+        auto ep_valid = validate_endpoint_allocations(plan.cdc.endpoint_allocations(), constraints);
+        if (!ep_valid) {
+            return util::unexpected(ep_valid.error());
         }
 
         return plan;

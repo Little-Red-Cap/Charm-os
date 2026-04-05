@@ -65,19 +65,76 @@ constexpr uint32_t kAudioBufBytes = 4096;
 alignas(4) uint8_t g_audio_buf[kAudioBufBytes];
 volatile bool g_i2s_started = false;
 volatile bool g_i2s_active = false;
-constexpr uint32_t kRingTarget = 2048;
-constexpr uint32_t kRingHighWater = 4096;
+volatile bool g_audio_stream_primed = false;
+constexpr uint32_t kFrameBytes = 4;
+constexpr uint32_t kUsbSyncChunkBytes = AUDIO_TOTAL_BUF_SIZE / 2U;
+constexpr uint32_t kRingStartThreshold = 24576;
+constexpr uint32_t kRingTarget = 24576;
+constexpr uint32_t kRingBand = 8192;
+constexpr uint32_t kRingEmergencyHighWater = 49152;
 alignas(4) uint8_t g_discard_buf[2048];
+alignas(4) uint8_t g_last_frame[kFrameBytes]{};
+alignas(4) uint8_t g_slip_in_buf[(kAudioBufBytes / 2) + kFrameBytes]{};
+volatile uint32_t g_audio_ring_min = 0xFFFFFFFFu;
+volatile uint32_t g_audio_ring_max = 0;
+volatile uint32_t g_audio_slip_drop_bytes = 0;
+volatile uint32_t g_audio_slip_dup_bytes = 0;
+volatile uint32_t g_audio_sync_credit_bytes = 0;
+volatile uint32_t g_audio_slip_cursor = 0;
+
+void audio_health_reset() {
+    g_audio_ring_min = 0xFFFFFFFFu;
+    g_audio_ring_max = 0;
+    g_audio_slip_drop_bytes = 0;
+    g_audio_slip_dup_bytes = 0;
+    g_audio_sync_credit_bytes = 0;
+    g_audio_slip_cursor = 0;
+    g_audio_stream_primed = false;
+    (void)memset(g_last_frame, 0, sizeof(g_last_frame));
+}
+
+void audio_health_note(uint32_t available) {
+    if (available < g_audio_ring_min) {
+        g_audio_ring_min = available;
+    }
+    if (available > g_audio_ring_max) {
+        g_audio_ring_max = available;
+    }
+}
+
+void mix_frame(const uint8_t* a, const uint8_t* b, uint8_t* out) {
+    int16_t al = 0;
+    int16_t ar = 0;
+    int16_t bl = 0;
+    int16_t br = 0;
+    (void)memcpy(&al, a + 0, sizeof(al));
+    (void)memcpy(&ar, a + 2, sizeof(ar));
+    (void)memcpy(&bl, b + 0, sizeof(bl));
+    (void)memcpy(&br, b + 2, sizeof(br));
+    const int16_t ol = static_cast<int16_t>((static_cast<int32_t>(al) + static_cast<int32_t>(bl)) / 2);
+    const int16_t orr = static_cast<int16_t>((static_cast<int32_t>(ar) + static_cast<int32_t>(br)) / 2);
+    (void)memcpy(out + 0, &ol, sizeof(ol));
+    (void)memcpy(out + 2, &orr, sizeof(orr));
+}
+
+void audio_note_consumed(uint32_t bytes) {
+    g_audio_sync_credit_bytes += bytes;
+    while (g_audio_sync_credit_bytes >= kUsbSyncChunkBytes) {
+        TransferComplete_CallBack_FS();
+        g_audio_sync_credit_bytes -= kUsbSyncChunkBytes;
+    }
+}
 
 void fill_audio_half(uint32_t half_index) {
-    if (!g_i2s_active) {
+    if (!g_i2s_active || !g_audio_stream_primed) {
         (void)memset(g_audio_buf + (half_index * (kAudioBufBytes / 2)), 0, kAudioBufBytes / 2);
         return;
     }
     uint8_t* dst = g_audio_buf + (half_index * (kAudioBufBytes / 2));
     const uint32_t want = kAudioBufBytes / 2;
     uint32_t available = usb_audio_ring_available();
-    if (available > kRingHighWater) {
+    audio_health_note(available);
+    if (available > kRingEmergencyHighWater) {
         uint32_t drop = available - kRingTarget;
         while (drop > 0) {
             const uint32_t chunk = (drop > sizeof(g_discard_buf)) ? sizeof(g_discard_buf) : drop;
@@ -85,21 +142,83 @@ void fill_audio_half(uint32_t half_index) {
             drop -= chunk;
         }
         available = usb_audio_ring_available();
+        audio_health_note(available);
     }
-    const uint32_t got = usb_audio_ring_read(dst, want);
-    if (got < want) {
+
+    uint32_t read_want = want;
+    uint32_t drop_after = 0;
+    uint32_t dup_after = 0;
+    if (available > (kRingTarget + kRingBand)) {
+        drop_after = kFrameBytes;
+    } else if (available < (kRingTarget - kRingBand)) {
+        dup_after = kFrameBytes;
+        if (dup_after < read_want) {
+            read_want -= dup_after;
+        } else {
+            dup_after = 0;
+        }
+    }
+
+    const uint32_t got = usb_audio_ring_read(g_slip_in_buf, read_want);
+    if (got < read_want) {
+        (void)memcpy(dst, g_slip_in_buf, got);
+        if (got >= kFrameBytes) {
+            (void)memcpy(g_last_frame, g_slip_in_buf + got - kFrameBytes, kFrameBytes);
+        }
         (void)memset(dst + got, 0, want - got);
+        return;
+    }
+
+    const uint32_t out_frames = want / kFrameBytes;
+    const uint32_t in_frames = read_want / kFrameBytes;
+
+    if (dup_after > 0 && in_frames > 1U) {
+        const uint32_t insert_pos = 1U + (g_audio_slip_cursor % (in_frames - 1U));
+        const uint32_t before_bytes = insert_pos * kFrameBytes;
+        const uint32_t tail_frames = in_frames - insert_pos;
+        (void)memcpy(dst, g_slip_in_buf, before_bytes);
+        mix_frame(g_slip_in_buf + ((insert_pos - 1U) * kFrameBytes),
+                  g_slip_in_buf + (insert_pos * kFrameBytes),
+                  dst + before_bytes);
+        (void)memcpy(dst + before_bytes + kFrameBytes,
+                     g_slip_in_buf + before_bytes,
+                     tail_frames * kFrameBytes);
+        g_audio_slip_dup_bytes += dup_after;
+        g_audio_slip_cursor += 113U;
+    } else if (drop_after > 0 && in_frames > out_frames) {
+        const uint32_t drop_pos = 1U + (g_audio_slip_cursor % (out_frames - 1U));
+        const uint32_t before_bytes = drop_pos * kFrameBytes;
+        const uint32_t after_frames = out_frames - (drop_pos + 1U);
+        (void)memcpy(dst, g_slip_in_buf, before_bytes);
+        mix_frame(g_slip_in_buf + (drop_pos * kFrameBytes),
+                  g_slip_in_buf + ((drop_pos + 1U) * kFrameBytes),
+                  dst + before_bytes);
+        if (after_frames > 0) {
+            (void)memcpy(dst + before_bytes + kFrameBytes,
+                         g_slip_in_buf + ((drop_pos + 1U) * kFrameBytes),
+                         after_frames * kFrameBytes);
+        }
+        g_audio_slip_drop_bytes += drop_after;
+        g_audio_slip_cursor += 97U;
+    } else {
+        (void)memcpy(dst, g_slip_in_buf, want);
+    }
+
+    if (want >= kFrameBytes) {
+        (void)memcpy(g_last_frame, dst + want - kFrameBytes, kFrameBytes);
     }
 }
 }
 
 extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s != &hi2s1) return;
+    audio_note_consumed(kAudioBufBytes / 2);
     fill_audio_half(0);
 }
 
 extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s != &hi2s1) return;
+    audio_note_consumed(kAudioBufBytes / 2);
     fill_audio_half(1);
 }
 
@@ -143,6 +262,7 @@ int charm_player_profile_usb_audio_run() {
 
     fill_audio_half(0);
     fill_audio_half(1);
+    audio_health_reset();
     if (HAL_I2S_Transmit_DMA(&hi2s1,
             reinterpret_cast<uint16_t*>(g_audio_buf),
             kAudioBufBytes / 2) == HAL_OK) {
@@ -157,7 +277,7 @@ int charm_player_profile_usb_audio_run() {
         static uint32_t last_log = 0;
         static bool last_streaming = false;
         const uint32_t now = charm::port::now_ms(nullptr);
-        if ((now - last_log) >= 3000) {
+        if ((now - last_log) >= 10000) {
             const uint32_t bytes = usb_audio_rx_bytes();
             const uint32_t pkts = usb_audio_rx_pkts();
             const uint32_t last_size = usb_audio_rx_last_size();
@@ -170,11 +290,18 @@ int charm_player_profile_usb_audio_run() {
             const uint32_t last_alt = usb_audio_last_alt_setting();
             const uint32_t ring_avail = usb_audio_ring_available();
             const uint32_t ring_ovf = usb_audio_ring_overflows();
-            char buf[160];
+            const uint32_t out_calls = usb_audio_out_calls();
+            const uint32_t iso_out_incomplete = usb_audio_iso_out_incomplete();
+            const uint32_t primed = g_audio_stream_primed ? 1u : 0u;
+            const uint32_t ring_min = (g_audio_ring_min == 0xFFFFFFFFu) ? 0u : g_audio_ring_min;
+            const uint32_t ring_max = g_audio_ring_max;
+            const uint32_t slip_drop = g_audio_slip_drop_bytes;
+            const uint32_t slip_dup = g_audio_slip_dup_bytes;
+            char buf[220];
             const int n = snprintf(
                 buf,
                 sizeof(buf),
-                "usb: audio bytes=%lu pkts=%lu last=%lu freq=%lu cmd=%lu init=%lu cmd_calls=%lu set_if=%lu alt=%lu ovf=%lu ring=%lu ring_ovf=%lu\n",
+                "usb: audio bytes=%lu pkts=%lu last=%lu freq=%lu cmd=%lu init=%lu cmd_calls=%lu set_if=%lu alt=%lu ovf=%lu ring=%lu ring_ovf=%lu out=%lu iso_inc=%lu primed=%lu ring_min=%lu ring_max=%lu slip_drop=%lu slip_dup=%lu\n",
                 static_cast<unsigned long>(bytes),
                 static_cast<unsigned long>(pkts),
                 static_cast<unsigned long>(last_size),
@@ -186,7 +313,14 @@ int charm_player_profile_usb_audio_run() {
                 static_cast<unsigned long>(last_alt),
                 static_cast<unsigned long>(overflows),
                 static_cast<unsigned long>(ring_avail),
-                static_cast<unsigned long>(ring_ovf));
+                static_cast<unsigned long>(ring_ovf),
+                static_cast<unsigned long>(out_calls),
+                static_cast<unsigned long>(iso_out_incomplete),
+                static_cast<unsigned long>(primed),
+                static_cast<unsigned long>(ring_min),
+                static_cast<unsigned long>(ring_max),
+                static_cast<unsigned long>(slip_drop),
+                static_cast<unsigned long>(slip_dup));
             if (n > 0) {
                 uart_write(buf);
             }
@@ -195,12 +329,17 @@ int charm_player_profile_usb_audio_run() {
         const bool streaming = (usb_audio_last_alt_setting() == 1);
         if (streaming != last_streaming) {
             g_i2s_active = false;
+            g_audio_stream_primed = false;
             usb_audio_rx_reset();
+            audio_health_reset();
             fill_audio_half(0);
             fill_audio_half(1);
             last_streaming = streaming;
         }
-        g_i2s_active = streaming;
+        if (streaming && !g_audio_stream_primed && (usb_audio_ring_available() >= kRingStartThreshold)) {
+            g_audio_stream_primed = true;
+        }
+        g_i2s_active = streaming && g_audio_stream_primed;
 
         if (!g_i2s_started) {
             fill_audio_half(0);

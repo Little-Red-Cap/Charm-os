@@ -127,6 +127,10 @@ void usb_audio_rx_reset(void);
 uint32_t usb_audio_ring_available(void);
 uint32_t usb_audio_ring_overflows(void);
 uint32_t usb_audio_ring_read(uint8_t* dst, uint32_t size);
+uint32_t usb_audio_out_calls(void);
+uint32_t usb_audio_iso_out_incomplete(void);
+uint32_t usb_audio_out_ep(void);
+uint32_t usb_audio_last_set_if_index(void);
 
 /* USER CODE END EXPORTED_FUNCTIONS */
 

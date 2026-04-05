@@ -17,6 +17,7 @@ set_property(CACHE PLAYER_SCENARIO PROPERTY STRINGS
     legacy_main
     usb_as
     usb_audio
+    usb_self_cdc
     usb_self_msc
     usb_storage)
 
@@ -26,6 +27,7 @@ set_property(CACHE PLAYER_PROFILE PROPERTY STRINGS
     LEGACY_MAIN
     USB_AS
     USB_AUDIO
+    USB_SELF_CDC
     USB_SELF_MSC
     USB_STORAGE)
 
@@ -41,6 +43,8 @@ elseif (PLAYER_SCENARIO STREQUAL "usb_as")
     set(PLAYER_PROFILE "USB_AS" CACHE STRING "Player startup profile for stm32h747 HQZY CM7" FORCE)
 elseif (PLAYER_SCENARIO STREQUAL "usb_audio")
     set(PLAYER_PROFILE "USB_AUDIO" CACHE STRING "Player startup profile for stm32h747 HQZY CM7" FORCE)
+elseif (PLAYER_SCENARIO STREQUAL "usb_self_cdc")
+    set(PLAYER_PROFILE "USB_SELF_CDC" CACHE STRING "Player startup profile for stm32h747 HQZY CM7" FORCE)
 elseif (PLAYER_SCENARIO STREQUAL "usb_self_msc")
     set(PLAYER_PROFILE "USB_SELF_MSC" CACHE STRING "Player startup profile for stm32h747 HQZY CM7" FORCE)
 elseif (PLAYER_SCENARIO STREQUAL "usb_storage")

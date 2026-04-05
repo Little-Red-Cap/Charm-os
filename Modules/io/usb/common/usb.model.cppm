@@ -69,6 +69,11 @@ export namespace usb::model {
         MscFunctionModel msc{};
     };
 
+    struct CdcDeviceModel {
+        DeviceModel device{};
+        CdcFunctionModel cdc{};
+    };
+
     struct MscCdcDeviceModel {
         DeviceModel device{};
         MscFunctionModel msc{};
@@ -190,6 +195,13 @@ export namespace usb::model {
         return model;
     }
 
+    inline CdcDeviceModel build(const usb::spec::CdcDeviceSpec& spec) noexcept {
+        CdcDeviceModel model{};
+        model.device = build_device(spec.device);
+        model.cdc = build_cdc(spec.cdc);
+        return model;
+    }
+
     inline MscCdcDeviceModel build(const usb::spec::MscCdcDeviceSpec& spec) noexcept {
         MscCdcDeviceModel model{};
         model.device = build_device(spec.device);
@@ -201,6 +213,10 @@ export namespace usb::model {
 
 export namespace usb {
     inline usb::model::MscDeviceModel build(const usb::spec::MscDeviceSpec& spec) noexcept {
+        return usb::model::build(spec);
+    }
+
+    inline usb::model::CdcDeviceModel build(const usb::spec::CdcDeviceSpec& spec) noexcept {
         return usb::model::build(spec);
     }
 

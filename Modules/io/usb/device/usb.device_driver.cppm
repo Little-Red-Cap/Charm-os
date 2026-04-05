@@ -384,6 +384,7 @@ export namespace usb::device {
                                              std::span<const u8> class_desc,
                                              const std::span<const u8>* strings,
                                              std::size_t string_count) noexcept {
+            cdc.set_config(cdc_cfg);
             if (!dsl::build_cdc_acm_device(build_ctx,
                                            dev_info,
                                            cfg_info,
@@ -501,6 +502,7 @@ export namespace usb::device {
                                          std::span<const u8> class_desc,
                                          const std::span<const u8>* strings,
                                          std::size_t string_count) noexcept {
+            msc.set_config(msc_cfg);
             if (!dsl::build_msc_device(build_ctx,
                                        dev_info,
                                        cfg_info,

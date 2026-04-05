@@ -102,6 +102,7 @@ export namespace usb::class_driver {
         }
 
         const MscConfig& config() const noexcept { return cfg_; }
+        void set_config(const MscConfig& cfg) noexcept { cfg_ = cfg; }
         MscPhase phase() const noexcept { return phase_; }
         void reset_phase() noexcept { phase_ = MscPhase::cbw; }
         const MscCbw& last_cbw() const noexcept { return last_cbw_; }

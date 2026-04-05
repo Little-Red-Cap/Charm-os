@@ -85,6 +85,7 @@ export namespace usb::device {
                 clear_pending();
                 return;
             }
+            apply_address_immediately(setup);
         }
 
         void on_out_data(std::span<const u8> data) noexcept {
@@ -242,6 +243,19 @@ export namespace usb::device {
             }
         }
 
+        void apply_address_immediately(const SetupPacket& setup) noexcept {
+            if (request_type(setup.bm_request_type) != RequestType::standard) {
+                return;
+            }
+            if (static_cast<StandardRequest>(setup.b_request) != StandardRequest::set_address) {
+                return;
+            }
+            if (pending_address_valid_ && dcd_ops_.set_address) {
+                dcd_ops_.set_address(dcd_ctx_, pending_address_);
+                pending_address_valid_ = false;
+            }
+        }
+
         void clear_pending() noexcept {
             pending_address_valid_ = false;
             pending_config_valid_ = false;
@@ -370,6 +384,7 @@ export namespace usb::device {
                                              std::span<const u8> class_desc,
                                              const std::span<const u8>* strings,
                                              std::size_t string_count) noexcept {
+            cdc.set_config(cdc_cfg);
             if (!dsl::build_cdc_acm_device(build_ctx,
                                            dev_info,
                                            cfg_info,
@@ -487,6 +502,7 @@ export namespace usb::device {
                                          std::span<const u8> class_desc,
                                          const std::span<const u8>* strings,
                                          std::size_t string_count) noexcept {
+            msc.set_config(msc_cfg);
             if (!dsl::build_msc_device(build_ctx,
                                        dev_info,
                                        cfg_info,

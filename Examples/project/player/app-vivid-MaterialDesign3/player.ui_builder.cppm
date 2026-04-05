@@ -22,6 +22,7 @@ import player.ui;
 
 namespace player::ui_builder_detail {
 #include "player.ui_builder.shared.inc"
+#include "player.ui_builder.probe.inc"
 #include "player.ui_builder.now_playing.inc"
 #include "player.ui_builder.home.inc"
 #include "player.ui_builder.library.inc"
@@ -40,6 +41,10 @@ export namespace player {
 
         const ui_builder_detail::UiLayout layout = ui_builder_detail::make_layout();
         const ui_builder_detail::NowTextLayout now_text = ui_builder_detail::make_now_text_layout(layout);
+        ui_builder_detail::build_probe(builder, h);
+        if (h.page_probe) {
+            builder.link(h.root, h.page_probe);
+        }
         ui_builder_detail::build_home(builder, h, layout, icons);
         if (h.page_home) {
             builder.link(h.root, h.page_home);

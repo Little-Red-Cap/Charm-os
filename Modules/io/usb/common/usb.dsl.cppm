@@ -399,6 +399,48 @@ export namespace usb::dsl {
         return true;
     }
 
+    inline bool build_msc_cdc_device(DeviceBuildContext& ctx,
+                                     const DeviceInfo& dev_info,
+                                     const ConfigInfo& cfg_info,
+                                     const class_driver::MscConfig& msc_cfg,
+                                     std::span<const u8> msc_class_desc,
+                                     const class_driver::CdcConfig& cdc_cfg,
+                                     std::span<const u8> cdc_class_desc,
+                                     const std::span<const u8>* strings,
+                                     std::size_t string_count) noexcept {
+        if (!ctx.table || !ctx.tree) return false;
+        if (ctx.device_desc_storage.size() < sizeof(DeviceDescriptor)) return false;
+        if (ctx.config_storage.empty()) return false;
+
+        const auto device_desc = make_device_descriptor(dev_info);
+        std::memcpy(ctx.device_desc_storage.data(), &device_desc, sizeof(device_desc));
+
+        ConfigBuilder builder(ctx.config_storage);
+        builder.set_interface_count(3);
+        if (!builder.begin(make_config_descriptor(cfg_info))) return false;
+
+        InterfaceAssociationDescriptor iad{};
+        iad.first_interface = cdc_cfg.ctrl_ifc;
+        iad.interface_count = 2;
+        iad.function_class = class_driver::cdc_class;
+        iad.function_subclass = class_driver::cdc_subclass_acm;
+        iad.function_protocol = class_driver::cdc_protocol_at;
+        if (!builder.add_iad(iad)) return false;
+
+        if (!build_cdc_acm(builder, cdc_cfg, cdc_class_desc)) return false;
+        if (!build_msc(builder, msc_cfg, msc_class_desc)) return false;
+        if (!builder.end()) return false;
+
+        ctx.tree->buffer = ctx.config_storage;
+        ctx.tree->view = builder.view();
+
+        ctx.table->device = std::span<const u8>(ctx.device_desc_storage.data(), sizeof(DeviceDescriptor));
+        ctx.table->configuration = ctx.tree->view;
+        ctx.table->strings = strings;
+        ctx.table->string_count = string_count;
+        return true;
+    }
+
     inline bool build_uac_device(DeviceBuildContext& ctx,
                                  const DeviceInfo& dev_info,
                                  const ConfigInfo& cfg_info,

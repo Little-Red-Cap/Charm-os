@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -19,10 +20,20 @@ void Error_Handler(void);
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern USBD_HandleTypeDef hUsbDeviceFS;
 int charm_port_console_write(void* uart, const uint8_t* data, uint16_t len);
+uint32_t usb_msc_init_calls(void);
+uint32_t usb_msc_ready_calls(void);
+uint32_t usb_msc_capacity_calls(void);
+uint32_t usb_msc_read_calls(void);
+uint32_t usb_msc_write_calls(void);
+uint32_t usb_msc_last_error(void);
 }
 
 namespace {
 void* g_console_ctx = nullptr;
+std::uint32_t g_scsi_count = 0;
+std::uint8_t g_scsi_last = 0;
+std::array<std::uint8_t, 8> g_scsi_hist{};
+std::size_t g_scsi_hist_head = 0;
 
 void uart_write(const char* msg) {
     if (!msg) return;
@@ -62,6 +73,33 @@ void dump_usb_descriptors() {
         dump_bytes("usb: cfg_desc", cfg, len, len < 32 ? len : 32);
     }
 }
+
+void dump_scsi_trace() {
+    char buf[256];
+    const int n = std::snprintf(
+        buf,
+        sizeof(buf),
+        "msc: scsi count=%lu last=0x%02X init=%lu ready=%lu cap=%lu read=%lu write=%lu err=%lu hist=%02X %02X %02X %02X %02X %02X %02X %02X\n",
+        static_cast<unsigned long>(g_scsi_count),
+        static_cast<unsigned>(g_scsi_last),
+        static_cast<unsigned long>(usb_msc_init_calls()),
+        static_cast<unsigned long>(usb_msc_ready_calls()),
+        static_cast<unsigned long>(usb_msc_capacity_calls()),
+        static_cast<unsigned long>(usb_msc_read_calls()),
+        static_cast<unsigned long>(usb_msc_write_calls()),
+        static_cast<unsigned long>(usb_msc_last_error()),
+        static_cast<unsigned>(g_scsi_hist[0]),
+        static_cast<unsigned>(g_scsi_hist[1]),
+        static_cast<unsigned>(g_scsi_hist[2]),
+        static_cast<unsigned>(g_scsi_hist[3]),
+        static_cast<unsigned>(g_scsi_hist[4]),
+        static_cast<unsigned>(g_scsi_hist[5]),
+        static_cast<unsigned>(g_scsi_hist[6]),
+        static_cast<unsigned>(g_scsi_hist[7]));
+    if (n > 0) {
+        uart_write(buf);
+    }
+}
 }
 
 extern "C" void app_usb_setup_sniff(const uint8_t setup[8]) {
@@ -83,6 +121,13 @@ extern "C" void app_usb_setup_sniff(const uint8_t setup[8]) {
     if (n > 0) {
         uart_write(buf);
     }
+}
+
+extern "C" void usbd_msc_debug_scsi(uint8_t op) {
+    g_scsi_last = op;
+    g_scsi_count++;
+    g_scsi_hist[g_scsi_hist_head] = op;
+    g_scsi_hist_head = (g_scsi_hist_head + 1u) % g_scsi_hist.size();
 }
 
 int charm_player_selected_profile_main() {
@@ -134,7 +179,12 @@ int charm_player_selected_profile_main() {
             static_cast<std::uint32_t>(out0->DOEPINT));
     }
 
+    std::uint32_t last_scsi_count = 0;
     while (true) {
+        if (g_scsi_count != last_scsi_count) {
+            dump_scsi_trace();
+            last_scsi_count = g_scsi_count;
+        }
         charm::system::time::sleep_ms(1000);
     }
 }

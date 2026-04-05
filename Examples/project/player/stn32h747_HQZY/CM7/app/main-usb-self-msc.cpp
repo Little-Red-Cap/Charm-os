@@ -41,9 +41,11 @@ constexpr bool kDumpUsbRegs = false;
 constexpr bool kDumpLba0 = true;
 constexpr bool kDumpMscIo = true;
 constexpr bool kUsbMscRemovable = true;
+constexpr bool kUsbMscReadOnly = false;
 constexpr bool kUsbMscUseBpbCapacity = true;
 constexpr bool kUsbPollIrqInLoop = true;
 constexpr std::uint32_t kUsbPollBurst = 8;
+constexpr std::size_t kMscIoBufSize = 32768;
 
 static const usb::StringTable<4> kUsbStrings{
     std::array<std::span<const usb::u8>, 4>{
@@ -56,11 +58,16 @@ static const usb::StringTable<4> kUsbStrings{
 
 struct UsbBlockTrace {
     static constexpr std::size_t kCacheEntries = 4;
+    static constexpr std::size_t kBurstCacheBlocks = kMscIoBufSize / 512u;
 
     fs::BlockDevice* dev{nullptr};
     std::array<std::array<util::u8, 512>, kCacheEntries> cache{};
     std::array<util::u64, kCacheEntries> cache_lba{};
     std::array<bool, kCacheEntries> cache_valid{};
+    std::array<util::u8, 512 * kBurstCacheBlocks> burst_cache{};
+    util::u64 burst_lba{0};
+    std::size_t burst_blocks{0};
+    bool burst_valid{false};
     std::array<util::u8, 16> last_read_head{};
     std::size_t cache_head{0};
     std::uint32_t read_calls{0};
@@ -90,8 +97,43 @@ struct UsbBlockTrace {
             }
             cache_misses++;
         }
+
+        if (dev->block_size == 512 && burst_valid) {
+            const auto blocks = data.size() / 512u;
+            if (blocks > 0 && (data.size() % 512u) == 0u &&
+                lba >= burst_lba &&
+                (lba + blocks) <= (burst_lba + burst_blocks)) {
+                const auto offset_blocks = static_cast<std::size_t>(lba - burst_lba);
+                const auto offset_bytes = offset_blocks * 512u;
+                std::memcpy(data.data(), burst_cache.data() + offset_bytes, data.size());
+                std::memcpy(last_read_head.data(), data.data(), last_read_head.size());
+                cache_hits++;
+                last_read_ok = true;
+                return fs::Status{fs::Errc::ok};
+            }
+        }
+
         const auto start = HAL_GetTick();
-        const auto st = dev->read(dev->ctx, lba, data);
+        fs::Status st{fs::Errc::io};
+        if (dev->block_size == 512) {
+            const auto blocks = data.size() / 512u;
+            if (blocks > 1 && (data.size() % 512u) == 0u && blocks <= kBurstCacheBlocks) {
+                st = dev->read(dev->ctx, lba,
+                    std::span<util::u8>(burst_cache.data(), data.size()));
+                if (st) {
+                    std::memcpy(data.data(), burst_cache.data(), data.size());
+                    burst_lba = lba;
+                    burst_blocks = blocks;
+                    burst_valid = true;
+                } else {
+                    burst_valid = false;
+                }
+            } else {
+                st = dev->read(dev->ctx, lba, data);
+            }
+        } else {
+            st = dev->read(dev->ctx, lba, data);
+        }
         const auto cost = HAL_GetTick() - start;
         last_read_ms = cost;
         if (cost > max_read_ms) max_read_ms = cost;
@@ -205,7 +247,7 @@ int charm_player_selected_profile_main() {
         static_cast<unsigned long>(usb_dev.block_size),
         static_cast<unsigned long>(usb_dev.block_count),
         kUsbMscRemovable ? 1u : 0u,
-        1u);
+        kUsbMscReadOnly ? 1u : 0u);
     if (!registry.register_device(sd_desc, usb_dev)) {
         out::println<"boot: block registry failed">();
         Error_Handler();
@@ -246,11 +288,11 @@ int charm_player_selected_profile_main() {
     msc_desc.strings = std::span<const std::span<const usb::u8>>(
         kUsbStrings.entries.data(), kUsbStrings.entries.size());
     msc_desc.storage_cfg.removable = kUsbMscRemovable;
-    msc_desc.storage_cfg.read_only = true;
+    msc_desc.storage_cfg.read_only = kUsbMscReadOnly;
     msc_desc.on_ready = &player::stm32h7::board::usb_set_ready;
     msc_desc.on_ready_ctx = nullptr;
 
-    usb::device::MscBlockBinding<block::Registry<4>> binding{
+    usb::device::MscBlockBinding<block::Registry<4>, kMscIoBufSize> binding{
         registry, msc_desc, init::Phase::app, static_cast<util::u32>(init::Runlevel::all)
     };
     auto init_st = decltype(binding)::init_trampoline(&binding);

@@ -75,6 +75,13 @@
         int text_padding{};
         int controls_padding{};
         int time_padding{};
+        int progress_section_pad_x{};
+        int progress_section_pad_y{};
+        int progress_section_gap{};
+        int progress_section_radius{};
+        int progress_section_bg_alpha{};
+        int progress_section_border_alpha{};
+        int progress_visual_h{};
         int time_row_radius{};
         int time_row_bg_alpha{};
         int time_row_border_alpha{};
@@ -237,13 +244,13 @@
     static NowTextLayout make_now_text_layout(const UiLayout& layout) noexcept {
         const int title_h = 28;
         const int subtitle_h = 14;
-        const int progress_h = 3;
-        const int time_row_h = 16;
+        const int progress_h = 12;
+        const int time_row_h = 22;
         const int text_gap = 6;
         const int header_top = (layout.top_bar_y + layout.top_bar_h + 12) + kCoverSize;
         const int text_col_y = header_top + 12;
-        const int text_col_h = title_h + subtitle_h + progress_h + text_gap * 2;
-        const int time_row_y = text_col_y + title_h + text_gap + subtitle_h + text_gap + progress_h + text_gap + 2;
+        const int text_col_h = title_h + subtitle_h + text_gap;
+        const int time_row_y = text_col_y + text_col_h + 44;
 
         return NowTextLayout{
             .text_col_y = text_col_y,
@@ -297,6 +304,13 @@
             .text_padding = 0,
             .controls_padding = 0,
             .time_padding = 0,
+            .progress_section_pad_x = 14,
+            .progress_section_pad_y = 12,
+            .progress_section_gap = 10,
+            .progress_section_radius = 22,
+            .progress_section_bg_alpha = 76,
+            .progress_section_border_alpha = 100,
+            .progress_visual_h = 12,
             .time_row_radius = 18,
             .time_row_bg_alpha = 72,
             .time_row_border_alpha = 96,
@@ -474,6 +488,30 @@
                              static_cast<std::uint8_t>(layout.time_row_border_alpha)},
             .corner_radius = layout.time_row_radius,
         });
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_now_progress_section_style(::ui::scene::SceneBuilder& builder,
+                                                 WidgetHandle h,
+                                                 const NowPlayingLayout& layout) {
+        StylePatch patch = ::ui::scene::make_pill_surface_patch({
+            .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b,
+                         static_cast<std::uint8_t>(layout.progress_section_bg_alpha)},
+            .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b,
+                             static_cast<std::uint8_t>(layout.progress_section_border_alpha)},
+            .corner_radius = layout.progress_section_radius,
+        });
+        builder.set_style_override(h, patch);
+    }
+
+    static void apply_now_progress_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        StylePatch patch{};
+        patch.has_padding = true;
+        patch.padding = 0;
+        patch.has_border_color = true;
+        patch.border_color = kUiProgressBorder;
+        patch.has_accent_color = true;
+        patch.accent_color = kUiSwitchOn;
         builder.set_style_override(h, patch);
     }
 

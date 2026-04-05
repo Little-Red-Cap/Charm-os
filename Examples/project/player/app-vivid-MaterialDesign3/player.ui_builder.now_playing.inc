@@ -58,6 +58,7 @@
         builder.set_range(h.progress, 0, 100);
         builder.set_value(h.progress, 0);
         builder.set_hit_testable(h.progress, true);
+        apply_now_progress_style(builder, h.progress);
 
         h.time_left = builder.create_label_static("");
         h.time_right = builder.create_label_static("");
@@ -177,18 +178,40 @@
             text_col_root = text_col.root();
             text_col.add(h.title, text_rect.w, title_h);
             text_col.add(h.subtitle, text_rect.w, subtitle_h);
-            text_col.add(h.progress, text_rect.w, progress_h);
         }
+        WidgetHandle progress_section_root{};
         WidgetHandle time_row_root{};
         {
-            const int time_row_w = screen_width - kUiPadding * 2;
-            const int time_row_x = kUiPadding;
+            const int progress_section_w = screen_width - kUiPadding * 2;
+            const int progress_section_x = kUiPadding;
+            const int progress_section_y = text_col_y + text_col_h + 10;
+            const int progress_section_h = now_layout.progress_section_pad_y * 2
+                                         + progress_h
+                                         + now_layout.progress_section_gap
+                                         + time_row_h;
+            progress_section_root = builder.create_container();
+            anchor_rect(builder, progress_section_root,
+                        {progress_section_x, progress_section_y, progress_section_w, progress_section_h});
+            apply_now_progress_section_style(builder, progress_section_root, now_layout);
+
+            anchor_rect(builder, h.progress,
+                        {now_layout.progress_section_pad_x,
+                         now_layout.progress_section_pad_y,
+                         progress_section_w - now_layout.progress_section_pad_x * 2,
+                         progress_h});
+            builder.link(progress_section_root, h.progress);
+
+            const int time_row_w = progress_section_w - now_layout.progress_section_pad_x * 2;
+            const int time_row_x = now_layout.progress_section_pad_x;
             const int time_side_w = now_layout.time_side_w;
             const int info_w = std::max(now_layout.time_min_info_w,
                                         time_row_w - time_side_w * 2 - now_layout.time_inner_gap);
             const int extra = time_row_w - (time_side_w * 2 + info_w);
             const int row_pad = (extra > 0) ? (extra / 2) : 0;
-            const Rect time_row_rect{time_row_x, time_row_y, time_row_w, time_row_h};
+            const Rect time_row_rect{time_row_x,
+                                     now_layout.progress_section_pad_y + progress_h + now_layout.progress_section_gap,
+                                     time_row_w,
+                                     time_row_h};
             ::ui::scene::RowBuilder time_row{builder, time_row_rect, 0, row_pad + now_layout.time_padding,
                                              ::ui::scene::LayoutAlign::Center};
             time_row_root = time_row.root();
@@ -297,8 +320,11 @@
         if (text_col_root) {
             builder.link(now_playing, text_col_root);
         }
-        if (time_row_root) {
-            builder.link(now_playing, time_row_root);
+        if (progress_section_root) {
+            builder.link(now_playing, progress_section_root);
+        }
+        if (time_row_root && progress_section_root) {
+            builder.link(progress_section_root, time_row_root);
         }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
         builder.link(now_playing, h.cover_debug);

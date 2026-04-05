@@ -10,6 +10,14 @@
             state.ctx->set_page(state.screenshot_page);
             if (state.screenshot_wait_frames < 1) state.screenshot_wait_frames = 1;
         }
+        if (state.screenshot_page == player::PlayerPage::Home
+            && state.home_scroll_y >= 0
+            && state.ctx->handles.home_scroll) {
+            if (state.ctx->access.scroll_y(state.ctx->handles.home_scroll) != state.home_scroll_y) {
+                state.ctx->access.set_scroll_y(state.ctx->handles.home_scroll, state.home_scroll_y);
+                if (state.screenshot_wait_frames < 1) state.screenshot_wait_frames = 1;
+            }
+        }
     }
 
     bool flush_screenshot(PlayerLoopState& state) noexcept {

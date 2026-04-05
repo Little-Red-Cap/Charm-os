@@ -10,6 +10,7 @@
         anchor_rect(builder, home_scroll,
                     {0, 0, screen_width, layout.bottom_bar_y - home_layout.scroll_bottom_gap});
         builder.set_scroll_step(home_scroll, home_layout.scroll_step);
+        h.home_scroll = home_scroll;
 
         const WidgetHandle home_content = builder.create_container();
         anchor_rect(builder, home_content,
@@ -126,12 +127,11 @@
                                home_layout.stat_card_w,
                                home_layout.stat_card_h},
                               "Recently Played", "Resume albums and mixes you touched", "2 hours");
-        create_home_stat_card(builder, home_content,
-                              {home_layout.stat_card_x,
-                               home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
-                               home_layout.stat_card_w,
-                               home_layout.stat_card_h},
-                              "Listening stats", "Weekly minutes, streak and top genres", "7 days");
+        create_home_stats_probe_card(builder, home_content,
+                                     {home_layout.stat_card_x,
+                                      home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
+                                      home_layout.stat_card_w,
+                                      home_layout.stat_probe_card_h});
 
         const WidgetHandle home_toolbar = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};

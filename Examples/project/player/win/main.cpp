@@ -86,6 +86,7 @@ namespace {
         std::string screenshot_path{};
         std::string screenshot_gif_path{};
         player::PlayerPage screenshot_page{player::PlayerPage::Library};
+        int home_scroll_y{-1};
         bool screenshot_verbose{false};
         int screenshot_wait_frames{0};
         bool screenshot_exit{false};
@@ -424,6 +425,7 @@ int main(int argc, char** argv) {
     int font_small_px = 0;
     int font_normal_px = 0;
     int font_large_px = 0;
+    int home_scroll_y = -1;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i] ? argv[i] : "";
         if (arg.rfind("--screenshot=", 0) == 0) {
@@ -477,6 +479,8 @@ int main(int argc, char** argv) {
             font_normal_px = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
         } else if (arg.rfind("--font-large=", 0) == 0) {
             font_large_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
+        } else if (arg.rfind("--home-scroll=", 0) == 0) {
+            home_scroll_y = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
         }
     }
     if (!start_page_set && (!screenshot_path.empty() || !screenshot_gif_path.empty())) {
@@ -572,6 +576,7 @@ int main(int argc, char** argv) {
         .screenshot_path = std::move(screenshot_path),
         .screenshot_gif_path = std::move(screenshot_gif_path),
         .screenshot_page = start_page,
+        .home_scroll_y = home_scroll_y,
         .screenshot_verbose = screenshot_verbose,
         .screenshot_wait_frames = screenshot_wait_frames,
         .screenshot_exit = screenshot_exit

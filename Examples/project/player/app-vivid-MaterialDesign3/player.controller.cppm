@@ -92,6 +92,7 @@ export namespace player {
         WidgetHandle page_now_playing{};
         WidgetHandle page_library{};
         WidgetHandle root{};
+        WidgetHandle home_scroll{};
         WidgetHandle home_backdrop{};
         WidgetHandle home_title_top{};
         WidgetHandle home_title_bottom{};

@@ -65,6 +65,7 @@
         int stat_card_w{};
         int stat_card_h{};
         int stat_card_gap{};
+        int stat_probe_card_h{};
         int toolbar_button_size{};
         int toolbar_icon_px{};
         int toolbar_button_gap{};
@@ -284,6 +285,7 @@
             .stat_card_w = screen_width - kUiPadding * 2,
             .stat_card_h = 76,
             .stat_card_gap = 14,
+            .stat_probe_card_h = 136,
             .toolbar_button_size = 40,
             .toolbar_icon_px = 14,
             .toolbar_button_gap = 48,
@@ -710,6 +712,81 @@
         anchor_rect(builder, meta_chip, {rect.w - 92, 22, 72, 24});
         apply_info_tag_style(builder, meta_chip);
         builder.link(root, meta_chip);
+
+        builder.link(parent, root);
+        return root;
+    }
+
+    static WidgetHandle create_home_stats_probe_card(::ui::scene::SceneBuilder& builder,
+                                                     WidgetHandle parent,
+                                                     const Rect& rect) {
+        ::ui::scene::CardBuilder card{builder, rect, 0, 0,
+                                      ::ui::scene::LayoutAlign::Start,
+                                      static_cast<StyleClassId>(PlayerStyleClass::ListCard),
+                                      true};
+        const WidgetHandle root = card.root();
+
+        const WidgetHandle title_label = builder.create_label_static("Listening stats");
+        apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
+        builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, title_label, {16, 12, rect.w - 132, 24});
+        builder.link(root, title_label);
+
+        const WidgetHandle trend_chip = builder.create_label_static("+12%");
+        apply_time_label_style(builder, trend_chip);
+        builder.set_label_align(trend_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, trend_chip, {rect.w - 84, 12, 68, 24});
+        apply_info_tag_style(builder, trend_chip);
+        builder.link(root, trend_chip);
+
+        const WidgetHandle value_label = builder.create_label_static("438 min");
+        apply_text_label_style(builder, value_label, kUiTitle, get_player_font_px(30, FontWeight::Bold));
+        builder.set_label_align(value_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, value_label, {16, 40, rect.w - 132, 34});
+        builder.link(root, value_label);
+
+        const WidgetHandle body_label = builder.create_label_static("Goal pace, streak and top genre this week");
+        apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
+        builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, body_label, {16, 72, rect.w - 32, 16});
+        builder.link(root, body_label);
+
+        const WidgetHandle goal_label = builder.create_label_static("Goal 600 min");
+        apply_player_text_style(builder, goal_label, PlayerTextRole::MetaText, kUiTime);
+        builder.set_label_align(goal_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, goal_label, {16, rect.h - 28, 110, 18});
+        builder.link(root, goal_label);
+
+        const WidgetHandle details_button = builder.create_button_static("Insights");
+        anchor_rect(builder, details_button, {rect.w - 104, rect.h - 38, 88, 28});
+        apply_top_bar_button_style(builder, details_button);
+        {
+            StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTitle);
+            patch.has_padding = true;
+            patch.padding = 6;
+            builder.set_style_override(details_button, patch);
+        }
+        builder.set_hit_testable(details_button, false);
+        builder.link(root, details_button);
+
+        const WidgetHandle progress = builder.create_progress_bar_simple();
+        anchor_rect(builder, progress, {16, rect.h - 44, rect.w - 32, 8});
+        {
+            StylePatch patch{};
+            patch.has_border_color = true;
+            patch.border_color = kUiProgressBorder;
+            patch.has_accent_color = true;
+            patch.accent_color = kUiSwitchOn;
+            patch.has_padding = true;
+            patch.padding = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 4;
+            builder.set_style_override(progress, patch);
+        }
+        builder.set_range(progress, 0, 100);
+        builder.set_value(progress, 73);
+        builder.set_hit_testable(progress, false);
+        builder.link(root, progress);
 
         builder.link(parent, root);
         return root;

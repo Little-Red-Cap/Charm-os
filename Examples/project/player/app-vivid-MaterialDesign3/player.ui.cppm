@@ -66,6 +66,7 @@ export namespace player::ui {
         BottomBar = 8,
         BottomButton = 9,
         BottomPlay = 10,
+        LibraryListCard = 11,
     };
 
     inline constexpr int kUiPadding = 18;
@@ -663,12 +664,10 @@ export namespace player::ui {
         auto& state = detail::freetype_state();
         if (!state.ready || state.ttf_path.empty()) {
             const auto& fallback = detail::fallback_font_for_px(px, weight);
-            std::printf("[font-px] fallback reason=not_ready px=%d weight=%d\n", px, static_cast<int>(weight));
             return fallback;
         }
         for (auto& slot : state.exact_fonts) {
             if (slot.loaded && slot.px == px && slot.weight == weight) {
-                std::printf("[font-px] cache-hit px=%d weight=%d path=%s\n", px, static_cast<int>(weight), slot.path.c_str());
                 return slot.font;
             }
         }
@@ -700,12 +699,6 @@ export namespace player::ui {
         const auto api = state.loader.vfs_api();
         if (api.load && api.load(&state.loader, free_slot->path, free_slot->font)) {
             free_slot->loaded = true;
-            std::printf("[font-px] load-ok px=%d weight=%d path=%s line_h=%d baseline=%d\n",
-                        px,
-                        static_cast<int>(weight),
-                        free_slot->path.c_str(),
-                        free_slot->font.line_height,
-                        free_slot->font.baseline);
             return free_slot->font;
         }
         if (api.reset) {
@@ -715,7 +708,6 @@ export namespace player::ui {
         free_slot->px = 0;
         free_slot->weight = FontWeight::Regular;
         const auto& fallback = detail::fallback_font_for_px(px, weight);
-        std::printf("[font-px] fallback reason=load_failed px=%d weight=%d\n", px, static_cast<int>(weight));
         return fallback;
     }
 
@@ -840,6 +832,35 @@ export namespace player::ui {
             patch.has_shadow_radius = true;
             patch.shadow_radius = 18;
             theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::ListCard), patch);
+        }
+
+        {
+            StylePatch patch{};
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = true;
+            patch.has_gradient_start = true;
+            patch.gradient_start = {48, 86, 136, 188};
+            patch.has_gradient_end = true;
+            patch.gradient_end = {14, 24, 48, 228};
+            patch.has_gradient_direction = true;
+            patch.gradient_direction = 0;
+            patch.has_border_color = true;
+            patch.border_color = kUiListBorder;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = true;
+            patch.has_shadow_color = true;
+            patch.shadow_color = kUiCardShadow;
+            patch.has_shadow_offset_x = true;
+            patch.shadow_offset_x = 0;
+            patch.has_shadow_offset_y = true;
+            patch.shadow_offset_y = 4;
+            patch.has_shadow_spread = true;
+            patch.shadow_spread = 4;
+            patch.has_shadow_radius = true;
+            patch.shadow_radius = 18;
+            theme.set_style_class(static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard), patch);
         }
 
         {

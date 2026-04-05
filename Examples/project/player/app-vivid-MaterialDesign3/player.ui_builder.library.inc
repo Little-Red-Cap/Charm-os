@@ -36,9 +36,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {88, 142, 198, 180};
+            patch.gradient_start = {112, 166, 222, 190};
             patch.has_gradient_end = true;
-            patch.gradient_end = {26, 58, 108, 70};
+            patch.gradient_end = {42, 78, 132, 78};
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -54,9 +54,9 @@
             patch.has_gradient_enabled = true;
             patch.gradient_enabled = true;
             patch.has_gradient_start = true;
-            patch.gradient_start = {18, 42, 82, 120};
+            patch.gradient_start = {24, 52, 96, 108};
             patch.has_gradient_end = true;
-            patch.gradient_end = {4, 12, 32, 220};
+            patch.gradient_end = {6, 16, 42, 212};
             patch.has_gradient_direction = true;
             patch.gradient_direction = 0;
             patch.has_border_color = true;
@@ -151,7 +151,7 @@
                 });
         ::ui::scene::CardBuilder list_card{builder, list_card_rect, 0, 0,
                                            ::ui::scene::LayoutAlign::Start,
-                                           static_cast<StyleClassId>(PlayerStyleClass::ListCard),
+                                           static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard),
                                            true};
         const WidgetHandle list_card_root = list_card.root();
 
@@ -201,6 +201,14 @@
         anchor_rect(builder, h.list, list_header_layout.body_rect);
         anchor_rect(builder, h.list_scroll, list_header_layout.scroll_rect);
         anchor_rect(builder, h.list_hint, list_header_layout.hint_rect);
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 0};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            builder.set_style_override(h.list, patch);
+        }
 
         builder.link(list_card_root, h.list);
         builder.link(list_card_root, h.list_scroll);

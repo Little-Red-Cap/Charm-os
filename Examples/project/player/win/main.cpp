@@ -13,8 +13,10 @@ import charm.core.event;
 import charm.ui.scene;
 import ui.input_adapter;
 import charm.gfx.color;
+import charm.gfx.text_box;
 import charm.gfx.image;
 import charm.gfx.snapshot;
+import charm.font.typography;
 import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_sc_16;
 import fs_core;
@@ -66,90 +68,9 @@ namespace {
     using UiHandles = player::UiHandles;
 
     static PlayerUiContext g_ctx{};
-    static std::array<float, 24> g_spectrum{};
+#include "main.overlay_fx.inc"
 
-    void update_spectrum(float t_sec, bool active) {
-        const float base_speed = 2.2f;
-        for (std::size_t i = 0; i < g_spectrum.size(); ++i) {
-            const float phase = t_sec * base_speed + static_cast<float>(i) * 0.35f;
-            const float wave = 0.5f + 0.5f * std::sin(phase);
-            const float target = active ? (0.12f + wave * 0.88f) : 0.05f;
-            g_spectrum[i] = g_spectrum[i] * 0.82f + target * 0.18f;
-        }
-    }
-
-    void draw_library_fx(::ui::scene::SceneOverlay& out,
-                         const PlayerUiContext& ctx,
-                         const ::ui::scene::Scene& scene) {
-        if (ctx.current_page != player::PlayerPage::Library) {
-            return;
-        }
-        if (!ctx.handles.page_library || scene.world_rect(ctx.handles.page_library).w <= 0) {
-            return;
-        }
-        (void)scene;
-    }
-
-    void draw_now_playing_fx(::ui::scene::SceneOverlay& out,
-                             const PlayerUiContext& ctx,
-                             const ::ui::scene::Scene& scene,
-                             float t_sec) {
-        if (ctx.current_page != player::PlayerPage::NowPlaying) {
-            return;
-        }
-        if (!ctx.handles.page_now_playing || scene.world_rect(ctx.handles.page_now_playing).w <= 0) {
-            return;
-        }
-        const Rect cover = scene.world_rect(ctx.handles.cover);
-        const int cover_radius = 20;
-        const auto cover_image = ctx.cover_image.image_id;
-        if (!ui::gfx::image_id_valid(cover_image)) {
-            out.fill_round_rect(cover, cover_radius, kUiCover);
-        }
-        rgba cover_ring = kUiOk;
-        if (ctx.is_playing()) {
-            const float pulse = 0.4f + 0.6f * std::sin(t_sec * 2.0f);
-            cover_ring.a = static_cast<std::uint8_t>(80 + pulse * 120.0f);
-        } else {
-            cover_ring.a = 70;
-        }
-        out.stroke_round_rect(cover, cover_radius, cover_ring);
-        (void)scene;
-
-        const Rect spec = scene.world_rect(ctx.handles.spectrum);
-        if (spec.w > 0 && spec.h > 0) {
-            out.fill_round_rect(spec, 10, kUiListBg);
-            out.stroke_round_rect(spec, 10, kUiListBorder);
-            const int bar_count = static_cast<int>(g_spectrum.size());
-            const int gap = 2;
-            const int bar_w = std::max(2, (spec.w - gap * (bar_count - 1)) / bar_count);
-            int x = spec.x;
-            for (int i = 0; i < bar_count; ++i) {
-                const float v = g_spectrum[static_cast<std::size_t>(i)];
-                const int h = static_cast<int>(v * static_cast<float>(spec.h - 8));
-                const int y = spec.y + spec.h - 4 - h;
-                const Rect bar{ x, y, bar_w, h };
-                out.fill_round_rect(bar, 3, kUiSwitchOn);
-                x += bar_w + gap;
-            }
-        }
-
-        const Rect progress = scene.world_rect(ctx.handles.progress);
-        if (progress.w > 0 && progress.h > 0) {
-            const int wave_y = progress.y + progress.h / 2;
-            const int dot_r = 2;
-            const int dot_gap = 6;
-            const int dot_count = std::max(8, progress.w / (dot_r * 2 + dot_gap));
-            const int phase = static_cast<int>(t_sec * 8.0f) % (dot_r * 2 + dot_gap);
-            int x = progress.x + 8 + phase;
-            for (int i = 0; i < dot_count; ++i) {
-                const int y = wave_y + ((i % 4 == 0) ? -1 : 0);
-                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTimeSoft);
-                x += dot_r * 2 + dot_gap;
-                if (x > progress.x + progress.w - 6) break;
-            }
-        }
-    }
+#include "main.font_probe.inc"
 
     struct PlayerLoopState {
         player::App* app{nullptr};
@@ -169,6 +90,8 @@ namespace {
         int screenshot_wait_frames{0};
         bool screenshot_exit{false};
     };
+
+#include "main.screenshot.inc"
 
     struct UiCiResult {
         bool ok{true};
@@ -354,15 +277,10 @@ namespace {
         if (!state || !state->platform || !state->ctx || !state->scene || !state->renderer || !state->texture) {
             return;
         }
-        if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
-            if (state->ctx->current_page != state->screenshot_page) {
-                state->ctx->set_page(state->screenshot_page);
-                if (state->screenshot_wait_frames < 1) state->screenshot_wait_frames = 1;
-            }
-        }
+        prepare_screenshot_page(*state);
         state->platform->framebuffer_ref().clear(kUiBackground);
         state->platform->begin_frame();
-            state->platform->scene_ref().set_overlay(
+        state->platform->scene_ref().set_overlay(
             [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
                 auto* state = static_cast<PlayerLoopState*>(ctx);
                 if (!state || !state->ctx || !state->scene) return;
@@ -380,46 +298,8 @@ namespace {
         SDL_RenderClear(state->renderer);
         SDL_RenderTexture(state->renderer, state->texture, nullptr, nullptr);
         SDL_RenderPresent(state->renderer);
-
-        if (!state->screenshot_path.empty() || !state->screenshot_gif_path.empty()) {
-            if (state->screenshot_wait_frames > 0) {
-                state->screenshot_wait_frames--;
-                return;
-            }
-            auto& fb = state->platform->framebuffer_ref();
-            ::FrameBufferView view{
-                screen_pixel_format,
-                fb.data(),
-                static_cast<std::size_t>(screen_width),
-                static_cast<std::size_t>(screen_height),
-                state->platform->stride_bytes()
-            };
-            if (!state->screenshot_path.empty()) {
-                const bool ok = ::charm::gfx::snapshot::write_ppm(state->screenshot_path.c_str(), view);
-                if (state->screenshot_verbose) {
-                    std::printf("[ui] screenshot ppm=%s ok=%d\n", state->screenshot_path.c_str(), ok ? 1 : 0);
-                }
-                state->screenshot_path.clear();
-            }
-            if (!state->screenshot_gif_path.empty()) {
-                std::vector<std::vector<std::uint8_t>> frames{};
-                frames.push_back(::charm::gfx::snapshot::capture_indexed_332(view));
-                const bool ok = ::charm::gfx::snapshot::write_gif(state->screenshot_gif_path.c_str(),
-                                                                  static_cast<int>(view.width),
-                                                                  static_cast<int>(view.height),
-                                                                  frames,
-                                                                  8);
-                if (state->screenshot_verbose) {
-                    std::printf("[ui] screenshot gif=%s ok=%d\n", state->screenshot_gif_path.c_str(), ok ? 1 : 0);
-                }
-                state->screenshot_gif_path.clear();
-            }
-            if (state->screenshot_exit
-                && state->screenshot_path.empty()
-                && state->screenshot_gif_path.empty()
-                && state->running) {
-                *state->running = false;
-            }
+        if (flush_screenshot(*state)) {
+            return;
         }
     }
 
@@ -552,7 +432,10 @@ int main(int argc, char** argv) {
             screenshot_gif_path.assign(arg.substr(17));
         } else if (arg.rfind("--screenshot-page=", 0) == 0) {
             const std::string_view page = arg.substr(18);
-            if (page == "home") {
+            if (page == "probe") {
+                start_page = player::PlayerPage::Probe;
+                start_page_set = true;
+            } else if (page == "home") {
                 start_page = player::PlayerPage::Home;
                 start_page_set = true;
             } else if (page == "now") {
@@ -564,7 +447,10 @@ int main(int argc, char** argv) {
             }
         } else if (arg.rfind("--page=", 0) == 0) {
             const std::string_view page = arg.substr(7);
-            if (page == "home") {
+            if (page == "probe") {
+                start_page = player::PlayerPage::Probe;
+                start_page_set = true;
+            } else if (page == "home") {
                 start_page = player::PlayerPage::Home;
                 start_page_set = true;
             } else if (page == "now") {

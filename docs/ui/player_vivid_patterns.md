@@ -261,6 +261,37 @@ Player 当前保留的页面级语义包括：
 - 先继续观察 `Library`、未来 `Home Hero`、信息条背景是否稳定复用
 - 等第二个以上真实 pattern 复用后，再决定是否增加更高层的 `GradientSurfaceSpec`
 
+### 9. SeekBar 样式 Helper
+
+在 `Now Playing` 的第二轮推进中，一个新的事实变得清楚：
+- 仅靠页面里零散的 `padding / bg / border / accent / radius` patch
+- 很难稳定表达“播放器 seekbar”这种更强语义的视觉身份
+
+这说明它已经不再只是一个页面内微调问题，而值得抽出一层轻量 recipe。
+
+当前已上收的公共 helper：
+- `Modules/ui/vivid/core/seek_bar_style.cppm`
+- `charm.ui.scene.seek_bar_style`
+
+当前公共 helper 提供：
+- `SeekBarStyleSpec`
+- `make_seek_bar_style_patch(...)`
+
+它当前解决的问题：
+- 统一 seekbar 的 `bg / track / fill / padding / radius` 这组基础样式输入
+- 避免每个页面都重复手写同一套 patch 字段
+- 让“播放器进度条样式”第一次具备了轻量但明确的公共入口
+
+当前这层 helper 的边界：
+- 它还是 style helper，不是独立 widget
+- 它不定义交互模型，只定义视觉基础规则
+- 它适合先服务 `Now Playing`，未来再观察是否会被第二个真实页面复用
+
+这一步的意义：
+- `ProgressSection` 不再只是页面内一组散装 patch
+- `Vivid` 开始拥有一种更接近媒体类控件的中层样式语言
+- 后续如果要继续演进专属 `SeekBar` 组件，这层 helper 可以作为稳定过渡层
+
 ## 暂不建议直接上收的部分
 
 以下内容目前仍更偏 Player 私有：

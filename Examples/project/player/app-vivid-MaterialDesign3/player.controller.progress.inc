@@ -59,7 +59,7 @@
             if (!access.valid() || progress_dragging) return false;
             auto upd = playback.update_progress();
             if (!upd.updated) return false;
-            access.set_value(handles.progress, upd.value);
+            sync_progress_value(upd.value);
             set_time_label(upd.current_sec);
             return true;
         }

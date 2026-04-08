@@ -226,6 +226,7 @@ export namespace ui::scene {
         WidgetHandle create_list_item(const char* text) noexcept { return factory_.create_list_item(text); }
         WidgetHandle create_progress() noexcept { return factory_.create_progress(); }
         WidgetHandle create_progress_bar_simple() noexcept { return factory_.create_progress_bar_simple(); }
+        WidgetHandle create_progress_bar_round() noexcept { return factory_.create_progress_bar_round(); }
         WidgetHandle create_list_view() noexcept { return factory_.create_list_view(); }
         WidgetHandle create_scrollbar_for(WidgetHandle target) noexcept { return factory_.create_scrollbar_for(target); }
         WidgetHandle create_button_static(const char* text) noexcept { return factory_.create_button_static(text); }

@@ -4,7 +4,7 @@
         const NowPlayingLayout now_layout = make_now_playing_layout();
         const int title_h = text_layout.title_h;
         const int subtitle_h = text_layout.subtitle_h;
-        const int progress_h = text_layout.progress_h;
+        const int progress_h = now_layout.progress_visual_h;
         const int time_row_h = text_layout.time_row_h;
         const int time_row_y = text_layout.time_row_y;
         const int text_col_y = text_layout.text_col_y;
@@ -54,11 +54,14 @@
         builder.set_label_align(h.subtitle, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(h.subtitle, false);
 
-        h.progress = builder.create_progress();
-        builder.set_range(h.progress, 0, 100);
-        builder.set_value(h.progress, 0);
+        h.progress_visual = builder.create_slider();
+        builder.set_range(h.progress_visual, 0, 100);
+        builder.set_value(h.progress_visual, 0);
+        builder.set_hit_testable(h.progress_visual, false);
+        apply_now_progress_visual_style(builder, h.progress_visual);
+
+        h.progress = builder.create_container();
         builder.set_hit_testable(h.progress, true);
-        apply_now_progress_style(builder, h.progress);
 
         h.time_left = builder.create_label_static("");
         h.time_right = builder.create_label_static("");
@@ -194,11 +197,17 @@
                         {progress_section_x, progress_section_y, progress_section_w, progress_section_h});
             apply_now_progress_section_style(builder, progress_section_root, now_layout);
 
-            anchor_rect(builder, h.progress,
+            anchor_rect(builder, h.progress_visual,
                         {now_layout.progress_section_pad_x,
                          now_layout.progress_section_pad_y,
                          progress_section_w - now_layout.progress_section_pad_x * 2,
                          progress_h});
+            anchor_rect(builder, h.progress,
+                        {now_layout.progress_section_pad_x,
+                         now_layout.progress_section_pad_y,
+                         progress_section_w - now_layout.progress_section_pad_x * 2,
+                         std::max(progress_h, 24)});
+            builder.link(progress_section_root, h.progress_visual);
             builder.link(progress_section_root, h.progress);
 
             const int time_row_w = progress_section_w - now_layout.progress_section_pad_x * 2;

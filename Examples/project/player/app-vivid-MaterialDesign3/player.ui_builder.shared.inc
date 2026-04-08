@@ -245,7 +245,7 @@
         const int title_h = 28;
         const int subtitle_h = 14;
         const int progress_h = 12;
-        const int time_row_h = 22;
+        const int time_row_h = 24;
         const int text_gap = 6;
         const int header_top = (layout.top_bar_y + layout.top_bar_h + 12) + kCoverSize;
         const int text_col_y = header_top + 12;
@@ -306,16 +306,16 @@
             .time_padding = 0,
             .progress_section_pad_x = 14,
             .progress_section_pad_y = 12,
-            .progress_section_gap = 10,
+            .progress_section_gap = 8,
             .progress_section_radius = 22,
             .progress_section_bg_alpha = 76,
             .progress_section_border_alpha = 100,
-            .progress_visual_h = 12,
+            .progress_visual_h = 16,
             .time_row_radius = 18,
-            .time_row_bg_alpha = 72,
-            .time_row_border_alpha = 96,
-            .time_label_inner_pad = 4,
-            .info_tag_radius = 12,
+            .time_row_bg_alpha = 52,
+            .time_row_border_alpha = 84,
+            .time_label_inner_pad = 6,
+            .info_tag_radius = 14,
             .cover_corner_radius = 28,
             .collage_small = 64,
             .collage_tiny = 52,
@@ -483,7 +483,8 @@
                                          WidgetHandle h,
                                          const NowPlayingLayout& layout) {
         StylePatch patch = ::ui::scene::make_pill_surface_patch({
-            .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, static_cast<std::uint8_t>(layout.time_row_bg_alpha)},
+            .bg_color = {kUiProgressBg.r, kUiProgressBg.g, kUiProgressBg.b,
+                         static_cast<std::uint8_t>(layout.time_row_bg_alpha)},
             .border_color = {kUiInfoTagBorderSoft.r, kUiInfoTagBorderSoft.g, kUiInfoTagBorderSoft.b,
                              static_cast<std::uint8_t>(layout.time_row_border_alpha)},
             .corner_radius = layout.time_row_radius,
@@ -504,14 +505,14 @@
         builder.set_style_override(h, patch);
     }
 
-    static void apply_now_progress_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
-        StylePatch patch{};
-        patch.has_padding = true;
-        patch.padding = 0;
-        patch.has_border_color = true;
-        patch.border_color = kUiProgressBorder;
-        patch.has_accent_color = true;
-        patch.accent_color = kUiSwitchOn;
+    static void apply_now_progress_visual_style(::ui::scene::SceneBuilder& builder, WidgetHandle h) {
+        StylePatch patch = ::ui::scene::make_seek_bar_style_patch({
+            .bg_color = kUiProgressBg,
+            .track_color = kUiProgressBorder,
+            .fill_color = kUiSwitchOn,
+            .padding = 2,
+            .corner_radius = 6,
+        });
         builder.set_style_override(h, patch);
     }
 
@@ -535,11 +536,16 @@
     static void apply_now_info_tag_style(::ui::scene::SceneBuilder& builder,
                                          WidgetHandle h,
                                          const NowPlayingLayout& layout) {
-        apply_info_tag_style(builder, h);
-        StylePatch patch{};
-        patch.has_corner_radius = true;
-        patch.corner_radius = layout.info_tag_radius;
-        builder.set_style_adjust(h, patch);
+        StylePatch patch = ::ui::scene::make_pill_surface_patch({
+            .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 255},
+            .border_color = {kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 108},
+            .corner_radius = layout.info_tag_radius,
+        });
+        patch.has_font_color = true;
+        patch.font_color = kUiTitle;
+        patch.has_font_role = true;
+        patch.font_role = FontId::Small;
+        builder.set_style_override(h, patch);
     }
 
     static void apply_home_cover_style(::ui::scene::SceneBuilder& builder,

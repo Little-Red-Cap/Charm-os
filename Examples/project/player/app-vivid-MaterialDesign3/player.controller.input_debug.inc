@@ -92,7 +92,9 @@
 
         void sync_progress_value(int value) {
             if (!access.valid()) return;
-            access.set_value(handles.progress, value);
+            if (handles.progress_visual) {
+                access.set_value(handles.progress_visual, value);
+            }
         }
 
         int progress_value_from_x(int x) const {

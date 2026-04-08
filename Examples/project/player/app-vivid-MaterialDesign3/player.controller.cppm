@@ -114,6 +114,7 @@ export namespace player {
         WidgetHandle title{};
         WidgetHandle subtitle{};
         WidgetHandle status{};
+        WidgetHandle progress_visual{};
         WidgetHandle progress{};
         WidgetHandle time_left{};
         WidgetHandle time_right{};
@@ -375,13 +376,13 @@ export namespace player {
                 access.set_style_override(handles.info_tag, tag);
             }
 
-            if (handles.progress) {
+            if (handles.progress_visual) {
                 StylePatch prog{};
                 prog.has_border_color = true;
                 prog.border_color = with_alpha(theme.on_backdrop, 70);
                 prog.has_accent_color = true;
                 prog.accent_color = theme.primary;
-                access.set_style_override(handles.progress, prog);
+                access.set_style_override(handles.progress_visual, prog);
             }
 
             auto apply_btn = [&](WidgetHandle h, const rgba& bg, const rgba& border, const rgba& font) {

@@ -1761,17 +1761,38 @@ void SoaGui::record_slider(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& 
                            int value, int min_value, int max_value) {
     (void)state;
     const int pad = metrics.padding;
-    const int track_h = 4;
+    const int available_h = r.h - pad * 2;
+    int track_h = available_h / 3;
+    if (track_h < 4) track_h = 4;
+    if (track_h > 8) track_h = 8;
     const int inner_w = r.w - pad * 2;
     if (inner_w <= 0) return;
     const int range = (max_value > min_value) ? (max_value - min_value) : 1;
-    const int fill = (inner_w * (value - min_value)) / range;
+    int clamped = value;
+    if (clamped < min_value) clamped = min_value;
+    if (clamped > max_value) clamped = max_value;
+    const int fill = (inner_w * (clamped - min_value)) / range;
     const int track_y = r.y + (r.h - track_h) / 2;
-    out.fill_rect(Rect{r.x + pad, track_y, inner_w, track_h}, colors.border);
-    out.fill_rect(Rect{r.x + pad, track_y, fill, track_h}, colors.accent);
-    const int knob = r.h - pad * 2;
-    const int knob_x = r.x + pad + fill - knob / 2;
-    out.fill_round_rect(Rect{knob_x, r.y + pad, knob, knob}, knob / 2, colors.accent);
+    const Rect track{r.x + pad, track_y, inner_w, track_h};
+    const int track_rad = track_h / 2;
+    out.fill_round_rect(track, track_rad, colors.border);
+    if (fill > 0) {
+        int fill_rad = track_rad;
+        if (fill_rad > fill / 2) fill_rad = fill / 2;
+        out.fill_round_rect(Rect{track.x, track.y, fill, track.h}, fill_rad, colors.accent);
+    }
+    int knob = available_h;
+    if (knob < track_h + 6) knob = track_h + 6;
+    if (knob > r.h) knob = r.h;
+    int knob_x = track.x + fill - knob / 2;
+    const int knob_min_x = track.x;
+    const int knob_max_x = track.x + track.w - knob;
+    if (knob_x < knob_min_x) knob_x = knob_min_x;
+    if (knob_x > knob_max_x) knob_x = knob_max_x;
+    const int knob_y = r.y + (r.h - knob) / 2;
+    const Rect knob_rect{knob_x, knob_y, knob, knob};
+    out.fill_round_rect(knob_rect, knob / 2, colors.bg);
+    out.stroke_round_rect(knob_rect, knob / 2, colors.accent);
 }
 
 void SoaGui::record_progress(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r, const ResolvedColors& colors,

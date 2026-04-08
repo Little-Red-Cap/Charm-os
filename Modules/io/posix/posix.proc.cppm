@@ -12,14 +12,20 @@ module;
 
 export module posix.proc;
 
+export import posix.proc_types;
+
 import init.node;
 import posix.env;
+import posix.exec_source;
+import posix.exec_loader;
+import posix.elf_hostcall;
+import posix.exec_context;
 import posix.errno;
+import posix.program_catalog;
 import posix.fd_table;
 import posix.file;
 import posix.program_image;
 import posix.program_image_modulex;
-import posix.program_image_elf;
 import module_core;
 import util.core;
 import util.error;
@@ -33,76 +39,6 @@ namespace posix::detail {
 #endif
 
 export namespace posix {
-
-    struct ProcessId { int value{-1}; };
-
-    enum class PathMode : util::u8 {
-        exact,
-        search_path,
-    };
-
-    struct FileAction {
-        enum class Kind { open, close, dup2 };
-        Kind kind{};
-        int fd{-1};
-        int newfd{-1};
-        const char* path{nullptr};
-        int flags{0};
-        int mode{0};
-    };
-
-    template <util::usize MaxActions>
-    struct FileActions {
-        std::array<FileAction, MaxActions> actions{};
-        util::usize count{0};
-
-        bool add_open(int fd, const char* path, int flags, int mode = 0) noexcept {
-            if (count >= MaxActions) return false;
-            actions[count++] = FileAction{FileAction::Kind::open, fd, -1, path, flags, mode};
-            return true;
-        }
-        bool add_close(int fd) noexcept {
-            if (count >= MaxActions) return false;
-            actions[count++] = FileAction{FileAction::Kind::close, fd, -1, nullptr, 0, 0};
-            return true;
-        }
-        bool add_dup2(int fd, int newfd) noexcept {
-            if (count >= MaxActions) return false;
-            actions[count++] = FileAction{FileAction::Kind::dup2, fd, newfd, nullptr, 0, 0};
-            return true;
-        }
-    };
-
-    struct SpawnConfig {
-        const char* path{nullptr};
-        std::span<const char* const> argv{};
-        std::span<const char* const> envp{};
-        const char* cwd{nullptr};
-        const FileActions<16>* file_actions{nullptr};
-        int stdio_in{-1};
-        int stdio_out{-1};
-        int stdio_err{-1};
-        PathMode path_mode{PathMode::exact};
-    };
-
-    struct SpawnResult { ProcessId pid{}; };
-
-    enum class WaitKind : util::u8 {
-        exited,
-        signaled,
-        stopped,
-        continued
-    };
-
-    struct WaitStatus {
-        ProcessId pid{};
-        WaitKind kind{WaitKind::exited};
-        int code{0};
-    };
-
-    struct ExecEntry {
-        ProgramImage image{};
-    };
 
     template <util::usize MaxProcs,
               util::usize MaxExecs,
@@ -123,21 +59,7 @@ export namespace posix {
         util::Result<void> register_elf_mem(std::string_view name,
                                             const void* data,
                                             util::usize size) noexcept {
-            if (name.empty() || !data || size == 0) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            for (util::usize i = 0; i < elf_mem_count_; ++i) {
-                if (elf_mem_[i].name.compare(name) == 0) {
-                    return util::unexpected(util::Errc::exist);
-                }
-            }
-            if (elf_mem_count_ >= elf_mem_.size()) {
-                return util::unexpected(util::Errc::buffer_overflow);
-            }
-            elf_mem_[elf_mem_count_++] = ElfMemImage{
-                name, static_cast<const util::u8*>(data), size
-            };
-            return {};
+            return elf_mem_registry_.register_image(name, data, size);
         }
         void set_elf_exec_stub(ImageEntry stub) noexcept {
             #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
@@ -150,7 +72,8 @@ export namespace posix {
         void init() noexcept {
             for (auto& p : procs_) p = {};
             for (auto& used : used_) used = false;
-            exec_count_ = 0;
+            exec_catalog_.reset();
+            elf_mem_registry_.reset();
             next_pid_ = 1;
         }
 
@@ -169,35 +92,11 @@ export namespace posix {
         }
 
         util::Result<void> register_executable(std::string_view name, ImageEntryV0 entry) noexcept {
-            if (name.empty() || entry == nullptr) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            for (util::usize i = 0; i < exec_count_; ++i) {
-                if (execs_[i].image.name.compare(name) == 0) {
-                    return util::unexpected(util::Errc::exist);
-                }
-            }
-            if (exec_count_ >= MaxExecs) {
-                return util::unexpected(util::Errc::buffer_overflow);
-            }
-            execs_[exec_count_++] = ExecEntry{make_registered_image(name, entry)};
-            return {};
+            return exec_catalog_.register_registered_image(name, entry);
         }
 
         util::Result<void> register_image(const ProgramImage& image) noexcept {
-            if (image.name.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            for (util::usize i = 0; i < exec_count_; ++i) {
-                if (execs_[i].image.name.compare(image.name) == 0) {
-                    return util::unexpected(util::Errc::exist);
-                }
-            }
-            if (exec_count_ >= MaxExecs) {
-                return util::unexpected(util::Errc::buffer_overflow);
-            }
-            execs_[exec_count_++] = ExecEntry{image};
-            return {};
+            return exec_catalog_.register_image(image);
         }
 
         util::Result<void> register_modulex_image(std::string_view name,
@@ -214,22 +113,22 @@ export namespace posix {
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
             std::fputs("[posix-elf] load_image enter\n", stderr);
 #endif
-            if (is_elf_mem_prefixed(cfg)) {
-                auto mem_name = resolve_elf_mem_name(cfg);
+            if (is_elf_mem_prefixed(cfg.path, cfg.argv)) {
+                auto mem_name = resolve_elf_mem_name(cfg.path, cfg.argv);
                 if (mem_name.empty()) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
-                const auto* mem = find_elf_mem(mem_name);
+                const auto* mem = elf_mem_registry_.find(mem_name);
                 if (!mem) {
                     return util::unexpected(util::Errc::noent);
                 }
-                return load_elf_from_buffer(mem->data, mem->size);
+                return posix::load_elf_program_from_buffer(*this, mem->data, mem->size);
             }
-            if (is_elf_prefixed(cfg)) {
+            if (is_elf_prefixed(cfg.path, cfg.argv)) {
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
                 std::fputs("[posix-elf] load_image elf-prefixed\n", stderr);
 #endif
-                auto elf_path = resolve_elf_path(cfg);
+                auto elf_path = resolve_elf_path(cfg.path, cfg.argv);
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
                 if (cfg.path) {
                     std::fputs("[posix-elf] cfg.path=", stderr);
@@ -240,15 +139,21 @@ export namespace posix {
                 if (elf_path.empty()) {
                     return util::unexpected(util::Errc::invalid_arg);
                 }
-                return load_elf_from_file(elf_path);
+                return posix::load_elf_program_from_file(*this, elf_path);
             }
-            std::string_view name = resolve_name(cfg);
-            auto* entry = find_entry(name);
+            const std::string_view name = resolve_registered_name<MaxPathLen>(
+                cfg.path_mode == PathMode::search_path,
+                cfg.path,
+                cfg.argv,
+                cfg.envp,
+                resolved_path_,
+                [&](std::string_view candidate) noexcept { return exec_catalog_.find(candidate) != nullptr; });
+            auto* entry = exec_catalog_.find(name);
             if (!entry && cfg.path_mode == PathMode::search_path) {
-                entry = find_entry_by_argv0(cfg.argv);
+                entry = exec_catalog_.find_by_argv0(cfg.argv);
             }
             if (!entry) {
-                auto elf_candidate = load_elf_candidate(cfg);
+                auto elf_candidate = posix::load_elf_candidate(*this, cfg, resolved_path_);
                 if (elf_candidate) {
                     return elf_candidate;
                 }
@@ -324,6 +229,33 @@ export namespace posix {
             return &proc->fds;
         }
 
+        FdTableType* fd_table_by_pid_value(int pid_value) noexcept {
+            return fd_table(ProcessId{pid_value});
+        }
+
+        bool elf_exec_enabled() const noexcept { return elf_exec_enabled_; }
+        bool elf_hostcalls_enabled() const noexcept { return elf_hostcalls_enabled_; }
+        bool has_exec_file_service() const noexcept { return file_service_ != nullptr; }
+        util::usize exec_path_capacity() const noexcept { return MaxPathLen; }
+        util::u8* elf_image_buffer() noexcept { return elf_image_.data(); }
+        util::usize elf_image_capacity() const noexcept { return elf_image_.size(); }
+        void* elf_load_base_ptr() noexcept { return elf_load_base(); }
+        util::usize elf_load_capacity() const noexcept { return elf_load_size(); }
+        ImageEntry elf_exec_stub_entry() const noexcept { return elf_exec_stub_; }
+        util::Result<void> apply_elf_hostcalls() noexcept { return install_elf_hostcalls(); }
+        util::Result<FdEntry> open_exec_file(std::string_view path, int flags, int mode = 0) noexcept {
+            if (!file_service_) {
+                return util::unexpected(util::Errc::bad_state);
+            }
+            return file_service_->open(path, flags, mode);
+        }
+
+        void close_exec_entry(const FdEntry& entry) noexcept {
+            if (entry.ops && entry.ops->close) {
+                (void)entry.ops->close(entry.ctx);
+            }
+        }
+
     private:
         struct Process {
             ProcessId pid{};
@@ -394,289 +326,6 @@ export namespace posix {
             }
 
             return child;
-        }
-
-        static bool match_exec_name(std::string_view exec_name, std::string_view query) noexcept {
-            if (exec_name.compare(query) == 0) return true;
-            if (query.empty()) return false;
-            if (exec_name.size() <= query.size()) return false;
-            const auto suffix_pos = exec_name.size() - query.size();
-            if (suffix_pos == 0) return false;
-            if (exec_name[suffix_pos - 1] != '/') return false;
-            return exec_name.substr(suffix_pos).compare(query) == 0;
-        }
-
-        ExecEntry* find_entry(std::string_view name) noexcept {
-            for (util::usize i = 0; i < exec_count_; ++i) {
-                if (match_exec_name(execs_[i].image.name, name)) return &execs_[i];
-            }
-            return nullptr;
-        }
-
-        ExecEntry* find_entry_by_argv0(std::span<const char* const> argv) noexcept {
-            if (argv.empty() || argv[0] == nullptr) return nullptr;
-            const std::string_view name{argv[0]};
-            for (util::usize i = 0; i < exec_count_; ++i) {
-                if (match_exec_name(execs_[i].image.name, name)) return &execs_[i];
-            }
-            return nullptr;
-        }
-
-        std::string_view resolve_name(const SpawnConfig& cfg) noexcept {
-            const std::string_view path = cfg.path ? std::string_view{cfg.path} : std::string_view{};
-            const std::string_view argv0 =
-                (!cfg.argv.empty() && cfg.argv[0] != nullptr) ? std::string_view{cfg.argv[0]} : std::string_view{};
-
-            if (cfg.path_mode == PathMode::exact) {
-                return strip_modulex_prefix(path);
-            }
-
-            const std::string_view target = !path.empty() ? strip_modulex_prefix(path)
-                                                          : strip_modulex_prefix(argv0);
-            if (target.empty()) return {};
-
-            const auto path_list = envp_path(cfg.envp);
-            if (path_list.empty()) {
-                return target;
-            }
-
-            resolved_path_[0] = '\0';
-            bool found = for_each_path_candidate<MaxPathLen>(path_list, target,
-                [&](std::string_view candidate) noexcept {
-                    if (find_entry(candidate) != nullptr) {
-                        const util::usize n = candidate.size() < (MaxPathLen - 1)
-                            ? candidate.size()
-                            : (MaxPathLen - 1);
-                        for (util::usize i = 0; i < n; ++i) {
-                            resolved_path_[i] = candidate[i];
-                        }
-                        resolved_path_[n] = '\0';
-                        return true;
-                    }
-                    return false;
-                });
-            if (found) {
-                return std::string_view{resolved_path_};
-            }
-            return target;
-        }
-
-        static std::string_view strip_modulex_prefix(std::string_view name) noexcept {
-            constexpr std::string_view kPrefix = "modulex:";
-            if (name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix) {
-                return name.substr(kPrefix.size());
-            }
-            return name;
-        }
-
-        static std::string_view strip_elf_prefix(std::string_view name) noexcept {
-            constexpr std::string_view kPrefix = "elf:";
-            if (name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix) {
-                return name.substr(kPrefix.size());
-            }
-            return name;
-        }
-
-        static bool is_elf_prefix(std::string_view name) noexcept {
-            constexpr std::string_view kPrefix = "elf:";
-            return name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix;
-        }
-
-        static bool is_elf_prefixed(const SpawnConfig& cfg) noexcept {
-            if (cfg.path && is_elf_prefix(std::string_view{cfg.path})) return true;
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr &&
-                is_elf_prefix(std::string_view{cfg.argv[0]})) {
-                return true;
-            }
-            return false;
-        }
-
-        static std::string_view strip_elf_mem_prefix(std::string_view name) noexcept {
-            constexpr std::string_view kPrefix = "elfmem:";
-            if (name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix) {
-                return name.substr(kPrefix.size());
-            }
-            return name;
-        }
-
-        static bool is_elf_mem_prefix(std::string_view name) noexcept {
-            constexpr std::string_view kPrefix = "elfmem:";
-            return name.size() >= kPrefix.size() && name.substr(0, kPrefix.size()) == kPrefix;
-        }
-
-        static bool is_elf_mem_prefixed(const SpawnConfig& cfg) noexcept {
-            if (cfg.path && is_elf_mem_prefix(std::string_view{cfg.path})) return true;
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr &&
-                is_elf_mem_prefix(std::string_view{cfg.argv[0]})) {
-                return true;
-            }
-            return false;
-        }
-
-        static std::string_view resolve_elf_mem_name(const SpawnConfig& cfg) noexcept {
-            if (cfg.path && cfg.path[0] != '\0') {
-                return strip_elf_mem_prefix(std::string_view{cfg.path});
-            }
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
-                return strip_elf_mem_prefix(std::string_view{cfg.argv[0]});
-            }
-            return {};
-        }
-
-        static std::string_view resolve_elf_path(const SpawnConfig& cfg) noexcept {
-            if (cfg.path && cfg.path[0] != '\0') {
-                return strip_elf_prefix(std::string_view{cfg.path});
-            }
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
-                return strip_elf_prefix(std::string_view{cfg.argv[0]});
-            }
-            return {};
-        }
-
-        static std::string_view resolve_exec_path(const SpawnConfig& cfg) noexcept {
-            if (cfg.path && cfg.path[0] != '\0') {
-                return std::string_view{cfg.path};
-            }
-            if (!cfg.argv.empty() && cfg.argv[0] != nullptr) {
-                return std::string_view{cfg.argv[0]};
-            }
-            return {};
-        }
-
-        util::Result<ProgramImage> load_elf_from_buffer(const util::u8* base,
-                                                        util::usize size) noexcept {
-            if (!base || size == 0) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            ElfLoadConfig elf_cfg{};
-            elf_cfg.image_base = base;
-            elf_cfg.image_size = size;
-            elf_cfg.load_base = elf_load_base();
-            elf_cfg.load_size = elf_load_size();
-            elf_cfg.load_align = 16;
-            auto image = load_elf_image(elf_cfg);
-            if (image && elf_hostcalls_enabled_) {
-                auto host_ok = install_elf_hostcalls();
-                if (!host_ok) {
-                    return util::unexpected(host_ok.error());
-                }
-            }
-            #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-            if (image && elf_exec_enabled_ && elf_exec_stub_) {
-                image.value().entry = elf_exec_stub_;
-            }
-            #else
-            (void)elf_exec_stub_;
-            #endif
-            return image;
-        }
-
-        util::Result<ProgramImage> load_elf_from_file(std::string_view path) noexcept {
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-            std::fputs("[posix-elf] load_elf_from_file enter\n", stderr);
-#endif
-            if (path.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            if (!file_service_) {
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-                std::fputs("[posix-elf] file_service missing\n", stderr);
-#endif
-                return util::unexpected(util::Errc::not_supported);
-            }
-            if (path.size() >= MaxPathLen) {
-                return util::unexpected(util::Errc::buffer_overflow);
-            }
-            auto entry = file_service_->open(path, O_RDONLY, 0);
-            if (!entry) {
-                return util::unexpected(entry.error());
-            }
-            const auto close_guard = [&]() noexcept {
-                if (entry.value().ops) {
-                    (void)entry.value().ops->close(entry.value().ctx);
-                }
-            };
-            bool size_known = false;
-            util::usize file_size = 0;
-            if (entry.value().ops && entry.value().ops->stat) {
-                PosixStat st{};
-                auto rst = entry.value().ops->stat(entry.value().ctx, st);
-                if (!rst) {
-                    close_guard();
-                    return util::unexpected(rst.error());
-                }
-                size_known = true;
-                file_size = static_cast<util::usize>(st.size);
-                if (file_size > elf_image_.size()) {
-                    close_guard();
-                    return util::unexpected(util::Errc::buffer_overflow);
-                }
-            }
-            util::usize total = 0;
-            while (total < elf_image_.size()) {
-                const auto view = MutByteView{elf_image_.data() + total, elf_image_.size() - total};
-                auto r = entry.value().ops->read(entry.value().ctx, view);
-                if (!r) {
-                    close_guard();
-                    return util::unexpected(r.error());
-                }
-                if (r.value() == 0) break;
-                total += r.value();
-            }
-            close_guard();
-            if (!size_known && total == elf_image_.size()) {
-                return util::unexpected(util::Errc::buffer_overflow);
-            }
-            if (size_known && total < file_size) {
-                return util::unexpected(util::Errc::io);
-            }
-            return load_elf_from_buffer(elf_image_.data(), total);
-        }
-
-        util::Result<ProgramImage> load_elf_candidate(const SpawnConfig& cfg) noexcept {
-            if (!elf_exec_enabled_) {
-                return util::unexpected(util::Errc::not_supported);
-            }
-            if (!file_service_) {
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-                std::fputs("[posix-elf] file_service missing\n", stderr);
-#endif
-                return util::unexpected(util::Errc::not_supported);
-            }
-            const auto path = resolve_exec_path(cfg);
-            if (path.empty()) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            if (is_elf_prefix(path) || is_elf_mem_prefix(path) ||
-                (path.size() >= 8 && path.substr(0, 8) == "modulex:")) {
-                return util::unexpected(util::Errc::noent);
-            }
-            if (cfg.path_mode == PathMode::exact) {
-                return load_elf_from_file(path);
-            }
-            const auto path_list = envp_path(cfg.envp);
-            util::Result<ProgramImage> out = util::unexpected(util::Errc::noent);
-            const bool found = for_each_path_candidate<MaxPathLen>(path_list, path,
-                [&](std::string_view candidate) noexcept {
-                    auto image = load_elf_from_file(candidate);
-                    if (image) {
-                        out = image;
-                        return true;
-                    }
-                    if (image.error() != util::Errc::noent) {
-                        out = util::unexpected(image.error());
-                        return true;
-                    }
-                    return false;
-                });
-            if (found) {
-                return out;
-            }
-            return util::unexpected(util::Errc::noent);
-        }
-
-        static std::string_view envp_path(std::span<const char* const> envp) noexcept {
-            return envp_get(envp, kPathKey);
         }
 
         int alloc_slot() noexcept {
@@ -760,22 +409,6 @@ export namespace posix {
             return view;
         }
 
-        struct ExecContext {
-            ProcService* service{nullptr};
-            ProcessId pid{};
-            int errno_value{0};
-            bool exit_requested{false};
-            int exit_code{0};
-            bool jump_ready{false};
-            std::jmp_buf* exit_jmp{nullptr};
-            ExecContext* previous{nullptr};
-        };
-
-        static ExecContext*& active_exec_context() noexcept {
-            static ExecContext* current = nullptr;
-            return current;
-        }
-
         util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
             if (image.kind == ImageKind::elf && !elf_exec_enabled_) {
                 return util::unexpected(util::Errc::not_supported);
@@ -786,10 +419,9 @@ export namespace posix {
                 return util::unexpected(argv_envp.error());
             }
             ExecContext exec_ctx{};
-            exec_ctx.service = this;
-            exec_ctx.pid = pid;
-            exec_ctx.previous = active_exec_context();
-            active_exec_context() = &exec_ctx;
+            exec_ctx.owner = this;
+            exec_ctx.pid_value = pid.value;
+            push_exec_context(exec_ctx);
             if (on_enter_) {
                 on_enter_(pid, hook_ctx_);
             }
@@ -799,267 +431,30 @@ export namespace posix {
                 void* hook_ctx;
                 ExecContext* exec_ctx;
                 ~Guard() noexcept {
-                    active_exec_context() = exec_ctx ? exec_ctx->previous : nullptr;
+                    if (exec_ctx) pop_exec_context(*exec_ctx);
                     if (hook) hook(pid, hook_ctx);
                 }
             } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx};
-            auto finalize_exit = [&](int rc) noexcept -> int {
-                return exec_ctx.exit_requested ? exec_ctx.exit_code : rc;
-            };
-            std::jmp_buf exit_jmp{};
-            exec_ctx.exit_jmp = &exit_jmp;
+            ExecJumpBuffer exit_jmp{};
+            exec_ctx.exit_jmp = &exit_jmp.storage;
             exec_ctx.jump_ready = true;
-            const int jump_rc = setjmp(exit_jmp);
+            const int jump_rc = setjmp(exit_jmp.storage);
             if (jump_rc != 0) {
-                return finalize_exit(exec_ctx.exit_code);
+                return finalize_exec_exit(exec_ctx, exec_ctx.exit_code);
             }
             if (image.entry) {
                 const int rc = image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
-                return finalize_exit(rc);
+                return finalize_exec_exit(exec_ctx, rc);
             }
             if (image.entry_v0) {
                 const int rc = image.entry_v0(argv_envp.value().argc, argv_envp.value().argv);
-                return finalize_exit(rc);
+                return finalize_exec_exit(exec_ctx, rc);
             }
             return util::unexpected(util::Errc::invalid_arg);
         }
 
-        struct ElfHostCalls {
-            util::i32 (*write)(int fd, const void* buf, util::usize len) noexcept {nullptr};
-            void (*exit)(int code) noexcept {nullptr};
-            util::i32 (*open)(const char* path, int flags, int mode) noexcept {nullptr};
-            util::i32 (*close)(int fd) noexcept {nullptr};
-            util::i32 (*read)(int fd, void* buf, util::usize len) noexcept {nullptr};
-            util::i32 (*fstat)(int fd, void* st) noexcept {nullptr};
-            util::i32 (*isatty)(int fd) noexcept {nullptr};
-            int* (*errno_location)() noexcept {nullptr};
-        };
-
-        struct ElfMemImage {
-            std::string_view name{};
-            const util::u8* data{nullptr};
-            util::usize size{0};
-        };
-
-        const ElfMemImage* find_elf_mem(std::string_view name) const noexcept {
-            for (util::usize i = 0; i < elf_mem_count_; ++i) {
-                if (elf_mem_[i].name.compare(name) == 0) return &elf_mem_[i];
-            }
-            return nullptr;
-        }
-
-        static int errc_to_errno(util::Errc err) noexcept {
-            return to_errno(err);
-        }
-
-        static ExecContext* current_exec_context() noexcept {
-            return active_exec_context();
-        }
-
-        static void set_exec_errno(util::Errc err) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx) return;
-            ctx->errno_value = errc_to_errno(err);
-        }
-
-        static void clear_exec_errno() noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx) return;
-            ctx->errno_value = 0;
-        }
-
-        static util::i32 elf_host_write(int fd, const void* buf, util::usize len) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx || !buf) {
-                set_exec_errno(util::Errc::invalid_arg);
-                return -1;
-            }
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->write) {
-                set_exec_errno(util::Errc::not_supported);
-                return -1;
-            }
-            ByteView view{static_cast<const util::u8*>(buf), len};
-            auto r = entry.value()->ops->write(entry.value()->ctx, view);
-            if (!r) {
-                set_exec_errno(r.error());
-                return -1;
-            }
-            clear_exec_errno();
-            return static_cast<util::i32>(r.value());
-        }
-
-        static void elf_host_exit(int code) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx) return;
-            ctx->exit_requested = true;
-            ctx->exit_code = code;
-            if (ctx->jump_ready && ctx->exit_jmp) {
-                std::longjmp(*ctx->exit_jmp, 1);
-            }
-        }
-
-        struct ElfHostStat {
-            util::u64 st_size{0};
-            util::u32 st_mode{0};
-        };
-
-        static void close_entry(const FdEntry& entry) noexcept {
-            if (entry.ops && entry.ops->close) {
-                (void)entry.ops->close(entry.ctx);
-            }
-        }
-
-        static util::i32 elf_host_open(const char* path, int flags, int mode) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx || !path) {
-                set_exec_errno(util::Errc::invalid_arg);
-                return -1;
-            }
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table || !ctx->service->file_service_) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto entry = ctx->service->file_service_->open(std::string_view{path}, flags, mode);
-            if (!entry) {
-                set_exec_errno(entry.error());
-                return -1;
-            }
-            auto rfd = table->attach(entry.value());
-            if (!rfd) {
-                close_entry(entry.value());
-                set_exec_errno(rfd.error());
-                return -1;
-            }
-            clear_exec_errno();
-            return static_cast<util::i32>(rfd.value());
-        }
-
-        static util::i32 elf_host_close(int fd) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto r = table->close(fd);
-            if (!r) {
-                set_exec_errno(r.error());
-                return -1;
-            }
-            clear_exec_errno();
-            return 0;
-        }
-
-        static util::i32 elf_host_read(int fd, void* buf, util::usize len) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx || (!buf && len > 0)) {
-                set_exec_errno(util::Errc::invalid_arg);
-                return -1;
-            }
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto entry = table->get(fd);
-            if (!entry || !entry.value()->ops || !entry.value()->ops->read) {
-                set_exec_errno(util::Errc::not_supported);
-                return -1;
-            }
-            MutByteView view{static_cast<util::u8*>(buf), len};
-            auto r = entry.value()->ops->read(entry.value()->ctx, view);
-            if (!r) {
-                if (r.error() == util::Errc::end_of_stream) {
-                    clear_exec_errno();
-                    return 0;
-                }
-                set_exec_errno(r.error());
-                return -1;
-            }
-            clear_exec_errno();
-            return static_cast<util::i32>(r.value());
-        }
-
-        static util::i32 elf_host_fstat(int fd, void* st) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx || !st) {
-                set_exec_errno(util::Errc::invalid_arg);
-                return -1;
-            }
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) {
-                set_exec_errno(util::Errc::bad_state);
-                return -1;
-            }
-            auto entry = table->get(fd);
-            if (!entry) {
-                set_exec_errno(util::Errc::io);
-                return -1;
-            }
-            if (!entry.value()->ops || !entry.value()->ops->stat) {
-                set_exec_errno(util::Errc::not_supported);
-                return -1;
-            }
-            PosixStat info{};
-            auto r = entry.value()->ops->stat(entry.value()->ctx, info);
-            if (!r) {
-                set_exec_errno(r.error());
-                return -1;
-            }
-            auto* host = static_cast<ElfHostStat*>(st);
-            host->st_size = info.size;
-            host->st_mode = info.mode;
-            clear_exec_errno();
-            return 0;
-        }
-
-        static util::i32 elf_host_isatty(int fd) noexcept {
-            auto* ctx = current_exec_context();
-            if (!ctx) return 0;
-            auto* table = ctx->service->fd_table(ctx->pid);
-            if (!table) {
-                clear_exec_errno();
-                return 0;
-            }
-            auto entry = table->get(fd);
-            if (!entry) {
-                clear_exec_errno();
-                return 0;
-            }
-            clear_exec_errno();
-            return entry.value()->kind == FdKind::term ? 1 : 0;
-        }
-
-        static int* elf_host_errno_location() noexcept {
-            auto* ctx = current_exec_context();
-            return ctx ? &ctx->errno_value : nullptr;
-        }
-
         util::Result<void> install_elf_hostcalls() noexcept {
-            if (elf_load_size() < sizeof(ElfHostCalls)) {
-                return util::unexpected(util::Errc::invalid_arg);
-            }
-            auto* table = reinterpret_cast<ElfHostCalls*>(elf_load_base());
-            table->write = &ProcService::elf_host_write;
-            table->exit = &ProcService::elf_host_exit;
-            table->open = &ProcService::elf_host_open;
-            table->close = &ProcService::elf_host_close;
-            table->read = &ProcService::elf_host_read;
-            table->fstat = &ProcService::elf_host_fstat;
-            table->isatty = &ProcService::elf_host_isatty;
-            table->errno_location = &ProcService::elf_host_errno_location;
-            return {};
+            return posix::install_elf_hostcalls<ProcService>(*this, elf_load_base(), elf_load_size());
         }
 
         util::u8* elf_load_base() noexcept {
@@ -1080,8 +475,7 @@ export namespace posix {
 #endif
         }
 
-        std::array<ExecEntry, MaxExecs> execs_{};
-        util::usize exec_count_{0};
+        ProgramCatalog<MaxExecs> exec_catalog_{};
         std::array<Process, MaxProcs> procs_{};
         std::array<bool, MaxProcs> used_{};
         FdTable<MaxFds>* fd_table_{nullptr};
@@ -1098,8 +492,7 @@ export namespace posix {
         bool elf_exec_enabled_{false};
         ImageEntry elf_exec_stub_{nullptr};
         bool elf_hostcalls_enabled_{false};
-        std::array<ElfMemImage, 8> elf_mem_{};
-        util::usize elf_mem_count_{0};
+        ElfMemRegistry<8> elf_mem_registry_{};
     };
 
     template <util::usize MaxProcs,

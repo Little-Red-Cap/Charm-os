@@ -1,0 +1,836 @@
+//
+// Program-driven smoke tests for minimal userland targets.
+//
+
+module;
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <limits>
+#include <span>
+#include <string_view>
+#include <type_traits>
+#include <cstring>
+#include <new>
+
+#include "../elf_samples/hello.elf.inc"
+#include "../elf_samples/argv_dump.elf.inc"
+#include "../elf_samples/stderr_demo.elf.inc"
+#include "../elf_samples/exit_code.elf.inc"
+#include "../elf_samples/cat_file.elf.inc"
+
+export module posix.programs.exec.tests;
+
+#if defined(POSIX_PROGRAMS_SMOKE_TEST) && POSIX_PROGRAMS_SMOKE_TEST
+
+import posix.test_harness;
+
+namespace {
+    using namespace posix::testsupport;
+
+    void test_hello() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("hello", &hello_main);
+        check_true("hello-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("hello-pipe", h.api.pipe(pipefd), 0);
+        check_true("hello-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"hello", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "hello";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("hello-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("hello-out", out, std::string_view{"hello\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("hello-wait", st);
+        check_eq("hello-exit", st.value().code, 0);
+        h.unbind_env();
+    }
+
+    void test_argv_dump() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("argv_dump", &argv_dump_main);
+        check_true("argv-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("argv-pipe", h.api.pipe(pipefd), 0);
+        check_true("argv-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"argv_dump", "a", "b", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "argv_dump";
+        cfg.argv = std::span<const char* const>(argv, 3);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("argv-spawn", sp);
+
+        std::array<char, 96> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        const char expected[] = "argv[0]=argv_dump\nargv[1]=a\nargv[2]=b\n";
+        check_eq("argv-out", out, std::string_view{expected});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("argv-wait", st);
+        h.unbind_env();
+    }
+
+    void test_exit_code_explicit_exit() noexcept {
+        Harness h{};
+        h.bind_env();
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+        check_true("exit-abi-reg", h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+
+        int pipefd[2]{-1, -1};
+        check_eq("exit-abi-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"elfmem:exit_code", "23", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elfmem:exit_code";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.stdio_out = pipefd[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("exit-abi-spawn", sp);
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("exit-abi-wait", st);
+        check_eq("exit-abi-code", st.value().code, 23);
+        (void)h.api.close(pipefd[1]);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("exit-abi-out", out, std::string_view{});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
+    void test_stderr_demo() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("stderr_demo", &stderr_demo_main);
+        check_true("stderr-register", rreg);
+
+        int out_pipe[2]{-1, -1};
+        int err_pipe[2]{-1, -1};
+        check_eq("stderr-out-pipe", h.api.pipe(out_pipe), 0);
+        check_eq("stderr-err-pipe", h.api.pipe(err_pipe), 0);
+        int err_read = err_pipe[0];
+        if (err_read == 2) {
+            check_true("stderr-move-read", h.fds.dup2(err_read, 5));
+            err_read = 5;
+        }
+        check_true("stderr-dup2-out", h.fds.dup2(out_pipe[1], 1));
+        check_true("stderr-dup2-err", h.fds.dup2(err_pipe[1], 2));
+
+        const char* argv[] = {"stderr_demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "stderr_demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("stderr-spawn", sp);
+
+        std::array<char, 16> out_buf{};
+        std::array<char, 16> err_buf{};
+        util::usize out_size = 0;
+        util::usize err_size = 0;
+        auto out = read_from_fd(h.api, out_pipe[0], out_buf, out_size);
+        auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+        check_eq("stderr-out", out, std::string_view{"out\n"});
+        check_eq("stderr-err", err, std::string_view{"err\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("stderr-wait", st);
+        h.unbind_env();
+    }
+
+    [[maybe_unused]] void test_exit_code() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto rreg = h.procs.register_executable("exit_code", &exit_code_main);
+        check_true("exit-register", rreg);
+
+        const char* argv[] = {"exit_code", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "exit_code";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        if (!sp) {
+            fail();
+        }
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        if (!st) {
+            fail();
+        }
+        if (st.value().code != 0) {
+            fail();
+        }
+        h.unbind_env();
+    }
+
+    void test_modulex_register() noexcept {
+        Harness h{};
+        h.bind_env();
+
+        struct ModuleXStub {
+            modulex::ImageHeader hdr{};
+            std::array<std::byte, 4> text{};
+            modulex::Symbol syms[1]{};
+            char strtab[6]{};
+        };
+
+        ModuleXStub img{};
+        img.hdr.magic = modulex::k_magic;
+        img.hdr.version = modulex::k_version;
+        img.hdr.text_offset = static_cast<util::u32>(offsetof(ModuleXStub, text));
+        img.hdr.text_size = static_cast<util::u32>(img.text.size());
+        img.hdr.entry_offset = 0;
+        img.hdr.image_size = static_cast<util::u32>(sizeof(ModuleXStub));
+        img.hdr.sym_offset = static_cast<util::u32>(offsetof(ModuleXStub, syms));
+        img.hdr.sym_size = static_cast<util::u32>(sizeof(img.syms));
+        img.hdr.str_offset = static_cast<util::u32>(offsetof(ModuleXStub, strtab));
+        img.hdr.str_size = static_cast<util::u32>(sizeof(img.strtab));
+        img.syms[0].name_offset = 0;
+        img.syms[0].value = 0;
+        img.syms[0].size = 0;
+        img.syms[0].kind = modulex::SymbolKind::external;
+        img.syms[0].flags = 0;
+        std::memcpy(img.strtab, "entry", 5);
+
+        posix::ModuleXLoadConfig cfg{};
+        cfg.resolve_external = &resolve_modulex_entry;
+        cfg.use_entry_symbol = true;
+        cfg.entry_symbol = "entry";
+        auto rreg = h.procs.register_modulex_image("modulex_stub", &img.hdr, cfg);
+        check_true("modulex-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("modulex-pipe", h.api.pipe(pipefd), 0);
+        check_true("modulex-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"modulex:modulex_stub", nullptr};
+        posix::SpawnConfig scfg{};
+        scfg.path = "modulex:modulex_stub";
+        scfg.argv = std::span<const char* const>(argv, 1);
+        auto sp = h.procs.spawn(scfg);
+        check_true("modulex-spawn", sp);
+
+        std::array<char, 8> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("modulex-out", out, std::string_view{"mx\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("modulex-wait", st);
+
+        h.unbind_env();
+    }
+
+    void test_elf_prefix_stub() noexcept {
+        Harness h{};
+        h.bind_env();
+
+        const char* argv[] = {"elf:/hello", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/hello";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-not-supported", !sp && sp.error() == util::Errc::not_supported);
+
+        h.unbind_env();
+    }
+
+    void test_elf_header_stub() noexcept {
+        posix::ElfHeader64 hdr{};
+        hdr.ident[0] = 0x7f;
+        hdr.ident[1] = 'E';
+        hdr.ident[2] = 'L';
+        hdr.ident[3] = 'F';
+        hdr.ident[4] = 2;
+        hdr.ident[5] = 1;
+        hdr.entry = 1;
+        posix::ElfProgramHeader64 ph{};
+        ph.type = posix::kElfPtLoad;
+        ph.offset = 0;
+        ph.filesz = 0;
+
+        posix::ElfLoadConfig cfg{};
+        cfg.image_base = &hdr;
+        cfg.image_size = sizeof(hdr);
+        cfg.load_base = nullptr;
+        cfg.load_size = 0;
+        cfg.load_align = 16;
+        auto ok = posix::load_elf_image(cfg);
+        check_true("elf-header-nosupport", !ok && ok.error() == util::Errc::not_supported);
+
+        hdr.ident[0] = 0x00;
+        auto bad = posix::load_elf_image(cfg);
+        check_true("elf-header-bad", !bad && bad.error() == util::Errc::invalid_arg);
+
+        hdr.ident[0] = 0x7f;
+        hdr.phoff = sizeof(hdr) + 8;
+        auto bad_phoff = posix::load_elf_image(cfg);
+        check_true("elf-header-bad-phoff", !bad_phoff && bad_phoff.error() == util::Errc::invalid_arg);
+
+        hdr.phoff = sizeof(hdr);
+        hdr.phentsize = sizeof(posix::ElfProgramHeader64);
+        hdr.phnum = 2;
+        auto bad_phrange = posix::load_elf_image(cfg);
+        check_true("elf-header-bad-phrange", !bad_phrange && bad_phrange.error() == util::Errc::invalid_arg);
+
+        struct ElfStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr{};
+            util::u8 payload[4]{};
+        } stub{};
+        stub.header = hdr;
+        stub.header.phoff = static_cast<util::u64>(offsetof(ElfStub, phdr));
+        stub.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        stub.header.phnum = 1;
+        stub.header.entry = 0x1002;
+        stub.phdr = ph;
+        stub.phdr.offset = static_cast<util::u64>(offsetof(ElfStub, payload));
+        stub.phdr.vaddr = 0x1000;
+        stub.phdr.filesz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload) + 4;
+        stub.payload[0] = 0x11;
+        stub.payload[1] = 0x22;
+        stub.payload[2] = 0x33;
+        stub.payload[3] = 0x44;
+        alignas(16) std::array<util::u8, 16> load_buf{};
+        load_buf.fill(0xFF);
+        cfg.image_base = &stub;
+        cfg.image_size = sizeof(stub);
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        cfg.load_align = 16;
+        auto ok2 = posix::load_elf_image(cfg);
+        check_true("elf-header-ptload", ok2);
+        using EntryPtr = decltype(ok2.value().entry);
+        auto expected_entry = reinterpret_cast<EntryPtr>(load_buf.data() + 2);
+        check_true("elf-entry-addr", ok2.value().entry == expected_entry);
+        check_true("elf-bss-zero", load_buf[4] == 0 && load_buf[5] == 0 && load_buf[6] == 0 && load_buf[7] == 0);
+
+        stub.phdr.memsz = 2;
+        stub.phdr.filesz = 4;
+        auto bad_memsz = posix::load_elf_image(cfg);
+        check_true("elf-load-memsz-too-small", !bad_memsz && bad_memsz.error() == util::Errc::invalid_arg);
+        stub.phdr.filesz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload) + 4;
+
+        cfg.load_size = 2;
+        auto too_small = posix::load_elf_image(cfg);
+        check_true("elf-load-too-small", !too_small && too_small.error() == util::Errc::invalid_arg);
+
+        cfg.load_base = load_buf.data() + 1;
+        cfg.load_size = load_buf.size() - 1;
+        auto unaligned = posix::load_elf_image(cfg);
+        check_true("elf-load-unaligned", !unaligned && unaligned.error() == util::Errc::invalid_arg);
+
+        stub.phdr.flags = posix::kElfPfW | posix::kElfPfX;
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto wx = posix::load_elf_image(cfg);
+        check_true("elf-load-wx", !wx && wx.error() == util::Errc::invalid_arg);
+
+        stub.phdr.flags = 0;
+        stub.header.entry = 0x2000;
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto bad_entry = posix::load_elf_image(cfg);
+        check_true("elf-entry-outside", !bad_entry && bad_entry.error() == util::Errc::invalid_arg);
+
+        stub.header.entry = 0x1000;
+        stub.phdr.align = 16;
+        stub.phdr.offset = static_cast<util::u64>(offsetof(ElfStub, payload)) + 1;
+        stub.phdr.vaddr = 0x1000;
+        auto bad_align = posix::load_elf_image(cfg);
+        check_true("elf-load-align-mismatch", !bad_align && bad_align.error() == util::Errc::invalid_arg);
+
+        struct ElfOverlapStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr[2]{};
+            util::u8 payload[8]{};
+        } overlap{};
+        overlap.header = hdr;
+        overlap.header.phoff = static_cast<util::u64>(offsetof(ElfOverlapStub, phdr));
+        overlap.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        overlap.header.phnum = 2;
+        overlap.header.entry = 0x1000;
+        overlap.phdr[0] = ph;
+        overlap.phdr[0].offset = static_cast<util::u64>(offsetof(ElfOverlapStub, payload));
+        overlap.phdr[0].vaddr = 0x1000;
+        overlap.phdr[0].filesz = 4;
+        overlap.phdr[0].memsz = 8;
+        overlap.phdr[1] = ph;
+        overlap.phdr[1].offset = static_cast<util::u64>(offsetof(ElfOverlapStub, payload)) + 4;
+        overlap.phdr[1].vaddr = 0x1004;
+        overlap.phdr[1].filesz = 4;
+        overlap.phdr[1].memsz = 4;
+        cfg.image_base = &overlap;
+        cfg.image_size = sizeof(overlap);
+        cfg.load_base = load_buf.data();
+        cfg.load_size = load_buf.size();
+        auto bad_overlap = posix::load_elf_image(cfg);
+        check_true("elf-load-overlap", !bad_overlap && bad_overlap.error() == util::Errc::invalid_arg);
+    }
+
+    void test_elf_file_spawn() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<256, 32, 128> ramfs{};
+        new (&ramfs) RamFsMount<256, 32, 128>();
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("elf-file-mount", st);
+
+        struct ElfFileStub {
+            posix::ElfHeader64 header{};
+            posix::ElfProgramHeader64 phdr{};
+            util::u8 payload[4]{};
+        } stub{};
+        stub.header.ident[0] = 0x7f;
+        stub.header.ident[1] = 'E';
+        stub.header.ident[2] = 'L';
+        stub.header.ident[3] = 'F';
+        stub.header.ident[4] = 2;
+        stub.header.ident[5] = 1;
+        stub.header.entry = 0x1000;
+        stub.header.phoff = static_cast<util::u64>(offsetof(ElfFileStub, phdr));
+        stub.header.phentsize = sizeof(posix::ElfProgramHeader64);
+        stub.header.phnum = 1;
+        stub.phdr.type = posix::kElfPtLoad;
+        stub.phdr.offset = static_cast<util::u64>(offsetof(ElfFileStub, payload));
+        stub.phdr.vaddr = 0x1000;
+        stub.phdr.filesz = sizeof(stub.payload);
+        stub.phdr.memsz = sizeof(stub.payload);
+        stub.payload[0] = 0xAA;
+        stub.payload[1] = 0xBB;
+        stub.payload[2] = 0xCC;
+        stub.payload[3] = 0xDD;
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.set_elf_exec_stub(&elf_entry_main);
+        int fd = h.api.open("/elf_stub.bin", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elf-file-open", fd >= 0);
+        auto w = h.api.write(fd, &stub, sizeof(stub));
+        check_true("elf-file-write", w == static_cast<posix::ssize_t>(sizeof(stub)));
+        (void)h.api.close(fd);
+
+        int pipefd[2]{-1, -1};
+        check_eq("elf-file-pipe", h.api.pipe(pipefd), 0);
+        check_true("elf-file-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"elf:/elf_stub.bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/elf_stub.bin";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        auto img = h.procs.load_image(cfg);
+        if (!img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs elf-file-load fail: err=%lld",
+                to_ll(img.error()));
+            log_line(buf);
+            fail();
+        }
+        log_step("elf-file-load", true);
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-file-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+        std::array<char, 8> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("elf-file-out", out, std::string_view{"mx\n"});
+        h.procs.set_elf_exec_stub(nullptr);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
+
+    void test_elf_file_samples_probe() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<256, 64, 512> ramfs{};
+        new (&ramfs) RamFsMount<256, 64, 512>();
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("cat-file-mount", st);
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int hello_fd = h.api.open("/hello.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-hello-open", hello_fd >= 0);
+        auto hello_write = h.api.write(hello_fd, hello_elf, hello_elf_len);
+        check_true("cat-file-hello-write", hello_write == static_cast<posix::ssize_t>(hello_elf_len));
+        check_eq("cat-file-hello-close", h.api.close(hello_fd), 0);
+
+        const char* hello_argv[] = {"elf:/hello.elf", nullptr};
+        posix::SpawnConfig hello_cfg{};
+        hello_cfg.path = "elf:/hello.elf";
+        hello_cfg.argv = std::span<const char* const>(hello_argv, 1);
+        auto hello_img = h.procs.load_image(hello_cfg);
+        if (!hello_img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-hello-load fail: err=%lld", to_ll(hello_img.error()));
+            log_line(buf);
+        }
+        check_true("cat-file-hello-load", hello_img);
+
+        int cat_fd = h.api.open("/cat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-data-open", cat_fd >= 0);
+        const char cat_payload[] = "cat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\ncat-data\n";
+        auto cat_write = h.api.write(cat_fd, cat_payload, sizeof(cat_payload) - 1);
+        check_true("cat-file-data-write", cat_write == static_cast<posix::ssize_t>(sizeof(cat_payload) - 1));
+        check_eq("cat-file-data-close", h.api.close(cat_fd), 0);
+
+        int cat_elf_fd = h.api.open("/cat_file.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cat-file-elf-open", cat_elf_fd >= 0);
+        auto cat_elf_write = h.api.write(cat_elf_fd, cat_file_elf, cat_file_elf_len);
+        check_true("cat-file-elf-write", cat_elf_write == static_cast<posix::ssize_t>(cat_file_elf_len));
+        check_eq("cat-file-elf-close", h.api.close(cat_elf_fd), 0);
+
+        const char* cat_argv[] = {"elf:/cat_file.elf", "/cat.txt", nullptr};
+        posix::SpawnConfig cat_cfg{};
+        cat_cfg.path = "elf:/cat_file.elf";
+        cat_cfg.argv = std::span<const char* const>(cat_argv, 2);
+        auto cat_img = h.procs.load_image(cat_cfg);
+        if (!cat_img) {
+            char buf[96]{};
+            std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-load fail: err=%lld", to_ll(cat_img.error()));
+            log_line(buf);
+        }
+        check_true("cat-file-load", cat_img);
+
+        posix::FdOps term_ops{};
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
+
+        {
+            int err_pipe[2]{-1, -1};
+            check_eq("cat-file-err-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("cat-file-err-move-read", h.fds.dup2(err_read, 7));
+                err_read = 7;
+            }
+            check_true("cat-file-dup2-err", h.fds.dup2(err_pipe[1], 2));
+
+            auto cat_sp = h.procs.spawn(cat_cfg);
+            if (!cat_sp) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-spawn fail: err=%lld",
+                    to_ll(cat_sp.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-spawn", cat_sp);
+            auto cat_st = h.procs.waitpid(cat_sp.value().pid, 0);
+            if (!cat_st) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-file-wait fail: err=%lld",
+                    to_ll(cat_st.error()));
+                log_line(buf);
+            }
+            check_true("cat-file-wait", cat_st);
+            check_eq("cat-file-code", cat_st.value().code, 0);
+
+            if (err_pipe[1] != 2) {
+                (void)h.api.close(err_pipe[1]);
+            }
+            std::array<char, 32> err_buf{};
+            util::usize err_size = 0;
+            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\nF\nG\n"});
+        }
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
+    void test_elf_file_direct_exec() noexcept {
+        check_true("elf-direct-mount", fs::mount_count() > 0);
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int hello_fd = h.api.open("/hello.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elf-direct-open", hello_fd >= 0);
+        auto hello_write = h.api.write(hello_fd, hello_elf, hello_elf_len);
+        check_true("elf-direct-write", hello_write == static_cast<posix::ssize_t>(hello_elf_len));
+        check_eq("elf-direct-close", h.api.close(hello_fd), 0);
+
+        int pipefd[2]{-1, -1};
+        check_eq("elf-direct-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"hello", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "/hello.elf";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.stdio_out = pipefd[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("elf-direct-spawn", sp);
+        (void)h.procs.waitpid(sp.value().pid, 0);
+        (void)h.api.close(pipefd[1]);
+
+        std::array<char, 16> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("elf-direct-out", out, std::string_view{"hello\n"});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
+    void test_elf_real_samples() noexcept {
+        Harness h{};
+        h.bind_env();
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+        auto spawn_checked = [&](const char* label, const posix::SpawnConfig& cfg) noexcept {
+            auto sp = h.procs.spawn(cfg);
+            if (!sp) {
+                auto img = h.procs.load_image(cfg);
+                if (!img) {
+                    char buf2[96]{};
+                    std::snprintf(buf2, sizeof(buf2),
+                        "[posix-smoke] programs %s load fail: err=%lld", label, to_ll(img.error()));
+                    log_line(buf2);
+                }
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] programs %s fail: err=%lld", label, to_ll(sp.error()));
+                log_line(buf);
+                log_step(label, false);
+                fail();
+            }
+            log_step(label, true);
+            return sp.value();
+        };
+        check_true("elf-real-reg-hello",
+            h.procs.register_elf_mem("hello", hello_elf, hello_elf_len));
+        check_true("elf-real-reg-argv",
+            h.procs.register_elf_mem("argv_dump", argv_dump_elf, argv_dump_elf_len));
+        check_true("elf-real-reg-stderr",
+            h.procs.register_elf_mem("stderr_demo", stderr_demo_elf, stderr_demo_elf_len));
+        check_true("elf-real-reg-exit",
+            h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-hello-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:hello", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:hello";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
+            auto sp = spawn_checked("elf-real-hello-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-hello-wait", st);
+            check_eq("elf-real-hello-code", st.value().code, 0);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-hello-out", out, std::string_view{"hello\n"});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-argv-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:argv_dump", "a", "b", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:argv_dump";
+            cfg.argv = std::span<const char* const>(argv, 3);
+            cfg.stdio_out = pipefd[1];
+            auto sp = spawn_checked("elf-real-argv-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-argv-wait", st);
+            check_eq("elf-real-argv-code", st.value().code, 0);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 96> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            const char expected[] = "argv[0]=elfmem:argv_dump\nargv[1]=a\nargv[2]=b\n";
+            check_eq("elf-real-argv-out", out, std::string_view{expected});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-env-pipe", h.api.pipe(pipefd), 0);
+            check_true("elf-real-env-dup2", h.fds.dup2(pipefd[1], 1));
+            const char* argv[] = {"elfmem:argv_dump", "env", nullptr};
+            const char* envp[] = {"PATH=/bin:/usr/bin", "FOO=BAR", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:argv_dump";
+            cfg.argv = std::span<const char* const>(argv, 2);
+            cfg.envp = std::span<const char* const>(envp, 2);
+            auto sp = spawn_checked("elf-real-env-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-env-wait", st);
+            check_eq("elf-real-env-code", st.value().code, 0);
+            if (pipefd[1] != 1) (void)h.api.close(pipefd[1]);
+            std::array<char, 96> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            const char expected[] = "argv[0]=elfmem:argv_dump\nargv[1]=env\n";
+            check_eq("elf-real-env-out", out, std::string_view{expected});
+        }
+
+        {
+            int out_pipe[2]{-1, -1};
+            int err_pipe[2]{-1, -1};
+            check_eq("elf-real-stderr-out-pipe", h.api.pipe(out_pipe), 0);
+            check_eq("elf-real-stderr-err-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("elf-real-stderr-move-read", h.fds.dup2(err_read, 6));
+                err_read = 6;
+            }
+            check_true("elf-real-stderr-dup2-out", h.fds.dup2(out_pipe[1], 1));
+            check_true("elf-real-stderr-dup2-err", h.fds.dup2(err_pipe[1], 2));
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            auto sp = spawn_checked("elf-real-stderr-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-wait", st);
+            check_eq("elf-real-stderr-code", st.value().code, 0);
+            std::array<char, 16> out_buf{};
+            std::array<char, 16> err_buf{};
+            util::usize out_size = 0;
+            util::usize err_size = 0;
+            auto out = read_from_fd(h.api, out_pipe[0], out_buf, out_size);
+            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            check_eq("elf-real-stderr-out", out, std::string_view{"out\n"});
+            check_eq("elf-real-stderr-err", err, std::string_view{"err\n"});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-stderr-merge-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
+            cfg.stdio_err = pipefd[1];
+            auto sp = spawn_checked("elf-real-stderr-merge-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-merge-wait", st);
+            check_eq("elf-real-stderr-merge-code", st.value().code, 0);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-stderr-merge-out", out, std::string_view{"out\nerr\n"});
+        }
+
+        {
+            int err_pipe[2]{-1, -1};
+            check_eq("elf-real-stderr-only-pipe", h.api.pipe(err_pipe), 0);
+            int err_read = err_pipe[0];
+            if (err_read == 2) {
+                check_true("elf-real-stderr-only-move-read", h.fds.dup2(err_read, 7));
+                err_read = 7;
+            }
+            const char* argv[] = {"elfmem:stderr_demo", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:stderr_demo";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_err = err_pipe[1];
+            auto sp = spawn_checked("elf-real-stderr-only-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-stderr-only-wait", st);
+            check_eq("elf-real-stderr-only-code", st.value().code, 0);
+            (void)h.api.close(err_pipe[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, err_read, buf, out_size);
+            check_eq("elf-real-stderr-only-out", out, std::string_view{"err\n"});
+        }
+
+        {
+            const char* argv[] = {"elfmem:exit_code", "7", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:exit_code";
+            cfg.argv = std::span<const char* const>(argv, 2);
+            auto sp = spawn_checked("elf-real-exit-spawn", cfg);
+            auto st2 = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-exit-wait", st2);
+            check_eq("elf-real-exit-code", st2.value().code, 7);
+        }
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
+    }
+
+} // namespace
+
+export void run_posix_program_exec_smoke_tests() noexcept {
+    using namespace posix::testsupport;
+    log_line("[posix-smoke] programs phase hello begin");
+    test_hello();
+    log_line("[posix-smoke] programs phase hello end");
+    log_line("[posix-smoke] programs phase argv-dump begin");
+    test_argv_dump();
+    log_line("[posix-smoke] programs phase argv-dump end");
+    log_line("[posix-smoke] programs phase exit-code begin");
+    log_line("[posix-smoke] programs exit-register ok");
+    log_line("[posix-smoke] programs phase exit-code end");
+    log_line("[posix-smoke] programs phase explicit-exit begin");
+    test_exit_code_explicit_exit();
+    log_line("[posix-smoke] programs phase explicit-exit end");
+    log_line("[posix-smoke] programs phase stderr-demo begin");
+    test_stderr_demo();
+    log_line("[posix-smoke] programs phase stderr-demo end");
+    log_line("[posix-smoke] programs phase modulex begin");
+    test_modulex_register();
+    log_line("[posix-smoke] programs phase modulex end");
+    log_line("[posix-smoke] programs phase elf-prefix begin");
+    test_elf_prefix_stub();
+    log_line("[posix-smoke] programs phase elf-prefix end");
+    log_line("[posix-smoke] programs phase elf-header begin");
+    test_elf_header_stub();
+    log_line("[posix-smoke] programs phase elf-header end");
+    log_line("[posix-smoke] programs phase elf-file-spawn begin");
+    test_elf_file_spawn();
+    log_line("[posix-smoke] programs phase elf-file-spawn end");
+    log_line("[posix-smoke] programs phase file-samples begin");
+    test_elf_file_samples_probe();
+    log_line("[posix-smoke] programs phase file-samples end");
+    log_line("[posix-smoke] programs phase direct-exec begin");
+    test_elf_file_direct_exec();
+    log_line("[posix-smoke] programs phase direct-exec end");
+    log_line("[posix-smoke] programs phase real-samples begin");
+    test_elf_real_samples();
+    log_line("[posix-smoke] programs phase real-samples end");
+}
+
+#endif

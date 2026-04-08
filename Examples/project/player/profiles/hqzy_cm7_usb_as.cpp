@@ -351,11 +351,13 @@ void fill_audio_half(uint32_t half_index) {
 
 extern "C" void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s != &hi2s1) return;
+    HalfTransfer_CallBack_FS();
     fill_audio_half(0);
 }
 
 extern "C" void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef* hi2s) {
     if (hi2s != &hi2s1) return;
+    TransferComplete_CallBack_FS();
     fill_audio_half(1);
 }
 

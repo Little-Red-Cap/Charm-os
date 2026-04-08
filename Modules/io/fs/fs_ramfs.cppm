@@ -76,7 +76,7 @@ export namespace fs {
                     }
                 }
                 if (last) {
-                    if (fe->is_dir) return Status{Errc::inval};
+                    if (fe->is_dir) return Status{Errc::isdir};
                     if (want_trunc) {
                         auto st = truncate(path, 0);
                         if (!st) return st;
@@ -88,7 +88,7 @@ export namespace fs {
                     out.node.size = static_cast<util::i64>(fe->size);
                     return Status{Errc::ok};
                 }
-                if (!fe->is_dir) return Status{Errc::inval};
+                if (!fe->is_dir) return Status{Errc::notdir};
                 cur_idx = static_cast<util::usize>(fe - files_.data());
                 pv = rest;
             }

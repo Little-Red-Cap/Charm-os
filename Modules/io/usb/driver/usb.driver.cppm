@@ -29,6 +29,7 @@ export namespace usb::driver {
     };
 
     struct EpCallbacks {
+        void* ctx{nullptr};
         void (*on_out)(void* ctx, std::span<const u8> data) noexcept { nullptr };
         void (*on_in_complete)(void* ctx, std::size_t sent, bool sent_zlp) noexcept { nullptr };
         void (*on_stall)(void* ctx) noexcept { nullptr };

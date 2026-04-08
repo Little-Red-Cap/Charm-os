@@ -283,6 +283,8 @@ export namespace usb::device {
 
         inline CdcEndpointCallbacks make_cdc_ep_callbacks(class_driver::CdcAcm& cdc) noexcept {
             CdcEndpointCallbacks cb{};
+            cb.out.ctx = &cdc;
+            cb.in.ctx = &cdc;
             cb.out.on_out = [] (void* ctx, std::span<const u8> data) noexcept {
                 auto* self = static_cast<class_driver::CdcAcm*>(ctx);
                 if (self) self->on_out_packet(data);
@@ -384,6 +386,7 @@ export namespace usb::device {
                                              std::span<const u8> class_desc,
                                              const std::span<const u8>* strings,
                                              std::size_t string_count) noexcept {
+            cdc.set_config(cdc_cfg);
             if (!dsl::build_cdc_acm_device(build_ctx,
                                            dev_info,
                                            cfg_info,
@@ -422,6 +425,8 @@ export namespace usb::device {
 
         inline MscEndpointCallbacks make_msc_ep_callbacks(class_driver::MscBot& bot) noexcept {
             MscEndpointCallbacks cb{};
+            cb.out.ctx = &bot;
+            cb.in.ctx = &bot;
             cb.out.on_out = [] (void* ctx, std::span<const u8> data) noexcept {
                 auto* self = static_cast<class_driver::MscBot*>(ctx);
                 if (self) self->on_out_packet(data);
@@ -501,6 +506,7 @@ export namespace usb::device {
                                          std::span<const u8> class_desc,
                                          const std::span<const u8>* strings,
                                          std::size_t string_count) noexcept {
+            msc.set_config(msc_cfg);
             if (!dsl::build_msc_device(build_ctx,
                                        dev_info,
                                        cfg_info,

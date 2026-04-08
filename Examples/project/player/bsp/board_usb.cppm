@@ -95,6 +95,7 @@ namespace {
     usb::driver::DcdOps g_usb_dcd_ops{};
     usb::class_driver::MscBot* g_msc_bot = nullptr;
     const usb::class_driver::MscConfig* g_msc_cfg = nullptr;
+    bool g_msc_in_busy = false;
     bool g_msc_eps_opened = false;
     std::array<usb::driver::EpCallbacks, 16> g_usb_out_cbs{};
     std::array<usb::driver::EpCallbacks, 16> g_usb_in_cbs{};
@@ -164,6 +165,7 @@ namespace {
                        const usb::class_driver::MscConfig* cfg) noexcept {
         g_msc_bot = bot;
         g_msc_cfg = cfg;
+        g_msc_in_busy = false;
         if (bot && cfg) {
             const std::uint8_t out_ep = static_cast<std::uint8_t>(cfg->ep_out & 0x0F);
             const std::uint8_t in_ep = static_cast<std::uint8_t>(cfg->ep_in & 0x0F);
@@ -189,18 +191,17 @@ namespace {
         const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
         if (cfg.direction == usb::driver::EpDirection::out) {
             g_usb_out_cbs[ep_num] = cb;
-            g_usb_out_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_out)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
+            g_usb_out_ctx[ep_num] = cb.ctx;
             g_usb_out_mps[ep_num] = cfg.max_packet_size;
             (void)HAL_PCD_EP_Receive(pcd, cfg.address,
                 g_usb_out_bufs[ep_num].data(),
                 g_usb_out_mps[ep_num]);
         } else {
             g_usb_in_cbs[ep_num] = cb;
-            g_usb_in_ctx[ep_num] = (g_msc_bot && g_msc_cfg && cfg.address == g_msc_cfg->ep_in)
-                ? static_cast<void*>(g_msc_bot)
-                : nullptr;
+            g_usb_in_ctx[ep_num] = cb.ctx;
+            if (g_msc_cfg && cfg.address == g_msc_cfg->ep_in) {
+                g_msc_in_busy = false;
+            }
         }
         return true;
     }
@@ -213,6 +214,9 @@ namespace {
         if ((address & 0x80) != 0) {
             g_usb_in_cbs[ep_num] = {};
             g_usb_in_ctx[ep_num] = nullptr;
+            if (g_msc_cfg && address == g_msc_cfg->ep_in) {
+                g_msc_in_busy = false;
+            }
         } else {
             g_usb_out_cbs[ep_num] = {};
             g_usb_out_ctx[ep_num] = nullptr;
@@ -239,6 +243,9 @@ namespace {
             static_cast<uint16_t>(data.size())) == HAL_OK;
         if (!ok && is_ep0_in) {
             g_ep0_in_fail++;
+        }
+        if (ok && g_msc_cfg && address == g_msc_cfg->ep_in) {
+            g_msc_in_busy = true;
         }
         return ok;
     }
@@ -277,6 +284,7 @@ namespace {
                 (void)HAL_PCD_EP_Close(pcd, g_msc_cfg->ep_out);
                 (void)HAL_PCD_EP_Close(pcd, g_msc_cfg->ep_in);
             }
+            g_msc_in_busy = false;
             g_msc_eps_opened = false;
             g_set_cfg_last_ok = 1;
             return true;
@@ -402,6 +410,9 @@ export namespace player::stm32h7::board {
         }
         if (g_msc_bot->take_stall_out()) {
             (void)HAL_PCD_EP_SetStall(pcd, g_msc_cfg->ep_out);
+            return;
+        }
+        if (g_msc_in_busy) {
             return;
         }
         (void)usb::device::examples::send_msc_in_packet(
@@ -696,6 +707,9 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
         g_usb_adapter.handle_in_complete(sent, sent_zlp);
         return 1;
     }
+    if (g_msc_cfg && epnum == static_cast<uint8_t>(g_msc_cfg->ep_in & 0x0F)) {
+        g_msc_in_busy = false;
+    }
     if (epnum == 1) {
         g_in1_calls++;
     }
@@ -706,12 +720,16 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             : static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len);
         cb.on_in_complete(g_usb_in_ctx[epnum], sent, false);
     }
+    if (g_msc_cfg && epnum == static_cast<uint8_t>(g_msc_cfg->ep_in & 0x0F)) {
+        player::stm32h7::board::usb_poll_msc(hpcd);
+    }
     return 1;
 }
 
 extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef* hpcd) {
     if (!g_usb_hooks_enabled || !hpcd) return 0;
     g_reset_calls++;
+    g_msc_in_busy = false;
     g_usb_ep0_prepared = false;
     usb_prepare_ep0(hpcd);
     g_usb_adapter.handle_reset();

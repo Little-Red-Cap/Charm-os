@@ -16,6 +16,8 @@ export namespace usb::class_driver {
     using usb::u16;
     using usb::u32;
 
+#pragma pack(push, 1)
+
     constexpr u8 cdc_class = 0x02;
     constexpr u8 cdc_subclass_acm = 0x02;
     constexpr u8 cdc_protocol_at = 0x01;
@@ -100,6 +102,8 @@ export namespace usb::class_driver {
         bool (*notify)(void* ctx, std::span<const u8> data) noexcept { nullptr };
     };
 
+#pragma pack(pop)
+
     struct CdcDataCallbacks {
         void* ctx{nullptr};
         bool (*on_out)(void* ctx, std::span<const u8> data) noexcept { nullptr };
@@ -139,6 +143,7 @@ export namespace usb::class_driver {
         }
 
         const CdcConfig& config() const noexcept { return cfg_; }
+        void set_config(const CdcConfig& cfg) noexcept { cfg_ = cfg; }
         u16 control_line_state() const noexcept { return control_line_state_; }
         const CdcLineCoding& line_coding() const noexcept { return coding_; }
         CdcLineCoding get_line_coding() const noexcept { return coding_; }

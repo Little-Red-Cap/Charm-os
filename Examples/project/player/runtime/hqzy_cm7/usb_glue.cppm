@@ -76,12 +76,14 @@ export namespace player::app_test_hqzy::usb_glue {
             const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
             if (cfg.direction == usb::driver::EpDirection::out) {
                 glue->out_cbs[ep_num] = cb;
+                glue->out_ctxs[ep_num] = cb.ctx;
                 glue->out_mps[ep_num] = cfg.max_packet_size;
                 (void)HAL_PCD_EP_Receive(glue->pcd, cfg.address,
                     glue->out_bufs[ep_num].data(),
                     glue->out_mps[ep_num]);
             } else {
                 glue->in_cbs[ep_num] = cb;
+                glue->in_ctxs[ep_num] = cb.ctx;
             }
             return true;
         }
@@ -93,8 +95,10 @@ export namespace player::app_test_hqzy::usb_glue {
             const std::uint8_t ep_num = static_cast<std::uint8_t>(address & 0x0F);
             if ((address & 0x80) != 0) {
                 glue->in_cbs[ep_num] = {};
+                glue->in_ctxs[ep_num] = nullptr;
             } else {
                 glue->out_cbs[ep_num] = {};
+                glue->out_ctxs[ep_num] = nullptr;
             }
             return true;
         }
@@ -161,8 +165,10 @@ export namespace player::app_test_hqzy::usb_glue {
         if (!glue) return;
         glue->msc_bot = bot;
         glue->msc_cfg = cfg;
-        for (auto& c : glue->out_ctxs) c = bot;
-        for (auto& c : glue->in_ctxs) c = bot;
+        if (bot && cfg) {
+            glue->out_ctxs[cfg->ep_out & 0x0F] = bot;
+            glue->in_ctxs[cfg->ep_in & 0x0F] = bot;
+        }
     }
 
     inline void poll_msc(UsbGlue& glue) noexcept {

@@ -17,11 +17,13 @@ import out.api;
 import player.stm32h7.board_sdmmc;
 import player.stm32h7.board_usb;
 import player.stm32h7.fs_demo_mmc;
-import usb.class_msc_block;
-import usb.class_msc_block.node;
 import usb.common;
 import usb.device_driver;
 import usb.dsl;
+import usb.model;
+import usb.plan;
+import usb.runtime;
+import usb.spec;
 import util.core;
 
 extern "C" {
@@ -41,9 +43,11 @@ constexpr bool kDumpUsbRegs = false;
 constexpr bool kDumpLba0 = true;
 constexpr bool kDumpMscIo = true;
 constexpr bool kUsbMscRemovable = true;
+constexpr bool kUsbMscReadOnly = false;
 constexpr bool kUsbMscUseBpbCapacity = true;
 constexpr bool kUsbPollIrqInLoop = true;
 constexpr std::uint32_t kUsbPollBurst = 8;
+constexpr std::size_t kMscIoBufSize = 32768;
 
 static const usb::StringTable<4> kUsbStrings{
     std::array<std::span<const usb::u8>, 4>{
@@ -56,11 +60,16 @@ static const usb::StringTable<4> kUsbStrings{
 
 struct UsbBlockTrace {
     static constexpr std::size_t kCacheEntries = 4;
+    static constexpr std::size_t kBurstCacheBlocks = kMscIoBufSize / 512u;
 
     fs::BlockDevice* dev{nullptr};
     std::array<std::array<util::u8, 512>, kCacheEntries> cache{};
     std::array<util::u64, kCacheEntries> cache_lba{};
     std::array<bool, kCacheEntries> cache_valid{};
+    std::array<util::u8, 512 * kBurstCacheBlocks> burst_cache{};
+    util::u64 burst_lba{0};
+    std::size_t burst_blocks{0};
+    bool burst_valid{false};
     std::array<util::u8, 16> last_read_head{};
     std::size_t cache_head{0};
     std::uint32_t read_calls{0};
@@ -90,8 +99,43 @@ struct UsbBlockTrace {
             }
             cache_misses++;
         }
+
+        if (dev->block_size == 512 && burst_valid) {
+            const auto blocks = data.size() / 512u;
+            if (blocks > 0 && (data.size() % 512u) == 0u &&
+                lba >= burst_lba &&
+                (lba + blocks) <= (burst_lba + burst_blocks)) {
+                const auto offset_blocks = static_cast<std::size_t>(lba - burst_lba);
+                const auto offset_bytes = offset_blocks * 512u;
+                std::memcpy(data.data(), burst_cache.data() + offset_bytes, data.size());
+                std::memcpy(last_read_head.data(), data.data(), last_read_head.size());
+                cache_hits++;
+                last_read_ok = true;
+                return fs::Status{fs::Errc::ok};
+            }
+        }
+
         const auto start = HAL_GetTick();
-        const auto st = dev->read(dev->ctx, lba, data);
+        fs::Status st{fs::Errc::io};
+        if (dev->block_size == 512) {
+            const auto blocks = data.size() / 512u;
+            if (blocks > 1 && (data.size() % 512u) == 0u && blocks <= kBurstCacheBlocks) {
+                st = dev->read(dev->ctx, lba,
+                    std::span<util::u8>(burst_cache.data(), data.size()));
+                if (st) {
+                    std::memcpy(data.data(), burst_cache.data(), data.size());
+                    burst_lba = lba;
+                    burst_blocks = blocks;
+                    burst_valid = true;
+                } else {
+                    burst_valid = false;
+                }
+            } else {
+                st = dev->read(dev->ctx, lba, data);
+            }
+        } else {
+            st = dev->read(dev->ctx, lba, data);
+        }
         const auto cost = HAL_GetTick() - start;
         last_read_ms = cost;
         if (cost > max_read_ms) max_read_ms = cost;
@@ -205,7 +249,7 @@ int charm_player_selected_profile_main() {
         static_cast<unsigned long>(usb_dev.block_size),
         static_cast<unsigned long>(usb_dev.block_count),
         kUsbMscRemovable ? 1u : 0u,
-        1u);
+        kUsbMscReadOnly ? 1u : 0u);
     if (!registry.register_device(sd_desc, usb_dev)) {
         out::println<"boot: block registry failed">();
         Error_Handler();
@@ -228,31 +272,45 @@ int charm_player_selected_profile_main() {
             hw.pin_dp);
     }
 
-    usb::device::MscBlockDesc msc_desc{};
     auto& dcd_ops = player::stm32h7::board::usb_dcd_ops();
-    msc_desc.cap_name = "usb.msc0";
-    msc_desc.block_cap = "block.sd0";
-    msc_desc.dcd = dcd_ops;
-    msc_desc.dcd_ctx = &hpcd_USB_OTG_FS;
-    msc_desc.adapter = &player::stm32h7::board::usb_adapter();
-    msc_desc.dev_info.vendor_id = 0x1209;
-    msc_desc.dev_info.product_id = 0x0002;
-    msc_desc.dev_info.i_manufacturer = 1;
-    msc_desc.dev_info.i_product = 2;
-    msc_desc.dev_info.i_serial = 3;
-    msc_desc.msc_cfg.ep_out = 0x01;
-    msc_desc.msc_cfg.ep_in = 0x81;
-    msc_desc.msc_cfg.ep_mps = 64;
-    msc_desc.strings = std::span<const std::span<const usb::u8>>(
-        kUsbStrings.entries.data(), kUsbStrings.entries.size());
-    msc_desc.storage_cfg.removable = kUsbMscRemovable;
-    msc_desc.storage_cfg.read_only = true;
-    msc_desc.on_ready = &player::stm32h7::board::usb_set_ready;
-    msc_desc.on_ready_ctx = nullptr;
+    const auto runtime = usb::runtime::stm32_fs(
+        dcd_ops,
+        &hpcd_USB_OTG_FS,
+        &player::stm32h7::board::usb_adapter(),
+        usb::runtime::MscReadyHook{&player::stm32h7::board::usb_set_ready, nullptr});
 
-    usb::device::MscBlockBinding<block::Registry<4>> binding{
-        registry, msc_desc, init::Phase::app, static_cast<util::u32>(init::Runlevel::all)
-    };
+    const auto spec = usb::spec::msc_device(
+        usb::spec::DeviceSpec{
+            .vendor_id = 0x1209,
+            .product_id = 0x0002,
+            .i_manufacturer = 1,
+            .i_product = 2,
+            .i_serial = 3,
+            .strings = std::span<const std::span<const usb::u8>>(
+                kUsbStrings.entries.data(), kUsbStrings.entries.size()),
+        },
+        usb::spec::MscFunctionSpec{
+            .cap_name = "usb.msc0",
+            .block_cap = "block.sd0",
+            .vendor = "Charm",
+            .product = "Self MSC",
+            .revision = "1.00",
+            .removable = kUsbMscRemovable,
+            .read_only = kUsbMscReadOnly,
+            .ep_out = 0x01,
+            .ep_in = 0x81,
+            .ep_mps = 64,
+        });
+
+    const auto model = usb::build(spec);
+    const auto plan = usb::plan::build(model);
+    if (!plan) {
+        out::println<"boot: usb msc plan failed {}">(static_cast<int>(plan.error()));
+        Error_Handler();
+    }
+
+    auto binding = usb::runtime::make<block::Registry<4>, kMscIoBufSize>(
+        plan.value(), registry, runtime);
     auto init_st = decltype(binding)::init_trampoline(&binding);
     if (!init_st) {
         out::println<"boot: usb msc init failed {}">(static_cast<int>(init_st.error()));

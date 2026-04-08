@@ -1,4 +1,4 @@
-﻿# 文档索引
+# 文档索引
 
 本页是 `docs/` 的文档地图与路由入口。  
 用于按任务或专题查找文档，不替代新同学入门文档 `docs/overview.md`。
@@ -11,6 +11,7 @@
 - 依赖边界与禁区：`docs/architecture/dependency_contract.md`
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
+- POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - 输入链路：`docs/input/input_layering_decision.md`
 
 ## 文档体系图
@@ -43,6 +44,7 @@ flowchart TD
 | 开始改代码 | `docs/overview.md` → `docs/project/standards/项目C++编码要求.md` |
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
+| POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 兼容/BusyBox 验收 | `docs/system/posix_compat_roadmap.md` |
 | Linux 生态兼容任务清单 | `docs/system/posix_linux_compat_tasklist.md` |
 | POSIX spawn 草案 | `docs/system/posix_spawn_minimal_design.md` |
@@ -105,6 +107,7 @@ docs/
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`
 - `docs/system/av_pipeline_overview.md`
+- `docs/system/posix_support_overview.md`
 - `docs/system/posix_compat_roadmap.md`
 - `docs/system/posix_linux_compat_tasklist.md`
 - `docs/system/posix_spawn_minimal_design.md`

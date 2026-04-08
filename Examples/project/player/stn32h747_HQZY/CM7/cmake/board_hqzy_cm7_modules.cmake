@@ -14,7 +14,6 @@ set(MODULE_GROUP_BASE
 )
 
 set(MODULE_GROUP_USB_STORAGE_RUNTIME
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_glue.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/usb_storage_bridge.cppm"
 )
 

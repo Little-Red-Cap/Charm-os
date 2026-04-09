@@ -127,7 +127,7 @@
                                home_layout.stat_card_w,
                                home_layout.stat_card_h},
                               "Recently Played", "Resume albums and mixes you touched", "2 hours");
-        create_home_stats_probe_card(builder, home_content,
+        create_home_stats_probe_card(builder, h, home_content,
                                      {home_layout.stat_card_x,
                                       home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
                                       home_layout.stat_card_w,

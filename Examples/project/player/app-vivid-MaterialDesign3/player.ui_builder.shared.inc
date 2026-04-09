@@ -762,6 +762,7 @@
     }
 
     static WidgetHandle create_home_stats_probe_card(::ui::scene::SceneBuilder& builder,
+                                                     UiHandles& h,
                                                      WidgetHandle parent,
                                                      const Rect& rect,
                                                      const PlayerIconIds& icons) {
@@ -826,6 +827,7 @@
         builder.set_label_align(value_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, value_label, {18, 70, rect.w - 36, 36});
         builder.link(root, value_label);
+        h.home_stats_total = value_label;
 
         const int metrics_y = 118;
         const int metrics_w = (rect.w - 18 * 2 - 14) / 2;
@@ -841,6 +843,7 @@
         builder.set_label_align(plays_value, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, plays_value, {18, metrics_y + 18, metrics_w, 24});
         builder.link(root, plays_value);
+        h.home_stats_plays = plays_value;
 
         const int right_x = 18 + metrics_w + 14;
         const WidgetHandle avg_label = builder.create_label_static("Avg per day");
@@ -854,6 +857,7 @@
         builder.set_label_align(avg_value, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, avg_value, {right_x, metrics_y + 18, metrics_w, 24});
         builder.link(root, avg_value);
+        h.home_stats_avg = avg_value;
 
         constexpr std::array<const char*, 7> kDays{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
         constexpr std::array<int, 7> kBarHeights{20, 35, 28, 48, 58, 38, 23};
@@ -886,6 +890,8 @@
             }
             builder.set_hit_testable(fill, false);
             builder.link(root, fill);
+            h.home_stats_bars[static_cast<std::size_t>(i)] = fill;
+            h.home_stats_bar_slots[static_cast<std::size_t>(i)] = {x, chart_y, bar_w, chart_h};
 
             const WidgetHandle day_label = builder.create_label_static(kDays[static_cast<std::size_t>(i)]);
             apply_player_text_style(builder, day_label, PlayerTextRole::MetaText, kUiTime);

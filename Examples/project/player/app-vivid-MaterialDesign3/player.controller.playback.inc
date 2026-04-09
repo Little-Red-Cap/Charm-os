@@ -11,6 +11,7 @@
             set_status(status.c_str());
             set_play_button_text(true);
             sync_progress_value(0);
+            begin_weekly_listening_session(true);
         }
 
         void pause_playback() {
@@ -18,6 +19,7 @@
             if (!playback.apply_action(PlaybackAction::pause, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(false);
+            end_weekly_listening_session();
         }
 
         void resume_playback() {
@@ -25,9 +27,11 @@
             if (!playback.apply_action(PlaybackAction::resume, 0, status)) return;
             set_status(status.c_str());
             set_play_button_text(true);
+            begin_weekly_listening_session(false);
         }
 
         void stop_playback() {
+            end_weekly_listening_session();
             FixedString<128> status;
             if (playback.apply_action(PlaybackAction::stop, 0, status)) {
                 set_status(status.c_str());
@@ -49,10 +53,17 @@
             }
 
             if (actions.toggle_play) {
+                const bool was_playing = playback.playing();
+                const bool was_paused = playback.paused();
                 FixedString<128> status;
                 if (playback.apply_action(PlaybackAction::toggle, 0, status)) {
                     if (!status.empty()) set_status(status.c_str());
                     const bool playing_now = playback.playing();
+                    if (was_playing && !playing_now) {
+                        end_weekly_listening_session();
+                    } else if (!was_playing && playing_now) {
+                        begin_weekly_listening_session(!was_paused);
+                    }
                     set_play_button_text(playing_now);
                     if (status.view() == "Opening") {
                         sync_progress_value(0);

@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -104,6 +105,11 @@ export namespace player {
         WidgetHandle home_cover_small{};
         WidgetHandle home_cover_bottom_left{};
         WidgetHandle home_cover_bottom_right{};
+        WidgetHandle home_stats_total{};
+        WidgetHandle home_stats_plays{};
+        WidgetHandle home_stats_avg{};
+        std::array<WidgetHandle, 7> home_stats_bars{};
+        std::array<Rect, 7> home_stats_bar_slots{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
         WidgetHandle now_lyrics{};
@@ -185,6 +191,9 @@ export namespace player {
         FixedString<128> last_list_hint_text{};
         FixedString<128> last_debug_text{};
         FixedString<96> last_info_text{};
+        FixedString<32> last_home_stats_total_text{};
+        FixedString<16> last_home_stats_plays_text{};
+        FixedString<32> last_home_stats_avg_text{};
         std::uint64_t track_size_bytes{0};
         CoverImage cover_image{};
         cover_theme::CoverTheme cover_theme{};
@@ -213,6 +222,14 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+        struct WeeklyListeningStats {
+            int week_key{0};
+            std::array<int, 7> seconds{};
+            int total_plays{0};
+            std::uint64_t last_tick_ms{0};
+            bool active{false};
+            bool dirty{true};
+        } weekly_listening_stats{};
         std::string font_ttf_path{};
         int font_small_px{0};
         int font_normal_px{0};
@@ -504,6 +521,9 @@ export namespace player {
             ::ui::scene::TextSlotId volume_value{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId clip_value{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId debug_text{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId home_stats_total{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId home_stats_plays{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId home_stats_avg{::ui::scene::kInvalidTextSlot};
         } text_slots{};
         FixedString<128> mount_status{};
         std::uint32_t rng_state{0};
@@ -572,6 +592,7 @@ export namespace player {
         }
 
         #include "player.controller.pages.inc"
+        #include "player.controller.home.inc"
 
         const char* track_path() const noexcept {
             return playback.track_path();
@@ -652,6 +673,9 @@ export namespace player {
             text_slots.volume_value = alloc();
             text_slots.clip_value = alloc();
             text_slots.debug_text = alloc();
+            text_slots.home_stats_total = alloc();
+            text_slots.home_stats_plays = alloc();
+            text_slots.home_stats_avg = alloc();
         }
 
         void set_label(WidgetHandle h, const char* text) {
@@ -833,12 +857,14 @@ export namespace player {
         }
 
         void on_player_stopped() {
+            end_weekly_listening_session();
             playback.stop_playback();
             set_status("Stopped");
             set_play_button_text(false);
         }
 
         void on_player_error(const char* text) {
+            end_weekly_listening_session();
             playback.stop_playback();
             set_status(text);
             set_play_button_text(false);
@@ -872,8 +898,11 @@ export namespace player {
                               player::audio_err_text(err), player::audio_stage_text(stage));
                 on_player_error(buf);
             }
+            tick_weekly_listening_stats();
             if (current_page == PlayerPage::Library) {
                 refresh_library();
+            } else if (current_page == PlayerPage::Home) {
+                refresh_home();
             } else {
                 refresh_now_playing();
             }
@@ -1005,6 +1034,7 @@ export namespace player {
             update_nav_page_indicator();
             update_duration_from_player();
             update_info_label();
+            sync_weekly_listening_stats_card();
             update_debug_overlay();
         }
 

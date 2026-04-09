@@ -195,6 +195,7 @@ export namespace ui::scene {
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
+        void set_rect(WidgetHandle h, const Rect& r) noexcept { kernel_->set_rect(h, r); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_->set_value(h, value); }
         int value(WidgetHandle h) const noexcept { return kernel_->value(h); }
         void set_checked(WidgetHandle h, bool v) noexcept { kernel_->set_checked(h, v); }

@@ -131,7 +131,8 @@
                                      {home_layout.stat_card_x,
                                       home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
                                       home_layout.stat_card_w,
-                                      home_layout.stat_probe_card_h});
+                                      home_layout.stat_probe_card_h},
+                                     icons);
 
         const WidgetHandle home_toolbar = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};

@@ -2,6 +2,10 @@ module;
 
 #include <string_view>
 
+#ifdef errno
+#undef errno
+#endif
+
 export module posix.elf_hostcall;
 
 import posix.errno;

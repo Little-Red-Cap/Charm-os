@@ -292,7 +292,7 @@
             .stat_card_w = screen_width - kUiPadding * 2,
             .stat_card_h = 76,
             .stat_card_gap = 14,
-            .stat_probe_card_h = 136,
+            .stat_probe_card_h = 248,
             .toolbar_button_size = 40,
             .toolbar_icon_px = 14,
             .toolbar_button_gap = 48,
@@ -763,74 +763,136 @@
 
     static WidgetHandle create_home_stats_probe_card(::ui::scene::SceneBuilder& builder,
                                                      WidgetHandle parent,
-                                                     const Rect& rect) {
+                                                     const Rect& rect,
+                                                     const PlayerIconIds& icons) {
         ::ui::scene::CardBuilder card{builder, rect, 0, 0,
                                       ::ui::scene::LayoutAlign::Start,
                                       static_cast<StyleClassId>(PlayerStyleClass::ListCard),
                                       true};
         const WidgetHandle root = card.root();
 
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {52, 60, 88, 228};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 16;
+            builder.set_style_override(root, patch);
+        }
+
+        {
+            const WidgetHandle header_band = builder.create_container();
+            anchor_rect(builder, header_band, {0, 0, rect.w, 56});
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {38, 46, 68, 222};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 18;
+            builder.set_style_override(header_band, patch);
+            builder.set_hit_testable(header_band, false);
+            builder.link(root, header_band);
+        }
+
         const WidgetHandle title_label = builder.create_label_static("Listening stats");
         apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, title_label, {16, 12, rect.w - 132, 24});
+        anchor_rect(builder, title_label, {18, 10, rect.w - 110, 24});
         builder.link(root, title_label);
 
-        const WidgetHandle trend_chip = builder.create_label_static("+12%");
-        apply_time_label_style(builder, trend_chip);
-        builder.set_label_align(trend_chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, trend_chip, {rect.w - 84, 12, 68, 24});
-        apply_info_tag_style(builder, trend_chip);
-        builder.link(root, trend_chip);
+        const WidgetHandle subtitle_label = builder.create_label_static("This Week");
+        apply_player_text_style(builder, subtitle_label, PlayerTextRole::MetaText, kUiSubtitle);
+        builder.set_label_align(subtitle_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, subtitle_label, {18, 31, rect.w - 110, 16});
+        builder.link(root, subtitle_label);
 
-        const WidgetHandle value_label = builder.create_label_static("438 min");
-        apply_text_label_style(builder, value_label, kUiTitle, get_player_font_px(30, FontWeight::Bold));
+        const WidgetHandle action_button = builder.create_button_static("");
+        anchor_rect(builder, action_button, {rect.w - 58, 9, 40, 40});
+        builder.set_button_icon(action_button, icons.next);
+        builder.set_button_icon_size(action_button, 14);
+        apply_top_bar_button_style(builder, action_button);
+        builder.set_hit_testable(action_button, false);
+        builder.link(root, action_button);
+
+        const WidgetHandle value_label = builder.create_label_static("0 s");
+        apply_text_label_style(builder, value_label, kUiTitle, get_player_font_px(34, FontWeight::Bold));
         builder.set_label_align(value_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, value_label, {16, 40, rect.w - 132, 34});
+        anchor_rect(builder, value_label, {18, 70, rect.w - 36, 36});
         builder.link(root, value_label);
 
-        const WidgetHandle body_label = builder.create_label_static("Goal pace, streak and top genre this week");
-        apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
-        builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, body_label, {16, 72, rect.w - 32, 16});
-        builder.link(root, body_label);
+        const int metrics_y = 118;
+        const int metrics_w = (rect.w - 18 * 2 - 14) / 2;
 
-        const WidgetHandle goal_label = builder.create_label_static("Goal 600 min");
-        apply_player_text_style(builder, goal_label, PlayerTextRole::MetaText, kUiTime);
-        builder.set_label_align(goal_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        anchor_rect(builder, goal_label, {16, rect.h - 28, 110, 18});
-        builder.link(root, goal_label);
+        const WidgetHandle plays_label = builder.create_label_static("Total plays");
+        apply_player_text_style(builder, plays_label, PlayerTextRole::MetaText, kUiSubtitle);
+        builder.set_label_align(plays_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, plays_label, {18, metrics_y, metrics_w, 16});
+        builder.link(root, plays_label);
 
-        const WidgetHandle details_button = builder.create_button_static("Insights");
-        anchor_rect(builder, details_button, {rect.w - 104, rect.h - 38, 88, 28});
-        apply_top_bar_button_style(builder, details_button);
-        {
-            StylePatch patch = make_player_text_patch(PlayerTextRole::MetaText, kUiTitle);
-            patch.has_padding = true;
-            patch.padding = 6;
-            builder.set_style_override(details_button, patch);
+        const WidgetHandle plays_value = builder.create_label_static("38");
+        apply_text_label_style(builder, plays_value, kUiTitle, get_player_font_px(22, FontWeight::Medium));
+        builder.set_label_align(plays_value, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, plays_value, {18, metrics_y + 18, metrics_w, 24});
+        builder.link(root, plays_value);
+
+        const int right_x = 18 + metrics_w + 14;
+        const WidgetHandle avg_label = builder.create_label_static("Avg per day");
+        apply_player_text_style(builder, avg_label, PlayerTextRole::MetaText, kUiSubtitle);
+        builder.set_label_align(avg_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, avg_label, {right_x, metrics_y, metrics_w, 16});
+        builder.link(root, avg_label);
+
+        const WidgetHandle avg_value = builder.create_label_static("43m");
+        apply_text_label_style(builder, avg_value, kUiTitle, get_player_font_px(22, FontWeight::Medium));
+        builder.set_label_align(avg_value, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
+        anchor_rect(builder, avg_value, {right_x, metrics_y + 18, metrics_w, 24});
+        builder.link(root, avg_value);
+
+        constexpr std::array<const char*, 7> kDays{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+        constexpr std::array<int, 7> kBarHeights{20, 35, 28, 48, 58, 38, 23};
+        const int chart_x = 14;
+        const int chart_y = 170;
+        const int chart_w = rect.w - 28;
+        const int chart_h = 54;
+        const int label_y = chart_y + chart_h + 5;
+        const int cell_w = chart_w / 7;
+        const int bar_w = 22;
+        for (int i = 0; i < 7; ++i) {
+            const int x = chart_x + cell_w * i + (cell_w - bar_w) / 2;
+
+            const int fill_h = kBarHeights[static_cast<std::size_t>(i)];
+            const WidgetHandle fill = builder.create_container();
+            anchor_rect(builder, fill, {x, chart_y + chart_h - fill_h, bar_w, fill_h});
+            {
+                StylePatch patch{};
+                patch.has_bg_color = true;
+                patch.bg_color = (i == 4)
+                    ? rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 255}
+                    : rgba{kUiSwitchOn.r, kUiSwitchOn.g, kUiSwitchOn.b, 210};
+                patch.has_border_color = true;
+                patch.border_color = {0, 0, 0, 0};
+                patch.has_border_width = true;
+                patch.border_width = 0;
+                patch.has_corner_radius = true;
+                patch.corner_radius = bar_w / 2;
+                builder.set_style_override(fill, patch);
+            }
+            builder.set_hit_testable(fill, false);
+            builder.link(root, fill);
+
+            const WidgetHandle day_label = builder.create_label_static(kDays[static_cast<std::size_t>(i)]);
+            apply_player_text_style(builder, day_label, PlayerTextRole::MetaText, kUiTime);
+            builder.set_label_align(day_label, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+            anchor_rect(builder, day_label, {chart_x + cell_w * i, label_y, cell_w, 14});
+            builder.link(root, day_label);
         }
-        builder.set_hit_testable(details_button, false);
-        builder.link(root, details_button);
-
-        const WidgetHandle progress = builder.create_progress_bar_simple();
-        anchor_rect(builder, progress, {16, rect.h - 44, rect.w - 32, 8});
-        {
-            StylePatch patch{};
-            patch.has_border_color = true;
-            patch.border_color = kUiProgressBorder;
-            patch.has_accent_color = true;
-            patch.accent_color = kUiSwitchOn;
-            patch.has_padding = true;
-            patch.padding = 0;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 4;
-            builder.set_style_override(progress, patch);
-        }
-        builder.set_range(progress, 0, 100);
-        builder.set_value(progress, 73);
-        builder.set_hit_testable(progress, false);
-        builder.link(root, progress);
 
         builder.link(parent, root);
         return root;

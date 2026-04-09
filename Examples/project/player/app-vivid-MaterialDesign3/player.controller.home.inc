@@ -70,16 +70,67 @@
             weekly_listening_stats.seconds.fill(0);
             weekly_listening_stats.total_plays = 0;
             weekly_listening_stats.last_tick_ms = 0;
+            weekly_listening_stats.last_persist_ms = 0;
             weekly_listening_stats.dirty = true;
+            weekly_listening_stats.persist_dirty = true;
+        }
+
+        void load_weekly_listening_stats_from_history(int week_key) noexcept {
+            if (const auto* rec = player::find_listening_stats_week(weekly_listening_history, week_key)) {
+                weekly_listening_stats.week_key = rec->week_key;
+                weekly_listening_stats.seconds = rec->seconds;
+                weekly_listening_stats.total_plays = rec->total_plays;
+                weekly_listening_stats.last_tick_ms = 0;
+                weekly_listening_stats.dirty = true;
+                weekly_listening_stats.persist_dirty = false;
+            } else {
+                reset_weekly_listening_stats_for_week(week_key);
+                weekly_listening_stats.persist_dirty = false;
+            }
+            weekly_listening_stats.last_persist_ms = charm::system::ClockCaps::TimeSource::now();
+        }
+
+        void persist_current_weekly_listening_stats() noexcept {
+            if (weekly_listening_stats.week_key == 0) return;
+            ListeningStatsWeekRecord rec{};
+            rec.week_key = weekly_listening_stats.week_key;
+            rec.seconds = weekly_listening_stats.seconds;
+            rec.total_plays = weekly_listening_stats.total_plays;
+            player::upsert_listening_stats_week(weekly_listening_history, rec);
         }
 
         void ensure_weekly_listening_week() noexcept {
             const WeekStamp stamp = current_week_stamp();
             if (weekly_listening_stats.week_key != stamp.key) {
+                if (weekly_listening_stats.week_key != 0 && weekly_listening_stats.persist_dirty) {
+                    persist_current_weekly_listening_stats();
+                    (void)player::save_listening_stats_history(weekly_listening_history);
+                }
                 const bool active = weekly_listening_stats.active;
-                reset_weekly_listening_stats_for_week(stamp.key);
+                load_weekly_listening_stats_from_history(stamp.key);
                 weekly_listening_stats.active = active;
+                weekly_listening_stats.last_tick_ms = active ? charm::system::ClockCaps::TimeSource::now() : 0;
             }
+        }
+
+        void load_weekly_listening_stats_history() {
+            if (!fs_ready) return;
+            weekly_listening_history = player::load_listening_stats_history();
+            const WeekStamp stamp = current_week_stamp();
+            load_weekly_listening_stats_from_history(stamp.key);
+            sync_weekly_listening_stats_card();
+        }
+
+        bool flush_weekly_listening_stats_history() {
+            if (!fs_ready) return false;
+            ensure_weekly_listening_week();
+            persist_current_weekly_listening_stats();
+            const bool ok = player::save_listening_stats_history(weekly_listening_history);
+            if (ok) {
+                weekly_listening_stats.persist_dirty = false;
+                weekly_listening_stats.last_persist_ms = charm::system::ClockCaps::TimeSource::now();
+            }
+            return ok;
         }
 
         void sync_weekly_listening_stats_card() {
@@ -92,7 +143,7 @@
                 total_sec += value;
                 if (value > max_sec) max_sec = value;
             }
-            const int avg_sec = total_sec / 7;
+            const int avg_sec = (total_sec > 0) ? ((total_sec + 6) / 7) : 0;
 
             char total_buf[32]{};
             char plays_buf[16]{};
@@ -143,17 +194,27 @@
                     if (add_sec > 0) {
                         const WeekStamp stamp = current_week_stamp();
                         if (weekly_listening_stats.week_key != stamp.key) {
-                            reset_weekly_listening_stats_for_week(stamp.key);
+                            load_weekly_listening_stats_from_history(stamp.key);
                             weekly_listening_stats.active = true;
+                            weekly_listening_stats.last_tick_ms = now_ms;
                         }
                         weekly_listening_stats.seconds[stamp.day_index] += add_sec;
                         weekly_listening_stats.last_tick_ms += static_cast<std::uint64_t>(add_sec) * 1000;
                         weekly_listening_stats.dirty = true;
+                        weekly_listening_stats.persist_dirty = true;
                     }
                 }
             }
             if (weekly_listening_stats.dirty) {
                 sync_weekly_listening_stats_card();
+            }
+            if (weekly_listening_stats.persist_dirty) {
+                const std::uint64_t now_ms = charm::system::ClockCaps::TimeSource::now();
+                if (!weekly_listening_stats.active
+                    || weekly_listening_stats.last_persist_ms == 0
+                    || now_ms - weekly_listening_stats.last_persist_ms >= 15000) {
+                    (void)flush_weekly_listening_stats_history();
+                }
             }
         }
 
@@ -162,6 +223,7 @@
             if (count_play) {
                 ++weekly_listening_stats.total_plays;
                 weekly_listening_stats.dirty = true;
+                weekly_listening_stats.persist_dirty = true;
             }
             weekly_listening_stats.active = true;
             weekly_listening_stats.last_tick_ms = charm::system::ClockCaps::TimeSource::now();
@@ -174,4 +236,7 @@
             tick_weekly_listening_stats();
             weekly_listening_stats.active = false;
             weekly_listening_stats.last_tick_ms = 0;
+            if (weekly_listening_stats.persist_dirty) {
+                (void)flush_weekly_listening_stats_history();
+            }
         }

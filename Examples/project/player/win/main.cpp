@@ -552,7 +552,7 @@ int main(int argc, char** argv) {
 
     if (ui_ci) {
         const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
-        g_app->shutdown();
+        g_app->shutdown(g_ctx);
         SDL_DestroyTexture(texture);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -595,7 +595,7 @@ int main(int argc, char** argv) {
         (void)win_h;
     }
 
-    g_app->shutdown();
+    g_app->shutdown(g_ctx);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

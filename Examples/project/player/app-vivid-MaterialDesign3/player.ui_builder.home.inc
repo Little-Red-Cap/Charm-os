@@ -6,6 +6,8 @@
         anchor_rect(builder, home, {0, 0, screen_width, screen_height});
         h.page_home = home;
 
+        const auto home_layers = ::ui::scene::create_page_layers(builder, home, {0, 0, screen_width, screen_height});
+
         const WidgetHandle home_scroll = builder.create_scroll_container();
         anchor_rect(builder, home_scroll,
                     {0, 0, screen_width, layout.bottom_bar_y - home_layout.scroll_bottom_gap});
@@ -16,8 +18,7 @@
         anchor_rect(builder, home_content,
                     {0, 0, screen_width, screen_height + home_layout.scroll_extra});
 
-        h.home_backdrop = builder.create_container();
-        anchor_rect(builder, h.home_backdrop, {0, 0, screen_width, screen_height});
+        h.home_backdrop = home_layers.backdrop;
         {
             StylePatch patch{};
             patch.has_bg_color = true;
@@ -162,8 +163,7 @@
             home_top_layout.right_secondary_rect,
             icons.more, home_layout.toolbar_icon_px);
 
-        builder.link(home, h.home_backdrop);
-        builder.link(home, home_scroll);
+        builder.link(home_layers.content, home_scroll);
         builder.link(home_scroll, home_content);
         builder.link(home_content, h.home_title_top);
         builder.link(home_content, h.home_title_bottom);
@@ -175,7 +175,7 @@
         builder.link(home_content, h.home_cover_small);
         builder.link(home_content, h.home_cover_bottom_left);
         builder.link(home_content, h.home_cover_bottom_right);
-        builder.link(home_content, home_toolbar);
+        builder.link(home_layers.chrome, home_toolbar);
         builder.link(home_toolbar, home_settings);
         builder.link(home_toolbar, home_more);
     }

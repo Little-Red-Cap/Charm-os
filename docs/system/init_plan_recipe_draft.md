@@ -144,6 +144,7 @@ Capability 不负责：
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
+- `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法
 
 ## 当前迁移状态
 

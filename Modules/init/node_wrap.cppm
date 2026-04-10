@@ -17,6 +17,7 @@ export namespace init {
     };
 
     template <typename Chain, util::usize Max>
+    [[deprecated("use init::after(...) or plan inheritance instead of node patching")]]
     util::Result<WrappedNodes<Max>> wrap_nodes_with_requires(
         const Chain& chain,
         std::span<const init::CapId> requires_caps) {

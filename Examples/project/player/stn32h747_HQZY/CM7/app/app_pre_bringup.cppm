@@ -233,8 +233,8 @@ export namespace player::stm32h7::app::pre_bringup {
         }
         init::Graph<10, 20> graph{};
         auto r = graph.build(materialized->node_ptr_span(),
-                             static_cast<util::u32>(init::Runlevel::all),
-                             init::Phase::early);
+                             materialized->build_runlevel_mask(),
+                             materialized->build_max_phase());
         if (!r) return r;
         return graph.start();
     }

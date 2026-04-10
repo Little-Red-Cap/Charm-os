@@ -100,6 +100,7 @@ Capability 不负责：
 
 - `Plan` 不继承 `provides`
 - 子树导出必须走 `Barrier`
+- `ready_as(...)` 仅允许包装“所有叶子都显式提供 capability”的子树，否则 `materialize(...)` 直接报错
 
 ### `runlevel`
 
@@ -168,3 +169,4 @@ Capability 不负责：
 - `legacy(...)` / `legacy_nodes(...)` 桥接旧 chain 与旧节点数组
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
+- `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源

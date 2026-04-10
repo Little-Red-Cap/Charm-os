@@ -105,8 +105,8 @@ export namespace player::stm32h7::app::post_bringup {
         }
         init::Graph<4, 8> graph{};
         auto r = graph.build(materialized->node_ptr_span(),
-                             static_cast<util::u32>(init::Runlevel::all),
-                             init::Phase::app);
+                             materialized->build_runlevel_mask(),
+                             materialized->build_max_phase());
         if (!r) return r;
         return graph.start();
     }

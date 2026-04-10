@@ -60,8 +60,8 @@ export namespace charm::system {
                 return util::unexpected(materialized.error());
             }
             auto r = graph_.build(materialized->node_ptr_span(),
-                                  static_cast<util::u32>(init::Runlevel::all),
-                                  init::Phase::app);
+                                  materialized->build_runlevel_mask(),
+                                  materialized->build_max_phase());
             if (!r) return r;
             return graph_.start();
         }

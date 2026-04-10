@@ -30,6 +30,8 @@ namespace init::detail {
         cap_set<MaxCaps> provides{};
         Phase max_phase{Phase::early};
         util::u32 common_runlevel_mask{static_cast<util::u32>(Runlevel::all)};
+        util::usize leaf_count{0};
+        util::usize leaves_with_provides{0};
         bool has_nodes{false};
     };
 
@@ -115,6 +117,8 @@ export namespace init {
         std::array<CapId, MaxCaps> provided_caps_seen{};
         util::usize provided_caps_count{0};
         util::usize count{0};
+        util::u32 effective_runlevel_mask{0};
+        Phase effective_max_phase{Phase::early};
 
         constexpr std::span<const Node* const> node_ptr_span() const noexcept {
             return std::span<const Node* const>{ptrs.data(), count};
@@ -122,6 +126,15 @@ export namespace init {
 
         constexpr util::usize size() const noexcept {
             return count;
+        }
+
+        constexpr util::u32 build_runlevel_mask() const noexcept {
+            return count == 0 ? static_cast<util::u32>(Runlevel::all)
+                              : effective_runlevel_mask;
+        }
+
+        constexpr Phase build_max_phase() const noexcept {
+            return count == 0 ? Phase::app : effective_max_phase;
         }
     };
 }
@@ -180,6 +193,13 @@ namespace init::detail {
         node.provides = std::span<const CapId>{out.provides_storage[row].data(), out.provides_count[row]};
         node.requires_caps = std::span<const CapId>{out.requires_storage[row].data(), out.requires_count[row]};
         out.ptrs[row] = &node;
+        if (row == 0) {
+            out.effective_runlevel_mask = node.runlevel_mask;
+            out.effective_max_phase = node.phase;
+        } else {
+            out.effective_runlevel_mask |= node.runlevel_mask;
+            out.effective_max_phase = phase_max(out.effective_max_phase, node.phase);
+        }
 
         materialize_summary<MaxCaps> summary{};
         for (util::usize i = 0; i < out.provides_count[row]; ++i) {
@@ -190,6 +210,8 @@ namespace init::detail {
         }
         summary.max_phase = node.phase;
         summary.common_runlevel_mask = node.runlevel_mask;
+        summary.leaf_count = 1;
+        summary.leaves_with_provides = out.provides_count[row] > 0 ? 1u : 0u;
         summary.has_nodes = true;
         return summary;
     }
@@ -308,6 +330,8 @@ namespace init::detail {
         if (!r) {
             return util::unexpected(r.error());
         }
+        dst.leaf_count += src.leaf_count;
+        dst.leaves_with_provides += src.leaves_with_provides;
         if (!src.has_nodes) {
             return {};
         }
@@ -364,6 +388,31 @@ namespace init::detail {
             return util::unexpected(util::Errc::invalid_arg);
         }
         const auto span = item.chain->node_span();
+        for (util::usize i = 0; i < span.size(); ++i) {
+            if (!span[i]) {
+                continue;
+            }
+            auto current = append_node(out, *span[i], constraints);
+            if (!current) {
+                return util::unexpected(current.error());
+            }
+            auto merge = absorb_summary(summary, *current);
+            if (!merge) {
+                return util::unexpected(merge.error());
+            }
+        }
+        return summary;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Chain>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const legacy_optional_ref<Chain>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        materialize_summary<MaxCaps> summary{};
+        if (!item.chain || !item.chain->has_value()) {
+            return summary;
+        }
+        const auto span = item.chain->value().node_span();
         for (util::usize i = 0; i < span.size(); ++i) {
             if (!span[i]) {
                 continue;
@@ -447,6 +496,9 @@ namespace init::detail {
             return util::unexpected(summary.error());
         }
         if (!summary->has_nodes || summary->provides.count == 0) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        if (summary->leaf_count == 0 || summary->leaves_with_provides != summary->leaf_count) {
             return util::unexpected(util::Errc::invalid_arg);
         }
         if (summary->common_runlevel_mask == 0) {
@@ -544,6 +596,22 @@ export namespace init {
             return util::unexpected(mats.error());
         }
         if (mats->size() != 3) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        using RecipeNoProvide = recipe_desc<
+            "test.no_provide",
+            Phase::early,
+            static_cast<util::u32>(Runlevel::all),
+            cap_list<>,
+            cap_list<>,
+            DemoContext,
+            nullptr>;
+        const auto invalid_ready_plan = compose(
+            bind<RecipeA>(ctx),
+            bind<RecipeNoProvide>(ctx)).ready_as<CapDone>();
+        auto invalid_ready = materialize<4, 8>(invalid_ready_plan);
+        if (invalid_ready || invalid_ready.error() != util::Errc::invalid_arg) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

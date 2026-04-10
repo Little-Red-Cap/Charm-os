@@ -83,7 +83,7 @@ export namespace posix {
         static util::Result<void> close(void*) noexcept { return {}; }
 
         static util::Result<void> stat(void*, PosixStat& out) noexcept {
-            out.mode = 0;
+            out.mode = make_stat_mode(S_IFCHR, kModePermChar);
             out.size = 0;
             return {};
         }

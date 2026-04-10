@@ -88,6 +88,13 @@ int entry(int argc, char** argv, char** envp) {
         return 12;
     }
 
+    if ((st.st_mode & S_IFMT) != S_IFREG) {
+        const char* msg = "bad-fstat mode\n";
+        (void)write_all(1, msg, cstr_len(msg));
+        close(fd);
+        return 16;
+    }
+
     int bad_rc = fstat(-1, &st);
     if (bad_rc != -1) {
         const char* msg = "bad-fstat rc\n";

@@ -14,6 +14,21 @@ export namespace posix {
     using ByteView = std::span<const util::u8>;
     using MutByteView = std::span<util::u8>;
 
+    inline constexpr util::u32 S_IFMT = 0170000u;
+    inline constexpr util::u32 S_IFIFO = 0010000u;
+    inline constexpr util::u32 S_IFCHR = 0020000u;
+    inline constexpr util::u32 S_IFDIR = 0040000u;
+    inline constexpr util::u32 S_IFREG = 0100000u;
+
+    inline constexpr util::u32 kModePermFile = 0644u;
+    inline constexpr util::u32 kModePermDir = 0755u;
+    inline constexpr util::u32 kModePermChar = 0666u;
+    inline constexpr util::u32 kModePermPipe = 0600u;
+
+    inline constexpr util::u32 make_stat_mode(util::u32 type_bits, util::u32 perm_bits) noexcept {
+        return type_bits | perm_bits;
+    }
+
     struct PosixStat {
         util::u32 mode{0};
         util::u64 size{0};

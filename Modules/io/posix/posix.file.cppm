@@ -23,6 +23,30 @@ export namespace posix {
     inline constexpr int O_TRUNC = 0x200;
     inline constexpr int O_APPEND = 0x400;
 
+    inline constexpr util::u32 stat_type_from_node(fs::NodeType type) noexcept {
+        switch (type) {
+            case fs::NodeType::dir:
+                return S_IFDIR;
+            case fs::NodeType::device:
+                return S_IFCHR;
+            case fs::NodeType::file:
+            default:
+                return S_IFREG;
+        }
+    }
+
+    inline constexpr util::u32 stat_perm_from_node(fs::NodeType type) noexcept {
+        switch (type) {
+            case fs::NodeType::dir:
+                return kModePermDir;
+            case fs::NodeType::device:
+                return kModePermChar;
+            case fs::NodeType::file:
+            default:
+                return kModePermFile;
+        }
+    }
+
     template <typename T, util::usize N>
     class FilePool {
     public:
@@ -107,7 +131,7 @@ export namespace posix {
             }
 
             FdEntry entry{};
-            entry.kind = FdKind::file;
+            entry.kind = handle->file.node.type == fs::NodeType::device ? FdKind::dev : FdKind::file;
             entry.flags = flags_to_fd_flags(flags);
             entry.ops = &FileService::ops();
             entry.ctx = handle;
@@ -125,7 +149,7 @@ export namespace posix {
             }
             static util::Result<void> close(void*) noexcept { return {}; }
             static util::Result<void> stat(void*, PosixStat& out) noexcept {
-                out.mode = 0;
+                out.mode = make_stat_mode(S_IFCHR, kModePermChar);
                 out.size = 0;
                 return {};
             }
@@ -218,7 +242,9 @@ export namespace posix {
             if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            out.mode = 0;
+            out.mode = make_stat_mode(
+                stat_type_from_node(handle->file.node.type),
+                stat_perm_from_node(handle->file.node.type));
             out.size = static_cast<util::u64>(handle->file.node.size);
             return {};
         }

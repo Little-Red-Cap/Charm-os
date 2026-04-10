@@ -213,9 +213,11 @@ namespace {
         posix::PosixStat stat_out{};
         check_eq("devnull-stat", api.stat("/dev/null", &stat_out), 0);
         check_eq("devnull-stat-size", stat_out.size, 0u);
+        check_eq("devnull-stat-mode", stat_out.mode & posix::S_IFMT, posix::S_IFCHR);
         posix::PosixStat fst{};
         check_eq("devnull-fstat", api.fstat(fd, &fst), 0);
         check_eq("devnull-fstat-size", fst.size, 0u);
+        check_eq("devnull-fstat-mode", fst.mode & posix::S_IFMT, posix::S_IFCHR);
         const char msg[] = "abc";
         auto w = api.write(fd, msg, 3);
         check_eq("devnull-write", w, 3);
@@ -241,12 +243,20 @@ namespace {
 
         int file_fd = api.open("/tmp/isatty.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("isatty-file-open", file_fd >= 0);
+        posix::PosixStat file_st{};
+        check_eq("isatty-file-fstat", api.fstat(file_fd, &file_st), 0);
+        check_eq("isatty-file-mode", file_st.mode & posix::S_IFMT, posix::S_IFREG);
         posix::set_errno(0);
         check_eq("isatty-file", api.isatty(file_fd), 0);
         check_eq("isatty-file-errno", posix::get_errno(), 0);
 
         int pipefd[2]{-1, -1};
         check_eq("isatty-pipe-create", api.pipe(pipefd), 0);
+        posix::PosixStat pipe_st{};
+        check_eq("isatty-pipe-fstat-r", api.fstat(pipefd[0], &pipe_st), 0);
+        check_eq("isatty-pipe-mode-r", pipe_st.mode & posix::S_IFMT, posix::S_IFIFO);
+        check_eq("isatty-pipe-fstat-w", api.fstat(pipefd[1], &pipe_st), 0);
+        check_eq("isatty-pipe-mode-w", pipe_st.mode & posix::S_IFMT, posix::S_IFIFO);
         posix::set_errno(0);
         check_eq("isatty-pipe-read", api.isatty(pipefd[0]), 0);
         check_eq("isatty-pipe-read-errno", posix::get_errno(), 0);

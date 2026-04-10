@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <tuple>
 
@@ -16,6 +17,9 @@ import util.core;
 import util.error;
 
 namespace init::detail {
+    template <typename T>
+    inline constexpr bool unsupported_legacy_v = false;
+
     inline util::Result<void> noop_init(void*) noexcept {
         return {};
     }
@@ -353,6 +357,47 @@ namespace init::detail {
                                                                 const Item& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept;
 
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Legacy>
+    util::Result<materialize_summary<MaxCaps>> append_legacy_value(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                   const Legacy& value,
+                                                                   const materialize_constraints<MaxCaps>& constraints) noexcept {
+        materialize_summary<MaxCaps> summary{};
+        if constexpr (requires(const Legacy& candidate) {
+                          candidate.node_span();
+                      }) {
+            const auto span = value.node_span();
+            for (util::usize i = 0; i < span.size(); ++i) {
+                if (!span[i]) {
+                    continue;
+                }
+                auto current = append_node(out, *span[i], constraints);
+                if (!current) {
+                    return util::unexpected(current.error());
+                }
+                auto merge = absorb_summary(summary, *current);
+                if (!merge) {
+                    return util::unexpected(merge.error());
+                }
+            }
+            return summary;
+        } else if constexpr (requires(const Legacy& candidate) {
+                                 candidate.node;
+                             }) {
+            auto current = append_node(out, value.node, constraints);
+            if (!current) {
+                return util::unexpected(current.error());
+            }
+            auto merge = absorb_summary(summary, *current);
+            if (!merge) {
+                return util::unexpected(merge.error());
+            }
+            return summary;
+        } else {
+            static_assert(unsupported_legacy_v<Legacy>,
+                          "init::legacy(...) requires node_span() or a node member");
+        }
+    }
+
     template <std::size_t Index, util::usize MaxNodes, util::usize MaxCaps, typename... Items>
     util::Result<materialize_summary<MaxCaps>> materialize_tuple(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                  const std::tuple<Items...>& items,
@@ -384,50 +429,20 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                 const legacy_ref<Chain>& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept {
-        materialize_summary<MaxCaps> summary{};
         if (!item.chain) {
             return util::unexpected(util::Errc::invalid_arg);
         }
-        const auto span = item.chain->node_span();
-        for (util::usize i = 0; i < span.size(); ++i) {
-            if (!span[i]) {
-                continue;
-            }
-            auto current = append_node(out, *span[i], constraints);
-            if (!current) {
-                return util::unexpected(current.error());
-            }
-            auto merge = absorb_summary(summary, *current);
-            if (!merge) {
-                return util::unexpected(merge.error());
-            }
-        }
-        return summary;
+        return append_legacy_value(out, *item.chain, constraints);
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps, typename Chain>
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                 const legacy_optional_ref<Chain>& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept {
-        materialize_summary<MaxCaps> summary{};
         if (!item.chain || !item.chain->has_value()) {
-            return summary;
+            return materialize_summary<MaxCaps>{};
         }
-        const auto span = item.chain->value().node_span();
-        for (util::usize i = 0; i < span.size(); ++i) {
-            if (!span[i]) {
-                continue;
-            }
-            auto current = append_node(out, *span[i], constraints);
-            if (!current) {
-                return util::unexpected(current.error());
-            }
-            auto merge = absorb_summary(summary, *current);
-            if (!merge) {
-                return util::unexpected(merge.error());
-            }
-        }
-        return summary;
+        return append_legacy_value(out, item.chain->value(), constraints);
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -651,6 +666,37 @@ export namespace init {
             bind<RecipeNoProvide>(ctx)).ready_as<CapDone>();
         auto invalid_ready = materialize<4, 8>(invalid_ready_plan);
         if (invalid_ready || invalid_ready.error() != util::Errc::invalid_arg) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        struct LegacyNodeHolder {
+            std::array<CapId, 1> provides{CapA::id};
+
+            LegacyNodeHolder() noexcept
+                : node{
+                    "test.legacy.node",
+                    Phase::early,
+                    static_cast<util::u32>(Runlevel::all),
+                    std::span<const CapId>{provides.data(), provides.size()},
+                    {},
+                    nullptr,
+                    nullptr,
+                    this
+                } {
+            }
+
+            Node node{};
+        };
+
+        LegacyNodeHolder holder{};
+        auto legacy_holder = materialize<2, 4>(compose(legacy(holder)));
+        if (!legacy_holder || legacy_holder->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
+        auto legacy_optional = materialize<2, 4>(compose(legacy(optional_holder)));
+        if (!legacy_optional || legacy_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

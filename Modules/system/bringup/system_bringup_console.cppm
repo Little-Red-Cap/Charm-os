@@ -1,6 +1,5 @@
 module;
 
-#include <array>
 #include <span>
 
 export module charm.system.bringup.console;
@@ -40,15 +39,12 @@ export namespace charm::system {
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::core) noexcept {
-            const std::array<const init::Node*, 3> bindings{
-                &clock_binding_.node,
-                &registry_binding_.node,
-                &reactor_binding_.node
-            };
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::legacy_nodes(std::span<const init::Node* const>(bindings.data(), bindings.size())),
+                        init::legacy(clock_binding_),
+                        init::legacy(registry_binding_),
+                        init::legacy(reactor_binding_),
                         init::legacy(usart_chain_)),
                     runlevel_mask),
                 max_phase);

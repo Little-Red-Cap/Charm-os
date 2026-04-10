@@ -17,7 +17,9 @@ import charm.system.clock;
 import block.registry;
 import hal_input;
 import init.graph;
+import init.materialize;
 import init.node;
+import init.plan;
 import io.registry;
 import io.reactor;
 import io.channel;
@@ -176,33 +178,12 @@ export namespace charm::system {
             if (i2c_desc_.handle.ops) {
                 i2c_.emplace(i2c_desc_.handle, i2c_desc_.config, i2c_desc_.hal_cap);
             }
-            util::usize board_count = 0;
-            const auto board_nodes = board_.node_span();
-            for (util::usize i = 0; i < board_nodes.size(); ++i) {
-                board_nodes_[board_count++] = board_nodes[i];
-            }
-            if (spi_) {
-                const auto spi_nodes = spi_->node_span();
-                for (util::usize i = 0; i < spi_nodes.size(); ++i) {
-                    board_nodes_[board_count++] = spi_nodes[i];
-                }
-            }
-            if (i2c_) {
-                const auto i2c_nodes = i2c_->node_span();
-                for (util::usize i = 0; i < i2c_nodes.size(); ++i) {
-                    board_nodes_[board_count++] = i2c_nodes[i];
-                }
-            }
             if (sdmmc_desc_.handle.ops) {
                 sdmmc_.emplace(core_.block_registry,
                                sdmmc_desc_.handle,
                                sdmmc_desc_.config,
                                sdmmc_desc_.block_cap,
                                sdmmc_desc_.hal_cap);
-                const auto sdmmc_nodes = sdmmc_->node_span();
-                for (util::usize i = 0; i < sdmmc_nodes.size(); ++i) {
-                    board_nodes_[board_count++] = sdmmc_nodes[i];
-                }
             }
             if (flash_desc_.handle.ops) {
                 flash_.emplace(core_.block_registry,
@@ -210,16 +191,6 @@ export namespace charm::system {
                                flash_desc_.config,
                                flash_desc_.block_cap,
                                flash_desc_.hal_cap);
-                const auto flash_nodes = flash_->node_span();
-                for (util::usize i = 0; i < flash_nodes.size(); ++i) {
-                    board_nodes_[board_count++] = flash_nodes[i];
-                }
-            }
-            if (input_) {
-                const auto input_nodes = input_->node_span();
-                for (util::usize i = 0; i < input_nodes.size(); ++i) {
-                    board_nodes_[board_count++] = input_nodes[i];
-                }
             }
             if (can_desc_.channel) {
                 io::EndpointDesc desc{
@@ -229,9 +200,7 @@ export namespace charm::system {
                     io::EndpointCaps::duplex
                 };
                 can_channel_.emplace(core_.registry, *can_desc_.channel, desc);
-                board_nodes_[board_count++] = &can_channel_->node;
             }
-            board_nodes_span_ = std::span<const init::Node* const>(board_nodes_.data(), board_count);
         }
 
         BringupMinimal(const platform::board::UartDesc& uart,
@@ -266,28 +235,62 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
+            return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
+        }
+
+        template <typename ExtraPlan>
+        util::Result<void> start_plan(const ExtraPlan& extra_plan,
+                                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                                      init::Phase max_phase = init::Phase::app) noexcept {
             if (input_required_ && !input_) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            const auto core_nodes = core_.node_span();
-            const auto total =
-                core_nodes.size() + board_nodes_span_.size() + extra_nodes.size();
-            if (total > MaxNodes) {
-                return util::unexpected(util::Errc::buffer_overflow);
+            const auto spi_nodes = spi_
+                ? spi_->node_span()
+                : std::span<const init::Node* const>{};
+            const auto i2c_nodes = i2c_
+                ? i2c_->node_span()
+                : std::span<const init::Node* const>{};
+            const auto sdmmc_nodes = sdmmc_
+                ? sdmmc_->node_span()
+                : std::span<const init::Node* const>{};
+            const auto flash_nodes = flash_
+                ? flash_->node_span()
+                : std::span<const init::Node* const>{};
+            const auto input_nodes = input_
+                ? input_->node_span()
+                : std::span<const init::Node* const>{};
+
+            std::array<const init::Node*, 1> can_nodes_storage{};
+            util::usize can_nodes_count = 0;
+            if (can_channel_) {
+                can_nodes_storage[0] = &can_channel_->node;
+                can_nodes_count = 1;
             }
-            std::array<const init::Node*, MaxNodes> nodes{};
-            util::usize idx = 0;
-            for (util::usize i = 0; i < core_nodes.size(); ++i) {
-                nodes[idx++] = core_nodes[i];
+            const auto can_nodes = std::span<const init::Node* const>(
+                can_nodes_storage.data(), can_nodes_count);
+
+            const auto bringup_plan = init::phase_limit(
+                init::runlevel(
+                    init::compose(
+                        init::legacy(core_),
+                        init::legacy(board_),
+                        init::legacy_nodes(spi_nodes),
+                        init::legacy_nodes(i2c_nodes),
+                        init::legacy_nodes(sdmmc_nodes),
+                        init::legacy_nodes(flash_nodes),
+                        init::legacy_nodes(input_nodes),
+                        init::legacy_nodes(can_nodes),
+                        extra_plan),
+                    runlevel_mask),
+                max_phase);
+            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
+            if (!materialized) {
+                return util::unexpected(materialized.error());
             }
-            for (util::usize i = 0; i < board_nodes_span_.size(); ++i) {
-                nodes[idx++] = board_nodes_span_[i];
-            }
-            for (util::usize i = 0; i < extra_nodes.size(); ++i) {
-                nodes[idx++] = extra_nodes[i];
-            }
-            auto r = graph_.build(std::span<const init::Node* const>(nodes.data(), idx),
-                                  runlevel_mask, max_phase);
+            auto r = graph_.build(materialized->node_ptr_span(),
+                                  static_cast<util::u32>(init::Runlevel::all),
+                                  init::Phase::app);
             if (!r) return r;
             auto r_start = graph_.start();
             if (!r_start) return r_start;
@@ -324,8 +327,6 @@ export namespace charm::system {
         platform::board::InputDesc input_desc_{};
         init::Graph<MaxNodes, MaxCaps> graph_{};
         std::optional<InputInitChain<io::Registry<MaxEndpoints>>> input_{};
-        std::array<const init::Node*, 20> board_nodes_{};
-        std::span<const init::Node* const> board_nodes_span_{};
         bool input_required_{false};
         platform::board::SpiDesc spi_desc_{};
         platform::board::I2cDesc i2c_desc_{};

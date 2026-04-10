@@ -74,6 +74,7 @@ import charm.system.time;
 import charm.system.reactor_pump;
 import charm.system.init_usb;
 import init.node;
+import init.plan;
 import charm.port;
 import driver.usart_channel;
 import io.channel;
@@ -500,13 +501,11 @@ int charm_player_selected_profile_main() {
         kUsbStrings.entries.data(), kUsbStrings.entries.size());
     auto usb_plan = player::stm32h7::app::init_graph::build_usb_msc_plan(
         bringup.block_registry(), usb_cfg);
-    const auto extra_nodes = usb_plan.node_span();
 
-    auto r = bringup.start(
+    auto r = bringup.start_plan(
+        init::legacy(usb_plan),
         static_cast<util::u32>(init::Runlevel::all),
-        init::Phase::app,
-        extra_nodes
-        );
+        init::Phase::app);
     if (!r) {
         early_uart_print("boot: bringup failed\n");
         early_uart_print_err("boot: bringup", r.error());

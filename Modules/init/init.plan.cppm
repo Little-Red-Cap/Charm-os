@@ -52,13 +52,14 @@ export namespace init {
         }
 
         template <typename Cap>
+        [[deprecated("use ready_as<Cap>() or an explicit barrier recipe")]]
         constexpr auto export_as() const noexcept {
             return export_plan<Derived, Cap>{self()};
         }
 
         template <typename Cap>
         constexpr auto ready_as() const noexcept {
-            return export_as<Cap>();
+            return export_plan<Derived, Cap>{self()};
         }
 
         constexpr auto phase_limit(Phase value) const noexcept {

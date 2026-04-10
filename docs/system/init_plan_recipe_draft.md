@@ -101,6 +101,7 @@ Capability 不负责：
 - `Plan` 不继承 `provides`
 - 子树导出必须走 `Barrier`
 - `ready_as(...)` 仅允许包装“所有叶子都显式提供 capability”的子树，否则 `materialize(...)` 直接报错
+- `export_as(...)` 仅保留为兼容别名；对外推荐表面统一为 `ready_as(...)` 或显式 barrier
 
 ### `runlevel`
 

@@ -590,7 +590,7 @@ export namespace init {
         DemoContext ctx{};
         const auto plan_value = compose(
             bind<RecipeA>(ctx),
-            bind<RecipeB>(ctx)).export_as<CapDone>();
+            bind<RecipeB>(ctx)).ready_as<CapDone>();
         auto mats = materialize<4, 8>(plan_value);
         if (!mats) {
             return util::unexpected(mats.error());

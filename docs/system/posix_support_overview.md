@@ -21,7 +21,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 
 ## 当前已验证的主骨架
 - QEMU 主线已能稳定通过：`posix smoke + busybox phase2 smoke`。
-- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`fd_probe`。
+- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`fd_probe`、`stat_probe`。
 - 已成立的关键能力包括：
   - 文件路径 ELF 装载
   - `_exit(code)` 统一收束
@@ -33,7 +33,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 当前这条执行面仍然是 v0，必须明确它的边界：
 - 这是 same-address-space 的最小用户程序执行模型，不是完整 Linux 进程模型。
 - 还没有 `fork`、signals、动态链接、用户态/内核态隔离、完整 `stat`/路径错误矩阵。
-- `stat_probe` 仍然是单独隔离的待修项，不阻塞主线。
+- `stat_probe` 已回到主线回归，目前先覆盖 `fstat` 大小与 `EBADF` 错误路径，后续继续补 `mode/类型` 字段。
 - `close(-1)` 已收敛到 `EBADF`，但更完整的 fd/path 错误矩阵仍未覆盖完。
 
 ## 推荐阅读

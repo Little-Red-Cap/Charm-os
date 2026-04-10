@@ -3,7 +3,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <csetjmp>
-#include <cstdio>
 #include <span>
 #include <string_view>
 #ifdef errno
@@ -112,9 +111,6 @@ export namespace posix {
         }
 
         util::Result<ProgramImage> load_image(const SpawnConfig& cfg) noexcept {
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-            std::fputs("[posix-elf] load_image enter\n", stderr);
-#endif
             return posix::resolve_program_image(*this, cfg, exec_catalog_, elf_mem_registry_, resolved_path_);
         }
         util::Result<SpawnResult> spawn(const SpawnConfig& cfg) noexcept {

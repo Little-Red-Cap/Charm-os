@@ -11,7 +11,7 @@
 - ELF buffer/file/candidate loading now delegates through `posix.exec_loader`, leaving `posix.proc` closer to an orchestrator
 - `load_image()` source selection now delegates through `posix.image_resolver`, so `posix.proc` is closer to a pure orchestrator
 - child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
-- `stat_probe` is temporarily isolated so it does not block the mainline smoke
+- `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
 
 ## Stable ABI Contracts
 
@@ -40,11 +40,11 @@
 - real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
 
 ## Isolated / Deferred Issues
-- `stat_probe`: currently behaves like a function-body / layout-level anomaly in the test host path; isolated from mainline smoke
+- no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
 
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
-1. Resume `stat_probe` on a separate line, keeping helper-based or split-function experiments away from the mainline smoke
+1. Extend `stat_probe` from size/error basics to `mode` / file-type fields without re-introducing helper-side layout coupling
 2. Continue wiring `search_path` semantics into more realistic shell / userland flows, not only proc smoke
 3. Decide whether v0 should keep converging path-type errors beyond `open()` into `mkdir` / `truncate` / `rename`
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

@@ -247,8 +247,8 @@ namespace {
         posix::SpawnConfig cfg{};
         cfg.path = "elf:/hello";
         cfg.argv = std::span<const char* const>(argv, 1);
-        auto sp = h.procs.spawn(cfg);
-        check_true("elf-not-supported", !sp && sp.error() == util::Errc::not_supported);
+        auto image = h.procs.load_image(cfg);
+        check_true("elf-not-supported", !image && image.error() == util::Errc::not_supported);
 
         h.unbind_env();
     }

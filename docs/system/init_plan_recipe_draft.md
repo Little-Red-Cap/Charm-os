@@ -148,6 +148,7 @@ Capability 不负责：
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
 - 旧式 `start(runlevel, phase, extra_nodes)` 仅保留为兼容入口，并逐步退场
 - `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法
+- 框架内的 `*Chain` / `CoreSystemChain` 优先暴露 `plan()`；`node_span()` 仅保留给 legacy adapter 与兼容层
 
 ## 当前迁移状态
 
@@ -169,6 +170,7 @@ Capability 不负责：
 
 - `compose(...)` 组织装配树
 - `legacy(...)` 桥接旧 chain、`optional` chain 与单节点 legacy binding；`legacy_nodes(...)` 仅保留给旧节点数组兼容
+- 框架内默认组合表面优先用 `chain.plan()`，不再把 `legacy(chain)` 当作主路
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
 - `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源

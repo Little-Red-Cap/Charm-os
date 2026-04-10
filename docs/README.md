@@ -12,6 +12,7 @@
 - IO 核心契约：`docs/io/io_channel_contract.md`、`docs/io/io_reactor_contract.md`、`docs/io/io_registry_contract.md`
 - 装配与启动：`docs/system/init_graph_contract.md`
 - Recipe / Plan 草案：`docs/system/init_plan_recipe_draft.md`
+- Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - 输入链路：`docs/input/input_layering_decision.md`
 
@@ -105,6 +106,7 @@ docs/
 ### 系统与启动
 - `docs/system/init_graph_contract.md`
 - `docs/system/init_plan_recipe_draft.md`
+- `docs/system/init_plan_review_rules.md`
 - `docs/system/service_component_init.md`
 - `docs/system/power_lowpower_overview.md`
 - `docs/system/at_system.md`

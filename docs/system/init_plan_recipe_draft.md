@@ -171,3 +171,4 @@ Capability 不负责：
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
 - `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源
+- 推荐用 `build_graph(...)` / `start_graph(...)` 作为 `Plan -> Graph` 的默认胶水层，避免重复样板代码

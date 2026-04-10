@@ -55,15 +55,7 @@ export namespace charm::system {
                         extra_plan),
                     runlevel_mask),
                 max_phase);
-            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
-            if (!materialized) {
-                return util::unexpected(materialized.error());
-            }
-            auto r = graph_.build(materialized->node_ptr_span(),
-                                  materialized->build_runlevel_mask(),
-                                  materialized->build_max_phase());
-            if (!r) return r;
-            return graph_.start();
+            return init::start_graph(graph_, bringup_plan);
         }
 
         init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }

@@ -99,15 +99,7 @@ export namespace player::stm32h7::app::post_bringup {
         const auto bringup_plan = init::compose(
             init::bind<detail::UsbRunRecipe>(ctx),
             init::bind<detail::DisplayRecipe>(ctx));
-        auto materialized = init::materialize<4, 8>(bringup_plan);
-        if (!materialized) {
-            return util::unexpected(materialized.error());
-        }
         init::Graph<4, 8> graph{};
-        auto r = graph.build(materialized->node_ptr_span(),
-                             materialized->build_runlevel_mask(),
-                             materialized->build_max_phase());
-        if (!r) return r;
-        return graph.start();
+        return init::start_graph(graph, bringup_plan);
     }
 }

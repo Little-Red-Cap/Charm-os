@@ -52,17 +52,7 @@ export namespace charm::system {
                         init::legacy(usart_chain_)),
                     runlevel_mask),
                 max_phase);
-            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
-            if (!materialized) {
-                return util::unexpected(materialized.error());
-            }
-            auto r = graph_.build(materialized->node_ptr_span(),
-                                  materialized->build_runlevel_mask(),
-                                  materialized->build_max_phase());
-            if (!r) return r;
-            auto r_start = graph_.start();
-            if (!r_start) return r_start;
-            return {};
+            return init::start_graph(graph_, bringup_plan);
         }
 
         io::Channel* console_channel() noexcept {

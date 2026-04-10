@@ -7,6 +7,7 @@ module;
 
 export module init.materialize;
 
+import init.graph;
 import init.meta;
 import init.plan;
 import init.recipe;
@@ -558,6 +559,44 @@ export namespace init {
             return util::unexpected(r.error());
         }
         return out;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    util::Result<void> build_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const materialized_graph<MaxNodes, MaxCaps>& mats) noexcept {
+        return graph.build(mats.node_ptr_span(),
+                           mats.build_runlevel_mask(),
+                           mats.build_max_phase());
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Plan>
+    util::Result<void> build_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const Plan& plan_value) noexcept {
+        auto mats = materialize<MaxNodes, MaxCaps>(plan_value);
+        if (!mats) {
+            return util::unexpected(mats.error());
+        }
+        return build_graph(graph, *mats);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    util::Result<void> start_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const materialized_graph<MaxNodes, MaxCaps>& mats) noexcept {
+        auto r = build_graph(graph, mats);
+        if (!r) {
+            return util::unexpected(r.error());
+        }
+        return graph.start();
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Plan>
+    util::Result<void> start_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const Plan& plan_value) noexcept {
+        auto mats = materialize<MaxNodes, MaxCaps>(plan_value);
+        if (!mats) {
+            return util::unexpected(mats.error());
+        }
+        return start_graph(graph, *mats);
     }
 
 #ifndef NDEBUG

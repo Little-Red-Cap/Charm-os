@@ -698,10 +698,10 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
 extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     if (!g_usb_hooks_enabled || !hpcd) return 0;
     if (epnum == 0) {
-        const auto sent = (hpcd->IN_ep[0].xfer_len >= hpcd->IN_ep[0].xfer_count)
-            ? static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len - hpcd->IN_ep[0].xfer_count)
-            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         const bool sent_zlp = (hpcd->IN_ep[0].xfer_len == 0);
+        const auto sent = sent_zlp
+            ? 0u
+            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         g_in0_calls++;
         (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
         g_usb_adapter.handle_in_complete(sent, sent_zlp);
@@ -715,9 +715,7 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     }
     auto& cb = g_usb_in_cbs[epnum];
     if (cb.on_in_complete) {
-        const auto sent = (hpcd->IN_ep[epnum].xfer_len >= hpcd->IN_ep[epnum].xfer_count)
-            ? static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len - hpcd->IN_ep[epnum].xfer_count)
-            : static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len);
+        const auto sent = static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len);
         cb.on_in_complete(g_usb_in_ctx[epnum], sent, false);
     }
     if (g_msc_cfg && epnum == static_cast<uint8_t>(g_msc_cfg->ep_in & 0x0F)) {

@@ -331,8 +331,8 @@ export namespace usb::device {
             notify.address = cfg.ep_notify;
             notify.direction = driver::EpDirection::in;
             notify.type = driver::EpType::interrupt;
-            notify.max_packet_size = cfg.ep_mps;
-            notify.interval = 10;
+            notify.max_packet_size = 8;
+            notify.interval = 16;
 
             driver::EpConfig out{};
             out.address = cfg.ep_out;

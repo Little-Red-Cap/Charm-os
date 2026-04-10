@@ -156,7 +156,7 @@ export namespace usb::device {
             if (!self->mux.add_slot(ClassMuxSlot{
                     &(*self->msc),
                     self->msc->class_ops(),
-                    self->desc.msc_cfg.ifc,
+                    self->desc.msc_cfg.interface_number,
                     1,
                     self->msc_eps.data(),
                     self->msc_eps.size(),

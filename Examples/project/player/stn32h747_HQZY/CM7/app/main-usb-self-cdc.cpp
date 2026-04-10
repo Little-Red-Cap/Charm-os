@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <span>
 #include <cstring>
+#include <cstdio>
 
 #include "stm32h7xx_hal.h"
 
@@ -61,6 +62,22 @@ bool cdc_queue(CdcAppState& state, std::span<const usb::u8> data) noexcept {
 
 bool cdc_queue_text(CdcAppState& state, const char* text) noexcept {
     return cdc_queue(state, std::span<const usb::u8>(reinterpret_cast<const usb::u8*>(text), std::strlen(text)));
+}
+
+void print_desc_hex(const char* prefix, std::span<const usb::u8> bytes) {
+    if (!prefix || bytes.empty()) return;
+    char buf[512];
+    int offset = std::snprintf(buf, sizeof(buf), "%s size=%lu", prefix,
+        static_cast<unsigned long>(bytes.size()));
+    for (std::size_t i = 0; i < bytes.size() && offset > 0 && static_cast<std::size_t>(offset) < (sizeof(buf) - 4); ++i) {
+        offset += std::snprintf(buf + offset, sizeof(buf) - static_cast<std::size_t>(offset),
+            " %02X", static_cast<unsigned>(bytes[i]));
+    }
+    if (offset > 0 && static_cast<std::size_t>(offset) < sizeof(buf) - 2) {
+        buf[offset++] = '\n';
+        buf[offset] = '\0';
+        out::print<"{}">(buf);
+    }
 }
 
 void cdc_on_line_coding(void* ctx, const usb::class_driver::CdcLineCoding& coding) noexcept {
@@ -172,7 +189,6 @@ int charm_player_selected_profile_main() {
         usb::spec::DeviceSpec{
             .vendor_id = 0x1209,
             .product_id = 0x0003,
-            .device_class = usb::class_driver::cdc_class,
             .i_manufacturer = 1,
             .i_product = 2,
             .i_serial = 3,
@@ -202,6 +218,9 @@ int charm_player_selected_profile_main() {
         out::println<"boot: usb cdc init failed {}">(static_cast<int>(init_st.error()));
         Error_Handler();
     }
+
+    print_desc_hex("usb: dev_desc", binding.table.device);
+    print_desc_hex("usb: cfg_desc", binding.table.configuration);
 
     if (HAL_PCD_Start(&hpcd_USB_OTG_FS) != HAL_OK) {
         out::println<"boot: usb start failed">();

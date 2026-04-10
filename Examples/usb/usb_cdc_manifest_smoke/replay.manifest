@@ -1,0 +1,2 @@
+manifest usb.fixture.v1
+case name=cdc-basic trace=../usb_cdc_replay_smoke/cdc.trace

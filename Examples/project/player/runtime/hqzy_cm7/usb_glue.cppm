@@ -235,10 +235,10 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
     if (!glue) return 0;
     if (epnum == 0) {
-        const auto sent = (hpcd->IN_ep[0].xfer_len >= hpcd->IN_ep[0].xfer_count)
-            ? static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len - hpcd->IN_ep[0].xfer_count)
-            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         const bool sent_zlp = (hpcd->IN_ep[0].xfer_len == 0);
+        const auto sent = sent_zlp
+            ? 0u
+            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         if (glue->ep0_expect_status_out) {
             (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), 0);
         } else {
@@ -249,7 +249,7 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
     }
     auto& cb = glue->in_cbs[epnum];
     if (cb.on_in_complete) {
-        const auto sent = hpcd->IN_ep[epnum].xfer_count;
+        const auto sent = static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len);
         cb.on_in_complete(glue->in_ctxs[epnum], sent, false);
     }
     return 1;

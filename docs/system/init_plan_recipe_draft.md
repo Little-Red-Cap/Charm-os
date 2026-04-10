@@ -151,10 +151,16 @@ Capability 不负责：
 当前已经有几处真实入口切到了这条新路径：
 
 - `Examples/project/player/profiles/hqzy_cm7_usb_self_msc.system.cppm`
+- `Examples/project/player/stn32h747_HQZY/CM7/app/app_pre_bringup.cppm`
+- `Examples/project/player/stn32h747_HQZY/CM7/app/app_post_bringup.cppm`
+- `Examples/project/player/stn32h747_HQZY/CM7/app/main.cpp`
+- `Examples/fs/fs_block_vfs_demo/main.cpp`
+- `Examples/usb/usb_msc_block_demo/main.cpp`
 - `Modules/system/bringup/system_bringup.cppm`
 - `Modules/system/bringup/system_bringup_block.cppm`
 - `Modules/system/bringup/system_bringup_input.cppm`
 - `Modules/system/bringup/system_bringup_console.cppm`
+- `Modules/system/bringup/system_bringup_win_stub.cppm`
 
 这几处目前统一采用：
 

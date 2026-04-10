@@ -1,9 +1,7 @@
 module;
 
-#include <array>
 #include <cstdio>
 #include <cstdint>
-#include <span>
 
 #include "stm32h7xx_hal.h"
 #include "fmc.h"
@@ -14,7 +12,11 @@ module;
 export module player.stm32h7.app_pre_bringup;
 
 import init.graph;
+import init.materialize;
+import init.meta;
 import init.node;
+import init.plan;
+import init.recipe;
 import charm.port;
 import player.stm32h7.board_keys;
 import player.stm32h7.board_sdram;
@@ -92,58 +94,48 @@ export namespace player::stm32h7::app::pre_bringup {
     }
 
     namespace detail {
-        static constexpr init::CapId kCapFmc = init::cap_id("hw.fmc");
-        static constexpr init::CapId kCapSdram = init::cap_id("hw.sdram");
-        static constexpr init::CapId kCapSdmmc = init::cap_id("hw.sdmmc");
-        static constexpr init::CapId kCapUsb = init::cap_id("hw.usb");
-        static constexpr init::CapId kCapI2s = init::cap_id("hw.i2s1");
-        static constexpr init::CapId kCapSpi5 = init::cap_id("hw.spi5");
+        using FmcCap = init::cap_c<"hw.fmc">;
+        using SdramCap = init::cap_c<"hw.sdram">;
+        using SdmmcCap = init::cap_c<"hw.sdmmc">;
+        using UsbCap = init::cap_c<"hw.usb">;
+        using I2sCap = init::cap_c<"hw.i2s1">;
+        using Spi5Cap = init::cap_c<"hw.spi5">;
 
-        util::Result<void> init_fmc(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            if (!c->cfg.fmc_init_on_boot) {
-                if (c->print) c->print("boot: fmc init skip\n");
+        util::Result<void> init_fmc(Context& ctx) noexcept {
+            if (!ctx.cfg.fmc_init_on_boot) {
+                if (ctx.print) ctx.print("boot: fmc init skip\n");
                 return {};
             }
-            if (c->print) c->print("boot: fmc init begin\n");
+            if (ctx.print) ctx.print("boot: fmc init begin\n");
             MX_FMC_Init();
-            if (c->print) c->print("boot: fmc init ok\n");
+            if (ctx.print) ctx.print("boot: fmc init ok\n");
             return {};
         }
 
-        util::Result<void> init_sdram(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            if (!c->cfg.sdram_selftest_on_boot) return {};
-            if (c->print) c->print("boot: sdram test begin\n");
-            c->sdram_ready = player::stm32h7::board::sdram_selftest_early(
-                c->print,
-                c->sleep
+        util::Result<void> init_sdram(Context& ctx) noexcept {
+            if (!ctx.cfg.sdram_selftest_on_boot) return {};
+            if (ctx.print) ctx.print("boot: sdram test begin\n");
+            ctx.sdram_ready = player::stm32h7::board::sdram_selftest_early(
+                ctx.print,
+                ctx.sleep
             );
-            if (c->print) c->print("boot: sdram test end\n");
+            if (ctx.print) ctx.print("boot: sdram test end\n");
             return {};
         }
 
-        util::Result<void> init_sdmmc(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            if (!c->cfg.enable_sdmmc_init) return {};
+        util::Result<void> init_sdmmc(Context& ctx) noexcept {
+            if (!ctx.cfg.enable_sdmmc_init) return {};
             player::stm32h7::board::sdmmc_hw_init();
             return {};
         }
 
-        util::Result<void> init_usb(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            player::stm32h7::board::usb_init_early(c->cfg.use_st_usb_stack);
+        util::Result<void> init_usb(Context& ctx) noexcept {
+            player::stm32h7::board::usb_init_early(ctx.cfg.use_st_usb_stack);
             return {};
         }
 
-        util::Result<void> init_i2s(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            if (!c->cfg.enable_i2s_init) return {};
+        util::Result<void> init_i2s(Context& ctx) noexcept {
+            if (!ctx.cfg.enable_i2s_init) return {};
             MX_I2S1_Init();
 #if defined(RCC_PERIPHCLK_SPI123)
             const util::u32 i2s_clk = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI123);
@@ -152,7 +144,7 @@ export namespace player::stm32h7::app::pre_bringup {
 #else
             const util::u32 i2s_clk = 0;
 #endif
-            if (c->print) {
+            if (ctx.print) {
                 char buf[96]{};
                 const int n = std::snprintf(
                     buf,
@@ -161,100 +153,86 @@ export namespace player::stm32h7::app::pre_bringup {
                     static_cast<unsigned long>(i2s_clk),
                     static_cast<unsigned long>(48000U * 256U),
                     static_cast<unsigned long>(hi2s1.Init.AudioFreq));
-                if (n > 0) c->print(buf);
+                if (n > 0) ctx.print(buf);
             }
             return {};
         }
 
-        util::Result<void> init_spi5(void* ctx) noexcept {
-            auto* c = static_cast<Context*>(ctx);
-            if (!c) return util::unexpected(util::Errc::invalid_arg);
-            if (!c->cfg.enable_spi5_init) return {};
+        util::Result<void> init_spi5(Context& ctx) noexcept {
+            if (!ctx.cfg.enable_spi5_init) return {};
             MX_SPI5_Init();
             return {};
         }
-    } // namespace detail
 
-    util::Result<void> run(Context& ctx) noexcept {
-        static constexpr init::CapId kProvidesFmc[] = {detail::kCapFmc};
-        static constexpr init::CapId kProvidesSdram[] = {detail::kCapSdram};
-        static constexpr init::CapId kRequiresSdram[] = {detail::kCapFmc};
-        static constexpr init::CapId kProvidesSdmmc[] = {detail::kCapSdmmc};
-        static constexpr init::CapId kProvidesUsb[] = {detail::kCapUsb};
-        static constexpr init::CapId kProvidesI2s[] = {detail::kCapI2s};
-        static constexpr init::CapId kProvidesSpi5[] = {detail::kCapSpi5};
-
-        const init::Node fmc_node{
+        using FmcRecipe = init::recipe_desc<
             "fmc.init",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesFmc, 1),
-            {},
-            &detail::init_fmc,
-            nullptr,
-            &ctx
-        };
-        const init::Node sdram_node{
+            init::cap_list<FmcCap>,
+            init::cap_list<>,
+            Context,
+            &init_fmc>;
+
+        using SdramRecipe = init::recipe_desc<
             "sdram.selftest",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesSdram, 1),
-            std::span<const init::CapId>(kRequiresSdram, 1),
-            &detail::init_sdram,
-            nullptr,
-            &ctx
-        };
-        const init::Node sdmmc_node{
+            init::cap_list<SdramCap>,
+            init::cap_list<FmcCap>,
+            Context,
+            &init_sdram>;
+
+        using SdmmcRecipe = init::recipe_desc<
             "sdmmc.init",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesSdmmc, 1),
-            {},
-            &detail::init_sdmmc,
-            nullptr,
-            &ctx
-        };
-        const init::Node usb_node{
+            init::cap_list<SdmmcCap>,
+            init::cap_list<>,
+            Context,
+            &init_sdmmc>;
+
+        using UsbRecipe = init::recipe_desc<
             "usb.init_early",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesUsb, 1),
-            {},
-            &detail::init_usb,
-            nullptr,
-            &ctx
-        };
-        const init::Node i2s_node{
+            init::cap_list<UsbCap>,
+            init::cap_list<>,
+            Context,
+            &init_usb>;
+
+        using I2sRecipe = init::recipe_desc<
             "i2s1.init",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesI2s, 1),
-            {},
-            &detail::init_i2s,
-            nullptr,
-            &ctx
-        };
-        const init::Node spi5_node{
+            init::cap_list<I2sCap>,
+            init::cap_list<>,
+            Context,
+            &init_i2s>;
+
+        using Spi5Recipe = init::recipe_desc<
             "spi5.init",
             init::Phase::early,
             static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesSpi5, 1),
-            {},
-            &detail::init_spi5,
-            nullptr,
-            &ctx
-        };
+            init::cap_list<Spi5Cap>,
+            init::cap_list<>,
+            Context,
+            &init_spi5>;
+    } // namespace detail
 
-        const init::Node* nodes[] = {
-            &fmc_node,
-            &sdram_node,
-            &sdmmc_node,
-            &usb_node,
-            &i2s_node,
-            &spi5_node
-        };
+    util::Result<void> run(Context& ctx) noexcept {
+        const auto bringup_plan = init::compose(
+            init::bind<detail::FmcRecipe>(ctx),
+            init::bind<detail::SdramRecipe>(ctx),
+            init::bind<detail::SdmmcRecipe>(ctx),
+            init::bind<detail::UsbRecipe>(ctx),
+            init::bind<detail::I2sRecipe>(ctx),
+            init::bind<detail::Spi5Recipe>(ctx));
+        auto materialized = init::materialize<10, 20>(bringup_plan);
+        if (!materialized) {
+            return util::unexpected(materialized.error());
+        }
         init::Graph<10, 20> graph{};
-        auto r = graph.build(std::span<const init::Node* const>(nodes, 6),
+        auto r = graph.build(materialized->node_ptr_span(),
                              static_cast<util::u32>(init::Runlevel::all),
                              init::Phase::early);
         if (!r) return r;

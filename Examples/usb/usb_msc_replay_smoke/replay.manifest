@@ -1,0 +1,2 @@
+manifest usb.fixture.v1
+case name=msc-basic trace=msc.trace

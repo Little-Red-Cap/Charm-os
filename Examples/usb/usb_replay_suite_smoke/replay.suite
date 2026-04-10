@@ -1,0 +1,4 @@
+suite usb.fixture.suite.v1
+manifest path=../usb_cdc_manifest_smoke/replay.manifest
+manifest path=../usb_msc_replay_smoke/replay.manifest
+manifest path=../usb_msc_cdc_replay_smoke/replay.manifest

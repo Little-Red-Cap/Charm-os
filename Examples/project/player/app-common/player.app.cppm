@@ -39,6 +39,14 @@ export namespace player {
 
         void tick() { player_.tick(); }
         void shutdown() noexcept { player_.shutdown(); }
+
+        template <typename Controller>
+        void shutdown(Controller& controller) noexcept {
+            if constexpr (requires { controller.flush_weekly_listening_stats_history(); }) {
+                (void)controller.flush_weekly_listening_stats_history();
+            }
+            player_.shutdown();
+        }
         bool is_running() const noexcept { return player_.is_running(); }
         audio::AudioPlayer& player() noexcept { return player_; }
         const audio::AudioPlayer& player() const noexcept { return player_; }
@@ -65,6 +73,9 @@ export namespace player {
                               bool auto_start) {
             auto storage = scan_storage();
             controller.apply_storage_view(storage_view());
+            if constexpr (requires { controller.load_weekly_listening_stats_history(); }) {
+                controller.load_weekly_listening_stats_history();
+            }
             if (controller.fs_ready && last_storage_.tracks.size() != 0) {
                 if (!controller.load_track_index(initial_index)) {
                     controller.clear_track_state();

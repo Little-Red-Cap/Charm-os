@@ -184,6 +184,8 @@ export namespace ui::scene {
 
         void set_list_row_height(WidgetHandle h, int height) noexcept { kernel_->set_list_row_height(h, height); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_->set_scroll_step(h, step); }
+        void set_scroll_y(WidgetHandle h, int y) noexcept { kernel_->set_scroll_y(h, y); }
+        int scroll_y(WidgetHandle h) const noexcept { return kernel_->scroll_y(h); }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_override(h, patch); }
         void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_adjust(h, patch); }
         void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_->set_style_override(h, patch); }
@@ -193,6 +195,7 @@ export namespace ui::scene {
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
+        void set_rect(WidgetHandle h, const Rect& r) noexcept { kernel_->set_rect(h, r); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_->set_value(h, value); }
         int value(WidgetHandle h) const noexcept { return kernel_->value(h); }
         void set_checked(WidgetHandle h, bool v) noexcept { kernel_->set_checked(h, v); }
@@ -223,6 +226,8 @@ export namespace ui::scene {
         WidgetHandle create_radio(const char* text) noexcept { return factory_.create_radio(text); }
         WidgetHandle create_list_item(const char* text) noexcept { return factory_.create_list_item(text); }
         WidgetHandle create_progress() noexcept { return factory_.create_progress(); }
+        WidgetHandle create_progress_bar_simple() noexcept { return factory_.create_progress_bar_simple(); }
+        WidgetHandle create_progress_bar_round() noexcept { return factory_.create_progress_bar_round(); }
         WidgetHandle create_list_view() noexcept { return factory_.create_list_view(); }
         WidgetHandle create_scrollbar_for(WidgetHandle target) noexcept { return factory_.create_scrollbar_for(target); }
         WidgetHandle create_button_static(const char* text) noexcept { return factory_.create_button_static(text); }
@@ -240,6 +245,7 @@ export namespace ui::scene {
         void set_input_root(WidgetHandle h) noexcept { kernel_.set_input_root(h); }
         void set_clip_children(WidgetHandle h, bool v) noexcept { kernel_.set_clip_children(h, v); }
         void set_scroll_step(WidgetHandle h, int step) noexcept { kernel_.set_scroll_step(h, step); }
+        void set_scroll_y(WidgetHandle h, int y) noexcept { kernel_.set_scroll_y(h, y); }
         void set_range(WidgetHandle h, int min, int max) noexcept { kernel_.set_range(h, min, max); }
         void set_value(WidgetHandle h, int value) noexcept { kernel_.set_value(h, value); }
         void set_hit_testable(WidgetHandle h, bool v) noexcept { kernel_.set_hit_testable(h, v); }

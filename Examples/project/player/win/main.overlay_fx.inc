@@ -67,19 +67,4 @@
             }
         }
 
-        const Rect progress = scene.world_rect(ctx.handles.progress);
-        if (progress.w > 0 && progress.h > 0) {
-            const int wave_y = progress.y + progress.h / 2;
-            const int dot_r = 2;
-            const int dot_gap = 6;
-            const int dot_count = std::max(8, progress.w / (dot_r * 2 + dot_gap));
-            const int phase = static_cast<int>(t_sec * 8.0f) % (dot_r * 2 + dot_gap);
-            int x = progress.x + 8 + phase;
-            for (int i = 0; i < dot_count; ++i) {
-                const int y = wave_y + ((i % 4 == 0) ? -1 : 0);
-                out.fill_circle(Rect{x - dot_r, y - dot_r, dot_r * 2, dot_r * 2}, kUiTimeSoft);
-                x += dot_r * 2 + dot_gap;
-                if (x > progress.x + progress.w - 6) break;
-            }
-        }
     }

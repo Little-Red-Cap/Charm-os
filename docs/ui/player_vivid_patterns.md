@@ -261,6 +261,37 @@ Player 当前保留的页面级语义包括：
 - 先继续观察 `Library`、未来 `Home Hero`、信息条背景是否稳定复用
 - 等第二个以上真实 pattern 复用后，再决定是否增加更高层的 `GradientSurfaceSpec`
 
+### 9. SeekBar 样式 Helper
+
+在 `Now Playing` 的第二轮推进中，一个新的事实变得清楚：
+- 仅靠页面里零散的 `padding / bg / border / accent / radius` patch
+- 很难稳定表达“播放器 seekbar”这种更强语义的视觉身份
+
+这说明它已经不再只是一个页面内微调问题，而值得抽出一层轻量 recipe。
+
+当前已上收的公共 helper：
+- `Modules/ui/vivid/core/seek_bar_style.cppm`
+- `charm.ui.scene.seek_bar_style`
+
+当前公共 helper 提供：
+- `SeekBarStyleSpec`
+- `make_seek_bar_style_patch(...)`
+
+它当前解决的问题：
+- 统一 seekbar 的 `bg / track / fill / padding / radius` 这组基础样式输入
+- 避免每个页面都重复手写同一套 patch 字段
+- 让“播放器进度条样式”第一次具备了轻量但明确的公共入口
+
+当前这层 helper 的边界：
+- 它还是 style helper，不是独立 widget
+- 它不定义交互模型，只定义视觉基础规则
+- 它适合先服务 `Now Playing`，未来再观察是否会被第二个真实页面复用
+
+这一步的意义：
+- `ProgressSection` 不再只是页面内一组散装 patch
+- `Vivid` 开始拥有一种更接近媒体类控件的中层样式语言
+- 后续如果要继续演进专属 `SeekBar` 组件，这层 helper 可以作为稳定过渡层
+
 ## 暂不建议直接上收的部分
 
 以下内容目前仍更偏 Player 私有：
@@ -298,3 +329,106 @@ Player 当前保留的页面级语义包括：
 - 方案 B：开始在 `Modules/ui/vivid` 里试着落一个非常轻的公共 helper，只接纳最稳定的一类模式
 
 如果目标是“让 Player 推动 Vivid 演进”，建议先走方案 A，再走方案 B。
+
+## 参考：来自 USB 推进的共通方法
+
+`Draft/USB推进沟通` 虽然讨论的是 USB，不是 UI，但里面有几条方法论与 `Player -> Vivid` 的推进高度同构，值得记录下来。
+
+### 1. 先做声明式规格 + 运行时装配，不先做重型生成器
+
+USB 那边最有价值的一条判断是：
+- 先做 `spec + runtime`
+- 不要一开始就做“大而全 generator”
+
+这和 `Vivid` 当前的推进方式是相通的：
+- 先在真实页面里验证 `TopBarLayout / PathBarLayout / TextStyleSpec`
+- 再把稳定模式上收到公共层
+- 而不是一上来就设计一套很重的页面生成框架
+
+这条原则的意义：
+- 先吃真实运行链路
+- 先暴露真实约束和缺口
+- 避免在抽象还不稳定时就固化过早的高层接口
+
+### 2. 规格层不泄漏后端语义
+
+USB 那边强调：
+- `spec` 里不应该出现 `DCD / HAL / endpoint callback` 这类板级语义
+
+对应到 `Vivid`：
+- 页面级 pattern / spec 不应该直接暴露 `SoaGui / draw_cmd / SDL` 语义
+- 页面作者应该描述“顶栏 / 路径条 / 文本层级 / 封面样式”
+- 而不是直接关心绘制命令和后端细节
+
+这条原则可以继续指导 `Vivid` 的中层演进：
+- `Pattern / Layout / Text Recipe` 应该站在页面语义一侧
+- 渲染链和平台链仍留在运行时与底层实现中
+
+### 3. 专家能力应是局部覆写，不是整体逃逸
+
+USB 那边对 expert hook 的判断很准确：
+- 需要保留专家能力
+- 但应该是局部覆写，而不是“一旦特殊就整套系统失效，回到裸写”
+
+对应到当前 UI：
+- 默认走 `TextStyleSpec / TopBarLayout / PathBarLayout / PillSurface`
+- 特殊场景再用 explicit override
+- 不应该一有特殊需求就整页退回到裸 `Rect + StylePatch` 拼装
+
+这条原则已经被字体链路问题验证过：
+- `font_role` 提供主路径
+- `explicit font` 提供逃逸层
+- 但逃逸层仍留在系统内部，而不是让页面全面失去模式语义
+
+### 4. 组合关系应由框架统一处理
+
+USB 那边强调 composite 设备的 `interface / endpoint` 分配必须由框架统一管理。
+
+在 UI 里，这对应的是：
+- 顶栏内部左右按钮和标题关系
+- 路径条内部 `bar / icon / label` 关系
+- 列表卡片头内部标题、排序、路径条、列表主体关系
+
+如果这些组合关系仍然要求页面作者手工推导所有关键矩形，那么 pattern 层就没有真正成立。
+
+这也是为什么我们当前优先上收的是：
+- `TopBarLayout`
+- `PathBarLayout`
+- `ListCardHeaderLayout`
+
+它们的本质不是“少写几个数”，而是让组合关系成为框架能力。
+
+### 5. 真正的价值在中间表示，而不只是最终 API
+
+USB 沟通里最值得保留的长期视角是：
+- `spec -> IR -> runtime`
+
+对 `Vivid` 而言，这不是当前立刻要做的事，但它提供了一个很重要的未来方向：
+- 页面 spec
+- pattern/layout IR
+- 运行时渲染与交互装配
+
+一旦未来 `Vivid` 进入更复杂的页面组合、约束检查、多后端渲染阶段，这种分层会非常有价值。
+
+当前不急着做 `IR` 的原因：
+- 真实页面模式还在收敛阶段
+- 先把 pattern/helper 站稳更重要
+
+但这个视角值得保留，因为它解释了为什么：
+- 运行时验证不能跳过
+- 高层 DSL 不能先于中层语义稳定
+
+### 6. 对当前 UI 推进的直接启发
+
+从这份 USB 沟通里，可以提炼出几条继续适用于 `Player -> Vivid` 的工作纪律：
+
+- 先真实项目，后通用抽象
+- 先运行时装配，后生成器/DSL
+- 先中层 pattern，后大而全框架
+- 先局部 expert override，后整体逃逸
+- 先把组合关系交给框架，后谈页面自由度
+
+换句话说，`USB` 和 `UI` 虽然领域不同，但这份沟通再次验证了一个共同原则：
+
+- 真正可演进的系统，不是靠一开始设计得很大很完整
+- 而是靠真实场景反复逼出稳定的中层语义，再逐步上收

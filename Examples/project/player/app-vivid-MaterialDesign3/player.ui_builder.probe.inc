@@ -3,8 +3,9 @@
         anchor_rect(builder, probe, {0, 0, screen_width, screen_height});
         h.page_probe = probe;
 
-        h.probe_backdrop = builder.create_container();
-        anchor_rect(builder, h.probe_backdrop, {0, 0, screen_width, screen_height});
+        const auto probe_layers = ::ui::scene::create_page_layers(builder, probe, {0, 0, screen_width, screen_height});
+
+        h.probe_backdrop = probe_layers.backdrop;
         {
             StylePatch patch{};
             patch.has_bg_color = true;
@@ -66,13 +67,12 @@
         builder.set_label_align(h.probe_ref_meta, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, h.probe_ref_meta, {48, 478, 320, 24});
 
-        builder.link(probe, h.probe_backdrop);
-        builder.link(probe, h.probe_panel);
-        builder.link(probe, h.probe_title);
-        builder.link(probe, h.probe_hint);
-        builder.link(probe, h.probe_hero_top);
-        builder.link(probe, h.probe_hero_bottom);
-        builder.link(probe, h.probe_hero_subtitle);
-        builder.link(probe, h.probe_ref_title);
-        builder.link(probe, h.probe_ref_meta);
+        builder.link(probe_layers.content, h.probe_panel);
+        builder.link(probe_layers.content, h.probe_hero_top);
+        builder.link(probe_layers.content, h.probe_hero_bottom);
+        builder.link(probe_layers.content, h.probe_hero_subtitle);
+        builder.link(probe_layers.content, h.probe_ref_title);
+        builder.link(probe_layers.content, h.probe_ref_meta);
+        builder.link(probe_layers.chrome, h.probe_title);
+        builder.link(probe_layers.chrome, h.probe_hint);
     }

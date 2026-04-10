@@ -6,17 +6,19 @@
         anchor_rect(builder, home, {0, 0, screen_width, screen_height});
         h.page_home = home;
 
+        const auto home_layers = ::ui::scene::create_page_layers(builder, home, {0, 0, screen_width, screen_height});
+
         const WidgetHandle home_scroll = builder.create_scroll_container();
         anchor_rect(builder, home_scroll,
                     {0, 0, screen_width, layout.bottom_bar_y - home_layout.scroll_bottom_gap});
         builder.set_scroll_step(home_scroll, home_layout.scroll_step);
+        h.home_scroll = home_scroll;
 
         const WidgetHandle home_content = builder.create_container();
         anchor_rect(builder, home_content,
                     {0, 0, screen_width, screen_height + home_layout.scroll_extra});
 
-        h.home_backdrop = builder.create_container();
-        anchor_rect(builder, h.home_backdrop, {0, 0, screen_width, screen_height});
+        h.home_backdrop = home_layers.backdrop;
         {
             StylePatch patch{};
             patch.has_bg_color = true;
@@ -126,12 +128,12 @@
                                home_layout.stat_card_w,
                                home_layout.stat_card_h},
                               "Recently Played", "Resume albums and mixes you touched", "2 hours");
-        create_home_stat_card(builder, home_content,
-                              {home_layout.stat_card_x,
-                               home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
-                               home_layout.stat_card_w,
-                               home_layout.stat_card_h},
-                              "Listening stats", "Weekly minutes, streak and top genres", "7 days");
+        create_home_stats_probe_card(builder, h, home_content,
+                                     {home_layout.stat_card_x,
+                                      home_layout.stat_card_y + (home_layout.stat_card_h + home_layout.stat_card_gap) * 2,
+                                      home_layout.stat_card_w,
+                                      home_layout.stat_probe_card_h},
+                                     icons);
 
         const WidgetHandle home_toolbar = builder.create_container();
         const Rect top_bar_rect{layout.top_bar_x, layout.top_bar_y, layout.top_bar_w, layout.top_bar_h};
@@ -161,8 +163,7 @@
             home_top_layout.right_secondary_rect,
             icons.more, home_layout.toolbar_icon_px);
 
-        builder.link(home, h.home_backdrop);
-        builder.link(home, home_scroll);
+        builder.link(home_layers.content, home_scroll);
         builder.link(home_scroll, home_content);
         builder.link(home_content, h.home_title_top);
         builder.link(home_content, h.home_title_bottom);
@@ -174,7 +175,7 @@
         builder.link(home_content, h.home_cover_small);
         builder.link(home_content, h.home_cover_bottom_left);
         builder.link(home_content, h.home_cover_bottom_right);
-        builder.link(home_content, home_toolbar);
+        builder.link(home_layers.chrome, home_toolbar);
         builder.link(home_toolbar, home_settings);
         builder.link(home_toolbar, home_more);
     }

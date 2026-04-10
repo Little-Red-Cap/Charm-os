@@ -19,7 +19,11 @@ import block.device;
 import block.registry;
 import block.sdmmc;
 import init.graph;
+import init.materialize;
+import init.meta;
 import init.node;
+import init.plan;
+import init.recipe;
 import kernel.capabilities;
 import player.bundle.hqzy_cm7_usb_storage;
 import usb.class_msc_block;
@@ -35,7 +39,6 @@ import player.runtime.hqzy_cm7.board_platform;
 import player.runtime.hqzy_cm7.runtime_bringup;
 import player.runtime.hqzy_cm7.boot_log;
 import player.runtime.hqzy_cm7.foundation;
-import init.node_wrap;
 
 extern "C" void Error_Handler(void);
 
@@ -51,6 +54,50 @@ namespace player::app_test_hqzy::app_system {
         player::app_test_hqzy::usb_glue::UsbGlue usb{};
         charm::system::Clock* clock{nullptr};
     };
+
+    using BoardReady = init::cap_c<"board.ready">;
+    using PlatformReady = init::cap_c<"platform.ready">;
+
+    util::Result<void> board_start(System& sys) noexcept {
+        player::foundation::print(sys.foundation, "foundation: board node reuse\n");
+        if (sys.clock) {
+            sys.clock->reset(nullptr, charm::system::ClockOps{
+                &board_platform::now_ms,
+                nullptr
+            });
+        }
+        return {};
+    }
+
+    util::Result<void> runtime_start(System& sys) noexcept {
+        auto r = runtime_bringup::init();
+        if (!r) {
+            boot_log::print_err("boot: runtime init failed", r.error());
+            return util::unexpected(r.error());
+        }
+        sys.runtime = *r;
+        sys.sdmmc.sd = sys.runtime.sd;
+        player::app_test_hqzy::usb_glue::init(sys.usb, sys.runtime.pcd);
+        return {};
+    }
+
+    using BoardRecipe = init::recipe_desc<
+        "board.init",
+        init::Phase::early,
+        static_cast<util::u32>(init::Runlevel::all),
+        init::cap_list<BoardReady>,
+        init::cap_list<>,
+        System,
+        &board_start>;
+
+    using RuntimeRecipe = init::recipe_desc<
+        "runtime.init",
+        init::Phase::early,
+        static_cast<util::u32>(init::Runlevel::all),
+        init::cap_list<PlatformReady>,
+        init::cap_list<BoardReady>,
+        System,
+        &runtime_start>;
 
     int run() {
         System sys{};
@@ -106,98 +153,21 @@ namespace player::app_test_hqzy::app_system {
         auto usb_cfg = player::bundle::hqzy_cm7_usb_storage::make_default_config();
 
         auto usb_plan = player::bundle::hqzy_cm7_usb_storage::build(core.block_registry, sys.usb, usb_cfg);
-        static constexpr init::CapId kCapBoard = init::cap_id("board.ready");
-        static constexpr init::CapId kCapPlatform = init::cap_id("platform.ready");
-        static constexpr init::CapId kProvidesBoard[] = {kCapBoard};
-        static constexpr init::CapId kProvidesPlatform[] = {kCapPlatform};
-        static constexpr init::CapId kRequiresBoard[] = {kCapBoard};
-        static constexpr init::CapId kRequiresPlatform[] = {kCapPlatform};
-
-        static constexpr util::usize kMaxSdmmcNodes =
-            std::tuple_size_v<decltype(sdmmc_chain.nodes)>;
-        static constexpr util::usize kMaxUsbNodes =
-            std::tuple_size_v<decltype(usb_plan.nodes)>;
-        auto sdmmc_wrapped = init::wrap_nodes_with_requires<decltype(sdmmc_chain), kMaxSdmmcNodes>(
-            sdmmc_chain,
-            std::span<const init::CapId>(kRequiresPlatform, 1));
-        player::foundation::print(sys.foundation, "msc: sd wrap called\n");
-        if (!sdmmc_wrapped) {
-            boot_log::print_err("boot: sdmmc nodes wrap failed", sdmmc_wrapped.error());
+        const auto system_plan = init::compose(
+            init::bind<BoardRecipe>(sys),
+            init::bind<RuntimeRecipe>(sys),
+            init::legacy(core),
+            init::legacy(sdmmc_chain).after<PlatformReady>(),
+            init::legacy(usb_plan).after<PlatformReady>());
+        player::foundation::print(sys.foundation, "msc: materialize plan\n");
+        auto materialized = init::materialize<kMaxNodes, kMaxCaps>(system_plan);
+        if (!materialized) {
+            boot_log::print_err("boot: plan materialize failed", materialized.error());
             Error_Handler();
         }
-        auto usb_wrapped = init::wrap_nodes_with_requires<decltype(usb_plan), kMaxUsbNodes>(
-            usb_plan,
-            std::span<const init::CapId>(kRequiresPlatform, 1));
-        player::foundation::print(sys.foundation, "msc: usb wrap called\n");
-        if (!usb_wrapped) {
-            boot_log::print_err("boot: usb nodes wrap failed", usb_wrapped.error());
-            Error_Handler();
-        }
-
-        const init::Node board_node{
-            "board.init",
-            init::Phase::early,
-            static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesBoard, 1),
-            {},
-            [](void* ctx) noexcept -> util::Result<void> {
-                auto* sys_ctx = static_cast<System*>(ctx);
-                if (!sys_ctx) return util::unexpected(util::Errc::invalid_arg);
-                player::foundation::print(sys_ctx->foundation, "foundation: board node reuse\n");
-                if (sys_ctx->clock) {
-                    sys_ctx->clock->reset(nullptr, charm::system::ClockOps{
-                        &board_platform::now_ms,
-                        nullptr
-                    });
-                }
-                return {};
-            },
-            nullptr,
-            &sys
-        };
-
-        const init::Node runtime_node{
-            "runtime.init",
-            init::Phase::early,
-            static_cast<util::u32>(init::Runlevel::all),
-            std::span<const init::CapId>(kProvidesPlatform, 1),
-            std::span<const init::CapId>(kRequiresBoard, 1),
-            [](void* ctx) noexcept -> util::Result<void> {
-                auto* sys_ctx = static_cast<System*>(ctx);
-                if (!sys_ctx) return util::unexpected(util::Errc::invalid_arg);
-                auto r = runtime_bringup::init();
-                if (!r) {
-                    boot_log::print_err("boot: runtime init failed", r.error());
-                    return util::unexpected(r.error());
-                }
-                sys_ctx->runtime = *r;
-                sys_ctx->sdmmc.sd = sys_ctx->runtime.sd;
-                player::app_test_hqzy::usb_glue::init(sys_ctx->usb, sys_ctx->runtime.pcd);
-                return {};
-            },
-            nullptr,
-            &sys
-        };
 
         init::Graph<kMaxNodes, kMaxCaps> graph{};
-        std::array<const init::Node*, kMaxNodes> nodes{};
-        util::usize idx = 0;
-        nodes[idx++] = &board_node;
-        nodes[idx++] = &runtime_node;
-        const auto core_nodes = core.node_span();
-        for (util::usize i = 0; i < core_nodes.size(); ++i) {
-            nodes[idx++] = core_nodes[i];
-        }
-        const auto sd_nodes = sdmmc_chain.node_span();
-        for (util::usize i = 0; i < sd_nodes.size(); ++i) {
-            nodes[idx++] = sdmmc_wrapped->ptrs[i];
-        }
-        const auto usb_nodes = usb_plan.node_span();
-        for (util::usize i = 0; i < usb_nodes.size(); ++i) {
-            nodes[idx++] = usb_wrapped->ptrs[i];
-        }
-
-        auto r = graph.build(std::span<const init::Node* const>(nodes.data(), idx),
+        auto r = graph.build(materialized->node_ptr_span(),
                              static_cast<util::u32>(init::Runlevel::all),
                              init::Phase::app);
         player::foundation::print(sys.foundation, "msc: graph build returned\n");

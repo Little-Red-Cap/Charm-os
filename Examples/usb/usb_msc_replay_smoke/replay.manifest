@@ -1,2 +1,3 @@
 manifest usb.fixture.v1
 case name=msc-basic trace=msc.trace
+case name=msc-strings trace=msc_strings.trace

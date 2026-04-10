@@ -463,13 +463,13 @@ namespace {
                   std::string_view case_name,
                   std::string_view trace_path,
                   std::FILE* stream) noexcept {
-        if (case_name == "cdc-basic") {
+        if (case_name == "cdc-basic" || case_name == "cdc-strings") {
             return run_cdc_case(trace_path, stream);
         }
-        if (case_name == "msc-basic") {
+        if (case_name == "msc-basic" || case_name == "msc-strings") {
             return run_msc_case(trace_path, stream);
         }
-        if (case_name == "msc-cdc-basic") {
+        if (case_name == "msc-cdc-basic" || case_name == "msc-cdc-strings") {
             return run_msc_cdc_case(trace_path, stream);
         }
         std::fprintf(stream, "[ERR] unknown suite case '%.*s'\n",

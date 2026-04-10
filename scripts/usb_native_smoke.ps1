@@ -22,6 +22,12 @@ $cases = @(
         Exe = 'usb-msc-mock-smoke.exe'
     },
     @{
+        Name = 'usb-msc-cdc-mock-smoke'
+        Source = Join-Path $repoRoot 'Examples/usb/usb_msc_cdc_mock_smoke'
+        Build = Join-Path $repoRoot 'cmake-build-usb-msc-cdc-mock-smoke-clang'
+        Exe = 'usb-msc-cdc-mock-smoke.exe'
+    },
+    @{
         Name = 'usb-replay-suite-smoke'
         Source = Join-Path $repoRoot 'Examples/usb/usb_replay_suite_smoke'
         Build = Join-Path $repoRoot 'cmake-build-usb-replay-suite-smoke-clang'

@@ -89,7 +89,7 @@ export namespace charm::system {
         };
 
         auto r = bringup.start_plan(
-            init::legacy(canopen_chain),
+            canopen_chain.plan(),
             static_cast<util::u32>(init::Runlevel::all),
             init::Phase::app);
         if (!r) return r;

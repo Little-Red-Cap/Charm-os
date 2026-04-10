@@ -45,7 +45,7 @@ export namespace charm::system {
                         init::legacy(clock_binding_),
                         init::legacy(registry_binding_),
                         init::legacy(reactor_binding_),
-                        init::legacy(usart_chain_)),
+                        usart_chain_.plan()),
                     runlevel_mask),
                 max_phase);
             return init::start_graph(graph_, bringup_plan);

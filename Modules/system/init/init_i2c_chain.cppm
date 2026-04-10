@@ -27,6 +27,11 @@ export namespace charm::system {
             nodes = {&i2c_binding.node};
         }
 
+        constexpr auto plan() const noexcept {
+            return init::legacy(i2c_binding);
+        }
+
+        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }
@@ -37,11 +42,7 @@ export namespace charm::system {
                                  init::Phase max_phase = init::Phase::app) noexcept {
             return init::build_graph(
                 graph,
-                init::phase_limit(
-                    init::runlevel(
-                        init::legacy(*this),
-                        runlevel_mask),
-                    max_phase));
+                plan().runlevel(runlevel_mask).phase_limit(max_phase));
         }
     };
 }

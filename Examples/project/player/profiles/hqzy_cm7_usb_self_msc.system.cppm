@@ -156,8 +156,8 @@ namespace player::app_test_hqzy::app_system {
         const auto system_plan = init::compose(
             init::bind<BoardRecipe>(sys),
             init::bind<RuntimeRecipe>(sys),
-            init::legacy(core),
-            init::legacy(sdmmc_chain).after<PlatformReady>(),
+            core.plan(),
+            sdmmc_chain.plan().after<PlatformReady>(),
             init::legacy(usb_plan).after<PlatformReady>());
         player::foundation::print(sys.foundation, "msc: materialize plan\n");
         init::Graph<kMaxNodes, kMaxCaps> graph{};

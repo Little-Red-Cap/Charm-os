@@ -253,8 +253,8 @@ export namespace charm::system {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::legacy(core_),
-                        init::legacy(board_),
+                        core_.plan(),
+                        board_.plan(),
                         init::legacy(spi_),
                         init::legacy(i2c_),
                         init::legacy(sdmmc_),

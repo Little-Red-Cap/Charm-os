@@ -90,8 +90,8 @@ export namespace charm::system {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::legacy(core_),
-                        init::legacy(*input_),
+                        core_.plan(),
+                        input_->plan(),
                         extra_plan),
                     runlevel_mask),
                 max_phase);

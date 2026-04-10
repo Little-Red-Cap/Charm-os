@@ -6,8 +6,9 @@ module;
 export module charm.system.init_core;
 
 import block.registry;
-import init.node;
 import init.graph;
+import init.node;
+import init.plan;
 import io.registry;
 import io.reactor;
 import charm.system.clock;
@@ -63,6 +64,17 @@ export namespace charm::system {
             };
         }
 
+        constexpr auto plan() const noexcept {
+            return init::compose(
+                init::legacy(clock_binding),
+                init::legacy(registry_binding),
+                init::legacy(block_registry_binding),
+                init::legacy(reactor_binding),
+                init::legacy(eda_binding),
+                init::legacy(pump_binding));
+        }
+
+        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }

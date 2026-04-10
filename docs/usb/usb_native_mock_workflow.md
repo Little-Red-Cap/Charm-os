@@ -30,6 +30,7 @@
 当前样例入口位于：
 
 - `Examples/usb/usb_cdc_mock_smoke`
+- `Examples/usb/usb_host_harness_smoke`
 - `Examples/usb/usb_msc_mock_smoke`
 - `Examples/usb/usb_msc_cdc_mock_smoke`
 - `Examples/usb/usb_replay_suite_smoke`
@@ -46,6 +47,7 @@
 当前默认脚本会运行：
 
 - `usb-cdc-mock-smoke`
+- `usb-host-harness-smoke`
 - `usb-msc-mock-smoke`
 - `usb-msc-cdc-mock-smoke`
 - `usb-replay-suite-smoke`

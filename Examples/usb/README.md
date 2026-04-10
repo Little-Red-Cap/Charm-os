@@ -12,6 +12,7 @@
 
 - `usb_cdc_minimal`：最小 CDC 枚举骨架
 - `usb_cdc_mock_smoke`：CDC 原生 mock 冒烟
+- `usb_host_harness_smoke`：host harness / event-action 序列冒烟
 - `usb_msc_mock_smoke`：MSC 原生 mock 冒烟
 - `usb_msc_cdc_mock_smoke`：MSC + CDC 复合设备原生 mock 冒烟
 - `usb_cdc_replay_smoke`：CDC trace 回放
@@ -32,6 +33,7 @@
 它会默认使用 `clang + Ninja` 配置并运行：
 
 - `usb-cdc-mock-smoke`
+- `usb-host-harness-smoke`
 - `usb-msc-mock-smoke`
 - `usb-msc-cdc-mock-smoke`
 - `usb-replay-suite-smoke`

@@ -1,5 +1,6 @@
 module;
 
+#include <optional>
 #include <span>
 #include <tuple>
 
@@ -18,6 +19,9 @@ export namespace init {
 
     template <typename Chain>
     struct legacy_ref;
+
+    template <typename Chain>
+    struct legacy_optional_ref;
 
     struct legacy_nodes_ref;
 
@@ -86,6 +90,15 @@ export namespace init {
         }
     };
 
+    template <typename Chain>
+    struct legacy_optional_ref : plan_ops<legacy_optional_ref<Chain>> {
+        const std::optional<Chain>* chain{};
+
+        constexpr explicit legacy_optional_ref(const std::optional<Chain>* value) noexcept
+            : chain(value) {
+        }
+    };
+
     struct legacy_nodes_ref : plan_ops<legacy_nodes_ref> {
         std::span<const init::Node* const> nodes{};
 
@@ -149,6 +162,11 @@ export namespace init {
     template <typename Chain>
     constexpr auto legacy(const Chain& chain) noexcept {
         return legacy_ref<Chain>{&chain};
+    }
+
+    template <typename Chain>
+    constexpr auto legacy(const std::optional<Chain>& chain) noexcept {
+        return legacy_optional_ref<Chain>{&chain};
     }
 
     constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {

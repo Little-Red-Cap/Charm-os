@@ -1,14 +1,11 @@
 module;
 
-#include <array>
 #include <optional>
-#include <span>
 
 export module player.bundle.hqzy_cm7_usb_storage;
 
 import block.registry;
 import charm.system.init_usb;
-import init.node;
 import player.runtime.hqzy_cm7.usb_glue;
 import usb.class_msc_block.node;
 import usb.common;
@@ -55,24 +52,14 @@ export namespace player::bundle::hqzy_cm7_usb_storage {
     }
 
     template <typename RegistryT>
-    struct Plan {
-        std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> chain{};
-        std::array<const init::Node*, 1> nodes{};
+    inline std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> build(
+        RegistryT& registry,
+        player::app_test_hqzy::usb_glue::UsbGlue& glue,
+        const Config& cfg) noexcept {
+        std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> plan{};
+        plan.emplace(registry, usb::device::MscBlockDesc{});
 
-        std::span<const init::Node* const> node_span() const noexcept {
-            if (!chain) return {};
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
-        }
-    };
-
-    template <typename RegistryT>
-    inline Plan<RegistryT> build(RegistryT& registry,
-                                 player::app_test_hqzy::usb_glue::UsbGlue& glue,
-                                 const Config& cfg) noexcept {
-        Plan<RegistryT> plan{};
-        plan.chain.emplace(registry, usb::device::MscBlockDesc{});
-
-        auto& binding = plan.chain->binding;
+        auto& binding = plan->binding;
         binding.desc.cap_name = cfg.cap_name;
         binding.desc.block_cap = cfg.block_cap;
         binding.desc.dcd = player::app_test_hqzy::usb_glue::dcd_ops(glue);
@@ -90,7 +77,6 @@ export namespace player::bundle::hqzy_cm7_usb_storage {
         binding.desc.storage_cfg.read_only = cfg.read_only;
         binding.desc.on_ready = &player::app_test_hqzy::usb_glue::on_ready;
         binding.desc.on_ready_ctx = &glue;
-        plan.nodes = {&binding.node};
         return plan;
     }
 }

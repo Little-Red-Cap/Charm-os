@@ -22,11 +22,14 @@ export namespace usb::mock {
     };
 
     enum class HostEventKind : usb::u8 {
-        reset,
-        connect,
-        setup,
-        out,
-        in_ack,
+        reset = 0,
+        connect = 1,
+        setup = 2,
+        out_packet = 3,
+        in_complete = 4,
+        clear_stall = 5,
+        out = out_packet,
+        in_ack = in_complete,
     };
 
     struct HostEvent {
@@ -39,13 +42,18 @@ export namespace usb::mock {
     };
 
     enum class DeviceActionKind : usb::u8 {
-        ep_open,
-        ep_close,
-        ep_send,
-        ep_stall,
-        set_address,
-        set_configured,
-        connect,
+        open_ep = 0,
+        close_ep = 1,
+        send_in = 2,
+        send_zlp = 3,
+        stall_ep = 4,
+        set_address = 5,
+        set_configured = 6,
+        connect = 7,
+        ep_open = open_ep,
+        ep_close = close_ep,
+        ep_send = send_in,
+        ep_stall = stall_ep,
     };
 
     struct DeviceAction {
@@ -79,6 +87,15 @@ export namespace usb::mock {
         [[nodiscard]] usb::driver::DcdDeviceAdapter& adapter() noexcept { return adapter_; }
         [[nodiscard]] const usb::driver::DcdDeviceAdapter& adapter() const noexcept { return adapter_; }
 
+        struct ClearStallHook {
+            void* ctx{nullptr};
+            void (*on_clear_stall)(void* ctx, usb::u8 ep) noexcept { nullptr };
+        };
+
+        void set_clear_stall_hook(ClearStallHook hook) noexcept {
+            clear_stall_hook_ = hook;
+        }
+
         void signal_reset() noexcept {
             pending_in_.clear();
             address_ = 0;
@@ -96,6 +113,7 @@ export namespace usb::mock {
         }
 
         void feed_setup(const usb::SetupPacket& setup) noexcept {
+            maybe_handle_clear_stall_setup(setup);
             record_host_setup(setup);
             adapter_.handle_setup(setup);
         }
@@ -296,7 +314,7 @@ export namespace usb::mock {
 
         void record_host_out(usb::u8 ep, std::span<const usb::u8> data) {
             HostEvent event{};
-            event.kind = HostEventKind::out;
+            event.kind = HostEventKind::out_packet;
             event.ep = ep;
             event.data.assign(data.begin(), data.end());
             event.size = data.size();
@@ -305,16 +323,23 @@ export namespace usb::mock {
 
         void record_host_in_ack(usb::u8 ep, std::size_t sent, bool sent_zlp) {
             HostEvent event{};
-            event.kind = HostEventKind::in_ack;
+            event.kind = HostEventKind::in_complete;
             event.ep = ep;
             event.size = sent;
             event.flag = sent_zlp;
             host_events_.push_back(std::move(event));
         }
 
+        void record_host_clear_stall(usb::u8 ep) {
+            HostEvent event{};
+            event.kind = HostEventKind::clear_stall;
+            event.ep = ep;
+            host_events_.push_back(std::move(event));
+        }
+
         void record_device_ep_open(const usb::driver::EpConfig& cfg) {
             DeviceAction action{};
-            action.kind = DeviceActionKind::ep_open;
+            action.kind = DeviceActionKind::open_ep;
             action.ep_cfg = cfg;
             action.ep = cfg.address;
             device_actions_.push_back(std::move(action));
@@ -322,14 +347,15 @@ export namespace usb::mock {
 
         void record_device_ep_close(usb::u8 ep) {
             DeviceAction action{};
-            action.kind = DeviceActionKind::ep_close;
+            action.kind = DeviceActionKind::close_ep;
             action.ep = ep;
             device_actions_.push_back(std::move(action));
         }
 
         void record_device_ep_send(usb::u8 ep, std::span<const usb::u8> data, bool zlp) {
             DeviceAction action{};
-            action.kind = DeviceActionKind::ep_send;
+            action.kind = (data.empty() && zlp) ? DeviceActionKind::send_zlp
+                                                : DeviceActionKind::send_in;
             action.ep = ep;
             action.data.assign(data.begin(), data.end());
             action.flag = zlp;
@@ -338,7 +364,7 @@ export namespace usb::mock {
 
         void record_device_ep_stall(usb::u8 ep) {
             DeviceAction action{};
-            action.kind = DeviceActionKind::ep_stall;
+            action.kind = DeviceActionKind::stall_ep;
             action.ep = ep;
             device_actions_.push_back(std::move(action));
         }
@@ -362,6 +388,28 @@ export namespace usb::mock {
             action.kind = DeviceActionKind::connect;
             action.flag = enable;
             device_actions_.push_back(std::move(action));
+        }
+
+        void maybe_handle_clear_stall_setup(const usb::SetupPacket& setup) noexcept {
+            if (usb::request_type(setup.bm_request_type) != usb::RequestType::standard) {
+                return;
+            }
+            if (usb::request_recipient(setup.bm_request_type) != usb::RequestRecipient::endpoint) {
+                return;
+            }
+            if (static_cast<usb::StandardRequest>(setup.b_request) != usb::StandardRequest::clear_feature) {
+                return;
+            }
+            if (setup.w_value != 0u) {
+                return;
+            }
+
+            const auto ep = static_cast<usb::u8>(setup.w_index & 0xFFu);
+            endpoint_slot_mut(ep).stalled = false;
+            record_host_clear_stall(ep);
+            if (clear_stall_hook_.on_clear_stall) {
+                clear_stall_hook_.on_clear_stall(clear_stall_hook_.ctx, ep);
+            }
         }
 
         static bool ep_open_cb(void* ctx,
@@ -467,6 +515,7 @@ export namespace usb::mock {
         std::deque<PendingInTransfer> pending_in_{};
         std::vector<HostEvent> host_events_{};
         std::vector<DeviceAction> device_actions_{};
+        ClearStallHook clear_stall_hook_{};
         usb::u16 ep0_max_packet_size_{64};
         bool pullup_enabled_{false};
         bool host_connected_{false};

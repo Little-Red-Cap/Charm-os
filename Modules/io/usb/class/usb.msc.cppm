@@ -4,6 +4,8 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <utility>
+#include <vector>
 
 export module usb.class_msc;
 
@@ -78,6 +80,7 @@ export namespace usb::class_driver {
         bool (*on_command)(void* ctx, std::span<const u8> cbw) noexcept { nullptr };
         u8 (*get_max_lun)(void* ctx) noexcept { nullptr };
         void (*on_reset)(void* ctx) noexcept { nullptr };
+        void (*on_clear_stall)(void* ctx, bool in_ep) noexcept { nullptr };
     };
 
     inline MscOps make_msc_ops(MscBot& bot) noexcept;
@@ -92,7 +95,7 @@ export namespace usb::class_driver {
                 &MscDevice::handle_setup,
                 nullptr,
                 nullptr,
-                nullptr,
+                &MscDevice::handle_clear_feature,
                 nullptr,
                 nullptr,
                 nullptr,
@@ -163,6 +166,25 @@ export namespace usb::class_driver {
             return false;
         }
 
+        static bool handle_clear_feature(void* ctx,
+                                         const SetupPacket& setup,
+                                         device::ControlResponse& resp) noexcept {
+            auto* self = static_cast<MscDevice*>(ctx);
+            if (!self) return false;
+            if (request_recipient(setup.bm_request_type) != RequestRecipient::endpoint) {
+                return false;
+            }
+            if (setup.w_value != 0u) {
+                return false;
+            }
+            if (self->ops_.on_clear_stall) {
+                self->ops_.on_clear_stall(self->ctx_, (setup.w_index & 0x80u) != 0u);
+            }
+            resp.data = {};
+            resp.zlp = true;
+            return true;
+        }
+
         static void handle_reset(void* ctx) noexcept {
             auto* self = static_cast<MscDevice*>(ctx);
             if (self && self->ops_.on_reset) {
@@ -193,6 +215,37 @@ export namespace usb::class_driver {
         block::Device* dev{nullptr};
         MscInquiry inquiry{};
         bool read_only{false};
+    };
+
+    enum class MscTraceEventKind : u8 {
+        cbw_received = 0,
+        cbw_invalid = 1,
+        data_in_started = 2,
+        data_out_started = 3,
+        csw_ready = 4,
+        csw_sent = 5,
+        stall_in_requested = 6,
+        stall_out_requested = 7,
+        clear_stall_seen = 8,
+        wait_csw = 9,
+        phase_error = 10,
+        sense_set = 11,
+        read_capacity = 12,
+        read10_started = 13,
+        write10_started = 14,
+    };
+
+    struct MscTraceEvent {
+        MscTraceEventKind kind{MscTraceEventKind::cbw_received};
+        u8 command{0};
+        u8 sense_key{0};
+        u8 sense_asc{0};
+        u8 sense_ascq{0};
+        u32 transfer_length{0};
+        u32 lba{0};
+        u32 blocks{0};
+        u32 residue{0};
+        bool flag{false};
     };
 
     class MscBot {
@@ -234,6 +287,10 @@ export namespace usb::class_driver {
             last_clear_stall_in_ep_ = in_ep;
             ++clear_stall_count_;
             stall_wait_csw_ = false;
+            trace_event(MscTraceEventKind::clear_stall_seen, cbw_.cb[0], 0, 0, 0, 0, 0, 0, 0, in_ep);
+            if (phase_ == Phase::csw) {
+                trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
+            }
         }
         u8 last_scsi_cmd() const noexcept { return last_scsi_cmd_; }
         u8 last_scsi_status() const noexcept { return last_scsi_status_; }
@@ -260,6 +317,10 @@ export namespace usb::class_driver {
         u8 last_in_result() const noexcept { return last_in_result_; }
         bool last_clear_stall_in_ep() const noexcept { return last_clear_stall_in_ep_; }
         u32 clear_stall_count() const noexcept { return clear_stall_count_; }
+        std::span<const MscTraceEvent> trace_events() const noexcept {
+            return std::span<const MscTraceEvent>(trace_events_.data(), trace_events_.size());
+        }
+        void clear_trace() noexcept { trace_events_.clear(); }
 
         void reset() noexcept {
             phase_ = Phase::cbw;
@@ -284,6 +345,7 @@ export namespace usb::class_driver {
             last_in_result_ = static_cast<u8>(TraceInResult::none);
             last_clear_stall_in_ep_ = false;
             clear_stall_count_ = 0;
+            clear_trace();
         }
 
         u8 max_lun() const noexcept {
@@ -316,6 +378,13 @@ export namespace usb::class_driver {
                 }
                 phase_ = Phase::cbw;
                 last_in_result_ = static_cast<u8>(TraceInResult::csw);
+                trace_event(MscTraceEventKind::csw_sent,
+                            cbw_.cb[0],
+                            0, 0, 0,
+                            0, 0,
+                            csw_residue_,
+                            static_cast<u8>(csw_status_),
+                            false);
                 return make_csw();
             }
             last_in_result_ = static_cast<u8>(TraceInResult::none);
@@ -342,6 +411,58 @@ export namespace usb::class_driver {
             }
         };
 
+        void trace_event(MscTraceEventKind kind,
+                         u8 command = 0,
+                         u8 sense_key = 0,
+                         u8 sense_asc = 0,
+                         u8 sense_ascq = 0,
+                         u32 transfer_length = 0,
+                         u32 lba = 0,
+                         u32 blocks = 0,
+                         u32 residue = 0,
+                         bool flag = false) {
+            MscTraceEvent event{};
+            event.kind = kind;
+            event.command = command;
+            event.sense_key = sense_key;
+            event.sense_asc = sense_asc;
+            event.sense_ascq = sense_ascq;
+            event.transfer_length = transfer_length;
+            event.lba = lba;
+            event.blocks = blocks;
+            event.residue = residue;
+            event.flag = flag;
+            trace_events_.push_back(std::move(event));
+        }
+
+        void trace_phase_error(u8 command, u32 residue) {
+            trace_event(MscTraceEventKind::phase_error, command, 0, 0, 0, cbw_.data_transfer_length, 0, 0, residue, false);
+        }
+
+        void trace_wait_csw(u8 command) {
+            trace_event(MscTraceEventKind::wait_csw, command, 0, 0, 0, cbw_.data_transfer_length);
+        }
+
+        void trace_stall_request(bool in_ep, u8 command, u32 residue) {
+            trace_event(in_ep ? MscTraceEventKind::stall_in_requested : MscTraceEventKind::stall_out_requested,
+                        command,
+                        0, 0, 0,
+                        cbw_.data_transfer_length,
+                        0, 0,
+                        residue,
+                        in_ep);
+        }
+
+        void trace_csw_ready(u8 command, u32 residue, MscStatus status) {
+            trace_event(MscTraceEventKind::csw_ready,
+                        command,
+                        0, 0, 0,
+                        cbw_.data_transfer_length,
+                        0, 0,
+                        residue,
+                        status == MscStatus::phase_error);
+        }
+
         void clear_transfer() noexcept {
             resp_len_ = 0;
             resp_pos_ = 0;
@@ -359,12 +480,27 @@ export namespace usb::class_driver {
             if (data.size() < sizeof(MscCbw)) return false;
             std::memcpy(&cbw_, data.data(), sizeof(MscCbw));
             if (cbw_.signature != 0x43425355 || cbw_.cb_length == 0 || cbw_.cb_length > 16) {
+                trace_event(MscTraceEventKind::cbw_invalid,
+                            cbw_.cb[0],
+                            0, 0, 0,
+                            cbw_.data_transfer_length,
+                            0, 0,
+                            cbw_.data_transfer_length,
+                            (cbw_.flags & 0x80u) != 0u);
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = cbw_.data_transfer_length;
                 stall_in_pending_ = (cbw_.flags & 0x80u) != 0u;
                 stall_out_pending_ = !stall_in_pending_ && (cbw_.data_transfer_length > 0);
+                if (stall_in_pending_) {
+                    trace_stall_request(true, cbw_.cb[0], csw_residue_);
+                }
+                if (stall_out_pending_) {
+                    trace_stall_request(false, cbw_.cb[0], csw_residue_);
+                }
                 stall_wait_csw_ = true;
+                trace_wait_csw(cbw_.cb[0]);
                 phase_ = Phase::csw;
+                trace_phase_error(cbw_.cb[0], csw_residue_);
                 last_scsi_status_ = 2;
                 return true;
             }
@@ -379,6 +515,13 @@ export namespace usb::class_driver {
             last_scsi_lba_ = 0;
             last_scsi_blocks_ = 0;
             last_scsi_block_size_ = 0;
+            trace_event(MscTraceEventKind::cbw_received,
+                        cbw_.cb[0],
+                        0, 0, 0,
+                        cbw_.data_transfer_length,
+                        0, 0,
+                        0,
+                        (cbw_.flags & 0x80u) != 0u);
             clear_transfer();
             csw_status_ = MscStatus::passed;
             csw_residue_ = 0;
@@ -425,15 +568,18 @@ export namespace usb::class_driver {
             if (!active_storage_) return false;
             if (data_done_ >= data_total_) {
                 phase_ = Phase::csw;
+                trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                 return true;
             }
             if (remaining_blocks_ == 0) {
                 phase_ = Phase::csw;
+                trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                 return true;
             }
             while (!data.empty()) {
                 if (data_done_ >= data_total_) {
                     phase_ = Phase::csw;
+                    trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                     return true;
                 }
                 const auto space = block_size_ - block_pos_;
@@ -452,6 +598,7 @@ export namespace usb::class_driver {
                     ++current_lba_;
                     if (remaining_blocks_ == 0 || data_done_ >= data_total_) {
                         phase_ = Phase::csw;
+                        trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                         return true;
                     }
                 }
@@ -471,6 +618,7 @@ export namespace usb::class_driver {
                         csw_residue_ = data_total_ - data_done_;
                     }
                     phase_ = Phase::csw;
+                    trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                 }
                 return out;
             }
@@ -479,6 +627,7 @@ export namespace usb::class_driver {
                     csw_residue_ = data_total_ - data_done_;
                 }
                 phase_ = Phase::csw;
+                trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                 return {};
             }
             if (block_pos_ >= read_window_bytes_) {
@@ -498,6 +647,7 @@ export namespace usb::class_driver {
                         csw_residue_ = data_total_ - data_done_;
                     }
                     phase_ = Phase::csw;
+                    trace_csw_ready(cbw_.cb[0], csw_residue_, csw_status_);
                 }
             }
             return out;
@@ -667,6 +817,10 @@ export namespace usb::class_driver {
             data_total_ = cbw_.data_transfer_length;
             if (resp_len_ > data_total_) resp_len_ = data_total_;
             phase_ = Phase::data_in;
+            trace_event(MscTraceEventKind::data_in_started,
+                        static_cast<u8>(ScsiCmd::read_format_capacities),
+                        0, 0, 0,
+                        data_total_);
             set_sense(0x00, 0x00, 0x00);
             return true;
         }
@@ -693,6 +847,16 @@ export namespace usb::class_driver {
             data_total_ = cbw_.data_transfer_length;
             if (resp_len_ > data_total_) resp_len_ = data_total_;
             phase_ = Phase::data_in;
+            trace_event(MscTraceEventKind::read_capacity,
+                        static_cast<u8>(ScsiCmd::read_capacity_16),
+                        0, 0, 0,
+                        data_total_,
+                        last_rc_lba_,
+                        last_rc_blocks_);
+            trace_event(MscTraceEventKind::data_in_started,
+                        static_cast<u8>(ScsiCmd::read_capacity_16),
+                        0, 0, 0,
+                        data_total_);
             set_sense(0x00, 0x00, 0x00);
             return true;
         }
@@ -724,6 +888,16 @@ export namespace usb::class_driver {
             data_total_ = cbw_.data_transfer_length;
             if (resp_len_ > data_total_) resp_len_ = data_total_;
             phase_ = Phase::data_in;
+            trace_event(MscTraceEventKind::read_capacity,
+                        static_cast<u8>(ScsiCmd::read_capacity_10),
+                        0, 0, 0,
+                        data_total_,
+                        last_rc_lba_,
+                        last_rc_blocks_);
+            trace_event(MscTraceEventKind::data_in_started,
+                        static_cast<u8>(ScsiCmd::read_capacity_10),
+                        0, 0, 0,
+                        data_total_);
             set_sense(0x00, 0x00, 0x00);
             return true;
         }
@@ -743,13 +917,22 @@ export namespace usb::class_driver {
             last_scsi_lba_ = lba;
             last_scsi_blocks_ = blocks;
             last_scsi_block_size_ = static_cast<u32>(block_size);
+            trace_event(MscTraceEventKind::read10_started,
+                        static_cast<u8>(ScsiCmd::read_10),
+                        0, 0, 0,
+                        host_len,
+                        lba,
+                        blocks);
             if (!dir_in) {
                 set_sense(0x05, 0x20, 0x00);
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len;
                 stall_out_pending_ = true;
+                trace_stall_request(false, static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::read_10));
                 phase_ = Phase::csw;
+                trace_phase_error(static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 last_scsi_status_ = 2;
                 return true;
             }
@@ -758,8 +941,11 @@ export namespace usb::class_driver {
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len;
                 stall_in_pending_ = true;
+                trace_stall_request(true, static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::read_10));
                 phase_ = Phase::csw;
+                trace_phase_error(static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 last_scsi_status_ = 2;
                 return true;
             }
@@ -782,7 +968,10 @@ export namespace usb::class_driver {
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len - expected_total;
                 stall_in_pending_ = true;
+                trace_stall_request(true, static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::read_10));
+                trace_phase_error(static_cast<u8>(ScsiCmd::read_10), csw_residue_);
                 last_scsi_status_ = 2;
             } else {
                 csw_status_ = MscStatus::passed;
@@ -794,28 +983,45 @@ export namespace usb::class_driver {
             block_pos_ = 0;
             read_window_bytes_ = 0;
             phase_ = Phase::data_in;
+            trace_event(MscTraceEventKind::data_in_started,
+                        static_cast<u8>(ScsiCmd::read_10),
+                        0, 0, 0,
+                        data_total_,
+                        lba,
+                        blocks,
+                        csw_residue_);
             set_sense(0x00, 0x00, 0x00);
             return true;
         }
 
         bool cmd_write10(const MscStorage& storage) noexcept {
+            last_scsi_cmd_ = static_cast<u8>(ScsiCmd::write_10);
+            const auto lba = read_be32(&cbw_.cb[2]);
+            const auto blocks = read_be16(&cbw_.cb[7]);
+            const auto host_len = cbw_.data_transfer_length;
+            const bool dir_in = (cbw_.flags & 0x80u) != 0u;
+            trace_event(MscTraceEventKind::write10_started,
+                        static_cast<u8>(ScsiCmd::write_10),
+                        0, 0, 0,
+                        host_len,
+                        lba,
+                        blocks);
             if (!storage.dev || !storage.dev->write || storage.read_only || block::is_read_only(*storage.dev)) {
                 set_sense(0x07, 0x27, 0x00);
                 fail_and_csw(0);
                 return true;
             }
-            const auto lba = read_be32(&cbw_.cb[2]);
-            const auto blocks = read_be16(&cbw_.cb[7]);
             const auto block_size = storage.dev->block_size;
-            const auto host_len = cbw_.data_transfer_length;
-            const bool dir_in = (cbw_.flags & 0x80u) != 0u;
             if (dir_in) {
                 set_sense(0x05, 0x20, 0x00);
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len;
                 stall_in_pending_ = true;
+                trace_stall_request(true, static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::write_10));
                 phase_ = Phase::csw;
+                trace_phase_error(static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 last_scsi_status_ = 2;
                 return true;
             }
@@ -824,8 +1030,11 @@ export namespace usb::class_driver {
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len;
                 stall_out_pending_ = true;
+                trace_stall_request(false, static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::write_10));
                 phase_ = Phase::csw;
+                trace_phase_error(static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 last_scsi_status_ = 2;
                 return true;
             }
@@ -848,7 +1057,10 @@ export namespace usb::class_driver {
                 csw_status_ = MscStatus::phase_error;
                 csw_residue_ = host_len - expected_total;
                 stall_out_pending_ = true;
+                trace_stall_request(false, static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 stall_wait_csw_ = true;
+                trace_wait_csw(static_cast<u8>(ScsiCmd::write_10));
+                trace_phase_error(static_cast<u8>(ScsiCmd::write_10), csw_residue_);
                 last_scsi_status_ = 2;
             } else {
                 csw_status_ = MscStatus::passed;
@@ -859,6 +1071,13 @@ export namespace usb::class_driver {
             block_size_ = static_cast<u32>(block_size);
             block_pos_ = 0;
             phase_ = Phase::data_out;
+            trace_event(MscTraceEventKind::data_out_started,
+                        static_cast<u8>(ScsiCmd::write_10),
+                        0, 0, 0,
+                        data_total_,
+                        lba,
+                        blocks,
+                        csw_residue_);
             set_sense(0x00, 0x00, 0x00);
             return true;
         }
@@ -919,12 +1138,14 @@ export namespace usb::class_driver {
             last_sense_key_ = key;
             last_sense_asc_ = asc;
             last_sense_ascq_ = ascq;
+            trace_event(MscTraceEventKind::sense_set, cbw_.cb[0], key, asc, ascq, cbw_.data_transfer_length);
         }
 
         void fail_and_csw(u32 residue) noexcept {
             csw_status_ = MscStatus::failed;
             csw_residue_ = residue;
             phase_ = Phase::csw;
+            trace_csw_ready(cbw_.cb[0], residue, csw_status_);
             last_scsi_status_ = 1;
         }
 
@@ -1015,6 +1236,7 @@ export namespace usb::class_driver {
         u8 last_in_result_{static_cast<u8>(TraceInResult::none)};
         bool last_clear_stall_in_ep_{false};
         u32 clear_stall_count_{0};
+        std::vector<MscTraceEvent> trace_events_{};
     };
 
     inline MscOps make_msc_ops(MscBot& bot) noexcept {
@@ -1026,6 +1248,10 @@ export namespace usb::class_driver {
         ops.on_reset = [] (void* ctx) noexcept {
             auto* self = static_cast<MscBot*>(ctx);
             if (self) self->reset();
+        };
+        ops.on_clear_stall = [] (void* ctx, bool in_ep) noexcept {
+            auto* self = static_cast<MscBot*>(ctx);
+            if (self) self->on_clear_stall(in_ep);
         };
         return ops;
     }

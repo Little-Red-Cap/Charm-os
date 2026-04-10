@@ -1,3 +1,4 @@
 manifest usb.fixture.v1
 case name=cdc-basic trace=../usb_cdc_replay_smoke/cdc.trace
 case name=cdc-strings trace=../usb_cdc_replay_smoke/cdc_strings.trace
+case name=cdc-truncate trace=../usb_cdc_replay_smoke/cdc_truncate.trace

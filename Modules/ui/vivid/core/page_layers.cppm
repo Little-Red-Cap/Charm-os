@@ -43,12 +43,15 @@ export namespace ui::scene {
 
         out.content = builder.create_container();
         builder.set_rect(out.content, page_rect);
+        builder.set_hit_testable(out.content, false);
 
         out.chrome = builder.create_container();
         builder.set_rect(out.chrome, page_rect);
+        builder.set_hit_testable(out.chrome, false);
 
         out.popup = builder.create_container();
         builder.set_rect(out.popup, page_rect);
+        builder.set_hit_testable(out.popup, false);
 
         builder.link(page_root, out.backdrop);
         builder.link(page_root, out.content);

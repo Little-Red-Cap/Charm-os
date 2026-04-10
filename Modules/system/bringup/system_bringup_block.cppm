@@ -41,11 +41,18 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
+            return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
+        }
+
+        template <typename ExtraPlan>
+        util::Result<void> start_plan(const ExtraPlan& extra_plan,
+                                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                                      init::Phase max_phase = init::Phase::app) noexcept {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
                         init::legacy(core_),
-                        init::legacy_nodes(extra_nodes)),
+                        extra_plan),
                     runlevel_mask),
                 max_phase);
             auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);

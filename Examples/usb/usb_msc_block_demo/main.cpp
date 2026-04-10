@@ -10,6 +10,7 @@ import charm.system.bringup.block;
 import charm.system.init_block;
 import charm.system.init_usb;
 import init.node;
+import init.plan;
 import kernel.eda;
 import kernel.evt;
 import out.api;
@@ -265,16 +266,13 @@ int main(int argc, char** argv) {
         init::Phase::app
     };
 
-    std::array<const init::Node*, 2> extra_nodes{
-        file_chain.node_span().data()[0],
-        usb_chain.node_span().data()[0]
-    };
-
     (void)out::println<"[OK] bringup starting">(sink);
-    auto r = bringup.start(
+    auto r = bringup.start_plan(
+        init::compose(
+            init::legacy(file_chain),
+            init::legacy(usb_chain)),
         static_cast<util::u32>(init::Runlevel::all),
-        init::Phase::app,
-        std::span<const init::Node* const>(extra_nodes.data(), extra_nodes.size()));
+        init::Phase::app);
     if (!r) {
         (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;

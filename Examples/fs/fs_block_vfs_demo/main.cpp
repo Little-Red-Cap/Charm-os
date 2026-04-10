@@ -13,6 +13,7 @@ import charm.system.init_block;
 import fs_fatfs;
 import fs_vfs;
 import init.node;
+import init.plan;
 import out.api;
 import platform.board.win_stub;
 import platform.win.irq_guard;
@@ -128,10 +129,10 @@ int main(int argc, char** argv) {
         "block.sd0"
     };
 
-    auto r = bringup.start(
+    auto r = bringup.start_plan(
+        init::legacy(file_chain),
         static_cast<util::u32>(init::Runlevel::all),
-        init::Phase::app,
-        file_chain.node_span());
+        init::Phase::app);
     if (!r) {
         (void)out::println<"[ERR] bringup failed err={}">(sink, static_cast<int>(r.error()));
         return 1;

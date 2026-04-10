@@ -143,6 +143,7 @@ Capability 不负责：
 - 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `legacy_nodes(...)` 接入
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
+- 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
 
 ## 当前迁移状态
 

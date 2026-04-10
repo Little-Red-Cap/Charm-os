@@ -19,6 +19,7 @@ import canopen.sdo;
 import io.channel;
 import io.registry;
 import init.node;
+import init.plan;
 import platform.board.win_stub;
 import platform.win.irq_guard;
 import platform.win.time_source;
@@ -87,10 +88,10 @@ export namespace charm::system {
             canopen_pump_id
         };
 
-        auto r = bringup.start(
+        auto r = bringup.start_plan(
+            init::legacy(canopen_chain),
             static_cast<util::u32>(init::Runlevel::all),
-            init::Phase::app,
-            canopen_chain.node_span());
+            init::Phase::app);
         if (!r) return r;
 
         auto* ch = bringup.registry().open_channel("io.uart1");

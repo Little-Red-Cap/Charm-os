@@ -1,0 +1,115 @@
+module;
+
+#include <string_view>
+
+export module posix.spawn_fds;
+
+import posix.fd_table;
+import posix.file;
+import posix.proc_types;
+import util.core;
+import util.error;
+
+export namespace posix {
+    namespace detail {
+        template <util::usize MaxFds>
+        util::Result<void> apply_spawn_stdio(FdTable<MaxFds>& child, const SpawnConfig& cfg) noexcept {
+            if (cfg.stdio_in >= 0) {
+                auto r = child.dup2(cfg.stdio_in, 0);
+                if (!r) return util::unexpected(r.error());
+            }
+            if (cfg.stdio_out >= 0) {
+                auto r = child.dup2(cfg.stdio_out, 1);
+                if (!r) return util::unexpected(r.error());
+            }
+            if (cfg.stdio_err >= 0) {
+                auto r = child.dup2(cfg.stdio_err, 2);
+                if (!r) return util::unexpected(r.error());
+            }
+            return {};
+        }
+
+        template <util::usize MaxFds, util::usize MaxFiles>
+        util::Result<void> apply_spawn_file_actions(FdTable<MaxFds>& child,
+                                                    FileService<MaxFiles>* file_service,
+                                                    const SpawnConfig& cfg) noexcept {
+            if (!cfg.file_actions || cfg.file_actions->count == 0) {
+                return {};
+            }
+
+            for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
+                const auto& act = cfg.file_actions->actions[i];
+                switch (act.kind) {
+                    case FileAction::Kind::open: {
+                        if (!act.path || act.fd < 0) {
+                            return util::unexpected(util::Errc::invalid_arg);
+                        }
+                        if (!file_service) {
+                            return util::unexpected(util::Errc::not_supported);
+                        }
+                        auto entry = file_service->open(std::string_view{act.path}, act.flags, act.mode);
+                        if (!entry) {
+                            return util::unexpected(entry.error());
+                        }
+                        if (child.get(act.fd)) {
+                            auto r = child.close(act.fd);
+                            if (!r) {
+                                if (entry.value().ops && entry.value().ops->close) {
+                                    (void)entry.value().ops->close(entry.value().ctx);
+                                }
+                                return util::unexpected(r.error());
+                            }
+                        }
+                        auto r = child.attach(entry.value(), act.fd);
+                        if (!r) {
+                            if (entry.value().ops && entry.value().ops->close) {
+                                (void)entry.value().ops->close(entry.value().ctx);
+                            }
+                            return util::unexpected(r.error());
+                        }
+                        break;
+                    }
+                    case FileAction::Kind::close: {
+                        auto r = child.close(act.fd);
+                        if (!r) return util::unexpected(r.error());
+                        break;
+                    }
+                    case FileAction::Kind::dup2: {
+                        auto r = child.dup2(act.fd, act.newfd);
+                        if (!r) return util::unexpected(r.error());
+                        break;
+                    }
+                }
+            }
+            return {};
+        }
+    }
+
+    template <util::usize MaxFds, util::usize MaxFiles>
+    util::Result<FdTable<MaxFds>> build_spawn_fd_table(FdTable<MaxFds>* parent,
+                                                       FileService<MaxFiles>* file_service,
+                                                       const SpawnConfig& cfg) noexcept {
+        if (!parent) {
+            return util::unexpected(util::Errc::not_supported);
+        }
+
+        FdTable<MaxFds> child{};
+        child.init();
+        auto rc = parent->clone_to(child);
+        if (!rc) {
+            return util::unexpected(rc.error());
+        }
+
+        auto stdio = detail::apply_spawn_stdio(child, cfg);
+        if (!stdio) {
+            return util::unexpected(stdio.error());
+        }
+
+        auto actions = detail::apply_spawn_file_actions(child, file_service, cfg);
+        if (!actions) {
+            return util::unexpected(actions.error());
+        }
+
+        return child;
+    }
+}

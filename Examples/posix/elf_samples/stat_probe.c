@@ -58,6 +58,12 @@ int entry(int argc, char** argv, char** envp) {
         return 13;
     }
 
+    if (errno != 9) {
+        emit("bad-fstat errno\n");
+        close(fd);
+        return 15;
+    }
+
     emit("D\n");
     if (close(fd) != 0) {
         emit("close fail\n");

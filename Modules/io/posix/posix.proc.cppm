@@ -16,6 +16,7 @@ export import posix.proc_types;
 
 import init.node;
 import posix.env;
+import posix.image_resolver;
 import posix.exec_source;
 import posix.exec_loader;
 import posix.elf_hostcall;
@@ -24,6 +25,7 @@ import posix.errno;
 import posix.program_catalog;
 import posix.fd_table;
 import posix.file;
+import posix.spawn_fds;
 import posix.program_image;
 import posix.program_image_modulex;
 import module_core;
@@ -113,59 +115,8 @@ export namespace posix {
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
             std::fputs("[posix-elf] load_image enter\n", stderr);
 #endif
-            if (is_elf_mem_prefixed(cfg.path, cfg.argv)) {
-                auto mem_name = resolve_elf_mem_name(cfg.path, cfg.argv);
-                if (mem_name.empty()) {
-                    return util::unexpected(util::Errc::invalid_arg);
-                }
-                const auto* mem = elf_mem_registry_.find(mem_name);
-                if (!mem) {
-                    return util::unexpected(util::Errc::noent);
-                }
-                return posix::load_elf_program_from_buffer(*this, mem->data, mem->size);
-            }
-            if (is_elf_prefixed(cfg.path, cfg.argv)) {
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-                std::fputs("[posix-elf] load_image elf-prefixed\n", stderr);
-#endif
-                auto elf_path = resolve_elf_path(cfg.path, cfg.argv);
-#if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
-                if (cfg.path) {
-                    std::fputs("[posix-elf] cfg.path=", stderr);
-                    std::fputs(cfg.path, stderr);
-                    std::fputs("\n", stderr);
-                }
-#endif
-                if (elf_path.empty()) {
-                    return util::unexpected(util::Errc::invalid_arg);
-                }
-                return posix::load_elf_program_from_file(*this, elf_path);
-            }
-            const std::string_view name = resolve_registered_name<MaxPathLen>(
-                cfg.path_mode == PathMode::search_path,
-                cfg.path,
-                cfg.argv,
-                cfg.envp,
-                resolved_path_,
-                [&](std::string_view candidate) noexcept { return exec_catalog_.find(candidate) != nullptr; });
-            auto* entry = exec_catalog_.find(name);
-            if (!entry && cfg.path_mode == PathMode::search_path) {
-                entry = exec_catalog_.find_by_argv0(cfg.argv);
-            }
-            if (!entry) {
-                auto elf_candidate = posix::load_elf_candidate(*this, cfg, resolved_path_);
-                if (elf_candidate) {
-                    return elf_candidate;
-                }
-                if (elf_candidate.error() == util::Errc::noent ||
-                    elf_candidate.error() == util::Errc::not_supported) {
-                    return util::unexpected(util::Errc::noent);
-                }
-                return util::unexpected(elf_candidate.error());
-            }
-            return entry->image;
+            return posix::resolve_program_image(*this, cfg, exec_catalog_, elf_mem_registry_, resolved_path_);
         }
-
         util::Result<SpawnResult> spawn(const SpawnConfig& cfg) noexcept {
             if (cfg.path == nullptr && cfg.argv.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -173,7 +124,7 @@ export namespace posix {
             if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
                 return util::unexpected(util::Errc::not_supported);
             }
-            auto child_table = build_child_fd_table(cfg);
+            auto child_table = posix::build_spawn_fd_table(fd_table_, file_service_, cfg);
             if (!child_table) {
                 return util::unexpected(child_table.error());
             }
@@ -263,70 +214,6 @@ export namespace posix {
             int exit_code{0};
             FdTableType fds{};
         };
-
-        util::Result<FdTableType> build_child_fd_table(const SpawnConfig& cfg) noexcept {
-            if (!fd_table_) {
-                return util::unexpected(util::Errc::not_supported);
-            }
-            FdTableType child{};
-            child.init();
-            auto rc = fd_table_->clone_to(child);
-            if (!rc) {
-                return util::unexpected(rc.error());
-            }
-
-            if (cfg.stdio_in >= 0) {
-                auto r = child.dup2(cfg.stdio_in, 0);
-                if (!r) return util::unexpected(r.error());
-            }
-            if (cfg.stdio_out >= 0) {
-                auto r = child.dup2(cfg.stdio_out, 1);
-                if (!r) return util::unexpected(r.error());
-            }
-            if (cfg.stdio_err >= 0) {
-                auto r = child.dup2(cfg.stdio_err, 2);
-                if (!r) return util::unexpected(r.error());
-            }
-
-            if (cfg.file_actions && cfg.file_actions->count > 0) {
-                for (util::usize i = 0; i < cfg.file_actions->count; ++i) {
-                    const auto& act = cfg.file_actions->actions[i];
-                    switch (act.kind) {
-                        case FileAction::Kind::open: {
-                            if (!act.path || act.fd < 0) {
-                                return util::unexpected(util::Errc::invalid_arg);
-                            }
-                            if (!file_service_) {
-                                return util::unexpected(util::Errc::not_supported);
-                            }
-                            auto entry = file_service_->open(std::string_view{act.path}, act.flags, act.mode);
-                            if (!entry) {
-                                return util::unexpected(entry.error());
-                            }
-                            if (auto existing = child.get(act.fd)) {
-                                auto r = child.close(act.fd);
-                                if (!r) return util::unexpected(r.error());
-                            }
-                            auto r = child.attach(entry.value(), act.fd);
-                            if (!r) return util::unexpected(r.error());
-                            break;
-                        }
-                        case FileAction::Kind::close: {
-                            auto r = child.close(act.fd);
-                            if (!r) return util::unexpected(r.error());
-                            break;
-                        }
-                        case FileAction::Kind::dup2: {
-                            auto r = child.dup2(act.fd, act.newfd);
-                            if (!r) return util::unexpected(r.error());
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return child;
-        }
 
         int alloc_slot() noexcept {
             for (util::usize i = 0; i < MaxProcs; ++i) {

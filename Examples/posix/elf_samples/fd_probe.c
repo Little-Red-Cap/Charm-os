@@ -48,7 +48,7 @@ int entry(int argc, char** argv, char** envp) {
         return 34;
     }
 
-    if (errno != 95) {
+    if (errno != 9) {
         write_all(1, "read-errno\n", 11);
         close(fd);
         return 35;
@@ -60,10 +60,22 @@ int entry(int argc, char** argv, char** envp) {
         return 36;
     }
 
-    if (errno != 95) {
+    if (errno != 9) {
         write_all(1, "write-errno\n", 12);
         close(fd);
         return 37;
+    }
+
+    if (close(-1) != -1) {
+        write_all(1, "close-bad\n", 10);
+        close(fd);
+        return 38;
+    }
+
+    if (errno != 9) {
+        write_all(1, "close-errno\n", 12);
+        close(fd);
+        return 39;
     }
 
     write_all(1, "rw-ok\n", 6);

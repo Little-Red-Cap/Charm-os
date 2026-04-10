@@ -78,6 +78,11 @@ namespace {
         check_eq("map-isdir", posix::to_errno(util::Errc::isdir), posix::EISDIR);
         check_eq("map-eacces-back", posix::from_errno(posix::EACCES), util::Errc::io);
         check_eq("map-unknown-back", posix::from_errno(123456), util::Errc::io);
+        check_eq("map-fd-noent", posix::to_fd_errno(util::Errc::noent), posix::EBADF);
+        check_eq("map-fd-notsup", posix::to_fd_errno(util::Errc::notsup), posix::EBADF);
+        check_eq("map-fd-full", posix::to_fd_attach_errno(util::Errc::buffer_overflow), posix::EMFILE);
+        check_eq("map-pipe-full", posix::to_pipe_errno(util::Errc::buffer_overflow), posix::ENOSPC);
+        check_eq("map-pipe-closed", posix::to_pipe_errno(util::Errc::closed), posix::EPIPE);
     }
 } // namespace
 

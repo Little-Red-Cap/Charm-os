@@ -34,7 +34,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 - 这是 same-address-space 的最小用户程序执行模型，不是完整 Linux 进程模型。
 - 还没有 `fork`、signals、动态链接、用户态/内核态隔离、完整 `stat`/路径错误矩阵。
 - `stat_probe` 仍然是单独隔离的待修项，不阻塞主线。
-- `close(-1)` 的 errno 语义已经暴露，但尚未收敛为正式契约。
+- `close(-1)` 已收敛到 `EBADF`，但更完整的 fd/path 错误矩阵仍未覆盖完。
 
 ## 推荐阅读
 - 路线图：`docs/system/posix_compat_roadmap.md`

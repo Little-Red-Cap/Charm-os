@@ -304,18 +304,15 @@ export namespace posix {
         }
 
         static int map_fd_errno(util::Errc err) noexcept {
-            if (err == util::Errc::noent) return EBADF;
-            return to_errno(err);
+            return to_fd_errno(err);
         }
 
         static int map_fd_attach_errno(util::Errc err) noexcept {
-            if (err == util::Errc::buffer_overflow) return EMFILE;
-            return to_errno(err);
+            return to_fd_attach_errno(err);
         }
 
         static int map_pipe_errno(util::Errc err) noexcept {
-            if (err == util::Errc::buffer_overflow) return ENOSPC;
-            return to_errno(err);
+            return to_pipe_errno(err);
         }
 
         FdTable<MaxFds>* current_fd_table() noexcept {

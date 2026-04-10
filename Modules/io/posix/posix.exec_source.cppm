@@ -100,7 +100,10 @@ export namespace posix {
             : std::string_view{};
 
         if (!search_path) {
-            return strip_modulex_prefix(path_sv);
+            if (!path_sv.empty()) {
+                return strip_modulex_prefix(path_sv);
+            }
+            return strip_modulex_prefix(argv0);
         }
 
         const std::string_view target = !path_sv.empty() ? strip_modulex_prefix(path_sv)
@@ -130,6 +133,6 @@ export namespace posix {
         if (found) {
             return std::string_view{resolved_path.data()};
         }
-        return target;
+        return {};
     }
 }

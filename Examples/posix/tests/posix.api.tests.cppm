@@ -15,6 +15,7 @@ export module posix.api.tests;
 #if defined(POSIX_API_SMOKE_TEST) && POSIX_API_SMOKE_TEST
 
 import posix.api;
+import posix.errno;
 import posix.file;
 import posix.pipe;
 import posix.proc;
@@ -237,8 +238,113 @@ namespace {
         auto rfd = fds.attach(term, 3);
         check_true("isatty-attach", rfd);
         check_eq("isatty-term", api.isatty(3), 1);
+
+        int file_fd = api.open("/tmp/isatty.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("isatty-file-open", file_fd >= 0);
+        posix::set_errno(0);
+        check_eq("isatty-file", api.isatty(file_fd), 0);
+        check_eq("isatty-file-errno", posix::get_errno(), 0);
+
+        int pipefd[2]{-1, -1};
+        check_eq("isatty-pipe-create", api.pipe(pipefd), 0);
+        posix::set_errno(0);
+        check_eq("isatty-pipe-read", api.isatty(pipefd[0]), 0);
+        check_eq("isatty-pipe-read-errno", posix::get_errno(), 0);
+        posix::set_errno(0);
+        check_eq("isatty-pipe-write", api.isatty(pipefd[1]), 0);
+        check_eq("isatty-pipe-write-errno", posix::get_errno(), 0);
+
         check_eq("isatty-nonterm", api.isatty(4), 0);
         check_eq("isatty-badfd", api.isatty(-1), 0);
+
+        check_eq("isatty-file-close", api.close(file_fd), 0);
+        check_eq("isatty-pipe-close-r", api.close(pipefd[0]), 0);
+        check_eq("isatty-pipe-close-w", api.close(pipefd[1]), 0);
+    }
+
+    void test_api_errno_contracts() noexcept {
+        fs::clear_mounts();
+        fs::Mount mount{};
+        mount.ops = &dummy_mount_ops;
+        mount.data = nullptr;
+        auto mount_st = fs::add_mount("", &mount);
+        check_true("errno-mount", mount_st);
+
+        {
+            posix::FdTable<4> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<2, 8> pipes{};
+            posix::ProcService<4, 4, 4, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<4, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+            char ch{};
+            posix::PosixStat st{};
+
+            posix::set_errno(0);
+            check_eq("errno-close-bad-rc", api.close(-1), -1);
+            check_eq("errno-close-bad", posix::get_errno(), posix::EBADF);
+
+            posix::set_errno(0);
+            check_eq("errno-read-bad-rc", api.read(-1, &ch, 1), static_cast<posix::ssize_t>(-1));
+            check_eq("errno-read-bad", posix::get_errno(), posix::EBADF);
+
+            posix::set_errno(0);
+            check_eq("errno-write-bad-rc", api.write(-1, &ch, 1), static_cast<posix::ssize_t>(-1));
+            check_eq("errno-write-bad", posix::get_errno(), posix::EBADF);
+
+            posix::set_errno(0);
+            check_eq("errno-fstat-bad-rc", api.fstat(-1, &st), -1);
+            check_eq("errno-fstat-bad", posix::get_errno(), posix::EBADF);
+        }
+
+        {
+            posix::FdTable<1> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<2, 8> pipes{};
+            posix::ProcService<4, 4, 1, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<1, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+            int first = api.open("/tmp/a", posix::O_WRONLY | posix::O_CREAT, 0);
+            check_true("errno-open-first", first >= 0);
+            posix::set_errno(0);
+            check_eq("errno-open-full-rc", api.open("/tmp/b", posix::O_WRONLY | posix::O_CREAT, 0), -1);
+            check_eq("errno-open-full", posix::get_errno(), posix::EMFILE);
+            check_eq("errno-open-first-close", api.close(first), 0);
+        }
+
+        {
+            posix::FdTable<8> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<4, 4, 8, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<8, 1, 8, 4, 4, 4> api{fds, files, pipes, procs};
+            int first_pipe[2]{-1, -1};
+            int second_pipe[2]{-1, -1};
+            check_eq("errno-pipe-first", api.pipe(first_pipe), 0);
+            posix::set_errno(0);
+            check_eq("errno-pipe-full-rc", api.pipe(second_pipe), -1);
+            check_eq("errno-pipe-full", posix::get_errno(), posix::ENOSPC);
+
+            check_eq("errno-pipe-close-read", api.close(first_pipe[0]), 0);
+            const char msg[] = "x";
+            posix::set_errno(0);
+            check_eq("errno-pipe-epipe-rc", api.write(first_pipe[1], msg, 1), static_cast<posix::ssize_t>(-1));
+            check_eq("errno-pipe-epipe", posix::get_errno(), posix::EPIPE);
+            check_eq("errno-pipe-close-write", api.close(first_pipe[1]), 0);
+        }
     }
 } // namespace
 
@@ -248,6 +354,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_dev_null_and_isatty();
+    test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");
 }
 

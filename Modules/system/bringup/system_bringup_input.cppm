@@ -1,6 +1,5 @@
 ﻿module;
 
-#include <array>
 #include <optional>
 #include <span>
 
@@ -13,7 +12,9 @@ import charm.system.reactor_pump;
 import block.registry;
 import hal_input;
 import init.graph;
+import init.materialize;
 import init.node;
+import init.plan;
 import io.registry;
 import io.reactor;
 import input.pump;
@@ -73,25 +74,21 @@ export namespace charm::system {
             if (!caps_.input.driver || !input_) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            const auto core_nodes = core_.node_span();
-            const auto input_nodes = input_->node_span();
-            const auto total = core_nodes.size() + input_nodes.size() + extra_nodes.size();
-            if (total > MaxNodes) {
-                return util::unexpected(util::Errc::buffer_overflow);
+            const auto bringup_plan = init::phase_limit(
+                init::runlevel(
+                    init::compose(
+                        init::legacy(core_),
+                        init::legacy(*input_),
+                        init::legacy_nodes(extra_nodes)),
+                    runlevel_mask),
+                max_phase);
+            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
+            if (!materialized) {
+                return util::unexpected(materialized.error());
             }
-            std::array<const init::Node*, MaxNodes> nodes{};
-            util::usize idx = 0;
-            for (util::usize i = 0; i < core_nodes.size(); ++i) {
-                nodes[idx++] = core_nodes[i];
-            }
-            for (util::usize i = 0; i < input_nodes.size(); ++i) {
-                nodes[idx++] = input_nodes[i];
-            }
-            for (util::usize i = 0; i < extra_nodes.size(); ++i) {
-                nodes[idx++] = extra_nodes[i];
-            }
-            auto r = graph_.build(std::span<const init::Node* const>(nodes.data(), idx),
-                                  runlevel_mask, max_phase);
+            auto r = graph_.build(materialized->node_ptr_span(),
+                                  static_cast<util::u32>(init::Runlevel::all),
+                                  init::Phase::app);
             if (!r) return r;
             return graph_.start();
         }

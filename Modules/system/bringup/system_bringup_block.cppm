@@ -1,6 +1,5 @@
 ﻿module;
 
-#include <array>
 #include <span>
 
 export module charm.system.bringup.block;
@@ -10,7 +9,9 @@ import charm.system.clock;
 import charm.system.reactor_pump;
 import block.registry;
 import init.graph;
+import init.materialize;
 import init.node;
+import init.plan;
 import io.registry;
 import io.reactor;
 import platform.board;
@@ -40,21 +41,20 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app,
                                  std::span<const init::Node* const> extra_nodes = {}) noexcept {
-            const auto core_nodes = core_.node_span();
-            const auto total = core_nodes.size() + extra_nodes.size();
-            if (total > MaxNodes) {
-                return util::unexpected(util::Errc::buffer_overflow);
+            const auto bringup_plan = init::phase_limit(
+                init::runlevel(
+                    init::compose(
+                        init::legacy(core_),
+                        init::legacy_nodes(extra_nodes)),
+                    runlevel_mask),
+                max_phase);
+            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
+            if (!materialized) {
+                return util::unexpected(materialized.error());
             }
-            std::array<const init::Node*, MaxNodes> nodes{};
-            util::usize idx = 0;
-            for (util::usize i = 0; i < core_nodes.size(); ++i) {
-                nodes[idx++] = core_nodes[i];
-            }
-            for (util::usize i = 0; i < extra_nodes.size(); ++i) {
-                nodes[idx++] = extra_nodes[i];
-            }
-            auto r = graph_.build(std::span<const init::Node* const>(nodes.data(), idx),
-                                  runlevel_mask, max_phase);
+            auto r = graph_.build(materialized->node_ptr_span(),
+                                  static_cast<util::u32>(init::Runlevel::all),
+                                  init::Phase::app);
             if (!r) return r;
             return graph_.start();
         }

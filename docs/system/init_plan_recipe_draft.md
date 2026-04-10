@@ -143,3 +143,20 @@ Capability 不负责：
 - 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `legacy_nodes(...)` 接入
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
+
+## 当前迁移状态
+
+当前已经有几处真实入口切到了这条新路径：
+
+- `Examples/project/player/profiles/hqzy_cm7_usb_self_msc.system.cppm`
+- `Modules/system/bringup/system_bringup.cppm`
+- `Modules/system/bringup/system_bringup_block.cppm`
+- `Modules/system/bringup/system_bringup_input.cppm`
+- `Modules/system/bringup/system_bringup_console.cppm`
+
+这几处目前统一采用：
+
+- `compose(...)` 组织装配树
+- `legacy(...)` / `legacy_nodes(...)` 桥接旧 chain 与旧节点数组
+- `runlevel(...)` / `phase_limit(...)` 施加继承约束
+- `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR

@@ -173,3 +173,4 @@ Capability 不负责：
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
 - `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源
 - 推荐用 `build_graph(...)` / `start_graph(...)` 作为 `Plan -> Graph` 的默认胶水层，避免重复样板代码
+- 旧式 `chain.build()` 也优先并到 `build_graph(...)`，避免框架内部继续分叉出第二套落地路径

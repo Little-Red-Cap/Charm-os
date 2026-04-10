@@ -9,6 +9,8 @@
 - ELF hostcall dispatch now lives in `posix.elf_hostcall`; image catalog and source helpers are split into `posix.program_catalog` and `posix.exec_source`
 - shared spawn/process types now live in `posix.proc_types`, and `posix.proc` re-exports them for existing callers
 - ELF buffer/file/candidate loading now delegates through `posix.exec_loader`, leaving `posix.proc` closer to an orchestrator
+- `load_image()` source selection now delegates through `posix.image_resolver`, so `posix.proc` is closer to a pure orchestrator
+- child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
 - `stat_probe` is temporarily isolated so it does not block the mainline smoke
 
 ## Stable ABI Contracts
@@ -20,11 +22,13 @@
 
 ### fd / errno contracts validated by smoke
 - `open("/missing.txt") -> -1 && errno == ENOENT`
+- `isatty(file/pipe) -> 0 && errno == 0`
 - `isatty(non-tty) -> 0 && errno == 0`
-- `fstat(-1, ...) -> -1 && errno == 5`
+- `fstat(-1, ...) -> -1 && errno == EBADF`
 - `read(EOF) -> 0 && errno == 0`
-- `read(-1, ...) -> -1 && errno == 95`
-- `write(-1, ...) -> -1 && errno == 95`
+- `read(-1, ...) -> -1 && errno == EBADF`
+- `write(-1, ...) -> -1 && errno == EBADF`
+- `close(-1) -> -1 && errno == EBADF`
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
 
@@ -33,13 +37,14 @@
 - stdio/fd/pipe/wait form a working minimal userland spine
 - busybox phase2 smoke remains usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior
+- real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
 
 ## Isolated / Deferred Issues
 - `stat_probe`: currently behaves like a function-body / layout-level anomaly in the test host path; isolated from mainline smoke
-- `close(-1)`: currently returns `-1`, but errno has not been stabilized to the intended v0 contract value yet
 
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
 1. Resume `stat_probe` on a separate line, keeping helper-based or split-function experiments away from the mainline smoke
-2. Decide whether v0 should keep converging path-type errors beyond `open()` into `mkdir` / `truncate` / `rename`
-3. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior
+2. Continue wiring `search_path` semantics into more realistic shell / userland flows, not only proc smoke
+3. Decide whether v0 should keep converging path-type errors beyond `open()` into `mkdir` / `truncate` / `rename`
+4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

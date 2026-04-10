@@ -245,6 +245,34 @@ namespace {
         std::memcpy(&csw, bytes.data() + bytes.size() - sizeof(csw), sizeof(csw));
         return true;
     }
+
+    bool has_host_event(std::span<const usb::mock::HostEvent> events,
+                        usb::mock::HostEventKind kind,
+                        usb::u8 ep = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool has_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
+                         usb::class_driver::MscTraceEventKind kind,
+                         usb::u8 command = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (command == 0xFF || event.command == command) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 int main() {
@@ -325,6 +353,8 @@ int main() {
     if (!expect(session.endpoint_state(0x01).opened, "msc bulk out endpoint not opened")) return 1;
     if (!expect(session.endpoint_state(0x81).opened, "msc bulk in endpoint not opened")) return 1;
 
+    session.clear_trace();
+    demo.bot->clear_trace();
     std::vector<usb::u8> resp{};
     if (!run_scsi_in(session, *demo.bot, demo.cfg, usb::class_driver::ScsiCmd::inquiry, 36, 1, resp)) {
         std::fprintf(stderr, "[ERR] inquiry transaction failed\n");
@@ -337,6 +367,9 @@ int main() {
         std::fprintf(stderr, "[ERR] read capacity transaction failed\n");
         return 1;
     }
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10)),
+                "read capacity trace missing")) return 1;
     if (!expect(resp.size() >= 21, "read capacity response too short")) return 1;
     const usb::u32 last_lba = (static_cast<usb::u32>(resp[0]) << 24)
                             | (static_cast<usb::u32>(resp[1]) << 16)
@@ -353,6 +386,15 @@ int main() {
         std::fprintf(stderr, "[ERR] read10 transaction failed\n");
         return 1;
     }
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read10_started,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 start trace missing")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::data_in_started,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 data-in trace missing")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 csw trace missing")) return 1;
     if (!expect(resp.size() >= 525, "read10 response too short")) return 1;
     if (!expect(resp[0] == 0xEB && resp[1] == 0x3C && resp[2] == 0x90, "read10 boot sector mismatch")) return 1;
     if (!expect(resp[510] == 0x55 && resp[511] == 0xAA, "read10 tail signature mismatch")) return 1;
@@ -362,17 +404,37 @@ int main() {
     read10_bad_dir.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
     CbwBuilder::write_be32(&read10_bad_dir.cbw.cb[2], 0);
     CbwBuilder::write_be16(&read10_bad_dir.cbw.cb[7], 1);
+    session.clear_trace();
+    demo.bot->clear_trace();
     if (!expect(send_cbw(session, demo.cfg, read10_bad_dir), "read10 bad dir cbw feed failed")) return 1;
     if (!expect(demo.bot->last_scsi_cmd() == static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10), "read10 bad dir command not observed")) return 1;
     if (!expect(demo.bot->last_scsi_status() == 2, "read10 bad dir should enter phase error")) return 1;
     if (!expect(demo.bot->last_sense_key() == 0x05 && demo.bot->last_sense_asc() == 0x20 && demo.bot->last_sense_ascq() == 0x00,
                 "read10 bad dir sense mismatch")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::phase_error,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 bad dir phase-error trace missing")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::stall_out_requested,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 bad dir stall-out trace missing")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 bad dir wait-csw trace missing")) return 1;
     if (!expect(demo.bot->take_stall_out(), "read10 bad dir should stall OUT")) return 1;
     if (!expect(demo.bot->stall_wait_csw(), "read10 bad dir should wait csw after stall")) return 1;
     if (!expect(!usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *demo.bot, demo.cfg),
                 "read10 bad dir should block csw before clear stall")) return 1;
-    demo.bot->on_clear_stall(false);
+    if (!expect(control_out(session, usb::SetupPacket{0x02, 0x01, 0x0000, demo.cfg.ep_out, 0x0000}),
+                "read10 bad dir clear stall request failed")) return 1;
+    if (!expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, demo.cfg.ep_out),
+                "read10 bad dir clear-stall host event missing")) return 1;
     if (!expect(demo.bot->clear_stall_count() >= 1, "read10 bad dir clear stall not recorded")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 bad dir clear-stall trace missing")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_ready,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                "read10 bad dir csw-ready trace missing")) return 1;
     if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
         std::fprintf(stderr, "[ERR] read10 bad dir csw collection failed\n");
         return 1;
@@ -395,11 +457,16 @@ int main() {
     write10_ro.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
     CbwBuilder::write_be32(&write10_ro.cbw.cb[2], 0);
     CbwBuilder::write_be16(&write10_ro.cbw.cb[7], 1);
+    session.clear_trace();
+    demo.bot->clear_trace();
     if (!expect(send_cbw(session, demo.cfg, write10_ro), "write10 read-only cbw feed failed")) return 1;
     if (!expect(demo.bot->last_scsi_cmd() == static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10), "write10 command not observed")) return 1;
     if (!expect(demo.bot->last_scsi_status() == 1, "write10 read-only should fail")) return 1;
     if (!expect(demo.bot->last_sense_key() == 0x07 && demo.bot->last_sense_asc() == 0x27 && demo.bot->last_sense_ascq() == 0x00,
                 "write10 read-only sense mismatch")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::write10_started,
+                                static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10)),
+                "write10 start trace missing")) return 1;
     if (!expect(!demo.bot->stall_wait_csw(), "write10 read-only should not wait for clear stall")) return 1;
     if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
         std::fprintf(stderr, "[ERR] write10 read-only csw collection failed\n");
@@ -421,13 +488,20 @@ int main() {
     std::memset(invalid_cbw.cbw.cb, 0, sizeof(invalid_cbw.cbw.cb));
     invalid_cbw.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::inquiry);
     invalid_cbw.cbw.signature = 0;
+    session.clear_trace();
+    demo.bot->clear_trace();
     if (!expect(send_cbw(session, demo.cfg, invalid_cbw), "invalid cbw feed failed")) return 1;
     if (!expect(demo.bot->last_scsi_status() == 2, "invalid cbw should enter phase error")) return 1;
+    if (!expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::cbw_invalid),
+                "invalid cbw trace missing")) return 1;
     if (!expect(demo.bot->take_stall_in(), "invalid cbw should stall IN")) return 1;
     if (!expect(demo.bot->stall_wait_csw(), "invalid cbw should wait csw after stall")) return 1;
     if (!expect(!usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *demo.bot, demo.cfg),
                 "invalid cbw should block csw before clear stall")) return 1;
-    demo.bot->on_clear_stall(true);
+    if (!expect(control_out(session, usb::SetupPacket{0x02, 0x01, 0x0000, demo.cfg.ep_in, 0x0000}),
+                "invalid cbw clear stall request failed")) return 1;
+    if (!expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, demo.cfg.ep_in),
+                "invalid cbw clear-stall host event missing")) return 1;
     if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
         std::fprintf(stderr, "[ERR] invalid cbw csw collection failed\n");
         return 1;

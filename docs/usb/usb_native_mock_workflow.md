@@ -50,6 +50,7 @@
 - `usb-host-harness-smoke`
 - `usb-msc-mock-smoke`
 - `usb-msc-cdc-mock-smoke`
+- `usb-msc-replay-smoke`
 - `usb-replay-suite-smoke`
 
 ### 第二层：板级真机验证

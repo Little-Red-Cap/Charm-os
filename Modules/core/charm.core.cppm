@@ -12,6 +12,11 @@ export import util.variant;
 
 export import init.node;
 export import init.graph;
+export import init.meta;
+export import init.recipe;
+export import init.plan;
+export import init.barrier;
+export import init.materialize;
 
 export import trace_core;
 

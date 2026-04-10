@@ -58,6 +58,16 @@ export namespace usb::runtime {
         return Stm32FsRuntime{dcd, dcd_ctx, adapter, ready, cdc, phase, runlevel_mask};
     }
 
+    inline constexpr Stm32FsRuntime host_mock(const usb::driver::DcdOps& dcd,
+                                              void* dcd_ctx,
+                                              usb::driver::DcdDeviceAdapter* adapter,
+                                              MscReadyHook ready = {},
+                                              CdcRuntimeConfig cdc = {},
+                                              init::Phase phase = init::Phase::app,
+                                              util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept {
+        return stm32_fs(dcd, dcd_ctx, adapter, ready, cdc, phase, runlevel_mask);
+    }
+
     inline usb::device::CdcAcmDesc make_desc(const usb::plan::CdcDevicePlan& plan,
                                              const Stm32FsRuntime& runtime) noexcept {
         usb::device::CdcAcmDesc desc{};

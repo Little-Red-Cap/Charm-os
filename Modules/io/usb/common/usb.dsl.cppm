@@ -232,8 +232,8 @@ export namespace usb::dsl {
         EndpointInfo notify{};
         notify.address = cfg.ep_notify;
         notify.type = EndpointType::interrupt;
-        notify.max_packet_size = cfg.ep_mps;
-        notify.interval = 10;
+        notify.max_packet_size = 8;
+        notify.interval = 16;
 
         EndpointInfo out{};
         out.address = cfg.ep_out;
@@ -356,7 +356,17 @@ export namespace usb::dsl {
         std::memcpy(ctx.device_desc_storage.data(), &device_desc, sizeof(device_desc));
 
         ConfigBuilder builder(ctx.config_storage);
+        builder.set_interface_count(2);
         if (!builder.begin(make_config_descriptor(cfg_info))) return false;
+
+        InterfaceAssociationDescriptor iad{};
+        iad.first_interface = cdc_cfg.ctrl_ifc;
+        iad.interface_count = 2;
+        iad.function_class = class_driver::cdc_class;
+        iad.function_subclass = class_driver::cdc_subclass_acm;
+        iad.function_protocol = class_driver::cdc_protocol_at;
+        if (!builder.add_iad(iad)) return false;
+
         if (!build_cdc_acm(builder, cdc_cfg, class_desc)) return false;
         if (!builder.end()) return false;
 

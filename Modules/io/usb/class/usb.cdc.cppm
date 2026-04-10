@@ -47,7 +47,7 @@ export namespace usb::class_driver {
         u8 length{5};
         CdcDescriptorType type{CdcDescriptorType::cs_interface};
         CdcFunctionalType sub_type{CdcFunctionalType::call_management};
-        u8 capabilities{0x00};
+        u8 capabilities{0x03};
         u8 data_interface{1};
     };
 
@@ -55,7 +55,7 @@ export namespace usb::class_driver {
         u8 length{4};
         CdcDescriptorType type{CdcDescriptorType::cs_interface};
         CdcFunctionalType sub_type{CdcFunctionalType::abstract_control};
-        u8 capabilities{0x02};
+        u8 capabilities{0x06};
     };
 
     struct CdcUnionDescriptor {

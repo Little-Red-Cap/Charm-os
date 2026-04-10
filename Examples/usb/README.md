@@ -32,6 +32,7 @@
 它会默认使用 `clang + Ninja` 配置并运行：
 
 - `usb-cdc-mock-smoke`
+- `usb-msc-mock-smoke`
 - `usb-replay-suite-smoke`
 
 只做配置：

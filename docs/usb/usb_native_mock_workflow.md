@@ -43,6 +43,12 @@
 - `clang`
 - `Ninja`
 
+当前默认脚本会运行：
+
+- `usb-cdc-mock-smoke`
+- `usb-msc-mock-smoke`
+- `usb-replay-suite-smoke`
+
 ### 第二层：板级真机验证
 
 目标：验证真实 DCD/IRQ/端点回调与主机侧枚举行为。

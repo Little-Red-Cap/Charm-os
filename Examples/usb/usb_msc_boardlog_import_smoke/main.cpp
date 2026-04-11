@@ -340,6 +340,15 @@ int main() {
         return out;
     };
 
+    const auto fixture_path = [] (std::string_view name) {
+        std::string out{USB_BOARDLOG_FIXTURE_DIR};
+        if (!out.empty() && out.back() != '/' && out.back() != '\\') {
+            out.push_back('/');
+        }
+        out.append(name);
+        return out;
+    };
+
     const auto make_device_spec = []() {
         usb::spec::DeviceSpec device{};
         device.vendor_id = 0x1209;
@@ -685,33 +694,7 @@ int main() {
         constexpr auto kRecoveryCbw = "55534243070000000800000080000A25000000000000000000000000000000";
         constexpr auto kRecoveryReadCapacity = "0000000F0000020055534253070000000000000000";
 
-        std::string invalid_cbw_recovery_boardlog{};
-        invalid_cbw_recovery_boardlog.reserve(2048);
-        invalid_cbw_recovery_boardlog += "usb: connect on\n";
-        invalid_cbw_recovery_boardlog += "usb: reset\n";
-        invalid_cbw_recovery_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        invalid_cbw_recovery_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kInvalidCbw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: stall ep=0x81\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kInvalidCsw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kRecoveryCbw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kRecoveryReadCapacity;
-        invalid_cbw_recovery_boardlog += "\n";
-
-        const auto imported_invalid_cbw_recovery = usb::boardlog::load_text(invalid_cbw_recovery_boardlog);
+        const auto imported_invalid_cbw_recovery = usb::boardlog::load_file(fixture_path("invalid_cbw_recovery.boardlog"));
         if (!imported_invalid_cbw_recovery) {
             std::fprintf(stderr,
                          "[ERR] invalid-cbw recovery boardlog load failed line=%zu err=%s\n",
@@ -1014,31 +997,7 @@ int main() {
         constexpr auto kRequestSenseCbw = "55534243070000001200000080000603000000120000000000000000000000";
         constexpr auto kRequestSenseResponse = "700007000000000A0000000027000000000055534253070000000000000000";
 
-        std::string request_sense_boardlog{};
-        request_sense_boardlog.reserve(2048);
-        request_sense_boardlog += "usb: connect on\n";
-        request_sense_boardlog += "usb: reset\n";
-        request_sense_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        request_sense_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        request_sense_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        request_sense_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        request_sense_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        request_sense_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        request_sense_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        request_sense_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        request_sense_boardlog += kWrite10ReadOnlyCbw;
-        request_sense_boardlog += "\n";
-        request_sense_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        request_sense_boardlog += kWrite10ReadOnlyCsw;
-        request_sense_boardlog += "\n";
-        request_sense_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        request_sense_boardlog += kRequestSenseCbw;
-        request_sense_boardlog += "\n";
-        request_sense_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        request_sense_boardlog += kRequestSenseResponse;
-        request_sense_boardlog += "\n";
-
-        const auto imported_request_sense = usb::boardlog::load_text(request_sense_boardlog);
+        const auto imported_request_sense = usb::boardlog::load_file(fixture_path("request_sense.boardlog"));
         if (!imported_request_sense) {
             std::fprintf(stderr,
                          "[ERR] request-sense boardlog load failed line=%zu err=%s\n",
@@ -1186,25 +1145,7 @@ int main() {
         constexpr auto kReadCapacityCbw = "555342430A0000000A00000080000A25000000000000000000000000000000";
         constexpr auto kReadCapacityResponse = "0000000F00000200555342530A0000000200000000";
 
-        std::string read_capacity_boardlog{};
-        read_capacity_boardlog.reserve(2048);
-        read_capacity_boardlog += "usb: connect on\n";
-        read_capacity_boardlog += "usb: reset\n";
-        read_capacity_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        read_capacity_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        read_capacity_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        read_capacity_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        read_capacity_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        read_capacity_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        read_capacity_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        read_capacity_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        read_capacity_boardlog += kReadCapacityCbw;
-        read_capacity_boardlog += "\n";
-        read_capacity_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        read_capacity_boardlog += kReadCapacityResponse;
-        read_capacity_boardlog += "\n";
-
-        const auto imported_read_capacity = usb::boardlog::load_text(read_capacity_boardlog);
+        const auto imported_read_capacity = usb::boardlog::load_file(fixture_path("read_capacity_residue.boardlog"));
         if (!imported_read_capacity) {
             std::fprintf(stderr,
                          "[ERR] read-capacity boardlog load failed line=%zu err=%s\n",
@@ -1324,33 +1265,7 @@ int main() {
         constexpr auto kRead10ZeroLenRequestSenseCbw = "55534243090000001200000080000603000000120000000000000000000000";
         constexpr auto kRead10ZeroLenRequestSenseResp = "700005000000000A0000000020000000000055534253090000000000000000";
 
-        std::string zero_len_boardlog{};
-        zero_len_boardlog.reserve(2048);
-        zero_len_boardlog += "usb: connect on\n";
-        zero_len_boardlog += "usb: reset\n";
-        zero_len_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        zero_len_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        zero_len_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        zero_len_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        zero_len_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        zero_len_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        zero_len_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        zero_len_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        zero_len_boardlog += kRead10ZeroLenCbw;
-        zero_len_boardlog += "\n";
-        zero_len_boardlog += "usb: stall ep=0x81\n";
-        zero_len_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
-        zero_len_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        zero_len_boardlog += kRead10ZeroLenCsw;
-        zero_len_boardlog += "\n";
-        zero_len_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        zero_len_boardlog += kRead10ZeroLenRequestSenseCbw;
-        zero_len_boardlog += "\n";
-        zero_len_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        zero_len_boardlog += kRead10ZeroLenRequestSenseResp;
-        zero_len_boardlog += "\n";
-
-        const auto imported_zero_len = usb::boardlog::load_text(zero_len_boardlog);
+        const auto imported_zero_len = usb::boardlog::load_file(fixture_path("read10_zero_len_recovery.boardlog"));
         if (!imported_zero_len) {
             std::fprintf(stderr,
                          "[ERR] read10-zero-len boardlog load failed line=%zu err=%s\n",

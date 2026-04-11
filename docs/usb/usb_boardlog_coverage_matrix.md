@@ -11,10 +11,16 @@
 当前矩阵主要对应：
 
 - `Examples/usb/usb_msc_boardlog_import_smoke`
+- `Examples/usb/usb_msc_boardlog_import_smoke/fixtures`
 - `docs/usb/usb_boardlog_format.md`
 - `scripts/usb_native_smoke.ps1`
 
 这里记录的是**独立板级输入夹具**，而不是所有 replay fixture。
+
+当前夹具已开始采用混合形态维护：
+
+- 纯静态场景逐步外置到 `fixtures/*.boardlog`
+- 仍需动态拼接 payload 的场景暂时保留在 `main.cpp`
 
 ## 当前覆盖
 
@@ -109,14 +115,14 @@
 
 ## 当前仍然明显的缺口
 
-- 夹具仍以 `main.cpp` 内嵌字符串为主，维护成本在上升
-- 还没有把这些最小板级夹具系统性外置成独立 `.boardlog` 文件
+- 夹具目前仍是“外置文件 + 内嵌字符串”混合状态，`main.cpp` 仍然偏大
+- 还没有把所有最小板级夹具系统性外置成独立 `.boardlog` 文件
 - 还没有单独覆盖 `BOT reset` 风格板级片段
 - 还没有覆盖字符串描述符读取类 `boardlog` 输入
 - `boardlog` 仍然是语义级输入，不追求时间戳或电气级拟真
 
 ## 下一步建议
 
-- 把高价值夹具逐步外置成 `Examples/usb/usb_msc_boardlog_import_smoke/*.boardlog`
+- 把高价值夹具继续外置成 `Examples/usb/usb_msc_boardlog_import_smoke/fixtures/*.boardlog`
 - 给外置夹具建立一个很小的清单，减少 `main.cpp` 继续膨胀
 - 优先补 `BOT reset` 或其它仍未独立固定的恢复片段

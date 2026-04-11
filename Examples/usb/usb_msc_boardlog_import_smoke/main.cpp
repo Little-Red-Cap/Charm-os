@@ -489,6 +489,185 @@ int main() {
         if (!usb::fixture::expect(span_is_filled(write_disk.block_span(1), 0xA5), "segmented-out block payload mismatch")) return 1;
         if (!usb::fixture::expect(span_is_filled(write_disk.block_span(2), 0x00), "segmented-out trailing block should remain empty")) return 1;
     }
+    {
+        std::string segmented_out_recovery_boardlog{};
+        segmented_out_recovery_boardlog.reserve(6144);
+        segmented_out_recovery_boardlog += "usb: connect on\n";
+        segmented_out_recovery_boardlog += "usb: reset\n";
+        segmented_out_recovery_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        segmented_out_recovery_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        segmented_out_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=555342430E0000000004000000000A2A000000000100000100000000000000\n";
+        segmented_out_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        segmented_out_recovery_boardlog += repeat_hex_byte(0x5A, 512);
+        segmented_out_recovery_boardlog += "\n";
+        segmented_out_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        segmented_out_recovery_boardlog += repeat_hex_byte(0xC3, 512);
+        segmented_out_recovery_boardlog += "\n";
+        segmented_out_recovery_boardlog += "usb: stall ep=0x01\n";
+        segmented_out_recovery_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0001 wLen=0x0000\n";
+        segmented_out_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=555342530E0000000002000002\n";
+
+        const auto imported_segmented_out_recovery = usb::boardlog::load_text(segmented_out_recovery_boardlog);
+        if (!imported_segmented_out_recovery) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out recovery boardlog load failed line=%zu err=%s\n",
+                         imported_segmented_out_recovery.line,
+                         usb::boardlog::error_name(imported_segmented_out_recovery.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_segmented_out_recovery.imported_steps == 13, "segmented-out recovery imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.skipped_steps == 0, "segmented-out recovery skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps.size() == 13, "segmented-out recovery trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "segmented-out recovery cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[8].kind == usb::replay::StepKind::out,
+                                  "segmented-out recovery first payload step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[9].kind == usb::replay::StepKind::out,
+                                  "segmented-out recovery second payload step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[10].kind == usb::replay::StepKind::stall,
+                                  "segmented-out recovery stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[11].kind == usb::replay::StepKind::clear_stall,
+                                  "segmented-out recovery clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out_recovery.trace.steps[12].kind == usb::replay::StepKind::in,
+                                  "segmented-out recovery csw step kind mismatch")) return 1;
+
+        const auto segmented_out_recovery_trace_text = usb::boardlog::to_text(imported_segmented_out_recovery.trace);
+        if (!usb::fixture::expect(count_substring(segmented_out_recovery_trace_text, "out ep=01 zlp=0 data=") == 3,
+                                  "segmented-out recovery should preserve packet boundaries")) return 1;
+        if (!usb::fixture::expect(segmented_out_recovery_trace_text.find("stall ep=01") != std::string::npos,
+                                  "segmented-out recovery roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(segmented_out_recovery_trace_text.find("clear_stall ep=01") != std::string::npos,
+                                  "segmented-out recovery roundtrip missing clear_stall")) return 1;
+
+        const auto segmented_out_recovery_roundtrip = usb::replay::load_text(segmented_out_recovery_trace_text);
+        if (!segmented_out_recovery_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out recovery roundtrip parse failed line=%zu err=%s\n",
+                         segmented_out_recovery_roundtrip.line,
+                         usb::replay::load_error_name(segmented_out_recovery_roundtrip.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(segmented_out_recovery_roundtrip.trace.steps.size() == 13,
+                                  "segmented-out recovery roundtrip trace size mismatch")) return 1;
+
+        MemoryDisk recovery_disk{};
+        recovery_disk.set_writable(true);
+        block::Registry<2> recovery_registry{};
+        recovery_registry.init();
+        auto recovery_reg = recovery_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, recovery_disk.device);
+        if (!recovery_reg) {
+            std::fprintf(stderr, "[ERR] recovery registry register failed err=%d\n", static_cast<int>(recovery_reg.error()));
+            return 1;
+        }
+
+        DemoContext recovery_demo{};
+        usb::mock::Session recovery_session{};
+        const auto recovery_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto recovery_model = usb::build(recovery_spec);
+        const auto recovery_plan = usb::plan::build(recovery_model);
+        if (!recovery_plan) {
+            std::fprintf(stderr, "[ERR] recovery plan build failed err=%d\n", static_cast<int>(recovery_plan.error()));
+            return 1;
+        }
+
+        const auto recovery_runtime = usb::runtime::host_mock(
+            recovery_session.dcd_ops(),
+            &recovery_session,
+            &recovery_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &recovery_demo});
+
+        auto recovery_binding = usb::runtime::make(recovery_plan.value(), recovery_registry, recovery_runtime);
+        const auto recovery_init = decltype(recovery_binding)::init_trampoline(&recovery_binding);
+        if (!recovery_init) {
+            std::fprintf(stderr, "[ERR] recovery binding init failed err=%d\n", static_cast<int>(recovery_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(recovery_demo.ready, "recovery segmented runtime ready hook not called")) return 1;
+
+        PumpContext recovery_pump{recovery_demo.bot, recovery_plan.value().msc.msc_cfg};
+        const auto recovery_replay = usb::replay::run(
+            recovery_session,
+            segmented_out_recovery_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &recovery_pump, &pump_stall});
+        if (!recovery_replay) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out recovery replay failed step=%zu err=%s\n",
+                         recovery_replay.step_index,
+                         usb::replay::error_name(recovery_replay.error));
+            return 1;
+        }
+
+        const auto recovery_cfg = recovery_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(recovery_session.host_events(), usb::mock::HostEventKind::out_packet, recovery_cfg.ep_out) == 3,
+                                  "segmented-out recovery host event count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(recovery_session.host_events(), usb::mock::HostEventKind::in_complete, recovery_cfg.ep_in) == 1,
+                                  "segmented-out recovery csw ack count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(recovery_session.host_events(), usb::mock::HostEventKind::clear_stall, recovery_cfg.ep_out),
+                                  "segmented-out recovery clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(recovery_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, recovery_cfg.ep_out) == 1,
+                                  "segmented-out recovery stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!recovery_session.endpoint_state(recovery_cfg.ep_out).stalled,
+                                  "segmented-out recovery endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kWrite10Recovery = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+        const auto* recovery_write10 = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::write10_started,
+                                                            kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_write10 != nullptr, "segmented-out recovery write10 trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_write10->transfer_length == 1024, "segmented-out recovery write10 length mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_write10->lba == 1, "segmented-out recovery write10 lba mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_write10->blocks == 1, "segmented-out recovery write10 block count mismatch")) return 1;
+
+        const auto* recovery_data_out = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::data_out_started,
+                                                             kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_data_out != nullptr, "segmented-out recovery data-out trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_data_out->transfer_length == 512, "segmented-out recovery data-out length mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_data_out->lba == 1, "segmented-out recovery data-out lba mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_data_out->blocks == 1, "segmented-out recovery data-out block count mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_data_out->residue == 512, "segmented-out recovery data-out residue mismatch")) return 1;
+
+        const auto* recovery_stall_out = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                              usb::class_driver::MscTraceEventKind::stall_out_requested,
+                                                              kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_stall_out != nullptr, "segmented-out recovery stall-out trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_stall_out->transfer_length == 1024, "segmented-out recovery stall-out length mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_stall_out->residue == 512, "segmented-out recovery stall-out residue mismatch")) return 1;
+        if (!usb::fixture::expect(!recovery_stall_out->flag, "segmented-out recovery stall-out direction mismatch")) return 1;
+
+        const auto* recovery_wait_csw = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::wait_csw,
+                                                             kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_wait_csw != nullptr, "segmented-out recovery wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_wait_csw->transfer_length == 1024, "segmented-out recovery wait-csw length mismatch")) return 1;
+
+        const auto* recovery_phase_error = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::phase_error,
+                                                                kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_phase_error != nullptr, "segmented-out recovery phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_phase_error->residue == 512, "segmented-out recovery phase-error residue mismatch")) return 1;
+
+        const auto* recovery_clear_stall = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                                kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_clear_stall != nullptr, "segmented-out recovery clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(!recovery_clear_stall->flag, "segmented-out recovery clear-stall direction mismatch")) return 1;
+
+        const auto* recovery_csw_sent = find_msc_trace_event(recovery_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::csw_sent,
+                                                             kWrite10Recovery);
+        if (!usb::fixture::expect(recovery_csw_sent != nullptr, "segmented-out recovery csw trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_csw_sent->residue == 512, "segmented-out recovery csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_csw_sent->flag, "segmented-out recovery csw phase flag mismatch")) return 1;
+
+        if (!usb::fixture::expect(span_is_filled(recovery_disk.block_span(1), 0x5A), "segmented-out recovery block payload mismatch")) return 1;
+        if (!usb::fixture::expect(span_is_filled(recovery_disk.block_span(2), 0x00), "segmented-out recovery extra data should not spill")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

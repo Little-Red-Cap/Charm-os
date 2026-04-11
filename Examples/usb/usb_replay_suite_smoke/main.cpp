@@ -408,6 +408,25 @@ namespace {
             if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
                                                           static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
                                       "msc recovery csw trace missing", stream)) return false;
+        } else if (case_name == "msc-invalid-cbw") {
+            constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
+            if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
+                                      "msc invalid-cbw clear-stall host event missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::cbw_invalid,
+                                                          kReadCapacity),
+                                      "msc invalid-cbw trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
+                                                          kReadCapacity),
+                                      "msc invalid-cbw wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                          kReadCapacity),
+                                      "msc invalid-cbw clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
+                                                          kReadCapacity),
+                                      "msc invalid-cbw csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
+                                                          kReadCapacity),
+                                      "msc invalid-cbw recovery read-capacity trace missing", stream)) return false;
         }
         return true;
     }

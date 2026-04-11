@@ -55,7 +55,7 @@
 | cat < out.txt | `cat < out.txt`；输出 hi | open/read/close | EOF 语义 | 读取路径非 fd_table | P1 | TBD | TODO |
 | echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
 | echo hi \| cat \| cat | `echo hi | cat | cat`；输出 hi | 多段 pipe/多子进程 | 多 pipe 生命周期管理 | parent/child close 失衡 | P2 | TBD | TODO |
-| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | TODO |
+| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | IN PROGRESS |
 
 ## ELF 样本套件（P0-next）
 
@@ -222,6 +222,7 @@
 ### P0.3 posix.proc
 - 进展：`resolve_name`/PATH 语义已恢复基础用例，`search_path` 不再在 PATH miss 时偷偷回退到裸 `argv0`
 - 进展：真实 ELF 的 `envp` 断言已改成独立 `env_dump` 样本，避免与 argv / pipe 语义耦合
+- 进展：program smoke 已覆盖 BusyBox 两种最小入口形态：`argv[0]` applet 与 `busybox <applet> ...` 分派
 - 剩余：继续把这套语义接到更真实的 shell/用户态路径
 - 验收：`posix.proc.tests` 全绿
 

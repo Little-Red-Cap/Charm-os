@@ -327,6 +327,86 @@ namespace {
         check_eq("sh2-read2-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         h.unbind_env();
     }
+
+    void test_busybox_sh_by_argv0() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
+        check_true("bb-argv0-register-sh", reg_sh);
+        auto reg_echo = h.procs.register_executable("/bin/echo", &busybox_main);
+        check_true("bb-argv0-register-echo", reg_echo);
+
+        int pipefd[2]{-1, -1};
+        check_eq("bb-argv0-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("bb-argv0-move-read", h.fds.dup2(read_fd, 9));
+            read_fd = 9;
+        }
+
+        const char* argv[] = {"sh", "-c", "echo hi", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("bb-argv0-spawn", pid > 0);
+        int status = 0;
+        check_eq("bb-argv0-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("bb-argv0-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 16> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("bb-argv0-read-len", r >= 3);
+        check_eq("bb-argv0-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
+
+    void test_busybox_sh_via_busybox() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-dispatch-register-busybox", reg_busybox);
+        auto reg_echo = h.procs.register_executable("/bin/echo", &busybox_main);
+        check_true("bb-dispatch-register-echo", reg_echo);
+
+        int pipefd[2]{-1, -1};
+        check_eq("bb-dispatch-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("bb-dispatch-move-read", h.fds.dup2(read_fd, 10));
+            read_fd = 10;
+        }
+
+        const char* argv[] = {"busybox", "sh", "-c", "echo hi", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "busybox";
+        cfg.argv = std::span<const char* const>(argv, 4);
+        cfg.envp = path_env;
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("bb-dispatch-spawn", pid > 0);
+        int status = 0;
+        check_eq("bb-dispatch-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("bb-dispatch-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 16> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("bb-dispatch-read-len", r >= 3);
+        check_eq("bb-dispatch-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_program_shell_smoke_tests() noexcept {
@@ -349,6 +429,12 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase sh-redir-pipe begin");
     test_sh_c_redir_and_pipe();
     log_line("[posix-smoke] programs phase sh-redir-pipe end");
+    log_line("[posix-smoke] programs phase busybox-argv0 begin");
+    test_busybox_sh_by_argv0();
+    log_line("[posix-smoke] programs phase busybox-argv0 end");
+    log_line("[posix-smoke] programs phase busybox-dispatch begin");
+    test_busybox_sh_via_busybox();
+    log_line("[posix-smoke] programs phase busybox-dispatch end");
 }
 
 #endif

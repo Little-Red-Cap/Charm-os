@@ -278,6 +278,50 @@ export namespace posix::testsupport {
         return rc;
     }
 
+    inline std::string_view command_basename(std::string_view name) noexcept {
+        const auto pos = name.find_last_of('/');
+        return pos == std::string_view::npos ? name : name.substr(pos + 1);
+    }
+
+    int busybox_main(int argc, char** argv) {
+        if (argc < 1 || !argv || !argv[0]) return 127;
+
+        auto dispatch_applet = [&](std::string_view applet_name,
+                                   int applet_argc,
+                                   char** applet_argv) noexcept -> int {
+            if (applet_name == "echo") {
+                return echo_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "cat") {
+                return cat_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "sh") {
+                return sh_main(applet_argc, applet_argv);
+            }
+            return 127;
+        };
+
+        const auto argv0_name = command_basename(std::string_view{argv[0]});
+        if (argv0_name != "busybox") {
+            return dispatch_applet(argv0_name, argc, argv);
+        }
+
+        if (argc < 2 || !argv[1]) {
+            return 127;
+        }
+
+        std::array<char*, 16> shifted_argv{};
+        shifted_argv[0] = argv[1];
+        int shifted_argc = 1;
+        for (int src = 2; src < argc && shifted_argc < static_cast<int>(shifted_argv.size()) - 1; ++src) {
+            shifted_argv[shifted_argc++] = argv[src];
+        }
+        shifted_argv[shifted_argc] = nullptr;
+
+        const auto applet_name = command_basename(std::string_view{argv[1]});
+        return dispatch_applet(applet_name, shifted_argc, shifted_argv.data());
+    }
+
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
     struct RamFsMount {
         fs::RamFs<BlockSize, MaxFiles, MaxBlocks> fs{};

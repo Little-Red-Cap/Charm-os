@@ -13,6 +13,7 @@
 - child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
 - `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
 - shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
+- busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 
 ## Stable ABI Contracts
 
@@ -40,6 +41,7 @@
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior
 - real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
 - `spawnp`-style PATH lookup is now exercised from `posix.api` and program-shell smoke, not only proc smoke
+- `spawnp` now also has an API-level `argv[0]` search-path regression, which is closer to Linux userland launcher shapes
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline

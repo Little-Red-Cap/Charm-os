@@ -218,6 +218,13 @@ namespace {
         check_eq("spawnp-waitpid", api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
         check_eq("spawnp-code", (status >> 8) & 0xff, 3);
 
+        cfg.path = nullptr;
+        int pid2 = api.spawnp(cfg);
+        check_true("spawnp-argv0-basic", pid2 > 0);
+        int status2 = 0;
+        check_eq("spawnp-argv0-waitpid", api.waitpid(posix::ProcessId{pid2}, &status2, 0), pid2);
+        check_eq("spawnp-argv0-code", (status2 >> 8) & 0xff, 3);
+
         const char* miss_envp[] = {"PATH=/usr/local/bin", nullptr};
         cfg.envp = std::span<const char* const>(miss_envp, 1);
         posix::set_errno(0);

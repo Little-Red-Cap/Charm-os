@@ -9,6 +9,7 @@ Charm 当前已经形成了一条可工作的 POSIX/Linux 用户态兼容执行�
 - `fd_table` 统一链路：标准输入输出、文件、管道、终端判定都开始走同一套 fd 路径。
 - `spawn / waitpid`：已经形成最小进程执行闭环，支持 `stdio` 绑定、`file_actions`、子进程 fd 表隔离。
 - `PATH` 执行语义：`spawnp` 与 shell smoke 已开始真实依赖 `PATH` 去解析 `/bin/*` 命令，而不是只在 proc smoke 里验证。
+- BusyBox 入口形态：program smoke 已覆盖 `argv[0]` applet 形态与 `busybox sh -c ...` 这类 `argv[1]` applet 分派。
 - `pipe / dup2 / redirection`：可以支撑 `echo > out.txt`、`cat < out.txt`、`echo hi | cat` 这类基础程序路径。
 - ELF 装载执行：支持 registered image、`elfmem:`、文件路径 ELF，执行主链为 `spawn -> load_image -> start_image`。
 - 显式退出 ABI v0：`_exit(code)` 已通过 `ExecContext + setjmp/longjmp` 接入主链。

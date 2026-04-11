@@ -103,6 +103,49 @@ namespace {
         if (ep != pump->cfg.ep_in) return false;
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
+
+    bool has_host_event(std::span<const usb::mock::HostEvent> events,
+                        usb::mock::HostEventKind kind,
+                        usb::u8 ep = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::size_t count_host_event(std::span<const usb::mock::HostEvent> events,
+                                 usb::mock::HostEventKind kind,
+                                 usb::u8 ep = 0xFF) {
+        std::size_t count = 0;
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    const usb::class_driver::MscTraceEvent* find_msc_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
+                                                                 usb::class_driver::MscTraceEventKind kind,
+                                                                 usb::u8 command = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (command == 0xFF || event.command == command) {
+                return &event;
+            }
+        }
+        return nullptr;
+    }
 }
 
 int main() {
@@ -123,10 +166,35 @@ int main() {
                      usb::boardlog::error_name(imported.error));
         return 1;
     }
-    if (!usb::fixture::expect(imported.imported_steps == 6, "unexpected imported step count")) return 1;
+    if (!usb::fixture::expect(imported.imported_steps == 12, "unexpected imported step count")) return 1;
     if (!usb::fixture::expect(imported.skipped_steps == 0, "unexpected skipped step count")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps.size() == 12, "unexpected trace step size")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[0].kind == usb::replay::StepKind::connect,
+                              "boardlog first step should be connect")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[0].flag,
+                              "boardlog connect step should be true")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[1].kind == usb::replay::StepKind::reset,
+                              "boardlog second step should be reset")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[7].kind == usb::replay::StepKind::out,
+                              "boardlog first bulk step should be out")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[8].kind == usb::replay::StepKind::clear_stall,
+                              "boardlog recovery step should be clear_stall")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[9].kind == usb::replay::StepKind::in,
+                              "boardlog csw step should be in")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[10].kind == usb::replay::StepKind::out,
+                              "boardlog request-sense step should be out")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[11].kind == usb::replay::StepKind::in,
+                              "boardlog sense-response step should be in")) return 1;
 
     const auto trace_text = usb::boardlog::to_text(imported.trace);
+    if (!usb::fixture::expect(trace_text.find("connect true") != std::string::npos,
+                              "roundtrip trace missing connect")) return 1;
+    if (!usb::fixture::expect(trace_text.find("reset") != std::string::npos,
+                              "roundtrip trace missing reset")) return 1;
+    if (!usb::fixture::expect(trace_text.find("out ep=01") != std::string::npos,
+                              "roundtrip trace missing bulk out")) return 1;
+    if (!usb::fixture::expect(trace_text.find("in ep=81") != std::string::npos,
+                              "roundtrip trace missing bulk in")) return 1;
     if (!usb::fixture::expect(trace_text.find("clear_stall ep=01") != std::string::npos,
                               "roundtrip trace missing clear_stall")) return 1;
     const auto roundtrip = usb::replay::load_text(trace_text);
@@ -195,6 +263,44 @@ int main() {
     if (!usb::fixture::expect(session.configured(), "device not configured")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::connect),
+                              "connect host event missing")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::reset),
+                              "reset host event missing")) return 1;
+    if (!usb::fixture::expect(count_host_event(session.host_events(), usb::mock::HostEventKind::out_packet, msc_cfg.ep_out) == 2,
+                              "unexpected bulk out host event count")) return 1;
+    if (!usb::fixture::expect(count_host_event(session.host_events(), usb::mock::HostEventKind::in_complete, msc_cfg.ep_in) == 3,
+                              "unexpected bulk in completion count")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
+                              "clear-stall host event missing")) return 1;
+
+    constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+    const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                usb::class_driver::MscTraceEventKind::wait_csw,
+                                                kRead10);
+    if (!usb::fixture::expect(wait_csw != nullptr, "boardlog recovery wait-csw trace missing")) return 1;
+    if (!usb::fixture::expect(wait_csw->transfer_length == 512, "boardlog recovery wait-csw length mismatch")) return 1;
+
+    const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                   usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                   kRead10);
+    if (!usb::fixture::expect(clear_stall != nullptr, "boardlog recovery clear-stall trace missing")) return 1;
+    if (!usb::fixture::expect(!clear_stall->flag, "boardlog recovery clear-stall direction mismatch")) return 1;
+
+    const auto* sense = find_msc_trace_event(demo.bot->trace_events(),
+                                             usb::class_driver::MscTraceEventKind::sense_set,
+                                             kRead10);
+    if (!usb::fixture::expect(sense != nullptr, "boardlog recovery sense trace missing")) return 1;
+    if (!usb::fixture::expect(sense->sense_key == 0x05, "boardlog recovery sense key mismatch")) return 1;
+    if (!usb::fixture::expect(sense->sense_asc == 0x20, "boardlog recovery sense asc mismatch")) return 1;
+    if (!usb::fixture::expect(sense->sense_ascq == 0x00, "boardlog recovery sense ascq mismatch")) return 1;
+
+    const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                usb::class_driver::MscTraceEventKind::csw_sent,
+                                                kRead10);
+    if (!usb::fixture::expect(csw_sent != nullptr, "boardlog recovery csw trace missing")) return 1;
+    if (!usb::fixture::expect(csw_sent->residue == 512, "boardlog recovery csw residue mismatch")) return 1;
+    if (!usb::fixture::expect(csw_sent->flag, "boardlog recovery csw phase flag mismatch")) return 1;
 
     std::printf("[OK] usb-msc-boardlog-import-smoke passed\n");
     std::printf("[state] imported=%zu skipped=%zu address=%u configured=%d\n",

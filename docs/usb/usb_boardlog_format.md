@@ -13,6 +13,8 @@
 - `usb: connect on`
 - `usb: connect off`
 - `usb: reset`
+- `usb: out ep=0x.. zlp=0|1 data=<hex|- >`
+- `usb: in ep=0x.. zlp=0|1 data=<hex|- >`
 - `usb: dev_desc size=<N> <hex bytes...>`
 - `usb: cfg_desc size=<N> <hex bytes...>`
 - `usb: setup bm=0x.. b=0x.. wValue=0x.... wIndex=0x.... wLen=0x....`
@@ -26,6 +28,14 @@
 
 - `usb: reset`
   - 导入为 `reset`
+
+- `usb: out ep=0x.. zlp=.. data=...`
+  - 导入为 `out ep=.. zlp=.. data=...`
+  - 语义上表示主机向设备发送 bulk/interrupt/其它非控制数据包
+
+- `usb: in ep=0x.. zlp=.. data=...`
+  - 导入为 `in ep=.. zlp=.. data=...`
+  - 语义上表示设备向主机返回的数据事务期望值
 
 - `usb: dev_desc`
   - 缓存设备描述符原始字节
@@ -44,8 +54,7 @@
 
 ## 当前限制
 
-- 还不导入普通 bulk `IN/OUT` 数据日志
-- 还不导入中断端点或等时端点日志
+- 还不区分 bulk / interrupt / isoch 的端点语义，只按 `ep` + `data` 导入
 - 还不导入字符串描述符读取
 - 如果 `GET_DESCRIPTOR(Device/Config)` 出现在对应描述符缓存之前，导入会失败
 
@@ -55,9 +64,11 @@
 - 再记录 `dev_desc/cfg_desc`
 - 再记录关键 `setup`
 - 如果涉及恢复路径，保留 `CLEAR_FEATURE` setup
+- 如果涉及数据阶段，记录 `usb: out ...` / `usb: in ...`
 
 ## 推荐用途
 
 - 从真板日志快速还原枚举序列
 - 从真板日志还原 clear-stall / 标准请求路径
+- 从真板日志还原 MSC 最小数据阶段与 recovery 片段
 - 给 native replay 构建最小 regression fixture

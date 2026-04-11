@@ -1,5 +1,6 @@
 module;
 
+#include <optional>
 #include <span>
 #include <tuple>
 
@@ -18,6 +19,9 @@ export namespace init {
 
     template <typename Chain>
     struct legacy_ref;
+
+    template <typename Chain>
+    struct legacy_optional_ref;
 
     struct legacy_nodes_ref;
 
@@ -48,13 +52,14 @@ export namespace init {
         }
 
         template <typename Cap>
+        [[deprecated("use ready_as<Cap>() or an explicit barrier recipe")]]
         constexpr auto export_as() const noexcept {
             return export_plan<Derived, Cap>{self()};
         }
 
         template <typename Cap>
         constexpr auto ready_as() const noexcept {
-            return export_as<Cap>();
+            return export_plan<Derived, Cap>{self()};
         }
 
         constexpr auto phase_limit(Phase value) const noexcept {
@@ -82,6 +87,15 @@ export namespace init {
         const Chain* chain{};
 
         constexpr explicit legacy_ref(const Chain* value) noexcept
+            : chain(value) {
+        }
+    };
+
+    template <typename Chain>
+    struct legacy_optional_ref : plan_ops<legacy_optional_ref<Chain>> {
+        const std::optional<Chain>* chain{};
+
+        constexpr explicit legacy_optional_ref(const std::optional<Chain>* value) noexcept
             : chain(value) {
         }
     };
@@ -149,6 +163,11 @@ export namespace init {
     template <typename Chain>
     constexpr auto legacy(const Chain& chain) noexcept {
         return legacy_ref<Chain>{&chain};
+    }
+
+    template <typename Chain>
+    constexpr auto legacy(const std::optional<Chain>& chain) noexcept {
+        return legacy_optional_ref<Chain>{&chain};
     }
 
     constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {

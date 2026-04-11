@@ -1,0 +1,13 @@
+trace usb.replay.v1
+# usb-cdc-replay-smoke truncate fixture
+reset
+control_in bm=80 b=06 wv=0300 wi=0000 wl=0002 zlp=0 data=0403
+control_in bm=80 b=06 wv=0301 wi=0409 wl=0006 zlp=0 data=0C0343006800
+control_in bm=80 b=06 wv=0100 wi=0000 wl=0008 zlp=0 data=1201000200000040
+control_out bm=00 b=05 wv=0005 wi=0000 wl=0000 zlp=1 data=-
+control_in bm=80 b=06 wv=0200 wi=0000 wl=0008 zlp=0 data=09024B0002010080
+control_out bm=00 b=09 wv=0001 wi=0000 wl=0000 zlp=1 data=-
+control_in bm=A1 b=21 wv=0000 wi=0000 wl=0004 zlp=0 data=00C20100
+control_out bm=21 b=20 wv=0000 wi=0000 wl=0007 zlp=1 data=00100E00000008
+out ep=01 zlp=0 data=70696E67
+in ep=82 zlp=0 data=706F6E67

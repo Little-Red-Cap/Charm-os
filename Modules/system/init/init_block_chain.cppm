@@ -7,6 +7,8 @@ export module charm.system.init_block;
 
 import init.node;
 import init.graph;
+import init.materialize;
+import init.plan;
 import block.device;
 import block.device.node;
 import block.file.node;
@@ -38,7 +40,13 @@ export namespace charm::system {
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
-            return graph.build(node_span(), runlevel_mask, max_phase);
+            return init::build_graph(
+                graph,
+                init::phase_limit(
+                    init::runlevel(
+                        init::legacy(*this),
+                        runlevel_mask),
+                    max_phase));
         }
     };
 
@@ -86,7 +94,13 @@ export namespace charm::system {
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
-            return graph.build(node_span(), runlevel_mask, max_phase);
+            return init::build_graph(
+                graph,
+                init::phase_limit(
+                    init::runlevel(
+                        init::legacy(*this),
+                        runlevel_mask),
+                    max_phase));
         }
     };
 
@@ -114,7 +128,13 @@ export namespace charm::system {
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
-            return graph.build(node_span(), runlevel_mask, max_phase);
+            return init::build_graph(
+                graph,
+                init::phase_limit(
+                    init::runlevel(
+                        init::legacy(*this),
+                        runlevel_mask),
+                    max_phase));
         }
     };
 }

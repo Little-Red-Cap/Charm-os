@@ -69,8 +69,14 @@ export namespace charm::system {
         }
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app,
-                                 std::span<const init::Node* const> extra_nodes = {}) noexcept {
+                                 init::Phase max_phase = init::Phase::app) noexcept {
+            return start_plan(init::compose(), runlevel_mask, max_phase);
+        }
+
+        [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
+        util::Result<void> start(util::u32 runlevel_mask,
+                                 init::Phase max_phase,
+                                 std::span<const init::Node* const> extra_nodes) noexcept {
             return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
         }
 
@@ -89,15 +95,7 @@ export namespace charm::system {
                         extra_plan),
                     runlevel_mask),
                 max_phase);
-            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
-            if (!materialized) {
-                return util::unexpected(materialized.error());
-            }
-            auto r = graph_.build(materialized->node_ptr_span(),
-                                  static_cast<util::u32>(init::Runlevel::all),
-                                  init::Phase::app);
-            if (!r) return r;
-            return graph_.start();
+            return init::start_graph(graph_, bringup_plan);
         }
 
         init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }

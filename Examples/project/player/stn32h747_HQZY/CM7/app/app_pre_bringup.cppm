@@ -227,15 +227,7 @@ export namespace player::stm32h7::app::pre_bringup {
             init::bind<detail::UsbRecipe>(ctx),
             init::bind<detail::I2sRecipe>(ctx),
             init::bind<detail::Spi5Recipe>(ctx));
-        auto materialized = init::materialize<10, 20>(bringup_plan);
-        if (!materialized) {
-            return util::unexpected(materialized.error());
-        }
         init::Graph<10, 20> graph{};
-        auto r = graph.build(materialized->node_ptr_span(),
-                             static_cast<util::u32>(init::Runlevel::all),
-                             init::Phase::early);
-        if (!r) return r;
-        return graph.start();
+        return init::start_graph(graph, bringup_plan);
     }
 }

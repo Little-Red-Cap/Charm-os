@@ -208,6 +208,43 @@ namespace {
 
         return out.size() >= data_len + sizeof(usb::class_driver::MscCsw);
     }
+
+    bool send_cbw(usb::mock::Session& session,
+                  const usb::class_driver::MscConfig& cfg,
+                  const CbwBuilder& builder) {
+        return session.feed_out(
+            cfg.ep_out,
+            std::span<const usb::u8>(reinterpret_cast<const usb::u8*>(&builder.cbw), sizeof(builder.cbw)));
+    }
+
+    bool collect_msc_in(usb::mock::Session& session,
+                        usb::class_driver::MscBot& bot,
+                        const usb::class_driver::MscConfig& cfg,
+                        std::vector<usb::u8>& out) {
+        out.clear();
+        while (bot.has_in_data()) {
+            if (!usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, bot, cfg)) {
+                return false;
+            }
+            auto pkt = session.poll_in();
+            if (!pkt) {
+                return false;
+            }
+            out.insert(out.end(), pkt->data.begin(), pkt->data.end());
+            if (!session.ack_in(pkt->ep, pkt->data.size(), pkt->zlp)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool tail_csw(const std::vector<usb::u8>& bytes, usb::class_driver::MscCsw& csw) {
+        if (bytes.size() < sizeof(csw)) {
+            return false;
+        }
+        std::memcpy(&csw, bytes.data() + bytes.size() - sizeof(csw), sizeof(csw));
+        return true;
+    }
 }
 
 int main() {
@@ -319,6 +356,86 @@ int main() {
     if (!expect(resp.size() >= 525, "read10 response too short")) return 1;
     if (!expect(resp[0] == 0xEB && resp[1] == 0x3C && resp[2] == 0x90, "read10 boot sector mismatch")) return 1;
     if (!expect(resp[510] == 0x55 && resp[511] == 0xAA, "read10 tail signature mismatch")) return 1;
+
+    CbwBuilder read10_bad_dir{4, 512, false, 0, 10};
+    std::memset(read10_bad_dir.cbw.cb, 0, sizeof(read10_bad_dir.cbw.cb));
+    read10_bad_dir.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+    CbwBuilder::write_be32(&read10_bad_dir.cbw.cb[2], 0);
+    CbwBuilder::write_be16(&read10_bad_dir.cbw.cb[7], 1);
+    if (!expect(send_cbw(session, demo.cfg, read10_bad_dir), "read10 bad dir cbw feed failed")) return 1;
+    if (!expect(demo.bot->last_scsi_cmd() == static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10), "read10 bad dir command not observed")) return 1;
+    if (!expect(demo.bot->last_scsi_status() == 2, "read10 bad dir should enter phase error")) return 1;
+    if (!expect(demo.bot->last_sense_key() == 0x05 && demo.bot->last_sense_asc() == 0x20 && demo.bot->last_sense_ascq() == 0x00,
+                "read10 bad dir sense mismatch")) return 1;
+    if (!expect(demo.bot->take_stall_out(), "read10 bad dir should stall OUT")) return 1;
+    if (!expect(demo.bot->stall_wait_csw(), "read10 bad dir should wait csw after stall")) return 1;
+    if (!expect(!usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *demo.bot, demo.cfg),
+                "read10 bad dir should block csw before clear stall")) return 1;
+    demo.bot->on_clear_stall(false);
+    if (!expect(demo.bot->clear_stall_count() >= 1, "read10 bad dir clear stall not recorded")) return 1;
+    if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
+        std::fprintf(stderr, "[ERR] read10 bad dir csw collection failed\n");
+        return 1;
+    }
+    usb::class_driver::MscCsw csw{};
+    if (!expect(tail_csw(resp, csw), "read10 bad dir csw missing")) return 1;
+    if (!expect(csw.tag == 4, "read10 bad dir csw tag mismatch")) return 1;
+    if (!expect(csw.status == static_cast<usb::u8>(usb::class_driver::MscStatus::phase_error), "read10 bad dir csw status mismatch")) return 1;
+    if (!expect(csw.residue == 512, "read10 bad dir csw residue mismatch")) return 1;
+
+    if (!run_scsi_in(session, *demo.bot, demo.cfg, usb::class_driver::ScsiCmd::request_sense, 18, 5, resp)) {
+        std::fprintf(stderr, "[ERR] request sense after read10 bad dir failed\n");
+        return 1;
+    }
+    if (!expect(resp.size() >= 31, "request sense after read10 bad dir too short")) return 1;
+    if (!expect(resp[2] == 0x05 && resp[12] == 0x20 && resp[13] == 0x00, "request sense after read10 bad dir mismatch")) return 1;
+
+    CbwBuilder write10_ro{6, 512, false, 0, 10};
+    std::memset(write10_ro.cbw.cb, 0, sizeof(write10_ro.cbw.cb));
+    write10_ro.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+    CbwBuilder::write_be32(&write10_ro.cbw.cb[2], 0);
+    CbwBuilder::write_be16(&write10_ro.cbw.cb[7], 1);
+    if (!expect(send_cbw(session, demo.cfg, write10_ro), "write10 read-only cbw feed failed")) return 1;
+    if (!expect(demo.bot->last_scsi_cmd() == static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10), "write10 command not observed")) return 1;
+    if (!expect(demo.bot->last_scsi_status() == 1, "write10 read-only should fail")) return 1;
+    if (!expect(demo.bot->last_sense_key() == 0x07 && demo.bot->last_sense_asc() == 0x27 && demo.bot->last_sense_ascq() == 0x00,
+                "write10 read-only sense mismatch")) return 1;
+    if (!expect(!demo.bot->stall_wait_csw(), "write10 read-only should not wait for clear stall")) return 1;
+    if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
+        std::fprintf(stderr, "[ERR] write10 read-only csw collection failed\n");
+        return 1;
+    }
+    if (!expect(tail_csw(resp, csw), "write10 read-only csw missing")) return 1;
+    if (!expect(csw.tag == 6, "write10 read-only csw tag mismatch")) return 1;
+    if (!expect(csw.status == static_cast<usb::u8>(usb::class_driver::MscStatus::failed), "write10 read-only csw status mismatch")) return 1;
+    if (!expect(csw.residue == 0, "write10 read-only csw residue mismatch")) return 1;
+
+    if (!run_scsi_in(session, *demo.bot, demo.cfg, usb::class_driver::ScsiCmd::request_sense, 18, 7, resp)) {
+        std::fprintf(stderr, "[ERR] request sense after write10 read-only failed\n");
+        return 1;
+    }
+    if (!expect(resp.size() >= 31, "request sense after write10 read-only too short")) return 1;
+    if (!expect(resp[2] == 0x07 && resp[12] == 0x27 && resp[13] == 0x00, "request sense after write10 read-only mismatch")) return 1;
+
+    CbwBuilder invalid_cbw{8, 64, true, 0, 10};
+    std::memset(invalid_cbw.cbw.cb, 0, sizeof(invalid_cbw.cbw.cb));
+    invalid_cbw.cbw.cb[0] = static_cast<usb::u8>(usb::class_driver::ScsiCmd::inquiry);
+    invalid_cbw.cbw.signature = 0;
+    if (!expect(send_cbw(session, demo.cfg, invalid_cbw), "invalid cbw feed failed")) return 1;
+    if (!expect(demo.bot->last_scsi_status() == 2, "invalid cbw should enter phase error")) return 1;
+    if (!expect(demo.bot->take_stall_in(), "invalid cbw should stall IN")) return 1;
+    if (!expect(demo.bot->stall_wait_csw(), "invalid cbw should wait csw after stall")) return 1;
+    if (!expect(!usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *demo.bot, demo.cfg),
+                "invalid cbw should block csw before clear stall")) return 1;
+    demo.bot->on_clear_stall(true);
+    if (!collect_msc_in(session, *demo.bot, demo.cfg, resp)) {
+        std::fprintf(stderr, "[ERR] invalid cbw csw collection failed\n");
+        return 1;
+    }
+    if (!expect(tail_csw(resp, csw), "invalid cbw csw missing")) return 1;
+    if (!expect(csw.tag == 8, "invalid cbw csw tag mismatch")) return 1;
+    if (!expect(csw.status == static_cast<usb::u8>(usb::class_driver::MscStatus::phase_error), "invalid cbw csw status mismatch")) return 1;
+    if (!expect(csw.residue == 64, "invalid cbw csw residue mismatch")) return 1;
 
     std::printf("[OK] usb-msc-mock-smoke passed\n");
     std::printf("[state] address=%u configured=%d resets=%zu cfg_calls=%zu\n",

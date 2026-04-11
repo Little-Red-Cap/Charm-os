@@ -1,6 +1,5 @@
 ﻿module;
 
-#include <array>
 #include <optional>
 #include <span>
 
@@ -233,8 +232,14 @@ export namespace charm::system {
                              input) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                 init::Phase max_phase = init::Phase::app,
-                                 std::span<const init::Node* const> extra_nodes = {}) noexcept {
+                                 init::Phase max_phase = init::Phase::app) noexcept {
+            return start_plan(init::compose(), runlevel_mask, max_phase);
+        }
+
+        [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
+        util::Result<void> start(util::u32 runlevel_mask,
+                                 init::Phase max_phase,
+                                 std::span<const init::Node* const> extra_nodes) noexcept {
             return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
         }
 
@@ -245,54 +250,21 @@ export namespace charm::system {
             if (input_required_ && !input_) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            const auto spi_nodes = spi_
-                ? spi_->node_span()
-                : std::span<const init::Node* const>{};
-            const auto i2c_nodes = i2c_
-                ? i2c_->node_span()
-                : std::span<const init::Node* const>{};
-            const auto sdmmc_nodes = sdmmc_
-                ? sdmmc_->node_span()
-                : std::span<const init::Node* const>{};
-            const auto flash_nodes = flash_
-                ? flash_->node_span()
-                : std::span<const init::Node* const>{};
-            const auto input_nodes = input_
-                ? input_->node_span()
-                : std::span<const init::Node* const>{};
-
-            std::array<const init::Node*, 1> can_nodes_storage{};
-            util::usize can_nodes_count = 0;
-            if (can_channel_) {
-                can_nodes_storage[0] = &can_channel_->node;
-                can_nodes_count = 1;
-            }
-            const auto can_nodes = std::span<const init::Node* const>(
-                can_nodes_storage.data(), can_nodes_count);
-
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
                         init::legacy(core_),
                         init::legacy(board_),
-                        init::legacy_nodes(spi_nodes),
-                        init::legacy_nodes(i2c_nodes),
-                        init::legacy_nodes(sdmmc_nodes),
-                        init::legacy_nodes(flash_nodes),
-                        init::legacy_nodes(input_nodes),
-                        init::legacy_nodes(can_nodes),
+                        init::legacy(spi_),
+                        init::legacy(i2c_),
+                        init::legacy(sdmmc_),
+                        init::legacy(flash_),
+                        init::legacy(input_),
+                        init::legacy(can_channel_),
                         extra_plan),
                     runlevel_mask),
                 max_phase);
-            auto materialized = init::materialize<MaxNodes, MaxCaps>(bringup_plan);
-            if (!materialized) {
-                return util::unexpected(materialized.error());
-            }
-            auto r = graph_.build(materialized->node_ptr_span(),
-                                  static_cast<util::u32>(init::Runlevel::all),
-                                  init::Phase::app);
-            if (!r) return r;
-            auto r_start = graph_.start();
+            auto r_start = init::start_graph(graph_, bringup_plan);
             if (!r_start) return r_start;
             auto* ch = core_.registry.open_channel(uart_.io_cap);
             if (!ch) {

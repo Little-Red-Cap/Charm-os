@@ -160,16 +160,8 @@ namespace player::app_test_hqzy::app_system {
             init::legacy(sdmmc_chain).after<PlatformReady>(),
             init::legacy(usb_plan).after<PlatformReady>());
         player::foundation::print(sys.foundation, "msc: materialize plan\n");
-        auto materialized = init::materialize<kMaxNodes, kMaxCaps>(system_plan);
-        if (!materialized) {
-            boot_log::print_err("boot: plan materialize failed", materialized.error());
-            Error_Handler();
-        }
-
         init::Graph<kMaxNodes, kMaxCaps> graph{};
-        auto r = graph.build(materialized->node_ptr_span(),
-                             static_cast<util::u32>(init::Runlevel::all),
-                             init::Phase::app);
+        auto r = init::build_graph(graph, system_plan);
         player::foundation::print(sys.foundation, "msc: graph build returned\n");
         if (!r) {
             boot_log::print_err("boot: graph build failed", r.error());

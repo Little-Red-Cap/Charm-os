@@ -2,11 +2,13 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <tuple>
 
 export module init.materialize;
 
+import init.graph;
 import init.meta;
 import init.plan;
 import init.recipe;
@@ -15,6 +17,9 @@ import util.core;
 import util.error;
 
 namespace init::detail {
+    template <typename T>
+    inline constexpr bool unsupported_legacy_v = false;
+
     inline util::Result<void> noop_init(void*) noexcept {
         return {};
     }
@@ -30,6 +35,8 @@ namespace init::detail {
         cap_set<MaxCaps> provides{};
         Phase max_phase{Phase::early};
         util::u32 common_runlevel_mask{static_cast<util::u32>(Runlevel::all)};
+        util::usize leaf_count{0};
+        util::usize leaves_with_provides{0};
         bool has_nodes{false};
     };
 
@@ -115,6 +122,8 @@ export namespace init {
         std::array<CapId, MaxCaps> provided_caps_seen{};
         util::usize provided_caps_count{0};
         util::usize count{0};
+        util::u32 effective_runlevel_mask{0};
+        Phase effective_max_phase{Phase::early};
 
         constexpr std::span<const Node* const> node_ptr_span() const noexcept {
             return std::span<const Node* const>{ptrs.data(), count};
@@ -122,6 +131,15 @@ export namespace init {
 
         constexpr util::usize size() const noexcept {
             return count;
+        }
+
+        constexpr util::u32 build_runlevel_mask() const noexcept {
+            return count == 0 ? static_cast<util::u32>(Runlevel::all)
+                              : effective_runlevel_mask;
+        }
+
+        constexpr Phase build_max_phase() const noexcept {
+            return count == 0 ? Phase::app : effective_max_phase;
         }
     };
 }
@@ -180,6 +198,13 @@ namespace init::detail {
         node.provides = std::span<const CapId>{out.provides_storage[row].data(), out.provides_count[row]};
         node.requires_caps = std::span<const CapId>{out.requires_storage[row].data(), out.requires_count[row]};
         out.ptrs[row] = &node;
+        if (row == 0) {
+            out.effective_runlevel_mask = node.runlevel_mask;
+            out.effective_max_phase = node.phase;
+        } else {
+            out.effective_runlevel_mask |= node.runlevel_mask;
+            out.effective_max_phase = phase_max(out.effective_max_phase, node.phase);
+        }
 
         materialize_summary<MaxCaps> summary{};
         for (util::usize i = 0; i < out.provides_count[row]; ++i) {
@@ -190,6 +215,8 @@ namespace init::detail {
         }
         summary.max_phase = node.phase;
         summary.common_runlevel_mask = node.runlevel_mask;
+        summary.leaf_count = 1;
+        summary.leaves_with_provides = out.provides_count[row] > 0 ? 1u : 0u;
         summary.has_nodes = true;
         return summary;
     }
@@ -308,6 +335,8 @@ namespace init::detail {
         if (!r) {
             return util::unexpected(r.error());
         }
+        dst.leaf_count += src.leaf_count;
+        dst.leaves_with_provides += src.leaves_with_provides;
         if (!src.has_nodes) {
             return {};
         }
@@ -327,6 +356,47 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                 const Item& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept;
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Legacy>
+    util::Result<materialize_summary<MaxCaps>> append_legacy_value(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                   const Legacy& value,
+                                                                   const materialize_constraints<MaxCaps>& constraints) noexcept {
+        materialize_summary<MaxCaps> summary{};
+        if constexpr (requires(const Legacy& candidate) {
+                          candidate.node_span();
+                      }) {
+            const auto span = value.node_span();
+            for (util::usize i = 0; i < span.size(); ++i) {
+                if (!span[i]) {
+                    continue;
+                }
+                auto current = append_node(out, *span[i], constraints);
+                if (!current) {
+                    return util::unexpected(current.error());
+                }
+                auto merge = absorb_summary(summary, *current);
+                if (!merge) {
+                    return util::unexpected(merge.error());
+                }
+            }
+            return summary;
+        } else if constexpr (requires(const Legacy& candidate) {
+                                 candidate.node;
+                             }) {
+            auto current = append_node(out, value.node, constraints);
+            if (!current) {
+                return util::unexpected(current.error());
+            }
+            auto merge = absorb_summary(summary, *current);
+            if (!merge) {
+                return util::unexpected(merge.error());
+            }
+            return summary;
+        } else {
+            static_assert(unsupported_legacy_v<Legacy>,
+                          "init::legacy(...) requires node_span() or a node member");
+        }
+    }
 
     template <std::size_t Index, util::usize MaxNodes, util::usize MaxCaps, typename... Items>
     util::Result<materialize_summary<MaxCaps>> materialize_tuple(materialized_graph<MaxNodes, MaxCaps>& out,
@@ -359,25 +429,20 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                 const legacy_ref<Chain>& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept {
-        materialize_summary<MaxCaps> summary{};
         if (!item.chain) {
             return util::unexpected(util::Errc::invalid_arg);
         }
-        const auto span = item.chain->node_span();
-        for (util::usize i = 0; i < span.size(); ++i) {
-            if (!span[i]) {
-                continue;
-            }
-            auto current = append_node(out, *span[i], constraints);
-            if (!current) {
-                return util::unexpected(current.error());
-            }
-            auto merge = absorb_summary(summary, *current);
-            if (!merge) {
-                return util::unexpected(merge.error());
-            }
+        return append_legacy_value(out, *item.chain, constraints);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Chain>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const legacy_optional_ref<Chain>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        if (!item.chain || !item.chain->has_value()) {
+            return materialize_summary<MaxCaps>{};
         }
-        return summary;
+        return append_legacy_value(out, item.chain->value(), constraints);
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -449,6 +514,9 @@ namespace init::detail {
         if (!summary->has_nodes || summary->provides.count == 0) {
             return util::unexpected(util::Errc::invalid_arg);
         }
+        if (summary->leaf_count == 0 || summary->leaves_with_provides != summary->leaf_count) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
         if (summary->common_runlevel_mask == 0) {
             return util::unexpected(util::Errc::bad_state);
         }
@@ -508,6 +576,44 @@ export namespace init {
         return out;
     }
 
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    util::Result<void> build_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const materialized_graph<MaxNodes, MaxCaps>& mats) noexcept {
+        return graph.build(mats.node_ptr_span(),
+                           mats.build_runlevel_mask(),
+                           mats.build_max_phase());
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Plan>
+    util::Result<void> build_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const Plan& plan_value) noexcept {
+        auto mats = materialize<MaxNodes, MaxCaps>(plan_value);
+        if (!mats) {
+            return util::unexpected(mats.error());
+        }
+        return build_graph(graph, *mats);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    util::Result<void> start_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const materialized_graph<MaxNodes, MaxCaps>& mats) noexcept {
+        auto r = build_graph(graph, mats);
+        if (!r) {
+            return util::unexpected(r.error());
+        }
+        return graph.start();
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Plan>
+    util::Result<void> start_graph(Graph<MaxNodes, MaxCaps>& graph,
+                                   const Plan& plan_value) noexcept {
+        auto mats = materialize<MaxNodes, MaxCaps>(plan_value);
+        if (!mats) {
+            return util::unexpected(mats.error());
+        }
+        return start_graph(graph, *mats);
+    }
+
 #ifndef NDEBUG
     inline util::Result<void> materialize_self_check() noexcept {
         using CapA = cap_c<"test.a">;
@@ -538,12 +644,59 @@ export namespace init {
         DemoContext ctx{};
         const auto plan_value = compose(
             bind<RecipeA>(ctx),
-            bind<RecipeB>(ctx)).export_as<CapDone>();
+            bind<RecipeB>(ctx)).ready_as<CapDone>();
         auto mats = materialize<4, 8>(plan_value);
         if (!mats) {
             return util::unexpected(mats.error());
         }
         if (mats->size() != 3) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        using RecipeNoProvide = recipe_desc<
+            "test.no_provide",
+            Phase::early,
+            static_cast<util::u32>(Runlevel::all),
+            cap_list<>,
+            cap_list<>,
+            DemoContext,
+            nullptr>;
+        const auto invalid_ready_plan = compose(
+            bind<RecipeA>(ctx),
+            bind<RecipeNoProvide>(ctx)).ready_as<CapDone>();
+        auto invalid_ready = materialize<4, 8>(invalid_ready_plan);
+        if (invalid_ready || invalid_ready.error() != util::Errc::invalid_arg) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        struct LegacyNodeHolder {
+            std::array<CapId, 1> provides{CapA::id};
+
+            LegacyNodeHolder() noexcept
+                : node{
+                    "test.legacy.node",
+                    Phase::early,
+                    static_cast<util::u32>(Runlevel::all),
+                    std::span<const CapId>{provides.data(), provides.size()},
+                    {},
+                    nullptr,
+                    nullptr,
+                    this
+                } {
+            }
+
+            Node node{};
+        };
+
+        LegacyNodeHolder holder{};
+        auto legacy_holder = materialize<2, 4>(compose(legacy(holder)));
+        if (!legacy_holder || legacy_holder->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
+        auto legacy_optional = materialize<2, 4>(compose(legacy(optional_holder)));
+        if (!legacy_optional || legacy_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

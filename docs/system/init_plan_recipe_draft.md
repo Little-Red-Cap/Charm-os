@@ -100,6 +100,8 @@ Capability 不负责：
 
 - `Plan` 不继承 `provides`
 - 子树导出必须走 `Barrier`
+- `ready_as(...)` 仅允许包装“所有叶子都显式提供 capability”的子树，否则 `materialize(...)` 直接报错
+- `export_as(...)` 仅保留为兼容别名；对外推荐表面统一为 `ready_as(...)` 或显式 barrier
 
 ### `runlevel`
 
@@ -144,6 +146,7 @@ Capability 不负责：
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
+- 旧式 `start(runlevel, phase, extra_nodes)` 仅保留为兼容入口，并逐步退场
 - `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法
 
 ## 当前迁移状态
@@ -165,6 +168,9 @@ Capability 不负责：
 这几处目前统一采用：
 
 - `compose(...)` 组织装配树
-- `legacy(...)` / `legacy_nodes(...)` 桥接旧 chain 与旧节点数组
+- `legacy(...)` 桥接旧 chain、`optional` chain 与单节点 legacy binding；`legacy_nodes(...)` 仅保留给旧节点数组兼容
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
+- `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源
+- 推荐用 `build_graph(...)` / `start_graph(...)` 作为 `Plan -> Graph` 的默认胶水层，避免重复样板代码
+- 旧式 `chain.build()` 也优先并到 `build_graph(...)`，避免框架内部继续分叉出第二套落地路径

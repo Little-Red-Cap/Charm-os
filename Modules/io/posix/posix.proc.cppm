@@ -149,6 +149,7 @@ export namespace posix {
             proc.terminate_requested = false;
             proc.terminate_signal = 0;
             proc.exec_ctx = nullptr;
+            assign_process_name(proc, cfg, image.value());
             proc.fds = child_table.value();
 
             const auto code = start_image(proc, image.value(), cfg);
@@ -199,6 +200,19 @@ export namespace posix {
             return st;
         }
 
+        util::usize snapshot_processes(std::span<ProcessSnapshot> out) const noexcept {
+            util::usize written = 0;
+            for (util::usize i = 0; i < MaxProcs && written < out.size(); ++i) {
+                if (!used_[i]) continue;
+                auto& snap = out[written++];
+                snap = {};
+                snap.pid = procs_[i].pid;
+                snap.state = procs_[i].exited ? ProcessState::zombie : ProcessState::running;
+                snap.name = procs_[i].name;
+            }
+            return written;
+        }
+
         FdTableType* fd_table(ProcessId pid) noexcept {
             auto* proc = find_proc(pid);
             if (!proc) return nullptr;
@@ -242,6 +256,7 @@ export namespace posix {
             bool terminate_requested{false};
             int terminate_signal{0};
             ExecContext* exec_ctx{nullptr};
+            std::array<char, kProcessNameMax> name{};
             FdTableType fds{};
         };
 
@@ -258,6 +273,33 @@ export namespace posix {
             proc.terminate_signal = sig;
             proc.wait_kind = WaitKind::signaled;
             proc.wait_code = sig;
+        }
+
+        static std::string_view command_basename(std::string_view name) noexcept {
+            const auto pos = name.find_last_of('/');
+            return pos == std::string_view::npos ? name : name.substr(pos + 1);
+        }
+
+        static void copy_name(std::string_view src, std::array<char, kProcessNameMax>& dst) noexcept {
+            dst = {};
+            const auto n = src.size() < (dst.size() - 1) ? src.size() : (dst.size() - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                dst[i] = src[i];
+            }
+        }
+
+        static void assign_process_name(Process& proc,
+                                        const SpawnConfig& cfg,
+                                        const ProgramImage& image) noexcept {
+            std::string_view source{};
+            if (!cfg.argv.empty() && cfg.argv[0] != nullptr && cfg.argv[0][0] != '\0') {
+                source = cfg.argv[0];
+            } else if (cfg.path != nullptr && cfg.path[0] != '\0') {
+                source = cfg.path;
+            } else {
+                source = image.name;
+            }
+            copy_name(command_basename(source), proc.name);
         }
 
         int alloc_slot() noexcept {

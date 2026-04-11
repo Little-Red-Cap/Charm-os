@@ -438,6 +438,14 @@ export namespace posix {
             return kill(ProcessId{pid}, sig);
         }
 
+        int list_processes(std::span<ProcessSnapshot> out) noexcept {
+            if (!proc_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            return static_cast<int>(proc_service_->snapshot_processes(out));
+        }
+
         int getpid() const noexcept {
             return bound_pid_ >= 0 ? bound_pid_ : 0;
         }

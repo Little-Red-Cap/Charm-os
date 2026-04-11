@@ -516,6 +516,49 @@ namespace {
         h.unbind_env();
     }
 
+    void test_sh_c_ps() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
+        check_true("ps-register-sh", reg_sh);
+        auto reg_ps = h.procs.register_executable("/bin/ps", &busybox_main);
+        check_true("ps-register-ps", reg_ps);
+
+        int pipefd[2]{-1, -1};
+        check_eq("ps-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("ps-move-read", h.fds.dup2(read_fd, 11));
+            read_fd = 11;
+        }
+
+        const char* argv[] = {"sh", "-c", "ps", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("ps-spawn", pid > 0);
+        int status = 0;
+        check_eq("ps-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("ps-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 128> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("ps-read-len", r > 0);
+        const auto text = std::string_view{buf.data(), static_cast<util::usize>(r)};
+        check_true("ps-header", text.find("PID STATE CMD\n") == 0);
+        check_true("ps-has-sh", text.find(" sh\n") != std::string_view::npos);
+        check_true("ps-has-ps", text.find(" ps\n") != std::string_view::npos);
+        h.unbind_env();
+    }
+
     void test_busybox_sh_via_busybox() noexcept {
         Harness h{};
         h.bind_env();
@@ -577,6 +620,9 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase sh-redir-pipe begin");
     test_sh_c_redir_and_pipe();
     log_line("[posix-smoke] programs phase sh-redir-pipe end");
+    log_line("[posix-smoke] programs phase sh-ps begin");
+    test_sh_c_ps();
+    log_line("[posix-smoke] programs phase sh-ps end");
     log_line("[posix-smoke] programs phase busybox-argv0 begin");
     test_busybox_sh_by_argv0();
     log_line("[posix-smoke] programs phase busybox-argv0 end");

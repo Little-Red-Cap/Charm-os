@@ -221,6 +221,28 @@ export namespace posix::testsupport {
         return ProgramEnv::api->sleep(seconds) == 0 ? 0 : 4;
     }
 
+    int ps_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc > 1 && argv && argv[1]) return 2;
+        std::array<posix::ProcessSnapshot, 8> entries{};
+        const int count = ProgramEnv::api->list_processes(
+            std::span<posix::ProcessSnapshot>(entries.data(), entries.size()));
+        if (count < 0) return 3;
+        if (write_text(1, "PID STATE CMD\n") != 0) return 4;
+        for (int i = 0; i < count; ++i) {
+            const auto state = entries[static_cast<util::usize>(i)].state == posix::ProcessState::running ? 'R' : 'Z';
+            char line[96]{};
+            std::snprintf(line,
+                          sizeof(line),
+                          "%d %c %s\n",
+                          entries[static_cast<util::usize>(i)].pid.value,
+                          state,
+                          entries[static_cast<util::usize>(i)].name.data());
+            if (write_text(1, line) != 0) return 4;
+        }
+        return 0;
+    }
+
     int exit_code_main(int argc, char** argv) {
         if (argc < 2 || !argv || !argv[1]) return 0;
         int value = 0;
@@ -337,6 +359,12 @@ export namespace posix::testsupport {
             }
             const char* sleep_argv[] = {"sleep", sec_buf, nullptr};
             return spawn_command("sleep", std::span<const char* const>(sleep_argv, 2),
+                                 stdio_in, stdio_out, stdio_err);
+        };
+
+        auto spawn_ps = [&](int stdio_in, int stdio_out, int stdio_err) noexcept -> int {
+            const char* ps_argv[] = {"ps", nullptr};
+            return spawn_command("ps", std::span<const char* const>(ps_argv, 1),
                                  stdio_in, stdio_out, stdio_err);
         };
 
@@ -520,6 +548,12 @@ export namespace posix::testsupport {
             } else {
                 rc = spawn_sleep(arg_words[0], input_fd, output_fd, err_fd);
             }
+        } else if (program == "ps") {
+            if (arg_count != 0) {
+                rc = 127;
+            } else {
+                rc = spawn_ps(input_fd, output_fd, err_fd);
+            }
         }
 
         close_if_open(input_fd);
@@ -617,6 +651,9 @@ export namespace posix::testsupport {
             }
             if (applet_name == "sleep") {
                 return sleep_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "ps") {
+                return ps_main(applet_argc, applet_argv);
             }
             return 127;
         };

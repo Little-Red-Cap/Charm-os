@@ -61,9 +61,22 @@ export namespace posix {
 
     struct SpawnResult { ProcessId pid{}; };
 
+    inline constexpr util::usize kProcessNameMax = 32;
+
     inline constexpr int SIGINT = 2;
     inline constexpr int SIGKILL = 9;
     inline constexpr int SIGTERM = 15;
+
+    enum class ProcessState : util::u8 {
+        running,
+        zombie,
+    };
+
+    struct ProcessSnapshot {
+        ProcessId pid{};
+        ProcessState state{ProcessState::running};
+        std::array<char, kProcessNameMax> name{};
+    };
 
     enum class WaitKind : util::u8 {
         exited,

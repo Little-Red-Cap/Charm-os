@@ -141,6 +141,30 @@ export namespace posix::testsupport {
         return true;
     }
 
+    template <util::usize MaxWords>
+    int split_shell_words(std::string_view in,
+                          std::array<std::string_view, MaxWords>& out) noexcept {
+        int count = 0;
+        util::usize pos = 0;
+        while (pos < in.size()) {
+            while (pos < in.size() && in[pos] == ' ') {
+                ++pos;
+            }
+            if (pos >= in.size()) {
+                break;
+            }
+            const auto start = pos;
+            while (pos < in.size() && in[pos] != ' ') {
+                ++pos;
+            }
+            if (count >= static_cast<int>(out.size())) {
+                return -1;
+            }
+            out[static_cast<util::usize>(count++)] = in.substr(start, pos - start);
+        }
+        return count;
+    }
+
     int hello_main(int, char**) {
         return write_text(1, "hello\n");
     }
@@ -215,19 +239,20 @@ export namespace posix::testsupport {
         if (argc < 3 || !argv || !argv[1] || !argv[2]) return 2;
         if (std::string_view{argv[1]} != "-c") return 2;
         std::string_view cmd{argv[2]};
-        if (cmd.rfind("echo ", 0) != 0 || cmd.size() <= 5) return 127;
         const auto path_env = program_path_env();
 
         auto spawn_command = [&](const char* file,
                                  std::span<const char* const> child_argv,
                                  int stdio_in,
-                                 int stdio_out) noexcept -> int {
+                                 int stdio_out,
+                                 int stdio_err) noexcept -> int {
             posix::SpawnConfig cfg{};
             cfg.path = file;
             cfg.argv = child_argv;
             cfg.envp = path_env;
             cfg.stdio_in = stdio_in;
             cfg.stdio_out = stdio_out;
+            cfg.stdio_err = stdio_err;
             const int pid = ProgramEnv::api->spawnp(cfg);
             if (pid < 0) return posix::get_errno();
             int status = 0;
@@ -236,19 +261,35 @@ export namespace posix::testsupport {
             return (status >> 8) & 0xff;
         };
 
-        auto spawn_echo = [&](std::string_view arg, int stdio_out) noexcept -> int {
+        auto spawn_echo = [&](std::string_view arg,
+                              int stdio_in,
+                              int stdio_out,
+                              int stdio_err) noexcept -> int {
             char arg_buf[64]{};
             const auto n = arg.size() < (sizeof(arg_buf) - 1) ? arg.size() : (sizeof(arg_buf) - 1);
             for (util::usize i = 0; i < n; ++i) {
                 arg_buf[i] = arg[i];
             }
+            if (n == 0) {
+                const char* echo_argv[] = {"echo", nullptr};
+                return spawn_command("echo", std::span<const char* const>(echo_argv, 1),
+                                     stdio_in, stdio_out, stdio_err);
+            }
             const char* echo_argv[] = {"echo", arg_buf, nullptr};
-            return spawn_command("echo", std::span<const char* const>(echo_argv, 2), -1, stdio_out);
+            return spawn_command("echo", std::span<const char* const>(echo_argv, 2),
+                                 stdio_in, stdio_out, stdio_err);
         };
 
-        auto spawn_cat = [&](int stdio_in, int stdio_out) noexcept -> int {
+        auto spawn_cat = [&](int stdio_in, int stdio_out, int stdio_err) noexcept -> int {
             const char* cat_argv[] = {"cat", nullptr};
-            return spawn_command("cat", std::span<const char* const>(cat_argv, 1), stdio_in, stdio_out);
+            return spawn_command("cat", std::span<const char* const>(cat_argv, 1),
+                                 stdio_in, stdio_out, stdio_err);
+        };
+
+        auto spawn_stderr_demo = [&](int stdio_in, int stdio_out, int stdio_err) noexcept -> int {
+            const char* stderr_argv[] = {"stderr_demo", nullptr};
+            return spawn_command("stderr_demo", std::span<const char* const>(stderr_argv, 1),
+                                 stdio_in, stdio_out, stdio_err);
         };
 
         const auto pipe_pos = cmd.find(" | cat");
@@ -256,42 +297,162 @@ export namespace posix::testsupport {
             const std::string_view arg = cmd.substr(5, pipe_pos - 5);
             int fds[2]{-1, -1};
             if (ProgramEnv::api->pipe(fds) != 0) return 5;
-            const int echo_rc = spawn_echo(arg, fds[1]);
+            const int echo_rc = spawn_echo(arg, -1, fds[1], -1);
             (void)ProgramEnv::api->close(fds[1]);
             if (echo_rc != 0) {
                 (void)ProgramEnv::api->close(fds[0]);
                 return echo_rc;
             }
-            const int cat_rc = spawn_cat(fds[0], -1);
+            const int cat_rc = spawn_cat(fds[0], -1, -1);
             (void)ProgramEnv::api->close(fds[0]);
             return cat_rc;
         }
 
-        const auto redir_pos = cmd.find(" > ");
-        if (redir_pos != std::string_view::npos) {
-            const std::string_view arg = cmd.substr(5, redir_pos - 5);
-            const std::string_view path = cmd.substr(redir_pos + 3);
-            char path_buf[64]{};
-            util::usize offset = 0;
-            if (!path.empty() && path[0] != '/') {
-                path_buf[0] = '/';
-                offset = 1;
+        std::array<std::string_view, 8> words{};
+        const int word_count = split_shell_words(cmd, words);
+        if (word_count <= 0) return 127;
+
+        const std::string_view program = words[0];
+        std::array<std::string_view, 2> arg_words{};
+        int arg_count = 0;
+        std::string_view input_path{};
+        std::string_view output_path{};
+        std::string_view err_path{};
+        bool merge_err_to_out = false;
+        bool saw_redirect = false;
+
+        for (int i = 1; i < word_count; ++i) {
+            const std::string_view token = words[static_cast<util::usize>(i)];
+            if (token == "2>&1") {
+                saw_redirect = true;
+                merge_err_to_out = true;
+                err_path = {};
+                continue;
             }
-            const auto pn = path.size() < (sizeof(path_buf) - 1 - offset)
-                ? path.size()
-                : (sizeof(path_buf) - 1 - offset);
-            for (util::usize i = 0; i < pn; ++i) {
-                path_buf[offset + i] = path[i];
+            if (token == "<" || (token.size() > 1 && token[0] == '<')) {
+                saw_redirect = true;
+                if (token == "<") {
+                    ++i;
+                    if (i >= word_count) return 127;
+                    input_path = words[static_cast<util::usize>(i)];
+                } else {
+                    input_path = token.substr(1);
+                }
+                continue;
             }
-            const int fd = ProgramEnv::api->open(path_buf, posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
-            if (fd < 0) return 9;
-            const int rc = spawn_echo(arg, fd);
-            (void)ProgramEnv::api->close(fd);
-            return rc;
+            if (token == ">" || (token.size() > 1 && token[0] == '>')) {
+                if (merge_err_to_out) {
+                    return 127;
+                }
+                saw_redirect = true;
+                if (token == ">") {
+                    ++i;
+                    if (i >= word_count) return 127;
+                    output_path = words[static_cast<util::usize>(i)];
+                } else {
+                    output_path = token.substr(1);
+                }
+                continue;
+            }
+            if (token == "2>" || (token.size() > 2 && token[0] == '2' && token[1] == '>')) {
+                saw_redirect = true;
+                merge_err_to_out = false;
+                if (token == "2>") {
+                    ++i;
+                    if (i >= word_count) return 127;
+                    err_path = words[static_cast<util::usize>(i)];
+                } else {
+                    err_path = token.substr(2);
+                }
+                continue;
+            }
+            if (saw_redirect) {
+                return 127;
+            }
+            if (arg_count >= static_cast<int>(arg_words.size())) {
+                return 127;
+            }
+            arg_words[static_cast<util::usize>(arg_count++)] = token;
         }
 
-        const std::string_view arg = cmd.substr(5);
-        const int rc = spawn_echo(arg, -1);
+        std::array<char, 64> input_buf{};
+        std::array<char, 64> output_buf{};
+        std::array<char, 64> err_buf{};
+        int input_fd = -1;
+        int output_fd = -1;
+        int err_fd = -1;
+
+        const auto close_if_open = [&](int& fd) noexcept {
+            if (fd >= 0) {
+                (void)ProgramEnv::api->close(fd);
+                fd = -1;
+            }
+        };
+
+        if (!input_path.empty()) {
+            if (!make_absolute_path(input_path, input_buf)) {
+                return 127;
+            }
+            input_fd = ProgramEnv::api->open(input_buf.data(), posix::O_RDONLY, 0);
+            if (input_fd < 0) {
+                return 9;
+            }
+        }
+        if (!output_path.empty()) {
+            if (!make_absolute_path(output_path, output_buf)) {
+                close_if_open(input_fd);
+                return 127;
+            }
+            output_fd = ProgramEnv::api->open(output_buf.data(), posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            if (output_fd < 0) {
+                close_if_open(input_fd);
+                return 9;
+            }
+        }
+        if (!err_path.empty()) {
+            if (!make_absolute_path(err_path, err_buf)) {
+                close_if_open(input_fd);
+                close_if_open(output_fd);
+                return 127;
+            }
+            err_fd = ProgramEnv::api->open(err_buf.data(), posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            if (err_fd < 0) {
+                close_if_open(input_fd);
+                close_if_open(output_fd);
+                return 9;
+            }
+        }
+        if (merge_err_to_out) {
+            err_fd = 1;
+        }
+
+        int rc = 127;
+        if (program == "echo") {
+            if (arg_count > 1) {
+                rc = 127;
+            } else {
+                const auto arg = arg_count == 1 ? arg_words[0] : std::string_view{};
+                rc = spawn_echo(arg, input_fd, output_fd, err_fd);
+            }
+        } else if (program == "cat") {
+            if (arg_count != 0) {
+                rc = 127;
+            } else {
+                rc = spawn_cat(input_fd, output_fd, err_fd);
+            }
+        } else if (program == "stderr_demo") {
+            if (arg_count != 0) {
+                rc = 127;
+            } else {
+                rc = spawn_stderr_demo(input_fd, output_fd, err_fd);
+            }
+        }
+
+        close_if_open(input_fd);
+        close_if_open(output_fd);
+        if (!merge_err_to_out) {
+            close_if_open(err_fd);
+        }
         return rc;
     }
 

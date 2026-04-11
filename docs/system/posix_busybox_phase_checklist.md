@@ -39,11 +39,23 @@ Targets:
 - redirect: `>`, `>>`, `<`, `2>`, `2>&1`
 - pipe: `|`
 
+Current Charm slice:
+- done: `>`, `<`, `2>`, `2>&1`, `|`
+- next: `>>`
+- scope guard: keep append semantics as a separate follow-up cut instead of folding it into the first redirect pass
+
 Acceptance:
 - pipeline works across multiple commands
 - redirection overrides stdout/stderr
 - `PATH` lookup resolves commands
 - `isatty` influences shell formatting (prompt)
+
+Current acceptance on mainline smoke:
+- `sh -c 'echo hi > out.txt'`
+- `sh -c 'echo hi | cat'`
+- `sh -c 'cat < input.txt'`
+- `sh -c 'stderr_demo 2> err.txt'`
+- `sh -c 'stderr_demo > both.txt 2>&1'`
 
 ## Phase 3: Process Control
 

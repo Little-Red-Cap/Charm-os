@@ -16,6 +16,7 @@
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
+- redirect matrix v1a is now on the mainline shell smoke: `<`, `2>`, and `> ... 2>&1`
 
 ## Stable ABI Contracts
 
@@ -48,6 +49,7 @@
 - real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
 - `spawnp`-style PATH lookup is now exercised from `posix.api` and program-shell smoke, not only proc smoke
 - `spawnp` now also has an API-level `argv[0]` search-path regression, which is closer to Linux userland launcher shapes
+- shell smoke now validates `cat < file`, `stderr_demo 2> err.txt`, and `stderr_demo > both.txt 2>&1`
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
@@ -55,6 +57,6 @@
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
 1. Keep FS Basics v1 narrow and stable: harden `mkdir` / `unlink` / `rename` / `opendir` / `readdir` errno and path contracts
-2. Add the next shell redirect slice: `<`, `>>`, `2>`, `2>&1`, without letting `posix.proc` regain policy weight
-3. Revisit `truncate` / `O_APPEND` / `lseek` only after the Phase 1 FS surface is stable enough for BusyBox-style tools
+2. Add redirect matrix v1b: `>>`, and only the minimum append contract needed to keep shell behavior predictable
+3. Revisit `truncate` / `O_APPEND` / `lseek` only after the redirect v1b surface is stable enough for BusyBox-style tools
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

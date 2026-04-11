@@ -1318,6 +1318,201 @@ int main() {
         if (!usb::fixture::expect(read_capacity_csw_sent->residue == 2, "read-capacity csw residue mismatch")) return 1;
         if (!usb::fixture::expect(!read_capacity_csw_sent->flag, "read-capacity csw phase flag mismatch")) return 1;
     }
+    {
+        constexpr auto kRead10ZeroLenCbw = "55534243080000000000000080000A28000000000000000100000000000000";
+        constexpr auto kRead10ZeroLenCsw = "55534253080000000000000002";
+        constexpr auto kRead10ZeroLenRequestSenseCbw = "55534243090000001200000080000603000000120000000000000000000000";
+        constexpr auto kRead10ZeroLenRequestSenseResp = "700005000000000A0000000020000000000055534253090000000000000000";
+
+        std::string zero_len_boardlog{};
+        zero_len_boardlog.reserve(2048);
+        zero_len_boardlog += "usb: connect on\n";
+        zero_len_boardlog += "usb: reset\n";
+        zero_len_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        zero_len_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        zero_len_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        zero_len_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        zero_len_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        zero_len_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        zero_len_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        zero_len_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        zero_len_boardlog += kRead10ZeroLenCbw;
+        zero_len_boardlog += "\n";
+        zero_len_boardlog += "usb: stall ep=0x81\n";
+        zero_len_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
+        zero_len_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        zero_len_boardlog += kRead10ZeroLenCsw;
+        zero_len_boardlog += "\n";
+        zero_len_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        zero_len_boardlog += kRead10ZeroLenRequestSenseCbw;
+        zero_len_boardlog += "\n";
+        zero_len_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        zero_len_boardlog += kRead10ZeroLenRequestSenseResp;
+        zero_len_boardlog += "\n";
+
+        const auto imported_zero_len = usb::boardlog::load_text(zero_len_boardlog);
+        if (!imported_zero_len) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len boardlog load failed line=%zu err=%s\n",
+                         imported_zero_len.line,
+                         usb::boardlog::error_name(imported_zero_len.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_zero_len.imported_steps == 13, "read10-zero-len imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.skipped_steps == 0, "read10-zero-len skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps.size() == 13, "read10-zero-len trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-zero-len cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[8].kind == usb::replay::StepKind::stall,
+                                  "read10-zero-len stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[8].ep == 0x81,
+                                  "read10-zero-len stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
+                                  "read10-zero-len clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "read10-zero-len csw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[11].kind == usb::replay::StepKind::out,
+                                  "read10-zero-len request-sense step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[12].kind == usb::replay::StepKind::in,
+                                  "read10-zero-len request-sense response step kind mismatch")) return 1;
+
+        const auto zero_len_trace_text = usb::boardlog::to_text(imported_zero_len.trace);
+        if (!usb::fixture::expect(count_substring(zero_len_trace_text, "out ep=01 zlp=0 data=") == 2,
+                                  "read10-zero-len roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(zero_len_trace_text, "in ep=81 zlp=0 data=") == 2,
+                                  "read10-zero-len roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find("stall ep=81") != std::string::npos,
+                                  "read10-zero-len roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find("clear_stall ep=81") != std::string::npos,
+                                  "read10-zero-len roundtrip missing clear_stall")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find(kRead10ZeroLenRequestSenseResp) != std::string::npos,
+                                  "read10-zero-len roundtrip missing request-sense response")) return 1;
+
+        const auto zero_len_roundtrip = usb::replay::load_text(zero_len_trace_text);
+        if (!zero_len_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len roundtrip parse failed line=%zu err=%s\n",
+                         zero_len_roundtrip.line,
+                         usb::replay::load_error_name(zero_len_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk zero_len_disk{};
+        block::Registry<2> zero_len_registry{};
+        zero_len_registry.init();
+        auto zero_len_reg = zero_len_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, zero_len_disk.device);
+        if (!zero_len_reg) {
+            std::fprintf(stderr, "[ERR] read10-zero-len registry register failed err=%d\n", static_cast<int>(zero_len_reg.error()));
+            return 1;
+        }
+
+        DemoContext zero_len_demo{};
+        usb::mock::Session zero_len_session{};
+        const auto zero_len_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto zero_len_model = usb::build(zero_len_spec);
+        const auto zero_len_plan = usb::plan::build(zero_len_model);
+        if (!zero_len_plan) {
+            std::fprintf(stderr, "[ERR] read10-zero-len plan build failed err=%d\n", static_cast<int>(zero_len_plan.error()));
+            return 1;
+        }
+
+        const auto zero_len_runtime = usb::runtime::host_mock(
+            zero_len_session.dcd_ops(),
+            &zero_len_session,
+            &zero_len_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &zero_len_demo});
+
+        auto zero_len_binding = usb::runtime::make(zero_len_plan.value(), zero_len_registry, zero_len_runtime);
+        const auto zero_len_init = decltype(zero_len_binding)::init_trampoline(&zero_len_binding);
+        if (!zero_len_init) {
+            std::fprintf(stderr, "[ERR] read10-zero-len binding init failed err=%d\n", static_cast<int>(zero_len_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(zero_len_demo.ready, "read10-zero-len runtime ready hook not called")) return 1;
+
+        PumpContext zero_len_pump{zero_len_demo.bot, zero_len_plan.value().msc.msc_cfg};
+        const auto zero_len_replay = usb::replay::run(
+            zero_len_session,
+            zero_len_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &zero_len_pump, &pump_stall});
+        if (!zero_len_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len replay failed step=%zu err=%s\n",
+                         zero_len_replay.step_index,
+                         usb::replay::error_name(zero_len_replay.error));
+            return 1;
+        }
+
+        const auto zero_len_cfg = zero_len_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::out_packet, zero_len_cfg.ep_out) == 2,
+                                  "read10-zero-len host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::in_complete, zero_len_cfg.ep_in) == 3,
+                                  "read10-zero-len host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::clear_stall, zero_len_cfg.ep_in),
+                                  "read10-zero-len clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(zero_len_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, zero_len_cfg.ep_in) == 1,
+                                  "read10-zero-len stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!zero_len_session.endpoint_state(zero_len_cfg.ep_in).stalled,
+                                  "read10-zero-len bulk in endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kRead10ZeroLen = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* zero_len_read10 = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::read10_started,
+                                                           kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_read10 != nullptr, "read10-zero-len read10 trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->transfer_length == 0, "read10-zero-len transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->lba == 0, "read10-zero-len lba mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->blocks == 1, "read10-zero-len block count mismatch")) return 1;
+
+        const auto* zero_len_sense = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::sense_set,
+                                                          kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_sense != nullptr, "read10-zero-len sense trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_key == 0x05, "read10-zero-len sense key mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_asc == 0x20, "read10-zero-len sense asc mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_ascq == 0x00, "read10-zero-len sense ascq mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->transfer_length == 0, "read10-zero-len sense transfer length mismatch")) return 1;
+
+        const auto* zero_len_stall_in = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_stall_in != nullptr, "read10-zero-len stall-in trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_stall_in->residue == 0, "read10-zero-len stall-in residue mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_stall_in->flag, "read10-zero-len stall-in flag mismatch")) return 1;
+
+        const auto* zero_len_wait_csw = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::wait_csw,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_wait_csw != nullptr, "read10-zero-len wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_wait_csw->transfer_length == 0, "read10-zero-len wait-csw length mismatch")) return 1;
+
+        const auto* zero_len_phase_error = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::phase_error,
+                                                                kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_phase_error != nullptr, "read10-zero-len phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_phase_error->residue == 0, "read10-zero-len phase-error residue mismatch")) return 1;
+
+        const auto* zero_len_clear_stall = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                                kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_clear_stall != nullptr, "read10-zero-len clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_clear_stall->flag, "read10-zero-len clear-stall flag mismatch")) return 1;
+
+        const auto* zero_len_csw_sent = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::csw_sent,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_csw_sent != nullptr, "read10-zero-len csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_csw_sent->residue == 0, "read10-zero-len csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_csw_sent->flag, "read10-zero-len csw phase flag mismatch")) return 1;
+
+        constexpr auto kRead10ZeroLenRequestSense = static_cast<usb::u8>(usb::class_driver::ScsiCmd::request_sense);
+        const auto* zero_len_request_sense_csw = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                      usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                      kRead10ZeroLenRequestSense);
+        if (!usb::fixture::expect(zero_len_request_sense_csw != nullptr, "read10-zero-len request-sense csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_request_sense_csw->residue == 0, "read10-zero-len request-sense csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!zero_len_request_sense_csw->flag, "read10-zero-len request-sense csw phase flag mismatch")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

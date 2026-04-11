@@ -47,6 +47,7 @@ static SD_HandleTypeDef& card = CHARM_SDMMC_HANDLE;
 
 namespace {
     namespace board = player::stm32h7::board;
+    constexpr auto kSdmmc = board::kSdmmc;
     static out::channel_sink* g_sink = nullptr;
     constexpr util::u32 kLogRetryMs = 20;
     template <out::fixed_string Fmt, typename... Args>
@@ -366,7 +367,7 @@ namespace {
         init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
         init.BusWide = SDMMC_BUS_WIDE_1B;
         init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
-        init.ClockDiv = board::kSdmmcInitClockDiv;
+        init.ClockDiv = kSdmmc.init_clock_div;
         (void)SDMMC_Init(card.Instance, init);
         (void)SDMMC_PowerState_ON(card.Instance);
         HAL_Delay(50);
@@ -504,16 +505,16 @@ namespace {
 
     struct SdBlockDevice {
         bool init() noexcept {
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 log<"fs sdmmc: init begin">();
             }
 
             CHARM_SDMMC_INIT();
-            card.Init.ClockDiv = board::kSdmmcInitClockDiv;
+            card.Init.ClockDiv = kSdmmc.init_clock_div;
             card.Init.BusWide = SDMMC_BUS_WIDE_1B;
             card.State = CHARM_SDMMC_STATE_RESET;
             const auto init_status = CHARM_SDMMC_INIT_HANDLE(&card);
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 const auto diag = board::sdmmc_diag_snapshot();
                 log<"fs sdmmc: rcc src=0x{:08X} SDMMC1_en={}">(
                     diag.rcc_src,
@@ -521,7 +522,7 @@ namespace {
                 log<"fs sdmmc: rcc ahb2=0x{:08X} ahb3=0x{:08X}">(
                     diag.rcc_ahb2,
                     diag.rcc_ahb3);
-                if constexpr (board::kSdmmcVerboseGpio) {
+                if constexpr (kSdmmc.verbose_gpio) {
                     log<"fs sdmmc: gpioa moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
                         diag.gpioa_moder, diag.gpioa_pupd, diag.gpioa_afr0, diag.gpioa_afr1);
                     log<"fs sdmmc: gpioc moder=0x{:08X} pupd=0x{:08X} afr0=0x{:08X} afr1=0x{:08X}">(
@@ -540,7 +541,7 @@ namespace {
                     diag.pin_ck);
             }
             if (init_status != HAL_OK) {
-                if constexpr (board::kSdmmcVerbose) {
+                if constexpr (kSdmmc.verbose) {
                     const auto err = static_cast<util::u32>(CHARM_SDMMC_GET_ERROR(&card));
                     const auto clk = static_cast<util::u32>(HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC));
                     const auto clkcr = static_cast<util::u32>(card.Instance->CLKCR);
@@ -560,20 +561,20 @@ namespace {
                 return false;
             }
 
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 const auto clk = static_cast<util::u32>(HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC));
                 const auto clkcr = static_cast<util::u32>(card.Instance->CLKCR);
                 log<"fs sdmmc: ker_ck={}Hz clkcr=0x{:08X}">(
                     clk, clkcr);
             }
 
-            if constexpr (board::kSdmmcTry4Bit) {
+            if constexpr (kSdmmc.try_4bit) {
                 if (CHARM_SDMMC_CONFIG_WIDE(&card, SDMMC_BUS_WIDE_4B) != HAL_OK) {
-                    if constexpr (board::kSdmmcVerbose) {
+                    if constexpr (kSdmmc.verbose) {
                         log<"fs sdmmc: 4b failed, try 1b">();
                     }
                     if (CHARM_SDMMC_CONFIG_WIDE(&card, SDMMC_BUS_WIDE_1B) != HAL_OK) {
-                        if constexpr (board::kSdmmcVerbose) {
+                        if constexpr (kSdmmc.verbose) {
                             log<"fs sdmmc: 1b failed">();
                         }
                         return false;
@@ -581,15 +582,15 @@ namespace {
                 }
             } else {
                 if (CHARM_SDMMC_CONFIG_WIDE(&card, SDMMC_BUS_WIDE_1B) != HAL_OK) {
-                    if constexpr (board::kSdmmcVerbose) {
+                    if constexpr (kSdmmc.verbose) {
                         log<"fs sdmmc: 1b failed">();
                     }
                     return false;
                 }
             }
-            MODIFY_REG(card.Instance->CLKCR, SDMMC_CLKCR_CLKDIV, board::kSdmmcXferClockDiv);
-            card.Init.ClockDiv = board::kSdmmcXferClockDiv;
-            if constexpr (board::kSdmmcVerbose) {
+            MODIFY_REG(card.Instance->CLKCR, SDMMC_CLKCR_CLKDIV, kSdmmc.xfer_clock_div);
+            card.Init.ClockDiv = kSdmmc.xfer_clock_div;
+            if constexpr (kSdmmc.verbose) {
                 const auto clk = static_cast<util::u32>(HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC));
                 const auto clkcr = static_cast<util::u32>(card.Instance->CLKCR);
                 log<"fs sdmmc: xfer ker_ck={}Hz clkcr=0x{:08X}">(
@@ -597,14 +598,14 @@ namespace {
             }
 
             if (CHARM_SDMMC_GET_INFO(&card, &info_) != HAL_OK) {
-                if constexpr (board::kSdmmcVerbose) {
+                if constexpr (kSdmmc.verbose) {
                     log<"fs sdmmc: card info failed">();
                 }
                 return false;
             }
             block_size_ = info_.LogBlockSize;
             block_count_ = info_.LogBlockNbr;
-            util::u32 part_lba = board::kSdmmcPartitionLba;
+            util::u32 part_lba = kSdmmc.partition_lba;
             FatProbe best{};
             auto consider = [&](util::u32 lba) {
                 FatProbe probe{};
@@ -617,7 +618,7 @@ namespace {
             if (part_lba == 0) {
                 const util::u32 auto_lba = sdmmc_detect_partition_lba();
                 if (auto_lba != 0) {
-                    if constexpr (board::kSdmmcVerbose) {
+                    if constexpr (kSdmmc.verbose) {
                         log<"fs sdmmc: partition auto={}">(
                             auto_lba);
                     }
@@ -628,14 +629,14 @@ namespace {
             consider(0);
             consider(2048);
             if (best.valid && best.lba != part_lba) {
-                if constexpr (board::kSdmmcVerbose) {
+                if constexpr (kSdmmc.verbose) {
                     log<"fs sdmmc: fat boot pick lba={} sectors={}">(
                         best.lba, best.total_sectors);
                 }
                 part_lba = best.lba;
                 block_count_ = best.total_sectors;
             }
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 log_fat_bpb(part_lba);
                 dump_fat_root_any(part_lba);
                 dump_fat_root_any(0);
@@ -644,7 +645,7 @@ namespace {
             part_lba_ = part_lba;
             if (part_lba > 0) {
                 if (part_lba >= block_count_) {
-                    if constexpr (board::kSdmmcVerbose) {
+                    if constexpr (kSdmmc.verbose) {
                         log<"fs sdmmc: partition lba {} >= block_count {}">(
                             part_lba, block_count_);
                     }
@@ -652,17 +653,17 @@ namespace {
                 }
                 block_count_ -= part_lba;
             }
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 log<"fs sdmmc: block_size={} block_count={} part_lba={}">(
                     block_size_, block_count_, part_lba);
                 log<"fs sdmmc: dma enabled={}">(
-                    board::kSdmmcUseDma ? 1 : 0);
+                    kSdmmc.use_dma ? 1 : 0);
             }
-            if constexpr (board::kSdmmcProbeRead) {
+            if constexpr (kSdmmc.probe_read) {
                 sdmmc_probe_read(0);
                 sdmmc_probe_read(2048);
             }
-            if constexpr (board::kSdmmcVerbose) {
+            if constexpr (kSdmmc.verbose) {
                 sdmmc_log_partitions();
             }
             device_.ctx = this;
@@ -695,7 +696,7 @@ namespace {
             for (util::u32 i = 0; i < count; ++i) {
                 auto* dst = data.data() + (static_cast<std::size_t>(i) * self->block_size_);
                 const util::u32 lba_i = static_cast<util::u32>(lba + i + part_lba);
-                const bool use_dma = board::kSdmmcUseDma && can_dma(dst, self->block_size_);
+                const bool use_dma = kSdmmc.use_dma && can_dma(dst, self->block_size_);
                 if (use_dma) {
                     if (CHARM_SDMMC_READ_DMA(&card, dst, lba_i, 1) != HAL_OK) {
                         sdmmc_log_read_fail(lba_i, 1, true);
@@ -726,7 +727,7 @@ namespace {
             const util::u32 count = static_cast<util::u32>(data.size() / self->block_size_);
             const util::u32 part_lba = self->part_lba_;
             const util::u32 start_lba = static_cast<util::u32>(lba + part_lba);
-            const bool use_dma = board::kSdmmcUseDma && can_dma(data.data(), data.size());
+            const bool use_dma = kSdmmc.use_dma && can_dma(data.data(), data.size());
             if (use_dma) {
                 if (CHARM_SDMMC_WRITE_DMA(&card, const_cast<uint8_t*>(data.data()),
                         start_lba, count) != HAL_OK) {

@@ -17,7 +17,13 @@
   - 稳定表面：`Examples/project/player/stn32h747_HQZY/CM7/app/app_config.cppm`
   - 生成实现：`Examples/project/player/stn32h747_HQZY/CM7/cmake/player_app_config.generated.cppm.in`
   - CMake 接线：`Examples/project/player/stn32h747_HQZY/CM7/cmake/product_player_config_module.cmake`
-  - 当前分层：`ProductConfig / BoardDefaultsConfig / AppBehaviorConfig`，同时保留 `kIdentity / kBringup / kDebug` 等兼容别名
+  - 当前分层：`ProductConfig / BoardDefaultsConfig / AppBehaviorConfig`，`kProduct / kBoard / kApp` 是主表面，`kIdentity / kBringup / kDebug` 等旧别名已退成显式兼容层
+- `player` board config
+  - 稳定表面：`Examples/project/player/bsp/board_config.cppm`
+  - 生成实现：`Examples/project/player/stn32h747_HQZY/CM7/cmake/player_board_config.generated.cppm.in`
+  - CMake 接线：`Examples/project/player/stn32h747_HQZY/CM7/cmake/product_player_config_module.cmake`
+  - 当前形态：`BoardConfig / SdramConfig / SdmmcConfig / KeyConfig`，`kConfig / kSdmmc / kSdram / kKey` 是主表面，叶子常量别名已退成显式兼容层
+  - 消费侧优先读取 `kConfig / kSdmmc / kSdram / kKey` 这类 typed 主表面；叶子常量别名仅保留给迁移兼容层
 - `vivid` core config
   - 稳定表面：`Modules/ui/vivid/core/config.cppm`
   - 生成实现：`Modules/ui/vivid/cmake/config.generated.cppm.in`

@@ -27,7 +27,7 @@ namespace {
 export namespace player::stm32h7::board {
 
     GPIO_PinState key_active_state() noexcept {
-        return kKeyActiveHigh ? GPIO_PIN_SET : GPIO_PIN_RESET;
+        return kKey.active_high ? GPIO_PIN_SET : GPIO_PIN_RESET;
     }
 
     void init_boot_keys() noexcept {
@@ -37,7 +37,7 @@ export namespace player::stm32h7::board {
         GPIO_InitTypeDef gpio_init{};
         gpio_init.Pin = kBootKey0.pin | kBootKey1.pin;
         gpio_init.Mode = GPIO_MODE_INPUT;
-        gpio_init.Pull = kKeyActiveHigh ? GPIO_PULLDOWN : GPIO_PULLUP;
+        gpio_init.Pull = kKey.active_high ? GPIO_PULLDOWN : GPIO_PULLUP;
         gpio_init.Speed = GPIO_SPEED_FREQ_LOW;
         HAL_GPIO_Init(GPIOA, &gpio_init);
     }

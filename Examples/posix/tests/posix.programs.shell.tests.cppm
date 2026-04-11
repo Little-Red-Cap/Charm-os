@@ -303,6 +303,25 @@ namespace {
         check_eq("sh2-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         (void)h.api.close(rfd);
 
+        const char* argv_append[] = {"sh", "-c", "echo ho >> out.txt", nullptr};
+        posix::SpawnConfig cfg_append{};
+        cfg_append.path = "sh";
+        cfg_append.argv = std::span<const char* const>(argv_append, 3);
+        cfg_append.envp = path_env;
+        int pid_append = h.api.spawnp(cfg_append);
+        check_true("sh2-spawn-append", pid_append > 0);
+        int status_append = 0;
+        check_eq("sh2-waitpid-append", h.api.waitpid(posix::ProcessId{pid_append}, &status_append, 0), pid_append);
+        check_eq("sh2-status-append", (status_append >> 8) & 0xff, 0);
+
+        rfd = h.api.open("/out.txt", posix::O_RDONLY, 0);
+        check_true("sh2-open-read-append", rfd >= 0);
+        std::array<char, 16> append_buf{};
+        auto append_read = h.api.read(rfd, append_buf.data(), append_buf.size());
+        check_true("sh2-append-read-len", append_read >= 6);
+        check_eq("sh2-append-read-text", std::string_view{append_buf.data(), 6}, std::string_view{"hi\nho\n"});
+        (void)h.api.close(rfd);
+
         int pipefd[2]{-1, -1};
         check_eq("sh2-pipe", h.api.pipe(pipefd), 0);
         int read_fd = pipefd[0];
@@ -421,6 +440,25 @@ namespace {
         auto both_read = h.api.read(both_fd, both_buf.data(), both_buf.size());
         check_true("sh2-both-read-len", both_read >= 8);
         check_eq("sh2-both-read-text", std::string_view{both_buf.data(), 8}, std::string_view{"out\nerr\n"});
+        (void)h.api.close(both_fd);
+
+        const char* argv_merge_append[] = {"sh", "-c", "stderr_demo >> both.txt 2>&1", nullptr};
+        posix::SpawnConfig cfg_merge_append{};
+        cfg_merge_append.path = "sh";
+        cfg_merge_append.argv = std::span<const char* const>(argv_merge_append, 3);
+        cfg_merge_append.envp = path_env;
+        int pid6 = h.api.spawnp(cfg_merge_append);
+        check_true("sh2-spawn-merge-append", pid6 > 0);
+        int status6 = 0;
+        check_eq("sh2-waitpid-merge-append", h.api.waitpid(posix::ProcessId{pid6}, &status6, 0), pid6);
+        check_eq("sh2-status-merge-append", (status6 >> 8) & 0xff, 0);
+
+        both_fd = h.api.open("/both.txt", posix::O_RDONLY, 0);
+        check_true("sh2-both-open-append", both_fd >= 0);
+        std::array<char, 24> both_append_buf{};
+        auto both_append_read = h.api.read(both_fd, both_append_buf.data(), both_append_buf.size());
+        check_true("sh2-both-append-read-len", both_append_read >= 16);
+        check_eq("sh2-both-append-read-text", std::string_view{both_append_buf.data(), 16}, std::string_view{"out\nerr\nout\nerr\n"});
         (void)h.api.close(both_fd);
         h.unbind_env();
     }

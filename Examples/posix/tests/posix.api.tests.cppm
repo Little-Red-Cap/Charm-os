@@ -64,10 +64,19 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            char buf[128]{};
-            std::snprintf(buf, sizeof(buf),
-                "[posix-smoke] api %s fail: expected=%lld actual=%lld",
-                label, to_ll(b), to_ll(a));
+            char buf[160]{};
+            if constexpr (std::is_same_v<std::remove_cvref_t<A>, std::string_view> &&
+                          std::is_same_v<std::remove_cvref_t<B>, std::string_view>) {
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] api %s fail: expected=\"%.*s\" actual=\"%.*s\"",
+                    label,
+                    static_cast<int>(b.size()), b.data(),
+                    static_cast<int>(a.size()), a.data());
+            } else {
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] api %s fail: expected=%lld actual=%lld",
+                    label, to_ll(b), to_ll(a));
+            }
             log_line(buf);
             fail();
         }
@@ -359,6 +368,24 @@ namespace {
         check_true("fs-empty-readdir", api.readdir(work_dir) == nullptr);
         check_eq("fs-empty-readdir-errno", posix::get_errno(), 0);
         check_eq("fs-closedir-empty", api.closedir(work_dir), 0);
+
+        fd = api.open("/append.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("fs-append-open-base", fd >= 0);
+        check_eq("fs-append-write-base", api.write(fd, "a\n", 2), 2);
+        check_eq("fs-append-close-base", api.close(fd), 0);
+
+        fd = api.open("/append.txt", posix::O_WRONLY | posix::O_APPEND, 0);
+        check_true("fs-append-open-append", fd >= 0);
+        check_eq("fs-append-write-append", api.write(fd, "b\n", 2), 2);
+        check_eq("fs-append-close-append", api.close(fd), 0);
+
+        fd = api.open("/append.txt", posix::O_RDONLY, 0);
+        check_true("fs-append-open-read", fd >= 0);
+        std::array<char, 8> append_buf{};
+        auto append_read = api.read(fd, append_buf.data(), append_buf.size());
+        check_eq("fs-append-read", append_read, static_cast<posix::ssize_t>(4));
+        check_eq("fs-append-text", std::string_view{append_buf.data(), 4}, std::string_view{"a\nb\n"});
+        check_eq("fs-append-close-read", api.close(fd), 0);
     }
 
     void test_api_dev_null_and_isatty() noexcept {

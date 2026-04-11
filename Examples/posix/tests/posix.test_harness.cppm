@@ -318,6 +318,7 @@ export namespace posix::testsupport {
         std::string_view input_path{};
         std::string_view output_path{};
         std::string_view err_path{};
+        bool output_append = false;
         bool merge_err_to_out = false;
         bool saw_redirect = false;
 
@@ -340,11 +341,27 @@ export namespace posix::testsupport {
                 }
                 continue;
             }
+            if (token == ">>" || (token.size() > 2 && token[0] == '>' && token[1] == '>')) {
+                if (merge_err_to_out) {
+                    return 127;
+                }
+                saw_redirect = true;
+                output_append = true;
+                if (token == ">>") {
+                    ++i;
+                    if (i >= word_count) return 127;
+                    output_path = words[static_cast<util::usize>(i)];
+                } else {
+                    output_path = token.substr(2);
+                }
+                continue;
+            }
             if (token == ">" || (token.size() > 1 && token[0] == '>')) {
                 if (merge_err_to_out) {
                     return 127;
                 }
                 saw_redirect = true;
+                output_append = false;
                 if (token == ">") {
                     ++i;
                     if (i >= word_count) return 127;
@@ -403,7 +420,10 @@ export namespace posix::testsupport {
                 close_if_open(input_fd);
                 return 127;
             }
-            output_fd = ProgramEnv::api->open(output_buf.data(), posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            const int out_flags = output_append
+                ? (posix::O_WRONLY | posix::O_CREAT | posix::O_APPEND)
+                : (posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC);
+            output_fd = ProgramEnv::api->open(output_buf.data(), out_flags, 0);
             if (output_fd < 0) {
                 close_if_open(input_fd);
                 return 9;

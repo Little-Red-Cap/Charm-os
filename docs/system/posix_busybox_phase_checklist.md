@@ -40,9 +40,8 @@ Targets:
 - pipe: `|`
 
 Current Charm slice:
-- done: `>`, `<`, `2>`, `2>&1`, `|`
-- next: `>>`
-- scope guard: keep append semantics as a separate follow-up cut instead of folding it into the first redirect pass
+- done: `>`, `>>`, `<`, `2>`, `2>&1`, `|`
+- scope guard: append is kept at the minimum shell/userland contract level; wider `lseek`/truncate semantics stay deferred
 
 Acceptance:
 - pipeline works across multiple commands
@@ -52,10 +51,12 @@ Acceptance:
 
 Current acceptance on mainline smoke:
 - `sh -c 'echo hi > out.txt'`
+- `sh -c 'echo ho >> out.txt'`
 - `sh -c 'echo hi | cat'`
 - `sh -c 'cat < input.txt'`
 - `sh -c 'stderr_demo 2> err.txt'`
 - `sh -c 'stderr_demo > both.txt 2>&1'`
+- `sh -c 'stderr_demo >> both.txt 2>&1'`
 
 ## Phase 3: Process Control
 

@@ -14,6 +14,26 @@ export namespace init {
     template <typename T>
     inline constexpr bool unsupported_as_plan_v = false;
 
+    template <typename T>
+    concept plan_like = requires { typename T::init_plan_tag; };
+
+    template <typename T>
+    concept has_plan_method = requires(const T& candidate) {
+        candidate.plan();
+    };
+
+    template <typename T>
+    concept has_single_node_member = requires(const T& candidate) {
+        candidate.node;
+    };
+
+    template <typename T>
+    concept has_legacy_traversal = requires(const T& candidate) {
+        candidate.for_each_legacy_node([](const Node&) noexcept {});
+    } || requires(const T& candidate) {
+        candidate.node_span();
+    };
+
     template <typename Derived>
     struct plan_ops;
 
@@ -190,6 +210,16 @@ export namespace init {
     }
 
     template <typename Chain>
+        requires ((!plan_like<Chain> && !has_plan_method<Chain> && !has_single_node_member<Chain>) ||
+                  has_legacy_traversal<Chain>)
+    constexpr auto legacy(const Chain& chain) noexcept {
+        return legacy_ref<Chain>{&chain};
+    }
+
+    template <typename Chain>
+        requires ((plan_like<Chain> || has_plan_method<Chain> || has_single_node_member<Chain>) &&
+                  !has_legacy_traversal<Chain>)
+    [[deprecated("use as_plan(...) for plan-like types and single-node bindings")]]
     constexpr auto legacy(const Chain& chain) noexcept {
         return legacy_ref<Chain>{&chain};
     }
@@ -207,15 +237,11 @@ export namespace init {
 
     template <typename Item>
     constexpr auto as_plan(const Item& value) noexcept {
-        if constexpr (requires { typename Item::init_plan_tag; }) {
+        if constexpr (plan_like<Item>) {
             return value;
-        } else if constexpr (requires(const Item& candidate) {
-                                 candidate.plan();
-                             }) {
+        } else if constexpr (has_plan_method<Item>) {
             return value.plan();
-        } else if constexpr (requires(const Item& candidate) {
-                                 candidate.node;
-                             }) {
+        } else if constexpr (has_single_node_member<Item>) {
             return single_node_ref<Item>{&value};
         } else {
             static_assert(unsupported_as_plan_v<Item>,

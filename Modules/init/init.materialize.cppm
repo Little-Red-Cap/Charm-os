@@ -763,7 +763,16 @@ export namespace init {
             return util::unexpected(util::Errc::bad_state);
         }
 
-        auto legacy_holder = materialize<2, 4>(compose(legacy(holder)));
+        struct LegacyChainHolder {
+            std::array<const Node*, 1> nodes{};
+
+            constexpr std::span<const Node* const> node_span() const noexcept {
+                return std::span<const Node* const>{nodes.data(), nodes.size()};
+            }
+        };
+
+        LegacyChainHolder legacy_chain{{&holder.node}};
+        auto legacy_holder = materialize<2, 4>(compose(legacy(legacy_chain)));
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }

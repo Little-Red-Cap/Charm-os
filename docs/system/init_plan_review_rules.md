@@ -8,6 +8,7 @@
 - 框架内 `*Chain` / `CoreSystemChain` 优先暴露并使用 `plan()`
 - 单节点 binding 优先写成 `as_plan(binding)`
 - 可选装配单元优先写成 `maybe(optional_item)`
+- multi-node legacy 优先暴露 `for_each_legacy_node(...)` 这类内部遍历协议
 
 ## 红灯
 - 业务 / 驱动接入层直接写 `init::Node`

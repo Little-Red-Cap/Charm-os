@@ -11,6 +11,7 @@ export module posix.elf_hostcall;
 import posix.errno;
 import posix.exec_context;
 import posix.fd_table;
+import posix.proc_types;
 import charm.system.time;
 import util.core;
 import util.error;
@@ -32,6 +33,7 @@ export namespace posix {
         int* (*errno_location)() noexcept {nullptr};
         util::i32 (*getpid)() noexcept {nullptr};
         util::i32 (*sleep)(util::u32 seconds) noexcept {nullptr};
+        util::i32 (*kill)(int pid, int sig) noexcept {nullptr};
     };
 
     template <class Service>
@@ -264,6 +266,26 @@ export namespace posix {
             clear_exec_errno();
             return 0;
         }
+
+        static util::i32 kill(int pid, int sig) noexcept {
+            auto* ctx = current_exec_context();
+            if (!ctx || pid < 0) {
+                set_exec_errno(util::Errc::invalid_arg);
+                return -1;
+            }
+            auto* service = exec_service(ctx);
+            if (!service) {
+                set_exec_errno(util::Errc::bad_state);
+                return -1;
+            }
+            auto st = service->kill(ProcessId{pid}, sig);
+            if (!st) {
+                set_exec_errno(st.error());
+                return -1;
+            }
+            clear_exec_errno();
+            return 0;
+        }
     };
 
     template <class Service>
@@ -283,6 +305,7 @@ export namespace posix {
         table->errno_location = &ElfHostcallAdapter<Service>::errno_location;
         table->getpid = &ElfHostcallAdapter<Service>::getpid;
         table->sleep = &ElfHostcallAdapter<Service>::sleep;
+        table->kill = &ElfHostcallAdapter<Service>::kill;
         return {};
     }
 }

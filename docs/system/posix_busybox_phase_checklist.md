@@ -83,6 +83,7 @@ Current acceptance on mainline smoke:
 - real ELF `getpid()` output equals spawned pid
 - API-level `sleep(0/1)`
 - real ELF `sleep 2` advances the test clock and exits cleanly
+- real ELF `kill_self` yields `waitpid(signaled)` with `SIGTERM`
 - proc smoke `kill(SIGTERM)` on enter yields `waitpid(signaled)` and prevents target execution
 - API smoke `kill(SIGTERM)` yields encoded wait status `SIGTERM`
 - `sh -c 'ps'` prints the current minimal `pid/state/name` view

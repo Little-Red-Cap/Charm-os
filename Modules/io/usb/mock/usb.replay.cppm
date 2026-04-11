@@ -22,6 +22,7 @@ export namespace usb::replay {
         connect,
         control_in,
         control_out,
+        clear_stall,
         out,
         in,
     };
@@ -347,6 +348,27 @@ export namespace usb::replay {
                 break;
             }
 
+            case StepKind::clear_stall: {
+                usb::SetupPacket setup{};
+                setup.bm_request_type = 0x02;
+                setup.b_request = static_cast<usb::u8>(usb::StandardRequest::clear_feature);
+                setup.w_value = 0;
+                setup.w_index = step.ep;
+                setup.w_length = 0;
+                session.feed_setup(setup);
+                const auto res = drain_in_transaction(session, 0x80, tx, {}, index);
+                if (!res) {
+                    return res;
+                }
+                if (!tx.data.empty()) {
+                    return Result{Error::payload_mismatch, index};
+                }
+                if (!tx.saw_zlp) {
+                    return Result{Error::zlp_mismatch, index};
+                }
+                break;
+            }
+
             case StepKind::out:
                 if (!session.feed_out(step.ep, expected)) {
                     return Result{Error::feed_failed, index};
@@ -444,6 +466,8 @@ export namespace usb::replay {
                 step.kind = StepKind::control_in;
             } else if (tokens[0] == "control_out") {
                 step.kind = StepKind::control_out;
+            } else if (tokens[0] == "clear_stall") {
+                step.kind = StepKind::clear_stall;
             } else if (tokens[0] == "out") {
                 step.kind = StepKind::out;
             } else if (tokens[0] == "in") {
@@ -518,6 +542,7 @@ export namespace usb::replay {
                 step.setup.w_index = static_cast<usb::u16>(wi);
                 step.setup.w_length = static_cast<usb::u16>(wl);
                 break;
+            case StepKind::clear_stall:
             case StepKind::out:
             case StepKind::in:
                 if (!has_ep) {

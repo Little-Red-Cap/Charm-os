@@ -194,6 +194,34 @@ namespace {
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
 
+    bool has_host_event(std::span<const usb::mock::HostEvent> events,
+                        usb::mock::HostEventKind kind,
+                        usb::u8 ep = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool has_msc_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
+                             usb::class_driver::MscTraceEventKind kind,
+                             usb::u8 command = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (command == 0xFF || event.command == command) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     struct MscCdcPumpContext {
         usb::class_driver::MscBot* bot{nullptr};
         usb::class_driver::MscConfig msc_cfg{};
@@ -302,7 +330,9 @@ namespace {
         return true;
     }
 
-    bool run_msc_case(std::string_view trace_path, std::FILE* stream) noexcept {
+    bool run_msc_case(std::string_view case_name,
+                      std::string_view trace_path,
+                      std::FILE* stream) noexcept {
         MemoryDisk disk{};
         block::Registry<2> registry{};
         registry.init();
@@ -355,6 +385,8 @@ namespace {
         if (!usb::fixture::expect(demo.ready, "msc ready hook not called", stream)) return false;
 
         MscPumpContext pump{demo.bot, plan.value().msc.msc_cfg};
+        session.clear_trace();
+        demo.bot->clear_trace();
         if (!usb::fixture::run_replay_file(session, trace_path, usb::replay::Hooks{&msc_pump_in, &pump}, stream)) {
             return false;
         }
@@ -364,6 +396,19 @@ namespace {
         if (!usb::fixture::expect(session.configured(), "device not configured", stream)) return false;
         if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened", stream)) return false;
         if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened", stream)) return false;
+        if (case_name == "msc-recovery") {
+            if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
+                                      "msc recovery clear-stall host event missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
+                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                                      "msc recovery wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                                      "msc recovery clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
+                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                                      "msc recovery csw trace missing", stream)) return false;
+        }
         return true;
     }
 
@@ -470,7 +515,7 @@ namespace {
             return run_cdc_case(trace_path, stream);
         }
         if (case_name.starts_with("msc-")) {
-            return run_msc_case(trace_path, stream);
+            return run_msc_case(case_name, trace_path, stream);
         }
         std::fprintf(stream, "[ERR] unknown suite case '%.*s'\n",
                      static_cast<int>(case_name.size()),

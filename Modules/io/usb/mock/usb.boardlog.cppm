@@ -345,6 +345,11 @@ export namespace usb::boardlog {
                 out += "\n";
                 break;
             }
+            case usb::replay::StepKind::clear_stall:
+                out += "clear_stall ep=";
+                detail::append_hex_byte(out, step.ep);
+                out += "\n";
+                break;
             case usb::replay::StepKind::out:
             case usb::replay::StepKind::in: {
                 out += (step.kind == usb::replay::StepKind::out) ? "out " : "in ";

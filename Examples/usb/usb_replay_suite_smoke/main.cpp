@@ -427,6 +427,25 @@ namespace {
             if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
                                                           kReadCapacity),
                                       "msc invalid-cbw recovery read-capacity trace missing", stream)) return false;
+        } else if (case_name == "msc-read10-zero-len") {
+            constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+            if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
+                                      "msc read10 zero-len clear-stall host event missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read10_started,
+                                                          kRead10),
+                                      "msc read10 zero-len read10 trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::sense_set,
+                                                          kRead10),
+                                      "msc read10 zero-len sense trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
+                                                          kRead10),
+                                      "msc read10 zero-len wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                          kRead10),
+                                      "msc read10 zero-len clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
+                                                          kRead10),
+                                      "msc read10 zero-len csw trace missing", stream)) return false;
         }
         return true;
     }

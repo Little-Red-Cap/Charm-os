@@ -103,6 +103,20 @@ namespace {
         if (ep != pump->cfg.ep_in) return false;
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
+
+    bool has_host_event(std::span<const usb::mock::HostEvent> events,
+                        usb::mock::HostEventKind kind,
+                        usb::u8 ep = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 int main() {
@@ -123,10 +137,21 @@ int main() {
                      usb::boardlog::error_name(imported.error));
         return 1;
     }
-    if (!usb::fixture::expect(imported.imported_steps == 6, "unexpected imported step count")) return 1;
+    if (!usb::fixture::expect(imported.imported_steps == 8, "unexpected imported step count")) return 1;
     if (!usb::fixture::expect(imported.skipped_steps == 0, "unexpected skipped step count")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps.size() == 8, "unexpected trace step size")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[0].kind == usb::replay::StepKind::connect,
+                              "boardlog first step should be connect")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[0].flag,
+                              "boardlog connect step should be true")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[1].kind == usb::replay::StepKind::reset,
+                              "boardlog second step should be reset")) return 1;
 
     const auto trace_text = usb::boardlog::to_text(imported.trace);
+    if (!usb::fixture::expect(trace_text.find("connect true") != std::string::npos,
+                              "roundtrip trace missing connect")) return 1;
+    if (!usb::fixture::expect(trace_text.find("reset") != std::string::npos,
+                              "roundtrip trace missing reset")) return 1;
     if (!usb::fixture::expect(trace_text.find("clear_stall ep=01") != std::string::npos,
                               "roundtrip trace missing clear_stall")) return 1;
     const auto roundtrip = usb::replay::load_text(trace_text);
@@ -195,6 +220,12 @@ int main() {
     if (!usb::fixture::expect(session.configured(), "device not configured")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::connect),
+                              "connect host event missing")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::reset),
+                              "reset host event missing")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
+                              "clear-stall host event missing")) return 1;
 
     std::printf("[OK] usb-msc-boardlog-import-smoke passed\n");
     std::printf("[state] imported=%zu skipped=%zu address=%u configured=%d\n",

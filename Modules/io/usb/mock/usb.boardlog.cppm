@@ -87,6 +87,22 @@ export namespace usb::boardlog {
             return true;
         }
 
+        inline bool parse_bool_word(std::string_view text, bool& out) noexcept {
+            text = trim(text);
+            if (text.empty()) {
+                return false;
+            }
+            if (text == "1" || text == "true" || text == "on" || text == "connected") {
+                out = true;
+                return true;
+            }
+            if (text == "0" || text == "false" || text == "off" || text == "disconnected") {
+                out = false;
+                return true;
+            }
+            return false;
+        }
+
         inline bool split_key_value(std::string_view token,
                                     std::string_view& key,
                                     std::string_view& value) noexcept {
@@ -227,6 +243,30 @@ export namespace usb::boardlog {
                 if (!detail::parse_desc_bytes(line, cfg_desc)) {
                     return fail(LoadError::syntax);
                 }
+                continue;
+            }
+            if (line.find("usb: connect") != std::string_view::npos) {
+                usb::replay::TraceStep step{};
+                step.kind = usb::replay::StepKind::connect;
+                step.flag = true;
+                const auto pos = line.find("usb: connect");
+                auto tail = detail::trim(line.substr(pos + std::string_view{"usb: connect"}.size()));
+                if (!tail.empty()) {
+                    bool connected = true;
+                    if (!detail::parse_bool_word(tail, connected)) {
+                        return fail(LoadError::syntax);
+                    }
+                    step.flag = connected;
+                }
+                out.trace.steps.push_back(std::move(step));
+                ++out.imported_steps;
+                continue;
+            }
+            if (line.find("usb: reset") != std::string_view::npos) {
+                usb::replay::TraceStep step{};
+                step.kind = usb::replay::StepKind::reset;
+                out.trace.steps.push_back(std::move(step));
+                ++out.imported_steps;
                 continue;
             }
             if (line.find("usb: setup") == std::string_view::npos) {

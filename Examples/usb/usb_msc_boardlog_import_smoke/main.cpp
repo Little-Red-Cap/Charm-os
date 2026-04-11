@@ -329,6 +329,17 @@ int main() {
         return out;
     };
 
+    const auto hex_encode_bytes = [] (std::span<const usb::u8> bytes) {
+        static constexpr char kHex[] = "0123456789ABCDEF";
+        std::string out{};
+        out.reserve(bytes.size() * 2);
+        for (const auto byte : bytes) {
+            out.push_back(kHex[(byte >> 4u) & 0x0Fu]);
+            out.push_back(kHex[byte & 0x0Fu]);
+        }
+        return out;
+    };
+
     const auto make_device_spec = []() {
         usb::spec::DeviceSpec device{};
         device.vendor_id = 0x1209;
@@ -850,6 +861,152 @@ int main() {
         if (!usb::fixture::expect(recovery_read_capacity->transfer_length == 8, "invalid-cbw recovery read-capacity transfer length mismatch")) return 1;
         if (!usb::fixture::expect(recovery_read_capacity->lba == 15, "invalid-cbw recovery read-capacity lba mismatch")) return 1;
         if (!usb::fixture::expect(recovery_read_capacity->blocks == 16, "invalid-cbw recovery read-capacity block count mismatch")) return 1;
+    }
+    {
+        constexpr auto kRead10ShortCbw = "555342430B0000000002000080000A28000000000000000200000000000000";
+        constexpr auto kRead10ShortCsw = "555342530B0000000002000000";
+
+        MemoryDisk short_read_disk{};
+        std::string read10_short_boardlog{};
+        read10_short_boardlog.reserve(2048);
+        read10_short_boardlog += "usb: connect on\n";
+        read10_short_boardlog += "usb: reset\n";
+        read10_short_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        read10_short_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        read10_short_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        read10_short_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        read10_short_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        read10_short_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        read10_short_boardlog += kRead10ShortCbw;
+        read10_short_boardlog += "\n";
+        read10_short_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        read10_short_boardlog += hex_encode_bytes(short_read_disk.block_span(0));
+        read10_short_boardlog += kRead10ShortCsw;
+        read10_short_boardlog += "\n";
+
+        const auto imported_read10_short = usb::boardlog::load_text(read10_short_boardlog);
+        if (!imported_read10_short) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short boardlog load failed line=%zu err=%s\n",
+                         imported_read10_short.line,
+                         usb::boardlog::error_name(imported_read10_short.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_read10_short.imported_steps == 9, "read10-short imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.skipped_steps == 0, "read10-short skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps.size() == 9, "read10-short trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-short cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "read10-short data step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[8].data.size() == (512 + 13),
+                                  "read10-short in transaction length mismatch")) return 1;
+
+        const auto read10_short_trace_text = usb::boardlog::to_text(imported_read10_short.trace);
+        if (!usb::fixture::expect(count_substring(read10_short_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read10-short roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(read10_short_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read10-short roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(read10_short_trace_text.find(kRead10ShortCsw) != std::string::npos,
+                                  "read10-short roundtrip missing trailing csw")) return 1;
+
+        const auto read10_short_roundtrip = usb::replay::load_text(read10_short_trace_text);
+        if (!read10_short_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short roundtrip parse failed line=%zu err=%s\n",
+                         read10_short_roundtrip.line,
+                         usb::replay::load_error_name(read10_short_roundtrip.error));
+            return 1;
+        }
+
+        block::Registry<2> short_read_registry{};
+        short_read_registry.init();
+        auto short_read_reg = short_read_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, short_read_disk.device);
+        if (!short_read_reg) {
+            std::fprintf(stderr, "[ERR] read10-short registry register failed err=%d\n", static_cast<int>(short_read_reg.error()));
+            return 1;
+        }
+
+        DemoContext short_read_demo{};
+        usb::mock::Session short_read_session{};
+        const auto short_read_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto short_read_model = usb::build(short_read_spec);
+        const auto short_read_plan = usb::plan::build(short_read_model);
+        if (!short_read_plan) {
+            std::fprintf(stderr, "[ERR] read10-short plan build failed err=%d\n", static_cast<int>(short_read_plan.error()));
+            return 1;
+        }
+
+        const auto short_read_runtime = usb::runtime::host_mock(
+            short_read_session.dcd_ops(),
+            &short_read_session,
+            &short_read_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &short_read_demo});
+
+        auto short_read_binding = usb::runtime::make(short_read_plan.value(), short_read_registry, short_read_runtime);
+        const auto short_read_init = decltype(short_read_binding)::init_trampoline(&short_read_binding);
+        if (!short_read_init) {
+            std::fprintf(stderr, "[ERR] read10-short binding init failed err=%d\n", static_cast<int>(short_read_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(short_read_demo.ready, "read10-short runtime ready hook not called")) return 1;
+
+        PumpContext short_read_pump{short_read_demo.bot, short_read_plan.value().msc.msc_cfg};
+        const auto short_read_replay = usb::replay::run(
+            short_read_session,
+            read10_short_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &short_read_pump, &pump_stall});
+        if (!short_read_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short replay failed step=%zu err=%s\n",
+                         short_read_replay.step_index,
+                         usb::replay::error_name(short_read_replay.error));
+            return 1;
+        }
+
+        const auto short_read_cfg = short_read_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(short_read_session.host_events(), usb::mock::HostEventKind::out_packet, short_read_cfg.ep_out) == 1,
+                                  "read10-short host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(short_read_session.host_events(), usb::mock::HostEventKind::in_complete, short_read_cfg.ep_in) == 9,
+                                  "read10-short host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(short_read_session.host_events(), usb::mock::HostEventKind::clear_stall, short_read_cfg.ep_in),
+                                  "read10-short should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(short_read_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, short_read_cfg.ep_in) == 0,
+                                  "read10-short should not stall bulk in")) return 1;
+
+        constexpr auto kRead10Short = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* short_read_trace = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::read10_started,
+                                                            kRead10Short);
+        if (!usb::fixture::expect(short_read_trace != nullptr, "read10-short trace missing")) return 1;
+        if (!usb::fixture::expect(short_read_trace->transfer_length == 512, "read10-short transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(short_read_trace->lba == 0, "read10-short lba mismatch")) return 1;
+        if (!usb::fixture::expect(short_read_trace->blocks == 2, "read10-short block count mismatch")) return 1;
+
+        const auto* short_data_in = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::data_in_started,
+                                                         kRead10Short);
+        if (!usb::fixture::expect(short_data_in != nullptr, "read10-short data-in trace missing")) return 1;
+        if (!usb::fixture::expect(short_data_in->transfer_length == 512, "read10-short data-in length mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->lba == 0, "read10-short data-in lba mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->blocks == 2, "read10-short data-in block count mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->residue == 512, "read10-short data-in residue mismatch")) return 1;
+
+        const auto* short_csw_ready = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::csw_ready,
+                                                           kRead10Short);
+        if (!usb::fixture::expect(short_csw_ready != nullptr, "read10-short csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(short_csw_ready->residue == 512, "read10-short csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!short_csw_ready->flag, "read10-short csw-ready phase flag mismatch")) return 1;
+
+        const auto* short_csw_sent = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::csw_sent,
+                                                          kRead10Short);
+        if (!usb::fixture::expect(short_csw_sent != nullptr, "read10-short csw trace missing")) return 1;
+        if (!usb::fixture::expect(short_csw_sent->residue == 512, "read10-short csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!short_csw_sent->flag, "read10-short csw phase flag mismatch")) return 1;
     }
 
     MemoryDisk disk{};

@@ -1,4 +1,5 @@
-﻿#include <array>
+﻿#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -229,6 +230,44 @@ int main() {
                                   "zlp boardlog roundtrip missing out zlp")) return 1;
         if (!usb::fixture::expect(zlp_trace_text.find("in ep=81 zlp=1 data=-") != std::string::npos,
                                   "zlp boardlog roundtrip missing in zlp")) return 1;
+    }
+    {
+        constexpr std::string_view kSegmentedInBoardlog =
+            "usb: connect on\n"
+            "usb: reset\n"
+            "usb: in ep=0x81 zlp=0 data=01020304\n"
+            "usb: in ep=0x81 zlp=0 data=05060708\n"
+            "usb: in ep=0x81 zlp=1 data=-\n";
+
+        const auto imported_segmented = usb::boardlog::load_text(kSegmentedInBoardlog);
+        if (!imported_segmented) {
+            std::fprintf(stderr,
+                         "[ERR] segmented boardlog load failed line=%zu err=%s\n",
+                         imported_segmented.line,
+                         usb::boardlog::error_name(imported_segmented.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_segmented.imported_steps == 5, "segmented boardlog imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented.trace.steps.size() == 3, "segmented boardlog trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented.trace.steps[2].kind == usb::replay::StepKind::in,
+                                  "segmented boardlog merged step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented.trace.steps[2].ep == 0x81,
+                                  "segmented boardlog merged endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented.trace.steps[2].flag,
+                                  "segmented boardlog merged step should preserve terminal zlp")) return 1;
+        constexpr usb::u8 kSegmentedPayload[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+        const auto segmented_data = std::span<const usb::u8>(kSegmentedPayload, sizeof(kSegmentedPayload));
+        if (!usb::fixture::expect(imported_segmented.trace.steps[2].data.size() == segmented_data.size(),
+                                  "segmented boardlog merged payload size mismatch")) return 1;
+        if (!usb::fixture::expect(std::equal(imported_segmented.trace.steps[2].data.begin(),
+                                            imported_segmented.trace.steps[2].data.end(),
+                                            segmented_data.begin(),
+                                            segmented_data.end()),
+                                  "segmented boardlog merged payload mismatch")) return 1;
+
+        const auto segmented_trace_text = usb::boardlog::to_text(imported_segmented.trace);
+        if (!usb::fixture::expect(segmented_trace_text.find("in ep=81 zlp=1 data=0102030405060708") != std::string::npos,
+                                  "segmented boardlog roundtrip missing merged in transaction")) return 1;
     }
 
     MemoryDisk disk{};

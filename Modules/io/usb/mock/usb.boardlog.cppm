@@ -355,6 +355,18 @@ export namespace usb::boardlog {
                         return fail(LoadError::syntax);
                     }
 
+                    if (step.kind == usb::replay::StepKind::in && !out.trace.steps.empty()) {
+                        auto& last = out.trace.steps.back();
+                        if (last.kind == usb::replay::StepKind::in &&
+                            last.ep == step.ep &&
+                            !last.flag) {
+                            last.data.insert(last.data.end(), step.data.begin(), step.data.end());
+                            last.flag = step.flag;
+                            ++out.imported_steps;
+                            continue;
+                        }
+                    }
+
                     out.trace.steps.push_back(std::move(step));
                     ++out.imported_steps;
                     continue;

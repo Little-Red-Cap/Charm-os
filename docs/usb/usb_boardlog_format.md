@@ -43,6 +43,7 @@
   - 导入为 `in ep=.. zlp=.. data=...`
   - 语义上表示设备向主机返回的数据事务期望值
   - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
+  - 连续、同端点的多条 `usb: in` 会在导入时自动拼接为一个 replay `in` 事务，末条的 `zlp` 作为事务结束标记
 
 - `usb: dev_desc`
   - 缓存设备描述符原始字节
@@ -63,6 +64,7 @@
 
 - 还不区分 bulk / interrupt / isoch 的端点语义，只按 `ep` + `data` 导入
 - `usb: stall` 目前只记录 endpoint，不区分更细的 stall 原因或时间信息
+- 多包分段目前只自动合并 `usb: in`；`usb: out` 仍按逐包事件导入
 - 还不导入字符串描述符读取
 - 如果 `GET_DESCRIPTOR(Device/Config)` 出现在对应描述符缓存之前，导入会失败
 

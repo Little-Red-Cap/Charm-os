@@ -73,12 +73,24 @@ namespace {
 
             device.ctx = this;
             device.read = &MemoryDisk::read_cb;
-            device.write = nullptr;
             device.erase = nullptr;
             device.flush = nullptr;
             device.block_size = block_size;
             device.block_count = block_count;
-            device.caps = block::to_bits(block::Caps::read);
+            set_writable(false);
+        }
+
+        void set_writable(bool writable) noexcept {
+            device.write = writable ? &MemoryDisk::write_cb : nullptr;
+            device.caps = block::to_bits(block::Caps::read)
+                        | (writable ? block::to_bits(block::Caps::write) : 0u);
+        }
+
+        [[nodiscard]] std::span<const usb::u8> block_span(std::size_t lba) const noexcept {
+            if (lba >= block_count) {
+                return {};
+            }
+            return std::span<const usb::u8>(bytes.data() + (lba * block_size), block_size);
         }
 
         static block::Status read_cb(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
@@ -92,6 +104,20 @@ namespace {
             }
             const auto offset = static_cast<std::size_t>(lba * block_size);
             std::memcpy(out.data(), self->bytes.data() + offset, out.size());
+            return {};
+        }
+
+        static block::Status write_cb(void* ctx, util::u64 lba, std::span<const util::u8> data) noexcept {
+            auto* self = static_cast<MemoryDisk*>(ctx);
+            if (!self || data.empty() || (data.size() % block_size) != 0) {
+                return {util::Errc::invalid_arg};
+            }
+            const auto blocks = static_cast<util::u64>(data.size() / block_size);
+            if (lba + blocks > block_count) {
+                return {util::Errc::invalid_arg};
+            }
+            const auto offset = static_cast<std::size_t>(lba * block_size);
+            std::memcpy(self->bytes.data() + offset, data.data(), data.size());
             return {};
         }
     };
@@ -208,20 +234,6 @@ namespace {
         return false;
     }
 
-    bool has_msc_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
-                             usb::class_driver::MscTraceEventKind kind,
-                             usb::u8 command = 0xFF) {
-        for (const auto& event : events) {
-            if (event.kind != kind) {
-                continue;
-            }
-            if (command == 0xFF || event.command == command) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     const usb::class_driver::MscTraceEvent* find_msc_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
                                                                  usb::class_driver::MscTraceEventKind kind,
                                                                  usb::u8 command = 0xFF) {
@@ -234,6 +246,15 @@ namespace {
             }
         }
         return nullptr;
+    }
+
+    bool span_is_filled(std::span<const usb::u8> bytes, usb::u8 value) {
+        for (const auto byte : bytes) {
+            if (byte != value) {
+                return false;
+            }
+        }
+        return true;
     }
 
     struct MscCdcPumpContext {
@@ -373,7 +394,9 @@ namespace {
         msc.vendor = "Charm";
         msc.product = "MockDisk";
         msc.revision = "1.00";
-        msc.read_only = true;
+        const bool writable_case = case_name.starts_with("msc-write10-");
+        disk.set_writable(writable_case);
+        msc.read_only = !writable_case;
 
         const auto spec = usb::spec::msc_device(device, msc);
         const auto model = usb::build(spec);
@@ -512,6 +535,93 @@ namespace {
             if (!usb::fixture::expect(csw_sent != nullptr, "msc read-capacity residue csw-sent trace missing", stream)) return false;
             if (!usb::fixture::expect(csw_sent->residue == 2, "msc read-capacity residue csw-sent residue mismatch", stream)) return false;
             if (!usb::fixture::expect(!csw_sent->flag, "msc read-capacity residue csw-sent phase flag mismatch", stream)) return false;
+        } else if (case_name == "msc-read10-short") {
+            constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+            if (!usb::fixture::expect(!has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
+                                      "msc read10 short should not clear stall", stream)) return false;
+
+            const auto* read10 = find_msc_trace_event(demo.bot->trace_events(),
+                                                      usb::class_driver::MscTraceEventKind::read10_started,
+                                                      kRead10);
+            if (!usb::fixture::expect(read10 != nullptr, "msc read10 short trace missing", stream)) return false;
+            if (!usb::fixture::expect(read10->transfer_length == 512, "msc read10 short transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->lba == 0, "msc read10 short lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->blocks == 2, "msc read10 short block count mismatch", stream)) return false;
+
+            const auto* data_in = find_msc_trace_event(demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::data_in_started,
+                                                       kRead10);
+            if (!usb::fixture::expect(data_in != nullptr, "msc read10 short data-in trace missing", stream)) return false;
+            if (!usb::fixture::expect(data_in->transfer_length == 512, "msc read10 short data-in length mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_in->lba == 0, "msc read10 short data-in lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_in->blocks == 2, "msc read10 short data-in block count mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_in->residue == 512, "msc read10 short data-in residue mismatch", stream)) return false;
+
+            const auto* csw_ready = find_msc_trace_event(demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::csw_ready,
+                                                         kRead10);
+            if (!usb::fixture::expect(csw_ready != nullptr, "msc read10 short csw-ready trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_ready->residue == 512, "msc read10 short csw-ready residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_ready->flag, "msc read10 short csw-ready phase flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kRead10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc read10 short csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 512, "msc read10 short csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_sent->flag, "msc read10 short csw phase flag mismatch", stream)) return false;
+        } else if (case_name == "msc-read10-overrun") {
+            constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+            if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
+                                      "msc read10 overrun clear-stall host event missing", stream)) return false;
+
+            const auto* read10 = find_msc_trace_event(demo.bot->trace_events(),
+                                                      usb::class_driver::MscTraceEventKind::read10_started,
+                                                      kRead10);
+            if (!usb::fixture::expect(read10 != nullptr, "msc read10 overrun trace missing", stream)) return false;
+            if (!usb::fixture::expect(read10->transfer_length == 1024, "msc read10 overrun transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->lba == 0, "msc read10 overrun lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->blocks == 1, "msc read10 overrun block count mismatch", stream)) return false;
+
+            const auto* data_in = find_msc_trace_event(demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::data_in_started,
+                                                       kRead10);
+            if (!usb::fixture::expect(data_in != nullptr, "msc read10 overrun data-in trace missing", stream)) return false;
+            if (!usb::fixture::expect(data_in->transfer_length == 512, "msc read10 overrun data-in length mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_in->residue == 512, "msc read10 overrun data-in residue mismatch", stream)) return false;
+
+            const auto* stall_in = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                        kRead10);
+            if (!usb::fixture::expect(stall_in != nullptr, "msc read10 overrun stall-in trace missing", stream)) return false;
+            if (!usb::fixture::expect(stall_in->transfer_length == 1024, "msc read10 overrun stall-in length mismatch", stream)) return false;
+            if (!usb::fixture::expect(stall_in->residue == 512, "msc read10 overrun stall-in residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(stall_in->flag, "msc read10 overrun stall-in flag mismatch", stream)) return false;
+
+            const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::wait_csw,
+                                                        kRead10);
+            if (!usb::fixture::expect(wait_csw != nullptr, "msc read10 overrun wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(wait_csw->transfer_length == 1024, "msc read10 overrun wait-csw length mismatch", stream)) return false;
+
+            const auto* phase_error = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::phase_error,
+                                                           kRead10);
+            if (!usb::fixture::expect(phase_error != nullptr, "msc read10 overrun phase-error trace missing", stream)) return false;
+            if (!usb::fixture::expect(phase_error->residue == 512, "msc read10 overrun phase-error residue mismatch", stream)) return false;
+
+            const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                           kRead10);
+            if (!usb::fixture::expect(clear_stall != nullptr, "msc read10 overrun clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(clear_stall->flag, "msc read10 overrun clear-stall flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kRead10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc read10 overrun csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 512, "msc read10 overrun csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->flag, "msc read10 overrun csw phase flag mismatch", stream)) return false;
         } else if (case_name == "msc-read10-zero-len") {
             constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
             if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
@@ -563,6 +673,99 @@ namespace {
             if (!usb::fixture::expect(csw_sent != nullptr, "msc read10 zero-len csw trace missing", stream)) return false;
             if (!usb::fixture::expect(csw_sent->residue == 0, "msc read10 zero-len csw residue mismatch", stream)) return false;
             if (!usb::fixture::expect(csw_sent->flag, "msc read10 zero-len csw phase flag mismatch", stream)) return false;
+        } else if (case_name == "msc-write10-short") {
+            constexpr auto kWrite10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+            if (!usb::fixture::expect(!has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
+                                      "msc write10 short should not clear stall", stream)) return false;
+
+            const auto* write10 = find_msc_trace_event(demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::write10_started,
+                                                       kWrite10);
+            if (!usb::fixture::expect(write10 != nullptr, "msc write10 short trace missing", stream)) return false;
+            if (!usb::fixture::expect(write10->transfer_length == 512, "msc write10 short transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(write10->lba == 1, "msc write10 short lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(write10->blocks == 2, "msc write10 short block count mismatch", stream)) return false;
+
+            const auto* data_out = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::data_out_started,
+                                                        kWrite10);
+            if (!usb::fixture::expect(data_out != nullptr, "msc write10 short data-out trace missing", stream)) return false;
+            if (!usb::fixture::expect(data_out->transfer_length == 512, "msc write10 short data-out length mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->lba == 1, "msc write10 short data-out lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->blocks == 2, "msc write10 short data-out block count mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->residue == 512, "msc write10 short data-out residue mismatch", stream)) return false;
+
+            const auto* csw_ready = find_msc_trace_event(demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::csw_ready,
+                                                         kWrite10);
+            if (!usb::fixture::expect(csw_ready != nullptr, "msc write10 short csw-ready trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_ready->residue == 512, "msc write10 short csw-ready residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_ready->flag, "msc write10 short csw-ready phase flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kWrite10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc write10 short csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 512, "msc write10 short csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_sent->flag, "msc write10 short csw phase flag mismatch", stream)) return false;
+            if (!usb::fixture::expect(span_is_filled(disk.block_span(1), 0xA5), "msc write10 short block payload mismatch", stream)) return false;
+            if (!usb::fixture::expect(span_is_filled(disk.block_span(2), 0x00), "msc write10 short trailing block should remain empty", stream)) return false;
+        } else if (case_name == "msc-write10-overrun") {
+            constexpr auto kWrite10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+            if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
+                                      "msc write10 overrun clear-stall host event missing", stream)) return false;
+
+            const auto* write10 = find_msc_trace_event(demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::write10_started,
+                                                       kWrite10);
+            if (!usb::fixture::expect(write10 != nullptr, "msc write10 overrun trace missing", stream)) return false;
+            if (!usb::fixture::expect(write10->transfer_length == 1024, "msc write10 overrun transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(write10->lba == 1, "msc write10 overrun lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(write10->blocks == 1, "msc write10 overrun block count mismatch", stream)) return false;
+
+            const auto* data_out = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::data_out_started,
+                                                        kWrite10);
+            if (!usb::fixture::expect(data_out != nullptr, "msc write10 overrun data-out trace missing", stream)) return false;
+            if (!usb::fixture::expect(data_out->transfer_length == 512, "msc write10 overrun data-out length mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->lba == 1, "msc write10 overrun data-out lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->blocks == 1, "msc write10 overrun data-out block count mismatch", stream)) return false;
+            if (!usb::fixture::expect(data_out->residue == 512, "msc write10 overrun data-out residue mismatch", stream)) return false;
+
+            const auto* stall_out = find_msc_trace_event(demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::stall_out_requested,
+                                                         kWrite10);
+            if (!usb::fixture::expect(stall_out != nullptr, "msc write10 overrun stall-out trace missing", stream)) return false;
+            if (!usb::fixture::expect(stall_out->transfer_length == 1024, "msc write10 overrun stall-out length mismatch", stream)) return false;
+            if (!usb::fixture::expect(stall_out->residue == 512, "msc write10 overrun stall-out residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!stall_out->flag, "msc write10 overrun stall-out flag mismatch", stream)) return false;
+
+            const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::wait_csw,
+                                                        kWrite10);
+            if (!usb::fixture::expect(wait_csw != nullptr, "msc write10 overrun wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(wait_csw->transfer_length == 1024, "msc write10 overrun wait-csw length mismatch", stream)) return false;
+
+            const auto* phase_error = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::phase_error,
+                                                           kWrite10);
+            if (!usb::fixture::expect(phase_error != nullptr, "msc write10 overrun phase-error trace missing", stream)) return false;
+            if (!usb::fixture::expect(phase_error->residue == 512, "msc write10 overrun phase-error residue mismatch", stream)) return false;
+
+            const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                           kWrite10);
+            if (!usb::fixture::expect(clear_stall != nullptr, "msc write10 overrun clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(!clear_stall->flag, "msc write10 overrun clear-stall flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kWrite10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc write10 overrun csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 512, "msc write10 overrun csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->flag, "msc write10 overrun csw phase flag mismatch", stream)) return false;
+            if (!usb::fixture::expect(span_is_filled(disk.block_span(1), 0x5A), "msc write10 overrun block payload mismatch", stream)) return false;
+            if (!usb::fixture::expect(span_is_filled(disk.block_span(2), 0x00), "msc write10 overrun extra data should not spill", stream)) return false;
         }
         return true;
     }

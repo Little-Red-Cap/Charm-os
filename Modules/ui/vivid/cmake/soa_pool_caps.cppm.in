@@ -7,11 +7,7 @@ export module charm.core.soa_pool_caps;
 export import charm.core.handle;
 
 namespace {
-#if defined(CHARM_VIVID_SOA_MAX_NODES)
-constexpr std::size_t kDefaultPoolCap = CHARM_VIVID_SOA_MAX_NODES;
-#else
-constexpr std::size_t kDefaultPoolCap = 256;
-#endif
+constexpr std::size_t kDefaultPoolCap = @VIVID_SOA_MAX_NODES@;
 constexpr std::size_t kDefaultTextArenaBytes = 8192;
 } // namespace
 

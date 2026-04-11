@@ -1,0 +1,98 @@
+module;
+
+#include <cstddef>
+#include <cstdint>
+
+export module charm.core.config.generated;
+
+export import charm.gfx.pixel_format;
+
+export namespace charm::vivid::config {
+    enum class Featureset : std::uint8_t {
+        full = 0,
+        mcu_min = 1,
+    };
+
+    enum class KernelMode : std::uint8_t {
+        soa = 0,
+    };
+
+    struct ScreenConfig {
+        int width;
+        int height;
+        PixelFormat pixel_format;
+        int layer_cache_slots;
+        int layer_cache_width;
+        int layer_cache_height;
+    };
+
+    struct FeatureConfig {
+        Featureset featureset;
+        KernelMode kernel_mode;
+        bool enable_float_widgets;
+    };
+
+    struct SoaConfig {
+        std::size_t max_nodes;
+    };
+
+    struct VividConfig {
+        ScreenConfig screen;
+        FeatureConfig features;
+        SoaConfig soa;
+    };
+
+    inline constexpr VividConfig kConfig{
+        ScreenConfig{
+            @VIVID_SCREEN_WIDTH@,
+            @VIVID_SCREEN_HEIGHT@,
+            @VIVID_SCREEN_PIXEL_FORMAT@,
+            @VIVID_LAYER_CACHE_SLOTS@,
+            @VIVID_LAYER_CACHE_WIDTH@,
+            @VIVID_LAYER_CACHE_HEIGHT@
+        },
+        FeatureConfig{
+            Featureset::@VIVID_FEATURESET_ENUM@,
+            KernelMode::soa,
+            @VIVID_ENABLE_FLOAT_WIDGETS@
+        },
+        SoaConfig{
+            @VIVID_SOA_MAX_NODES@
+        }
+    };
+
+    inline constexpr ScreenConfig kScreen = kConfig.screen;
+    inline constexpr FeatureConfig kFeatures = kConfig.features;
+    inline constexpr SoaConfig kSoa = kConfig.soa;
+
+    static_assert(kScreen.width > 0);
+    static_assert(kScreen.height > 0);
+    static_assert(kScreen.layer_cache_slots > 0);
+    static_assert(kScreen.layer_cache_width > 0);
+    static_assert(kScreen.layer_cache_height > 0);
+    static_assert(kSoa.max_nodes > 0);
+}
+
+export using charm::vivid::config::Featureset;
+export using charm::vivid::config::KernelMode;
+
+export inline constexpr auto vivid_config = charm::vivid::config::kConfig;
+export inline constexpr auto vivid_screen = charm::vivid::config::kScreen;
+export inline constexpr auto vivid_features = charm::vivid::config::kFeatures;
+export inline constexpr auto vivid_soa = charm::vivid::config::kSoa;
+
+export inline constexpr auto vivid_featureset = vivid_config.features.featureset;
+export inline constexpr auto vivid_kernel_mode = vivid_config.features.kernel_mode;
+
+export inline constexpr int screen_width = vivid_config.screen.width;
+export inline constexpr int screen_height = vivid_config.screen.height;
+export inline constexpr PixelFormat screen_pixel_format = vivid_config.screen.pixel_format;
+export inline constexpr int layer_cache_slots = vivid_config.screen.layer_cache_slots;
+export inline constexpr int layer_cache_width = vivid_config.screen.layer_cache_width;
+export inline constexpr int layer_cache_height = vivid_config.screen.layer_cache_height;
+export inline constexpr bool enable_float_widgets = vivid_config.features.enable_float_widgets;
+export inline constexpr std::size_t soa_max_nodes = vivid_config.soa.max_nodes;
+export inline constexpr bool vivid_is_mcu_min_featureset =
+    vivid_config.features.featureset == Featureset::mcu_min;
+export inline constexpr bool vivid_is_full_featureset =
+    vivid_config.features.featureset == Featureset::full;

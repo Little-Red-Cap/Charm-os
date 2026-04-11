@@ -473,6 +473,26 @@ namespace init::detail {
 
     template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
     util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const single_node_ref<Item>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        if (!item.value) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+
+        materialize_summary<MaxCaps> summary{};
+        auto current = append_node(out, item.value->node, constraints);
+        if (!current) {
+            return util::unexpected(current.error());
+        }
+        auto merge = absorb_summary(summary, *current);
+        if (!merge) {
+            return util::unexpected(merge.error());
+        }
+        return summary;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
                                                                 const maybe_ref<Item>& item,
                                                                 const materialize_constraints<MaxCaps>& constraints) noexcept {
         if (!item.value || !item.value->has_value()) {
@@ -738,6 +758,11 @@ export namespace init {
         };
 
         LegacyNodeHolder holder{};
+        auto binding_holder = materialize<2, 4>(compose(as_plan(holder)));
+        if (!binding_holder || binding_holder->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
         auto legacy_holder = materialize<2, 4>(compose(legacy(holder)));
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);

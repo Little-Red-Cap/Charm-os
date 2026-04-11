@@ -172,6 +172,7 @@ Capability 不负责：
 
 - `compose(...)` 组织装配树
 - `legacy(...)` 只保留给旧 chain 迁移；`as_plan(...)` 负责单节点 binding；`maybe(...)` 负责可选装配单元；`compat_nodes(...)` 负责旧节点数组兼容；`legacy_nodes(...)` 仅保留为兼容别名
+- 单节点 binding 通过 `as_plan(...)` 直接落成单节点装配项，不再借道 `legacy(...)`
 - 框架内默认组合表面优先用 `chain.plan()`，不再把 `legacy(chain)` 当作主路
 - 对旧式 chain，`materialize(...)` / `node_wrap` 优先识别 `for_each_legacy_node(...)`，`node_span()` 退居兼容层
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束

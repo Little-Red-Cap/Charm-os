@@ -27,6 +27,9 @@ export namespace init {
     struct legacy_optional_ref;
 
     template <typename Item>
+    struct single_node_ref;
+
+    template <typename Item>
     struct maybe_ref;
 
     struct legacy_nodes_ref;
@@ -105,6 +108,15 @@ export namespace init {
 
         constexpr explicit legacy_optional_ref(const std::optional<Chain>* value) noexcept
             : chain(value) {
+        }
+    };
+
+    template <typename Item>
+    struct single_node_ref : plan_ops<single_node_ref<Item>> {
+        const Item* value{};
+
+        constexpr explicit single_node_ref(const Item* item) noexcept
+            : value(item) {
         }
     };
 
@@ -204,7 +216,7 @@ export namespace init {
         } else if constexpr (requires(const Item& candidate) {
                                  candidate.node;
                              }) {
-            return legacy(value);
+            return single_node_ref<Item>{&value};
         } else {
             static_assert(unsupported_as_plan_v<Item>,
                           "init::as_plan(...) expects a plan-like type, a type with plan(), or a single-node binding; use maybe(...) for optional items");

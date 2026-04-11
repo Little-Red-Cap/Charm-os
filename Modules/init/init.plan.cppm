@@ -11,6 +11,29 @@ import init.node;
 import util.core;
 
 export namespace init {
+    template <typename T>
+    inline constexpr bool unsupported_as_plan_v = false;
+
+    template <typename T>
+    concept plan_like = requires { typename T::init_plan_tag; };
+
+    template <typename T>
+    concept has_plan_method = requires(const T& candidate) {
+        candidate.plan();
+    };
+
+    template <typename T>
+    concept has_single_node_member = requires(const T& candidate) {
+        candidate.node;
+    };
+
+    template <typename T>
+    concept has_legacy_traversal = requires(const T& candidate) {
+        candidate.for_each_legacy_node([](const Node&) noexcept {});
+    } || requires(const T& candidate) {
+        candidate.node_span();
+    };
+
     template <typename Derived>
     struct plan_ops;
 
@@ -22,6 +45,12 @@ export namespace init {
 
     template <typename Chain>
     struct legacy_optional_ref;
+
+    template <typename Item>
+    struct single_node_ref;
+
+    template <typename Item>
+    struct maybe_ref;
 
     struct legacy_nodes_ref;
 
@@ -42,6 +71,8 @@ export namespace init {
 
     template <typename Derived>
     struct plan_ops {
+        using init_plan_tag = void;
+
         constexpr const Derived& self() const noexcept {
             return static_cast<const Derived&>(*this);
         }
@@ -97,6 +128,24 @@ export namespace init {
 
         constexpr explicit legacy_optional_ref(const std::optional<Chain>* value) noexcept
             : chain(value) {
+        }
+    };
+
+    template <typename Item>
+    struct single_node_ref : plan_ops<single_node_ref<Item>> {
+        const Item* value{};
+
+        constexpr explicit single_node_ref(const Item* item) noexcept
+            : value(item) {
+        }
+    };
+
+    template <typename Item>
+    struct maybe_ref : plan_ops<maybe_ref<Item>> {
+        const std::optional<Item>* value{};
+
+        constexpr explicit maybe_ref(const std::optional<Item>* item) noexcept
+            : value(item) {
         }
     };
 
@@ -161,17 +210,52 @@ export namespace init {
     }
 
     template <typename Chain>
+        requires ((!plan_like<Chain> && !has_plan_method<Chain> && !has_single_node_member<Chain>) ||
+                  has_legacy_traversal<Chain>)
     constexpr auto legacy(const Chain& chain) noexcept {
         return legacy_ref<Chain>{&chain};
     }
 
     template <typename Chain>
+        requires ((plan_like<Chain> || has_plan_method<Chain> || has_single_node_member<Chain>) &&
+                  !has_legacy_traversal<Chain>)
+    [[deprecated("use as_plan(...) for plan-like types and single-node bindings")]]
+    constexpr auto legacy(const Chain& chain) noexcept {
+        return legacy_ref<Chain>{&chain};
+    }
+
+    template <typename Chain>
+    [[deprecated("use maybe(...) for optional plans or optional legacy values")]]
     constexpr auto legacy(const std::optional<Chain>& chain) noexcept {
         return legacy_optional_ref<Chain>{&chain};
     }
 
-    constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {
+    template <typename Item>
+    constexpr auto maybe(const std::optional<Item>& value) noexcept {
+        return maybe_ref<Item>{&value};
+    }
+
+    template <typename Item>
+    constexpr auto as_plan(const Item& value) noexcept {
+        if constexpr (plan_like<Item>) {
+            return value;
+        } else if constexpr (has_plan_method<Item>) {
+            return value.plan();
+        } else if constexpr (has_single_node_member<Item>) {
+            return single_node_ref<Item>{&value};
+        } else {
+            static_assert(unsupported_as_plan_v<Item>,
+                          "init::as_plan(...) expects a plan-like type, a type with plan(), or a single-node binding; use maybe(...) for optional items");
+        }
+    }
+
+    constexpr auto compat_nodes(std::span<const init::Node* const> nodes) noexcept {
         return legacy_nodes_ref{nodes};
+    }
+
+    [[deprecated("use compat_nodes(...) only as a temporary compatibility path for raw Node spans")]]
+    constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {
+        return compat_nodes(nodes);
     }
 
     template <typename... Items>

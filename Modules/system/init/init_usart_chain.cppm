@@ -41,6 +41,23 @@ export namespace charm::system {
             };
         }
 
+        constexpr auto plan() const noexcept {
+            return init::compose(
+                init::as_plan(irq),
+                init::as_plan(uart_binding),
+                init::as_plan(channel_binding));
+        }
+
+        template <typename Fn>
+        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
+            for (util::usize i = 0; i < nodes.size(); ++i) {
+                if (nodes[i]) {
+                    fn(*nodes[i]);
+                }
+            }
+        }
+
+        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }
@@ -51,11 +68,7 @@ export namespace charm::system {
                                  init::Phase max_phase = init::Phase::app) noexcept {
             return init::build_graph(
                 graph,
-                init::phase_limit(
-                    init::runlevel(
-                        init::legacy(*this),
-                        runlevel_mask),
-                    max_phase));
+                plan().runlevel(runlevel_mask).phase_limit(max_phase));
         }
     };
 }

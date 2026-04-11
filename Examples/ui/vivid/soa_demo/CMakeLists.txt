@@ -9,11 +9,6 @@ add_executable(${target_name}
     main.cpp
 )
 
-target_compile_definitions(${target_name} PRIVATE
-    CHARM_VIVID_SCREEN_WIDTH=800
-    CHARM_VIVID_SCREEN_HEIGHT=480
-)
-
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
 
@@ -22,6 +17,8 @@ charm_example_sdl3_options()
 set(CHARM_ENABLE_SDL3 ON CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+set(CHARM_VIVID_SCREEN_WIDTH 800 CACHE STRING "" FORCE)
+set(CHARM_VIVID_SCREEN_HEIGHT 480 CACHE STRING "" FORCE)
 
 charm_example_link_charm(${target_name} "${CHARM_ROOT}")
 

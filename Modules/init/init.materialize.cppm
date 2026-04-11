@@ -363,6 +363,32 @@ namespace init::detail {
                                                                    const materialize_constraints<MaxCaps>& constraints) noexcept {
         materialize_summary<MaxCaps> summary{};
         if constexpr (requires(const Legacy& candidate) {
+                          candidate.plan();
+                      }) {
+            return materialize_item(out, value.plan(), constraints);
+        } else if constexpr (requires(const Legacy& candidate) {
+                                 candidate.for_each_legacy_node([](const Node&) noexcept {});
+                             }) {
+            util::Errc error = util::Errc::ok;
+            value.for_each_legacy_node([&](const Node& node) noexcept {
+                if (!util::ok(error)) {
+                    return;
+                }
+                auto current = append_node(out, node, constraints);
+                if (!current) {
+                    error = current.error();
+                    return;
+                }
+                auto merge = absorb_summary(summary, *current);
+                if (!merge) {
+                    error = merge.error();
+                }
+            });
+            if (!util::ok(error)) {
+                return util::unexpected(error);
+            }
+            return summary;
+        } else if constexpr (requires(const Legacy& candidate) {
                           candidate.node_span();
                       }) {
             const auto span = value.node_span();
@@ -394,7 +420,7 @@ namespace init::detail {
             return summary;
         } else {
             static_assert(unsupported_legacy_v<Legacy>,
-                          "init::legacy(...) requires node_span() or a node member");
+                          "init::legacy(...) requires plan(), for_each_legacy_node(...), node_span(), or a node member");
         }
     }
 
@@ -443,6 +469,49 @@ namespace init::detail {
             return materialize_summary<MaxCaps>{};
         }
         return append_legacy_value(out, item.chain->value(), constraints);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const single_node_ref<Item>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        if (!item.value) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+
+        materialize_summary<MaxCaps> summary{};
+        auto current = append_node(out, item.value->node, constraints);
+        if (!current) {
+            return util::unexpected(current.error());
+        }
+        auto merge = absorb_summary(summary, *current);
+        if (!merge) {
+            return util::unexpected(merge.error());
+        }
+        return summary;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const maybe_ref<Item>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        if (!item.value || !item.value->has_value()) {
+            return materialize_summary<MaxCaps>{};
+        }
+
+        if constexpr (requires(const Item& candidate) {
+                          candidate.plan();
+                      } || requires(const Item& candidate) {
+                          candidate.for_each_legacy_node([](const Node&) noexcept {});
+                      } || requires(const Item& candidate) {
+                          candidate.node_span();
+                      } || requires(const Item& candidate) {
+                          candidate.node;
+                      }) {
+            return append_legacy_value(out, item.value->value(), constraints);
+        } else {
+            return materialize_item(out, item.value->value(), constraints);
+        }
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -689,13 +758,32 @@ export namespace init {
         };
 
         LegacyNodeHolder holder{};
-        auto legacy_holder = materialize<2, 4>(compose(legacy(holder)));
+        auto binding_holder = materialize<2, 4>(compose(as_plan(holder)));
+        if (!binding_holder || binding_holder->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        struct LegacyChainHolder {
+            std::array<const Node*, 1> nodes{};
+
+            constexpr std::span<const Node* const> node_span() const noexcept {
+                return std::span<const Node* const>{nodes.data(), nodes.size()};
+            }
+        };
+
+        LegacyChainHolder legacy_chain{{&holder.node}};
+        auto legacy_holder = materialize<2, 4>(compose(legacy(legacy_chain)));
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
 
         std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
-        auto legacy_optional = materialize<2, 4>(compose(legacy(optional_holder)));
+        auto maybe_optional = materialize<2, 4>(compose(maybe(optional_holder)));
+        if (!maybe_optional || maybe_optional->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        auto legacy_optional = materialize<2, 4>(compose(legacy_optional_ref<LegacyNodeHolder>{&optional_holder}));
         if (!legacy_optional || legacy_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }

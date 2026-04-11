@@ -87,6 +87,22 @@ export namespace usb::boardlog {
             return true;
         }
 
+        inline bool parse_bool_word(std::string_view text, bool& out) noexcept {
+            text = trim(text);
+            if (text.empty()) {
+                return false;
+            }
+            if (text == "1" || text == "true" || text == "on" || text == "connected") {
+                out = true;
+                return true;
+            }
+            if (text == "0" || text == "false" || text == "off" || text == "disconnected") {
+                out = false;
+                return true;
+            }
+            return false;
+        }
+
         inline bool split_key_value(std::string_view token,
                                     std::string_view& key,
                                     std::string_view& value) noexcept {
@@ -152,6 +168,48 @@ export namespace usb::boardlog {
                 return false;
             }
             out = std::move(bytes);
+            return true;
+        }
+
+        inline bool parse_hex_bytes(std::string_view text, std::vector<usb::u8>& out) {
+            text = trim(text);
+            if (text.empty() || text == "-") {
+                out.clear();
+                return true;
+            }
+
+            std::string cleaned{};
+            cleaned.reserve(text.size());
+            for (const auto ch : text) {
+                if (std::isxdigit(static_cast<unsigned char>(ch)) != 0) {
+                    cleaned.push_back(ch);
+                    continue;
+                }
+                switch (ch) {
+                case ',':
+                case ':':
+                case '_':
+                case '-':
+                    break;
+                default:
+                    return false;
+                }
+            }
+
+            if ((cleaned.size() % 2u) != 0u) {
+                return false;
+            }
+
+            out.clear();
+            out.reserve(cleaned.size() / 2u);
+            for (std::size_t index = 0; index < cleaned.size(); index += 2) {
+                unsigned value = 0;
+                const std::string_view byte_text{cleaned.data() + index, 2};
+                if (!parse_hex_uint(byte_text, value) || value > 0xFFu) {
+                    return false;
+                }
+                out.push_back(static_cast<usb::u8>(value));
+            }
             return true;
         }
 
@@ -229,6 +287,79 @@ export namespace usb::boardlog {
                 }
                 continue;
             }
+            if (line.find("usb: connect") != std::string_view::npos) {
+                usb::replay::TraceStep step{};
+                step.kind = usb::replay::StepKind::connect;
+                step.flag = true;
+                const auto pos = line.find("usb: connect");
+                auto tail = detail::trim(line.substr(pos + std::string_view{"usb: connect"}.size()));
+                if (!tail.empty()) {
+                    bool connected = true;
+                    if (!detail::parse_bool_word(tail, connected)) {
+                        return fail(LoadError::syntax);
+                    }
+                    step.flag = connected;
+                }
+                out.trace.steps.push_back(std::move(step));
+                ++out.imported_steps;
+                continue;
+            }
+            if (line.find("usb: reset") != std::string_view::npos) {
+                usb::replay::TraceStep step{};
+                step.kind = usb::replay::StepKind::reset;
+                out.trace.steps.push_back(std::move(step));
+                ++out.imported_steps;
+                continue;
+            }
+            {
+                const auto tokens = detail::split_tokens(line);
+                if (tokens.size() >= 2 && tokens[0] == "usb:" && (tokens[1] == "out" || tokens[1] == "in")) {
+                    usb::replay::TraceStep step{};
+                    step.kind = (tokens[1] == "out") ? usb::replay::StepKind::out
+                                                      : usb::replay::StepKind::in;
+
+                    bool has_ep = false;
+                    bool has_zlp = false;
+                    bool has_data = false;
+
+                    for (std::size_t i = 2; i < tokens.size(); ++i) {
+                        std::string_view key{};
+                        std::string_view value{};
+                        if (!detail::split_key_value(tokens[i], key, value)) {
+                            continue;
+                        }
+                        if (key == "ep") {
+                            unsigned ep = 0;
+                            if (!detail::parse_hex_uint(value, ep) || ep > 0xFFu) {
+                                return fail(LoadError::syntax);
+                            }
+                            step.ep = static_cast<usb::u8>(ep);
+                            has_ep = true;
+                        } else if (key == "zlp") {
+                            if (!detail::parse_bool_word(value, step.flag)) {
+                                return fail(LoadError::syntax);
+                            }
+                            has_zlp = true;
+                        } else if (key == "data") {
+                            if (!detail::parse_hex_bytes(value, step.data)) {
+                                return fail(LoadError::invalid_hex);
+                            }
+                            has_data = true;
+                        }
+                    }
+
+                    if (!(has_ep || has_zlp || has_data)) {
+                        continue;
+                    }
+                    if (!(has_ep && has_zlp && has_data)) {
+                        return fail(LoadError::syntax);
+                    }
+
+                    out.trace.steps.push_back(std::move(step));
+                    ++out.imported_steps;
+                    continue;
+                }
+            }
             if (line.find("usb: setup") == std::string_view::npos) {
                 continue;
             }
@@ -278,9 +409,15 @@ export namespace usb::boardlog {
                 step.flag = false;
                 step.data = {0x00u};
             } else if (!is_in && wl == 0u) {
-                step.kind = usb::replay::StepKind::control_out;
-                step.flag = true;
-                step.data.clear();
+                if (b == 0x01u && (bm & 0x1Fu) == 0x02u && wv == 0u) {
+                    step.kind = usb::replay::StepKind::clear_stall;
+                    step.ep = static_cast<usb::u8>(wi & 0xFFu);
+                    step.data.clear();
+                } else {
+                    step.kind = usb::replay::StepKind::control_out;
+                    step.flag = true;
+                    step.data.clear();
+                }
             } else {
                 ++out.skipped_steps;
                 continue;
@@ -345,6 +482,11 @@ export namespace usb::boardlog {
                 out += "\n";
                 break;
             }
+            case usb::replay::StepKind::clear_stall:
+                out += "clear_stall ep=";
+                detail::append_hex_byte(out, step.ep);
+                out += "\n";
+                break;
             case usb::replay::StepKind::out:
             case usb::replay::StepKind::in: {
                 out += (step.kind == usb::replay::StepKind::out) ? "out " : "in ";

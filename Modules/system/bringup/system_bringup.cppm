@@ -240,7 +240,7 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask,
                                  init::Phase max_phase,
                                  std::span<const init::Node* const> extra_nodes) noexcept {
-            return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
+            return start_plan(init::compat_nodes(extra_nodes), runlevel_mask, max_phase);
         }
 
         template <typename ExtraPlan>
@@ -253,14 +253,14 @@ export namespace charm::system {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::legacy(core_),
-                        init::legacy(board_),
-                        init::legacy(spi_),
-                        init::legacy(i2c_),
-                        init::legacy(sdmmc_),
-                        init::legacy(flash_),
-                        init::legacy(input_),
-                        init::legacy(can_channel_),
+                        core_.plan(),
+                        board_.plan(),
+                        init::maybe(spi_),
+                        init::maybe(i2c_),
+                        init::maybe(sdmmc_),
+                        init::maybe(flash_),
+                        init::maybe(input_),
+                        init::maybe(can_channel_),
                         extra_plan),
                     runlevel_mask),
                 max_phase);

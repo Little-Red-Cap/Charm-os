@@ -101,6 +101,40 @@ namespace {
         if (ep != pump->cfg.ep_in) return false;
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
+
+    bool has_host_event(std::span<const usb::mock::HostEvent> events,
+                        usb::mock::HostEventKind kind) {
+        for (const auto& event : events) {
+            if (event.kind == kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool has_device_action(std::span<const usb::mock::DeviceAction> actions,
+                           usb::mock::DeviceActionKind kind) {
+        for (const auto& action : actions) {
+            if (action.kind == kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool has_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
+                         usb::class_driver::MscTraceEventKind kind,
+                         usb::u8 command = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (command == 0xFF || event.command == command) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 int main() {
@@ -156,6 +190,8 @@ int main() {
     if (!usb::fixture::expect(demo.ready, "msc ready hook not called")) return 1;
 
     PumpContext pump{demo.bot, demo.cfg};
+    session.clear_trace();
+    demo.bot->clear_trace();
     if (!usb::fixture::run_replay_file(
             session,
             USB_REPLAY_FIXTURE_PATH,
@@ -168,6 +204,17 @@ int main() {
     if (!usb::fixture::expect(session.configured(), "device not configured")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::setup), "replay setup event missing")) return 1;
+    if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::out_packet), "replay out event missing")) return 1;
+    if (!usb::fixture::expect(has_device_action(session.device_actions(), usb::mock::DeviceActionKind::send_in), "replay send-in action missing")) return 1;
+    if (!usb::fixture::expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
+                                              static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10)),
+                              "replay read-capacity trace missing")) return 1;
+    if (!usb::fixture::expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read10_started,
+                                              static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
+                              "replay read10 trace missing")) return 1;
+    if (!usb::fixture::expect(has_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent),
+                              "replay csw trace missing")) return 1;
 
     std::printf("[OK] usb-msc-replay-smoke passed\n");
     std::printf("[state] address=%u configured=%d resets=%zu cfg_calls=%zu\n",

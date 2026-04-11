@@ -42,10 +42,10 @@ export namespace charm::system {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::legacy(clock_binding_),
-                        init::legacy(registry_binding_),
-                        init::legacy(reactor_binding_),
-                        init::legacy(usart_chain_)),
+                        init::as_plan(clock_binding_),
+                        init::as_plan(registry_binding_),
+                        init::as_plan(reactor_binding_),
+                        usart_chain_.plan()),
                     runlevel_mask),
                 max_phase);
             return init::start_graph(graph_, bringup_plan);

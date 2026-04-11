@@ -6,6 +6,7 @@ module;
 export module charm.system.init_usb;
 
 import init.node;
+import init.plan;
 import usb.class_msc_block.node;
 import block.registry;
 import util.core;
@@ -24,6 +25,20 @@ export namespace charm::system {
             nodes = {&binding.node};
         }
 
+        constexpr auto plan() const noexcept {
+            return init::as_plan(binding);
+        }
+
+        template <typename Fn>
+        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
+            for (util::usize i = 0; i < nodes.size(); ++i) {
+                if (nodes[i]) {
+                    fn(*nodes[i]);
+                }
+            }
+        }
+
+        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }

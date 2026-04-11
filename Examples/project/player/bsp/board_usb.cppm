@@ -655,9 +655,6 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
             (setup.bm_request_type & 0x1Fu) == 0x02) {
         const auto ep = static_cast<std::uint8_t>(setup.w_index & 0xFFu);
         (void)HAL_PCD_EP_ClrStall(hpcd, ep);
-        if (g_msc_bot) {
-            g_msc_bot->on_clear_stall((ep & 0x80u) != 0u);
-        }
     }
     g_usb_adapter.handle_setup(setup);
     if ((setup.bm_request_type & 0x80u) == 0u) {

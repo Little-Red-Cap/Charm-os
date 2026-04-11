@@ -38,6 +38,7 @@
 仓库脚本入口：
 
 - `scripts/usb_native_smoke.ps1`
+- `docs/usb/usb_boardlog_format.md`
 
 默认工具链：
 
@@ -50,7 +51,9 @@
 - `usb-host-harness-smoke`
 - `usb-msc-mock-smoke`
 - `usb-msc-cdc-mock-smoke`
+- `usb-msc-replay-smoke`
 - `usb-replay-suite-smoke`
+- `usb-msc-boardlog-import-smoke`
 
 ### 第二层：板级真机验证
 

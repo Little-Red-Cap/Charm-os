@@ -58,6 +58,7 @@
 - real ELF smoke now also validates `elfmem:kill_self`: user code enters, emits `before-kill`, then `waitpid()` reports `signaled(SIGTERM)`
 - proc/api smoke now validate the minimum `kill v0` contract: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes `SIGTERM` in the low bits
 - shell smoke now validates `sh -c 'ps'`, and the current minimal view exposes `pid/state/name` for the live shell + child process set
+- busybox direct-dispatch smoke now also validates `busybox ps` and `busybox sleep 2`, so process applets are covered outside the shell wrapper path
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline

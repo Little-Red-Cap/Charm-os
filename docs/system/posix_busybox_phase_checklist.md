@@ -88,3 +88,4 @@ Current acceptance on mainline smoke:
 - API smoke `kill(SIGTERM)` yields encoded wait status `SIGTERM`
 - `sh -c 'ps'` prints the current minimal `pid/state/name` view
 - `sh -c 'sleep 2'` advances the test clock
+- `busybox ps` / `busybox sleep 2` direct-dispatch paths are also smoke-covered

@@ -601,6 +601,70 @@ namespace {
         check_eq("bb-dispatch-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         h.unbind_env();
     }
+
+    void test_busybox_ps_via_busybox() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-ps-register-busybox", reg_busybox);
+
+        int pipefd[2]{-1, -1};
+        check_eq("bb-ps-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("bb-ps-move-read", h.fds.dup2(read_fd, 12));
+            read_fd = 12;
+        }
+
+        const char* argv[] = {"busybox", "ps", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "busybox";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.envp = path_env;
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("bb-ps-spawn", pid > 0);
+        int status = 0;
+        check_eq("bb-ps-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("bb-ps-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 128> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("bb-ps-read-len", r > 0);
+        const auto text = std::string_view{buf.data(), static_cast<util::usize>(r)};
+        check_true("bb-ps-header", text.find("PID STATE CMD\n") == 0);
+        check_true("bb-ps-has-busybox", text.find(" busybox\n") != std::string_view::npos);
+        h.unbind_env();
+    }
+
+    void test_busybox_sleep_via_busybox() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-sleep-register-busybox", reg_busybox);
+
+        const char* argv[] = {"busybox", "sleep", "2", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "busybox";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+
+        const auto sleep_before = test_clock_ticks_ms();
+        int pid = h.api.spawnp(cfg);
+        check_true("bb-sleep-spawn", pid > 0);
+        int status = 0;
+        check_eq("bb-sleep-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("bb-sleep-status", (status >> 8) & 0xff, 0);
+        const auto sleep_after = test_clock_ticks_ms();
+        check_true("bb-sleep-clock", sleep_after >= sleep_before + 2000);
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_program_shell_smoke_tests() noexcept {
@@ -631,6 +695,8 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase busybox-argv0 end");
     log_line("[posix-smoke] programs phase busybox-dispatch begin");
     test_busybox_sh_via_busybox();
+    test_busybox_ps_via_busybox();
+    test_busybox_sleep_via_busybox();
     log_line("[posix-smoke] programs phase busybox-dispatch end");
 }
 

@@ -4,9 +4,7 @@ module;
 #include <cstring>
 #include <expected>
 #include <string_view>
-#ifndef CHARM_VIVID_ENABLE_FLOAT_WIDGETS
-#define CHARM_VIVID_ENABLE_FLOAT_WIDGETS 1
-#endif
+#include "vivid_features.generated.hpp"
 #if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
 #include <cmath>
 #endif

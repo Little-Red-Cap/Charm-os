@@ -33,13 +33,12 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_SOA_ONLY=1 CHARM_VIVID_KERNEL_SOA=1)
     vivid_bool_literal(_vivid_enable_float_widgets ${CHARM_VIVID_ENABLE_FLOAT_WIDGETS})
-    target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_ENABLE_FLOAT_WIDGETS=${_vivid_enable_float_widgets})
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
-        target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_MCU_MIN=1)
         set(VIVID_FEATURESET_ENUM "mcu_min")
+        set(VIVID_IS_MCU_MIN 1)
     elseif (CHARM_VIVID_FEATURESET STREQUAL "FULL")
-        target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_FULL=1)
         set(VIVID_FEATURESET_ENUM "full")
+        set(VIVID_IS_MCU_MIN 0)
     else()
         message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
     endif()
@@ -179,8 +178,13 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
     file(MAKE_DIRECTORY "${vivid_pool_caps_output_dir}")
+    set(vivid_features_header "${vivid_pool_caps_output_dir}/vivid_features.generated.hpp")
     set(vivid_config_cppm "${vivid_pool_caps_output_dir}/config.generated.cppm")
     set(vivid_pool_caps_cppm "${vivid_pool_caps_output_dir}/soa_pool_caps.cppm")
+    configure_file(
+        "${_VIVID_CMAKE_DIR}/cmake/features.generated.hpp.in"
+        "${vivid_features_header}"
+        @ONLY)
     configure_file(
         "${_VIVID_CMAKE_DIR}/cmake/config.generated.cppm.in"
         "${vivid_config_cppm}"
@@ -193,6 +197,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     list(APPEND ${module_list_var} "${vivid_config_cppm}")
     list(APPEND ${module_list_var} "${vivid_pool_caps_cppm}")
     set(${base_dirs_var} "${${base_dirs_var}}" "${vivid_pool_caps_output_dir}" PARENT_SCOPE)
+    target_include_directories(${target_name} PRIVATE
+        "${_VIVID_CMAKE_DIR}/core"
+        "${vivid_pool_caps_output_dir}")
 
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")

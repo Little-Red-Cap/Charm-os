@@ -1,0 +1,153 @@
+module;
+
+#include <cstddef>
+#include <cstdint>
+
+export module player.stm32h7.app_config.generated;
+
+export namespace player::stm32h7::app::config {
+    enum class Profile : std::uint8_t {
+        legacy_main = 0,
+        usb_as = 1,
+        usb_audio = 2,
+        usb_self_cdc = 3,
+        usb_self_msc = 4,
+        usb_storage = 5,
+    };
+
+    struct IdentityConfig {
+        const char* product;
+        const char* platform;
+        const char* board;
+        const char* scenario;
+        const char* profile_name;
+        Profile profile;
+        bool usb_use_composite;
+    };
+
+    struct UartConfig {
+        std::size_t rx_cap;
+        std::size_t tx_cap;
+    };
+
+    struct BringupConfig {
+        bool key_select;
+        bool wait_key;
+        bool enable_audio;
+        bool enable_sdmmc_init;
+        bool enable_usb_msc;
+        bool use_st_usb_stack;
+        bool enable_usb_audio;
+        bool use_usb_audio_on_boot;
+        bool enable_display;
+        bool use_out_logger_early;
+        bool use_dma_console;
+        bool fmc_init_on_boot;
+        bool sdram_selftest_on_boot;
+        bool sdram_selftest_in_bringup;
+        bool enable_i2s_init;
+        bool enable_spi5_init;
+    };
+
+    struct DebugConfig {
+        bool stop_after_bringup;
+        bool stop_after_channel;
+        bool stop_after_fs;
+        bool dump_root;
+    };
+
+    struct EncoderTestConfig {
+        bool enable_on_boot;
+        std::uint32_t duration_ms;
+    };
+
+    struct AppConfig {
+        IdentityConfig identity;
+        UartConfig uart;
+        BringupConfig bringup;
+        DebugConfig debug;
+        EncoderTestConfig encoder_test;
+    };
+
+    inline constexpr AppConfig kConfig{
+        IdentityConfig{
+            "@PLAYER_PRODUCT@",
+            "@PLAYER_PLATFORM@",
+            "@PLAYER_BOARD@",
+            "@PLAYER_SCENARIO@",
+            "@PLAYER_PROFILE@",
+            Profile::@PLAYER_APP_PROFILE_ENUM@,
+            @PLAYER_APP_USB_USE_COMPOSITE@
+        },
+        UartConfig{
+            @PLAYER_APP_RX_CAP@,
+            @PLAYER_APP_TX_CAP@
+        },
+        BringupConfig{
+            @PLAYER_APP_BRINGUP_KEY_SELECT@,
+            @PLAYER_APP_BRINGUP_WAIT_KEY@,
+            @PLAYER_APP_ENABLE_AUDIO@,
+            @PLAYER_APP_ENABLE_SDMMC_INIT@,
+            @PLAYER_APP_ENABLE_USB_MSC@,
+            @PLAYER_APP_USE_ST_USB_STACK@,
+            @PLAYER_APP_ENABLE_USB_AUDIO@,
+            @PLAYER_APP_USE_USB_AUDIO_ON_BOOT@,
+            @PLAYER_APP_ENABLE_DISPLAY@,
+            @PLAYER_APP_USE_OUT_LOGGER_EARLY@,
+            @PLAYER_APP_USE_DMA_CONSOLE@,
+            @PLAYER_APP_FMC_INIT_ON_BOOT@,
+            @PLAYER_APP_SDRAM_SELFTEST_ON_BOOT@,
+            @PLAYER_APP_SDRAM_SELFTEST_IN_BRINGUP@,
+            @PLAYER_APP_ENABLE_I2S_INIT@,
+            @PLAYER_APP_ENABLE_SPI5_INIT@
+        },
+        DebugConfig{
+            @PLAYER_APP_DEBUG_STOP_AFTER_BRINGUP@,
+            @PLAYER_APP_DEBUG_STOP_AFTER_CHANNEL@,
+            @PLAYER_APP_DEBUG_STOP_AFTER_FS@,
+            @PLAYER_APP_DEBUG_DUMP_ROOT@
+        },
+        EncoderTestConfig{
+            @PLAYER_APP_ENCODER_TEST_ON_BOOT@,
+            @PLAYER_APP_ENCODER_TEST_MS@
+        }
+    };
+
+    inline constexpr IdentityConfig kIdentity = kConfig.identity;
+    inline constexpr UartConfig kUart = kConfig.uart;
+    inline constexpr BringupConfig kBringup = kConfig.bringup;
+    inline constexpr DebugConfig kDebug = kConfig.debug;
+    inline constexpr EncoderTestConfig kEncoderTest = kConfig.encoder_test;
+
+    inline constexpr std::size_t kRxCap = kConfig.uart.rx_cap;
+    inline constexpr std::size_t kTxCap = kConfig.uart.tx_cap;
+
+    inline constexpr bool kBringupKeySelect = kConfig.bringup.key_select;
+    inline constexpr bool kBringupWaitKey = kConfig.bringup.wait_key;
+    inline constexpr bool kEnableAudio = kConfig.bringup.enable_audio;
+    inline constexpr bool kEnableSdmmcInit = kConfig.bringup.enable_sdmmc_init;
+    inline constexpr bool kEnableUsbMsc = kConfig.bringup.enable_usb_msc;
+    inline constexpr bool kUseStUsbStack = kConfig.bringup.use_st_usb_stack;
+    inline constexpr bool kEnableUsbAudio = kConfig.bringup.enable_usb_audio;
+    inline constexpr bool kUseUsbAudioOnBoot = kConfig.bringup.use_usb_audio_on_boot;
+    inline constexpr bool kEnableDisplay = kConfig.bringup.enable_display;
+    inline constexpr bool kUseOutLoggerEarly = kConfig.bringup.use_out_logger_early;
+    inline constexpr bool kUseDmaConsole = kConfig.bringup.use_dma_console;
+    inline constexpr bool kFmcInitOnBoot = kConfig.bringup.fmc_init_on_boot;
+    inline constexpr bool kSdramSelftestOnBoot = kConfig.bringup.sdram_selftest_on_boot;
+    inline constexpr bool kSdramSelftestInBringup = kConfig.bringup.sdram_selftest_in_bringup;
+    inline constexpr bool kEnableI2sInit = kConfig.bringup.enable_i2s_init;
+    inline constexpr bool kEnableSpi5Init = kConfig.bringup.enable_spi5_init;
+
+    inline constexpr bool kDebugStopAfterBringup = kConfig.debug.stop_after_bringup;
+    inline constexpr bool kDebugStopAfterChannel = kConfig.debug.stop_after_channel;
+    inline constexpr bool kDebugStopAfterFs = kConfig.debug.stop_after_fs;
+    inline constexpr bool kDebugDumpRoot = kConfig.debug.dump_root;
+
+    inline constexpr bool kEncoderTestOnBoot = kConfig.encoder_test.enable_on_boot;
+    inline constexpr std::uint32_t kEncoderTestMs = kConfig.encoder_test.duration_ms;
+
+    static_assert(kRxCap > 0);
+    static_assert(kTxCap > 0);
+    static_assert(kEncoderTestMs > 0);
+}

@@ -18,11 +18,11 @@ export namespace player::stm32h7::app::boot_debug {
 
     inline constexpr Config default_config() noexcept {
         return Config{
-            .stop_after_bringup = config::kDebugStopAfterBringup,
-            .stop_after_channel = config::kDebugStopAfterChannel,
-            .stop_after_fs = config::kDebugStopAfterFs,
-            .dump_root = config::kDebugDumpRoot,
-            .use_out_logger_early = config::kUseOutLoggerEarly
+            .stop_after_bringup = config::kApp.debug.stop_after_bringup,
+            .stop_after_channel = config::kApp.debug.stop_after_channel,
+            .stop_after_fs = config::kApp.debug.stop_after_fs,
+            .dump_root = config::kApp.debug.dump_root,
+            .use_out_logger_early = config::kBoard.bringup.use_out_logger_early
         };
     }
 

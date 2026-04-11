@@ -28,6 +28,7 @@
 - 公开模块 `player.stm32h7.app_config` 保持稳定
 - 生成模块 `player.stm32h7.app_config.generated` 承载 CMake 输入
 - `player` 允许先在生成实现里推进 `product / board / app` 语义分层，再由 `app_config` 继续聚合导出
+- 消费侧优先读取 `kProduct / kBoard / kApp` 这类 typed 主表面；`kBringup / kDebug / kRxCap` 等别名仅作为迁移兼容层
 - 公开模块 `charm.core.config` 保持稳定
 - 生成模块 `charm.core.config.generated` 承载 `vivid` 的屏幕 / feature / SoA 配置输入
 - 生成模块同时导出 typed struct 与兼容常量别名，降低迁移摩擦

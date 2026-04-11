@@ -142,7 +142,7 @@ Capability 不负责：
 
 当前迁移原则：
 
-- 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `legacy_nodes(...)` 接入
+- 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `legacy_nodes(...)` 接入；可选装配单元优先用 `maybe(...)`
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
@@ -169,7 +169,7 @@ Capability 不负责：
 这几处目前统一采用：
 
 - `compose(...)` 组织装配树
-- `legacy(...)` 桥接旧 chain、`optional` chain 与单节点 legacy binding；`legacy_nodes(...)` 仅保留给旧节点数组兼容
+- `legacy(...)` 桥接旧 chain 与单节点 legacy binding；`maybe(...)` 负责可选装配单元；`legacy_nodes(...)` 仅保留给旧节点数组兼容
 - 框架内默认组合表面优先用 `chain.plan()`，不再把 `legacy(chain)` 当作主路
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR

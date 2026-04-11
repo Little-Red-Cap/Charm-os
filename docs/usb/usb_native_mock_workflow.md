@@ -38,6 +38,7 @@
 仓库脚本入口：
 
 - `scripts/usb_native_smoke.ps1`
+- `docs/usb/usb_boardlog_format.md`
 
 默认工具链：
 

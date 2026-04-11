@@ -56,6 +56,7 @@ $samples = @(
     "stderr_demo",
     "exit_code",
     "getpid",
+    "sleep",
     "cat_file",
     "fd_probe",
     "stat_probe"

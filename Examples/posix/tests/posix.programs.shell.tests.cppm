@@ -468,11 +468,14 @@ namespace {
         cfg_sleep.path = "sh";
         cfg_sleep.argv = std::span<const char* const>(argv_sleep, 3);
         cfg_sleep.envp = path_env;
+        const auto sleep_before = test_clock_ticks_ms();
         int pid_sleep = h.api.spawnp(cfg_sleep);
         check_true("sh2-spawn-sleep", pid_sleep > 0);
         int status_sleep = 0;
         check_eq("sh2-waitpid-sleep", h.api.waitpid(posix::ProcessId{pid_sleep}, &status_sleep, 0), pid_sleep);
         check_eq("sh2-status-sleep", (status_sleep >> 8) & 0xff, 0);
+        const auto sleep_after = test_clock_ticks_ms();
+        check_true("sh2-sleep-clock", sleep_after >= sleep_before + 2000);
         h.unbind_env();
     }
 

@@ -11,6 +11,7 @@ export module posix.elf_hostcall;
 import posix.errno;
 import posix.exec_context;
 import posix.fd_table;
+import charm.system.time;
 import util.core;
 import util.error;
 
@@ -30,6 +31,7 @@ export namespace posix {
         util::i32 (*isatty)(int fd) noexcept {nullptr};
         int* (*errno_location)() noexcept {nullptr};
         util::i32 (*getpid)() noexcept {nullptr};
+        util::i32 (*sleep)(util::u32 seconds) noexcept {nullptr};
     };
 
     template <class Service>
@@ -252,6 +254,16 @@ export namespace posix {
             clear_exec_errno();
             return ctx ? static_cast<util::i32>(ctx->pid_value) : 0;
         }
+
+        static util::i32 sleep(util::u32 seconds) noexcept {
+            auto st = charm::system::time::try_sleep_ms(static_cast<util::u64>(seconds) * 1000u);
+            if (!st) {
+                set_exec_errno(st.error());
+                return -1;
+            }
+            clear_exec_errno();
+            return 0;
+        }
     };
 
     template <class Service>
@@ -270,6 +282,7 @@ export namespace posix {
         table->isatty = &ElfHostcallAdapter<Service>::isatty;
         table->errno_location = &ElfHostcallAdapter<Service>::errno_location;
         table->getpid = &ElfHostcallAdapter<Service>::getpid;
+        table->sleep = &ElfHostcallAdapter<Service>::sleep;
         return {};
     }
 }

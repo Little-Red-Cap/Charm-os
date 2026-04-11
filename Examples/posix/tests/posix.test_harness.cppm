@@ -123,6 +123,11 @@ export namespace posix::testsupport {
         charm::system::ClockTick ticks_ms{0};
     };
 
+    inline TestClockState& shared_test_clock_state() noexcept {
+        static TestClockState state{};
+        return state;
+    }
+
     inline charm::system::ClockTick test_clock_now_ms(void* ctx) noexcept {
         auto* state = static_cast<TestClockState*>(ctx);
         if (!state) return 0;
@@ -134,10 +139,14 @@ export namespace posix::testsupport {
     }
 
     inline void bind_test_clock() noexcept {
-        static TestClockState state{};
+        auto& state = shared_test_clock_state();
         static charm::system::Clock clock{&state, {.now_ms = &test_clock_now_ms, .now_us = &test_clock_now_us}};
         state.ticks_ms = 0;
         charm::system::time::bind(clock);
+    }
+
+    inline charm::system::ClockTick test_clock_ticks_ms() noexcept {
+        return shared_test_clock_state().ticks_ms;
     }
 
     inline int write_text(int fd, std::string_view text) noexcept {

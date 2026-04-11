@@ -146,6 +146,23 @@ namespace {
         return count;
     }
 
+    std::size_t count_host_zlp_ack(std::span<const usb::mock::HostEvent> events,
+                                   usb::u8 ep = 0xFF) {
+        std::size_t count = 0;
+        for (const auto& event : events) {
+            if (event.kind != usb::mock::HostEventKind::in_complete) {
+                continue;
+            }
+            if (!event.flag) {
+                continue;
+            }
+            if (ep == 0xFF || event.ep == ep) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     std::size_t count_device_action(std::span<const usb::mock::DeviceAction> actions,
                                     usb::mock::DeviceActionKind kind,
                                     usb::u8 ep = 0xFF) {
@@ -177,6 +194,43 @@ namespace {
 }
 
 int main() {
+    {
+        constexpr std::string_view kZlpBoardlog =
+            "usb: connect on\n"
+            "usb: reset\n"
+            "usb: out ep=0x01 zlp=1 data=-\n"
+            "usb: in ep=0x81 zlp=1 data=-\n";
+
+        const auto imported_zlp = usb::boardlog::load_text(kZlpBoardlog);
+        if (!imported_zlp) {
+            std::fprintf(stderr,
+                         "[ERR] zlp boardlog load failed line=%zu err=%s\n",
+                         imported_zlp.line,
+                         usb::boardlog::error_name(imported_zlp.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_zlp.imported_steps == 4, "zlp boardlog imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps.size() == 4, "zlp boardlog trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[2].kind == usb::replay::StepKind::out,
+                                  "zlp boardlog out step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[2].flag,
+                                  "zlp boardlog out step should carry zlp flag")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[2].data.empty(),
+                                  "zlp boardlog out step should have empty data")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[3].kind == usb::replay::StepKind::in,
+                                  "zlp boardlog in step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[3].flag,
+                                  "zlp boardlog in step should carry zlp flag")) return 1;
+        if (!usb::fixture::expect(imported_zlp.trace.steps[3].data.empty(),
+                                  "zlp boardlog in step should have empty data")) return 1;
+
+        const auto zlp_trace_text = usb::boardlog::to_text(imported_zlp.trace);
+        if (!usb::fixture::expect(zlp_trace_text.find("out ep=01 zlp=1 data=-") != std::string::npos,
+                                  "zlp boardlog roundtrip missing out zlp")) return 1;
+        if (!usb::fixture::expect(zlp_trace_text.find("in ep=81 zlp=1 data=-") != std::string::npos,
+                                  "zlp boardlog roundtrip missing in zlp")) return 1;
+    }
+
     MemoryDisk disk{};
     block::Registry<2> registry{};
     registry.init();
@@ -203,6 +257,14 @@ int main() {
                               "boardlog connect step should be true")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[1].kind == usb::replay::StepKind::reset,
                               "boardlog second step should be reset")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[3].kind == usb::replay::StepKind::control_out,
+                              "boardlog set-address step should be control_out")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[3].flag,
+                              "boardlog set-address step should expect zlp")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[5].kind == usb::replay::StepKind::control_out,
+                              "boardlog set-configuration step should be control_out")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[5].flag,
+                              "boardlog set-configuration step should expect zlp")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[7].kind == usb::replay::StepKind::out,
                               "boardlog first bulk step should be out")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[8].kind == usb::replay::StepKind::stall,
@@ -221,6 +283,10 @@ int main() {
                               "roundtrip trace missing connect")) return 1;
     if (!usb::fixture::expect(trace_text.find("reset") != std::string::npos,
                               "roundtrip trace missing reset")) return 1;
+    if (!usb::fixture::expect(trace_text.find("control_out bm=00 b=05 wv=0007 wi=0000 wl=0000 zlp=1 data=-") != std::string::npos,
+                              "roundtrip trace missing set-address zlp")) return 1;
+    if (!usb::fixture::expect(trace_text.find("control_out bm=00 b=09 wv=0001 wi=0000 wl=0000 zlp=1 data=-") != std::string::npos,
+                              "roundtrip trace missing set-configuration zlp")) return 1;
     if (!usb::fixture::expect(trace_text.find("out ep=01") != std::string::npos,
                               "roundtrip trace missing bulk out")) return 1;
     if (!usb::fixture::expect(trace_text.find("in ep=81") != std::string::npos,
@@ -296,10 +362,14 @@ int main() {
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened")) return 1;
     if (!usb::fixture::expect(!session.endpoint_state(msc_cfg.ep_out).stalled, "msc bulk out endpoint should be cleared after recovery")) return 1;
+    if (!usb::fixture::expect(count_device_action(session.device_actions(), usb::mock::DeviceActionKind::send_zlp, 0x80) == 3,
+                              "unexpected ep0 send-zlp device action count")) return 1;
     if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::connect),
                               "connect host event missing")) return 1;
     if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::reset),
                               "reset host event missing")) return 1;
+    if (!usb::fixture::expect(count_host_zlp_ack(session.host_events(), 0x80) == 3,
+                              "unexpected ep0 zlp ack host event count")) return 1;
     if (!usb::fixture::expect(count_device_action(session.device_actions(), usb::mock::DeviceActionKind::stall_ep, msc_cfg.ep_out) == 1,
                               "unexpected bulk stall device action count")) return 1;
     if (!usb::fixture::expect(count_host_event(session.host_events(), usb::mock::HostEventKind::out_packet, msc_cfg.ep_out) == 2,

@@ -211,8 +211,13 @@ export namespace init {
         }
     }
 
-    constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {
+    constexpr auto compat_nodes(std::span<const init::Node* const> nodes) noexcept {
         return legacy_nodes_ref{nodes};
+    }
+
+    [[deprecated("use compat_nodes(...) only as a temporary compatibility path for raw Node spans")]]
+    constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {
+        return compat_nodes(nodes);
     }
 
     template <typename... Items>

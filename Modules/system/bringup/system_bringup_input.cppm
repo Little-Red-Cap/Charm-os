@@ -77,7 +77,7 @@ export namespace charm::system {
         util::Result<void> start(util::u32 runlevel_mask,
                                  init::Phase max_phase,
                                  std::span<const init::Node* const> extra_nodes) noexcept {
-            return start_plan(init::legacy_nodes(extra_nodes), runlevel_mask, max_phase);
+            return start_plan(init::compat_nodes(extra_nodes), runlevel_mask, max_phase);
         }
 
         template <typename ExtraPlan>

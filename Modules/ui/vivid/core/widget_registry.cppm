@@ -6,31 +6,34 @@ module;
 export module charm.core.widget_registry;
 
 export import charm.core.handle;
-
-#include "features.hpp"
+import charm.core.config;
 
 namespace {
+    constexpr std::size_t kWidgetKindCount =
+        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+
     constexpr std::size_t count_enabled_kinds() noexcept {
         std::size_t count = 0;
-#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
-        ++count;
-#include "widgets.registry.def"
-#undef VIVID_WIDGET_REGISTRY
+        for (std::size_t i = 1; i < kWidgetKindCount; ++i) {
+            if (vivid_widget_feature_enabled(static_cast<WidgetKind>(i))) {
+                ++count;
+            }
+        }
         return count;
     }
 
     constexpr std::array<WidgetKind, count_enabled_kinds()> build_enabled_kinds() noexcept {
         std::array<WidgetKind, count_enabled_kinds()> kinds{};
         std::size_t idx = 0;
-#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
-        kinds[idx++] = WidgetKind::name;
-#include "widgets.registry.def"
-#undef VIVID_WIDGET_REGISTRY
+        for (std::size_t i = 1; i < kWidgetKindCount; ++i) {
+            const auto kind = static_cast<WidgetKind>(i);
+            if (vivid_widget_feature_enabled(kind)) {
+                kinds[idx++] = kind;
+            }
+        }
         return kinds;
     }
 
-    constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
     constexpr std::uint8_t kInvalidKindIndex = 0xFF;
     constexpr auto kEnabledKinds = build_enabled_kinds();
 }
@@ -56,9 +59,5 @@ export constexpr bool widget_kind_enabled(WidgetKind kind) noexcept {
     if (kind == WidgetKind::None) return false;
     const auto idx = static_cast<std::size_t>(kind);
     if (idx >= widget_kind_count) return false;
-#if defined(CHARM_VIVID_FEATURESET_MCU_MIN)
-    return widget_kind_index[idx] != invalid_widget_kind_index;
-#else
-    return true;
-#endif
+    return vivid_widget_feature_enabled(kind);
 }

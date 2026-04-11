@@ -3,8 +3,6 @@ module;
 #include <cstddef>
 #include <cstdint>
 
-#include "features.hpp"
-
 export module charm.core.soa_layout;
 
 export import charm.core.soa_kernel;

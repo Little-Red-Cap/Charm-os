@@ -1,18 +1,63 @@
 set(_VIVID_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+macro(vivid_cache_default name type default_value doc)
+    if (NOT DEFINED ${name})
+        set(${name} "${default_value}" CACHE ${type} "${doc}")
+    endif()
+endmacro()
+
+function(vivid_bool_literal out_var value)
+    if (${value})
+        set(${out_var} 1 PARENT_SCOPE)
+    else()
+        set(${out_var} 0 PARENT_SCOPE)
+    endif()
+endfunction()
+
 function(vivid_collect_modules target_name module_list_var base_dirs_var)
     if (NOT CHARM_ENABLE_UI_VIVID)
         return()
     endif()
 
+    vivid_cache_default(CHARM_VIVID_SCREEN_WIDTH STRING 480 "Vivid screen width")
+    vivid_cache_default(CHARM_VIVID_SCREEN_HEIGHT STRING 800 "Vivid screen height")
+    vivid_cache_default(CHARM_VIVID_SCREEN_PIXEL_FORMAT STRING RGB888 "Vivid screen pixel format")
+    set_property(CACHE CHARM_VIVID_SCREEN_PIXEL_FORMAT PROPERTY STRINGS RGB888 RGB565)
+    math(EXPR _vivid_default_layer_cache_width "${CHARM_VIVID_SCREEN_WIDTH} / 2")
+    math(EXPR _vivid_default_layer_cache_height "${CHARM_VIVID_SCREEN_HEIGHT} / 2")
+    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_SLOTS STRING 1 "Vivid layer cache slot count")
+    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_WIDTH STRING ${_vivid_default_layer_cache_width} "Vivid layer cache width")
+    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_HEIGHT STRING ${_vivid_default_layer_cache_height} "Vivid layer cache height")
+    vivid_cache_default(CHARM_VIVID_ENABLE_FLOAT_WIDGETS BOOL ON "Enable float-backed vivid widgets")
+    vivid_cache_default(CHARM_VIVID_SOA_MAX_NODES STRING 256 "Vivid SoA max node count")
+
     target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_SOA_ONLY=1 CHARM_VIVID_KERNEL_SOA=1)
+    vivid_bool_literal(_vivid_enable_float_widgets ${CHARM_VIVID_ENABLE_FLOAT_WIDGETS})
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
-        target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_MCU_MIN=1)
+        set(VIVID_FEATURESET_ENUM "mcu_min")
+        set(VIVID_IS_MCU_MIN 1)
     elseif (CHARM_VIVID_FEATURESET STREQUAL "FULL")
-        target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_FEATURESET_FULL=1)
+        set(VIVID_FEATURESET_ENUM "full")
+        set(VIVID_IS_MCU_MIN 0)
     else()
         message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
     endif()
+
+    if (CHARM_VIVID_SCREEN_PIXEL_FORMAT STREQUAL "RGB565")
+        set(VIVID_SCREEN_PIXEL_FORMAT "PixelFormat::RGB565")
+    elseif (CHARM_VIVID_SCREEN_PIXEL_FORMAT STREQUAL "RGB888")
+        set(VIVID_SCREEN_PIXEL_FORMAT "PixelFormat::RGB888")
+    else()
+        message(FATAL_ERROR "Unknown CHARM_VIVID_SCREEN_PIXEL_FORMAT: ${CHARM_VIVID_SCREEN_PIXEL_FORMAT}")
+    endif()
+
+    set(VIVID_SCREEN_WIDTH ${CHARM_VIVID_SCREEN_WIDTH})
+    set(VIVID_SCREEN_HEIGHT ${CHARM_VIVID_SCREEN_HEIGHT})
+    set(VIVID_LAYER_CACHE_SLOTS ${CHARM_VIVID_LAYER_CACHE_SLOTS})
+    set(VIVID_LAYER_CACHE_WIDTH ${CHARM_VIVID_LAYER_CACHE_WIDTH})
+    set(VIVID_LAYER_CACHE_HEIGHT ${CHARM_VIVID_LAYER_CACHE_HEIGHT})
+    set(VIVID_ENABLE_FLOAT_WIDGETS ${_vivid_enable_float_widgets})
+    set(VIVID_SOA_MAX_NODES ${CHARM_VIVID_SOA_MAX_NODES})
 
     set(SOA_POOL_CAP_DEFAULT "kDefaultPoolCap")
     set(SOA_TEXT_ARENA_BYTES "kDefaultTextArenaBytes")
@@ -133,14 +178,28 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
     file(MAKE_DIRECTORY "${vivid_pool_caps_output_dir}")
+    set(vivid_features_header "${vivid_pool_caps_output_dir}/vivid_features.generated.hpp")
+    set(vivid_config_cppm "${vivid_pool_caps_output_dir}/config.generated.cppm")
     set(vivid_pool_caps_cppm "${vivid_pool_caps_output_dir}/soa_pool_caps.cppm")
+    configure_file(
+        "${_VIVID_CMAKE_DIR}/cmake/features.generated.hpp.in"
+        "${vivid_features_header}"
+        @ONLY)
+    configure_file(
+        "${_VIVID_CMAKE_DIR}/cmake/config.generated.cppm.in"
+        "${vivid_config_cppm}"
+        @ONLY)
     configure_file(
         "${_VIVID_CMAKE_DIR}/cmake/soa_pool_caps.cppm.in"
         "${vivid_pool_caps_cppm}"
         @ONLY)
 
+    list(APPEND ${module_list_var} "${vivid_config_cppm}")
     list(APPEND ${module_list_var} "${vivid_pool_caps_cppm}")
     set(${base_dirs_var} "${${base_dirs_var}}" "${vivid_pool_caps_output_dir}" PARENT_SCOPE)
+    target_include_directories(${target_name} PRIVATE
+        "${_VIVID_CMAKE_DIR}/core"
+        "${vivid_pool_caps_output_dir}")
 
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")

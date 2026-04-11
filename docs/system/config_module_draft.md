@@ -11,16 +11,23 @@
 
 ## 当前 MVP
 
-当前先拿 `player` 的 `app_config` 做样板：
+当前已经有两条样板链：
 
-- 稳定表面：`Examples/project/player/stn32h747_HQZY/CM7/app/app_config.cppm`
-- 生成实现：`Examples/project/player/stn32h747_HQZY/CM7/cmake/player_app_config.generated.cppm.in`
-- CMake 接线：`Examples/project/player/stn32h747_HQZY/CM7/cmake/product_player_config_module.cmake`
+- `player` app config
+  - 稳定表面：`Examples/project/player/stn32h747_HQZY/CM7/app/app_config.cppm`
+  - 生成实现：`Examples/project/player/stn32h747_HQZY/CM7/cmake/player_app_config.generated.cppm.in`
+  - CMake 接线：`Examples/project/player/stn32h747_HQZY/CM7/cmake/product_player_config_module.cmake`
+- `vivid` core config
+  - 稳定表面：`Modules/ui/vivid/core/config.cppm`
+  - 生成实现：`Modules/ui/vivid/cmake/config.generated.cppm.in`
+  - CMake 接线：`Modules/ui/vivid/vivid.cmake`
 
 实现原则：
 
 - 公开模块 `player.stm32h7.app_config` 保持稳定
 - 生成模块 `player.stm32h7.app_config.generated` 承载 CMake 输入
+- 公开模块 `charm.core.config` 保持稳定
+- 生成模块 `charm.core.config.generated` 承载 `vivid` 的屏幕 / feature / SoA 配置输入
 - 生成模块同时导出 typed struct 与兼容常量别名，降低迁移摩擦
 
 ## 推荐迁移顺序

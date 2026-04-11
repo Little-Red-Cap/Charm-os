@@ -3,7 +3,6 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include "features.hpp"
 
 export module charm.core.soa_kernel:kernel_class;
 
@@ -25,12 +24,6 @@ import charm.gfx.text_box;
 export constexpr std::uint16_t kInvalidIndex = 0xFFFF;
 
 struct ScrollBarTrackInfo;
-
-#ifdef CHARM_VIVID_SOA_MAX_NODES
-export constexpr std::size_t soa_max_nodes = CHARM_VIVID_SOA_MAX_NODES;
-#else
-export constexpr std::size_t soa_max_nodes = 256;
-#endif
 
 namespace soa_detail {
     // ---- Storage / payload descriptor ----

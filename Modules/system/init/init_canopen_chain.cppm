@@ -7,6 +7,8 @@ export module charm.system.init_canopen;
 
 import init.node;
 import init.graph;
+import init.materialize;
+import init.plan;
 import canopen.transport_channel.node;
 import canopen.sdo;
 import canopen.sdo.node;
@@ -89,6 +91,24 @@ export namespace charm::system {
             };
         }
 
+        constexpr auto plan() const noexcept {
+            return init::compose(
+                init::as_plan(transport_binding),
+                init::as_plan(sdo_binding),
+                init::as_plan(nmt_binding),
+                init::as_plan(pump_binding));
+        }
+
+        template <typename Fn>
+        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
+            for (util::usize i = 0; i < nodes.size(); ++i) {
+                if (nodes[i]) {
+                    fn(*nodes[i]);
+                }
+            }
+        }
+
+        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());
         }
@@ -97,7 +117,9 @@ export namespace charm::system {
         util::Result<void> build(init::Graph<MaxNodes, MaxCaps>& graph,
                                  util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
-            return graph.build(node_span(), runlevel_mask, max_phase);
+            return init::build_graph(
+                graph,
+                plan().runlevel(runlevel_mask).phase_limit(max_phase));
         }
     };
 }

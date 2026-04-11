@@ -52,6 +52,7 @@ function Write-IncFile {
 $samples = @(
     "hello",
     "argv_dump",
+    "env_dump",
     "stderr_demo",
     "exit_code",
     "cat_file",

@@ -269,8 +269,8 @@ int main(int argc, char** argv) {
     (void)out::println<"[OK] bringup starting">(sink);
     auto r = bringup.start_plan(
         init::compose(
-            init::legacy(file_chain),
-            init::legacy(usb_chain)),
+            file_chain.plan(),
+            usb_chain.plan()),
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app);
     if (!r) {

@@ -75,7 +75,7 @@ namespace demo {
         }
         static util::Result<void> close(void*) noexcept { return {}; }
         static util::Result<void> stat(void*, posix::PosixStat& out) noexcept {
-            out.mode = 0;
+            out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
             out.size = 0;
             return {};
         }

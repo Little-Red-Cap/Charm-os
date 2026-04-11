@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
     };
 
     auto r = bringup.start_plan(
-        init::legacy(file_chain),
+        file_chain.plan(),
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app);
     if (!r) {

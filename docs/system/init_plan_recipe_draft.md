@@ -100,6 +100,8 @@ Capability 不负责：
 
 - `Plan` 不继承 `provides`
 - 子树导出必须走 `Barrier`
+- `ready_as(...)` 仅允许包装“所有叶子都显式提供 capability”的子树，否则 `materialize(...)` 直接报错
+- `export_as(...)` 仅保留为兼容别名；对外推荐表面统一为 `ready_as(...)` 或显式 barrier
 
 ### `runlevel`
 
@@ -140,11 +142,15 @@ Capability 不负责：
 
 当前迁移原则：
 
-- 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `legacy_nodes(...)` 接入
+- 旧式 `node_span()` / `Node* span` 先通过 `legacy(...)` / `compat_nodes(...)` 接入；单节点 binding 优先用 `as_plan(...)`；可选装配单元优先用 `maybe(...)`
 - 新增装配代码优先写成 `Recipe + Plan`
 - 业务/驱动接入层不直接写 `init::Node`
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
+- 旧式 `start(runlevel, phase, extra_nodes)` 仅保留为兼容入口，并逐步退场
 - `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法
+- 框架内的 `*Chain` / `CoreSystemChain` 优先暴露 `plan()`；`node_span()` 仅保留给 legacy adapter 与兼容层
+- 框架内旧式 chain 优先补齐 `for_each_legacy_node(...)` 这类窄协议，把 `node_span()` 压成最后的 compat fallback
+- multi-node legacy 在框架内部优先走 `for_each_legacy_node(...)` 这类窄协议，而不是继续把 `node_span()` 当默认适配面
 
 ## 当前迁移状态
 
@@ -165,6 +171,12 @@ Capability 不负责：
 这几处目前统一采用：
 
 - `compose(...)` 组织装配树
-- `legacy(...)` / `legacy_nodes(...)` 桥接旧 chain 与旧节点数组
+- `legacy(...)` 只保留给旧 chain 迁移；`as_plan(...)` 负责单节点 binding；`maybe(...)` 负责可选装配单元；`compat_nodes(...)` 负责旧节点数组兼容；`legacy_nodes(...)` 仅保留为兼容别名
+- 单节点 binding 通过 `as_plan(...)` 直接落成单节点装配项，不再借道 `legacy(...)`
+- 框架内默认组合表面优先用 `chain.plan()`，不再把 `legacy(chain)` 当作主路
+- 对旧式 chain，`materialize(...)` / `node_wrap` 优先识别 `for_each_legacy_node(...)`，`node_span()` 退居兼容层
 - `runlevel(...)` / `phase_limit(...)` 施加继承约束
 - `materialize(...)` 落成旧 `Graph` 需要的 `Node` IR
+- `Graph::build(...)` 使用 `materialized_graph` 给出的有效 `runlevel/phase` 过滤参数，避免双重语义源
+- 推荐用 `build_graph(...)` / `start_graph(...)` 作为 `Plan -> Graph` 的默认胶水层，避免重复样板代码
+- 旧式 `chain.build()` 也优先并到 `build_graph(...)`，避免框架内部继续分叉出第二套落地路径

@@ -37,6 +37,14 @@ export namespace posix {
             return to_errno(err);
         }
 
+        static int fd_errc_to_errno(util::Errc err) noexcept {
+            return to_fd_errno(err);
+        }
+
+        static int fd_attach_errc_to_errno(util::Errc err) noexcept {
+            return to_fd_attach_errno(err);
+        }
+
         static ExecContext* current_exec_context() noexcept {
             return active_exec_context();
         }
@@ -49,6 +57,18 @@ export namespace posix {
             auto* ctx = current_exec_context();
             if (!ctx) return;
             ctx->errno_value = errc_to_errno(err);
+        }
+
+        static void set_exec_fd_errno(util::Errc err) noexcept {
+            auto* ctx = current_exec_context();
+            if (!ctx) return;
+            ctx->errno_value = fd_errc_to_errno(err);
+        }
+
+        static void set_exec_fd_attach_errno(util::Errc err) noexcept {
+            auto* ctx = current_exec_context();
+            if (!ctx) return;
+            ctx->errno_value = fd_attach_errc_to_errno(err);
         }
 
         static void clear_exec_errno() noexcept {
@@ -71,7 +91,7 @@ export namespace posix {
             }
             auto entry = table->get(fd);
             if (!entry || !entry.value()->ops || !entry.value()->ops->write) {
-                set_exec_errno(util::Errc::not_supported);
+                set_exec_fd_errno(util::Errc::noent);
                 return -1;
             }
             ByteView view{static_cast<const util::u8*>(buf), len};
@@ -110,7 +130,7 @@ export namespace posix {
             auto rfd = table->attach(entry.value());
             if (!rfd) {
                 service->close_exec_entry(entry.value());
-                set_exec_errno(rfd.error());
+                set_exec_fd_attach_errno(rfd.error());
                 return -1;
             }
             clear_exec_errno();
@@ -131,7 +151,7 @@ export namespace posix {
             }
             auto r = table->close(fd);
             if (!r) {
-                set_exec_errno(r.error());
+                set_exec_fd_errno(r.error());
                 return -1;
             }
             clear_exec_errno();
@@ -152,7 +172,7 @@ export namespace posix {
             }
             auto entry = table->get(fd);
             if (!entry || !entry.value()->ops || !entry.value()->ops->read) {
-                set_exec_errno(util::Errc::not_supported);
+                set_exec_fd_errno(util::Errc::noent);
                 return -1;
             }
             MutByteView view{static_cast<util::u8*>(buf), len};
@@ -183,11 +203,11 @@ export namespace posix {
             }
             auto entry = table->get(fd);
             if (!entry) {
-                set_exec_errno(util::Errc::io);
+                set_exec_fd_errno(util::Errc::noent);
                 return -1;
             }
             if (!entry.value()->ops || !entry.value()->ops->stat) {
-                set_exec_errno(util::Errc::not_supported);
+                set_exec_fd_errno(util::Errc::noent);
                 return -1;
             }
             PosixStat info{};

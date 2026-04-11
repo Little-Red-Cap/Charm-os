@@ -1,8 +1,6 @@
 module;
 
-#include <array>
 #include <optional>
-#include <span>
 
 export module player.stm32h7.app_init_graph;
 
@@ -28,30 +26,20 @@ export namespace player::stm32h7::app::init_graph {
     };
 
     template <typename RegistryT>
-    struct UsbMscInitPlan {
-        std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> chain{};
-        std::array<const init::Node*, 1> nodes{};
-
-        std::span<const init::Node* const> node_span() const noexcept {
-            if (!chain) return {};
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
-        }
-    };
-
-    template <typename RegistryT>
-    UsbMscInitPlan<RegistryT> build_usb_msc_plan(RegistryT& registry,
-                                                 const UsbMscInitConfig& cfg) noexcept {
-        UsbMscInitPlan<RegistryT> plan{};
+    std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> build_usb_msc_plan(
+        RegistryT& registry,
+        const UsbMscInitConfig& cfg) noexcept {
+        std::optional<charm::system::UsbMscBlockInitChain<RegistryT>> plan{};
         if (!cfg.enable || cfg.use_st_stack) {
             return plan;
         }
-        plan.chain.emplace(
+        plan.emplace(
             registry,
             usb::device::MscBlockDesc{},
             init::Phase::app,
             static_cast<util::u32>(init::Runlevel::all));
 
-        auto& binding = plan.chain->binding;
+        auto& binding = plan->binding;
         auto& dcd_ops = player::stm32h7::board::usb_dcd_ops();
         binding.desc.cap_name = "usb.msc0";
         binding.desc.block_cap = "block.sd0";
@@ -70,7 +58,6 @@ export namespace player::stm32h7::app::init_graph {
         binding.desc.storage_cfg.read_only = cfg.read_only;
         binding.desc.on_ready = &player::stm32h7::board::usb_set_ready;
         binding.desc.on_ready_ctx = nullptr;
-        plan.nodes = {&binding.node};
         return plan;
     }
 }

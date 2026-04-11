@@ -96,17 +96,24 @@ export namespace posix::testsupport {
         static inline ApiType* api{nullptr};
     };
 
+    inline constexpr char kProgramPathEntry[] = "PATH=/bin:/usr/bin";
+    inline constexpr std::array<const char*, 1> kProgramPathEnv{kProgramPathEntry};
+
+    inline std::span<const char* const> program_path_env() noexcept {
+        return std::span<const char* const>(kProgramPathEnv.data(), kProgramPathEnv.size());
+    }
+
     inline void on_process_enter(posix::ProcessId pid, void* ctx) noexcept {
         auto* api = static_cast<ApiType*>(ctx);
         if (api) {
-            api->bind_process(pid);
+            api->push_process(pid);
         }
     }
 
     inline void on_process_exit(posix::ProcessId, void* ctx) noexcept {
         auto* api = static_cast<ApiType*>(ctx);
         if (api) {
-            api->unbind_process();
+            api->pop_process();
         }
     }
 
@@ -192,6 +199,25 @@ export namespace posix::testsupport {
         if (std::string_view{argv[1]} != "-c") return 2;
         std::string_view cmd{argv[2]};
         if (cmd.rfind("echo ", 0) != 0 || cmd.size() <= 5) return 127;
+        const auto path_env = program_path_env();
+
+        auto spawn_command = [&](const char* file,
+                                 std::span<const char* const> child_argv,
+                                 int stdio_in,
+                                 int stdio_out) noexcept -> int {
+            posix::SpawnConfig cfg{};
+            cfg.path = file;
+            cfg.argv = child_argv;
+            cfg.envp = path_env;
+            cfg.stdio_in = stdio_in;
+            cfg.stdio_out = stdio_out;
+            const int pid = ProgramEnv::api->spawnp(cfg);
+            if (pid < 0) return posix::get_errno();
+            int status = 0;
+            const int wpid = ProgramEnv::api->waitpid(posix::ProcessId{pid}, &status, 0);
+            if (wpid != pid) return 127;
+            return (status >> 8) & 0xff;
+        };
 
         auto spawn_echo = [&](std::string_view arg, int stdio_out) noexcept -> int {
             char arg_buf[64]{};
@@ -200,16 +226,12 @@ export namespace posix::testsupport {
                 arg_buf[i] = arg[i];
             }
             const char* echo_argv[] = {"echo", arg_buf, nullptr};
-            posix::SpawnConfig cfg{};
-            cfg.path = "echo";
-            cfg.argv = std::span<const char* const>(echo_argv, 2);
-            cfg.stdio_out = stdio_out;
-            const int pid = ProgramEnv::api->spawn(cfg);
-            if (pid < 0) return -1;
-            int status = 0;
-            const int wpid = ProgramEnv::api->waitpid(posix::ProcessId{pid}, &status, 0);
-            if (wpid != pid) return -2;
-            return (status >> 8) & 0xff;
+            return spawn_command("echo", std::span<const char* const>(echo_argv, 2), -1, stdio_out);
+        };
+
+        auto spawn_cat = [&](int stdio_in, int stdio_out) noexcept -> int {
+            const char* cat_argv[] = {"cat", nullptr};
+            return spawn_command("cat", std::span<const char* const>(cat_argv, 1), stdio_in, stdio_out);
         };
 
         const auto pipe_pos = cmd.find(" | cat");
@@ -217,20 +239,15 @@ export namespace posix::testsupport {
             const std::string_view arg = cmd.substr(5, pipe_pos - 5);
             int fds[2]{-1, -1};
             if (ProgramEnv::api->pipe(fds) != 0) return 5;
-            char buf[68]{};
-            const auto n = arg.size() < (sizeof(buf) - 2) ? arg.size() : (sizeof(buf) - 2);
-            for (util::usize i = 0; i < n; ++i) {
-                buf[i] = arg[i];
-            }
-            buf[n] = '\n';
-            const auto w = ProgramEnv::api->write(fds[1], buf, static_cast<util::usize>(n + 1));
+            const int echo_rc = spawn_echo(arg, fds[1]);
             (void)ProgramEnv::api->close(fds[1]);
-            if (w < 0) return 6;
-            auto r = ProgramEnv::api->read(fds[0], buf, sizeof(buf));
-            if (r < 0) return 7;
-            auto w2 = ProgramEnv::api->write(1, buf, static_cast<util::usize>(r));
-            if (w2 < 0) return 8;
-            return 0;
+            if (echo_rc != 0) {
+                (void)ProgramEnv::api->close(fds[0]);
+                return echo_rc;
+            }
+            const int cat_rc = spawn_cat(fds[0], -1);
+            (void)ProgramEnv::api->close(fds[0]);
+            return cat_rc;
         }
 
         const auto redir_pos = cmd.find(" > ");
@@ -251,20 +268,58 @@ export namespace posix::testsupport {
             }
             const int fd = ProgramEnv::api->open(path_buf, posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
             if (fd < 0) return 9;
-            char buf[68]{};
-            const auto n = arg.size() < (sizeof(buf) - 2) ? arg.size() : (sizeof(buf) - 2);
-            for (util::usize i = 0; i < n; ++i) {
-                buf[i] = arg[i];
-            }
-            buf[n] = '\n';
-            auto w = ProgramEnv::api->write(fd, buf, static_cast<util::usize>(n + 1));
+            const int rc = spawn_echo(arg, fd);
             (void)ProgramEnv::api->close(fd);
-            return w < 0 ? 10 : 0;
+            return rc;
         }
 
         const std::string_view arg = cmd.substr(5);
         const int rc = spawn_echo(arg, -1);
-        return rc < 0 ? 10 : rc;
+        return rc;
+    }
+
+    inline std::string_view command_basename(std::string_view name) noexcept {
+        const auto pos = name.find_last_of('/');
+        return pos == std::string_view::npos ? name : name.substr(pos + 1);
+    }
+
+    int busybox_main(int argc, char** argv) {
+        if (argc < 1 || !argv || !argv[0]) return 127;
+
+        auto dispatch_applet = [&](std::string_view applet_name,
+                                   int applet_argc,
+                                   char** applet_argv) noexcept -> int {
+            if (applet_name == "echo") {
+                return echo_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "cat") {
+                return cat_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "sh") {
+                return sh_main(applet_argc, applet_argv);
+            }
+            return 127;
+        };
+
+        const auto argv0_name = command_basename(std::string_view{argv[0]});
+        if (argv0_name != "busybox") {
+            return dispatch_applet(argv0_name, argc, argv);
+        }
+
+        if (argc < 2 || !argv[1]) {
+            return 127;
+        }
+
+        std::array<char*, 16> shifted_argv{};
+        shifted_argv[0] = argv[1];
+        int shifted_argc = 1;
+        for (int src = 2; src < argc && shifted_argc < static_cast<int>(shifted_argv.size()) - 1; ++src) {
+            shifted_argv[shifted_argc++] = argv[src];
+        }
+        shifted_argv[shifted_argc] = nullptr;
+
+        const auto applet_name = command_basename(std::string_view{argv[1]});
+        return dispatch_applet(applet_name, shifted_argc, shifted_argv.data());
     }
 
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>

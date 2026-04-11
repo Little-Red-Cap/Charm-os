@@ -55,7 +55,7 @@
 | cat < out.txt | `cat < out.txt`；输出 hi | open/read/close | EOF 语义 | 读取路径非 fd_table | P1 | TBD | TODO |
 | echo hi \| cat | `echo hi | cat`；输出 hi | pipe/dup2/spawn/wait | EOF/EPIPE、继承与关闭策略 | pipe 变 demo buffer | P1 | TBD | TODO |
 | echo hi \| cat \| cat | `echo hi | cat | cat`；输出 hi | 多段 pipe/多子进程 | 多 pipe 生命周期管理 | parent/child close 失衡 | P2 | TBD | TODO |
-| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | TODO |
+| busybox sh -c 'echo hi' | `busybox sh -c 'echo hi'`；输出 hi | PATH/argv0/spawn/wait | PATH 搜索、spawn-only shell 策略 | core 被 POSIX 包袱污染 | P2 | TBD | IN PROGRESS |
 
 ## ELF 样本套件（P0-next）
 
@@ -64,7 +64,8 @@
 | 样本 | 当前命令 | 当前输入方式 | 期望输出/状态 | 最小依赖面 | 当前状态 | 下一步 |
 | --- | --- | --- | --- | --- | --- | --- |
 | hello | `elfmem:hello` | `.elf.inc` + `register_elf_mem` | stdout=`hello\n`, exit=0 | `spawn/load_image/start_image`, `write`, stdio fd | DONE | 增加文件/VFS 输入 |
-| argv_dump | `elfmem:argv_dump a b` | `.elf.inc` + `register_elf_mem` | 打印 argv[0..2] | 入口 ABI, `write`, stdout | DONE | 增加 envp 断言 |
+| argv_dump | `elfmem:argv_dump a b` | `.elf.inc` + `register_elf_mem` | 打印 argv[0..2] | 入口 ABI, `write`, stdout | DONE | 保持 argv 纯断言 |
+| env_dump | `elfmem:env_dump` | `.elf.inc` + `register_elf_mem` | 打印 envp[0..n] | envp 入口 ABI, `write`, stdout | DONE | 后续可加空 env / 长 env 边界 |
 | stderr_demo | `elfmem:stderr_demo` | `.elf.inc` + `register_elf_mem` | stdout/stderr 分流 | `write`, 0/1/2 fd, dup2 | DONE | 增加 `2>&1`/文件重定向 |
 | exit_code | `elfmem:exit_code 7` | `.elf.inc` + `register_elf_mem` | wait code=7 | `exit`, waitpid, argv | DONE | 增加 shell 状态传递 |
 
@@ -169,7 +170,7 @@
 | P0 | posix.term | stdio 绑定 + isatty | TBD | TODO | QEMU smoke | term vs file/pipe |
 | P0 | posix.file | open/read/write/stat 基础 | TBD | TODO | BusyBox Phase 2 | /dev/null 已有 |
 | P0 | posix.errno | to_errno 主路径 | TBD | TODO | 单测 | from_errno 有限回转 |
-| P1 | posix.env | PATH 搜索/统一入口 | TBD | TODO | spawn PATH 用例 | 先不做 shell 双逻辑 |
+| P1 | posix.env | PATH 搜索/统一入口 | TBD | IN PROGRESS | spawn PATH 用例 | 先不做 shell 双逻辑 |
 | P1 | posix.api | wrapper + errno 设置 | TBD | TODO | QEMU smoke | 支持 bind child fd table |
 | P2 | phase2 smoke | BusyBox 最小集固化 | TBD | TODO | run_qemu_ci | 可观测输出 |
 
@@ -219,8 +220,10 @@
 - 验收：QEMU smoke 通过
 
 ### P0.3 posix.proc
-- 缺口：PATH 搜索用例暂时跳过
-- 动作：补齐 `resolve_name`/PATH 语义并恢复用例
+- 进展：`resolve_name`/PATH 语义已恢复基础用例，`search_path` 不再在 PATH miss 时偷偷回退到裸 `argv0`
+- 进展：真实 ELF 的 `envp` 断言已改成独立 `env_dump` 样本，避免与 argv / pipe 语义耦合
+- 进展：program smoke 已覆盖 BusyBox 两种最小入口形态：`argv[0]` applet 与 `busybox <applet> ...` 分派
+- 剩余：继续把这套语义接到更真实的 shell/用户态路径
 - 验收：`posix.proc.tests` 全绿
 
 ### P0.4 posix.term
@@ -273,4 +276,3 @@
 
 
 
-- 已暴露待修：close(-1) 当前返回 -1 但 errno 未稳定收敛到 v0 契约值，暂不阻塞主线 smoke。

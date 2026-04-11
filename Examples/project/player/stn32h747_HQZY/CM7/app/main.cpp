@@ -503,7 +503,7 @@ int charm_player_selected_profile_main() {
         bringup.block_registry(), usb_cfg);
 
     auto r = bringup.start_plan(
-        init::legacy(usb_plan),
+        init::maybe(usb_plan),
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app);
     if (!r) {

@@ -49,7 +49,6 @@
 - `EIO` / `ENOTSUP` 等现有 fallback
 
 明确暂缓：
-- `close(-1)` errno 收敛
 - 完整 `stat()` 类型矩阵
 - 完整路径错误矩阵
 
@@ -86,7 +85,6 @@
 
 明确标记：
 - `stat_probe`：布局级异常，隔离待修
-- `close(-1)`：返回值已稳定，errno 未收敛
 - ELF 模型：same-address-space v0，不等同完整用户态/内核态隔离
 - typed path errors：当前只收 `open()` 第一批，不代表完整路径语义已完成
 
@@ -142,3 +140,7 @@
 ## Progress Notes
 - Phase 2 now includes posix.proc_types for shared spawn/process types.
 - posix.exec_loader now owns ELF buffer/file/candidate loading helpers so posix.proc can keep shrinking toward an orchestrator.
+
+- posix.image_resolver now owns load_image source selection and fallback wiring, further shrinking posix.proc toward an orchestrator.
+- posix.spawn_fds now owns child fd-table setup and file-actions application, so posix.proc keeps less spawn-specific wiring.
+- ELF hostcall invalid-fd errno has now converged to `EBADF`, including `read/write/fstat/close` on bad fds.

@@ -52,6 +52,7 @@
 - `usb-msc-cdc-mock-smoke`
 - `usb-msc-replay-smoke`
 - `usb-replay-suite-smoke`
+- `usb-msc-boardlog-import-smoke`
 
 ### 第二层：板级真机验证
 

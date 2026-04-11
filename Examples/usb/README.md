@@ -38,6 +38,7 @@
 - `usb-msc-cdc-mock-smoke`
 - `usb-msc-replay-smoke`
 - `usb-replay-suite-smoke`
+- `usb-msc-boardlog-import-smoke`
 
 只做配置：
 

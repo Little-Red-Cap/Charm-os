@@ -44,6 +44,12 @@ $cases = @(
         Source = Join-Path $repoRoot 'Examples/usb/usb_replay_suite_smoke'
         Build = Join-Path $repoRoot 'cmake-build-usb-replay-suite-smoke-clang'
         Exe = 'usb-replay-suite-smoke.exe'
+    },
+    @{
+        Name = 'usb-msc-boardlog-import-smoke'
+        Source = Join-Path $repoRoot 'Examples/usb/usb_msc_boardlog_import_smoke'
+        Build = Join-Path $repoRoot 'cmake-build-usb-msc-boardlog-import-smoke-clang'
+        Exe = 'usb-msc-boardlog-import-smoke.exe'
     }
 )
 

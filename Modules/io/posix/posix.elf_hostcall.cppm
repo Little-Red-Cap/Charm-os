@@ -29,6 +29,7 @@ export namespace posix {
         util::i32 (*fstat)(int fd, void* st) noexcept {nullptr};
         util::i32 (*isatty)(int fd) noexcept {nullptr};
         int* (*errno_location)() noexcept {nullptr};
+        util::i32 (*getpid)() noexcept {nullptr};
     };
 
     template <class Service>
@@ -245,6 +246,12 @@ export namespace posix {
             auto* ctx = current_exec_context();
             return ctx ? &ctx->errno_value : nullptr;
         }
+
+        static util::i32 getpid() noexcept {
+            auto* ctx = current_exec_context();
+            clear_exec_errno();
+            return ctx ? static_cast<util::i32>(ctx->pid_value) : 0;
+        }
     };
 
     template <class Service>
@@ -262,6 +269,7 @@ export namespace posix {
         table->fstat = &ElfHostcallAdapter<Service>::fstat;
         table->isatty = &ElfHostcallAdapter<Service>::isatty;
         table->errno_location = &ElfHostcallAdapter<Service>::errno_location;
+        table->getpid = &ElfHostcallAdapter<Service>::getpid;
         return {};
     }
 }

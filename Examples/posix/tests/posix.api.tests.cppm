@@ -305,6 +305,24 @@ namespace {
         check_eq("spawnp-miss-errno", posix::get_errno(), posix::ENOENT);
     }
 
+    void test_api_getpid() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        check_eq("getpid-unbound", api.getpid(), 0);
+        api.bind_process(posix::ProcessId{42});
+        check_eq("getpid-bound", api.getpid(), 42);
+        api.unbind_process();
+        check_eq("getpid-unbound-after", api.getpid(), 0);
+    }
+
     void test_api_fs_basics_and_readdir() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -562,6 +580,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_spawnp_wait();
+    test_api_getpid();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
     test_api_errno_contracts();

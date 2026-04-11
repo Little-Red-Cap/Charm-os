@@ -17,6 +17,7 @@
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
+- process-control slice has started with `getpid v0`: `posix.api::getpid()` and ELF hostcall-backed `getpid()` are now smoke-covered
 
 ## Stable ABI Contracts
 
@@ -51,6 +52,7 @@
 - `spawnp` now also has an API-level `argv[0]` search-path regression, which is closer to Linux userland launcher shapes
 - shell smoke now validates `cat < file`, `stderr_demo 2> err.txt`, `stderr_demo > both.txt 2>&1`, `echo ho >> out.txt`, and `stderr_demo >> both.txt 2>&1`
 - API smoke now validates the minimum append contract directly with `O_APPEND`
+- API smoke now validates bound-process `getpid()`, and real ELF smoke validates `getpid()` against the spawned pid value
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
@@ -58,6 +60,6 @@
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
 1. Keep FS Basics v1 narrow and stable: harden `mkdir` / `unlink` / `rename` / `opendir` / `readdir` errno and path contracts
-2. Move to the Phase 3 process-control slice: `kill`, `sleep`, `getpid`, and a minimal `ps`
+2. Continue the Phase 3 process-control slice after `getpid v0`: `sleep`, `kill`, and then a minimal `ps`
 3. Revisit wider `truncate` / `lseek` / path-error matrices only when a concrete BusyBox-style tool is blocked by them
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

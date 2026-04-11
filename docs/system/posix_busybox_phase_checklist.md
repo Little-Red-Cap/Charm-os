@@ -67,8 +67,17 @@ Targets:
 - xargs
 - find
 
+Current Charm slice:
+- done: `getpid` base contract
+- next: `sleep`, `kill`, minimal `ps`
+- scope guard: keep this phase focused on minimum userland-observable behavior, not a full Linux signal/process model
+
 Acceptance:
 - `waitpid` returns correct status
 - `kill` supports SIGTERM/SIGKILL/SIGINT
 - `sleep` respects clock/timer
 - `ps` prints pid/state/name minimally
+
+Current acceptance on mainline smoke:
+- API-level bound-process `getpid()`
+- real ELF `getpid()` output equals spawned pid

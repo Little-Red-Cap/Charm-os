@@ -420,6 +420,10 @@ export namespace posix {
             return r.value().pid.value;
         }
 
+        int getpid() const noexcept {
+            return bound_pid_ >= 0 ? bound_pid_ : 0;
+        }
+
     private:
         struct DirHandle {
             PosixDir dir{};

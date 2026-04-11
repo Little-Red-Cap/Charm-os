@@ -28,7 +28,7 @@ export namespace charm::system {
         }
 
         constexpr auto plan() const noexcept {
-            return init::legacy(spi_binding);
+            return init::as_plan(spi_binding);
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]

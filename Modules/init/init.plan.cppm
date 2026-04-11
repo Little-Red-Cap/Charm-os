@@ -11,6 +11,9 @@ import init.node;
 import util.core;
 
 export namespace init {
+    template <typename T>
+    inline constexpr bool unsupported_as_plan_v = false;
+
     template <typename Derived>
     struct plan_ops;
 
@@ -45,6 +48,8 @@ export namespace init {
 
     template <typename Derived>
     struct plan_ops {
+        using init_plan_tag = void;
+
         constexpr const Derived& self() const noexcept {
             return static_cast<const Derived&>(*this);
         }
@@ -186,6 +191,24 @@ export namespace init {
     template <typename Item>
     constexpr auto maybe(const std::optional<Item>& value) noexcept {
         return maybe_ref<Item>{&value};
+    }
+
+    template <typename Item>
+    constexpr auto as_plan(const Item& value) noexcept {
+        if constexpr (requires { typename Item::init_plan_tag; }) {
+            return value;
+        } else if constexpr (requires(const Item& candidate) {
+                                 candidate.plan();
+                             }) {
+            return value.plan();
+        } else if constexpr (requires(const Item& candidate) {
+                                 candidate.node;
+                             }) {
+            return legacy(value);
+        } else {
+            static_assert(unsupported_as_plan_v<Item>,
+                          "init::as_plan(...) expects a plan-like type, a type with plan(), or a single-node binding; use maybe(...) for optional items");
+        }
     }
 
     constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {

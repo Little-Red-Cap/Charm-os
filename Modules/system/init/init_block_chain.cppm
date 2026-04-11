@@ -33,7 +33,7 @@ export namespace charm::system {
         }
 
         constexpr auto plan() const noexcept {
-            return init::legacy(binding);
+            return init::as_plan(binding);
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
@@ -67,7 +67,7 @@ export namespace charm::system {
         }
 
         constexpr auto plan() const noexcept {
-            return init::legacy(binding);
+            return init::as_plan(binding);
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
@@ -93,7 +93,7 @@ export namespace charm::system {
         }
 
         constexpr auto plan() const noexcept {
-            return init::legacy(binding);
+            return init::as_plan(binding);
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
@@ -128,7 +128,7 @@ export namespace charm::system {
         }
 
         constexpr auto plan() const noexcept {
-            return init::legacy(binding);
+            return init::as_plan(binding);
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]

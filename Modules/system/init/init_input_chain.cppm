@@ -86,9 +86,9 @@ export namespace charm::system {
 
         constexpr auto plan() const noexcept {
             return init::compose(
-                init::legacy(service_binding),
-                init::legacy(router_binding),
-                init::legacy(pump_binding));
+                init::as_plan(service_binding),
+                init::as_plan(router_binding),
+                init::as_plan(pump_binding));
         }
 
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]

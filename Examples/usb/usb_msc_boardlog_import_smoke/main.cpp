@@ -668,6 +668,189 @@ int main() {
         if (!usb::fixture::expect(span_is_filled(recovery_disk.block_span(1), 0x5A), "segmented-out recovery block payload mismatch")) return 1;
         if (!usb::fixture::expect(span_is_filled(recovery_disk.block_span(2), 0x00), "segmented-out recovery extra data should not spill")) return 1;
     }
+    {
+        constexpr auto kInvalidCbw = "55534243060000000800000080000025000000000000000000000000000000";
+        constexpr auto kInvalidCsw = "55534253060000000800000002";
+        constexpr auto kRecoveryCbw = "55534243070000000800000080000A25000000000000000000000000000000";
+        constexpr auto kRecoveryReadCapacity = "0000000F0000020055534253070000000000000000";
+
+        std::string invalid_cbw_recovery_boardlog{};
+        invalid_cbw_recovery_boardlog.reserve(2048);
+        invalid_cbw_recovery_boardlog += "usb: connect on\n";
+        invalid_cbw_recovery_boardlog += "usb: reset\n";
+        invalid_cbw_recovery_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        invalid_cbw_recovery_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        invalid_cbw_recovery_boardlog += kInvalidCbw;
+        invalid_cbw_recovery_boardlog += "\n";
+        invalid_cbw_recovery_boardlog += "usb: stall ep=0x81\n";
+        invalid_cbw_recovery_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
+        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        invalid_cbw_recovery_boardlog += kInvalidCsw;
+        invalid_cbw_recovery_boardlog += "\n";
+        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        invalid_cbw_recovery_boardlog += kRecoveryCbw;
+        invalid_cbw_recovery_boardlog += "\n";
+        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        invalid_cbw_recovery_boardlog += kRecoveryReadCapacity;
+        invalid_cbw_recovery_boardlog += "\n";
+
+        const auto imported_invalid_cbw_recovery = usb::boardlog::load_text(invalid_cbw_recovery_boardlog);
+        if (!imported_invalid_cbw_recovery) {
+            std::fprintf(stderr,
+                         "[ERR] invalid-cbw recovery boardlog load failed line=%zu err=%s\n",
+                         imported_invalid_cbw_recovery.line,
+                         usb::boardlog::error_name(imported_invalid_cbw_recovery.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.imported_steps == 13, "invalid-cbw recovery imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.skipped_steps == 0, "invalid-cbw recovery skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps.size() == 13, "invalid-cbw recovery trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "invalid-cbw recovery invalid-cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[8].kind == usb::replay::StepKind::stall,
+                                  "invalid-cbw recovery stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[8].ep == 0x81,
+                                  "invalid-cbw recovery stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
+                                  "invalid-cbw recovery clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[9].ep == 0x81,
+                                  "invalid-cbw recovery clear-stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "invalid-cbw recovery phase-error csw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[11].kind == usb::replay::StepKind::out,
+                                  "invalid-cbw recovery recovery-cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_invalid_cbw_recovery.trace.steps[12].kind == usb::replay::StepKind::in,
+                                  "invalid-cbw recovery read-capacity step kind mismatch")) return 1;
+
+        const auto invalid_cbw_recovery_trace_text = usb::boardlog::to_text(imported_invalid_cbw_recovery.trace);
+        if (!usb::fixture::expect(count_substring(invalid_cbw_recovery_trace_text, "out ep=01 zlp=0 data=") == 2,
+                                  "invalid-cbw recovery roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(invalid_cbw_recovery_trace_text, "in ep=81 zlp=0 data=") == 2,
+                                  "invalid-cbw recovery roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(invalid_cbw_recovery_trace_text.find("stall ep=81") != std::string::npos,
+                                  "invalid-cbw recovery roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(invalid_cbw_recovery_trace_text.find("clear_stall ep=81") != std::string::npos,
+                                  "invalid-cbw recovery roundtrip missing clear_stall")) return 1;
+        if (!usb::fixture::expect(invalid_cbw_recovery_trace_text.find(kInvalidCsw) != std::string::npos,
+                                  "invalid-cbw recovery roundtrip missing phase-error csw")) return 1;
+        if (!usb::fixture::expect(invalid_cbw_recovery_trace_text.find(kRecoveryReadCapacity) != std::string::npos,
+                                  "invalid-cbw recovery roundtrip missing read-capacity response")) return 1;
+
+        const auto invalid_cbw_recovery_roundtrip = usb::replay::load_text(invalid_cbw_recovery_trace_text);
+        if (!invalid_cbw_recovery_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] invalid-cbw recovery roundtrip parse failed line=%zu err=%s\n",
+                         invalid_cbw_recovery_roundtrip.line,
+                         usb::replay::load_error_name(invalid_cbw_recovery_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk invalid_cbw_disk{};
+        block::Registry<2> invalid_cbw_registry{};
+        invalid_cbw_registry.init();
+        auto invalid_cbw_reg = invalid_cbw_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, invalid_cbw_disk.device);
+        if (!invalid_cbw_reg) {
+            std::fprintf(stderr, "[ERR] invalid-cbw registry register failed err=%d\n", static_cast<int>(invalid_cbw_reg.error()));
+            return 1;
+        }
+
+        DemoContext invalid_cbw_demo{};
+        usb::mock::Session invalid_cbw_session{};
+        const auto invalid_cbw_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(true));
+        const auto invalid_cbw_model = usb::build(invalid_cbw_spec);
+        const auto invalid_cbw_plan = usb::plan::build(invalid_cbw_model);
+        if (!invalid_cbw_plan) {
+            std::fprintf(stderr, "[ERR] invalid-cbw plan failed err=%d\n", static_cast<int>(invalid_cbw_plan.error()));
+            return 1;
+        }
+
+        const auto invalid_cbw_runtime = usb::runtime::host_mock(
+            invalid_cbw_session.dcd_ops(),
+            &invalid_cbw_session,
+            &invalid_cbw_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &invalid_cbw_demo});
+
+        auto invalid_cbw_binding = usb::runtime::make(invalid_cbw_plan.value(), invalid_cbw_registry, invalid_cbw_runtime);
+        const auto invalid_cbw_init = decltype(invalid_cbw_binding)::init_trampoline(&invalid_cbw_binding);
+        if (!invalid_cbw_init) {
+            std::fprintf(stderr, "[ERR] invalid-cbw binding init failed err=%d\n", static_cast<int>(invalid_cbw_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(invalid_cbw_demo.ready, "invalid-cbw runtime ready hook not called")) return 1;
+
+        PumpContext invalid_cbw_pump{invalid_cbw_demo.bot, invalid_cbw_plan.value().msc.msc_cfg};
+        const auto invalid_cbw_replay = usb::replay::run(
+            invalid_cbw_session,
+            invalid_cbw_recovery_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &invalid_cbw_pump, &pump_stall});
+        if (!invalid_cbw_replay) {
+            std::fprintf(stderr,
+                         "[ERR] invalid-cbw replay failed step=%zu err=%s\n",
+                         invalid_cbw_replay.step_index,
+                         usb::replay::error_name(invalid_cbw_replay.error));
+            return 1;
+        }
+
+        const auto invalid_cbw_cfg = invalid_cbw_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(invalid_cbw_session.host_events(), usb::mock::HostEventKind::out_packet, invalid_cbw_cfg.ep_out) == 2,
+                                  "invalid-cbw host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(invalid_cbw_session.host_events(), usb::mock::HostEventKind::in_complete, invalid_cbw_cfg.ep_in) == 3,
+                                  "invalid-cbw host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(invalid_cbw_session.host_events(), usb::mock::HostEventKind::clear_stall, invalid_cbw_cfg.ep_in),
+                                  "invalid-cbw clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(invalid_cbw_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, invalid_cbw_cfg.ep_in) == 1,
+                                  "invalid-cbw stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!invalid_cbw_session.endpoint_state(invalid_cbw_cfg.ep_in).stalled,
+                                  "invalid-cbw bulk in endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
+        const auto* invalid_cbw = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::cbw_invalid,
+                                                       kReadCapacity);
+        if (!usb::fixture::expect(invalid_cbw != nullptr, "invalid-cbw recovery trace missing")) return 1;
+        if (!usb::fixture::expect(invalid_cbw->transfer_length == 8, "invalid-cbw recovery transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(invalid_cbw->residue == 8, "invalid-cbw recovery residue mismatch")) return 1;
+        if (!usb::fixture::expect(invalid_cbw->flag, "invalid-cbw recovery direction mismatch")) return 1;
+
+        const auto* invalid_wait_csw = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::wait_csw,
+                                                            kReadCapacity);
+        if (!usb::fixture::expect(invalid_wait_csw != nullptr, "invalid-cbw recovery wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(invalid_wait_csw->transfer_length == 8, "invalid-cbw recovery wait-csw length mismatch")) return 1;
+
+        const auto* invalid_phase_error = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::phase_error,
+                                                               kReadCapacity);
+        if (!usb::fixture::expect(invalid_phase_error != nullptr, "invalid-cbw recovery phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(invalid_phase_error->residue == 8, "invalid-cbw recovery phase-error residue mismatch")) return 1;
+
+        const auto* invalid_clear_stall = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                               kReadCapacity);
+        if (!usb::fixture::expect(invalid_clear_stall != nullptr, "invalid-cbw recovery clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(invalid_clear_stall->flag, "invalid-cbw recovery clear-stall endpoint mismatch")) return 1;
+
+        const auto* invalid_csw_sent = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::csw_sent,
+                                                            kReadCapacity);
+        if (!usb::fixture::expect(invalid_csw_sent != nullptr, "invalid-cbw recovery csw trace missing")) return 1;
+        if (!usb::fixture::expect(invalid_csw_sent->residue == 8, "invalid-cbw recovery csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(invalid_csw_sent->flag, "invalid-cbw recovery csw phase flag mismatch")) return 1;
+
+        const auto* recovery_read_capacity = find_msc_trace_event(invalid_cbw_demo.bot->trace_events(),
+                                                                  usb::class_driver::MscTraceEventKind::read_capacity,
+                                                                  kReadCapacity);
+        if (!usb::fixture::expect(recovery_read_capacity != nullptr, "invalid-cbw recovery read-capacity trace missing")) return 1;
+        if (!usb::fixture::expect(recovery_read_capacity->transfer_length == 8, "invalid-cbw recovery read-capacity transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_read_capacity->lba == 15, "invalid-cbw recovery read-capacity lba mismatch")) return 1;
+        if (!usb::fixture::expect(recovery_read_capacity->blocks == 16, "invalid-cbw recovery read-capacity block count mismatch")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

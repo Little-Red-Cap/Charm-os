@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_i2c;
 
 import init.node;
@@ -17,14 +14,12 @@ import util.error;
 export namespace charm::system {
     struct I2cInitChain {
         hal::I2cBinding i2c_binding;
-        std::array<const init::Node*, 1> nodes{};
 
         I2cInitChain(hal::I2cIoHandle handle,
                      const hal::I2cConfig& cfg,
                      const char* hal_cap = "hal.i2c1",
                      const char* irq_cap = "platform.irq") noexcept
             : i2c_binding(handle, cfg, hal_cap, irq_cap) {
-            nodes = {&i2c_binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -33,16 +28,7 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(i2c_binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

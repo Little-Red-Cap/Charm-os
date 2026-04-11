@@ -1008,6 +1008,180 @@ int main() {
         if (!usb::fixture::expect(short_csw_sent->residue == 512, "read10-short csw residue mismatch")) return 1;
         if (!usb::fixture::expect(!short_csw_sent->flag, "read10-short csw phase flag mismatch")) return 1;
     }
+    {
+        constexpr auto kWrite10ReadOnlyCbw = "55534243060000000002000000000A2A000000000000000100000000000000";
+        constexpr auto kWrite10ReadOnlyCsw = "55534253060000000000000001";
+        constexpr auto kRequestSenseCbw = "55534243070000001200000080000603000000120000000000000000000000";
+        constexpr auto kRequestSenseResponse = "700007000000000A0000000027000000000055534253070000000000000000";
+
+        std::string request_sense_boardlog{};
+        request_sense_boardlog.reserve(2048);
+        request_sense_boardlog += "usb: connect on\n";
+        request_sense_boardlog += "usb: reset\n";
+        request_sense_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        request_sense_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        request_sense_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        request_sense_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        request_sense_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        request_sense_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        request_sense_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        request_sense_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        request_sense_boardlog += kWrite10ReadOnlyCbw;
+        request_sense_boardlog += "\n";
+        request_sense_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        request_sense_boardlog += kWrite10ReadOnlyCsw;
+        request_sense_boardlog += "\n";
+        request_sense_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        request_sense_boardlog += kRequestSenseCbw;
+        request_sense_boardlog += "\n";
+        request_sense_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        request_sense_boardlog += kRequestSenseResponse;
+        request_sense_boardlog += "\n";
+
+        const auto imported_request_sense = usb::boardlog::load_text(request_sense_boardlog);
+        if (!imported_request_sense) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense boardlog load failed line=%zu err=%s\n",
+                         imported_request_sense.line,
+                         usb::boardlog::error_name(imported_request_sense.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_request_sense.imported_steps == 11, "request-sense imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.skipped_steps == 0, "request-sense skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps.size() == 11, "request-sense trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "request-sense write10 step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "request-sense failed csw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[9].kind == usb::replay::StepKind::out,
+                                  "request-sense request-cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "request-sense response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[10].data.size() == 31,
+                                  "request-sense response transaction length mismatch")) return 1;
+
+        const auto request_sense_trace_text = usb::boardlog::to_text(imported_request_sense.trace);
+        if (!usb::fixture::expect(count_substring(request_sense_trace_text, "out ep=01 zlp=0 data=") == 2,
+                                  "request-sense roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(request_sense_trace_text, "in ep=81 zlp=0 data=") == 2,
+                                  "request-sense roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_trace_text.find(kWrite10ReadOnlyCsw) != std::string::npos,
+                                  "request-sense roundtrip missing failed csw")) return 1;
+        if (!usb::fixture::expect(request_sense_trace_text.find(kRequestSenseResponse) != std::string::npos,
+                                  "request-sense roundtrip missing sense response")) return 1;
+
+        const auto request_sense_roundtrip = usb::replay::load_text(request_sense_trace_text);
+        if (!request_sense_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense roundtrip parse failed line=%zu err=%s\n",
+                         request_sense_roundtrip.line,
+                         usb::replay::load_error_name(request_sense_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk request_sense_disk{};
+        block::Registry<2> request_sense_registry{};
+        request_sense_registry.init();
+        auto request_sense_reg = request_sense_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, request_sense_disk.device);
+        if (!request_sense_reg) {
+            std::fprintf(stderr, "[ERR] request-sense registry register failed err=%d\n", static_cast<int>(request_sense_reg.error()));
+            return 1;
+        }
+
+        DemoContext request_sense_demo{};
+        usb::mock::Session request_sense_session{};
+        const auto request_sense_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(true));
+        const auto request_sense_model = usb::build(request_sense_spec);
+        const auto request_sense_plan = usb::plan::build(request_sense_model);
+        if (!request_sense_plan) {
+            std::fprintf(stderr, "[ERR] request-sense plan build failed err=%d\n", static_cast<int>(request_sense_plan.error()));
+            return 1;
+        }
+
+        const auto request_sense_runtime = usb::runtime::host_mock(
+            request_sense_session.dcd_ops(),
+            &request_sense_session,
+            &request_sense_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &request_sense_demo});
+
+        auto request_sense_binding = usb::runtime::make(request_sense_plan.value(), request_sense_registry, request_sense_runtime);
+        const auto request_sense_init = decltype(request_sense_binding)::init_trampoline(&request_sense_binding);
+        if (!request_sense_init) {
+            std::fprintf(stderr, "[ERR] request-sense binding init failed err=%d\n", static_cast<int>(request_sense_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(request_sense_demo.ready, "request-sense runtime ready hook not called")) return 1;
+
+        PumpContext request_sense_pump{request_sense_demo.bot, request_sense_plan.value().msc.msc_cfg};
+        const auto request_sense_replay = usb::replay::run(
+            request_sense_session,
+            request_sense_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &request_sense_pump, &pump_stall});
+        if (!request_sense_replay) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense replay failed step=%zu err=%s\n",
+                         request_sense_replay.step_index,
+                         usb::replay::error_name(request_sense_replay.error));
+            return 1;
+        }
+
+        const auto request_sense_cfg = request_sense_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::out_packet, request_sense_cfg.ep_out) == 2,
+                                  "request-sense host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::in_complete, request_sense_cfg.ep_in) == 3,
+                                  "request-sense host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::clear_stall, request_sense_cfg.ep_in),
+                                  "request-sense should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(request_sense_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, request_sense_cfg.ep_in) == 0,
+                                  "request-sense should not stall bulk in")) return 1;
+        if (!usb::fixture::expect(count_device_action(request_sense_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, request_sense_cfg.ep_out) == 0,
+                                  "request-sense should not stall bulk out")) return 1;
+
+        constexpr auto kWrite10ReadOnly = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+        const auto* request_write10 = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::write10_started,
+                                                           kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_write10 != nullptr, "request-sense write10 trace missing")) return 1;
+        if (!usb::fixture::expect(request_write10->transfer_length == 512, "request-sense write10 length mismatch")) return 1;
+        if (!usb::fixture::expect(request_write10->lba == 0, "request-sense write10 lba mismatch")) return 1;
+        if (!usb::fixture::expect(request_write10->blocks == 1, "request-sense write10 block count mismatch")) return 1;
+
+        const auto* request_sense_set = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::sense_set,
+                                                             kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_sense_set != nullptr, "request-sense sense-set trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_key == 0x07, "request-sense sense key mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_asc == 0x27, "request-sense sense asc mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_ascq == 0x00, "request-sense sense ascq mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->transfer_length == 512, "request-sense sense transfer length mismatch")) return 1;
+
+        const auto* request_write10_csw = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::csw_sent,
+                                                               kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_write10_csw != nullptr, "request-sense write10 csw trace missing")) return 1;
+        if (!usb::fixture::expect(request_write10_csw->residue == 0, "request-sense write10 csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_write10_csw->flag, "request-sense write10 csw phase flag mismatch")) return 1;
+
+        if (!usb::fixture::expect(find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::wait_csw,
+                                                       kWrite10ReadOnly) == nullptr,
+                                  "request-sense write10 should not wait csw")) return 1;
+
+        constexpr auto kRequestSense = static_cast<usb::u8>(usb::class_driver::ScsiCmd::request_sense);
+        const auto* request_sense_csw_ready = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                                   usb::class_driver::MscTraceEventKind::csw_ready,
+                                                                   kRequestSense);
+        if (!usb::fixture::expect(request_sense_csw_ready != nullptr, "request-sense csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_csw_ready->residue == 0, "request-sense csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_sense_csw_ready->flag, "request-sense csw-ready phase flag mismatch")) return 1;
+
+        const auto* request_sense_csw_sent = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                                  usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                  kRequestSense);
+        if (!usb::fixture::expect(request_sense_csw_sent != nullptr, "request-sense csw trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_csw_sent->residue == 0, "request-sense csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_sense_csw_sent->flag, "request-sense csw phase flag mismatch")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

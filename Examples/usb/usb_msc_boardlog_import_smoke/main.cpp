@@ -123,10 +123,12 @@ int main() {
                      usb::boardlog::error_name(imported.error));
         return 1;
     }
-    if (!usb::fixture::expect(imported.imported_steps == 5, "unexpected imported step count")) return 1;
+    if (!usb::fixture::expect(imported.imported_steps == 6, "unexpected imported step count")) return 1;
     if (!usb::fixture::expect(imported.skipped_steps == 0, "unexpected skipped step count")) return 1;
 
     const auto trace_text = usb::boardlog::to_text(imported.trace);
+    if (!usb::fixture::expect(trace_text.find("clear_stall ep=01") != std::string::npos,
+                              "roundtrip trace missing clear_stall")) return 1;
     const auto roundtrip = usb::replay::load_text(trace_text);
     if (!roundtrip) {
         std::fprintf(stderr,

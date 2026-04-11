@@ -150,7 +150,7 @@ int main() {
     if (!expect(session.host_events().size() == 1, "descriptor host event count mismatch")) return 1;
     if (!expect(session.host_events()[0].kind == usb::mock::HostEventKind::setup, "descriptor host event kind mismatch")) return 1;
     if (!expect(session.device_actions().size() == 1, "descriptor device action count mismatch")) return 1;
-    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::ep_send, "descriptor action kind mismatch")) return 1;
+    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::send_in, "descriptor action kind mismatch")) return 1;
     if (!expect(session.device_actions()[0].ep == 0x80, "descriptor action endpoint mismatch")) return 1;
     if (!expect(session.device_actions()[0].data.size() == 18, "descriptor length mismatch")) return 1;
     auto pkt = session.poll_in();
@@ -165,7 +165,7 @@ int main() {
     session.feed_setup(usb::SetupPacket{0x00, 0x05, 0x0005, 0x0000, 0x0000});
     if (!expect(session.address() == 0, "set address applied before status stage")) return 1;
     if (!expect(session.device_actions().size() == 1, "set address pre-ack action count mismatch")) return 1;
-    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::ep_send, "set address pre-ack action kind mismatch")) return 1;
+    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::send_zlp, "set address pre-ack action kind mismatch")) return 1;
     if (!expect(session.device_actions()[0].flag, "set address pre-ack zlp missing")) return 1;
     auto addr_pkt = session.poll_in();
     if (!expect(addr_pkt.has_value(), "set address status packet missing")) return 1;
@@ -184,7 +184,7 @@ int main() {
     session.feed_setup(usb::SetupPacket{0x00, 0x09, 0x0001, 0x0000, 0x0000});
     if (!expect(!session.configured(), "set configuration applied before status stage")) return 1;
     if (!expect(session.device_actions().size() == 1, "set configuration pre-ack action count mismatch")) return 1;
-    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::ep_send, "set configuration pre-ack action kind mismatch")) return 1;
+    if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::send_zlp, "set configuration pre-ack action kind mismatch")) return 1;
     if (!expect(session.device_actions()[0].flag, "set configuration pre-ack zlp missing")) return 1;
     auto cfg_pkt = session.poll_in();
     if (!expect(cfg_pkt.has_value(), "set configuration status packet missing")) return 1;

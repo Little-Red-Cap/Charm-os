@@ -9,7 +9,7 @@
 - 单节点 binding 优先写成 `as_plan(binding)`
 - 可选装配单元优先写成 `maybe(optional_item)`
 - multi-node legacy 优先暴露 `for_each_legacy_node(...)` 这类内部遍历协议
-- 旧式 chain 的 `node_span()` 只保留为 compat fallback，不再作为默认适配面
+- 旧式 chain 的 `node_span()` 只保留为通用 compat fallback，不再作为默认适配面；框架内 `*Chain` 不再新增或保留公开 `node_span()`
 
 ## 红灯
 - 业务 / 驱动接入层直接写 `init::Node`

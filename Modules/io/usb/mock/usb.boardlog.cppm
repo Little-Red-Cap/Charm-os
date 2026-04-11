@@ -355,6 +355,52 @@ export namespace usb::boardlog {
                         return fail(LoadError::syntax);
                     }
 
+                    if (step.kind == usb::replay::StepKind::in && !out.trace.steps.empty()) {
+                        auto& last = out.trace.steps.back();
+                        if (last.kind == usb::replay::StepKind::in &&
+                            last.ep == step.ep &&
+                            !last.flag) {
+                            last.data.insert(last.data.end(), step.data.begin(), step.data.end());
+                            last.flag = step.flag;
+                            ++out.imported_steps;
+                            continue;
+                        }
+                    }
+
+                    out.trace.steps.push_back(std::move(step));
+                    ++out.imported_steps;
+                    continue;
+                }
+            }
+            {
+                const auto tokens = detail::split_tokens(line);
+                if (tokens.size() >= 2 && tokens[0] == "usb:" && tokens[1] == "stall") {
+                    usb::replay::TraceStep step{};
+                    step.kind = usb::replay::StepKind::stall;
+
+                    bool has_ep = false;
+                    for (std::size_t i = 2; i < tokens.size(); ++i) {
+                        std::string_view key{};
+                        std::string_view value{};
+                        if (!detail::split_key_value(tokens[i], key, value)) {
+                            continue;
+                        }
+                        if (key != "ep") {
+                            return fail(LoadError::syntax);
+                        }
+
+                        unsigned ep = 0;
+                        if (!detail::parse_hex_uint(value, ep) || ep > 0xFFu) {
+                            return fail(LoadError::syntax);
+                        }
+                        step.ep = static_cast<usb::u8>(ep);
+                        has_ep = true;
+                    }
+
+                    if (!has_ep) {
+                        return fail(LoadError::syntax);
+                    }
+
                     out.trace.steps.push_back(std::move(step));
                     ++out.imported_steps;
                     continue;
@@ -484,6 +530,11 @@ export namespace usb::boardlog {
             }
             case usb::replay::StepKind::clear_stall:
                 out += "clear_stall ep=";
+                detail::append_hex_byte(out, step.ep);
+                out += "\n";
+                break;
+            case usb::replay::StepKind::stall:
+                out += "stall ep=";
                 detail::append_hex_byte(out, step.ep);
                 out += "\n";
                 break;

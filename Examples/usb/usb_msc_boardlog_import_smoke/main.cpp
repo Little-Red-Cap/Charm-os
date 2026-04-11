@@ -1513,6 +1513,183 @@ int main() {
         if (!usb::fixture::expect(zero_len_request_sense_csw->residue == 0, "read10-zero-len request-sense csw residue mismatch")) return 1;
         if (!usb::fixture::expect(!zero_len_request_sense_csw->flag, "read10-zero-len request-sense csw phase flag mismatch")) return 1;
     }
+    {
+        constexpr auto kRead10OverrunCbw = "555342430C0000000004000080000A28000000000000000100000000000000";
+        constexpr auto kRead10OverrunCsw = "555342530C0000000002000002";
+
+        MemoryDisk overrun_disk{};
+        std::string overrun_boardlog{};
+        overrun_boardlog.reserve(2048);
+        overrun_boardlog += "usb: connect on\n";
+        overrun_boardlog += "usb: reset\n";
+        overrun_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        overrun_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        overrun_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        overrun_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        overrun_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        overrun_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        overrun_boardlog += kRead10OverrunCbw;
+        overrun_boardlog += "\n";
+        overrun_boardlog += "usb: stall ep=0x81\n";
+        overrun_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
+        overrun_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        overrun_boardlog += hex_encode_bytes(overrun_disk.block_span(0));
+        overrun_boardlog += kRead10OverrunCsw;
+        overrun_boardlog += "\n";
+
+        const auto imported_overrun = usb::boardlog::load_text(overrun_boardlog);
+        if (!imported_overrun) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun boardlog load failed line=%zu err=%s\n",
+                         imported_overrun.line,
+                         usb::boardlog::error_name(imported_overrun.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_overrun.imported_steps == 11, "read10-overrun imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.skipped_steps == 0, "read10-overrun skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps.size() == 11, "read10-overrun trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-overrun cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[8].kind == usb::replay::StepKind::stall,
+                                  "read10-overrun stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[8].ep == 0x81,
+                                  "read10-overrun stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
+                                  "read10-overrun clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "read10-overrun response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[10].data.size() == (512 + 13),
+                                  "read10-overrun response transaction length mismatch")) return 1;
+
+        const auto overrun_trace_text = usb::boardlog::to_text(imported_overrun.trace);
+        if (!usb::fixture::expect(count_substring(overrun_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read10-overrun roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(overrun_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read10-overrun roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find("stall ep=81") != std::string::npos,
+                                  "read10-overrun roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find("clear_stall ep=81") != std::string::npos,
+                                  "read10-overrun roundtrip missing clear_stall")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find(kRead10OverrunCsw) != std::string::npos,
+                                  "read10-overrun roundtrip missing phase-error csw")) return 1;
+
+        const auto overrun_roundtrip = usb::replay::load_text(overrun_trace_text);
+        if (!overrun_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun roundtrip parse failed line=%zu err=%s\n",
+                         overrun_roundtrip.line,
+                         usb::replay::load_error_name(overrun_roundtrip.error));
+            return 1;
+        }
+
+        block::Registry<2> overrun_registry{};
+        overrun_registry.init();
+        auto overrun_reg = overrun_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, overrun_disk.device);
+        if (!overrun_reg) {
+            std::fprintf(stderr, "[ERR] read10-overrun registry register failed err=%d\n", static_cast<int>(overrun_reg.error()));
+            return 1;
+        }
+
+        DemoContext overrun_demo{};
+        usb::mock::Session overrun_session{};
+        const auto overrun_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto overrun_model = usb::build(overrun_spec);
+        const auto overrun_plan = usb::plan::build(overrun_model);
+        if (!overrun_plan) {
+            std::fprintf(stderr, "[ERR] read10-overrun plan build failed err=%d\n", static_cast<int>(overrun_plan.error()));
+            return 1;
+        }
+
+        const auto overrun_runtime = usb::runtime::host_mock(
+            overrun_session.dcd_ops(),
+            &overrun_session,
+            &overrun_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &overrun_demo});
+
+        auto overrun_binding = usb::runtime::make(overrun_plan.value(), overrun_registry, overrun_runtime);
+        const auto overrun_init = decltype(overrun_binding)::init_trampoline(&overrun_binding);
+        if (!overrun_init) {
+            std::fprintf(stderr, "[ERR] read10-overrun binding init failed err=%d\n", static_cast<int>(overrun_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(overrun_demo.ready, "read10-overrun runtime ready hook not called")) return 1;
+
+        PumpContext overrun_pump{overrun_demo.bot, overrun_plan.value().msc.msc_cfg};
+        const auto overrun_replay = usb::replay::run(
+            overrun_session,
+            overrun_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &overrun_pump, &pump_stall});
+        if (!overrun_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun replay failed step=%zu err=%s\n",
+                         overrun_replay.step_index,
+                         usb::replay::error_name(overrun_replay.error));
+            return 1;
+        }
+
+        const auto overrun_cfg = overrun_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(overrun_session.host_events(), usb::mock::HostEventKind::out_packet, overrun_cfg.ep_out) == 1,
+                                  "read10-overrun host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(overrun_session.host_events(), usb::mock::HostEventKind::in_complete, overrun_cfg.ep_in) == 9,
+                                  "read10-overrun host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(overrun_session.host_events(), usb::mock::HostEventKind::clear_stall, overrun_cfg.ep_in),
+                                  "read10-overrun clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(overrun_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, overrun_cfg.ep_in) == 1,
+                                  "read10-overrun stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!overrun_session.endpoint_state(overrun_cfg.ep_in).stalled,
+                                  "read10-overrun bulk in endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kRead10Overrun = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* overrun_read10 = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::read10_started,
+                                                          kRead10Overrun);
+        if (!usb::fixture::expect(overrun_read10 != nullptr, "read10-overrun trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_read10->transfer_length == 1024, "read10-overrun transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_read10->lba == 0, "read10-overrun lba mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_read10->blocks == 1, "read10-overrun block count mismatch")) return 1;
+
+        const auto* overrun_data_in = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::data_in_started,
+                                                           kRead10Overrun);
+        if (!usb::fixture::expect(overrun_data_in != nullptr, "read10-overrun data-in trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_data_in->transfer_length == 512, "read10-overrun data-in length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_data_in->residue == 512, "read10-overrun data-in residue mismatch")) return 1;
+
+        const auto* overrun_stall_in = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_stall_in != nullptr, "read10-overrun stall-in trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->transfer_length == 1024, "read10-overrun stall-in length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->residue == 512, "read10-overrun stall-in residue mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->flag, "read10-overrun stall-in flag mismatch")) return 1;
+
+        const auto* overrun_wait_csw = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::wait_csw,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_wait_csw != nullptr, "read10-overrun wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_wait_csw->transfer_length == 1024, "read10-overrun wait-csw length mismatch")) return 1;
+
+        const auto* overrun_phase_error = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::phase_error,
+                                                               kRead10Overrun);
+        if (!usb::fixture::expect(overrun_phase_error != nullptr, "read10-overrun phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_phase_error->residue == 512, "read10-overrun phase-error residue mismatch")) return 1;
+
+        const auto* overrun_clear_stall = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                               kRead10Overrun);
+        if (!usb::fixture::expect(overrun_clear_stall != nullptr, "read10-overrun clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_clear_stall->flag, "read10-overrun clear-stall flag mismatch")) return 1;
+
+        const auto* overrun_csw_sent = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::csw_sent,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_csw_sent != nullptr, "read10-overrun csw trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_csw_sent->residue == 512, "read10-overrun csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_csw_sent->flag, "read10-overrun csw phase flag mismatch")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

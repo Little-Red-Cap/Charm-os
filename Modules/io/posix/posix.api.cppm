@@ -1,5 +1,6 @@
 module;
 
+#include <array>
 #include <cstddef>
 #include <span>
 #include <string_view>
@@ -58,8 +59,29 @@ export namespace posix {
               pipe_service_(&pipe_service),
               proc_service_(&proc_service) {}
 
-        void bind_process(ProcessId pid) noexcept { bound_pid_ = pid.value; }
-        void unbind_process() noexcept { bound_pid_ = -1; }
+        void bind_process(ProcessId pid) noexcept {
+            bound_pid_ = pid.value;
+            bound_depth_ = 0;
+        }
+        void unbind_process() noexcept {
+            bound_pid_ = -1;
+            bound_depth_ = 0;
+        }
+
+        void push_process(ProcessId pid) noexcept {
+            if (bound_depth_ < bound_pid_stack_.size()) {
+                bound_pid_stack_[bound_depth_++] = bound_pid_;
+            }
+            bound_pid_ = pid.value;
+        }
+
+        void pop_process() noexcept {
+            if (bound_depth_ > 0) {
+                bound_pid_ = bound_pid_stack_[--bound_depth_];
+                return;
+            }
+            bound_pid_ = -1;
+        }
 
         int open(const char* path, int flags, int mode = 0) noexcept {
             auto* table = current_fd_table();
@@ -268,12 +290,17 @@ export namespace posix {
                 set_errno(ENOSYS);
                 return -1;
             }
-            auto r = proc_service_->spawn(cfg);
+            auto r = proc_service_->spawn(cfg, current_fd_table());
             if (!r) {
                 set_errno(map_errno(r.error()));
                 return -1;
             }
             return r.value().pid.value;
+        }
+
+        int spawnp(SpawnConfig cfg) noexcept {
+            cfg.path_mode = PathMode::search_path;
+            return spawn(cfg);
         }
 
         int waitpid(ProcessId pid, int* status, int options = 0) noexcept {
@@ -304,18 +331,15 @@ export namespace posix {
         }
 
         static int map_fd_errno(util::Errc err) noexcept {
-            if (err == util::Errc::noent) return EBADF;
-            return to_errno(err);
+            return to_fd_errno(err);
         }
 
         static int map_fd_attach_errno(util::Errc err) noexcept {
-            if (err == util::Errc::buffer_overflow) return EMFILE;
-            return to_errno(err);
+            return to_fd_attach_errno(err);
         }
 
         static int map_pipe_errno(util::Errc err) noexcept {
-            if (err == util::Errc::buffer_overflow) return ENOSPC;
-            return to_errno(err);
+            return to_pipe_errno(err);
         }
 
         FdTable<MaxFds>* current_fd_table() noexcept {
@@ -330,5 +354,7 @@ export namespace posix {
         PipeService<MaxPipes, PipeCapacity>* pipe_service_{nullptr};
         ProcService<MaxProcs, MaxExecs, MaxFds, MaxFiles, MaxPathLen, MaxArgc, MaxEnvp, MaxArgBytes, MaxElfImage, MaxElfLoad>* proc_service_{nullptr};
         int bound_pid_{-1};
+        std::array<int, 8> bound_pid_stack_{};
+        util::usize bound_depth_{0};
     };
 }

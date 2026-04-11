@@ -144,9 +144,10 @@ export namespace posix {
             return {};
         }
 
-        static util::Result<void> stat(void*, PosixStat& out) noexcept {
-            out.mode = 0;
-            out.size = 0;
+        static util::Result<void> stat(void* ctx, PosixStat& out) noexcept {
+            auto* ep = static_cast<Endpoint*>(ctx);
+            out.mode = make_stat_mode(S_IFIFO, kModePermPipe);
+            out.size = (ep && ep->state) ? static_cast<util::u64>(ep->state->buffer.size()) : 0;
             return {};
         }
 

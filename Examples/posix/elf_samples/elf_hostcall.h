@@ -14,6 +14,26 @@ typedef struct PosixStat {
     unsigned int st_mode;
 } PosixStat;
 
+#ifndef S_IFMT
+#define S_IFMT 0170000u
+#endif
+
+#ifndef S_IFIFO
+#define S_IFIFO 0010000u
+#endif
+
+#ifndef S_IFCHR
+#define S_IFCHR 0020000u
+#endif
+
+#ifndef S_IFDIR
+#define S_IFDIR 0040000u
+#endif
+
+#ifndef S_IFREG
+#define S_IFREG 0100000u
+#endif
+
 typedef int (*elf_fstat_fn)(int fd, PosixStat* st);
 typedef int (*elf_isatty_fn)(int fd);
 typedef int* (*elf_errno_location_fn)(void);

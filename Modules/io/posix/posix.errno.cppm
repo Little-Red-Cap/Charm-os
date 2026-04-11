@@ -71,6 +71,34 @@ export namespace posix {
         }
     }
 
+    inline int to_fd_errno(util::Errc err) noexcept {
+        switch (err) {
+            case util::Errc::noent:
+            case util::Errc::notsup:
+                return EBADF;
+            default:
+                return to_errno(err);
+        }
+    }
+
+    inline int to_fd_attach_errno(util::Errc err) noexcept {
+        if (err == util::Errc::buffer_overflow) {
+            return EMFILE;
+        }
+        return to_errno(err);
+    }
+
+    inline int to_pipe_errno(util::Errc err) noexcept {
+        switch (err) {
+            case util::Errc::buffer_overflow:
+                return ENOSPC;
+            case util::Errc::closed:
+                return EPIPE;
+            default:
+                return to_errno(err);
+        }
+    }
+
     inline util::Errc from_errno(int err) noexcept {
         switch (err) {
             case 0: return util::Errc::ok;

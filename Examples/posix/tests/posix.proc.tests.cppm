@@ -176,6 +176,73 @@ namespace {
         check_true("search-wait", st);
     }
 
+    void test_search_path_requires_match_in_path() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("hello", &demo_main);
+        check_true("search-miss-register", rreg);
+
+        const char* argv[] = {"hello", nullptr};
+        const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("search-miss-spawn", !spawn);
+        check_eq("search-miss-err", spawn.error(), util::Errc::noent);
+    }
+
+    void test_search_path_honors_slash_path() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/bin/hello", &demo_main);
+        check_true("search-slash-register", rreg);
+
+        const char* argv[] = {"/bin/hello", nullptr};
+        const char* envp[] = {"PATH=/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "/bin/hello";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("search-slash-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("search-slash-wait", st);
+    }
+
+    void test_exact_mode_falls_back_to_argv0() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("exact-argv0-register", rreg);
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("exact-argv0-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("exact-argv0-wait", st);
+    }
+
     void test_stdio_and_actions() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
         posix::FdTable<8> table{};
@@ -277,6 +344,9 @@ export void run_posix_proc_smoke_tests() noexcept {
     log_line("[posix-smoke] proc begin");
     test_spawn_wait();
     test_search_path_argv0();
+    test_search_path_requires_match_in_path();
+    test_search_path_honors_slash_path();
+    test_exact_mode_falls_back_to_argv0();
     test_stdio_and_actions();
     test_open_action();
     log_line("[posix-smoke] proc end ok");

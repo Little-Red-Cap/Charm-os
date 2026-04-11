@@ -14,6 +14,7 @@ module;
 #include <new>
 
 #include "../elf_samples/fd_probe.elf.inc"
+#include "../elf_samples/stat_probe.elf.inc"
 
 export module posix.programs.fdpath.tests;
 
@@ -140,25 +141,68 @@ namespace {
         h.unbind_env();
     }
 
-    void stat_probe_placeholder_step() noexcept {
-        static RamFsMount<256, 64, 512> ramfs{};
-        if (fs::mount_count() == 0) {
-            auto mount_status = fs::add_mount("", ramfs.mount_point());
-            check_true("stat-probe-mount", mount_status);
-        }
-        log_line("[posix-smoke] stat-probe helper step");
-        Harness h{};
-        log_line("[posix-smoke] stat-probe helper harness ok");
-        h.bind_env();
-        log_line("[posix-smoke] stat-probe helper bind ok");
-        h.unbind_env();
-        log_line("[posix-smoke] stat-probe helper unbind ok");
-    }
+    void test_elf_file_stat_probe() noexcept {
+        fs::clear_mounts();
+        RamFsMount<256, 64, 512> ramfs{};
+        auto mount_status = fs::add_mount("", ramfs.mount_point());
+        check_true("stat-probe-mount", mount_status);
 
-    [[maybe_unused]] void test_elf_file_stat_probe() noexcept {
-        log_line("[posix-smoke] stat-probe host-prepare begin");
-        stat_probe_placeholder_step();
-        log_line("[posix-smoke] stat-probe host-prepare end");
+        {
+            Harness h{};
+            h.bind_env();
+            h.procs.bind_file_service(h.files);
+
+            int data_fd = h.api.open("/stat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("stat-probe-data-open", data_fd >= 0);
+            const char payload[] = "stat-data\n";
+            auto w = h.api.write(data_fd, payload, sizeof(payload) - 1);
+            check_true("stat-probe-data-write", w == static_cast<posix::ssize_t>(sizeof(payload) - 1));
+            check_eq("stat-probe-data-close", h.api.close(data_fd), 0);
+            h.unbind_env();
+        }
+
+        Harness h{};
+        h.bind_env();
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int fd_elf = h.api.open("/stat_probe.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("stat-probe-elf-open", fd_elf >= 0);
+        auto elf_write = h.api.write(fd_elf, stat_probe_elf, stat_probe_elf_len);
+        check_true("stat-probe-elf-write", elf_write == static_cast<posix::ssize_t>(stat_probe_elf_len));
+        check_eq("stat-probe-elf-close", h.api.close(fd_elf), 0);
+
+        int out_pipe[2]{-1, -1};
+        check_eq("stat-probe-out-pipe", h.api.pipe(out_pipe), 0);
+        check_true("stat-probe-dup2-out", h.fds.dup2(out_pipe[1], 1));
+
+        const char* argv[] = {"elf:/stat_probe.elf", "/stat.txt", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/stat_probe.elf";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        auto sp = h.procs.spawn(cfg);
+        check_true("stat-probe-spawn", sp);
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("stat-probe-wait", st);
+        check_eq("stat-probe-code", st.value().code, 0);
+
+        if (out_pipe[1] != 1) {
+            (void)h.api.close(out_pipe[1]);
+        }
+        std::array<char, 64> out_buf{};
+        util::usize out_size = 0;
+        while (out_size < out_buf.size()) {
+            auto r = h.api.read(out_pipe[0], out_buf.data() + out_size, out_buf.size() - out_size);
+            if (r <= 0) break;
+            out_size += static_cast<util::usize>(r);
+        }
+        auto out = std::string_view{out_buf.data(), out_size};
+        check_eq("stat-probe-out", out, std::string_view{"rc=0\nsz=10\nbs=-1\n"});
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
+        h.unbind_env();
     }
 
 } // namespace
@@ -171,7 +215,9 @@ export void run_posix_program_fdpath_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase path-open-errors begin");
     test_open_path_type_errors();
     log_line("[posix-smoke] programs phase path-open-errors end");
-    log_line("[posix-smoke] programs phase stat-probe skip");
+    log_line("[posix-smoke] programs phase stat-probe begin");
+    test_elf_file_stat_probe();
+    log_line("[posix-smoke] programs phase stat-probe end");
 }
 
 #endif

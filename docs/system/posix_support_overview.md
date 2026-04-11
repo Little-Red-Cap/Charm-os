@@ -5,9 +5,11 @@ Charm 当前已经形成了一条可工作的 POSIX/Linux 用户态兼容执行�
 它的目标不是一步做成完整 Linux 内核，而是先让一批真实用户态程序在 Charm 上跑起来，再用程序的真实需求反向逼出架构缺口与优先级。
 
 ## 当前已经支持什么
-- `posix.api`：提供面向 POSIX 风格调用的最小入口。
+- `posix.api`：提供面向 POSIX 风格调用的最小入口，已具备 `spawn` / `spawnp` 两条执行入口。
 - `fd_table` 统一链路：标准输入输出、文件、管道、终端判定都开始走同一套 fd 路径。
 - `spawn / waitpid`：已经形成最小进程执行闭环，支持 `stdio` 绑定、`file_actions`、子进程 fd 表隔离。
+- `PATH` 执行语义：`spawnp` 与 shell smoke 已开始真实依赖 `PATH` 去解析 `/bin/*` 命令，而不是只在 proc smoke 里验证。
+- BusyBox 入口形态：program smoke 已覆盖 `argv[0]` applet 形态与 `busybox sh -c ...` 这类 `argv[1]` applet 分派。
 - `pipe / dup2 / redirection`：可以支撑 `echo > out.txt`、`cat < out.txt`、`echo hi | cat` 这类基础程序路径。
 - ELF 装载执行：支持 registered image、`elfmem:`、文件路径 ELF，执行主链为 `spawn -> load_image -> start_image`。
 - 显式退出 ABI v0：`_exit(code)` 已通过 `ExecContext + setjmp/longjmp` 接入主链。
@@ -21,7 +23,7 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 
 ## 当前已验证的主骨架
 - QEMU 主线已能稳定通过：`posix smoke + busybox phase2 smoke`。
-- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`fd_probe`。
+- 已有真实样本覆盖：`hello`、`argv_dump`、`stderr_demo`、`exit_code`、`cat_file`、`fd_probe`、`stat_probe`。
 - 已成立的关键能力包括：
   - 文件路径 ELF 装载
   - `_exit(code)` 统一收束
@@ -33,8 +35,8 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 当前这条执行面仍然是 v0，必须明确它的边界：
 - 这是 same-address-space 的最小用户程序执行模型，不是完整 Linux 进程模型。
 - 还没有 `fork`、signals、动态链接、用户态/内核态隔离、完整 `stat`/路径错误矩阵。
-- `stat_probe` 仍然是单独隔离的待修项，不阻塞主线。
-- `close(-1)` 的 errno 语义已经暴露，但尚未收敛为正式契约。
+- `stat_probe` 已回到主线回归，并已开始覆盖最小 `mode/类型` 语义；更完整的字段矩阵仍待继续补齐。
+- `close(-1)` 已收敛到 `EBADF`，但更完整的 fd/path 错误矩阵仍未覆盖完。
 
 ## 推荐阅读
 - 路线图：`docs/system/posix_compat_roadmap.md`

@@ -413,34 +413,82 @@ namespace {
         if (case_name == "msc-recovery") {
             if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_out),
                                       "msc recovery clear-stall host event missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
-                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
-                                      "msc recovery wait-csw trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
-                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
-                                      "msc recovery clear-stall trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
-                                                          static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10)),
-                                      "msc recovery csw trace missing", stream)) return false;
+            constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+            const auto* stall_out = find_msc_trace_event(demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::stall_out_requested,
+                                                         kRead10);
+            if (!usb::fixture::expect(stall_out != nullptr, "msc recovery stall-out trace missing", stream)) return false;
+            if (!usb::fixture::expect(stall_out->transfer_length == 512, "msc recovery stall-out transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(stall_out->residue == 512, "msc recovery stall-out residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!stall_out->flag, "msc recovery stall-out direction flag mismatch", stream)) return false;
+
+            const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::wait_csw,
+                                                        kRead10);
+            if (!usb::fixture::expect(wait_csw != nullptr, "msc recovery wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(wait_csw->transfer_length == 512, "msc recovery wait-csw transfer length mismatch", stream)) return false;
+
+            const auto* phase_error = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::phase_error,
+                                                           kRead10);
+            if (!usb::fixture::expect(phase_error != nullptr, "msc recovery phase-error trace missing", stream)) return false;
+            if (!usb::fixture::expect(phase_error->transfer_length == 512, "msc recovery phase-error transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(phase_error->residue == 512, "msc recovery phase-error residue mismatch", stream)) return false;
+
+            const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                           kRead10);
+            if (!usb::fixture::expect(clear_stall != nullptr, "msc recovery clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(!clear_stall->flag, "msc recovery clear-stall endpoint flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kRead10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc recovery csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 512, "msc recovery csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->flag, "msc recovery csw phase flag mismatch", stream)) return false;
         } else if (case_name == "msc-invalid-cbw") {
             constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
             if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
                                       "msc invalid-cbw clear-stall host event missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::cbw_invalid,
-                                                          kReadCapacity),
-                                      "msc invalid-cbw trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
-                                                          kReadCapacity),
-                                      "msc invalid-cbw wait-csw trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
-                                                          kReadCapacity),
-                                      "msc invalid-cbw clear-stall trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
-                                                          kReadCapacity),
-                                      "msc invalid-cbw csw trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
-                                                          kReadCapacity),
-                                      "msc invalid-cbw recovery read-capacity trace missing", stream)) return false;
+            const auto* cbw_invalid = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::cbw_invalid,
+                                                           kReadCapacity);
+            if (!usb::fixture::expect(cbw_invalid != nullptr, "msc invalid-cbw trace missing", stream)) return false;
+            if (!usb::fixture::expect(cbw_invalid->transfer_length == 8, "msc invalid-cbw transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(cbw_invalid->residue == 8, "msc invalid-cbw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(cbw_invalid->flag, "msc invalid-cbw direction flag mismatch", stream)) return false;
+
+            const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::wait_csw,
+                                                        kReadCapacity);
+            if (!usb::fixture::expect(wait_csw != nullptr, "msc invalid-cbw wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(wait_csw->transfer_length == 8, "msc invalid-cbw wait-csw transfer length mismatch", stream)) return false;
+
+            const auto* phase_error = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::phase_error,
+                                                           kReadCapacity);
+            if (!usb::fixture::expect(phase_error != nullptr, "msc invalid-cbw phase-error trace missing", stream)) return false;
+            if (!usb::fixture::expect(phase_error->residue == 8, "msc invalid-cbw phase-error residue mismatch", stream)) return false;
+
+            const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                           kReadCapacity);
+            if (!usb::fixture::expect(clear_stall != nullptr, "msc invalid-cbw clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(clear_stall->flag, "msc invalid-cbw clear-stall endpoint flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kReadCapacity);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc invalid-cbw csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 8, "msc invalid-cbw csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->flag, "msc invalid-cbw csw phase flag mismatch", stream)) return false;
+
+            const auto* read_capacity = find_msc_trace_event(demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::read_capacity,
+                                                             kReadCapacity);
+            if (!usb::fixture::expect(read_capacity != nullptr, "msc invalid-cbw recovery read-capacity trace missing", stream)) return false;
+            if (!usb::fixture::expect(read_capacity->transfer_length == 8, "msc invalid-cbw recovery transfer length mismatch", stream)) return false;
         } else if (case_name == "msc-read-capacity-residue") {
             constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
             const auto* read_capacity = find_msc_trace_event(demo.bot->trace_events(),
@@ -468,21 +516,53 @@ namespace {
             constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
             if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),
                                       "msc read10 zero-len clear-stall host event missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read10_started,
-                                                          kRead10),
-                                      "msc read10 zero-len read10 trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::sense_set,
-                                                          kRead10),
-                                      "msc read10 zero-len sense trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::wait_csw,
-                                                          kRead10),
-                                      "msc read10 zero-len wait-csw trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::clear_stall_seen,
-                                                          kRead10),
-                                      "msc read10 zero-len clear-stall trace missing", stream)) return false;
-            if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::csw_sent,
-                                                          kRead10),
-                                      "msc read10 zero-len csw trace missing", stream)) return false;
+            const auto* read10 = find_msc_trace_event(demo.bot->trace_events(),
+                                                      usb::class_driver::MscTraceEventKind::read10_started,
+                                                      kRead10);
+            if (!usb::fixture::expect(read10 != nullptr, "msc read10 zero-len read10 trace missing", stream)) return false;
+            if (!usb::fixture::expect(read10->transfer_length == 0, "msc read10 zero-len transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->lba == 0, "msc read10 zero-len lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(read10->blocks == 1, "msc read10 zero-len block count mismatch", stream)) return false;
+
+            const auto* sense = find_msc_trace_event(demo.bot->trace_events(),
+                                                     usb::class_driver::MscTraceEventKind::sense_set,
+                                                     kRead10);
+            if (!usb::fixture::expect(sense != nullptr, "msc read10 zero-len sense trace missing", stream)) return false;
+            if (!usb::fixture::expect(sense->sense_key == 0x05, "msc read10 zero-len sense key mismatch", stream)) return false;
+            if (!usb::fixture::expect(sense->sense_asc == 0x20, "msc read10 zero-len sense asc mismatch", stream)) return false;
+            if (!usb::fixture::expect(sense->sense_ascq == 0x00, "msc read10 zero-len sense ascq mismatch", stream)) return false;
+
+            const auto* stall_in = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                        kRead10);
+            if (!usb::fixture::expect(stall_in != nullptr, "msc read10 zero-len stall-in trace missing", stream)) return false;
+            if (!usb::fixture::expect(stall_in->residue == 0, "msc read10 zero-len stall-in residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(stall_in->flag, "msc read10 zero-len stall-in direction flag mismatch", stream)) return false;
+
+            const auto* wait_csw = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::wait_csw,
+                                                        kRead10);
+            if (!usb::fixture::expect(wait_csw != nullptr, "msc read10 zero-len wait-csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(wait_csw->transfer_length == 0, "msc read10 zero-len wait-csw transfer length mismatch", stream)) return false;
+
+            const auto* phase_error = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::phase_error,
+                                                           kRead10);
+            if (!usb::fixture::expect(phase_error != nullptr, "msc read10 zero-len phase-error trace missing", stream)) return false;
+            if (!usb::fixture::expect(phase_error->residue == 0, "msc read10 zero-len phase-error residue mismatch", stream)) return false;
+
+            const auto* clear_stall = find_msc_trace_event(demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                           kRead10);
+            if (!usb::fixture::expect(clear_stall != nullptr, "msc read10 zero-len clear-stall trace missing", stream)) return false;
+            if (!usb::fixture::expect(clear_stall->flag, "msc read10 zero-len clear-stall endpoint flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kRead10);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc read10 zero-len csw trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 0, "msc read10 zero-len csw residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->flag, "msc read10 zero-len csw phase flag mismatch", stream)) return false;
         }
         return true;
     }

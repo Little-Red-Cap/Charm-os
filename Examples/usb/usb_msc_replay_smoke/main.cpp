@@ -102,6 +102,19 @@ namespace {
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
 
+    bool pump_stall(void* ctx, usb::mock::Session& session, usb::u8 ep) noexcept {
+        auto* pump = static_cast<PumpContext*>(ctx);
+        if (!pump || !pump->bot || !session.dcd_ops().ep.stall) return false;
+
+        if (ep == pump->cfg.ep_in) {
+            return pump->bot->take_stall_in() && session.dcd_ops().ep.stall(&session, ep);
+        }
+        if (ep == pump->cfg.ep_out) {
+            return pump->bot->take_stall_out() && session.dcd_ops().ep.stall(&session, ep);
+        }
+        return false;
+    }
+
     bool has_host_event(std::span<const usb::mock::HostEvent> events,
                         usb::mock::HostEventKind kind) {
         for (const auto& event : events) {
@@ -195,7 +208,7 @@ int main() {
     if (!usb::fixture::run_replay_file(
             session,
             USB_REPLAY_FIXTURE_PATH,
-            usb::replay::Hooks{&pump_in, &pump})) {
+            usb::replay::Hooks{&pump_in, &pump, &pump_stall})) {
         return 1;
     }
 

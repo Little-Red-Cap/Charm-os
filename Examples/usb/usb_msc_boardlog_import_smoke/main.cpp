@@ -104,6 +104,19 @@ namespace {
         return usb::device::examples::send_msc_in_packet(session.dcd_ops(), &session, *pump->bot, pump->cfg);
     }
 
+    bool pump_stall(void* ctx, usb::mock::Session& session, usb::u8 ep) noexcept {
+        auto* pump = static_cast<PumpContext*>(ctx);
+        if (!pump || !pump->bot || !session.dcd_ops().ep.stall) return false;
+
+        if (ep == pump->cfg.ep_in) {
+            return pump->bot->take_stall_in() && session.dcd_ops().ep.stall(&session, ep);
+        }
+        if (ep == pump->cfg.ep_out) {
+            return pump->bot->take_stall_out() && session.dcd_ops().ep.stall(&session, ep);
+        }
+        return false;
+    }
+
     bool has_host_event(std::span<const usb::mock::HostEvent> events,
                         usb::mock::HostEventKind kind,
                         usb::u8 ep = 0xFF) {
@@ -127,6 +140,21 @@ namespace {
                 continue;
             }
             if (ep == 0xFF || event.ep == ep) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    std::size_t count_device_action(std::span<const usb::mock::DeviceAction> actions,
+                                    usb::mock::DeviceActionKind kind,
+                                    usb::u8 ep = 0xFF) {
+        std::size_t count = 0;
+        for (const auto& action : actions) {
+            if (action.kind != kind) {
+                continue;
+            }
+            if (ep == 0xFF || action.ep == ep) {
                 ++count;
             }
         }
@@ -166,9 +194,9 @@ int main() {
                      usb::boardlog::error_name(imported.error));
         return 1;
     }
-    if (!usb::fixture::expect(imported.imported_steps == 12, "unexpected imported step count")) return 1;
+    if (!usb::fixture::expect(imported.imported_steps == 13, "unexpected imported step count")) return 1;
     if (!usb::fixture::expect(imported.skipped_steps == 0, "unexpected skipped step count")) return 1;
-    if (!usb::fixture::expect(imported.trace.steps.size() == 12, "unexpected trace step size")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps.size() == 13, "unexpected trace step size")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[0].kind == usb::replay::StepKind::connect,
                               "boardlog first step should be connect")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[0].flag,
@@ -177,13 +205,15 @@ int main() {
                               "boardlog second step should be reset")) return 1;
     if (!usb::fixture::expect(imported.trace.steps[7].kind == usb::replay::StepKind::out,
                               "boardlog first bulk step should be out")) return 1;
-    if (!usb::fixture::expect(imported.trace.steps[8].kind == usb::replay::StepKind::clear_stall,
+    if (!usb::fixture::expect(imported.trace.steps[8].kind == usb::replay::StepKind::stall,
+                              "boardlog stall step should be imported")) return 1;
+    if (!usb::fixture::expect(imported.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
                               "boardlog recovery step should be clear_stall")) return 1;
-    if (!usb::fixture::expect(imported.trace.steps[9].kind == usb::replay::StepKind::in,
+    if (!usb::fixture::expect(imported.trace.steps[10].kind == usb::replay::StepKind::in,
                               "boardlog csw step should be in")) return 1;
-    if (!usb::fixture::expect(imported.trace.steps[10].kind == usb::replay::StepKind::out,
+    if (!usb::fixture::expect(imported.trace.steps[11].kind == usb::replay::StepKind::out,
                               "boardlog request-sense step should be out")) return 1;
-    if (!usb::fixture::expect(imported.trace.steps[11].kind == usb::replay::StepKind::in,
+    if (!usb::fixture::expect(imported.trace.steps[12].kind == usb::replay::StepKind::in,
                               "boardlog sense-response step should be in")) return 1;
 
     const auto trace_text = usb::boardlog::to_text(imported.trace);
@@ -195,6 +225,8 @@ int main() {
                               "roundtrip trace missing bulk out")) return 1;
     if (!usb::fixture::expect(trace_text.find("in ep=81") != std::string::npos,
                               "roundtrip trace missing bulk in")) return 1;
+    if (!usb::fixture::expect(trace_text.find("stall ep=01") != std::string::npos,
+                              "roundtrip trace missing stall")) return 1;
     if (!usb::fixture::expect(trace_text.find("clear_stall ep=01") != std::string::npos,
                               "roundtrip trace missing clear_stall")) return 1;
     const auto roundtrip = usb::replay::load_text(trace_text);
@@ -249,7 +281,7 @@ int main() {
     if (!usb::fixture::expect(demo.ready, "msc ready hook not called")) return 1;
 
     PumpContext pump{demo.bot, plan.value().msc.msc_cfg};
-    const auto replay = usb::replay::run(session, roundtrip.trace, usb::replay::Hooks{&pump_in, &pump});
+    const auto replay = usb::replay::run(session, roundtrip.trace, usb::replay::Hooks{&pump_in, &pump, &pump_stall});
     if (!replay) {
         std::fprintf(stderr,
                      "[ERR] imported replay failed step=%zu err=%s\n",
@@ -263,10 +295,13 @@ int main() {
     if (!usb::fixture::expect(session.configured(), "device not configured")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_out).opened, "msc bulk out endpoint not opened")) return 1;
     if (!usb::fixture::expect(session.endpoint_state(msc_cfg.ep_in).opened, "msc bulk in endpoint not opened")) return 1;
+    if (!usb::fixture::expect(!session.endpoint_state(msc_cfg.ep_out).stalled, "msc bulk out endpoint should be cleared after recovery")) return 1;
     if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::connect),
                               "connect host event missing")) return 1;
     if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::reset),
                               "reset host event missing")) return 1;
+    if (!usb::fixture::expect(count_device_action(session.device_actions(), usb::mock::DeviceActionKind::stall_ep, msc_cfg.ep_out) == 1,
+                              "unexpected bulk stall device action count")) return 1;
     if (!usb::fixture::expect(count_host_event(session.host_events(), usb::mock::HostEventKind::out_packet, msc_cfg.ep_out) == 2,
                               "unexpected bulk out host event count")) return 1;
     if (!usb::fixture::expect(count_host_event(session.host_events(), usb::mock::HostEventKind::in_complete, msc_cfg.ep_in) == 3,

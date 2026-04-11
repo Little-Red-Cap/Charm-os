@@ -222,6 +222,20 @@ namespace {
         return false;
     }
 
+    const usb::class_driver::MscTraceEvent* find_msc_trace_event(std::span<const usb::class_driver::MscTraceEvent> events,
+                                                                 usb::class_driver::MscTraceEventKind kind,
+                                                                 usb::u8 command = 0xFF) {
+        for (const auto& event : events) {
+            if (event.kind != kind) {
+                continue;
+            }
+            if (command == 0xFF || event.command == command) {
+                return &event;
+            }
+        }
+        return nullptr;
+    }
+
     struct MscCdcPumpContext {
         usb::class_driver::MscBot* bot{nullptr};
         usb::class_driver::MscConfig msc_cfg{};
@@ -427,6 +441,29 @@ namespace {
             if (!usb::fixture::expect(has_msc_trace_event(demo.bot->trace_events(), usb::class_driver::MscTraceEventKind::read_capacity,
                                                           kReadCapacity),
                                       "msc invalid-cbw recovery read-capacity trace missing", stream)) return false;
+        } else if (case_name == "msc-read-capacity-residue") {
+            constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
+            const auto* read_capacity = find_msc_trace_event(demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::read_capacity,
+                                                             kReadCapacity);
+            if (!usb::fixture::expect(read_capacity != nullptr, "msc read-capacity residue trace missing", stream)) return false;
+            if (!usb::fixture::expect(read_capacity->transfer_length == 10, "msc read-capacity residue transfer length mismatch", stream)) return false;
+            if (!usb::fixture::expect(read_capacity->lba == 15, "msc read-capacity residue lba mismatch", stream)) return false;
+            if (!usb::fixture::expect(read_capacity->blocks == 16, "msc read-capacity residue block count mismatch", stream)) return false;
+
+            const auto* csw_ready = find_msc_trace_event(demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::csw_ready,
+                                                         kReadCapacity);
+            if (!usb::fixture::expect(csw_ready != nullptr, "msc read-capacity residue csw-ready trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_ready->residue == 2, "msc read-capacity residue csw-ready residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_ready->flag, "msc read-capacity residue csw-ready phase flag mismatch", stream)) return false;
+
+            const auto* csw_sent = find_msc_trace_event(demo.bot->trace_events(),
+                                                        usb::class_driver::MscTraceEventKind::csw_sent,
+                                                        kReadCapacity);
+            if (!usb::fixture::expect(csw_sent != nullptr, "msc read-capacity residue csw-sent trace missing", stream)) return false;
+            if (!usb::fixture::expect(csw_sent->residue == 2, "msc read-capacity residue csw-sent residue mismatch", stream)) return false;
+            if (!usb::fixture::expect(!csw_sent->flag, "msc read-capacity residue csw-sent phase flag mismatch", stream)) return false;
         } else if (case_name == "msc-read10-zero-len") {
             constexpr auto kRead10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
             if (!usb::fixture::expect(has_host_event(session.host_events(), usb::mock::HostEventKind::clear_stall, msc_cfg.ep_in),

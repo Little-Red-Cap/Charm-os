@@ -382,9 +382,9 @@ export namespace usb::class_driver {
                             cbw_.cb[0],
                             0, 0, 0,
                             0, 0,
+                            0,
                             csw_residue_,
-                            static_cast<u8>(csw_status_),
-                            false);
+                            csw_status_ == MscStatus::phase_error);
                 return make_csw();
             }
             last_in_result_ = static_cast<u8>(TraceInResult::none);

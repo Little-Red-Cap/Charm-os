@@ -24,6 +24,7 @@
   - CMake 接线：`Examples/project/player/stn32h747_HQZY/CM7/cmake/product_player_config_module.cmake`
   - 当前形态：`BoardConfig / SdramConfig / SdmmcConfig / KeyConfig`，`kConfig / kSdmmc / kSdram / kKey` 是主表面，叶子常量别名已退成显式兼容层
   - 消费侧优先读取 `kConfig / kSdmmc / kSdram / kKey` 这类 typed 主表面；叶子常量别名仅保留给迁移兼容层
+  - `board.active` / `board.hqzy` 已退成兼容壳，不再承载独立硬编码事实源
 - `vivid` core config
   - 稳定表面：`Modules/ui/vivid/core/config.cppm`
   - 生成实现：`Modules/ui/vivid/cmake/config.generated.cppm.in`

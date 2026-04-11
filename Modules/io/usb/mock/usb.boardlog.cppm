@@ -278,9 +278,15 @@ export namespace usb::boardlog {
                 step.flag = false;
                 step.data = {0x00u};
             } else if (!is_in && wl == 0u) {
-                step.kind = usb::replay::StepKind::control_out;
-                step.flag = true;
-                step.data.clear();
+                if (b == 0x01u && (bm & 0x1Fu) == 0x02u && wv == 0u) {
+                    step.kind = usb::replay::StepKind::clear_stall;
+                    step.ep = static_cast<usb::u8>(wi & 0xFFu);
+                    step.data.clear();
+                } else {
+                    step.kind = usb::replay::StepKind::control_out;
+                    step.flag = true;
+                    step.data.clear();
+                }
             } else {
                 ++out.skipped_steps;
                 continue;

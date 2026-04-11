@@ -54,12 +54,24 @@ namespace {
 
             device.ctx = this;
             device.read = &MemoryDisk::read_cb;
-            device.write = nullptr;
             device.erase = nullptr;
             device.flush = nullptr;
             device.block_size = block_size;
             device.block_count = block_count;
-            device.caps = block::to_bits(block::Caps::read);
+            set_writable(false);
+        }
+
+        void set_writable(bool writable) noexcept {
+            device.write = writable ? &MemoryDisk::write_cb : nullptr;
+            device.caps = block::to_bits(block::Caps::read)
+                        | (writable ? block::to_bits(block::Caps::write) : 0u);
+        }
+
+        [[nodiscard]] std::span<const usb::u8> block_span(std::size_t lba) const noexcept {
+            if (lba >= block_count) {
+                return {};
+            }
+            return std::span<const usb::u8>(bytes.data() + (lba * block_size), block_size);
         }
 
         static block::Status read_cb(void* ctx, util::u64 lba, std::span<util::u8> out) noexcept {
@@ -73,6 +85,20 @@ namespace {
             }
             const auto offset = static_cast<std::size_t>(lba * block_size);
             std::memcpy(out.data(), self->bytes.data() + offset, out.size());
+            return {};
+        }
+
+        static block::Status write_cb(void* ctx, util::u64 lba, std::span<const util::u8> data) noexcept {
+            auto* self = static_cast<MemoryDisk*>(ctx);
+            if (!self || data.empty() || (data.size() % block_size) != 0) {
+                return {util::Errc::invalid_arg};
+            }
+            const auto blocks = static_cast<util::u64>(data.size() / block_size);
+            if (lba + blocks > block_count) {
+                return {util::Errc::invalid_arg};
+            }
+            const auto offset = static_cast<std::size_t>(lba * block_size);
+            std::memcpy(self->bytes.data() + offset, data.data(), data.size());
             return {};
         }
     };
@@ -164,6 +190,19 @@ namespace {
         return count;
     }
 
+    std::size_t count_substring(std::string_view text, std::string_view needle) {
+        if (needle.empty()) {
+            return 0;
+        }
+        std::size_t count = 0;
+        std::size_t pos = 0;
+        while ((pos = text.find(needle, pos)) != std::string_view::npos) {
+            ++count;
+            pos += needle.size();
+        }
+        return count;
+    }
+
     std::size_t count_device_action(std::span<const usb::mock::DeviceAction> actions,
                                     usb::mock::DeviceActionKind kind,
                                     usb::u8 ep = 0xFF) {
@@ -191,6 +230,15 @@ namespace {
             }
         }
         return nullptr;
+    }
+
+    bool span_is_filled(std::span<const usb::u8> bytes, usb::u8 value) {
+        for (const auto byte : bytes) {
+            if (byte != value) {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
@@ -268,6 +316,178 @@ int main() {
         const auto segmented_trace_text = usb::boardlog::to_text(imported_segmented.trace);
         if (!usb::fixture::expect(segmented_trace_text.find("in ep=81 zlp=1 data=0102030405060708") != std::string::npos,
                                   "segmented boardlog roundtrip missing merged in transaction")) return 1;
+    }
+
+    const auto repeat_hex_byte = [] (usb::u8 value, std::size_t count) {
+        static constexpr char kHex[] = "0123456789ABCDEF";
+        std::string out{};
+        out.reserve(count * 2);
+        for (std::size_t i = 0; i < count; ++i) {
+            out.push_back(kHex[(value >> 4u) & 0x0Fu]);
+            out.push_back(kHex[value & 0x0Fu]);
+        }
+        return out;
+    };
+
+    const auto make_device_spec = []() {
+        usb::spec::DeviceSpec device{};
+        device.vendor_id = 0x1209;
+        device.product_id = 0x0006;
+        device.i_manufacturer = 1;
+        device.i_product = 2;
+        device.i_serial = 3;
+        device.strings = std::span<const std::span<const usb::u8>>(kStrings.entries.data(), kStrings.entries.size());
+        return device;
+    };
+
+    const auto make_msc_function = [] (bool read_only) {
+        usb::spec::MscFunctionSpec msc{};
+        msc.cap_name = "usb.msc0";
+        msc.block_cap = "block.sd0";
+        msc.vendor = "Charm";
+        msc.product = "MockDisk";
+        msc.revision = "1.00";
+        msc.read_only = read_only;
+        return msc;
+    };
+
+    {
+        std::string segmented_out_boardlog{};
+        segmented_out_boardlog.reserve(4096);
+        segmented_out_boardlog += "usb: connect on\n";
+        segmented_out_boardlog += "usb: reset\n";
+        segmented_out_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        segmented_out_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        segmented_out_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        segmented_out_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        segmented_out_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        segmented_out_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        segmented_out_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        segmented_out_boardlog += "usb: out ep=0x01 zlp=0 data=555342430D0000000002000000000A2A000000000100000200000000000000\n";
+        segmented_out_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        segmented_out_boardlog += repeat_hex_byte(0xA5, 256);
+        segmented_out_boardlog += "\n";
+        segmented_out_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        segmented_out_boardlog += repeat_hex_byte(0xA5, 256);
+        segmented_out_boardlog += "\n";
+        segmented_out_boardlog += "usb: in ep=0x81 zlp=0 data=555342530D0000000002000000\n";
+
+        const auto imported_segmented_out = usb::boardlog::load_text(segmented_out_boardlog);
+        if (!imported_segmented_out) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out boardlog load failed line=%zu err=%s\n",
+                         imported_segmented_out.line,
+                         usb::boardlog::error_name(imported_segmented_out.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_segmented_out.imported_steps == 11, "segmented-out boardlog imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.skipped_steps == 0, "segmented-out boardlog skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.trace.steps.size() == 11, "segmented-out boardlog trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "segmented-out boardlog cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.trace.steps[8].kind == usb::replay::StepKind::out,
+                                  "segmented-out boardlog first payload step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.trace.steps[9].kind == usb::replay::StepKind::out,
+                                  "segmented-out boardlog second payload step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_segmented_out.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "segmented-out boardlog csw step kind mismatch")) return 1;
+
+        const auto segmented_out_trace_text = usb::boardlog::to_text(imported_segmented_out.trace);
+        if (!usb::fixture::expect(count_substring(segmented_out_trace_text, "out ep=01 zlp=0 data=") == 3,
+                                  "segmented-out boardlog should preserve packet boundaries")) return 1;
+        const auto segmented_out_roundtrip = usb::replay::load_text(segmented_out_trace_text);
+        if (!segmented_out_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out roundtrip parse failed line=%zu err=%s\n",
+                         segmented_out_roundtrip.line,
+                         usb::replay::load_error_name(segmented_out_roundtrip.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(segmented_out_roundtrip.trace.steps.size() == 11,
+                                  "segmented-out roundtrip trace size mismatch")) return 1;
+
+        MemoryDisk write_disk{};
+        write_disk.set_writable(true);
+        block::Registry<2> write_registry{};
+        write_registry.init();
+        auto write_reg = write_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, write_disk.device);
+        if (!write_reg) {
+            std::fprintf(stderr, "[ERR] write registry register failed err=%d\n", static_cast<int>(write_reg.error()));
+            return 1;
+        }
+
+        DemoContext write_demo{};
+        usb::mock::Session write_session{};
+        const auto write_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto write_model = usb::build(write_spec);
+        const auto write_plan = usb::plan::build(write_model);
+        if (!write_plan) {
+            std::fprintf(stderr, "[ERR] write plan build failed err=%d\n", static_cast<int>(write_plan.error()));
+            return 1;
+        }
+
+        const auto write_runtime = usb::runtime::host_mock(
+            write_session.dcd_ops(),
+            &write_session,
+            &write_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &write_demo});
+
+        auto write_binding = usb::runtime::make(write_plan.value(), write_registry, write_runtime);
+        const auto write_init = decltype(write_binding)::init_trampoline(&write_binding);
+        if (!write_init) {
+            std::fprintf(stderr, "[ERR] write binding init failed err=%d\n", static_cast<int>(write_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(write_demo.ready, "write segmented runtime ready hook not called")) return 1;
+
+        PumpContext write_pump{write_demo.bot, write_plan.value().msc.msc_cfg};
+        const auto write_replay = usb::replay::run(
+            write_session,
+            segmented_out_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &write_pump, &pump_stall});
+        if (!write_replay) {
+            std::fprintf(stderr,
+                         "[ERR] segmented-out replay failed step=%zu err=%s\n",
+                         write_replay.step_index,
+                         usb::replay::error_name(write_replay.error));
+            return 1;
+        }
+
+        const auto write_cfg = write_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(write_session.host_events(), usb::mock::HostEventKind::out_packet, write_cfg.ep_out) == 3,
+                                  "segmented-out host event count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(write_session.host_events(), usb::mock::HostEventKind::in_complete, write_cfg.ep_in) == 1,
+                                  "segmented-out csw ack count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(write_session.host_events(), usb::mock::HostEventKind::clear_stall, write_cfg.ep_out),
+                                  "segmented-out write should not clear stall")) return 1;
+
+        constexpr auto kWrite10 = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+        const auto* write10 = find_msc_trace_event(write_demo.bot->trace_events(),
+                                                   usb::class_driver::MscTraceEventKind::write10_started,
+                                                   kWrite10);
+        if (!usb::fixture::expect(write10 != nullptr, "segmented-out write10 trace missing")) return 1;
+        if (!usb::fixture::expect(write10->transfer_length == 512, "segmented-out write10 length mismatch")) return 1;
+        if (!usb::fixture::expect(write10->lba == 1, "segmented-out write10 lba mismatch")) return 1;
+        if (!usb::fixture::expect(write10->blocks == 2, "segmented-out write10 block count mismatch")) return 1;
+
+        const auto* data_out = find_msc_trace_event(write_demo.bot->trace_events(),
+                                                    usb::class_driver::MscTraceEventKind::data_out_started,
+                                                    kWrite10);
+        if (!usb::fixture::expect(data_out != nullptr, "segmented-out data-out trace missing")) return 1;
+        if (!usb::fixture::expect(data_out->transfer_length == 512, "segmented-out data-out length mismatch")) return 1;
+        if (!usb::fixture::expect(data_out->lba == 1, "segmented-out data-out lba mismatch")) return 1;
+        if (!usb::fixture::expect(data_out->blocks == 2, "segmented-out data-out block count mismatch")) return 1;
+        if (!usb::fixture::expect(data_out->residue == 512, "segmented-out data-out residue mismatch")) return 1;
+
+        const auto* csw_sent = find_msc_trace_event(write_demo.bot->trace_events(),
+                                                    usb::class_driver::MscTraceEventKind::csw_sent,
+                                                    kWrite10);
+        if (!usb::fixture::expect(csw_sent != nullptr, "segmented-out csw trace missing")) return 1;
+        if (!usb::fixture::expect(csw_sent->residue == 512, "segmented-out csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!csw_sent->flag, "segmented-out csw phase flag mismatch")) return 1;
+
+        if (!usb::fixture::expect(span_is_filled(write_disk.block_span(1), 0xA5), "segmented-out block payload mismatch")) return 1;
+        if (!usb::fixture::expect(span_is_filled(write_disk.block_span(2), 0x00), "segmented-out trailing block should remain empty")) return 1;
     }
 
     MemoryDisk disk{};

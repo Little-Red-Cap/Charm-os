@@ -20,5 +20,5 @@
 - `legacy(...)` 只用于旧 chain 迁移与少量兼容胶水
 - `as_plan(...)` 用于单节点 binding 或已有 `plan()` 的装配对象
 - `maybe(...)` 用于 `optional` 链或 `optional` 装配单元
-- `compat_nodes(...)` 只用于旧节点数组兼容；`legacy_nodes(...)` 仅保留为兼容别名
+- `compat_nodes(...)` 只用于旧节点数组兼容；`legacy_nodes(...)` 仅保留为兼容别名；`wrap_nodes_with_requires(...)` 若不得不用，也优先接 `for_each_legacy_node(...)` 或显式原始节点数组
 - 需要导出阶段完成能力时，用 `ready_as(...)` 或显式 barrier，不让 `Plan` 继承产出

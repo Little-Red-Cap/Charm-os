@@ -23,6 +23,9 @@ export namespace init {
     template <typename Chain>
     struct legacy_optional_ref;
 
+    template <typename Item>
+    struct maybe_ref;
+
     struct legacy_nodes_ref;
 
     template <typename... Items>
@@ -100,6 +103,15 @@ export namespace init {
         }
     };
 
+    template <typename Item>
+    struct maybe_ref : plan_ops<maybe_ref<Item>> {
+        const std::optional<Item>* value{};
+
+        constexpr explicit maybe_ref(const std::optional<Item>* item) noexcept
+            : value(item) {
+        }
+    };
+
     struct legacy_nodes_ref : plan_ops<legacy_nodes_ref> {
         std::span<const init::Node* const> nodes{};
 
@@ -166,8 +178,14 @@ export namespace init {
     }
 
     template <typename Chain>
+    [[deprecated("use maybe(...) for optional plans or optional legacy values")]]
     constexpr auto legacy(const std::optional<Chain>& chain) noexcept {
         return legacy_optional_ref<Chain>{&chain};
+    }
+
+    template <typename Item>
+    constexpr auto maybe(const std::optional<Item>& value) noexcept {
+        return maybe_ref<Item>{&value};
     }
 
     constexpr auto legacy_nodes(std::span<const init::Node* const> nodes) noexcept {

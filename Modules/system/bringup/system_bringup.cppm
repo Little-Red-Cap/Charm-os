@@ -255,12 +255,12 @@ export namespace charm::system {
                     init::compose(
                         core_.plan(),
                         board_.plan(),
-                        init::legacy(spi_),
-                        init::legacy(i2c_),
-                        init::legacy(sdmmc_),
-                        init::legacy(flash_),
-                        init::legacy(input_),
-                        init::legacy(can_channel_),
+                        init::maybe(spi_),
+                        init::maybe(i2c_),
+                        init::maybe(sdmmc_),
+                        init::maybe(flash_),
+                        init::maybe(input_),
+                        init::maybe(can_channel_),
                         extra_plan),
                     runlevel_mask),
                 max_phase);

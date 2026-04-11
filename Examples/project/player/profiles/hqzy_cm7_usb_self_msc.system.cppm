@@ -158,7 +158,7 @@ namespace player::app_test_hqzy::app_system {
             init::bind<RuntimeRecipe>(sys),
             core.plan(),
             sdmmc_chain.plan().after<PlatformReady>(),
-            init::legacy(usb_plan).after<PlatformReady>());
+            init::maybe(usb_plan).after<PlatformReady>());
         player::foundation::print(sys.foundation, "msc: materialize plan\n");
         init::Graph<kMaxNodes, kMaxCaps> graph{};
         auto r = init::build_graph(graph, system_plan);

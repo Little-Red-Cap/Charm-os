@@ -363,6 +363,10 @@ namespace init::detail {
                                                                    const materialize_constraints<MaxCaps>& constraints) noexcept {
         materialize_summary<MaxCaps> summary{};
         if constexpr (requires(const Legacy& candidate) {
+                          candidate.plan();
+                      }) {
+            return materialize_item(out, value.plan(), constraints);
+        } else if constexpr (requires(const Legacy& candidate) {
                           candidate.node_span();
                       }) {
             const auto span = value.node_span();
@@ -443,6 +447,27 @@ namespace init::detail {
             return materialize_summary<MaxCaps>{};
         }
         return append_legacy_value(out, item.chain->value(), constraints);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename Item>
+    util::Result<materialize_summary<MaxCaps>> materialize_item(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                const maybe_ref<Item>& item,
+                                                                const materialize_constraints<MaxCaps>& constraints) noexcept {
+        if (!item.value || !item.value->has_value()) {
+            return materialize_summary<MaxCaps>{};
+        }
+
+        if constexpr (requires(const Item& candidate) {
+                          candidate.plan();
+                      } || requires(const Item& candidate) {
+                          candidate.node_span();
+                      } || requires(const Item& candidate) {
+                          candidate.node;
+                      }) {
+            return append_legacy_value(out, item.value->value(), constraints);
+        } else {
+            return materialize_item(out, item.value->value(), constraints);
+        }
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -695,7 +720,12 @@ export namespace init {
         }
 
         std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
-        auto legacy_optional = materialize<2, 4>(compose(legacy(optional_holder)));
+        auto maybe_optional = materialize<2, 4>(compose(maybe(optional_holder)));
+        if (!maybe_optional || maybe_optional->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        auto legacy_optional = materialize<2, 4>(compose(legacy_optional_ref<LegacyNodeHolder>{&optional_holder}));
         if (!legacy_optional || legacy_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }

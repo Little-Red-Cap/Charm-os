@@ -1,7 +1,5 @@
 module;
 #include <type_traits>
-
-#include "features.hpp"
 export module charm.core.theme_preset;
 
 export import charm.core.style;
@@ -53,51 +51,51 @@ inline void apply_theme_preset(const ThemePreset& preset) noexcept {
     auto set_base = [&](Style s, WidgetKind kind) {
         sheet.set_base_style(kind, s);
     };
-#if CHARM_VIVID_ENABLE_WIDGET_Label
-    if (preset.has_label) set_base(preset.label, WidgetKind::Label);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Button
-    if (preset.has_button) set_base(preset.button, WidgetKind::Button);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_IconButton
-    if (preset.has_button) set_base(preset.button, WidgetKind::IconButton);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Checkbox
-    if (preset.has_checkbox) set_base(preset.checkbox, WidgetKind::Checkbox);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ListView
-    if (preset.has_list_view) set_base(preset.list_view, WidgetKind::ListView);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ListItem && CHARM_VIVID_ENABLE_WIDGET_List
-    if (preset.has_list_item) set_base(preset.list_item, WidgetKind::ListItem);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_List
-    if (preset.has_list) set_base(preset.list, WidgetKind::List);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Progress
-    if (preset.has_progress) set_base(preset.progress, WidgetKind::Progress);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ScrollContainer
-    if (preset.has_scroll_container) set_base(preset.scroll_container, WidgetKind::ScrollContainer);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_ScrollBar
-    if (preset.has_scroll_bar) set_base(preset.scroll_bar, WidgetKind::ScrollBar);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Slider
-    if (preset.has_slider) set_base(preset.slider, WidgetKind::Slider);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Switch
-    if (preset.has_switch) set_base(preset.switcher, WidgetKind::Switch);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_Radio
-    if (preset.has_radio) set_base(preset.radio, WidgetKind::Radio);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_TextInput
-    if (preset.has_text_input) set_base(preset.text_input, WidgetKind::TextInput);
-#endif
-#if CHARM_VIVID_ENABLE_WIDGET_TextArea
-    if (preset.has_text_area) set_base(preset.text_area, WidgetKind::TextArea);
-#endif
+    if constexpr (widget_kind_enabled(WidgetKind::Label)) {
+        if (preset.has_label) set_base(preset.label, WidgetKind::Label);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Button)) {
+        if (preset.has_button) set_base(preset.button, WidgetKind::Button);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::IconButton)) {
+        if (preset.has_button) set_base(preset.button, WidgetKind::IconButton);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Checkbox)) {
+        if (preset.has_checkbox) set_base(preset.checkbox, WidgetKind::Checkbox);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::ListView)) {
+        if (preset.has_list_view) set_base(preset.list_view, WidgetKind::ListView);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::ListItem) && widget_kind_enabled(WidgetKind::List)) {
+        if (preset.has_list_item) set_base(preset.list_item, WidgetKind::ListItem);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::List)) {
+        if (preset.has_list) set_base(preset.list, WidgetKind::List);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Progress)) {
+        if (preset.has_progress) set_base(preset.progress, WidgetKind::Progress);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::ScrollContainer)) {
+        if (preset.has_scroll_container) set_base(preset.scroll_container, WidgetKind::ScrollContainer);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::ScrollBar)) {
+        if (preset.has_scroll_bar) set_base(preset.scroll_bar, WidgetKind::ScrollBar);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Slider)) {
+        if (preset.has_slider) set_base(preset.slider, WidgetKind::Slider);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Switch)) {
+        if (preset.has_switch) set_base(preset.switcher, WidgetKind::Switch);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::Radio)) {
+        if (preset.has_radio) set_base(preset.radio, WidgetKind::Radio);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::TextInput)) {
+        if (preset.has_text_input) set_base(preset.text_input, WidgetKind::TextInput);
+    }
+    if constexpr (widget_kind_enabled(WidgetKind::TextArea)) {
+        if (preset.has_text_area) set_base(preset.text_area, WidgetKind::TextArea);
+    }
     sync_style_sheet_bases();
 }
 

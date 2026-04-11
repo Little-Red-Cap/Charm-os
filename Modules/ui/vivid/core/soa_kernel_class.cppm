@@ -3,7 +3,6 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include "features.hpp"
 
 export module charm.core.soa_kernel:kernel_class;
 

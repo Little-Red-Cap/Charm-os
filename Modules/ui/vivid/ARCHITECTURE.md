@@ -172,8 +172,10 @@ flowchart LR
 - 根 CMake 只负责启用 Vivid 与 featureset 选择，不再直接裁剪 Vivid 内部文件。
 - `Modules/ui/vivid/vivid.cmake` 负责：
   - 生成 `soa_pool_caps.cppm`
+  - 生成 `config.generated.cppm`，导出 `ScreenConfig / FeatureConfig / SoaConfig / VividConfig`
+  - 生成 `vivid_features.generated.hpp`，仅作为预处理兼容桥接层
   - 维护 Vivid 模块清单与裁剪逻辑
-  - 注入 Vivid 编译选项与 featureset 宏
+  - 注入 Vivid 编译选项，并把 featureset / widget feature / float widget 选择收敛到生成式配置入口
 
 ## 3. 布局与容器
 

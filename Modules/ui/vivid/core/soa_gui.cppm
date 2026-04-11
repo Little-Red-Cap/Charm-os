@@ -7,8 +7,6 @@ module;
 #include <string_view>
 #include <utility>
 
-#include "features.hpp"
-
 export module charm.core.soa_gui;
 
 export import charm.core.soa_kernel;

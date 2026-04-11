@@ -23,6 +23,7 @@ export namespace usb::replay {
         control_in,
         control_out,
         clear_stall,
+        stall,
         out,
         in,
     };
@@ -54,6 +55,7 @@ export namespace usb::replay {
     struct Hooks {
         bool (*pump_in)(void* ctx, usb::mock::Session& session, usb::u8 ep) noexcept { nullptr };
         void* ctx{nullptr};
+        bool (*pump_stall)(void* ctx, usb::mock::Session& session, usb::u8 ep) noexcept { nullptr };
     };
 
     enum class LoadError : usb::u8 {
@@ -81,6 +83,7 @@ export namespace usb::replay {
         none = 0,
         feed_failed,
         missing_in,
+        missing_stall,
         unexpected_endpoint,
         ack_failed,
         payload_mismatch,
@@ -130,6 +133,7 @@ export namespace usb::replay {
         case Error::none: return "none";
         case Error::feed_failed: return "feed_failed";
         case Error::missing_in: return "missing_in";
+        case Error::missing_stall: return "missing_stall";
         case Error::unexpected_endpoint: return "unexpected_endpoint";
         case Error::ack_failed: return "ack_failed";
         case Error::payload_mismatch: return "payload_mismatch";
@@ -369,6 +373,14 @@ export namespace usb::replay {
                 break;
             }
 
+            case StepKind::stall:
+                if (!session.endpoint_state(step.ep).stalled &&
+                    (!hooks.pump_stall || !hooks.pump_stall(hooks.ctx, session, step.ep) ||
+                     !session.endpoint_state(step.ep).stalled)) {
+                    return Result{Error::missing_stall, index};
+                }
+                break;
+
             case StepKind::out:
                 if (!session.feed_out(step.ep, expected)) {
                     return Result{Error::feed_failed, index};
@@ -468,6 +480,8 @@ export namespace usb::replay {
                 step.kind = StepKind::control_out;
             } else if (tokens[0] == "clear_stall") {
                 step.kind = StepKind::clear_stall;
+            } else if (tokens[0] == "stall") {
+                step.kind = StepKind::stall;
             } else if (tokens[0] == "out") {
                 step.kind = StepKind::out;
             } else if (tokens[0] == "in") {
@@ -543,6 +557,7 @@ export namespace usb::replay {
                 step.setup.w_length = static_cast<usb::u16>(wl);
                 break;
             case StepKind::clear_stall:
+            case StepKind::stall:
             case StepKind::out:
             case StepKind::in:
                 if (!has_ep) {

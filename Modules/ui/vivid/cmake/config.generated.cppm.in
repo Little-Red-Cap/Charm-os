@@ -1,10 +1,14 @@
 module;
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
+#include "vivid_features.generated.hpp"
+
 export module charm.core.config.generated;
 
+export import charm.core.handle;
 export import charm.gfx.pixel_format;
 
 export namespace charm::vivid::config {
@@ -30,6 +34,18 @@ export namespace charm::vivid::config {
         Featureset featureset;
         KernelMode kernel_mode;
         bool enable_float_widgets;
+    };
+
+    constexpr std::size_t kWidgetFeatureCount =
+        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+
+    struct WidgetFeatureTable {
+        std::array<bool, kWidgetFeatureCount> enabled{};
+
+        constexpr bool operator[](WidgetKind kind) const noexcept {
+            const auto idx = static_cast<std::size_t>(kind);
+            return idx < enabled.size() ? enabled[idx] : false;
+        }
     };
 
     struct SoaConfig {
@@ -64,6 +80,14 @@ export namespace charm::vivid::config {
     inline constexpr ScreenConfig kScreen = kConfig.screen;
     inline constexpr FeatureConfig kFeatures = kConfig.features;
     inline constexpr SoaConfig kSoa = kConfig.soa;
+    inline constexpr WidgetFeatureTable kWidgetFeatures = []() {
+        WidgetFeatureTable table{};
+#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
+        table.enabled[static_cast<std::size_t>(WidgetKind::name)] = (CHARM_VIVID_ENABLE_WIDGET_##name != 0);
+#include "widgets.registry.def"
+#undef VIVID_WIDGET_REGISTRY
+        return table;
+    }();
 
     static_assert(kScreen.width > 0);
     static_assert(kScreen.height > 0);
@@ -71,6 +95,10 @@ export namespace charm::vivid::config {
     static_assert(kScreen.layer_cache_width > 0);
     static_assert(kScreen.layer_cache_height > 0);
     static_assert(kSoa.max_nodes > 0);
+
+    constexpr bool widget_enabled(WidgetKind kind) noexcept {
+        return kWidgetFeatures[kind];
+    }
 }
 
 export using charm::vivid::config::Featureset;
@@ -80,6 +108,7 @@ export inline constexpr auto vivid_config = charm::vivid::config::kConfig;
 export inline constexpr auto vivid_screen = charm::vivid::config::kScreen;
 export inline constexpr auto vivid_features = charm::vivid::config::kFeatures;
 export inline constexpr auto vivid_soa = charm::vivid::config::kSoa;
+export inline constexpr auto vivid_widget_features = charm::vivid::config::kWidgetFeatures;
 
 export inline constexpr auto vivid_featureset = vivid_config.features.featureset;
 export inline constexpr auto vivid_kernel_mode = vivid_config.features.kernel_mode;
@@ -96,3 +125,7 @@ export inline constexpr bool vivid_is_mcu_min_featureset =
     vivid_config.features.featureset == Featureset::mcu_min;
 export inline constexpr bool vivid_is_full_featureset =
     vivid_config.features.featureset == Featureset::full;
+
+export constexpr bool vivid_widget_feature_enabled(WidgetKind kind) noexcept {
+    return charm::vivid::config::widget_enabled(kind);
+}

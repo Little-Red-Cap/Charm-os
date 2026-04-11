@@ -1,5 +1,4 @@
 module;
-#include "core/features.hpp"
 
 export module charm.ui.vivid;
 

@@ -13,6 +13,7 @@
 - `usb: connect on`
 - `usb: connect off`
 - `usb: reset`
+- `usb: stall ep=0x..`
 - `usb: out ep=0x.. zlp=0|1 data=<hex|- >`
 - `usb: in ep=0x.. zlp=0|1 data=<hex|- >`
 - `usb: dev_desc size=<N> <hex bytes...>`
@@ -29,13 +30,20 @@
 - `usb: reset`
   - 导入为 `reset`
 
+- `usb: stall ep=0x..`
+  - 导入为 `stall ep=..`
+  - 语义上表示设备在对应 endpoint 上发起 halt / STALL，供 replay 对 recovery 闭环做断言
+
 - `usb: out ep=0x.. zlp=.. data=...`
   - 导入为 `out ep=.. zlp=.. data=...`
   - 语义上表示主机向设备发送 bulk/interrupt/其它非控制数据包
+  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
 
 - `usb: in ep=0x.. zlp=.. data=...`
   - 导入为 `in ep=.. zlp=.. data=...`
   - 语义上表示设备向主机返回的数据事务期望值
+  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
+  - 连续、同端点的多条 `usb: in` 会在导入时自动拼接为一个 replay `in` 事务，末条的 `zlp` 作为事务结束标记
 
 - `usb: dev_desc`
   - 缓存设备描述符原始字节
@@ -55,6 +63,8 @@
 ## 当前限制
 
 - 还不区分 bulk / interrupt / isoch 的端点语义，只按 `ep` + `data` 导入
+- `usb: stall` 目前只记录 endpoint，不区分更细的 stall 原因或时间信息
+- 多包分段目前只自动合并 `usb: in`；`usb: out` 仍按逐包事件导入
 - 还不导入字符串描述符读取
 - 如果 `GET_DESCRIPTOR(Device/Config)` 出现在对应描述符缓存之前，导入会失败
 
@@ -63,6 +73,7 @@
 - 先记录 `connect/reset`
 - 再记录 `dev_desc/cfg_desc`
 - 再记录关键 `setup`
+- 如果涉及 stall / recovery，记录 `usb: stall ...`
 - 如果涉及恢复路径，保留 `CLEAR_FEATURE` setup
 - 如果涉及数据阶段，记录 `usb: out ...` / `usb: in ...`
 
@@ -70,5 +81,6 @@
 
 - 从真板日志快速还原枚举序列
 - 从真板日志还原 clear-stall / 标准请求路径
+- 从真板日志还原 stall / clear-stall / CSW 的最小 recovery 闭环
 - 从真板日志还原 MSC 最小数据阶段与 recovery 片段
 - 给 native replay 构建最小 regression fixture

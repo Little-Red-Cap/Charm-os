@@ -190,6 +190,41 @@ namespace {
         check_eq("spawn-waitpid", wpid, pid);
     }
 
+    void test_api_spawnp_wait() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+        procs.bind_fd_table(fds);
+        procs.bind_file_service(files);
+        auto rreg = procs.register_executable("/bin/demo", &demo_main);
+        check_true("spawnp-register", rreg);
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        const char* argv[] = {"demo", nullptr};
+        const char* envp[] = {"PATH=/bin:/usr/bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+
+        int pid = api.spawnp(cfg);
+        check_true("spawnp-basic", pid > 0);
+        int status = 0;
+        check_eq("spawnp-waitpid", api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("spawnp-code", (status >> 8) & 0xff, 3);
+
+        const char* miss_envp[] = {"PATH=/usr/local/bin", nullptr};
+        cfg.envp = std::span<const char* const>(miss_envp, 1);
+        posix::set_errno(0);
+        check_eq("spawnp-miss", api.spawnp(cfg), -1);
+        check_eq("spawnp-miss-errno", posix::get_errno(), posix::ENOENT);
+    }
+
     void test_api_dev_null_and_isatty() noexcept {
         fs::clear_mounts();
         fs::Mount mount{};
@@ -363,6 +398,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_open_close();
     test_api_pipe_rw();
     test_api_spawn_wait();
+    test_api_spawnp_wait();
     test_api_dev_null_and_isatty();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");

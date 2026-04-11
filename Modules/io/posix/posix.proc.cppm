@@ -114,13 +114,17 @@ export namespace posix {
             return posix::resolve_program_image(*this, cfg, exec_catalog_, elf_mem_registry_, resolved_path_);
         }
         util::Result<SpawnResult> spawn(const SpawnConfig& cfg) noexcept {
+            return spawn(cfg, fd_table_);
+        }
+
+        util::Result<SpawnResult> spawn(const SpawnConfig& cfg, FdTableType* parent_fd_table) noexcept {
             if (cfg.path == nullptr && cfg.argv.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (cfg.cwd != nullptr && cfg.cwd[0] != '\0') {
                 return util::unexpected(util::Errc::not_supported);
             }
-            auto child_table = posix::build_spawn_fd_table(fd_table_, file_service_, cfg);
+            auto child_table = posix::build_spawn_fd_table(parent_fd_table, file_service_, cfg);
             if (!child_table) {
                 return util::unexpected(child_table.error());
             }

@@ -12,6 +12,7 @@
 - `load_image()` source selection now delegates through `posix.image_resolver`, so `posix.proc` is closer to a pure orchestrator
 - child fd-table setup and file-actions application now delegate through `posix.spawn_fds`, so `posix.proc` keeps less spawn-specific wiring
 - `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
+- shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
 
 ## Stable ABI Contracts
 
@@ -38,6 +39,7 @@
 - busybox phase2 smoke remains usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior
 - real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
+- `spawnp`-style PATH lookup is now exercised from `posix.api` and program-shell smoke, not only proc smoke
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
@@ -45,6 +47,6 @@
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
 1. Extend `stat_probe` from size/error basics to `mode` / file-type fields without re-introducing helper-side layout coupling
-2. Continue wiring `search_path` semantics into more realistic shell / userland flows, not only proc smoke
+2. Extend the current `spawnp`/shell PATH coverage toward more Linux-like command resolution (`argv[0]`, shell fallback, BusyBox entry shapes)
 3. Decide whether v0 should keep converging path-type errors beyond `open()` into `mkdir` / `truncate` / `rename`
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

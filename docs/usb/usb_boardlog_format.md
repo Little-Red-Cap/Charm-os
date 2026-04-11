@@ -37,10 +37,12 @@
 - `usb: out ep=0x.. zlp=.. data=...`
   - 导入为 `out ep=.. zlp=.. data=...`
   - 语义上表示主机向设备发送 bulk/interrupt/其它非控制数据包
+  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
 
 - `usb: in ep=0x.. zlp=.. data=...`
   - 导入为 `in ep=.. zlp=.. data=...`
   - 语义上表示设备向主机返回的数据事务期望值
+  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
 
 - `usb: dev_desc`
   - 缓存设备描述符原始字节

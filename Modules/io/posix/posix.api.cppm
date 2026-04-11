@@ -16,11 +16,26 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import fs_core;
+import fs_errno;
+import fs_stream;
+import fs_vfs;
 import util.core;
 import util.error;
 
 export namespace posix {
     using ssize_t = util::i64;
+    inline constexpr util::usize kDirentNameMax = 64;
+
+    struct PosixDirent {
+        std::array<char, kDirentNameMax> d_name{};
+        util::u32 d_mode{0};
+        util::u64 d_size{0};
+    };
+
+    struct PosixDir {
+        util::usize slot{0};
+    };
 
     inline int encode_wait_status(const WaitStatus& st) noexcept {
         switch (st.kind) {
@@ -46,7 +61,9 @@ export namespace posix {
               util::usize MaxEnvp = 16,
               util::usize MaxArgBytes = 256,
               util::usize MaxElfImage = 4096,
-              util::usize MaxElfLoad = 4096>
+              util::usize MaxElfLoad = 4096,
+              util::usize MaxDirs = 4,
+              util::usize MaxDirEntries = 32>
     class Api {
     public:
         Api(FdTable<MaxFds>& fd_table,
@@ -237,6 +254,90 @@ export namespace posix {
             return 0;
         }
 
+        int mkdir(const char* path) noexcept {
+            if (!path) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto st = fs::vfs_mkdir(std::string_view{path});
+            if (!st) {
+                set_errno(map_errno(st.err));
+                return -1;
+            }
+            return 0;
+        }
+
+        int unlink(const char* path) noexcept {
+            if (!path) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto st = fs::vfs_unlink(std::string_view{path});
+            if (!st) {
+                set_errno(map_errno(st.err));
+                return -1;
+            }
+            return 0;
+        }
+
+        int rename(const char* from, const char* to) noexcept {
+            if (!from || !to) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto st = fs::vfs_rename(std::string_view{from}, std::string_view{to});
+            if (!st) {
+                set_errno(map_errno(st.err));
+                return -1;
+            }
+            return 0;
+        }
+
+        PosixDir* opendir(const char* path) noexcept {
+            if (!path) {
+                set_errno(EINVAL);
+                return nullptr;
+            }
+            auto* handle = alloc_dir_handle();
+            if (!handle) {
+                set_errno(EMFILE);
+                return nullptr;
+            }
+            handle->count = 0;
+            handle->pos = 0;
+            auto st = fs::vfs_list(std::string_view{path}, handle, &Api::collect_dir_entry);
+            if (!st) {
+                handle->used = false;
+                set_errno(map_errno(st.err));
+                return nullptr;
+            }
+            return &handle->dir;
+        }
+
+        const PosixDirent* readdir(PosixDir* dir) noexcept {
+            auto* handle = dir_handle(dir);
+            if (!handle) {
+                set_errno(EINVAL);
+                return nullptr;
+            }
+            if (handle->pos >= handle->count) {
+                return nullptr;
+            }
+            return &handle->entries[handle->pos++];
+        }
+
+        int closedir(PosixDir* dir) noexcept {
+            auto* handle = dir_handle(dir);
+            if (!handle) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            handle->used = false;
+            handle->count = 0;
+            handle->pos = 0;
+            return 0;
+        }
+
         int dup2(int from, int to) noexcept {
             auto* table = current_fd_table();
             if (!table) {
@@ -320,6 +421,56 @@ export namespace posix {
         }
 
     private:
+        struct DirHandle {
+            PosixDir dir{};
+            std::array<PosixDirent, MaxDirEntries> entries{};
+            util::usize count{0};
+            util::usize pos{0};
+            bool used{false};
+        };
+
+        static fs::Status collect_dir_entry(void* ctx, const fs::MountOps::ListEntry& entry) noexcept {
+            auto* handle = static_cast<DirHandle*>(ctx);
+            if (!handle) {
+                return fs::Status{fs::Errc::inval};
+            }
+            if (handle->count >= MaxDirEntries) {
+                return fs::Status{fs::Errc::nomem};
+            }
+            if (entry.name.size() >= kDirentNameMax) {
+                return fs::Status{fs::Errc::nametoolong};
+            }
+            auto& out = handle->entries[handle->count++];
+            for (util::usize i = 0; i < entry.name.size(); ++i) {
+                out.d_name[i] = entry.name[i];
+            }
+            out.d_name[entry.name.size()] = '\0';
+            out.d_mode = make_stat_mode(stat_type_from_node(entry.type), stat_perm_from_node(entry.type));
+            out.d_size = entry.size;
+            return fs::Status{fs::Errc::ok};
+        }
+
+        DirHandle* alloc_dir_handle() noexcept {
+            for (util::usize i = 0; i < dir_handles_.size(); ++i) {
+                if (dir_handles_[i].used) continue;
+                auto& handle = dir_handles_[i];
+                handle.used = true;
+                handle.dir.slot = i;
+                handle.count = 0;
+                handle.pos = 0;
+                return &handle;
+            }
+            return nullptr;
+        }
+
+        DirHandle* dir_handle(PosixDir* dir) noexcept {
+            if (!dir || dir->slot >= dir_handles_.size()) {
+                return nullptr;
+            }
+            auto& handle = dir_handles_[dir->slot];
+            return handle.used ? &handle : nullptr;
+        }
+
         static void close_entry(const FdEntry& entry) noexcept {
             if (entry.ops && entry.ops->close) {
                 (void)entry.ops->close(entry.ctx);
@@ -356,5 +507,6 @@ export namespace posix {
         int bound_pid_{-1};
         std::array<int, 8> bound_pid_stack_{};
         util::usize bound_depth_{0};
+        std::array<DirHandle, MaxDirs> dir_handles_{};
     };
 }

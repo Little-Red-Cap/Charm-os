@@ -14,11 +14,23 @@ Applets:
 - cp
 - mv
 
+Current Charm slice:
+- done: `ls`, `mkdir`, `rm`, `mv`
+- deferred: `cp`
+- scope guard: keep `truncate`, `O_APPEND`, `lseek`, and wider path/stat matrices out of this first cut
+
 Acceptance:
 - basic path handling
 - `stat/fstat` behavior
 - correct exit codes
 - stderr on errors
+
+Current acceptance on mainline smoke:
+- `busybox mkdir work`
+- `busybox ls /`
+- `busybox mv /work/a.txt /work/b.txt`
+- `busybox rm /work/b.txt`
+- `busybox ls /work`
 
 ## Phase 2: Shell + Redirect + Pipe
 
@@ -47,4 +59,3 @@ Acceptance:
 - `kill` supports SIGTERM/SIGKILL/SIGINT
 - `sleep` respects clock/timer
 - `ps` prints pid/state/name minimally
-

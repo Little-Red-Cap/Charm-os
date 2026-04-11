@@ -43,6 +43,7 @@ target_sources(${target_name}
         "${CHARM_ROOT}/Examples/posix/tests/posix.sjlj.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.test_harness.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.programs.exec.tests.cppm"
+        "${CHARM_ROOT}/Examples/posix/tests/posix.programs.fs.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.programs.fdpath.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.programs.shell.tests.cppm"
         "${CHARM_ROOT}/Examples/posix/tests/posix.programs.tests.cppm"

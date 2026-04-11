@@ -14,6 +14,8 @@
 - `stat_probe` is back on the mainline smoke and now validates the `fstat(-1) -> EBADF` path together with file-size reporting
 - shell smoke now resolves `/bin/*` through `PATH` in actual spawned flows, instead of bypassing it with exact-name registration
 - busybox-style applet entry shapes are now smoke-covered: both `/bin/sh` via `argv[0]` and `busybox sh -c ...` via `argv[1]`
+- FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
+- BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 
 ## Stable ABI Contracts
 
@@ -33,11 +35,15 @@
 - `close(-1) -> -1 && errno == EBADF`
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
+- `mkdir("/work") -> 0`, duplicate create returns `EEXIST`
+- `unlink("/missing") -> -1 && errno == ENOENT`
+- `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage
 
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path
 - stdio/fd/pipe/wait form a working minimal userland spine
 - busybox phase2 smoke remains usable on top of the current spine
+- busybox phase1 minimal FS slice is now usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior
 - real-ELF smoke now isolates env/stderr subcases per harness, avoiding shared-fd cross contamination
 - `spawnp`-style PATH lookup is now exercised from `posix.api` and program-shell smoke, not only proc smoke
@@ -48,7 +54,7 @@
 
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
-1. Extend `stat_probe` from size/error basics to `mode` / file-type fields without re-introducing helper-side layout coupling
-2. Extend the current `spawnp`/shell PATH coverage toward more Linux-like command resolution (`argv[0]`, shell fallback, BusyBox entry shapes)
-3. Decide whether v0 should keep converging path-type errors beyond `open()` into `mkdir` / `truncate` / `rename`
+1. Keep FS Basics v1 narrow and stable: harden `mkdir` / `unlink` / `rename` / `opendir` / `readdir` errno and path contracts
+2. Add the next shell redirect slice: `<`, `>>`, `2>`, `2>&1`, without letting `posix.proc` regain policy weight
+3. Revisit `truncate` / `O_APPEND` / `lseek` only after the Phase 1 FS surface is stable enough for BusyBox-style tools
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

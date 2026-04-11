@@ -17,13 +17,14 @@
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
-- process-control slice has started with `getpid/sleep v0`: `posix.api::getpid()`, `posix.api::sleep()`, and userland-visible `sleep` are now smoke-covered
+- process-control slice now includes `kill v0`: `getpid`, `sleep`, and `kill(SIGTERM/SIGKILL/SIGINT)` with signaled `waitpid()` are smoke-covered on the current same-address-space model
 
 ## Stable ABI Contracts
 
 ### ELF execution / process
 - `explicit exit > return` is the active exit resolution rule
 - `waitpid()` consumes the unified final exit result, not the internal exit mechanism
+- `kill()` currently supports `SIGTERM` / `SIGKILL` / `SIGINT`; a killed process now reports `WaitKind::signaled` with the signal number as wait code
 - ELF hostcalls use `ExecContext`; they no longer depend on the old global service/pid slot pair
 
 ### fd / errno contracts validated by smoke
@@ -54,6 +55,7 @@
 - API smoke now validates the minimum append contract directly with `O_APPEND`
 - API smoke now validates bound-process `getpid()`, and real ELF smoke validates `getpid()` against the spawned pid value
 - API smoke now validates `sleep(0/1)`, and shell smoke validates `/bin/sleep` through `sh -c 'sleep 2'`
+- proc/api smoke now validate the minimum `kill v0` contract: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes `SIGTERM` in the low bits
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline
@@ -61,6 +63,6 @@
 ## Recommended Next Cuts
 - structural cleanup plan: `docs/system/posix_cleanup_refactor_plan.md`
 1. Keep FS Basics v1 narrow and stable: harden `mkdir` / `unlink` / `rename` / `opendir` / `readdir` errno and path contracts
-2. Continue the Phase 3 process-control slice after `getpid/sleep v0`: `kill`, and then a minimal `ps`
+2. Continue the Phase 3 process-control slice after `kill v0`: land a minimal `ps` without pulling in process groups, sessions, or a wider signal model
 3. Revisit wider `truncate` / `lseek` / path-error matrices only when a concrete BusyBox-style tool is blocked by them
 4. Continue small, high-signal ELF samples only when they either harden an ABI contract or directly unblock Linux userland behavior

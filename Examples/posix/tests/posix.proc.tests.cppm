@@ -76,6 +76,14 @@ namespace {
         return 42;
     }
 
+    int g_kill_target_runs = 0;
+
+    int kill_target_main(int argc, char** argv) {
+        if (argc < 1 || argv == nullptr) return 7;
+        ++g_kill_target_runs;
+        return 99;
+    }
+
     util::Result<util::usize> dummy_read(void*, posix::MutByteView) noexcept {
         return util::unexpected(util::Errc::not_supported);
     }
@@ -119,6 +127,30 @@ namespace {
         nullptr,
         nullptr
     };
+
+    using KillProcService = posix::ProcService<4, 4, 8, 4>;
+
+    struct KillOnEnterCtx {
+        KillProcService* procs{nullptr};
+        posix::ProcessId seen_pid{};
+        bool fired{false};
+        bool kill_ok{false};
+        util::Errc kill_err{util::Errc::ok};
+    };
+
+    void kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
+        auto* state = static_cast<KillOnEnterCtx*>(ctx);
+        if (!state || !state->procs) {
+            return;
+        }
+        state->seen_pid = pid;
+        state->fired = true;
+        auto killed = state->procs->kill(pid, posix::SIGTERM);
+        state->kill_ok = static_cast<bool>(killed);
+        if (!killed) {
+            state->kill_err = killed.error();
+        }
+    }
 
     void test_spawn_wait() noexcept {
         posix::ProcService<4, 4, 8, 4> procs{};
@@ -338,6 +370,41 @@ namespace {
         auto fd_entry = table.get(3);
         check_true("open-parent-unchanged", !fd_entry);
     }
+
+    void test_kill_wait_signaled() noexcept {
+        KillProcService procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        KillOnEnterCtx ctx{};
+        ctx.procs = &procs;
+        procs.bind_process_hooks(&kill_on_enter, nullptr, &ctx);
+
+        auto rreg = procs.register_executable("kill-target", &kill_target_main);
+        check_true("kill-register", rreg);
+
+        g_kill_target_runs = 0;
+        const char* argv[] = {"kill-target", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "kill-target";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("kill-spawn", spawn);
+        check_true("kill-hook-fired", ctx.fired);
+        check_true("kill-hook-ok", ctx.kill_ok);
+        check_eq("kill-hook-pid", ctx.seen_pid.value, spawn.value().pid.value);
+        check_eq("kill-target-not-run", g_kill_target_runs, 0);
+
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("kill-wait", st);
+        check_eq("kill-wait-pid", st.value().pid.value, spawn.value().pid.value);
+        check_eq("kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
+        check_eq("kill-wait-code", st.value().code, posix::SIGTERM);
+    }
 } // namespace
 
 export void run_posix_proc_smoke_tests() noexcept {
@@ -349,6 +416,7 @@ export void run_posix_proc_smoke_tests() noexcept {
     test_exact_mode_falls_back_to_argv0();
     test_stdio_and_actions();
     test_open_action();
+    test_kill_wait_signaled();
     log_line("[posix-smoke] proc end ok");
 }
 

@@ -421,6 +421,23 @@ export namespace posix {
             return r.value().pid.value;
         }
 
+        int kill(ProcessId pid, int sig) noexcept {
+            if (!proc_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = proc_service_->kill(pid, sig);
+            if (!r) {
+                set_errno(map_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int kill(int pid, int sig) noexcept {
+            return kill(ProcessId{pid}, sig);
+        }
+
         int getpid() const noexcept {
             return bound_pid_ >= 0 ? bound_pid_ : 0;
         }

@@ -68,8 +68,8 @@ Targets:
 - find
 
 Current Charm slice:
-- done: `getpid` base contract, minimum `sleep`
-- next: `kill`, minimal `ps`
+- done: `getpid` base contract, minimum `sleep`, `kill v0`
+- next: minimal `ps`
 - scope guard: keep this phase focused on minimum userland-observable behavior, not a full Linux signal/process model
 
 Acceptance:
@@ -82,4 +82,6 @@ Current acceptance on mainline smoke:
 - API-level bound-process `getpid()`
 - real ELF `getpid()` output equals spawned pid
 - API-level `sleep(0/1)`
+- proc smoke `kill(SIGTERM)` on enter yields `waitpid(signaled)` and prevents target execution
+- API smoke `kill(SIGTERM)` yields encoded wait status `SIGTERM`
 - `sh -c 'sleep 2'`

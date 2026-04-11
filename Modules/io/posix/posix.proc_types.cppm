@@ -61,6 +61,10 @@ export namespace posix {
 
     struct SpawnResult { ProcessId pid{}; };
 
+    inline constexpr int SIGINT = 2;
+    inline constexpr int SIGKILL = 9;
+    inline constexpr int SIGTERM = 15;
+
     enum class WaitKind : util::u8 {
         exited,
         signaled,

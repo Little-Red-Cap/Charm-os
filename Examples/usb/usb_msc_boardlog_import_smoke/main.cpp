@@ -1182,6 +1182,142 @@ int main() {
         if (!usb::fixture::expect(request_sense_csw_sent->residue == 0, "request-sense csw residue mismatch")) return 1;
         if (!usb::fixture::expect(!request_sense_csw_sent->flag, "request-sense csw phase flag mismatch")) return 1;
     }
+    {
+        constexpr auto kReadCapacityCbw = "555342430A0000000A00000080000A25000000000000000000000000000000";
+        constexpr auto kReadCapacityResponse = "0000000F00000200555342530A0000000200000000";
+
+        std::string read_capacity_boardlog{};
+        read_capacity_boardlog.reserve(2048);
+        read_capacity_boardlog += "usb: connect on\n";
+        read_capacity_boardlog += "usb: reset\n";
+        read_capacity_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        read_capacity_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        read_capacity_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        read_capacity_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        read_capacity_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        read_capacity_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        read_capacity_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        read_capacity_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        read_capacity_boardlog += kReadCapacityCbw;
+        read_capacity_boardlog += "\n";
+        read_capacity_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        read_capacity_boardlog += kReadCapacityResponse;
+        read_capacity_boardlog += "\n";
+
+        const auto imported_read_capacity = usb::boardlog::load_text(read_capacity_boardlog);
+        if (!imported_read_capacity) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity boardlog load failed line=%zu err=%s\n",
+                         imported_read_capacity.line,
+                         usb::boardlog::error_name(imported_read_capacity.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_read_capacity.imported_steps == 9, "read-capacity imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.skipped_steps == 0, "read-capacity skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps.size() == 9, "read-capacity trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read-capacity cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "read-capacity response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[8].data.size() == 21,
+                                  "read-capacity response transaction length mismatch")) return 1;
+
+        const auto read_capacity_trace_text = usb::boardlog::to_text(imported_read_capacity.trace);
+        if (!usb::fixture::expect(count_substring(read_capacity_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read-capacity roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(read_capacity_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read-capacity roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace_text.find(kReadCapacityResponse) != std::string::npos,
+                                  "read-capacity roundtrip missing response")) return 1;
+
+        const auto read_capacity_roundtrip = usb::replay::load_text(read_capacity_trace_text);
+        if (!read_capacity_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity roundtrip parse failed line=%zu err=%s\n",
+                         read_capacity_roundtrip.line,
+                         usb::replay::load_error_name(read_capacity_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk read_capacity_disk{};
+        block::Registry<2> read_capacity_registry{};
+        read_capacity_registry.init();
+        auto read_capacity_reg = read_capacity_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, read_capacity_disk.device);
+        if (!read_capacity_reg) {
+            std::fprintf(stderr, "[ERR] read-capacity registry register failed err=%d\n", static_cast<int>(read_capacity_reg.error()));
+            return 1;
+        }
+
+        DemoContext read_capacity_demo{};
+        usb::mock::Session read_capacity_session{};
+        const auto read_capacity_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto read_capacity_model = usb::build(read_capacity_spec);
+        const auto read_capacity_plan = usb::plan::build(read_capacity_model);
+        if (!read_capacity_plan) {
+            std::fprintf(stderr, "[ERR] read-capacity plan build failed err=%d\n", static_cast<int>(read_capacity_plan.error()));
+            return 1;
+        }
+
+        const auto read_capacity_runtime = usb::runtime::host_mock(
+            read_capacity_session.dcd_ops(),
+            &read_capacity_session,
+            &read_capacity_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &read_capacity_demo});
+
+        auto read_capacity_binding = usb::runtime::make(read_capacity_plan.value(), read_capacity_registry, read_capacity_runtime);
+        const auto read_capacity_init = decltype(read_capacity_binding)::init_trampoline(&read_capacity_binding);
+        if (!read_capacity_init) {
+            std::fprintf(stderr, "[ERR] read-capacity binding init failed err=%d\n", static_cast<int>(read_capacity_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(read_capacity_demo.ready, "read-capacity runtime ready hook not called")) return 1;
+
+        PumpContext read_capacity_pump{read_capacity_demo.bot, read_capacity_plan.value().msc.msc_cfg};
+        const auto read_capacity_replay = usb::replay::run(
+            read_capacity_session,
+            read_capacity_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &read_capacity_pump, &pump_stall});
+        if (!read_capacity_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity replay failed step=%zu err=%s\n",
+                         read_capacity_replay.step_index,
+                         usb::replay::error_name(read_capacity_replay.error));
+            return 1;
+        }
+
+        const auto read_capacity_cfg = read_capacity_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::out_packet, read_capacity_cfg.ep_out) == 1,
+                                  "read-capacity host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::in_complete, read_capacity_cfg.ep_in) == 2,
+                                  "read-capacity host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::clear_stall, read_capacity_cfg.ep_in),
+                                  "read-capacity should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(read_capacity_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, read_capacity_cfg.ep_in) == 0,
+                                  "read-capacity should not stall bulk in")) return 1;
+
+        constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
+        const auto* read_capacity_trace = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::read_capacity,
+                                                               kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_trace != nullptr, "read-capacity trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->transfer_length == 10, "read-capacity transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->lba == 15, "read-capacity lba mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->blocks == 16, "read-capacity block count mismatch")) return 1;
+
+        const auto* read_capacity_csw_ready = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                                   usb::class_driver::MscTraceEventKind::csw_ready,
+                                                                   kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_csw_ready != nullptr, "read-capacity csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_csw_ready->residue == 2, "read-capacity csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!read_capacity_csw_ready->flag, "read-capacity csw-ready phase flag mismatch")) return 1;
+
+        const auto* read_capacity_csw_sent = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                                  usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                  kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_csw_sent != nullptr, "read-capacity csw trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_csw_sent->residue == 2, "read-capacity csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!read_capacity_csw_sent->flag, "read-capacity csw phase flag mismatch")) return 1;
+    }
 
     MemoryDisk disk{};
     block::Registry<2> registry{};

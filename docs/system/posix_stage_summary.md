@@ -17,7 +17,7 @@
 - FS Basics v1 is now on the mainline: `mkdir`, `unlink`, `rename`, `opendir/readdir`, and BusyBox-style `ls`
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
-- process-control slice now includes `kill v0`, `minimal ps`, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, `kill(SIGTERM/SIGKILL/SIGINT)`, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
+- process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, `kill(SIGTERM/SIGKILL/SIGINT)`, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
 
 ## Stable ABI Contracts
 
@@ -58,7 +58,8 @@
 - real ELF smoke now also validates `elfmem:kill_self`: user code enters, emits `before-kill`, then `waitpid()` reports `signaled(SIGTERM)`
 - proc/api smoke now validate the minimum `kill v0` contract: kill-on-enter prevents target execution, `waitpid()` reports `signaled`, and API wait status encodes `SIGTERM` in the low bits
 - shell smoke now validates `sh -c 'ps'`, and the current minimal view exposes `pid/state/name` for the live shell + child process set
-- busybox direct-dispatch smoke now also validates `busybox ps` and `busybox sleep 2`, so process applets are covered outside the shell wrapper path
+- shell smoke now also validates `sh -c 'kill <pid>'` through `/bin/kill`, with the target remaining unentered and `waitpid()` still reporting `signaled(SIGTERM)`
+- busybox direct-dispatch smoke now also validates `busybox ps`, `busybox sleep 2`, and `busybox kill <pid>`, so process applets are covered outside the shell wrapper path
 
 ## Isolated / Deferred Issues
 - no current isolated smoke blocker; remaining work is focused on expanding semantics rather than restoring the mainline

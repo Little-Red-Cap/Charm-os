@@ -22,6 +22,75 @@ import posix.test_harness;
 namespace {
     using namespace posix::testsupport;
 
+    inline int g_kill_tool_target_runs = 0;
+
+    int kill_tool_target_main(int, char**) {
+        ++g_kill_tool_target_runs;
+        return 17;
+    }
+
+    enum class KillHelperKind {
+        shell,
+        busybox,
+    };
+
+    struct KillToolHookCtx {
+        ApiType* api{nullptr};
+        KillHelperKind kind{KillHelperKind::shell};
+        bool fired{false};
+        int helper_pid{-1};
+        int helper_wait_rc{-1};
+        int helper_status{-1};
+    };
+
+    void kill_tool_on_enter(posix::ProcessId pid, void* ctx) noexcept {
+        auto* state = static_cast<KillToolHookCtx*>(ctx);
+        if (!state || !state->api) {
+            return;
+        }
+
+        state->api->push_process(pid);
+        if (state->fired) {
+            return;
+        }
+
+        state->fired = true;
+        char pid_buf[16]{};
+        const auto written = std::snprintf(pid_buf, sizeof(pid_buf), "%d", pid.value);
+        if (written <= 0 || static_cast<util::usize>(written) >= sizeof(pid_buf)) {
+            return;
+        }
+
+        posix::SpawnConfig cfg{};
+        cfg.envp = program_path_env();
+        if (state->kind == KillHelperKind::shell) {
+            char cmd_buf[32]{};
+            const auto cmd_written = std::snprintf(cmd_buf, sizeof(cmd_buf), "kill %s", pid_buf);
+            if (cmd_written <= 0 || static_cast<util::usize>(cmd_written) >= sizeof(cmd_buf)) {
+                return;
+            }
+            const char* argv[] = {"sh", "-c", cmd_buf, nullptr};
+            cfg.path = "sh";
+            cfg.argv = std::span<const char* const>(argv, 3);
+        } else {
+            const char* argv[] = {"busybox", "kill", pid_buf, nullptr};
+            cfg.path = "busybox";
+            cfg.argv = std::span<const char* const>(argv, 3);
+        }
+
+        state->helper_pid = state->api->spawnp(cfg);
+        if (state->helper_pid > 0) {
+            state->helper_wait_rc = state->api->waitpid(posix::ProcessId{state->helper_pid}, &state->helper_status, 0);
+        }
+    }
+
+    void kill_tool_on_exit(posix::ProcessId, void* ctx) noexcept {
+        auto* state = static_cast<KillToolHookCtx*>(ctx);
+        if (state && state->api) {
+            state->api->pop_process();
+        }
+    }
+
     void test_echo_to_file() noexcept {
         fs::clear_mounts();
         RamFsMount<64, 32, 64> ramfs{};
@@ -562,6 +631,43 @@ namespace {
         h.unbind_env();
     }
 
+    void test_sh_c_kill() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
+        check_true("sh-kill-register-sh", reg_sh);
+        auto reg_kill = h.procs.register_executable("/bin/kill", &busybox_main);
+        check_true("sh-kill-register-kill", reg_kill);
+        auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
+        check_true("sh-kill-register-target", reg_target);
+
+        KillToolHookCtx ctx{};
+        ctx.api = &h.api;
+        ctx.kind = KillHelperKind::shell;
+        h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
+
+        g_kill_tool_target_runs = 0;
+        const char* argv[] = {"kill-target", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "kill-target";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = h.procs.spawn(cfg);
+        check_true("sh-kill-spawn", spawn);
+        check_true("sh-kill-hook-fired", ctx.fired);
+        check_true("sh-kill-helper-spawn", ctx.helper_pid > 0);
+        check_eq("sh-kill-helper-wait", ctx.helper_wait_rc, ctx.helper_pid);
+        check_eq("sh-kill-helper-status", (ctx.helper_status >> 8) & 0xff, 0);
+        check_eq("sh-kill-target-not-run", g_kill_tool_target_runs, 0);
+
+        auto st = h.procs.waitpid(spawn.value().pid, 0);
+        check_true("sh-kill-wait", st);
+        check_eq("sh-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
+        check_eq("sh-kill-wait-code", st.value().code, posix::SIGTERM);
+        h.unbind_env();
+    }
+
     void test_busybox_sh_via_busybox() noexcept {
         Harness h{};
         h.bind_env();
@@ -665,6 +771,41 @@ namespace {
         check_true("bb-sleep-clock", sleep_after >= sleep_before + 2000);
         h.unbind_env();
     }
+
+    void test_busybox_kill_via_busybox() noexcept {
+        Harness h{};
+        h.bind_env();
+        auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
+        check_true("bb-kill-register-busybox", reg_busybox);
+        auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
+        check_true("bb-kill-register-target", reg_target);
+
+        KillToolHookCtx ctx{};
+        ctx.api = &h.api;
+        ctx.kind = KillHelperKind::busybox;
+        h.procs.bind_process_hooks(&kill_tool_on_enter, &kill_tool_on_exit, &ctx);
+
+        g_kill_tool_target_runs = 0;
+        const char* argv[] = {"kill-target", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "kill-target";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = h.procs.spawn(cfg);
+        check_true("bb-kill-spawn", spawn);
+        check_true("bb-kill-hook-fired", ctx.fired);
+        check_true("bb-kill-helper-spawn", ctx.helper_pid > 0);
+        check_eq("bb-kill-helper-wait", ctx.helper_wait_rc, ctx.helper_pid);
+        check_eq("bb-kill-helper-status", (ctx.helper_status >> 8) & 0xff, 0);
+        check_eq("bb-kill-target-not-run", g_kill_tool_target_runs, 0);
+
+        auto st = h.procs.waitpid(spawn.value().pid, 0);
+        check_true("bb-kill-wait", st);
+        check_eq("bb-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
+        check_eq("bb-kill-wait-code", st.value().code, posix::SIGTERM);
+        h.unbind_env();
+    }
 } // namespace
 
 export void run_posix_program_shell_smoke_tests() noexcept {
@@ -690,6 +831,9 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase sh-ps begin");
     test_sh_c_ps();
     log_line("[posix-smoke] programs phase sh-ps end");
+    log_line("[posix-smoke] programs phase sh-kill begin");
+    test_sh_c_kill();
+    log_line("[posix-smoke] programs phase sh-kill end");
     log_line("[posix-smoke] programs phase busybox-argv0 begin");
     test_busybox_sh_by_argv0();
     log_line("[posix-smoke] programs phase busybox-argv0 end");
@@ -697,6 +841,7 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     test_busybox_sh_via_busybox();
     test_busybox_ps_via_busybox();
     test_busybox_sleep_via_busybox();
+    test_busybox_kill_via_busybox();
     log_line("[posix-smoke] programs phase busybox-dispatch end");
 }
 

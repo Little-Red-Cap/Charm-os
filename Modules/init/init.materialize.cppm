@@ -367,6 +367,28 @@ namespace init::detail {
                       }) {
             return materialize_item(out, value.plan(), constraints);
         } else if constexpr (requires(const Legacy& candidate) {
+                                 candidate.for_each_legacy_node([](const Node&) noexcept {});
+                             }) {
+            util::Errc error = util::Errc::ok;
+            value.for_each_legacy_node([&](const Node& node) noexcept {
+                if (!util::ok(error)) {
+                    return;
+                }
+                auto current = append_node(out, node, constraints);
+                if (!current) {
+                    error = current.error();
+                    return;
+                }
+                auto merge = absorb_summary(summary, *current);
+                if (!merge) {
+                    error = merge.error();
+                }
+            });
+            if (!util::ok(error)) {
+                return util::unexpected(error);
+            }
+            return summary;
+        } else if constexpr (requires(const Legacy& candidate) {
                           candidate.node_span();
                       }) {
             const auto span = value.node_span();
@@ -398,7 +420,7 @@ namespace init::detail {
             return summary;
         } else {
             static_assert(unsupported_legacy_v<Legacy>,
-                          "init::legacy(...) requires node_span() or a node member");
+                          "init::legacy(...) requires plan(), for_each_legacy_node(...), node_span(), or a node member");
         }
     }
 
@@ -459,6 +481,8 @@ namespace init::detail {
 
         if constexpr (requires(const Item& candidate) {
                           candidate.plan();
+                      } || requires(const Item& candidate) {
+                          candidate.for_each_legacy_node([](const Node&) noexcept {});
                       } || requires(const Item& candidate) {
                           candidate.node_span();
                       } || requires(const Item& candidate) {

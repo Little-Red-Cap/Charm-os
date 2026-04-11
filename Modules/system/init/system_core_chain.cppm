@@ -74,6 +74,15 @@ export namespace charm::system {
                 init::as_plan(pump_binding));
         }
 
+        template <typename Fn>
+        constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
+            for (util::usize i = 0; i < nodes.size(); ++i) {
+                if (nodes[i]) {
+                    fn(*nodes[i]);
+                }
+            }
+        }
+
         [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
         std::span<const init::Node* const> node_span() const noexcept {
             return std::span<const init::Node* const>(nodes.data(), nodes.size());

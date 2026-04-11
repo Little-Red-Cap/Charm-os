@@ -22,6 +22,7 @@ import posix.proc;
 import posix.fd_table;
 import fs_core;
 import fs_errno;
+import fs_ramfs;
 import fs_stream;
 import fs_vfs;
 import util.core;
@@ -105,6 +106,69 @@ namespace {
         nullptr,
         nullptr,
         nullptr
+    };
+
+    template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
+    struct ApiRamFsMount {
+        fs::RamFs<BlockSize, MaxFiles, MaxBlocks> fs{};
+        fs::Mount mount{};
+
+        ApiRamFsMount() noexcept {
+            mount.ops = &ops_;
+            mount.data = this;
+        }
+
+        fs::Mount* mount_point() noexcept { return &mount; }
+
+        static fs::Status open_impl(fs::Mount* m, std::string_view path, fs::File& out, fs::OpenFlags flags) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.open(path, out, flags);
+        }
+
+        static fs::Status mkdir_impl(fs::Mount* m, std::string_view path) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.mkdir(path);
+        }
+
+        static fs::Status unlink_impl(fs::Mount* m, std::string_view path) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.unlink(path);
+        }
+
+        static fs::Status truncate_impl(fs::Mount* m, std::string_view path, util::u64 size) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.truncate(path, size);
+        }
+
+        static fs::Status rename_impl(fs::Mount* m, std::string_view from, std::string_view to) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.rename(from, to);
+        }
+
+        static fs::Status list_impl(fs::Mount* m, std::string_view path, void* ctx, fs::MountOps::ListFn fn) noexcept {
+            auto* self = static_cast<ApiRamFsMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            return self->fs.list(path, ctx, fn);
+        }
+
+        static fs::MountOps ops_;
+    };
+
+    template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
+    fs::MountOps ApiRamFsMount<BlockSize, MaxFiles, MaxBlocks>::ops_{
+        &ApiRamFsMount::open_impl,
+        nullptr,
+        nullptr,
+        &ApiRamFsMount::unlink_impl,
+        &ApiRamFsMount::rename_impl,
+        &ApiRamFsMount::truncate_impl,
+        &ApiRamFsMount::mkdir_impl,
+        &ApiRamFsMount::list_impl
     };
 
     int demo_main(int argc, char** argv) {
@@ -230,6 +294,71 @@ namespace {
         posix::set_errno(0);
         check_eq("spawnp-miss", api.spawnp(cfg), -1);
         check_eq("spawnp-miss-errno", posix::get_errno(), posix::ENOENT);
+    }
+
+    void test_api_fs_basics_and_readdir() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("fs-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<8> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 8> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 8> api{fds, files, pipes, procs};
+        check_eq("fs-mkdir", api.mkdir("/work"), 0);
+
+        int fd = api.open("/work/a.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("fs-open", fd >= 0);
+        check_eq("fs-write", api.write(fd, "z", 1), 1);
+        check_eq("fs-close", api.close(fd), 0);
+
+        check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
+
+        auto* root_dir = api.opendir("/");
+        check_true("fs-opendir-root", root_dir != nullptr);
+        bool saw_work = false;
+        posix::set_errno(0);
+        while (const auto* ent = api.readdir(root_dir)) {
+            if (std::string_view{ent->d_name.data()} == "work") {
+                saw_work = true;
+                check_eq("fs-root-dir-mode", ent->d_mode & posix::S_IFMT, posix::S_IFDIR);
+            }
+        }
+        check_eq("fs-closedir-root", api.closedir(root_dir), 0);
+        check_true("fs-saw-work", saw_work);
+
+        auto* work_dir = api.opendir("/work");
+        check_true("fs-opendir-work", work_dir != nullptr);
+        bool saw_file = false;
+        posix::set_errno(0);
+        while (const auto* ent = api.readdir(work_dir)) {
+            if (std::string_view{ent->d_name.data()} == "b.txt") {
+                saw_file = true;
+                check_eq("fs-work-file-mode", ent->d_mode & posix::S_IFMT, posix::S_IFREG);
+                check_eq("fs-work-file-size", ent->d_size, 1u);
+            }
+        }
+        check_eq("fs-closedir-work", api.closedir(work_dir), 0);
+        check_true("fs-saw-file", saw_file);
+
+        check_eq("fs-unlink", api.unlink("/work/b.txt"), 0);
+        posix::set_errno(0);
+        check_eq("fs-unlink-missing", api.unlink("/work/b.txt"), -1);
+        check_eq("fs-unlink-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        work_dir = api.opendir("/work");
+        check_true("fs-opendir-empty", work_dir != nullptr);
+        posix::set_errno(0);
+        check_true("fs-empty-readdir", api.readdir(work_dir) == nullptr);
+        check_eq("fs-empty-readdir-errno", posix::get_errno(), 0);
+        check_eq("fs-closedir-empty", api.closedir(work_dir), 0);
     }
 
     void test_api_dev_null_and_isatty() noexcept {
@@ -406,6 +535,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_spawnp_wait();
+    test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");

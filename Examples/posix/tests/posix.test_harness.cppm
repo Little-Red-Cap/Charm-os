@@ -124,6 +124,23 @@ export namespace posix::testsupport {
         return 0;
     }
 
+    template <util::usize N>
+    bool make_absolute_path(std::string_view in, std::array<char, N>& out) noexcept {
+        if (in.empty() || N < 2) return false;
+        util::usize pos = 0;
+        if (in[0] != '/') {
+            out[pos++] = '/';
+        }
+        if (pos + in.size() >= out.size()) {
+            return false;
+        }
+        for (char ch : in) {
+            out[pos++] = ch;
+        }
+        out[pos] = '\0';
+        return true;
+    }
+
     int hello_main(int, char**) {
         return write_text(1, "hello\n");
     }
@@ -278,6 +295,59 @@ export namespace posix::testsupport {
         return rc;
     }
 
+    int mkdir_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 2 || !argv || !argv[1]) return 2;
+        std::array<char, 64> path_buf{};
+        if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 3;
+        return ProgramEnv::api->mkdir(path_buf.data()) == 0 ? 0 : 4;
+    }
+
+    int rm_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 2 || !argv || !argv[1]) return 2;
+        std::array<char, 64> path_buf{};
+        if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 3;
+        return ProgramEnv::api->unlink(path_buf.data()) == 0 ? 0 : 4;
+    }
+
+    int mv_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 3 || !argv || !argv[1] || !argv[2]) return 2;
+        std::array<char, 64> from_buf{};
+        std::array<char, 64> to_buf{};
+        if (!make_absolute_path(std::string_view{argv[1]}, from_buf)) return 3;
+        if (!make_absolute_path(std::string_view{argv[2]}, to_buf)) return 3;
+        return ProgramEnv::api->rename(from_buf.data(), to_buf.data()) == 0 ? 0 : 4;
+    }
+
+    int ls_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        std::array<char, 64> path_buf{};
+        const char* path = "/";
+        if (argc > 1 && argv && argv[1]) {
+            if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 2;
+            path = path_buf.data();
+        }
+        auto* dir = ProgramEnv::api->opendir(path);
+        if (!dir) return 3;
+        posix::set_errno(0);
+        while (const auto* ent = ProgramEnv::api->readdir(dir)) {
+            const std::string_view name{ent->d_name.data()};
+            if (write_text(1, name) != 0) {
+                (void)ProgramEnv::api->closedir(dir);
+                return 4;
+            }
+            if (write_text(1, "\n") != 0) {
+                (void)ProgramEnv::api->closedir(dir);
+                return 4;
+            }
+        }
+        const int err = posix::get_errno();
+        if (ProgramEnv::api->closedir(dir) != 0) return 5;
+        return err == 0 ? 0 : 6;
+    }
+
     inline std::string_view command_basename(std::string_view name) noexcept {
         const auto pos = name.find_last_of('/');
         return pos == std::string_view::npos ? name : name.substr(pos + 1);
@@ -297,6 +367,18 @@ export namespace posix::testsupport {
             }
             if (applet_name == "sh") {
                 return sh_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "mkdir") {
+                return mkdir_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "rm") {
+                return rm_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "mv") {
+                return mv_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "ls") {
+                return ls_main(applet_argc, applet_argv);
             }
             return 127;
         };
@@ -398,6 +480,7 @@ export namespace posix::testsupport {
             pipes.init();
             procs.init();
             procs.bind_fd_table(fds);
+            procs.bind_file_service(files);
             procs.bind_process_hooks(&on_process_enter, &on_process_exit, &api);
         }
 

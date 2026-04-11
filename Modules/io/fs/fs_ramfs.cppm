@@ -95,25 +95,14 @@ export namespace fs {
         }
 
         Status mkdir(std::string_view path) noexcept {
-            auto norm = normalize(path);
-            auto trimmed = rstrip_seps(norm);
-            PathView pv{trimmed.data, trimmed.size};
-            if (pv.size == 0) return Status{Errc::inval};
-            auto cur_idx = root_index;
-            while (true) {
-                auto [head, rest] = split_first(pv);
-                if (head.size == 0) return Status{Errc::inval};
-                auto* fe = find_child(cur_idx, head);
-                if (!fe) {
-                    fe = create_entry(cur_idx, head, true);
-                    if (!fe) return Status{Errc::nomem};
-                } else if (!fe->is_dir) {
-                    return Status{Errc::inval};
-                }
-                if (rest.size == 0) return Status{Errc::ok};
-                cur_idx = static_cast<util::usize>(fe - files_.data());
-                pv = rest;
-            }
+            util::usize parent = root_index;
+            PathView leaf{};
+            auto st = resolve_parent(path, parent, leaf);
+            if (!st) return st;
+            auto* fe = find_child(parent, leaf);
+            if (fe && fe->used) return Status{Errc::exist};
+            if (!create_entry(parent, leaf, true)) return Status{Errc::nomem};
+            return Status{Errc::ok};
         }
 
         Status unlink(std::string_view path) noexcept {
@@ -245,7 +234,8 @@ export namespace fs {
                     auto [head, rest] = split_first(dv);
                     if (head.size == 0) return Status{Errc::inval};
                     auto* fe = find_child(cur_idx, head);
-                    if (!fe || !fe->is_dir) return Status{Errc::noent};
+                    if (!fe) return Status{Errc::noent};
+                    if (!fe->is_dir) return Status{Errc::notdir};
                     cur_idx = static_cast<util::usize>(fe - files_.data());
                     dv = rest;
                 }
@@ -268,7 +258,8 @@ export namespace fs {
                 auto [head, rest] = split_first(pv);
                 if (head.size == 0) return Status{Errc::inval};
                 auto* fe = find_child(cur_idx, head);
-                if (!fe || !fe->is_dir) return Status{Errc::noent};
+                if (!fe) return Status{Errc::noent};
+                if (!fe->is_dir) return Status{Errc::notdir};
                 cur_idx = static_cast<util::usize>(fe - files_.data());
                 pv = rest;
             }

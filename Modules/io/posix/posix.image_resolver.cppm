@@ -21,6 +21,9 @@ export namespace posix {
                                                      Registry& elf_mem_registry,
                                                      std::array<char, MaxPathLen>& resolved_path) noexcept {
         if (is_elf_mem_prefixed(cfg.path, cfg.argv)) {
+            if (!service.elf_exec_enabled()) {
+                return util::unexpected(util::Errc::not_supported);
+            }
             auto mem_name = resolve_elf_mem_name(cfg.path, cfg.argv);
             if (mem_name.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
@@ -33,6 +36,9 @@ export namespace posix {
         }
 
         if (is_elf_prefixed(cfg.path, cfg.argv)) {
+            if (!service.elf_exec_enabled()) {
+                return util::unexpected(util::Errc::not_supported);
+            }
             auto elf_path = resolve_elf_path(cfg.path, cfg.argv);
             if (elf_path.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);

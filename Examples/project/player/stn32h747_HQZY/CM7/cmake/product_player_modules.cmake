@@ -1,3 +1,7 @@
+set(MODULE_GROUP_PRODUCT_CONFIG
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/app_config.cppm"
+)
+
 set(MODULE_GROUP_PRODUCT_BASE
     "${CMAKE_CURRENT_SOURCE_DIR}/app/debug_hooks.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/app/app_config.cppm"

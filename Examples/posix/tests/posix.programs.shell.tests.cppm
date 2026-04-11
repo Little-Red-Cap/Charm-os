@@ -279,6 +279,10 @@ namespace {
         check_true("sh2-register-echo", reg_echo);
         auto reg_cat = h.procs.register_executable("/bin/cat", &cat_main);
         check_true("sh2-register-cat", reg_cat);
+        auto reg_stderr_demo = h.procs.register_executable("/bin/stderr_demo", &stderr_demo_main);
+        check_true("sh2-register-stderr-demo", reg_stderr_demo);
+        auto reg_sleep = h.procs.register_executable("/bin/sleep", &sleep_main);
+        check_true("sh2-register-sleep", reg_sleep);
         auto reg_sh = h.procs.register_executable("/bin/sh", &sh_main);
         check_true("sh2-register-sh", reg_sh);
 
@@ -299,6 +303,26 @@ namespace {
         auto r = h.api.read(rfd, buf.data(), buf.size());
         check_true("sh2-read-len", r >= 3);
         check_eq("sh2-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        (void)h.api.close(rfd);
+
+        const char* argv_append[] = {"sh", "-c", "echo ho >> out.txt", nullptr};
+        posix::SpawnConfig cfg_append{};
+        cfg_append.path = "sh";
+        cfg_append.argv = std::span<const char* const>(argv_append, 3);
+        cfg_append.envp = path_env;
+        int pid_append = h.api.spawnp(cfg_append);
+        check_true("sh2-spawn-append", pid_append > 0);
+        int status_append = 0;
+        check_eq("sh2-waitpid-append", h.api.waitpid(posix::ProcessId{pid_append}, &status_append, 0), pid_append);
+        check_eq("sh2-status-append", (status_append >> 8) & 0xff, 0);
+
+        rfd = h.api.open("/out.txt", posix::O_RDONLY, 0);
+        check_true("sh2-open-read-append", rfd >= 0);
+        std::array<char, 16> append_buf{};
+        auto append_read = h.api.read(rfd, append_buf.data(), append_buf.size());
+        check_true("sh2-append-read-len", append_read >= 6);
+        check_eq("sh2-append-read-text", std::string_view{append_buf.data(), 6}, std::string_view{"hi\nho\n"});
+        (void)h.api.close(rfd);
 
         int pipefd[2]{-1, -1};
         check_eq("sh2-pipe", h.api.pipe(pipefd), 0);
@@ -325,6 +349,130 @@ namespace {
         auto r2 = h.api.read(read_fd, buf.data(), buf.size());
         check_true("sh2-read2-len", r2 >= 3);
         check_eq("sh2-read2-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+
+        int in_fd = h.api.open("/input.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("sh2-input-open", in_fd >= 0);
+        check_eq("sh2-input-write", h.api.write(in_fd, "cat-in\n", 7), 7);
+        check_eq("sh2-input-close", h.api.close(in_fd), 0);
+
+        int pipe_in[2]{-1, -1};
+        check_eq("sh2-input-pipe", h.api.pipe(pipe_in), 0);
+        int input_read_fd = pipe_in[0];
+        if (input_read_fd == 0 || input_read_fd == 1 || input_read_fd == 2) {
+            check_true("sh2-input-move-read", h.fds.dup2(input_read_fd, 12));
+            input_read_fd = 12;
+        }
+
+        const char* argv_input[] = {"sh", "-c", "cat < input.txt", nullptr};
+        posix::SpawnConfig cfg_input{};
+        cfg_input.path = "sh";
+        cfg_input.argv = std::span<const char* const>(argv_input, 3);
+        cfg_input.envp = path_env;
+        cfg_input.stdio_out = pipe_in[1];
+        int pid3 = h.api.spawnp(cfg_input);
+        check_true("sh2-spawn-input", pid3 > 0);
+        int status3 = 0;
+        check_eq("sh2-waitpid-input", h.api.waitpid(posix::ProcessId{pid3}, &status3, 0), pid3);
+        check_eq("sh2-status-input", (status3 >> 8) & 0xff, 0);
+        if (pipe_in[1] != 1) {
+            (void)h.api.close(pipe_in[1]);
+        }
+        auto r3 = h.api.read(input_read_fd, buf.data(), buf.size());
+        check_true("sh2-read3-len", r3 >= 7);
+        check_eq("sh2-read3-text", std::string_view{buf.data(), 7}, std::string_view{"cat-in\n"});
+        if (input_read_fd != pipe_in[0]) {
+            (void)h.api.close(input_read_fd);
+        } else {
+            (void)h.api.close(pipe_in[0]);
+        }
+
+        int pipe_out[2]{-1, -1};
+        check_eq("sh2-stderr-pipe", h.api.pipe(pipe_out), 0);
+        int stderr_out_read = pipe_out[0];
+        if (stderr_out_read == 0 || stderr_out_read == 1 || stderr_out_read == 2) {
+            check_true("sh2-stderr-move-read", h.fds.dup2(stderr_out_read, 13));
+            stderr_out_read = 13;
+        }
+
+        const char* argv_stderr[] = {"sh", "-c", "stderr_demo 2> err.txt", nullptr};
+        posix::SpawnConfig cfg_stderr{};
+        cfg_stderr.path = "sh";
+        cfg_stderr.argv = std::span<const char* const>(argv_stderr, 3);
+        cfg_stderr.envp = path_env;
+        cfg_stderr.stdio_out = pipe_out[1];
+        int pid4 = h.api.spawnp(cfg_stderr);
+        check_true("sh2-spawn-stderr", pid4 > 0);
+        int status4 = 0;
+        check_eq("sh2-waitpid-stderr", h.api.waitpid(posix::ProcessId{pid4}, &status4, 0), pid4);
+        check_eq("sh2-status-stderr", (status4 >> 8) & 0xff, 0);
+        if (pipe_out[1] != 1) {
+            (void)h.api.close(pipe_out[1]);
+        }
+        auto r4 = h.api.read(stderr_out_read, buf.data(), buf.size());
+        check_true("sh2-read4-len", r4 >= 4);
+        check_eq("sh2-read4-text", std::string_view{buf.data(), 4}, std::string_view{"out\n"});
+        if (stderr_out_read != pipe_out[0]) {
+            (void)h.api.close(stderr_out_read);
+        } else {
+            (void)h.api.close(pipe_out[0]);
+        }
+
+        int err_fd = h.api.open("/err.txt", posix::O_RDONLY, 0);
+        check_true("sh2-err-open", err_fd >= 0);
+        std::array<char, 16> err_buf{};
+        auto err_read = h.api.read(err_fd, err_buf.data(), err_buf.size());
+        check_true("sh2-err-read-len", err_read >= 4);
+        check_eq("sh2-err-read-text", std::string_view{err_buf.data(), 4}, std::string_view{"err\n"});
+        (void)h.api.close(err_fd);
+
+        const char* argv_merge[] = {"sh", "-c", "stderr_demo > both.txt 2>&1", nullptr};
+        posix::SpawnConfig cfg_merge{};
+        cfg_merge.path = "sh";
+        cfg_merge.argv = std::span<const char* const>(argv_merge, 3);
+        cfg_merge.envp = path_env;
+        int pid5 = h.api.spawnp(cfg_merge);
+        check_true("sh2-spawn-merge", pid5 > 0);
+        int status5 = 0;
+        check_eq("sh2-waitpid-merge", h.api.waitpid(posix::ProcessId{pid5}, &status5, 0), pid5);
+        check_eq("sh2-status-merge", (status5 >> 8) & 0xff, 0);
+
+        int both_fd = h.api.open("/both.txt", posix::O_RDONLY, 0);
+        check_true("sh2-both-open", both_fd >= 0);
+        std::array<char, 16> both_buf{};
+        auto both_read = h.api.read(both_fd, both_buf.data(), both_buf.size());
+        check_true("sh2-both-read-len", both_read >= 8);
+        check_eq("sh2-both-read-text", std::string_view{both_buf.data(), 8}, std::string_view{"out\nerr\n"});
+        (void)h.api.close(both_fd);
+
+        const char* argv_merge_append[] = {"sh", "-c", "stderr_demo >> both.txt 2>&1", nullptr};
+        posix::SpawnConfig cfg_merge_append{};
+        cfg_merge_append.path = "sh";
+        cfg_merge_append.argv = std::span<const char* const>(argv_merge_append, 3);
+        cfg_merge_append.envp = path_env;
+        int pid6 = h.api.spawnp(cfg_merge_append);
+        check_true("sh2-spawn-merge-append", pid6 > 0);
+        int status6 = 0;
+        check_eq("sh2-waitpid-merge-append", h.api.waitpid(posix::ProcessId{pid6}, &status6, 0), pid6);
+        check_eq("sh2-status-merge-append", (status6 >> 8) & 0xff, 0);
+
+        both_fd = h.api.open("/both.txt", posix::O_RDONLY, 0);
+        check_true("sh2-both-open-append", both_fd >= 0);
+        std::array<char, 24> both_append_buf{};
+        auto both_append_read = h.api.read(both_fd, both_append_buf.data(), both_append_buf.size());
+        check_true("sh2-both-append-read-len", both_append_read >= 16);
+        check_eq("sh2-both-append-read-text", std::string_view{both_append_buf.data(), 16}, std::string_view{"out\nerr\nout\nerr\n"});
+        (void)h.api.close(both_fd);
+
+        const char* argv_sleep[] = {"sh", "-c", "sleep 2", nullptr};
+        posix::SpawnConfig cfg_sleep{};
+        cfg_sleep.path = "sh";
+        cfg_sleep.argv = std::span<const char* const>(argv_sleep, 3);
+        cfg_sleep.envp = path_env;
+        int pid_sleep = h.api.spawnp(cfg_sleep);
+        check_true("sh2-spawn-sleep", pid_sleep > 0);
+        int status_sleep = 0;
+        check_eq("sh2-waitpid-sleep", h.api.waitpid(posix::ProcessId{pid_sleep}, &status_sleep, 0), pid_sleep);
+        check_eq("sh2-status-sleep", (status_sleep >> 8) & 0xff, 0);
         h.unbind_env();
     }
 
@@ -365,6 +513,49 @@ namespace {
         auto r = h.api.read(read_fd, buf.data(), buf.size());
         check_true("bb-argv0-read-len", r >= 3);
         check_eq("bb-argv0-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
+        h.unbind_env();
+    }
+
+    void test_sh_c_ps() noexcept {
+        Harness h{};
+        h.bind_env();
+        const auto path_env = program_path_env();
+        auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
+        check_true("ps-register-sh", reg_sh);
+        auto reg_ps = h.procs.register_executable("/bin/ps", &busybox_main);
+        check_true("ps-register-ps", reg_ps);
+
+        int pipefd[2]{-1, -1};
+        check_eq("ps-pipe", h.api.pipe(pipefd), 0);
+        int read_fd = pipefd[0];
+        if (read_fd == 0 || read_fd == 1 || read_fd == 2) {
+            check_true("ps-move-read", h.fds.dup2(read_fd, 11));
+            read_fd = 11;
+        }
+
+        const char* argv[] = {"sh", "-c", "ps", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "sh";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.envp = path_env;
+        cfg.stdio_out = pipefd[1];
+
+        int pid = h.api.spawnp(cfg);
+        check_true("ps-spawn", pid > 0);
+        int status = 0;
+        check_eq("ps-waitpid", h.api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("ps-status", (status >> 8) & 0xff, 0);
+        if (pipefd[1] != 1) {
+            (void)h.api.close(pipefd[1]);
+        }
+
+        std::array<char, 128> buf{};
+        auto r = h.api.read(read_fd, buf.data(), buf.size());
+        check_true("ps-read-len", r > 0);
+        const auto text = std::string_view{buf.data(), static_cast<util::usize>(r)};
+        check_true("ps-header", text.find("PID STATE CMD\n") == 0);
+        check_true("ps-has-sh", text.find(" sh\n") != std::string_view::npos);
+        check_true("ps-has-ps", text.find(" ps\n") != std::string_view::npos);
         h.unbind_env();
     }
 
@@ -429,6 +620,9 @@ export void run_posix_program_shell_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase sh-redir-pipe begin");
     test_sh_c_redir_and_pipe();
     log_line("[posix-smoke] programs phase sh-redir-pipe end");
+    log_line("[posix-smoke] programs phase sh-ps begin");
+    test_sh_c_ps();
+    log_line("[posix-smoke] programs phase sh-ps end");
     log_line("[posix-smoke] programs phase busybox-argv0 begin");
     test_busybox_sh_by_argv0();
     log_line("[posix-smoke] programs phase busybox-argv0 end");

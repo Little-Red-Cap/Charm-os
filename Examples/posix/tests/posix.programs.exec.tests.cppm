@@ -18,6 +18,7 @@ module;
 #include "../elf_samples/env_dump.elf.inc"
 #include "../elf_samples/stderr_demo.elf.inc"
 #include "../elf_samples/exit_code.elf.inc"
+#include "../elf_samples/getpid.elf.inc"
 #include "../elf_samples/cat_file.elf.inc"
 
 export module posix.programs.exec.tests;
@@ -642,6 +643,8 @@ namespace {
             h.procs.register_elf_mem("stderr_demo", stderr_demo_elf, stderr_demo_elf_len));
         check_true("elf-real-reg-exit",
             h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
+        check_true("elf-real-reg-getpid",
+            h.procs.register_elf_mem("getpid", getpid_elf, getpid_elf_len));
 
         {
             int pipefd[2]{-1, -1};
@@ -832,6 +835,27 @@ namespace {
             auto st2 = h.procs.waitpid(sp.pid, 0);
             check_true("elf-real-exit-wait", st2);
             check_eq("elf-real-exit-code", st2.value().code, 7);
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-getpid-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:getpid", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:getpid";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
+            auto sp = spawn_checked("elf-real-getpid-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-getpid-wait", st);
+            check_eq("elf-real-getpid-code", st.value().code, 0);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            char expected[16]{};
+            std::snprintf(expected, sizeof(expected), "%d\n", sp.pid.value);
+            check_eq("elf-real-getpid-out", out, std::string_view{expected});
         }
 
         h.procs.enable_elf_hostcalls(false);

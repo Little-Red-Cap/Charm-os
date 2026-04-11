@@ -281,6 +281,8 @@ namespace {
         check_true("sh2-register-cat", reg_cat);
         auto reg_stderr_demo = h.procs.register_executable("/bin/stderr_demo", &stderr_demo_main);
         check_true("sh2-register-stderr-demo", reg_stderr_demo);
+        auto reg_sleep = h.procs.register_executable("/bin/sleep", &sleep_main);
+        check_true("sh2-register-sleep", reg_sleep);
         auto reg_sh = h.procs.register_executable("/bin/sh", &sh_main);
         check_true("sh2-register-sh", reg_sh);
 
@@ -460,6 +462,17 @@ namespace {
         check_true("sh2-both-append-read-len", both_append_read >= 16);
         check_eq("sh2-both-append-read-text", std::string_view{both_append_buf.data(), 16}, std::string_view{"out\nerr\nout\nerr\n"});
         (void)h.api.close(both_fd);
+
+        const char* argv_sleep[] = {"sh", "-c", "sleep 2", nullptr};
+        posix::SpawnConfig cfg_sleep{};
+        cfg_sleep.path = "sh";
+        cfg_sleep.argv = std::span<const char* const>(argv_sleep, 3);
+        cfg_sleep.envp = path_env;
+        int pid_sleep = h.api.spawnp(cfg_sleep);
+        check_true("sh2-spawn-sleep", pid_sleep > 0);
+        int status_sleep = 0;
+        check_eq("sh2-waitpid-sleep", h.api.waitpid(posix::ProcessId{pid_sleep}, &status_sleep, 0), pid_sleep);
+        check_eq("sh2-status-sleep", (status_sleep >> 8) & 0xff, 0);
         h.unbind_env();
     }
 

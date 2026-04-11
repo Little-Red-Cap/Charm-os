@@ -16,6 +16,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import charm.system.time;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -422,6 +423,16 @@ export namespace posix {
 
         int getpid() const noexcept {
             return bound_pid_ >= 0 ? bound_pid_ : 0;
+        }
+
+        int sleep(unsigned seconds) noexcept {
+            const auto ms = static_cast<util::u64>(seconds) * 1000u;
+            auto st = charm::system::time::try_sleep_ms(ms);
+            if (!st) {
+                set_errno(map_errno(st.error()));
+                return -1;
+            }
+            return 0;
         }
 
     private:

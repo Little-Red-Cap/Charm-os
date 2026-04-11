@@ -20,6 +20,8 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import posix.fd_table;
+import charm.system.clock;
+import charm.system.time;
 import fs_core;
 import fs_errno;
 import fs_ramfs;
@@ -323,6 +325,41 @@ namespace {
         check_eq("getpid-unbound-after", api.getpid(), 0);
     }
 
+    void test_api_sleep() noexcept {
+        struct TestClockState {
+            charm::system::ClockTick ticks_ms{0};
+        };
+        static TestClockState state{};
+        static charm::system::Clock clock{
+            &state,
+            {
+                [](void* ctx) noexcept -> charm::system::ClockTick {
+                    auto* s = static_cast<TestClockState*>(ctx);
+                    return s ? s->ticks_ms++ : 0;
+                },
+                [](void* ctx) noexcept -> charm::system::ClockTick {
+                    auto* s = static_cast<TestClockState*>(ctx);
+                    return s ? (s->ticks_ms++ * 1000u) : 0;
+                }
+            }
+        };
+        state.ticks_ms = 0;
+        charm::system::time::bind(clock);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        check_eq("sleep-zero", api.sleep(0), 0);
+        check_eq("sleep-one", api.sleep(1), 0);
+    }
+
     void test_api_fs_basics_and_readdir() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -581,6 +618,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_spawn_wait();
     test_api_spawnp_wait();
     test_api_getpid();
+    test_api_sleep();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
     test_api_errno_contracts();

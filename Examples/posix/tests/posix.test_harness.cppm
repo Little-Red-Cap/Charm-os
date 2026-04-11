@@ -25,6 +25,8 @@ export import posix.proc;
 export import posix.errno;
 export import posix.program_image_elf;
 export import posix.program_image_modulex;
+export import charm.system.clock;
+export import charm.system.time;
 export import module_core;
 export import fs_core;
 export import fs_errno;
@@ -38,8 +40,8 @@ export namespace posix::testsupport {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
     extern "C" void posix_smoke_emit(const char* msg) noexcept;
 #endif
-    using ProcServiceType = posix::ProcService<4, 4, 16, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
-    using ApiType = posix::Api<16, 8, 64, 4, 4, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
+    using ProcServiceType = posix::ProcService<4, 8, 16, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
+    using ApiType = posix::Api<16, 8, 64, 4, 8, 16, 128, 16, 16, 256, 64 * 1024, 8192>;
 
     [[noreturn]] inline void fail() noexcept { std::abort(); }
     inline void log_line(const char* msg) noexcept {
@@ -117,6 +119,27 @@ export namespace posix::testsupport {
         }
     }
 
+    struct TestClockState {
+        charm::system::ClockTick ticks_ms{0};
+    };
+
+    inline charm::system::ClockTick test_clock_now_ms(void* ctx) noexcept {
+        auto* state = static_cast<TestClockState*>(ctx);
+        if (!state) return 0;
+        return state->ticks_ms++;
+    }
+
+    inline charm::system::ClockTick test_clock_now_us(void* ctx) noexcept {
+        return test_clock_now_ms(ctx) * 1000u;
+    }
+
+    inline void bind_test_clock() noexcept {
+        static TestClockState state{};
+        static charm::system::Clock clock{&state, {.now_ms = &test_clock_now_ms, .now_us = &test_clock_now_us}};
+        state.ticks_ms = 0;
+        charm::system::time::bind(clock);
+    }
+
     inline int write_text(int fd, std::string_view text) noexcept {
         if (!ProgramEnv::api) return 1;
         auto w = ProgramEnv::api->write(fd, text.data(), text.size());
@@ -185,6 +208,17 @@ export namespace posix::testsupport {
         const int r1 = write_text(1, "out\n");
         const int r2 = write_text(2, "err\n");
         return r1 == 0 && r2 == 0 ? 0 : 3;
+    }
+
+    int sleep_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 2 || !argv || !argv[1]) return 2;
+        unsigned seconds = 0;
+        for (const char* p = argv[1]; p && *p; ++p) {
+            if (*p < '0' || *p > '9') return 2;
+            seconds = seconds * 10u + static_cast<unsigned>(*p - '0');
+        }
+        return ProgramEnv::api->sleep(seconds) == 0 ? 0 : 4;
     }
 
     int exit_code_main(int argc, char** argv) {
@@ -289,6 +323,20 @@ export namespace posix::testsupport {
         auto spawn_stderr_demo = [&](int stdio_in, int stdio_out, int stdio_err) noexcept -> int {
             const char* stderr_argv[] = {"stderr_demo", nullptr};
             return spawn_command("stderr_demo", std::span<const char* const>(stderr_argv, 1),
+                                 stdio_in, stdio_out, stdio_err);
+        };
+
+        auto spawn_sleep = [&](std::string_view seconds,
+                               int stdio_in,
+                               int stdio_out,
+                               int stdio_err) noexcept -> int {
+            char sec_buf[32]{};
+            const auto n = seconds.size() < (sizeof(sec_buf) - 1) ? seconds.size() : (sizeof(sec_buf) - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                sec_buf[i] = seconds[i];
+            }
+            const char* sleep_argv[] = {"sleep", sec_buf, nullptr};
+            return spawn_command("sleep", std::span<const char* const>(sleep_argv, 2),
                                  stdio_in, stdio_out, stdio_err);
         };
 
@@ -466,6 +514,12 @@ export namespace posix::testsupport {
             } else {
                 rc = spawn_stderr_demo(input_fd, output_fd, err_fd);
             }
+        } else if (program == "sleep") {
+            if (arg_count != 1) {
+                rc = 127;
+            } else {
+                rc = spawn_sleep(arg_words[0], input_fd, output_fd, err_fd);
+            }
         }
 
         close_if_open(input_fd);
@@ -560,6 +614,9 @@ export namespace posix::testsupport {
             }
             if (applet_name == "ls") {
                 return ls_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "sleep") {
+                return sleep_main(applet_argc, applet_argv);
             }
             return 127;
         };
@@ -656,6 +713,7 @@ export namespace posix::testsupport {
         ApiType api;
 
         Harness() : api(fds, files, pipes, procs) {
+            bind_test_clock();
             fds.init();
             files.init();
             pipes.init();

@@ -106,3 +106,9 @@
 - 第三批：`_lseek`
 
 这里的顺序不是为了把实现永久拆碎，而是为了约束语义扩张顺序：先把最有价值的 I/O 桥打通，再补最小进程控制，最后再触碰 offset 语义。
+
+### 当前已落地的最小桥面
+
+- I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`
+- 路径基础：`_unlink`、`_mkdir`、`_rename`
+- `FILE*` 级验证目前保持为独立 QEMU 烟测目标，避免把全局 stdio/newlib 状态耦合进主 POSIX 回归套件。

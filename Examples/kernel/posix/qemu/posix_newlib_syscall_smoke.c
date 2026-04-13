@@ -1,9 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
-#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
 #include <stdio.h>
-#endif
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -68,18 +66,40 @@ int charm_posix_newlib_path_entry(void) {
     if ((st.st_mode & S_IFMT) != S_IFREG) return 135;
     if (st.st_size != 5) return 136;
 
-    fd = open("/newlib-path.txt", O_RDONLY, 0);
-    if (fd < 0) return 137;
-    if (read(fd, buf, 5) != 5) return 138;
-    if (memcmp(buf, "bravo", 5) != 0) return 139;
+    if (mkdir("/newlib-dir", 0) != 0) return 137;
+
+    fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 138;
+    if (write(fd, "x", 1) != 1) return 139;
     if (close(fd) != 0) return 140;
+    if (unlink("/newlib-dir/probe.txt") != 0) return 141;
 
-    if (unlink("/newlib-path.txt") != 0) return 141;
     errno = 0;
-    if (stat("/newlib-path.txt", &st) != -1) return 142;
-    if (errno == 0) return 143;
+    if (mkdir("/newlib-dir", 0) != -1) return 142;
+    if (errno != EEXIST) return 143;
 
-    return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 144;
+    if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 144;
+
+    errno = 0;
+    if (stat("/newlib-path.txt", &st) != -1) return 145;
+    if (errno != ENOENT) return 146;
+
+    if (stat("/newlib-renamed.txt", &st) != 0) return 147;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 148;
+    if (st.st_size != 5) return 149;
+
+    fd = open("/newlib-renamed.txt", O_RDONLY, 0);
+    if (fd < 0) return 150;
+    if (read(fd, buf, 5) != 5) return 151;
+    if (memcmp(buf, "bravo", 5) != 0) return 152;
+    if (close(fd) != 0) return 153;
+
+    if (unlink("/newlib-renamed.txt") != 0) return 154;
+    errno = 0;
+    if (stat("/newlib-renamed.txt", &st) != -1) return 155;
+    if (errno != ENOENT) return 156;
+
+    return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 157;
 }
 
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE

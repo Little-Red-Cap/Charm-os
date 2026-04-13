@@ -152,15 +152,15 @@ extern "C" int _open(const char* path, int flags, ...) {
 
 extern "C" int _fstat(int fd, struct stat* st) {
     ErrnoScope guard{};
-    posix::PosixStat pst{};
-    const int r = posix::user::fstat(fd, &pst);
-    if (r < 0) {
-        return guard.fail_from_runtime();
-    }
     if (!st) {
         errno = EINVAL;
         *posix::user::errno_location() = EINVAL;
         return -1;
+    }
+    posix::PosixStat pst{};
+    const int r = posix::user::fstat(fd, &pst);
+    if (r < 0) {
+        return guard.fail_from_runtime();
     }
     map_stat(pst, *st);
     guard.restore();
@@ -169,15 +169,15 @@ extern "C" int _fstat(int fd, struct stat* st) {
 
 extern "C" int _stat(const char* path, struct stat* st) {
     ErrnoScope guard{};
-    posix::PosixStat pst{};
-    const int r = posix::user::stat(path, &pst);
-    if (r < 0) {
-        return guard.fail_from_runtime();
-    }
     if (!st) {
         errno = EINVAL;
         *posix::user::errno_location() = EINVAL;
         return -1;
+    }
+    posix::PosixStat pst{};
+    const int r = posix::user::stat(path, &pst);
+    if (r < 0) {
+        return guard.fail_from_runtime();
     }
     map_stat(pst, *st);
     guard.restore();
@@ -231,4 +231,32 @@ extern "C" int _unlink(const char* path) {
     }
     guard.restore();
     return r;
+}
+
+extern "C" int _mkdir(const char* path, int) {
+    ErrnoScope guard{};
+    const int r = posix::user::mkdir(path);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int mkdir(const char* path, mode_t mode) {
+    return _mkdir(path, static_cast<int>(mode));
+}
+
+extern "C" int _rename(const char* from, const char* to) {
+    ErrnoScope guard{};
+    const int r = posix::user::rename(from, to);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int rename(const char* from, const char* to) {
+    return _rename(from, to);
 }

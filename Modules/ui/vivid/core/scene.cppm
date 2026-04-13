@@ -41,6 +41,7 @@ export namespace ui::scene {
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
+    using ListViewTailFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewIconFn = soa_detail::ListViewIconFn;
     using TableViewTextFn = const char* (*)(const void*, std::uint16_t, std::uint8_t) noexcept;
     using TreeViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
@@ -170,6 +171,11 @@ export namespace ui::scene {
                                            const void* ctx,
                                            ListViewSubtitleFn subtitle_fn) noexcept {
             kernel_->set_list_view_subtitle_source(h, ctx, subtitle_fn);
+        }
+        void set_list_view_tail_source(WidgetHandle h,
+                                       const void* ctx,
+                                       ListViewTailFn tail_fn) noexcept {
+            kernel_->set_list_view_tail_source(h, ctx, tail_fn);
         }
         void set_list_view_icon_source(WidgetHandle h,
                                        const void* ctx,

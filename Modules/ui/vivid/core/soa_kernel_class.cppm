@@ -730,6 +730,7 @@ public:
     void set_list_view_active(WidgetHandle h, int index) noexcept ;
     const char* list_view_item_text(WidgetHandle h, std::uint16_t index) const noexcept ;
     const char* list_view_item_subtitle(WidgetHandle h, std::uint16_t index) const noexcept ;
+    const char* list_view_item_tail(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     std::uint8_t list_view_icon_size(WidgetHandle h) const noexcept ;
     std::uint8_t list_view_overscan(WidgetHandle h) const noexcept ;
@@ -737,6 +738,8 @@ public:
         soa_detail::ListViewTextFn text_fn) noexcept ;
     void set_list_view_subtitle_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewSubtitleFn subtitle_fn) noexcept ;
+    void set_list_view_tail_source(WidgetHandle h, const void* ctx,
+        soa_detail::ListViewTailFn tail_fn) noexcept ;
     void set_list_view_icon_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewIconFn icon_fn, std::uint8_t size) noexcept ;
     void set_table_view_header_height(WidgetHandle h, int height) noexcept ;

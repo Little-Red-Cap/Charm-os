@@ -270,16 +270,19 @@
         void rebuild_list_display_cache() {
             list_display_titles.clear();
             list_display_subtitles.clear();
+            list_display_tails.clear();
 
             const std::size_t count = list_order.size();
             list_display_titles.resize(count);
             list_display_subtitles.resize(count);
+            list_display_tails.resize(count);
             for (std::size_t i = 0; i < count; ++i) {
                 const int track_index = list_order[i];
                 const auto* tracks = storage.tracks;
                 if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
                     list_display_titles[i].assign("Unknown Track");
                     list_display_subtitles[i].assign("Track");
+                    list_display_tails[i].assign("");
                     continue;
                 }
                 const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -291,16 +294,20 @@
 
                 std::string_view display_title{};
                 std::string_view display_subtitle{};
+                std::string_view display_tail{};
                 if (library_shows_group_rows()) {
                     display_title = library_group_title_for_track(track_index);
                     char buf[32]{};
                     std::snprintf(buf, sizeof(buf), "%d tracks", library_group_track_count_for_row(static_cast<int>(i)));
                     list_display_titles[i].assign(display_title.empty() ? std::string_view{"Library"} : display_title);
                     list_display_subtitles[i].assign(buf);
+                    list_display_tails[i].assign("");
                     player::font_cache::ensure_text(list_display_titles[i].view());
                     player::font_cache::ensure_text(list_display_subtitles[i].view());
                     continue;
                 }
+
+                display_tail = format;
 
                 switch (library_tab) {
                 case LibraryTab::Songs:
@@ -335,8 +342,10 @@
                 if (display_subtitle.empty()) display_subtitle = "Track";
                 list_display_titles[i].assign(display_title);
                 list_display_subtitles[i].assign(display_subtitle);
+                list_display_tails[i].assign(display_tail);
                 player::font_cache::ensure_text(list_display_titles[i].view());
                 player::font_cache::ensure_text(list_display_subtitles[i].view());
+                player::font_cache::ensure_text(list_display_tails[i].view());
             }
         }
 
@@ -391,6 +400,20 @@
             const auto* subtitles = self->storage.track_subtitles;
             if (!subtitles || track_index >= static_cast<int>(subtitles->size())) return "";
             return (*subtitles)[static_cast<std::size_t>(track_index)].c_str();
+        }
+
+        static const char* list_view_tail(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<const PlayerController*>(ctx);
+            if (!self) return "";
+            const std::size_t row = static_cast<std::size_t>(index);
+            if (row < self->list_display_tails.size()) {
+                return self->list_display_tails[row].c_str();
+            }
+            const int track_index = self->list_index_to_track(static_cast<int>(index));
+            if (track_index < 0) return "";
+            const auto* tracks = self->storage.tracks;
+            if (!tracks || track_index >= static_cast<int>(tracks->size())) return "";
+            return format_from_path((*tracks)[static_cast<std::size_t>(track_index)].view()).data();
         }
 
         static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
@@ -599,6 +622,7 @@
                                          this,
                                          &PlayerController::list_view_text);
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
+            access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
             access.set_list_row_height(handles.list, 72);
             access.set_scroll_step(handles.list, 72);

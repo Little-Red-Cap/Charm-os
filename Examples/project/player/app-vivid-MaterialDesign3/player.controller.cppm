@@ -231,6 +231,7 @@ export namespace player {
         std::vector<int> list_order{};
         std::vector<FixedString<192>> list_display_titles{};
         std::vector<FixedString<128>> list_display_subtitles{};
+        std::vector<FixedString<32>> list_display_tails{};
         std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};

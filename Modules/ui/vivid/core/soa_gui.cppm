@@ -1452,9 +1452,25 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             text_w = row.x + row.w - pad - text_x;
         }
         if (text_w < 0) text_w = 0;
-        const Rect text_rect{text_x, row.y, text_w, row_h};
         const char* title = kernel.list_view_item_text(h, static_cast<std::uint16_t>(i));
         const char* subtitle = kernel.list_view_item_subtitle(h, static_cast<std::uint16_t>(i));
+        const char* tail = kernel.list_view_item_tail(h, static_cast<std::uint16_t>(i));
+        const bool has_tail = tail && tail[0] != '\0';
+        Rect tail_rect{};
+        int main_text_w = text_w;
+        bool draw_tail = false;
+        if (has_tail && text_w >= 96) {
+            int tail_w = text_w / 3;
+            if (tail_w < 48) tail_w = 48;
+            if (tail_w > 88) tail_w = 88;
+            if (tail_w + pad < text_w) {
+                tail_rect = Rect{text_x + text_w - tail_w, row.y, tail_w, row_h};
+                main_text_w = tail_rect.x - pad - text_x;
+                draw_tail = main_text_w >= 24;
+            }
+        }
+        if (main_text_w < 0) main_text_w = 0;
+        const Rect text_rect{text_x, row.y, main_text_w, row_h};
         if (subtitle && subtitle[0] != '\0' && row_h >= 44) {
             const Font& title_font = font_from_metrics(metrics);
             const Font& subtitle_font = get_font(FontId::Small);
@@ -1464,8 +1480,8 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             const int total_h = title_h + line_gap + subtitle_h;
             int top = row.y + (row_h - total_h) / 2;
             if (top < row.y) top = row.y;
-            const Rect title_rect{text_x, top, text_w, title_h};
-            const Rect subtitle_rect{text_x, top + title_h + line_gap, text_w, subtitle_h};
+            const Rect title_rect{text_x, top, main_text_w, title_h};
+            const Rect subtitle_rect{text_x, top + title_h + line_gap, main_text_w, subtitle_h};
             const auto subtitle_color = row_selected ? colors.on_accent
                                                      : (row_active ? colors.accent : colors.border);
             out.draw_text_box(title_rect, title ? title : "", font, title_font,
@@ -1475,6 +1491,13 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         } else {
             out.draw_text_box(text_rect, title ? title : "", font, font_from_metrics(metrics),
                               TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
+        if (draw_tail) {
+            const Font& tail_font = get_font(FontId::Small);
+            const auto tail_color = row_selected ? colors.on_accent
+                                                 : (row_active ? colors.accent : colors.border);
+            out.draw_text_box(tail_rect, tail, tail_color, tail_font,
+                              TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
         y += row_h;
     }

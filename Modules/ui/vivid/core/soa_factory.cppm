@@ -414,6 +414,11 @@ public:
                                        soa_detail::ListViewSubtitleFn fn) noexcept {
         kernel_.set_list_view_subtitle_source(h, ctx, fn);
     }
+    void set_list_view_tail_source(WidgetHandle h,
+                                   const void* ctx,
+                                   soa_detail::ListViewTailFn fn) noexcept {
+        kernel_.set_list_view_tail_source(h, ctx, fn);
+    }
     void set_list_view_icon_source(WidgetHandle h,
                                    const void* ctx,
                                    soa_detail::ListViewIconFn fn,

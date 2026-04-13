@@ -369,3 +369,18 @@ extern "C" int _access(const char* path, int mode) {
 extern "C" int access(const char* path, int mode) {
     return _access(path, mode);
 }
+
+extern "C" int remove(const char* path) {
+    ErrnoScope guard{};
+    posix::PosixStat st{};
+    if (posix::user::stat(path, &st) < 0) {
+        return guard.fail_from_runtime();
+    }
+    const bool is_dir = (st.mode & S_IFMT) == S_IFDIR;
+    const int r = is_dir ? posix::user::rmdir(path) : posix::user::unlink(path);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return 0;
+}

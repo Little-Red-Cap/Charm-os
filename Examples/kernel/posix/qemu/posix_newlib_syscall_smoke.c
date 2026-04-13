@@ -161,8 +161,11 @@ int charm_posix_newlib_stdio_entry(void) {
 
     if (remove("/newlib-stdio.txt") != 0) return 163;
 
-    if (fputs("newlib-stdio-ok\n", stdout) == EOF) return 164;
-    if (fflush(stdout) != 0) return 165;
+    if (mkdir("/newlib-stdio-dir", 0) != 0) return 164;
+    if (remove("/newlib-stdio-dir") != 0) return 165;
+
+    if (fputs("newlib-stdio-ok\n", stdout) == EOF) return 166;
+    if (fflush(stdout) != 0) return 167;
     return 0;
 }
 #endif

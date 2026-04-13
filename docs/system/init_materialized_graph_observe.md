@@ -372,6 +372,21 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 按需展开依赖边表，验证 provider / consumer / capability
 - 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
 
+如果要比较两份 bundle 的结构差异，仓库根目录还提供了：
+
+```powershell
+./scripts/diff_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b
+./scripts/diff_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b -Case materialize-observe-demo -ShowDetails
+./scripts/diff_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b -AsJson
+```
+
+它当前会比较：
+
+- case 是否新增 / 删除 / 变化 / 不变
+- case 级摘要字段，例如 `node_count / edge_count / phase / runlevel / node_kinds`
+- 节点新增 / 删除 / 字段变化
+- 依赖边新增 / 删除
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

@@ -22,6 +22,29 @@ namespace {
     inline constexpr int kPosixOpenCreate = 0x40;
     inline constexpr int kPosixOpenTrunc = 0x200;
     inline constexpr int kPosixOpenAppend = 0x400;
+    inline constexpr int kRuntimeErrPerm = 1;
+    inline constexpr int kRuntimeErrNoent = 2;
+    inline constexpr int kRuntimeErrIo = 5;
+    inline constexpr int kRuntimeErrBadf = 9;
+    inline constexpr int kRuntimeErrAgain = 11;
+    inline constexpr int kRuntimeErrNomem = 12;
+    inline constexpr int kRuntimeErrAccess = 13;
+    inline constexpr int kRuntimeErrBusy = 16;
+    inline constexpr int kRuntimeErrExist = 17;
+    inline constexpr int kRuntimeErrNotdir = 20;
+    inline constexpr int kRuntimeErrIsdir = 21;
+    inline constexpr int kRuntimeErrInval = 22;
+    inline constexpr int kRuntimeErrNfile = 23;
+    inline constexpr int kRuntimeErrMfile = 24;
+    inline constexpr int kRuntimeErrNospc = 28;
+    inline constexpr int kRuntimeErrSpipe = 29;
+    inline constexpr int kRuntimeErrRofs = 30;
+    inline constexpr int kRuntimeErrPipe = 32;
+    inline constexpr int kRuntimeErrNametoolong = 36;
+    inline constexpr int kRuntimeErrNosys = 38;
+    inline constexpr int kRuntimeErrNotempty = 39;
+    inline constexpr int kRuntimeErrNotsup = 95;
+    inline constexpr int kRuntimeErrTimedout = 110;
 
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
     inline constexpr std::size_t kNewlibHeapSize = 128u * 1024u;
@@ -29,6 +52,8 @@ namespace {
     alignas(16) unsigned char g_newlib_heap[kNewlibHeapSize]{};
     unsigned char* g_newlib_brk = g_newlib_heap;
 #endif
+
+    int translate_runtime_errno_to_c(int runtime_err) noexcept;
 
     struct ErrnoScope {
         int c_errno{errno};
@@ -39,16 +64,50 @@ namespace {
             *posix::user::errno_location() = runtime_errno;
         }
 
-        int fail_from_runtime(int fallback = EIO) const noexcept {
+        int fail_from_runtime(int fallback = kRuntimeErrIo) const noexcept {
             int value = *posix::user::errno_location();
             if (value == 0) {
                 value = fallback;
                 *posix::user::errno_location() = value;
             }
-            errno = value;
+            errno = translate_runtime_errno_to_c(value);
             return -1;
         }
     };
+
+    int translate_runtime_errno_to_c(int runtime_err) noexcept {
+        switch (runtime_err) {
+            case kRuntimeErrPerm: return EPERM;
+            case kRuntimeErrNoent: return ENOENT;
+            case kRuntimeErrIo: return EIO;
+            case kRuntimeErrBadf: return EBADF;
+            case kRuntimeErrAgain: return EAGAIN;
+            case kRuntimeErrNomem: return ENOMEM;
+            case kRuntimeErrAccess: return EACCES;
+            case kRuntimeErrBusy: return EBUSY;
+            case kRuntimeErrExist: return EEXIST;
+            case kRuntimeErrNotdir: return ENOTDIR;
+            case kRuntimeErrIsdir: return EISDIR;
+            case kRuntimeErrNfile: return ENFILE;
+            case kRuntimeErrMfile: return EMFILE;
+            case kRuntimeErrNospc: return ENOSPC;
+            case kRuntimeErrSpipe: return ESPIPE;
+            case kRuntimeErrRofs: return EROFS;
+            case kRuntimeErrPipe: return EPIPE;
+            case kRuntimeErrNametoolong: return ENAMETOOLONG;
+            case kRuntimeErrNosys: return ENOSYS;
+            case kRuntimeErrNotempty: return ENOTEMPTY;
+            case kRuntimeErrNotsup: return ENOTSUP;
+            case kRuntimeErrTimedout: return ETIMEDOUT;
+            case kRuntimeErrInval: return EINVAL;
+            default: return EIO;
+        }
+    }
+
+    void set_bridge_errno(int runtime_err) noexcept {
+        *posix::user::errno_location() = runtime_err;
+        errno = translate_runtime_errno_to_c(runtime_err);
+    }
 
     void map_stat(const posix::PosixStat& in, struct stat& out) noexcept {
         out = {};
@@ -89,8 +148,7 @@ namespace {
 extern "C" int _read(int fd, char* ptr, int len) {
     ErrnoScope guard{};
     if (len < 0) {
-        errno = EINVAL;
-        *posix::user::errno_location() = EINVAL;
+        set_bridge_errno(kRuntimeErrInval);
         return -1;
     }
     auto r = posix::user::read(fd, ptr, static_cast<util::usize>(len));
@@ -106,8 +164,7 @@ extern "C" caddr_t _sbrk(int incr) {
     const auto used = static_cast<std::ptrdiff_t>(g_newlib_brk - g_newlib_heap);
     const auto next = used + static_cast<std::ptrdiff_t>(incr);
     if (next < 0 || static_cast<std::size_t>(next) > kNewlibHeapSize) {
-        errno = ENOMEM;
-        *posix::user::errno_location() = ENOMEM;
+        set_bridge_errno(kRuntimeErrNomem);
         return reinterpret_cast<caddr_t>(-1);
     }
     auto* previous = g_newlib_heap + used;
@@ -119,8 +176,7 @@ extern "C" caddr_t _sbrk(int incr) {
 extern "C" int _write(int fd, char* ptr, int len) {
     ErrnoScope guard{};
     if (len < 0) {
-        errno = EINVAL;
-        *posix::user::errno_location() = EINVAL;
+        set_bridge_errno(kRuntimeErrInval);
         return -1;
     }
     auto r = posix::user::write(fd, ptr, static_cast<util::usize>(len));
@@ -161,8 +217,7 @@ extern "C" int _open(const char* path, int flags, ...) {
 extern "C" int _fstat(int fd, struct stat* st) {
     ErrnoScope guard{};
     if (!st) {
-        errno = EINVAL;
-        *posix::user::errno_location() = EINVAL;
+        set_bridge_errno(kRuntimeErrInval);
         return -1;
     }
     posix::PosixStat pst{};
@@ -178,8 +233,7 @@ extern "C" int _fstat(int fd, struct stat* st) {
 extern "C" int _stat(const char* path, struct stat* st) {
     ErrnoScope guard{};
     if (!st) {
-        errno = EINVAL;
-        *posix::user::errno_location() = EINVAL;
+        set_bridge_errno(kRuntimeErrInval);
         return -1;
     }
     posix::PosixStat pst{};
@@ -196,7 +250,7 @@ extern "C" int _isatty(int fd) {
     ErrnoScope guard{};
     const int r = posix::user::isatty(fd);
     if (r == 0 && *posix::user::errno_location() != 0) {
-        errno = *posix::user::errno_location();
+        errno = translate_runtime_errno_to_c(*posix::user::errno_location());
         return 0;
     }
     guard.restore();
@@ -255,6 +309,20 @@ extern "C" int mkdir(const char* path, mode_t mode) {
     return _mkdir(path, static_cast<int>(mode));
 }
 
+extern "C" int _rmdir(const char* path) {
+    ErrnoScope guard{};
+    const int r = posix::user::rmdir(path);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int rmdir(const char* path) {
+    return _rmdir(path);
+}
+
 extern "C" int _rename(const char* from, const char* to) {
     ErrnoScope guard{};
     const int r = posix::user::rename(from, to);
@@ -272,8 +340,7 @@ extern "C" int rename(const char* from, const char* to) {
 extern "C" int _access(const char* path, int mode) {
     ErrnoScope guard{};
     if (!has_only_access_mode_bits(mode)) {
-        errno = EINVAL;
-        *posix::user::errno_location() = EINVAL;
+        set_bridge_errno(kRuntimeErrInval);
         return -1;
     }
 
@@ -283,18 +350,15 @@ extern "C" int _access(const char* path, int mode) {
     }
 
     if ((mode & R_OK) != 0 && !has_any_perm(st.mode, 0444u)) {
-        errno = EACCES;
-        *posix::user::errno_location() = EACCES;
+        set_bridge_errno(kRuntimeErrAccess);
         return -1;
     }
     if ((mode & W_OK) != 0 && !has_any_perm(st.mode, 0222u)) {
-        errno = EACCES;
-        *posix::user::errno_location() = EACCES;
+        set_bridge_errno(kRuntimeErrAccess);
         return -1;
     }
     if ((mode & X_OK) != 0 && !has_any_perm(st.mode, 0111u)) {
-        errno = EACCES;
-        *posix::user::errno_location() = EACCES;
+        set_bridge_errno(kRuntimeErrAccess);
         return -1;
     }
 

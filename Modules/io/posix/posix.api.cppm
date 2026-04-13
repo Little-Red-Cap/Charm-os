@@ -314,8 +314,41 @@ export namespace posix {
                 set_errno(EINVAL);
                 return -1;
             }
+            PosixStat st_out{};
+            if (stat(path, &st_out) != 0) {
+                return -1;
+            }
+            if ((st_out.mode & S_IFMT) == S_IFDIR) {
+                set_errno(EISDIR);
+                return -1;
+            }
             auto st = fs::vfs_unlink(std::string_view{path});
             if (!st) {
+                set_errno(map_errno(st.err));
+                return -1;
+            }
+            return 0;
+        }
+
+        int rmdir(const char* path) noexcept {
+            if (!path) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            PosixStat st_out{};
+            if (stat(path, &st_out) != 0) {
+                return -1;
+            }
+            if ((st_out.mode & S_IFMT) != S_IFDIR) {
+                set_errno(ENOTDIR);
+                return -1;
+            }
+            auto st = fs::vfs_unlink(std::string_view{path});
+            if (!st) {
+                if (st.err == fs::Errc::busy) {
+                    set_errno(ENOTEMPTY);
+                    return -1;
+                }
                 set_errno(map_errno(st.err));
                 return -1;
             }

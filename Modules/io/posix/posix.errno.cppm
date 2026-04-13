@@ -32,6 +32,7 @@ export namespace posix {
     inline constexpr int EPIPE = 32;
     inline constexpr int ENAMETOOLONG = 36;
     inline constexpr int ENOSYS = 38;
+    inline constexpr int ENOTEMPTY = 39;
     inline constexpr int ENOTSUP = 95;
     inline constexpr int ETIMEDOUT = 110;
     inline constexpr int EINVAL = 22;
@@ -118,6 +119,7 @@ export namespace posix {
             case EROFS: return util::Errc::rofs;
             case ENAMETOOLONG: return util::Errc::nametoolong;
             case ENOSYS: return util::Errc::nosys;
+            case ENOTEMPTY: return util::Errc::busy;
             case ENOTSUP: return util::Errc::notsup;
             case ETIMEDOUT: return util::Errc::timeout;
             case EPIPE: return util::Errc::closed;

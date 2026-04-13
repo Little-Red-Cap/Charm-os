@@ -512,6 +512,18 @@ namespace {
         check_eq("fs-stat-work-mode", dir_stat.mode & posix::S_IFMT, posix::S_IFDIR);
         check_eq("fs-stat-work-size", dir_stat.size, 0u);
 
+        posix::set_errno(0);
+        check_eq("fs-unlink-dir", api.unlink("/work"), -1);
+        check_eq("fs-unlink-dir-errno", posix::get_errno(), posix::EISDIR);
+
+        posix::set_errno(0);
+        check_eq("fs-rmdir-nonempty", api.rmdir("/work"), -1);
+        check_eq("fs-rmdir-nonempty-errno", posix::get_errno(), posix::ENOTEMPTY);
+
+        posix::set_errno(0);
+        check_eq("fs-rmdir-file", api.rmdir("/work/b.txt"), -1);
+        check_eq("fs-rmdir-file-errno", posix::get_errno(), posix::ENOTDIR);
+
         auto* root_dir = api.opendir("/");
         check_true("fs-opendir-root", root_dir != nullptr);
         bool saw_work = false;
@@ -544,12 +556,14 @@ namespace {
         check_eq("fs-unlink-missing", api.unlink("/work/b.txt"), -1);
         check_eq("fs-unlink-missing-errno", posix::get_errno(), posix::ENOENT);
 
-        work_dir = api.opendir("/work");
-        check_true("fs-opendir-empty", work_dir != nullptr);
+        check_eq("fs-rmdir-empty", api.rmdir("/work"), 0);
         posix::set_errno(0);
-        check_true("fs-empty-readdir", api.readdir(work_dir) == nullptr);
-        check_eq("fs-empty-readdir-errno", posix::get_errno(), 0);
-        check_eq("fs-closedir-empty", api.closedir(work_dir), 0);
+        check_eq("fs-rmdir-missing", api.rmdir("/work"), -1);
+        check_eq("fs-rmdir-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        work_dir = api.opendir("/work");
+        check_true("fs-opendir-empty", work_dir == nullptr);
+        check_eq("fs-opendir-empty-errno", posix::get_errno(), posix::ENOENT);
 
         fd = api.open("/append.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("fs-append-open-base", fd >= 0);

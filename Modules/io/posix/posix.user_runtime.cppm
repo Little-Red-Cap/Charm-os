@@ -104,6 +104,11 @@ namespace posix::user::detail {
     }
 
     template <class Api>
+    int runtime_rmdir(void* ctx, const char* path) noexcept {
+        return static_cast<Api*>(ctx)->rmdir(path);
+    }
+
+    template <class Api>
     int runtime_rename(void* ctx, const char* from, const char* to) noexcept {
         return static_cast<Api*>(ctx)->rename(from, to);
     }
@@ -170,6 +175,7 @@ export namespace posix::user {
         int (*sleep)(void* ctx, unsigned seconds) noexcept {nullptr};
         int (*mkdir)(void* ctx, const char* path) noexcept {nullptr};
         int (*unlink)(void* ctx, const char* path) noexcept {nullptr};
+        int (*rmdir)(void* ctx, const char* path) noexcept {nullptr};
         int (*rename)(void* ctx, const char* from, const char* to) noexcept {nullptr};
         PosixDir* (*opendir)(void* ctx, const char* path) noexcept {nullptr};
         const PosixDirent* (*readdir)(void* ctx, PosixDir* dir) noexcept {nullptr};
@@ -198,6 +204,7 @@ export namespace posix::user {
         runtime.sleep = &detail::runtime_sleep<Api>;
         runtime.mkdir = &detail::runtime_mkdir<Api>;
         runtime.unlink = &detail::runtime_unlink<Api>;
+        runtime.rmdir = &detail::runtime_rmdir<Api>;
         runtime.rename = &detail::runtime_rename<Api>;
         runtime.opendir = &detail::runtime_opendir<Api>;
         runtime.readdir = &detail::runtime_readdir<Api>;
@@ -430,6 +437,16 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->unlink(runtime->ctx, path);
+        });
+    }
+
+    inline int rmdir(const char* path) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->rmdir) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->rmdir(runtime->ctx, path);
         });
     }
 

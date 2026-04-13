@@ -2,7 +2,6 @@ module;
 
 #define CHARM_ALLOW_HAL 1
 
-#include <array>
 #include <cstdint>
 #include <span>
 
@@ -11,6 +10,7 @@ module;
 export module player.runtime.hqzy_cm7.usb_glue;
 
 import charm.system.time;
+import player.stm32h7.usb_glue_core;
 import usb.class_msc;
 import usb.common;
 import usb.device_driver;
@@ -18,138 +18,60 @@ import usb.driver;
 import util.core;
 
 export namespace player::app_test_hqzy::usb_glue {
-    struct UsbGlue {
-        usb::driver::DcdDeviceAdapter adapter{};
-        usb::driver::DcdOps dcd_ops{};
-        usb::class_driver::MscBot* msc_bot{nullptr};
-        const usb::class_driver::MscConfig* msc_cfg{nullptr};
-        std::array<usb::driver::EpCallbacks, 16> out_cbs{};
-        std::array<usb::driver::EpCallbacks, 16> in_cbs{};
-        std::array<void*, 16> out_ctxs{};
-        std::array<void*, 16> in_ctxs{};
-        std::array<std::array<usb::u8, 64>, 16> out_bufs{};
-        std::array<usb::u16, 16> out_mps{};
-        PCD_HandleTypeDef* pcd{nullptr};
+    struct UsbGlue : player::stm32h7::usb_glue_core::Core {
         util::u64 last_msc_ms{0};
-        bool ep0_prepared{false};
-        bool ep0_expect_status_out{false};
-        bool ep0_in_zlp_pending{false};
     };
 
     namespace detail {
-        inline UsbGlue* g_usb = nullptr;
+        namespace usb_core = player::stm32h7::usb_glue_core;
 
         inline UsbGlue* from_ctx(void* ctx) noexcept {
             return static_cast<UsbGlue*>(ctx);
         }
 
-        inline UsbGlue* from_pcd(PCD_HandleTypeDef* pcd) noexcept {
-            return pcd ? static_cast<UsbGlue*>(pcd->pData) : nullptr;
-        }
-
-        inline void prepare_ep0(UsbGlue& glue) noexcept {
-            if (!glue.pcd || glue.ep0_prepared) return;
-            constexpr std::uint8_t ep0_mps = 64;
-            glue.out_mps[0] = ep0_mps;
-            (void)HAL_PCD_EP_Open(glue.pcd, 0x00, ep0_mps, EP_TYPE_CTRL);
-            (void)HAL_PCD_EP_Open(glue.pcd, 0x80, ep0_mps, EP_TYPE_CTRL);
-            glue.pcd->IN_ep[0].data_pid_start = 1;
-            glue.pcd->OUT_ep[0].data_pid_start = 1;
-            (void)HAL_PCD_EP_Receive(glue.pcd, 0x00, glue.out_bufs[0].data(), glue.out_mps[0]);
-            glue.ep0_expect_status_out = false;
-            glue.ep0_in_zlp_pending = false;
-            glue.ep0_prepared = true;
-        }
-
         bool ep_open(void* ctx, const usb::driver::EpConfig& cfg,
                      usb::driver::EpCallbacks cb) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            std::uint8_t type = EP_TYPE_BULK;
-            switch (cfg.type) {
-            case usb::driver::EpType::control: type = EP_TYPE_CTRL; break;
-            case usb::driver::EpType::isochronous: type = EP_TYPE_ISOC; break;
-            case usb::driver::EpType::bulk: type = EP_TYPE_BULK; break;
-            case usb::driver::EpType::interrupt: type = EP_TYPE_INTR; break;
-            }
-            if (HAL_PCD_EP_Open(glue->pcd, cfg.address, cfg.max_packet_size, type) != HAL_OK) {
-                return false;
-            }
-            const std::uint8_t ep_num = static_cast<std::uint8_t>(cfg.address & 0x0F);
-            if (cfg.direction == usb::driver::EpDirection::out) {
-                glue->out_cbs[ep_num] = cb;
-                glue->out_ctxs[ep_num] = cb.ctx;
-                glue->out_mps[ep_num] = cfg.max_packet_size;
-                (void)HAL_PCD_EP_Receive(glue->pcd, cfg.address,
-                    glue->out_bufs[ep_num].data(),
-                    glue->out_mps[ep_num]);
-            } else {
-                glue->in_cbs[ep_num] = cb;
-                glue->in_ctxs[ep_num] = cb.ctx;
-            }
-            return true;
+            return glue && usb_core::ep_open(*glue, glue->pcd, cfg, cb);
         }
 
         bool ep_close(void* ctx, usb::u8 address) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            if (HAL_PCD_EP_Close(glue->pcd, address) != HAL_OK) return false;
-            const std::uint8_t ep_num = static_cast<std::uint8_t>(address & 0x0F);
-            if ((address & 0x80) != 0) {
-                glue->in_cbs[ep_num] = {};
-                glue->in_ctxs[ep_num] = nullptr;
-            } else {
-                glue->out_cbs[ep_num] = {};
-                glue->out_ctxs[ep_num] = nullptr;
-            }
-            return true;
+            return glue && usb_core::ep_close(*glue, glue->pcd, address);
         }
 
         bool ep_send(void* ctx, usb::u8 address,
                      std::span<const usb::u8> data, bool zlp) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            auto* ptr = const_cast<usb::u8*>(data.data());
-            const auto ok = HAL_PCD_EP_Transmit(glue->pcd, address, ptr,
-                static_cast<uint16_t>(data.size())) == HAL_OK;
-            if (address == 0x80) {
-                glue->ep0_in_zlp_pending = ok && zlp && !data.empty();
-            }
-            return ok;
+            return glue && usb_core::ep_send(*glue, glue->pcd, address, data, zlp);
         }
 
         bool ep_stall(void* ctx, usb::u8 address) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            return HAL_PCD_EP_SetStall(glue->pcd, address) == HAL_OK;
+            return glue && usb_core::ep_stall(glue->pcd, address);
         }
 
         bool set_address(void* ctx, usb::u8 address) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            return HAL_PCD_SetAddress(glue->pcd, address) == HAL_OK;
+            return glue && usb_core::set_address(glue->pcd, address);
         }
 
         bool set_configured(void* ctx, bool configured) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            (void)configured;
-            return true;
+            return glue && usb_core::set_configured(*glue, glue->pcd, configured);
         }
 
         bool connect(void* ctx, bool enable) noexcept {
             auto* glue = from_ctx(ctx);
-            if (!glue || !glue->pcd) return false;
-            return enable ? (HAL_PCD_Start(glue->pcd) == HAL_OK)
-                          : (HAL_PCD_Stop(glue->pcd) == HAL_OK);
+            return glue && usb_core::connect(*glue, glue->pcd, enable,
+                usb_core::ConnectMode::start_stop);
         }
     } // namespace detail
 
     inline void init(UsbGlue& glue, PCD_HandleTypeDef* pcd) noexcept {
-        glue.pcd = pcd;
-        if (glue.pcd) {
-            glue.pcd->pData = &glue;
-        }
+        namespace usb_core = player::stm32h7::usb_glue_core;
+
+        usb_core::bind_pcd(glue, pcd);
         glue.dcd_ops.ep.open = &detail::ep_open;
         glue.dcd_ops.ep.close = &detail::ep_close;
         glue.dcd_ops.ep.send = &detail::ep_send;
@@ -157,8 +79,7 @@ export namespace player::app_test_hqzy::usb_glue {
         glue.dcd_ops.set_address = &detail::set_address;
         glue.dcd_ops.set_configured = &detail::set_configured;
         glue.dcd_ops.connect = &detail::connect;
-        detail::prepare_ep0(glue);
-        detail::g_usb = &glue;
+        usb_core::prepare_ep0(glue);
     }
 
     inline usb::driver::DcdOps& dcd_ops(UsbGlue& glue) noexcept { return glue.dcd_ops; }
@@ -169,149 +90,86 @@ export namespace player::app_test_hqzy::usb_glue {
                          const usb::class_driver::MscConfig* cfg) noexcept {
         auto* glue = static_cast<UsbGlue*>(ctx);
         if (!glue) return;
-        glue->msc_bot = bot;
-        glue->msc_cfg = cfg;
-        if (bot && cfg) {
-            glue->out_ctxs[cfg->ep_out & 0x0F] = bot;
-            glue->in_ctxs[cfg->ep_in & 0x0F] = bot;
-        }
+        player::stm32h7::usb_glue_core::set_ready(*glue, bot, cfg);
     }
 
     inline void poll_msc(UsbGlue& glue) noexcept {
-        if (!glue.msc_bot || !glue.msc_cfg) return;
+        if (!glue.msc_bot || !glue.msc_cfg || glue.msc_in_busy) return;
         if (!charm::system::time::bound()) return;
         const auto now = charm::system::time::now_ms();
         if ((now - glue.last_msc_ms) < 1u) return;
         glue.last_msc_ms = now;
         (void)usb::device::examples::send_msc_in_packet(
             glue.dcd_ops,
-            glue.pcd,
+            &glue,
             *glue.msc_bot,
             *glue.msc_cfg);
     }
 } // namespace player::app_test_hqzy::usb_glue
 
 extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
-    if (!hpcd) return 0;
-    auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
-    if (!glue) return 0;
-    usb::SetupPacket setup{};
-    setup.bm_request_type = hpcd->Setup[0];
-    setup.b_request = hpcd->Setup[1];
-    setup.w_value = static_cast<usb::u16>(hpcd->Setup[2] | (hpcd->Setup[3] << 8));
-    setup.w_index = static_cast<usb::u16>(hpcd->Setup[4] | (hpcd->Setup[5] << 8));
-    setup.w_length = static_cast<usb::u16>(hpcd->Setup[6] | (hpcd->Setup[7] << 8));
-    glue->ep0_expect_status_out = ((setup.bm_request_type & 0x80u) != 0u);
-    glue->adapter.handle_setup(setup);
-    return 1;
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    const auto view = usb_core::decode_setup(hpcd);
+    return usb_core::handle_setup(*core, hpcd, view);
 }
 
 extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    if (!hpcd) return 0;
-    auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
-    if (!glue) return 0;
-    if (epnum == 0) {
-        const auto len = hpcd->OUT_ep[0].xfer_count;
-        const auto* buf = hpcd->OUT_ep[0].xfer_buff;
-        if (buf && len > 0) {
-            glue->adapter.handle_out_data(std::span<const usb::u8>(buf, len));
-        } else {
-            glue->adapter.handle_out_data(std::span<const usb::u8>{});
-        }
-        if (len == 0 && glue->ep0_expect_status_out) {
-            glue->ep0_expect_status_out = false;
-        }
-        return 1;
-    }
-    const auto len = hpcd->OUT_ep[epnum].xfer_count;
-    auto& cb = glue->out_cbs[epnum];
-    if (cb.on_out && len > 0) {
-        cb.on_out(glue->out_ctxs[epnum],
-            std::span<const usb::u8>(glue->out_bufs[epnum].data(), len));
-    }
-    const auto addr = static_cast<uint8_t>(epnum & 0x0F);
-    (void)HAL_PCD_EP_Receive(hpcd, addr,
-        glue->out_bufs[epnum].data(),
-        glue->out_mps[epnum]);
-    return 1;
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    const auto event = usb_core::inspect_data_out(hpcd, epnum);
+    return usb_core::handle_data_out(*core, hpcd, event);
 }
 
 extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
-    if (!hpcd) return 0;
-    auto* glue = player::app_test_hqzy::usb_glue::detail::from_pcd(hpcd);
-    if (!glue) return 0;
-    if (epnum == 0) {
-        const bool sent_zlp = (hpcd->IN_ep[0].xfer_len == 0);
-        const auto sent = sent_zlp
-            ? 0u
-            : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
-        if (!sent_zlp && glue->ep0_in_zlp_pending) {
-            glue->adapter.handle_in_complete(sent, false);
-            glue->ep0_in_zlp_pending = false;
-            (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
-            return 1;
-        }
-        if (glue->ep0_expect_status_out) {
-            (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), 0);
-        } else {
-            (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), glue->out_mps[0]);
-        }
-        glue->adapter.handle_in_complete(sent, sent_zlp);
-        return 1;
-    }
-    auto& cb = glue->in_cbs[epnum];
-    if (cb.on_in_complete) {
-        const auto sent = static_cast<std::uint32_t>(hpcd->IN_ep[epnum].xfer_len);
-        cb.on_in_complete(glue->in_ctxs[epnum], sent, false);
-    }
-    return 1;
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    const auto event = usb_core::inspect_data_in(hpcd, epnum);
+    return usb_core::handle_data_in(*core, hpcd, event);
 }
 
-extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef*) {
-    auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
-    if (glue) {
-        glue->ep0_prepared = false;
-        glue->ep0_expect_status_out = false;
-        glue->ep0_in_zlp_pending = false;
-        player::app_test_hqzy::usb_glue::detail::prepare_ep0(*glue);
-        glue->adapter.handle_reset();
-        return 1;
-    }
-    return 0;
+extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef* hpcd) {
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    return usb_core::handle_reset(*core, hpcd);
 }
 
-extern "C" int charm_usb_suspend_hook(PCD_HandleTypeDef*) {
-    auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
-    if (glue) {
-        glue->adapter.handle_suspend();
-        return 1;
-    }
-    return 0;
+extern "C" int charm_usb_suspend_hook(PCD_HandleTypeDef* hpcd) {
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    return usb_core::handle_suspend(*core);
 }
 
-extern "C" int charm_usb_resume_hook(PCD_HandleTypeDef*) {
-    auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
-    if (glue) {
-        glue->adapter.handle_resume();
-        return 1;
-    }
-    return 0;
+extern "C" int charm_usb_resume_hook(PCD_HandleTypeDef* hpcd) {
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    return usb_core::handle_resume(*core);
 }
 
-extern "C" int charm_usb_connect_hook(PCD_HandleTypeDef*) {
-    auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
-    if (glue) {
-        glue->adapter.handle_connect(true);
-        return 1;
-    }
-    return 0;
+extern "C" int charm_usb_connect_hook(PCD_HandleTypeDef* hpcd) {
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    return usb_core::handle_connect(*core, true);
 }
 
-extern "C" int charm_usb_disconnect_hook(PCD_HandleTypeDef*) {
-    auto* glue = player::app_test_hqzy::usb_glue::detail::g_usb;
-    if (glue) {
-        glue->adapter.handle_connect(false);
-        return 1;
-    }
-    return 0;
+extern "C" int charm_usb_disconnect_hook(PCD_HandleTypeDef* hpcd) {
+    namespace usb_core = player::stm32h7::usb_glue_core;
+
+    auto* core = usb_core::from_pcd(hpcd);
+    if (!core) return 0;
+    return usb_core::handle_connect(*core, false);
 }

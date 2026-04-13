@@ -39,18 +39,32 @@ export namespace charm::system {
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::core) noexcept {
+            return start_plan(init::compose(), runlevel_mask, max_phase);
+        }
+
+        [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
+        util::Result<void> start(util::u32 runlevel_mask,
+                                 init::Phase max_phase,
+                                 std::span<const init::Node* const> extra_nodes) noexcept {
+            return start_plan(init::compat_nodes(extra_nodes), runlevel_mask, max_phase);
+        }
+
+        template <typename ExtraPlan>
+        util::Result<void> start_plan(const ExtraPlan& extra_plan,
+                                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                                      init::Phase max_phase = init::Phase::core) noexcept {
             const auto bringup_plan = init::phase_limit(
                 init::runlevel(
                     init::compose(
-                        init::as_plan(clock_binding_),
-                        init::as_plan(registry_binding_),
-                        init::as_plan(reactor_binding_),
-                        usart_chain_.plan()),
+                        core_plan(),
+                        usart_chain_.plan(),
+                        extra_plan),
                     runlevel_mask),
                 max_phase);
             return init::start_graph(graph_, bringup_plan);
         }
 
+        init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }
         io::Channel* console_channel() noexcept {
             return registry_.open_channel(caps_.console_cap);
         }
@@ -69,5 +83,12 @@ export namespace charm::system {
         io::ReactorBinding reactor_binding_;
         UsartInitChain<io::Registry<MaxEndpoints>, RxCap, TxCap> usart_chain_;
         init::Graph<MaxNodes, MaxCaps> graph_{};
+
+        constexpr auto core_plan() const noexcept {
+            return init::compose(
+                init::as_plan(clock_binding_),
+                init::as_plan(registry_binding_),
+                init::as_plan(reactor_binding_));
+        }
     };
 }

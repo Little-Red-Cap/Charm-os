@@ -53,6 +53,7 @@ Examples/project/player/
 
 - `stn32h747_HQZY/CM7/CMakePresets.json` 已提供独立场景预设，每个 profile 对应单独构建目录。
 - 当前可选预设：`player-cm7-usb-audio`、`player-cm7-usb-self-msc`、`player-cm7-usb-storage`
+- `player-cm7-usb-storage` 现默认复用 self-MSC 入口，并通过 preset 固化 `PLAYER_APP_USE_ST_USB_STACK=OFF`。
 - 在 CLion 中推荐直接选择这些 preset，而不是在同一个 `cmake-build-debug` 目录里反复切 target。
 - 当前 MCU 侧真正的固件 target 统一为 `stn32h747_hqzy_CM7`；场景差异由 preset 对应的独立构建目录承载。
 - 这样切换场景时会真正重新配置并生成独立 `elf`，不会继续复用上一份 profile 的构建缓存。

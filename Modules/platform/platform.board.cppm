@@ -66,6 +66,7 @@ export namespace platform::board {
     struct BoardCaps {
         UartDesc uart1{};
         ClockDesc clock{};
+        const char* console_cap{"io.console0"};
         InputDesc input{};
         SpiDesc spi1{};
         I2cDesc i2c1{};

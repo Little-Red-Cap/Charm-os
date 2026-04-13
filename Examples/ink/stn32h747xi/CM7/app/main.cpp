@@ -146,7 +146,8 @@ int main() {
         post_fn,
         &running,
         pump_id,
-        // 8
+        8,
+        caps.console_cap
     };
 
     auto r = bringup.start();
@@ -154,20 +155,20 @@ int main() {
         Error_Handler();
     }
 
-    auto* ch = bringup.registry().open_channel("io.uart1");
+    auto* ch = bringup.registry().open_channel(caps.uart1.io_cap);
     if (!ch) {
         Error_Handler();
     }
     g_uart_adapter = static_cast<driver::usart::ChannelAdapter<kRxCap, kTxCap>*>(ch->ctx);
 
     io::EndpointDesc console_desc{
-        "io.console0",
-        io::cap_id("io.console0"),
+        caps.console_cap,
+        io::cap_id(caps.console_cap),
         io::EndpointKind::channel,
         io::EndpointCaps::duplex
     };
     auto& reg = bringup.registry();
-    auto* console_ep = reg.find_channel("io.console0");
+    auto* console_ep = reg.find_channel(caps.console_cap);
     auto r_console = console_ep
         ? reg.replace_channel(console_desc, *ch, &bringup.reactor())
         : reg.register_channel(console_desc, *ch, &bringup.reactor());

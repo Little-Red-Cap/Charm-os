@@ -3,6 +3,11 @@
 本页是 Charm 的全局架构图与依赖红线说明。  
 不承担文档路由或新同学入门职责。
 
+## 上位总纲
+
+如果你想先理解这些架构规则背后更上位的目标与不变量，
+先看：`docs/architecture/charm_methodology_charter.md`
+
 ## 设计原则（只记 5 条）
 - 所有能力必须走 init.graph 装配
 - Channel 只能 non-blocking

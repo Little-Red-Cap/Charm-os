@@ -35,6 +35,10 @@ Modules/io/usb/
 3. **STALL**：`stall()`  
    - 非法请求直接停端点
 
+补充约束：
+- `send_in(data, zlp=true)` 不能把 `zlp` 仅当作日志位；若首个数据包非空且需要补齐状态机，DCD 必须在数据包完成后继续发出真正的 EP0 IN ZLP，并在完成回调中以 `sent_zlp=true` 上报。
+- EP0 之外的 class endpoints 以 `SET_CONFIGURATION` 提交完成作为激活时机；binding/init 阶段只完成描述符、class 对象与回调绑定，不应提前把 class endpoints 视为已生效。
+
 控制流顺序：
 1. `on_setup(setup)`  
 2. 若 IN：`send_in(...)`  

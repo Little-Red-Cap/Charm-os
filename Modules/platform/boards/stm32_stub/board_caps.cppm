@@ -179,6 +179,7 @@ export namespace platform::board::stm32_stub {
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
         caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
+        caps.console_cap = "io.console0";
         caps.input.driver = &kStm32RawInput;
         caps.can0.channel = &can0_channel;
         caps.can0.io_cap = "io.can0";

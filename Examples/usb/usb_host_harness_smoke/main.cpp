@@ -88,6 +88,17 @@ namespace {
         }
         return false;
     }
+
+    std::size_t count_device_action(std::span<const usb::mock::DeviceAction> actions,
+                                    usb::mock::DeviceActionKind kind) {
+        std::size_t count = 0;
+        for (const auto& action : actions) {
+            if (action.kind == kind) {
+                ++count;
+            }
+        }
+        return count;
+    }
 }
 
 int main() {
@@ -186,13 +197,16 @@ int main() {
     if (!expect(session.device_actions().size() == 1, "set configuration pre-ack action count mismatch")) return 1;
     if (!expect(session.device_actions()[0].kind == usb::mock::DeviceActionKind::send_zlp, "set configuration pre-ack action kind mismatch")) return 1;
     if (!expect(session.device_actions()[0].flag, "set configuration pre-ack zlp missing")) return 1;
+    if (!expect(!has_device_action(session.device_actions(), usb::mock::DeviceActionKind::ep_open), "class endpoints opened before configuration commit")) return 1;
     auto cfg_pkt = session.poll_in();
     if (!expect(cfg_pkt.has_value(), "set configuration status packet missing")) return 1;
     if (!expect(cfg_pkt->zlp, "set configuration status packet not zlp")) return 1;
     if (!expect(session.ack_in(cfg_pkt->ep, cfg_pkt->data.size(), cfg_pkt->zlp), "set configuration ack failed")) return 1;
-    if (!expect(session.device_actions().size() == 2, "set configuration post-ack action count mismatch")) return 1;
-    if (!expect(session.device_actions()[1].kind == usb::mock::DeviceActionKind::set_configured, "set configuration commit action mismatch")) return 1;
-    if (!expect(session.device_actions()[1].flag, "set configuration commit flag mismatch")) return 1;
+    if (!expect(session.device_actions().size() >= 2, "set configuration post-ack action count mismatch")) return 1;
+    const auto& cfg_commit = session.device_actions()[session.device_actions().size() - 1];
+    if (!expect(cfg_commit.kind == usb::mock::DeviceActionKind::set_configured, "set configuration commit action mismatch")) return 1;
+    if (!expect(cfg_commit.flag, "set configuration commit flag mismatch")) return 1;
+    if (!expect(count_device_action(session.device_actions(), usb::mock::DeviceActionKind::ep_open) == 3, "cdc endpoint activation count mismatch after configuration commit")) return 1;
     if (!expect(session.configured(), "set configuration not committed after status stage")) return 1;
 
     std::printf("[OK] usb-host-harness-smoke passed\n");

@@ -135,4 +135,4 @@
 - 全局时间源统一为 `charm.system.clock`（`system.clock` capability）。
 - 业务/协议/驱动禁止自建 `now_ms/now_us`，统一通过 Clock 注入或 `ClockCaps::TimeSource` 使用。
 - 除 PC/工具端外，禁止直接使用 `std::chrono` 获取时间。
-- `BoardCaps` 必须提供 `ClockDesc`，bringup 只负责注入，不在模块内偷取平台时间。
+- `BoardCaps` 必须提供 `ClockDesc`；若板级 bringup 需要导出控制台别名，也应由 `BoardCaps.console_cap` 显式给出，bringup 只负责注入，不在模块内偷取平台时间或偷偷约定控制台名字。

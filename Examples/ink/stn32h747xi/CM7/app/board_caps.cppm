@@ -138,6 +138,7 @@ export namespace platform::board::stn32h747xi {
         caps.uart1.io_cap = "io.uart1";
         caps.uart1.hal_cap = "hal.uart1";
         caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, nullptr};
+        caps.console_cap = "io.console0";
         return caps;
     }
 }

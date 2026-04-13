@@ -62,5 +62,10 @@ export namespace init {
         static constexpr void for_each(Fn&& fn) noexcept {
             (fn(Caps::id), ...);
         }
+
+        template <typename Fn>
+        static constexpr void for_each_named(Fn&& fn) noexcept {
+            (fn(Caps::id, Caps::view()), ...);
+        }
     };
 }

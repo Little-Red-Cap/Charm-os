@@ -17,6 +17,7 @@ export import init.recipe;
 export import init.plan;
 export import init.barrier;
 export import init.materialize;
+export import init.observe;
 
 export import trace_core;
 

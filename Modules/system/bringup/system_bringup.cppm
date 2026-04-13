@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <span>
+#include <string_view>
 
 export module charm.system.bringup;
 
@@ -113,6 +114,7 @@ export namespace charm::system {
                              host.post_ctx(),
                              host.pump_id(),
                              budget,
+                             caps.console_cap,
                              caps.input.driver
                                  ? make_input_desc(caps.input, host, sink, sink_ctx, cfg)
                                  : InputBringupDesc{}) {}
@@ -131,8 +133,10 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
+                       const char* console_cap = "io.console0",
                        InputBringupDesc input = {}) noexcept
             : uart_(uart),
+              console_cap_(console_cap),
               core_(charm::system::ClockOps{clock_desc.now_ms, clock_desc.now_us},
                     clock_desc.ctx,
                     pump_task, post_fn, post_more_fn, post_ctx, pump_id, budget),
@@ -200,7 +204,42 @@ export namespace charm::system {
                 };
                 can_channel_.emplace(core_.registry, *can_desc_.channel, desc);
             }
+            if (needs_console_alias()) {
+                console_channel_.emplace(core_.registry, core_.reactor, uart_.io_cap, console_cap_);
+            }
         }
+
+        BringupMinimal(const platform::board::UartDesc& uart,
+                       const platform::board::ClockDesc& clock_desc,
+                       const platform::board::InputDesc& input_desc,
+                       const platform::board::SpiDesc& spi_desc,
+                       const platform::board::I2cDesc& i2c_desc,
+                       const platform::board::CanDesc& can_desc,
+                       const platform::board::SdmmcDesc& sdmmc_desc,
+                       const platform::board::SpiFlashDesc& flash_desc,
+                       ReactorPumpTask& pump_task,
+                       PostFn post_fn,
+                       void* post_ctx,
+                       kernel::TaskId pump_id,
+                       util::usize budget = 8,
+                       const char* console_cap = "io.console0",
+                       InputBringupDesc input = {}) noexcept
+            : BringupMinimal(uart,
+                             clock_desc,
+                             input_desc,
+                             spi_desc,
+                             i2c_desc,
+                             can_desc,
+                             sdmmc_desc,
+                             flash_desc,
+                             pump_task,
+                             post_fn,
+                             post_fn,
+                             post_ctx,
+                             pump_id,
+                             budget,
+                             console_cap,
+                             input) {}
 
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
@@ -214,6 +253,7 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
+                       const char* console_cap = "io.console0",
                        InputBringupDesc input = {}) noexcept
             : BringupMinimal(uart,
                              clock_desc,
@@ -229,6 +269,37 @@ export namespace charm::system {
                              post_ctx,
                              pump_id,
                              budget,
+                             console_cap,
+                             input) {}
+
+        BringupMinimal(const platform::board::UartDesc& uart,
+                       const platform::board::ClockDesc& clock_desc,
+                       const platform::board::InputDesc& input_desc,
+                       const platform::board::SpiDesc& spi_desc,
+                       const platform::board::I2cDesc& i2c_desc,
+                       const platform::board::CanDesc& can_desc,
+                       ReactorPumpTask& pump_task,
+                       PostFn post_fn,
+                       void* post_ctx,
+                       kernel::TaskId pump_id,
+                       util::usize budget = 8,
+                       const char* console_cap = "io.console0",
+                       InputBringupDesc input = {}) noexcept
+            : BringupMinimal(uart,
+                             clock_desc,
+                             input_desc,
+                             spi_desc,
+                             i2c_desc,
+                             can_desc,
+                             platform::board::SdmmcDesc{},
+                             platform::board::SpiFlashDesc{},
+                             pump_task,
+                             post_fn,
+                             post_fn,
+                             post_ctx,
+                             pump_id,
+                             budget,
+                             console_cap,
                              input) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
@@ -255,6 +326,7 @@ export namespace charm::system {
                     init::compose(
                         core_.plan(),
                         board_.plan(),
+                        init::maybe(console_channel_),
                         init::maybe(spi_),
                         init::maybe(i2c_),
                         init::maybe(sdmmc_),
@@ -264,26 +336,7 @@ export namespace charm::system {
                         extra_plan),
                     runlevel_mask),
                 max_phase);
-            auto r_start = init::start_graph(graph_, bringup_plan);
-            if (!r_start) return r_start;
-            auto* ch = core_.registry.open_channel(uart_.io_cap);
-            if (!ch) {
-                return util::unexpected(util::Errc::noent);
-            }
-            if (!core_.registry.find_channel("io.console0")) {
-                io::EndpointDesc console_desc{
-                    "io.console0",
-                    io::cap_id("io.console0"),
-                    io::EndpointKind::channel,
-                    io::EndpointCaps::duplex
-                };
-                auto r_console = core_.registry.register_channel(
-                    console_desc, *ch, &core_.reactor);
-                if (!r_console) {
-                    return util::unexpected(r_console.error());
-                }
-            }
-            return {};
+            return init::start_graph(graph_, bringup_plan);
         }
 
         init::Graph<MaxNodes, MaxCaps>& graph() noexcept { return graph_; }
@@ -294,6 +347,7 @@ export namespace charm::system {
 
     private:
         platform::board::UartDesc uart_{};
+        const char* console_cap_{"io.console0"};
         CoreSystemChain<MaxEndpoints> core_;
         UsartInitChain<io::Registry<MaxEndpoints>, RxCap, TxCap> board_;
         platform::board::InputDesc input_desc_{};
@@ -306,10 +360,16 @@ export namespace charm::system {
         std::optional<I2cInitChain> i2c_{};
         platform::board::CanDesc can_desc_{};
         std::optional<io::ChannelBinding<io::Registry<MaxEndpoints>>> can_channel_{};
+        std::optional<io::ChannelAliasBinding<io::Registry<MaxEndpoints>>> console_channel_{};
         platform::board::SdmmcDesc sdmmc_desc_{};
         platform::board::SpiFlashDesc flash_desc_{};
         std::optional<SdmmcInitChain<block::Registry<MaxEndpoints>>> sdmmc_{};
         std::optional<SpiFlashInitChain<block::Registry<MaxEndpoints>>> flash_{};
+
+        bool needs_console_alias() const noexcept {
+            return console_cap_ && console_cap_[0] != '\0' &&
+                   std::string_view{uart_.io_cap ? uart_.io_cap : ""}.compare(std::string_view{console_cap_}) != 0;
+        }
     };
 
 }

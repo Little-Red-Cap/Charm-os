@@ -277,7 +277,7 @@ IO/Runtime/Foundation 层 API：
 - Clock 注入
 - `ClockCaps::TimeSource`
 
-`BoardCaps` 必须提供 `ClockDesc`。
+`BoardCaps` 必须提供 `ClockDesc`；若板级 bringup 需要导出控制台别名，也应通过 `BoardCaps.console_cap` 显式提供。
 
 bringup 只负责注入，不应在模块内部偷取平台时间。
 

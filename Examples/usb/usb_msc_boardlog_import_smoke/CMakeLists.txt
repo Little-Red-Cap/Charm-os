@@ -18,3 +18,6 @@ target_link_libraries(${target_name} PRIVATE Charm-os)
 
 cmake_path(CONVERT "${CMAKE_CURRENT_SOURCE_DIR}/msc.boardlog" TO_CMAKE_PATH_LIST usb_boardlog_fixture_path)
 target_compile_definitions(${target_name} PRIVATE USB_BOARD_LOG_FIXTURE_PATH="${usb_boardlog_fixture_path}")
+
+cmake_path(CONVERT "${CMAKE_CURRENT_SOURCE_DIR}/fixtures" TO_CMAKE_PATH_LIST usb_boardlog_fixture_dir)
+target_compile_definitions(${target_name} PRIVATE USB_BOARDLOG_FIXTURE_DIR="${usb_boardlog_fixture_dir}")

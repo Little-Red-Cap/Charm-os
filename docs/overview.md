@@ -60,6 +60,11 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 - 要开始改代码：先读 `docs/project/standards/项目C++编码要求.md`
 - 要和 AI 协作：先读 `docs/agent/README.md`
 
+## 更高层总纲
+
+如果你想先理解 Charm 更高层真正想守住什么，再进入具体机制，
+建议优先阅读：`docs/architecture/charm_methodology_charter.md`
+
 ## 暂时不用先读
 
 刚进入项目时，不需要先深入以下文档：

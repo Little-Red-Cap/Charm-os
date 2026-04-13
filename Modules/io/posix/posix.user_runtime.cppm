@@ -4,6 +4,10 @@ module;
 #include <cstddef>
 #include <span>
 
+#ifdef errno
+#undef errno
+#endif
+
 export module posix.user_runtime;
 
 export import posix.api;
@@ -14,6 +18,7 @@ export import posix.user_context;
 
 import posix.exec_context;
 import util.core;
+import util.error;
 
 namespace posix::user::detail {
     inline constexpr util::usize kRuntimeStackDepth = 32;
@@ -110,7 +115,7 @@ namespace posix::user::detail {
         } else {
             (void)ctx;
             (void)path;
-            posix::set_errno(posix::ENOSYS);
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
             return -1;
         }
     }
@@ -142,7 +147,7 @@ namespace posix::user::detail {
 
     template <class Ret>
     Ret missing_runtime(Ret value) noexcept {
-        posix::set_errno(posix::ENOSYS);
+        posix::set_errno(posix::to_errno(util::Errc::nosys));
         if (auto* context = posix::active_exec_context()) {
             context->errno_value = posix::get_errno();
         }

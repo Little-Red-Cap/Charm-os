@@ -121,6 +121,54 @@ namespace {
         nullptr
     };
 
+    struct ConsoleStubCtx {
+        util::u32 refs{1};
+        util::u32 dup_count{0};
+        util::u32 close_count{0};
+        util::usize last_write{0};
+    };
+
+    util::Result<util::usize> console_stub_read(void*, posix::MutByteView) noexcept {
+        return util::usize{0};
+    }
+
+    util::Result<util::usize> console_stub_write(void* ctx, posix::ByteView buf) noexcept {
+        auto* state = static_cast<ConsoleStubCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        state->last_write = buf.size();
+        return buf.size();
+    }
+
+    util::Result<void> console_stub_close(void* ctx) noexcept {
+        auto* state = static_cast<ConsoleStubCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        if (state->refs > 0) {
+            --state->refs;
+        }
+        ++state->close_count;
+        return {};
+    }
+
+    util::Result<void> console_stub_stat(void*, posix::PosixStat& out) noexcept {
+        out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
+        out.size = 0;
+        return {};
+    }
+
+    util::Result<void> console_stub_dup(void* ctx) noexcept {
+        auto* state = static_cast<ConsoleStubCtx*>(ctx);
+        if (!state) {
+            return util::unexpected(util::Errc::invalid_arg);
+        }
+        ++state->refs;
+        ++state->dup_count;
+        return {};
+    }
+
     using KillApiProcService = posix::ProcService<4, 4, 8, 4>;
     using KillApiType = posix::Api<8, 2, 8, 4, 4, 4>;
 
@@ -634,21 +682,46 @@ namespace {
         check_eq("devnull-close", api.close(fd), 0);
 
         static const posix::FdOps kOps{
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr,
+            &console_stub_read,
+            &console_stub_write,
+            &console_stub_close,
+            &console_stub_stat,
+            &console_stub_dup,
             nullptr
         };
+        ConsoleStubCtx console_ctx{};
         posix::FdEntry term{};
         term.kind = posix::FdKind::term;
         term.flags = posix::FdFlags::read_write;
         term.ops = &kOps;
-        term.ctx = nullptr;
+        term.ctx = &console_ctx;
         auto rfd = fds.attach(term, 3);
         check_true("isatty-attach", rfd);
         check_eq("isatty-term", api.isatty(3), 1);
+
+        posix::PosixStat console_st{};
+        check_eq("devconsole-stat", api.stat("/dev/console", &console_st), 0);
+        check_eq("devconsole-stat-mode", console_st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("devconsole-stat-size", console_st.size, 0u);
+
+        int console_fd = api.open("/dev/console", posix::O_WRONLY, 0);
+        check_true("devconsole-open", console_fd >= 0);
+        check_true("devconsole-not-source", console_fd != 3);
+        check_eq("devconsole-dup-count", console_ctx.dup_count, 1u);
+        check_eq("devconsole-refs-after-open", console_ctx.refs, 2u);
+        check_eq("devconsole-isatty", api.isatty(console_fd), 1);
+
+        posix::PosixStat console_fd_st{};
+        check_eq("devconsole-fstat", api.fstat(console_fd, &console_fd_st), 0);
+        check_eq("devconsole-fstat-mode", console_fd_st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("devconsole-fstat-size", console_fd_st.size, 0u);
+
+        const char console_msg[] = "term";
+        check_eq("devconsole-write", api.write(console_fd, console_msg, 4), static_cast<posix::ssize_t>(4));
+        check_eq("devconsole-last-write", console_ctx.last_write, static_cast<util::usize>(4));
+        check_eq("devconsole-close", api.close(console_fd), 0);
+        check_eq("devconsole-close-count", console_ctx.close_count, 1u);
+        check_eq("devconsole-refs-after-close", console_ctx.refs, 1u);
 
         int file_fd = api.open("/tmp/isatty.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("isatty-file-open", file_fd >= 0);

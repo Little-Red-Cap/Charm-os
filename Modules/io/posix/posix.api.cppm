@@ -120,6 +120,23 @@ export namespace posix {
                 set_errno(map_errno(resolved_path.error()));
                 return -1;
             }
+            if (is_console_path(resolved_path.value())) {
+                bool duplicated = false;
+                auto console_entry = clone_console_entry(*table, flags, duplicated);
+                if (!console_entry) {
+                    set_errno(map_errno(console_entry.error()));
+                    return -1;
+                }
+                auto rfd = table->attach(console_entry.value());
+                if (!rfd) {
+                    if (duplicated) {
+                        close_entry(console_entry.value());
+                    }
+                    set_errno(map_fd_attach_errno(rfd.error()));
+                    return -1;
+                }
+                return rfd.value();
+            }
             auto entry = file_service_->open(resolved_path.value(), flags, mode);
             if (!entry) {
                 set_errno(map_errno(entry.error()));
@@ -224,13 +241,9 @@ export namespace posix {
                 set_errno(EBADF);
                 return -1;
             }
-            if (!entry.value()->ops || !entry.value()->ops->stat) {
-                set_errno(ENOSYS);
-                return -1;
-            }
-            auto r = entry.value()->ops->stat(entry.value()->ctx, *out);
+            auto r = stat_fd_entry(*entry.value(), *out);
             if (!r) {
-                set_errno(map_fd_errno(r.error()));
+                set_errno(map_errno(r.error()));
                 return -1;
             }
             return 0;
@@ -250,6 +263,14 @@ export namespace posix {
             if (!resolved_path) {
                 set_errno(map_errno(resolved_path.error()));
                 return -1;
+            }
+            if (is_console_path(resolved_path.value())) {
+                auto st = stat_console_path(*out);
+                if (!st) {
+                    set_errno(map_errno(st.error()));
+                    return -1;
+                }
+                return 0;
             }
             auto st = stat_path(resolved_path.value(), *out);
             if (!st) {
@@ -763,11 +784,7 @@ export namespace posix {
                 }
                 return util::unexpected(entry.error());
             }
-            if (!entry.value().ops || !entry.value().ops->stat) {
-                close_entry(entry.value());
-                return util::unexpected(util::Errc::nosys);
-            }
-            auto st = entry.value().ops->stat(entry.value().ctx, out);
+            auto st = stat_fd_entry(entry.value(), out);
             close_entry(entry.value());
             if (!st) {
                 return util::unexpected(st.error());
@@ -812,6 +829,118 @@ export namespace posix {
             const auto norm = fs::normalize(path);
             const auto trimmed = fs::rstrip_seps(norm);
             return trimmed.size == 0;
+        }
+
+        static bool is_console_path(std::string_view path) noexcept {
+            return path == "/dev/console";
+        }
+
+        static FdFlags flags_to_fd_flags(int flags) noexcept {
+            if ((flags & O_RDWR) != 0) return FdFlags::read_write;
+            if ((flags & O_WRONLY) != 0) return FdFlags::write_only;
+            return FdFlags::read_only;
+        }
+
+        static util::Result<void> fill_fallback_stat(const FdEntry& entry, PosixStat& out) noexcept {
+            switch (entry.kind) {
+                case FdKind::term:
+                case FdKind::dev:
+                    out.mode = make_stat_mode(S_IFCHR, kModePermChar);
+                    out.size = 0;
+                    return {};
+                case FdKind::pipe:
+                    out.mode = make_stat_mode(S_IFIFO, kModePermPipe);
+                    out.size = 0;
+                    return {};
+                case FdKind::file:
+                case FdKind::proc:
+                default:
+                    return util::unexpected(util::Errc::nosys);
+            }
+        }
+
+        static util::Result<void> stat_fd_entry(const FdEntry& entry, PosixStat& out) noexcept {
+            if (entry.ops && entry.ops->stat) {
+                auto st = entry.ops->stat(entry.ctx, out);
+                if (!st) {
+                    return util::unexpected(st.error());
+                }
+                return {};
+            }
+            return fill_fallback_stat(entry, out);
+        }
+
+        int select_console_fd(const FdTable<MaxFds>& table, int flags) noexcept {
+            const auto is_term_fd = [&](int fd) noexcept -> bool {
+                auto entry = const_cast<FdTable<MaxFds>&>(table).get(fd);
+                return entry && entry.value()->kind == FdKind::term;
+            };
+            const auto first_any_term = [&]() noexcept -> int {
+                for (util::usize i = 0; i < MaxFds; ++i) {
+                    if (is_term_fd(static_cast<int>(i))) {
+                        return static_cast<int>(i);
+                    }
+                }
+                return -1;
+            };
+
+            const int access_mode = flags & O_RDWR;
+            if (access_mode == O_WRONLY) {
+                for (int fd : {1, 2, 0}) {
+                    if (is_term_fd(fd)) return fd;
+                }
+                return first_any_term();
+            }
+            if (access_mode == O_RDONLY) {
+                for (int fd : {0, 1, 2}) {
+                    if (is_term_fd(fd)) return fd;
+                }
+                return first_any_term();
+            }
+            for (int fd : {0, 1, 2}) {
+                if (is_term_fd(fd)) return fd;
+            }
+            return first_any_term();
+        }
+
+        util::Result<FdEntry> clone_console_entry(FdTable<MaxFds>& table,
+                                                  int flags,
+                                                  bool& duplicated) noexcept {
+            duplicated = false;
+            const int source_fd = select_console_fd(table, flags);
+            if (source_fd < 0) {
+                return util::unexpected(util::Errc::noent);
+            }
+            auto entry = table.clone_entry(source_fd);
+            if (!entry) {
+                return util::unexpected(entry.error());
+            }
+            auto copy = entry.value();
+            copy.flags = flags_to_fd_flags(flags);
+            if (copy.ops && copy.ops->dup) {
+                auto dup_st = copy.ops->dup(copy.ctx);
+                if (!dup_st) {
+                    return util::unexpected(dup_st.error());
+                }
+                duplicated = true;
+            }
+            return copy;
+        }
+
+        util::Result<void> stat_console_path(PosixStat& out) noexcept {
+            auto* table = current_fd_table();
+            if (!table) {
+                return util::unexpected(util::Errc::nosys);
+            }
+            const int source_fd = select_console_fd(*table, O_RDWR);
+            if (source_fd < 0) {
+                return util::unexpected(util::Errc::noent);
+            }
+            auto entry = table->get(source_fd);
+            if (!entry) {
+                return util::unexpected(entry.error());
+            }
+            return stat_fd_entry(*entry.value(), out);
         }
 
         static fs::Status stat_directory_path(std::string_view path, PosixStat& out) noexcept {

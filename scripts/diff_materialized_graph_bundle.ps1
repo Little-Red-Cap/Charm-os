@@ -147,6 +147,15 @@ function Get-SelectedCaseNames {
     return $allNames
 }
 
+function Get-CaseStatusCount {
+    param(
+        $CaseDiffs,
+        [string]$Status
+    )
+
+    return @($CaseDiffs | Where-Object { $_.Status -eq $Status }).Count
+}
+
 function Get-CapabilityNames {
     param(
         $Capabilities
@@ -594,6 +603,9 @@ if (-not $IncludeUnchanged) {
 
 if ($AsJson) {
     $payload = [ordered]@{
+        schema = 'materialized_graph.bundle_diff/v1'
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+        include_unchanged = $IncludeUnchanged.IsPresent
         left = [ordered]@{
             index = $leftBundle.IndexPath
             bundle_root = $leftBundle.BundleRoot
@@ -601,6 +613,12 @@ if ($AsJson) {
         right = [ordered]@{
             index = $rightBundle.IndexPath
             bundle_root = $rightBundle.BundleRoot
+        }
+        status_counts = [ordered]@{
+            changed = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'changed'
+            added = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'added'
+            removed = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'removed'
+            unchanged = Get-CaseStatusCount -CaseDiffs $caseDiffs -Status 'unchanged'
         }
         case_count = $caseDiffs.Count
         cases = @($caseDiffs | ForEach-Object {

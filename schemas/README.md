@@ -17,6 +17,11 @@
   - 用途偏向批量导出结果组织、bundle 检视与 diff
   - 它已经是当前脚本链的稳定消费面之一
 
+- `materialized_graph.bundle_diff.v1.schema.json`
+  - 对应 `scripts/diff_materialized_graph_bundle.ps1 -AsJson` 的输出
+  - 用途偏向结构差异分析、报告生成前的数据交换、工具侧增量审阅
+  - 它已经是 diff / report / CI 这条链上的机器可读中间协议
+
 - `materialized_graph.ci_summary.v1.schema.json`
   - 对应 `scripts/ci_materialized_graph_bundle.ps1` 生成的 `summary.json`
   - 用途偏向 CI 编排、状态汇总、上层自动化消费
@@ -28,6 +33,7 @@
 
 - `sample/v2`：当前支持、显式校验，但不承诺长期冻结
 - `export_bundle/v1`：当前脚本链稳定依赖的 bundle 索引协议
+- `bundle_diff/v1`：当前 diff / report 链稳定依赖的差异协议
 - `ci_summary/v1`：当前 CI / workflow 层稳定依赖的摘要协议
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，

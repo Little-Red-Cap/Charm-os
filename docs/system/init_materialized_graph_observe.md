@@ -218,6 +218,7 @@ JSON sample 当前更适合：
 
 - `schemas/materialized_graph.sample.v2.schema.json`
 - `schemas/materialized_graph.export_bundle.v1.schema.json`
+- `schemas/materialized_graph.bundle_diff.v1.schema.json`
 - `schemas/materialized_graph.ci_summary.v1.schema.json`
 - `schemas/README.md`
 
@@ -225,6 +226,7 @@ JSON sample 当前更适合：
 
 - `sample/v2`：描述当前导出样例的精确形状，但不代表长期冻结承诺
 - `export_bundle/v1`：描述 bundle 索引结构，是批量导出 / inspect / diff 的稳定消费面
+- `bundle_diff/v1`：描述 diff JSON 结构，是 diff / report / 自动化审阅的稳定消费面
 - `ci_summary/v1`：描述 CI 摘要结构，是 workflow / 自动化集成的稳定消费面
 
 ## 最小用法
@@ -413,6 +415,17 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - case 级摘要字段，例如 `node_count / edge_count / phase / runlevel / node_kinds`
 - 节点新增 / 删除 / 字段变化
 - 依赖边新增 / 删除
+
+当使用 `-AsJson` 时，当前输出还会带：
+
+- `schema = materialized_graph.bundle_diff/v1`
+- `generated_at_utc`
+- `include_unchanged`
+- `status_counts`
+
+对应机器可读协议见：
+
+- `schemas/materialized_graph.bundle_diff.v1.schema.json`
 
 如果要把 diff 结果进一步交给人审阅，仓库根目录还提供了报告生成脚本：
 

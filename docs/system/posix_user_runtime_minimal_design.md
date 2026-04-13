@@ -97,6 +97,7 @@
 - `_isatty`：TTY 返回 `1`；有效的 non-tty 返回 `0` 且保持 `errno` 不变；无效 fd 返回 `0` 并设置错误。
 - `_fstat`：v0 至少保证类型位与 `size` 稳定；`term -> S_IFCHR`、`pipe -> S_IFIFO`、regular file -> `S_IFREG`。
 - `_stat`：当前最小桥面也保证目录路径可稳定返回 `S_IFDIR`；目录 `size` 先统一收敛为 `0`。
+- `_access`：当前最小桥面基于 `stat.mode` 的权限位做路径检查；`F_OK` 检查存在性，`R_OK/W_OK/X_OK` 分别按 `0444/0222/0111` 掩码收敛，不引入 uid/gid/ACL 语义。
 - `_kill`：v0 仅承诺最小信号集 `SIGTERM/SIGKILL/SIGINT`，范围仅限当前最小进程表可见 pid。
 - `_lseek`：v0 仅保证 regular file 上的 `SEEK_SET/SEEK_CUR/SEEK_END`；pipe/tty/dev 返回 `ESPIPE`；非法 `whence` 返回 `EINVAL`。
 
@@ -111,5 +112,5 @@
 ### 当前已落地的最小桥面
 
 - I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`
-- 路径基础：`_unlink`、`_mkdir`、`_rename`
+- 路径基础：`_unlink`、`_mkdir`、`_rename`、`_access`
 - `FILE*` 级验证目前保持为独立 QEMU 烟测目标，避免把全局 stdio/newlib 状态耦合进主 POSIX 回归套件。

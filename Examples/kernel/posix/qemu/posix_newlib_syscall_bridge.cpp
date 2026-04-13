@@ -76,6 +76,14 @@ namespace {
         if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
         return out;
     }
+
+    bool has_only_access_mode_bits(int mode) noexcept {
+        return (mode & ~(R_OK | W_OK | X_OK)) == 0;
+    }
+
+    bool has_any_perm(util::u32 mode_bits, util::u32 perm_mask) noexcept {
+        return (mode_bits & perm_mask) != 0;
+    }
 }
 
 extern "C" int _read(int fd, char* ptr, int len) {
@@ -259,4 +267,41 @@ extern "C" int _rename(const char* from, const char* to) {
 
 extern "C" int rename(const char* from, const char* to) {
     return _rename(from, to);
+}
+
+extern "C" int _access(const char* path, int mode) {
+    ErrnoScope guard{};
+    if (!has_only_access_mode_bits(mode)) {
+        errno = EINVAL;
+        *posix::user::errno_location() = EINVAL;
+        return -1;
+    }
+
+    posix::PosixStat st{};
+    if (posix::user::stat(path, &st) < 0) {
+        return guard.fail_from_runtime();
+    }
+
+    if ((mode & R_OK) != 0 && !has_any_perm(st.mode, 0444u)) {
+        errno = EACCES;
+        *posix::user::errno_location() = EACCES;
+        return -1;
+    }
+    if ((mode & W_OK) != 0 && !has_any_perm(st.mode, 0222u)) {
+        errno = EACCES;
+        *posix::user::errno_location() = EACCES;
+        return -1;
+    }
+    if ((mode & X_OK) != 0 && !has_any_perm(st.mode, 0111u)) {
+        errno = EACCES;
+        *posix::user::errno_location() = EACCES;
+        return -1;
+    }
+
+    guard.restore();
+    return 0;
+}
+
+extern "C" int access(const char* path, int mode) {
+    return _access(path, mode);
 }

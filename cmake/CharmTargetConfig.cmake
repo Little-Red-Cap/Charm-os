@@ -1,7 +1,8 @@
 function(charm_add_config_interface target)
     set(options BAREMETAL)
     set(oneValueArgs ARCH PLATFORM)
-    cmake_parse_arguments(CHARM_CFG "${options}" "${oneValueArgs}" "" ${ARGN})
+    set(multiValueArgs COMPILE_DEFINITIONS INCLUDE_DIRECTORIES)
+    cmake_parse_arguments(CHARM_CFG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if (TARGET ${target})
         return()
@@ -24,6 +25,16 @@ function(charm_add_config_interface target)
 
     if (CHARM_CFG_BAREMETAL)
         target_compile_definitions(${target} INTERFACE CHARM_BAREMETAL=1)
+    endif()
+
+    if (CHARM_CFG_COMPILE_DEFINITIONS)
+        target_compile_definitions(${target} INTERFACE
+            ${CHARM_CFG_COMPILE_DEFINITIONS})
+    endif()
+
+    if (CHARM_CFG_INCLUDE_DIRECTORIES)
+        target_include_directories(${target} INTERFACE
+            ${CHARM_CFG_INCLUDE_DIRECTORIES})
     endif()
 endfunction()
 

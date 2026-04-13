@@ -250,12 +250,19 @@
       "additionalProperties": false,
       "required": [
         "output_root",
+        "manifest",
         "markdown",
         "html"
       ],
       "properties": {
         "output_root": {
           "type": "string"
+        },
+        "manifest": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "markdown": {
           "type": [

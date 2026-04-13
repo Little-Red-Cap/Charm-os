@@ -27,6 +27,11 @@
   - 用途偏向 CI 编排、状态汇总、上层自动化消费
   - 它已经是当前 CI / 工作流消费面之一
 
+- `materialized_graph.report_manifest.v1.schema.json`
+  - 对应 `scripts/report_materialized_graph_bundle.ps1` 生成的 `report manifest`
+  - 用途偏向报告工件发现、报告层元数据交换、上层工具对 Markdown / HTML 的稳定引用
+  - 它把“报告本身”从纯文件输出推进成可被自动化消费的对象
+
 ## 稳定性约定
 
 当前建议这样理解稳定性：
@@ -35,6 +40,7 @@
 - `export_bundle/v1`：当前脚本链稳定依赖的 bundle 索引协议
 - `bundle_diff/v1`：当前 diff / report 链稳定依赖的差异协议
 - `ci_summary/v1`：当前 CI / workflow 层稳定依赖的摘要协议
+- `report_manifest/v1`：当前报告层稳定依赖的工件元数据协议
 
 也就是说，Charm 当前不是在假装“所有导出都已经终局稳定”，
 而是在把不同层次的协议边界分别钉清楚。

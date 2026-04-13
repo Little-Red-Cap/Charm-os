@@ -220,6 +220,7 @@ JSON sample 当前更适合：
 - `schemas/materialized_graph.export_bundle.v1.schema.json`
 - `schemas/materialized_graph.bundle_diff.v1.schema.json`
 - `schemas/materialized_graph.ci_summary.v1.schema.json`
+- `schemas/materialized_graph.report_manifest.v1.schema.json`
 - `schemas/README.md`
 
 当前可以这样理解它们的职责边界：
@@ -228,6 +229,7 @@ JSON sample 当前更适合：
 - `export_bundle/v1`：描述 bundle 索引结构，是批量导出 / inspect / diff 的稳定消费面
 - `bundle_diff/v1`：描述 diff JSON 结构，是 diff / report / 自动化审阅的稳定消费面
 - `ci_summary/v1`：描述 CI 摘要结构，是 workflow / 自动化集成的稳定消费面
+- `report_manifest/v1`：描述报告元数据结构，是 HTML / Markdown 报告与上层工具之间的稳定桥接面
 
 ## 最小用法
 
@@ -439,6 +441,7 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 - `materialized_graph_bundle_diff_report.md`
 - `materialized_graph_bundle_diff_report.html`
+- `materialized_graph_bundle_diff_report.manifest.json`
 
 报告内容当前包括：
 
@@ -448,6 +451,13 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 可点击的 `dot / json` 工件链接
 - 节点新增 / 删除 / 字段变化表
 - 依赖边新增 / 删除表
+
+其中 `manifest.json` 当前会汇总：
+
+- 左右 bundle 引用
+- diff 协议名与 case / status 计数
+- Markdown / HTML / manifest 自身路径
+- 报告中包含的 case 名单与状态
 
 如果要把这条链收成一个更适合 CI 的单入口，还可以直接用：
 
@@ -472,6 +482,10 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 各类状态计数：`changed / added / removed / unchanged`
 - 按状态分组的 case 名单
 - 报告与 diff 产物路径
+
+其中 `report` 字段现在也会额外带：
+
+- `manifest`
 
 仓库现在还提供了一个对应的 GitHub Actions 工作流：
 

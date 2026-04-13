@@ -1,0 +1,109 @@
+name: Materialized Graph Observe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/materialized-graph-observe.yml'
+      - 'Modules/init/**'
+      - 'Modules/system/**'
+      - 'Modules/io/**'
+      - 'Modules/usb/**'
+      - 'Examples/init/**'
+      - 'Examples/usb/usb_msc_block_demo/**'
+      - 'scripts/*materialized_graph*.ps1'
+
+permissions:
+  contents: read
+
+jobs:
+  materialized-graph-observe:
+    runs-on: windows-latest
+    env:
+      BASELINE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || 'refs/heads/main' }}
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+
+      - name: Checkout baseline
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASELINE_REF }}
+          path: baseline
+
+      - name: Setup MSYS2 (CLANG64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          cache: true
+          cache-key: msys2-${{ runner.os }}-clang64-materialized-graph
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-libc++
+
+      - name: Add CLANG64 tools to PATH
+        shell: pwsh
+        run: |
+          'C:\msys64\clang64\bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Show tool versions
+        shell: pwsh
+        run: |
+          cmake --version
+          clang --version
+          ninja --version
+
+      - name: Export baseline bundle
+        shell: pwsh
+        working-directory: baseline
+        run: |
+          ./scripts/export_materialized_graph.ps1 -AllCases -OutputRoot ../out/materialized-graph-baseline
+
+      - name: Export candidate bundle and build report
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          ./scripts/ci_materialized_graph_bundle.ps1 `
+            -BaselineBundleRoot ../out/materialized-graph-baseline `
+            -AllCases `
+            -OutputRoot ../out/materialized-graph-ci
+
+      - name: Publish workflow summary
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          $summary = Get-Content -LiteralPath ../out/materialized-graph-ci/summary.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $diff = $summary.diff
+          @(
+            '## Materialized Graph Observe'
+            ''
+            "- Baseline: `$($summary.baseline.index)`"
+            "- Candidate: `$($summary.candidate.index)`"
+            "- Status: `$($summary.status)`"
+            "- Has diff: `$($summary.has_diff)`"
+            "- Changed cases: `$($diff.status_counts.changed)`"
+            "- Added cases: `$($diff.status_counts.added)`"
+            "- Removed cases: `$($diff.status_counts.removed)`"
+            "- Unchanged cases: `$($diff.status_counts.unchanged)`"
+            "- Diff JSON: `$($diff.json)`"
+            "- Markdown report: `$($summary.report.markdown)`"
+            "- HTML report: `$($summary.report.html)`"
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload materialized graph artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: materialized-graph-observe-${{ github.run_id }}
+          if-no-files-found: error
+          path: |
+            out/materialized-graph-baseline
+            out/materialized-graph-ci

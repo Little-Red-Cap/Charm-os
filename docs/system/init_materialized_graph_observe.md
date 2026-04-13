@@ -433,6 +433,19 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 按状态分组的 case 名单
 - 报告与 diff 产物路径
 
+仓库现在还提供了一个对应的 GitHub Actions 工作流：
+
+- `.github/workflows/materialized-graph-observe.yml`
+
+它当前会：
+
+- 在 `pull_request -> main` 或手动触发时运行
+- 分别检出 candidate 与 baseline（PR 基线默认取 base sha，手动触发默认取 `main`）
+- 在 baseline 工作树导出一份 bundle
+- 在 candidate 工作树执行 `ci_materialized_graph_bundle.ps1` 生成 diff 与 Markdown / HTML 报告
+- 上传 `out/materialized-graph-baseline` 与 `out/materialized-graph-ci` 作为 workflow artifact
+- 把关键计数与报告路径写入 GitHub Step Summary，方便直接在 Actions 页面浏览
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

@@ -18,6 +18,7 @@
 - BusyBox Phase 1 smoke now covers a minimal real flow: `mkdir -> ls / -> mv -> ls /work -> rm -> ls /work`
 - redirect matrix v1 is now on the mainline shell smoke: `<`, `2>`, `2>&1`, and `>>`
 - process-control slice now includes `kill v0`, `minimal ps`, shell/busybox `kill` applet coverage, and real-ELF `sleep/kill` hostcall coverage: `getpid`, `sleep`, `kill(SIGTERM/SIGKILL/SIGINT)`, and a minimum `ps(pid/state/name)` view are smoke-covered on the current same-address-space model
+- spawned newlib smoke now also covers a pure-fd `dup()` path by duplicating redirected `stdout`, so bridge validation no longer depends only on bound-runtime smoke
 
 ## Stable ABI Contracts
 

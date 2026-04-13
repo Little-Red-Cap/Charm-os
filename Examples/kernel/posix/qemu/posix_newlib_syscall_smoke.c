@@ -68,6 +68,20 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 124;
 }
 
+int charm_posix_newlib_dup_entry(void) {
+    int dup_fd = dup(1);
+    if (dup_fd < 0) return 161;
+    if (dup_fd == 1) return 162;
+    if (write(dup_fd, "dup-", 4) != 4) return 163;
+    if (close(dup_fd) != 0) return 164;
+
+    errno = 0;
+    if (dup(-1) != -1) return 165;
+    if (errno != EBADF) return 166;
+
+    return write(1, "newlib-dup-ok\n", 14) == 14 ? 0 : 167;
+}
+
 int charm_posix_newlib_kill_self_entry(void) {
     if (write(1, "newlib-kill\n", 12) != 12) return 111;
     (void)kill(getpid(), SIGTERM);

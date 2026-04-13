@@ -215,9 +215,10 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 
 ### 示例工程
 
-仓库中已经提供一个最小示例：
+仓库中已经提供两个示例：
 
 - `Examples/init/materialize_observe_demo/main.cpp`
+- `Examples/init/bringup_block_observe_demo/main.cpp`
 
 这个示例刻意同时包含：
 
@@ -228,6 +229,13 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 并且示范了 legacy 节点通过 `capability_name(...)` 恢复 capability 可读名称。
 
 便于直接观察三类节点在导出中的表现。
+
+其中 `bringup_block_observe_demo` 走的是更贴近真实 bringup 的组合：
+
+- `BringupBlock`
+- `FileInitChain`
+
+它用来验证：bringup helper 组合出的系统装配结果，也可以在 `start_graph(...)` 之前先被 materialize、观察和导出。
 
 ## 构建与运行示例
 
@@ -277,6 +285,25 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 
 ```powershell
 ./scripts/export_materialized_graph.ps1 -Dot out.dot -Json out.json
+```
+
+如果要查看当前可批量导出的样例列表：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -ListCases
+```
+
+如果只导出某一个样例：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo
+./scripts/export_materialized_graph.ps1 -Case bringup-block-observe-demo
+```
+
+如果要一次导出全部已登记样例：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -AllCases
 ```
 
 ## 当前验收点

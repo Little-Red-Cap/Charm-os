@@ -42,6 +42,11 @@ export namespace charm::system {
             return start_plan(init::compose(), runlevel_mask, max_phase);
         }
 
+        constexpr auto plan(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                            init::Phase max_phase = init::Phase::core) const noexcept {
+            return plan(init::compose(), runlevel_mask, max_phase);
+        }
+
         [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
         util::Result<void> start(util::u32 runlevel_mask,
                                  init::Phase max_phase,
@@ -50,10 +55,10 @@ export namespace charm::system {
         }
 
         template <typename ExtraPlan>
-        util::Result<void> start_plan(const ExtraPlan& extra_plan,
-                                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
-                                      init::Phase max_phase = init::Phase::core) noexcept {
-            const auto bringup_plan = init::phase_limit(
+        constexpr auto plan(const ExtraPlan& extra_plan,
+                            util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                            init::Phase max_phase = init::Phase::core) const noexcept {
+            return init::phase_limit(
                 init::runlevel(
                     init::compose(
                         core_plan(),
@@ -61,6 +66,13 @@ export namespace charm::system {
                         extra_plan),
                     runlevel_mask),
                 max_phase);
+        }
+
+        template <typename ExtraPlan>
+        util::Result<void> start_plan(const ExtraPlan& extra_plan,
+                                      util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                                      init::Phase max_phase = init::Phase::core) noexcept {
+            const auto bringup_plan = plan(extra_plan, runlevel_mask, max_phase);
             return init::start_graph(graph_, bringup_plan);
         }
 

@@ -73,11 +73,30 @@ export namespace charm::system {
             return start_plan(init::compose(), runlevel_mask, max_phase);
         }
 
+        constexpr auto plan(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                            init::Phase max_phase = init::Phase::app) const noexcept {
+            return plan(init::compose(), runlevel_mask, max_phase);
+        }
+
         [[deprecated("use start_plan(...) instead of passing extra Node spans")]]
         util::Result<void> start(util::u32 runlevel_mask,
                                  init::Phase max_phase,
                                  std::span<const init::Node* const> extra_nodes) noexcept {
             return start_plan(init::compat_nodes(extra_nodes), runlevel_mask, max_phase);
+        }
+
+        template <typename ExtraPlan>
+        constexpr auto plan(const ExtraPlan& extra_plan,
+                            util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
+                            init::Phase max_phase = init::Phase::app) const noexcept {
+            return init::phase_limit(
+                init::runlevel(
+                    init::compose(
+                        core_.plan(),
+                        init::maybe(input_),
+                        extra_plan),
+                    runlevel_mask),
+                max_phase);
         }
 
         template <typename ExtraPlan>
@@ -87,14 +106,7 @@ export namespace charm::system {
             if (!caps_.input.driver || !input_) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            const auto bringup_plan = init::phase_limit(
-                init::runlevel(
-                    init::compose(
-                        core_.plan(),
-                        input_->plan(),
-                        extra_plan),
-                    runlevel_mask),
-                max_phase);
+            const auto bringup_plan = plan(extra_plan, runlevel_mask, max_phase);
             return init::start_graph(graph_, bringup_plan);
         }
 

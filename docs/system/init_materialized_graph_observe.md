@@ -219,6 +219,7 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 
 - `Examples/init/materialize_observe_demo/main.cpp`
 - `Examples/init/bringup_block_observe_demo/main.cpp`
+- `Examples/init/bringup_minimal_observe_demo/main.cpp`
 
 这个示例刻意同时包含：
 
@@ -236,6 +237,14 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 - `FileInitChain`
 
 它用来验证：bringup helper 组合出的系统装配结果，也可以在 `start_graph(...)` 之前先被 materialize、观察和导出。
+
+`bringup_minimal_observe_demo` 则进一步把这件事推进到更接近系统入口的层面：
+
+- `BringupMinimal`
+- `BoardCaps`
+- board bringup 中的 console alias / input / can 组合
+
+它用来验证：系统入口 helper 本身，也可以直接说出“系统长什么样”。
 
 ## 构建与运行示例
 
@@ -298,6 +307,7 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 ```powershell
 ./scripts/export_materialized_graph.ps1 -Case materialize-observe-demo
 ./scripts/export_materialized_graph.ps1 -Case bringup-block-observe-demo
+./scripts/export_materialized_graph.ps1 -Case bringup-minimal-observe-demo
 ```
 
 如果要一次导出全部已登记样例：

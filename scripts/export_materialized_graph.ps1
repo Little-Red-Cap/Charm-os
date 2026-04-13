@@ -44,6 +44,18 @@ function Get-ExportCases {
             DefaultDot = 'bringup_block_materialized_graph.dot'
             DefaultJson = 'bringup_block_materialized_graph.sample.json'
             ExtraCache = @()
+        },
+        @{
+            Name = 'bringup-minimal-observe-demo'
+            Source = 'Examples/init/bringup_minimal_observe_demo'
+            BuildDir = 'cmake-build-init-bringup-minimal-observe-clang'
+            BuildTarget = 'init-bringup-minimal-observe-demo'
+            ExportTarget = 'export_bringup_minimal_materialized_graph'
+            DotCache = 'BRINGUP_MINIMAL_OBSERVE_DOT_PATH'
+            JsonCache = 'BRINGUP_MINIMAL_OBSERVE_JSON_PATH'
+            DefaultDot = 'bringup_minimal_materialized_graph.dot'
+            DefaultJson = 'bringup_minimal_materialized_graph.sample.json'
+            ExtraCache = @()
         }
     )
 }

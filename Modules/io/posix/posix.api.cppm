@@ -19,6 +19,7 @@ import posix.proc;
 import charm.system.time;
 import fs_core;
 import fs_errno;
+import fs_path;
 import fs_stream;
 import fs_vfs;
 import util.core;
@@ -236,8 +237,17 @@ export namespace posix {
                 set_errno(EINVAL);
                 return -1;
             }
-            auto entry = file_service_->open(std::string_view{path}, O_RDONLY, 0);
+            const std::string_view path_view{path};
+            auto entry = file_service_->open(path_view, O_RDONLY, 0);
             if (!entry) {
+                if (entry.error() == util::Errc::isdir || is_root_path(path_view)) {
+                    auto st = stat_directory_path(path_view, *out);
+                    if (!st) {
+                        set_errno(map_errno(st.err));
+                        return -1;
+                    }
+                    return 0;
+                }
                 set_errno(map_errno(entry.error()));
                 return -1;
             }
@@ -518,6 +528,27 @@ export namespace posix {
             out.d_name[entry.name.size()] = '\0';
             out.d_mode = make_stat_mode(stat_type_from_node(entry.type), stat_perm_from_node(entry.type));
             out.d_size = entry.size;
+            return fs::Status{fs::Errc::ok};
+        }
+
+        static fs::Status probe_dir_entry(void*, const fs::MountOps::ListEntry&) noexcept {
+            return fs::Status{fs::Errc::ok};
+        }
+
+        static bool is_root_path(std::string_view path) noexcept {
+            const auto norm = fs::normalize(path);
+            const auto trimmed = fs::rstrip_seps(norm);
+            return trimmed.size == 0;
+        }
+
+        static fs::Status stat_directory_path(std::string_view path, PosixStat& out) noexcept {
+            auto st = fs::vfs_list(path, nullptr, &Api::probe_dir_entry);
+            if (!st) {
+                return st;
+            }
+            out.mode = make_stat_mode(stat_type_from_node(fs::NodeType::dir),
+                                      stat_perm_from_node(fs::NodeType::dir));
+            out.size = 0;
             return fs::Status{fs::Errc::ok};
         }
 

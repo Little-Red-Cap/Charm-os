@@ -96,6 +96,7 @@
 - `_write`：成功返回写入字节数；失败返回 `-1` 并设置 `errno`。
 - `_isatty`：TTY 返回 `1`；有效的 non-tty 返回 `0` 且保持 `errno` 不变；无效 fd 返回 `0` 并设置错误。
 - `_fstat`：v0 至少保证类型位与 `size` 稳定；`term -> S_IFCHR`、`pipe -> S_IFIFO`、regular file -> `S_IFREG`。
+- `_stat`：当前最小桥面也保证目录路径可稳定返回 `S_IFDIR`；目录 `size` 先统一收敛为 `0`。
 - `_kill`：v0 仅承诺最小信号集 `SIGTERM/SIGKILL/SIGINT`，范围仅限当前最小进程表可见 pid。
 - `_lseek`：v0 仅保证 regular file 上的 `SEEK_SET/SEEK_CUR/SEEK_END`；pipe/tty/dev 返回 `ESPIPE`；非法 `whence` 返回 `EINVAL`。
 

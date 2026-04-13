@@ -504,6 +504,14 @@ namespace {
 
         check_eq("fs-rename", api.rename("/work/a.txt", "/work/b.txt"), 0);
 
+        posix::PosixStat dir_stat{};
+        check_eq("fs-stat-root", api.stat("/", &dir_stat), 0);
+        check_eq("fs-stat-root-mode", dir_stat.mode & posix::S_IFMT, posix::S_IFDIR);
+        check_eq("fs-stat-root-size", dir_stat.size, 0u);
+        check_eq("fs-stat-work", api.stat("/work", &dir_stat), 0);
+        check_eq("fs-stat-work-mode", dir_stat.mode & posix::S_IFMT, posix::S_IFDIR);
+        check_eq("fs-stat-work-size", dir_stat.size, 0u);
+
         auto* root_dir = api.opendir("/");
         check_true("fs-opendir-root", root_dir != nullptr);
         bool saw_work = false;

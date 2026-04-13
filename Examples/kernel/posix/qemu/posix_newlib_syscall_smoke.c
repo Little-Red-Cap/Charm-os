@@ -68,38 +68,42 @@ int charm_posix_newlib_path_entry(void) {
 
     if (mkdir("/newlib-dir", 0) != 0) return 137;
 
+    if (stat("/newlib-dir", &st) != 0) return 138;
+    if ((st.st_mode & S_IFMT) != S_IFDIR) return 139;
+    if (st.st_size != 0) return 140;
+
     fd = open("/newlib-dir/probe.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
-    if (fd < 0) return 138;
-    if (write(fd, "x", 1) != 1) return 139;
-    if (close(fd) != 0) return 140;
-    if (unlink("/newlib-dir/probe.txt") != 0) return 141;
+    if (fd < 0) return 141;
+    if (write(fd, "x", 1) != 1) return 142;
+    if (close(fd) != 0) return 143;
+    if (unlink("/newlib-dir/probe.txt") != 0) return 144;
 
     errno = 0;
-    if (mkdir("/newlib-dir", 0) != -1) return 142;
-    if (errno != EEXIST) return 143;
+    if (mkdir("/newlib-dir", 0) != -1) return 145;
+    if (errno != EEXIST) return 146;
 
-    if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 144;
+    if (rename("/newlib-path.txt", "/newlib-renamed.txt") != 0) return 147;
 
     errno = 0;
-    if (stat("/newlib-path.txt", &st) != -1) return 145;
-    if (errno != ENOENT) return 146;
+    if (stat("/newlib-path.txt", &st) != -1) return 148;
+    if (errno != ENOENT) return 149;
 
-    if (stat("/newlib-renamed.txt", &st) != 0) return 147;
-    if ((st.st_mode & S_IFMT) != S_IFREG) return 148;
-    if (st.st_size != 5) return 149;
+    if (stat("/newlib-renamed.txt", &st) != 0) return 150;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 151;
+    if (st.st_size != 5) return 152;
 
     fd = open("/newlib-renamed.txt", O_RDONLY, 0);
-    if (fd < 0) return 150;
-    if (read(fd, buf, 5) != 5) return 151;
-    if (memcmp(buf, "bravo", 5) != 0) return 152;
-    if (close(fd) != 0) return 153;
+    if (fd < 0) return 153;
+    if (read(fd, buf, 5) != 5) return 154;
+    if (memcmp(buf, "bravo", 5) != 0) return 155;
+    if (close(fd) != 0) return 156;
 
-    if (unlink("/newlib-renamed.txt") != 0) return 154;
+    if (unlink("/newlib-renamed.txt") != 0) return 157;
     errno = 0;
-    if (stat("/newlib-renamed.txt", &st) != -1) return 155;
-    if (errno != ENOENT) return 156;
+    if (stat("/newlib-renamed.txt", &st) != -1) return 158;
+    if (errno != ENOENT) return 159;
 
-    return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 157;
+    return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 160;
 }
 
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE

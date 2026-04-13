@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
 
 function Resolve-FullPath {
     param(
@@ -98,9 +99,12 @@ function Load-CaseGraph {
         throw "$($Bundle.Side) case json not found: $jsonPath"
     }
 
+    $graph = Get-Content -LiteralPath $jsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+    Assert-MaterializedGraphSampleShape -Graph $graph -Context $jsonPath
+
     return [pscustomobject]@{
         Path = $jsonPath
-        Data = (Get-Content -LiteralPath $jsonPath -Raw -Encoding utf8 | ConvertFrom-Json)
+        Data = $graph
     }
 }
 
@@ -366,6 +370,9 @@ function Compare-CaseSummary {
     )
 
     $changes = @()
+    if ([string]$LeftCase.graph.schema -ne [string]$RightCase.graph.schema) {
+        $changes += "schema:$([string]$LeftCase.graph.schema)->$([string]$RightCase.graph.schema)"
+    }
     if ([int]$LeftCase.graph.node_count -ne [int]$RightCase.graph.node_count) {
         $changes += "node_count:$([int]$LeftCase.graph.node_count)->$([int]$RightCase.graph.node_count)"
     }

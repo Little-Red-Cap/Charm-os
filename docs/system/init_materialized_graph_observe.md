@@ -200,6 +200,20 @@ JSON sample 当前更适合：
 
 不建议现在就把 `sample/v2` 当作最终稳定协议承诺给外部工具。
 
+当前仓库内置的 bundle 消费脚本，已经把 `sample/v2` 当作当前支持的唯一样例协议：
+
+- `scripts/export_materialized_graph.ps1`
+- `scripts/inspect_materialized_graph_bundle.ps1`
+- `scripts/diff_materialized_graph_bundle.ps1`
+
+这些脚本现在会在读取 case JSON 时显式校验：
+
+- schema 是否受支持
+- 当前最小必需字段是否存在
+
+这样做的目的不是提前冻结长期协议，
+而是避免工具链在 schema 演进时静默误读旧/新字段。
+
 ## 最小用法
 
 ### 代码层

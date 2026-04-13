@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'materialized_graph_schema.ps1')
 
 function Resolve-FullPath {
     param(
@@ -122,6 +123,7 @@ function Load-CaseGraph {
     }
 
     $graph = Get-Content -LiteralPath $jsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+    Assert-MaterializedGraphSampleShape -Graph $graph -Context $jsonPath
     return [pscustomobject]@{
         Path = $jsonPath
         Data = $graph

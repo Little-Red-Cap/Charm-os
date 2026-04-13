@@ -43,7 +43,13 @@
       "binaryDir": "${sourceDir}/cmake-build-player-usb-storage",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PLAYER_SCENARIO": "usb_storage"
+        "PLAYER_SCENARIO": "usb_storage",
+        "PLAYER_APP_USE_ST_USB_STACK": "OFF",
+        "PLAYER_APP_ENABLE_AUDIO": "OFF",
+        "PLAYER_APP_ENABLE_USB_AUDIO": "OFF",
+        "PLAYER_APP_USE_USB_AUDIO_ON_BOOT": "OFF",
+        "PLAYER_APP_BRINGUP_KEY_SELECT": "OFF",
+        "PLAYER_APP_BRINGUP_WAIT_KEY": "OFF"
       }
     }
   ],

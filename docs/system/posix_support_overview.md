@@ -6,6 +6,7 @@ Charm 当前已经形成了一条可工作的 POSIX/Linux 用户态兼容执行�
 
 ## 当前已经支持什么
 - `posix.api`：提供面向 POSIX 风格调用的最小入口，已具备 `spawn` / `spawnp` 两条执行入口。
+- `posix.user_runtime` / `posix.user_context` / `posix.user_crt` / `posix.user_crt_c`：提供注册式用户程序可见的最小运行时 facade，把活跃 API / 进程绑定、`argc/argv/envp` 启动上下文、最小 `exit/_exit/getenv` 风格入口，以及后续 C/newlib 桥接可用的稳定 C ABI 符号从测试私有注入中抽离出来。
 - `fd_table` 统一链路：标准输入输出、文件、管道、终端判定都开始走同一套 fd 路径。
 - `spawn / waitpid`：已经形成最小进程执行闭环，支持 `stdio` 绑定、`file_actions`、子进程 fd 表隔离。
 - `PATH` 执行语义：`spawnp` 与 shell smoke 已开始真实依赖 `PATH` 去解析 `/bin/*` 命令，而不是只在 proc smoke 里验证。
@@ -14,6 +15,7 @@ Charm 当前已经形成了一条可工作的 POSIX/Linux 用户态兼容执行�
 - ELF 装载执行：支持 registered image、`elfmem:`、文件路径 ELF，执行主链为 `spawn -> load_image -> start_image`。
 - 显式退出 ABI v0：`_exit(code)` 已通过 `ExecContext + setjmp/longjmp` 接入主链。
 - errno / fd 契约：已经稳定了一批最小 ABI 契约，用于支撑真实样本和 QEMU smoke。
+- 用户程序运行时绑定：已支持通过 process hook 自动绑定当前 runtime，并在进入 `main(...)` 前绑定当前 `argc/argv/envp`，用户程序不必再依赖测试私有全局环境。
 
 ## 当前架构位置
 POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime 的几个层面：
@@ -39,6 +41,9 @@ POSIX 兼容执行面位于 `Modules/io/posix/*`，但它的职责横跨 Runtime
 - `close(-1)` 已收敛到 `EBADF`，但更完整的 fd/path 错误矩阵仍未覆盖完。
 
 ## 推荐阅读
+- 分层与演进原则：`docs/system/posix_subsystem_principles.md`
+- 三层执行模型：`docs/system/posix_three_layer_contract.md`
+- 用户态运行时：`docs/system/posix_user_runtime_minimal_design.md`
 - 路线图：`docs/system/posix_compat_roadmap.md`
 - 阶段进度：`docs/system/posix_stage_summary.md`
 - 任务清单：`docs/system/posix_linux_compat_tasklist.md`

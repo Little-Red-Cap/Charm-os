@@ -74,6 +74,7 @@ export namespace posix {
         ProgramImage image{};
         image.kind = ImageKind::modulex;
         image.name = name;
+        image.entry_abi = ImageEntryAbi::main_argv_envp_v1;
         if (cfg.entry_override) {
             image.entry = cfg.entry_override;
         } else if (cfg.use_entry_symbol) {

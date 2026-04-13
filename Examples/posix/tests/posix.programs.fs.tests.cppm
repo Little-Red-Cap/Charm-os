@@ -72,7 +72,6 @@ namespace {
         check_true("bbfs-mount", st);
 
         Harness h{};
-        h.bind_env();
         auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
         check_true("bbfs-register-busybox", reg_busybox);
 
@@ -126,7 +125,6 @@ namespace {
             "bbfs-ls-empty-pipe",
             "bbfs-ls-empty-wait");
         check_eq("bbfs-ls-empty-text", empty_text, std::string_view{});
-        h.unbind_env();
     }
 } // namespace
 

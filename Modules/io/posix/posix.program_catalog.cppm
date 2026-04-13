@@ -57,9 +57,29 @@ export namespace posix {
             return {};
         }
 
+        util::Result<void> register_registered_image(std::string_view name, ImageEntry entry) noexcept {
+            if (name.empty() || entry == nullptr) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            for (util::usize i = 0; i < count_; ++i) {
+                if (entries_[i].image.name.compare(name) == 0) {
+                    return util::unexpected(util::Errc::exist);
+                }
+            }
+            if (count_ >= MaxExecs) {
+                return util::unexpected(util::Errc::buffer_overflow);
+            }
+            entries_[count_++] = ExecEntry{make_registered_image(name, entry)};
+            return {};
+        }
+
         util::Result<void> register_image(const ProgramImage& image) noexcept {
             if (image.name.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
+            }
+            auto valid = validate_program_image(image);
+            if (!valid) {
+                return util::unexpected(valid.error());
             }
             for (util::usize i = 0; i < count_; ++i) {
                 if (entries_[i].image.name.compare(image.name) == 0) {

@@ -34,7 +34,6 @@ namespace {
 
     void test_hello() noexcept {
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("hello", &hello_main);
         check_true("hello-register", rreg);
 
@@ -57,12 +56,10 @@ namespace {
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("hello-wait", st);
         check_eq("hello-exit", st.value().code, 0);
-        h.unbind_env();
     }
 
     void test_argv_dump() noexcept {
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("argv_dump", &argv_dump_main);
         check_true("argv-register", rreg);
 
@@ -85,12 +82,198 @@ namespace {
         check_eq("argv-out", out, std::string_view{expected});
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("argv-wait", st);
-        h.unbind_env();
+    }
+
+    void test_crt_probe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_probe", &crt_probe_main);
+        check_true("crt-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_probe", "alpha", nullptr};
+        const char* envp[] = {"FOO=BAR", "BAR=BAZ", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_probe";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.envp = std::span<const char* const>(envp, 2);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-out", out, std::string_view{"crt-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-wait", st);
+        check_eq("crt-exit", st.value().code, 0);
+    }
+
+    void test_crt_exit() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_exit", &crt_exit_main);
+        check_true("crt-exit-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-exit-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-exit-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_exit", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_exit";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-exit-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-exit-out", out, std::string_view{"before-exit\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-exit-wait", st);
+        check_eq("crt-exit-code", st.value().code, 23);
+    }
+
+    void test_crt_errno() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_errno", &crt_errno_main);
+        check_true("crt-errno-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-errno-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-errno-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_errno", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_errno";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-errno-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-errno-out", out, std::string_view{"errno-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-errno-wait", st);
+        check_eq("crt-errno-code", st.value().code, 0);
+    }
+
+    void test_crt_c_probe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_probe", &crt_c_probe_main);
+        check_true("crt-c-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_probe", "beta", nullptr};
+        const char* envp[] = {"FOO=BAR", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_probe";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.envp = std::span<const char* const>(envp, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-out", out, std::string_view{"crt-c-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-wait", st);
+        check_eq("crt-c-code", st.value().code, 0);
+    }
+
+    void test_crt_c_exit() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_exit", &crt_c_exit_main);
+        check_true("crt-c-exit-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-exit-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-exit-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_exit", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_exit";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-exit-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-exit-out", out, std::string_view{"crt-c-exit\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-exit-wait", st);
+        check_eq("crt-c-exit-code", st.value().code, 29);
+    }
+
+    void test_crt_c_header_probe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_header_probe", &crt_c_header_probe_main);
+        check_true("crt-c-header-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-header-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-header-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_header_probe", "beta", nullptr};
+        const char* envp[] = {"FOO=BAR", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_header_probe";
+        cfg.argv = std::span<const char* const>(argv, 2);
+        cfg.envp = std::span<const char* const>(envp, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-header-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-header-out", out, std::string_view{"c-header-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-header-wait", st);
+        check_eq("crt-c-header-code", st.value().code, 0);
+    }
+
+    void test_crt_c_header_exit() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_header_exit", &crt_c_header_exit_main);
+        check_true("crt-c-header-exit-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-header-exit-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-header-exit-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_header_exit", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_header_exit";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-header-exit-spawn", sp);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-header-exit-out", out, std::string_view{"c-header-exit\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-header-exit-wait", st);
+        check_eq("crt-c-header-exit-code", st.value().code, 37);
     }
 
     void test_exit_code_explicit_exit() noexcept {
         Harness h{};
-        h.bind_env();
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
         check_true("exit-abi-reg", h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
@@ -118,12 +301,10 @@ namespace {
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
     void test_stderr_demo() noexcept {
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("stderr_demo", &stderr_demo_main);
         check_true("stderr-register", rreg);
 
@@ -157,12 +338,10 @@ namespace {
         check_eq("stderr-err", err, std::string_view{"err\n"});
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("stderr-wait", st);
-        h.unbind_env();
     }
 
     [[maybe_unused]] void test_exit_code() noexcept {
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("exit_code", &exit_code_main);
         check_true("exit-register", rreg);
 
@@ -182,12 +361,10 @@ namespace {
         if (st.value().code != 0) {
             fail();
         }
-        h.unbind_env();
     }
 
     void test_modulex_register() noexcept {
         Harness h{};
-        h.bind_env();
 
         struct ModuleXStub {
             modulex::ImageHeader hdr{};
@@ -238,13 +415,10 @@ namespace {
         check_eq("modulex-out", out, std::string_view{"mx\n"});
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("modulex-wait", st);
-
-        h.unbind_env();
     }
 
     void test_elf_prefix_stub() noexcept {
         Harness h{};
-        h.bind_env();
 
         const char* argv[] = {"elf:/hello", nullptr};
         posix::SpawnConfig cfg{};
@@ -252,8 +426,6 @@ namespace {
         cfg.argv = std::span<const char* const>(argv, 1);
         auto image = h.procs.load_image(cfg);
         check_true("elf-not-supported", !image && image.error() == util::Errc::not_supported);
-
-        h.unbind_env();
     }
 
     void test_elf_header_stub() noexcept {
@@ -424,7 +596,6 @@ namespace {
         stub.payload[3] = 0xDD;
 
         Harness h{};
-        h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.set_elf_exec_stub(&elf_entry_main);
@@ -463,7 +634,6 @@ namespace {
         check_eq("elf-file-out", out, std::string_view{"mx\n"});
         h.procs.set_elf_exec_stub(nullptr);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
 
@@ -475,7 +645,6 @@ namespace {
         check_true("cat-file-mount", st);
 
         Harness h{};
-        h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
@@ -568,14 +737,12 @@ namespace {
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
     void test_elf_file_direct_exec() noexcept {
         check_true("elf-direct-mount", fs::mount_count() > 0);
 
         Harness h{};
-        h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
@@ -607,12 +774,10 @@ namespace {
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
     void test_elf_real_samples() noexcept {
         Harness h{};
-        h.bind_env();
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
         auto spawn_checked = [&](const char* label, const posix::SpawnConfig& cfg) noexcept {
@@ -693,7 +858,6 @@ namespace {
 
         {
             Harness h_env{};
-            h_env.bind_env();
             h_env.procs.enable_elf_exec(true);
             h_env.procs.enable_elf_hostcalls(true);
             check_true("elf-real-env-reg",
@@ -723,12 +887,10 @@ namespace {
             const char expected[] = "env[0]=PATH=/bin:/usr/bin\nenv[1]=FOO=BAR\n";
             check_eq("elf-real-env-out", out, std::string_view{expected});
             (void)h_env.api.close(read_fd);
-            h_env.unbind_env();
         }
 
         {
             Harness h_stderr{};
-            h_stderr.bind_env();
             h_stderr.procs.enable_elf_exec(true);
             h_stderr.procs.enable_elf_hostcalls(true);
             check_true("elf-real-stderr-reg",
@@ -762,12 +924,10 @@ namespace {
             auto err = read_from_fd(h_stderr.api, err_read, err_buf, err_size);
             check_eq("elf-real-stderr-out", out, std::string_view{"out\n"});
             check_eq("elf-real-stderr-err", err, std::string_view{"err\n"});
-            h_stderr.unbind_env();
         }
 
         {
             Harness h_merge{};
-            h_merge.bind_env();
             h_merge.procs.enable_elf_exec(true);
             h_merge.procs.enable_elf_hostcalls(true);
             check_true("elf-real-stderr-merge-reg",
@@ -791,12 +951,10 @@ namespace {
             util::usize out_size = 0;
             auto out = read_from_fd(h_merge.api, pipefd[0], buf, out_size);
             check_eq("elf-real-stderr-merge-out", out, std::string_view{"out\nerr\n"});
-            h_merge.unbind_env();
         }
 
         {
             Harness h_err_only{};
-            h_err_only.bind_env();
             h_err_only.procs.enable_elf_exec(true);
             h_err_only.procs.enable_elf_hostcalls(true);
             check_true("elf-real-stderr-only-reg",
@@ -829,7 +987,6 @@ namespace {
             util::usize out_size = 0;
             auto out = read_from_fd(h_err_only.api, err_read, buf, out_size);
             check_eq("elf-real-stderr-only-out", out, std::string_view{"err\n"});
-            h_err_only.unbind_env();
         }
 
         {
@@ -908,7 +1065,6 @@ namespace {
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
 } // namespace
@@ -921,6 +1077,27 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase argv-dump begin");
     test_argv_dump();
     log_line("[posix-smoke] programs phase argv-dump end");
+    log_line("[posix-smoke] programs phase crt-probe begin");
+    test_crt_probe();
+    log_line("[posix-smoke] programs phase crt-probe end");
+    log_line("[posix-smoke] programs phase crt-exit begin");
+    test_crt_exit();
+    log_line("[posix-smoke] programs phase crt-exit end");
+    log_line("[posix-smoke] programs phase crt-errno begin");
+    test_crt_errno();
+    log_line("[posix-smoke] programs phase crt-errno end");
+    log_line("[posix-smoke] programs phase crt-c-probe begin");
+    test_crt_c_probe();
+    log_line("[posix-smoke] programs phase crt-c-probe end");
+    log_line("[posix-smoke] programs phase crt-c-exit begin");
+    test_crt_c_exit();
+    log_line("[posix-smoke] programs phase crt-c-exit end");
+    log_line("[posix-smoke] programs phase crt-c-header-probe begin");
+    test_crt_c_header_probe();
+    log_line("[posix-smoke] programs phase crt-c-header-probe end");
+    log_line("[posix-smoke] programs phase crt-c-header-exit begin");
+    test_crt_c_header_exit();
+    log_line("[posix-smoke] programs phase crt-c-header-exit end");
     log_line("[posix-smoke] programs phase exit-code begin");
     log_line("[posix-smoke] programs exit-register ok");
     log_line("[posix-smoke] programs phase exit-code end");

@@ -37,6 +37,7 @@ export namespace posix {
         }
 #if defined(POSIX_TEST_BUILD) && POSIX_TEST_BUILD
         if (image && service.elf_exec_enabled() && service.elf_exec_stub_entry()) {
+            image.value().entry_abi = ImageEntryAbi::main_argv_envp_v1;
             image.value().entry = service.elf_exec_stub_entry();
         }
 #endif

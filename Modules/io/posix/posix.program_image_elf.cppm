@@ -237,6 +237,7 @@ export namespace posix {
         ProgramImage image{};
         image.kind = ImageKind::elf;
         image.name = {};
+        image.entry_abi = ImageEntryAbi::main_argv_envp_v1;
         const auto entry_off = static_cast<util::u64>(entry - min_vaddr);
         image.entry = addr_to_entry(
             modulex::to_addr(cfg.load_base) + static_cast<modulex::Addr>(entry_off));

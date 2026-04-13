@@ -143,6 +143,9 @@ Draft/        # 计划/草案（可变动）
 - Service/Component 初始化顺序：`docs/system/service_component_init.md`
 - InitGraph 契约：`docs/system/init_graph_contract.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
+- POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
+- POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
+- POSIX 用户态运行时：`docs/system/posix_user_runtime_minimal_design.md`
 - POSIX 阶段进度：`docs/system/posix_stage_summary.md`
 
 ## 1.1.2 POSIX 兼容执行面（当前已落地）
@@ -152,6 +155,7 @@ POSIX 兼容执行面当前归在 Runtime/IO 侧，代码主目录为 `Modules/i
 
 当前已经落地的能力包括：
 - `posix.api`、`fd_table`、`pipe`、`spawn / waitpid`、`dup2`、`isatty`、`errno`。
+- `posix.user_runtime` / `posix.user_context`：用户程序可见的最小 runtime facade，负责当前 runtime / pid 绑定以及当前 `argc/argv/envp` 启动上下文。
 - 文件路径 ELF 装载与执行：`spawn -> load_image -> start_image`。
 - `_exit(code)` 统一退出语义：通过 `ExecContext + setjmp/longjmp` 收束。
 - QEMU 回归链路：`posix smoke + busybox phase2 smoke`。

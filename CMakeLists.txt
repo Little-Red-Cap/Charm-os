@@ -28,6 +28,9 @@ option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" OFF)
 
 add_library(${target_name})
 
+target_include_directories(${target_name} PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/posix")
+
 #add_compile_options(
 target_compile_options(${target_name} PRIVATE
         -Wall

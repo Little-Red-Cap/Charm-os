@@ -146,3 +146,6 @@ docs/
 ### UI
 - `docs/ui/player_ui.md`
 - `docs/ui/player_vivid_patterns.md`
+
+### 方法论总纲
+- `docs/architecture/charm_methodology_charter.md`

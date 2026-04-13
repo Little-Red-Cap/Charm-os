@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <tuple>
 
 export module init.materialize;
@@ -27,6 +28,7 @@ namespace init::detail {
     template <util::usize MaxCaps>
     struct cap_set {
         std::array<CapId, MaxCaps> ids{};
+        std::array<std::string_view, MaxCaps> names{};
         util::usize count{0};
     };
 
@@ -48,34 +50,47 @@ namespace init::detail {
     };
 
     template <util::usize MaxCaps>
-    constexpr bool contains(const cap_set<MaxCaps>& caps, CapId id) noexcept {
+    constexpr util::usize find_index(const cap_set<MaxCaps>& caps, CapId id) noexcept {
         for (util::usize i = 0; i < caps.count; ++i) {
             if (caps.ids[i] == id) {
-                return true;
+                return i;
             }
         }
-        return false;
+        return caps.count;
     }
 
     template <util::usize MaxCaps>
-    util::Result<void> append_unique(cap_set<MaxCaps>& caps, CapId id) noexcept {
+    constexpr bool contains(const cap_set<MaxCaps>& caps, CapId id) noexcept {
+        return find_index(caps, id) != caps.count;
+    }
+
+    template <util::usize MaxCaps>
+    util::Result<void> append_unique(cap_set<MaxCaps>& caps,
+                                     CapId id,
+                                     std::string_view name = {}) noexcept {
         if (id == 0) {
             return util::unexpected(util::Errc::invalid_arg);
         }
-        if (contains(caps, id)) {
+        const auto index = find_index(caps, id);
+        if (index != caps.count) {
+            if (caps.names[index].empty() && !name.empty()) {
+                caps.names[index] = name;
+            }
             return {};
         }
         if (caps.count >= MaxCaps) {
             return util::unexpected(util::Errc::buffer_overflow);
         }
-        caps.ids[caps.count++] = id;
+        caps.ids[caps.count] = id;
+        caps.names[caps.count] = name;
+        ++caps.count;
         return {};
     }
 
     template <util::usize MaxCaps>
     util::Result<void> merge_into(cap_set<MaxCaps>& dst, const cap_set<MaxCaps>& src) noexcept {
         for (util::usize i = 0; i < src.count; ++i) {
-            auto r = append_unique(dst, src.ids[i]);
+            auto r = append_unique(dst, src.ids[i], src.names[i]);
             if (!r) {
                 return util::unexpected(r.error());
             }
@@ -86,11 +101,11 @@ namespace init::detail {
     template <typename List, util::usize MaxCaps>
     util::Result<void> append_type_caps(cap_set<MaxCaps>& dst) noexcept {
         util::Errc error = util::Errc::ok;
-        cap_list_traits<List>::for_each([&](CapId id) {
+        cap_list_traits<List>::for_each_named([&](CapId id, std::string_view name) {
             if (!util::ok(error)) {
                 return;
             }
-            auto r = append_unique(dst, id);
+            auto r = append_unique(dst, id, name);
             if (!r) {
                 error = r.error();
             }
@@ -125,6 +140,8 @@ export namespace init {
         std::array<materialized_node_kind, MaxNodes> node_kinds{};
         std::array<std::array<CapId, MaxCaps>, MaxNodes> provides_storage{};
         std::array<std::array<CapId, MaxCaps>, MaxNodes> requires_storage{};
+        std::array<std::array<std::string_view, MaxCaps>, MaxNodes> provides_name_storage{};
+        std::array<std::array<std::string_view, MaxCaps>, MaxNodes> requires_name_storage{};
         std::array<util::usize, MaxNodes> provides_count{};
         std::array<util::usize, MaxNodes> requires_count{};
         std::array<CapId, MaxCaps> provided_caps_seen{};
@@ -184,18 +201,25 @@ namespace init::detail {
     util::Result<void> append_cap_to_row(materialized_graph<MaxNodes, MaxCaps>& out,
                                          util::usize row,
                                          bool provides,
-                                         CapId id) noexcept {
+                                         CapId id,
+                                         std::string_view name = {}) noexcept {
         auto& counts = provides ? out.provides_count : out.requires_count;
         auto& rows = provides ? out.provides_storage : out.requires_storage;
+        auto& name_rows = provides ? out.provides_name_storage : out.requires_name_storage;
         for (util::usize i = 0; i < counts[row]; ++i) {
             if (rows[row][i] == id) {
+                if (name_rows[row][i].empty() && !name.empty()) {
+                    name_rows[row][i] = name;
+                }
                 return {};
             }
         }
         if (counts[row] >= MaxCaps) {
             return util::unexpected(util::Errc::buffer_overflow);
         }
-        rows[row][counts[row]++] = id;
+        rows[row][counts[row]] = id;
+        name_rows[row][counts[row]] = name;
+        ++counts[row];
         return {};
     }
 
@@ -216,7 +240,9 @@ namespace init::detail {
 
         materialize_summary<MaxCaps> summary{};
         for (util::usize i = 0; i < out.provides_count[row]; ++i) {
-            auto r = append_unique(summary.provides, out.provides_storage[row][i]);
+            auto r = append_unique(summary.provides,
+                                   out.provides_storage[row][i],
+                                   out.provides_name_storage[row][i]);
             if (!r) {
                 return util::unexpected(r.error());
             }
@@ -265,7 +291,11 @@ namespace init::detail {
             }
         }
         for (util::usize i = 0; i < constraints.required_caps.count; ++i) {
-            auto r = append_cap_to_row(out, row, false, constraints.required_caps.ids[i]);
+            auto r = append_cap_to_row(out,
+                                       row,
+                                       false,
+                                       constraints.required_caps.ids[i],
+                                       constraints.required_caps.names[i]);
             if (!r) {
                 return util::unexpected(r.error());
             }
@@ -297,7 +327,7 @@ namespace init::detail {
         out.requires_count[row] = 0;
 
         util::Errc error = util::Errc::ok;
-        cap_list_traits<typename Recipe::provides_list>::for_each([&](CapId cap) {
+        cap_list_traits<typename Recipe::provides_list>::for_each_named([&](CapId cap, std::string_view name) {
             if (!util::ok(error)) {
                 return;
             }
@@ -306,7 +336,7 @@ namespace init::detail {
                 error = seen.error();
                 return;
             }
-            auto r = append_cap_to_row(out, row, true, cap);
+            auto r = append_cap_to_row(out, row, true, cap, name);
             if (!r) {
                 error = r.error();
             }
@@ -315,11 +345,11 @@ namespace init::detail {
             return util::unexpected(error);
         }
 
-        cap_list_traits<typename Recipe::requires_list>::for_each([&](CapId cap) {
+        cap_list_traits<typename Recipe::requires_list>::for_each_named([&](CapId cap, std::string_view name) {
             if (!util::ok(error)) {
                 return;
             }
-            auto r = append_cap_to_row(out, row, false, cap);
+            auto r = append_cap_to_row(out, row, false, cap, name);
             if (!r) {
                 error = r.error();
             }
@@ -329,7 +359,11 @@ namespace init::detail {
         }
 
         for (util::usize i = 0; i < constraints.required_caps.count; ++i) {
-            auto r = append_cap_to_row(out, row, false, constraints.required_caps.ids[i]);
+            auto r = append_cap_to_row(out,
+                                       row,
+                                       false,
+                                       constraints.required_caps.ids[i],
+                                       constraints.required_caps.names[i]);
             if (!r) {
                 return util::unexpected(r.error());
             }
@@ -621,12 +655,16 @@ namespace init::detail {
         if (!seen) {
             return util::unexpected(seen.error());
         }
-        auto provide_result = append_cap_to_row(out, row, true, Cap::id);
+        auto provide_result = append_cap_to_row(out, row, true, Cap::id, Cap::view());
         if (!provide_result) {
             return util::unexpected(provide_result.error());
         }
         for (util::usize i = 0; i < summary->provides.count; ++i) {
-            auto require_result = append_cap_to_row(out, row, false, summary->provides.ids[i]);
+            auto require_result = append_cap_to_row(out,
+                                                    row,
+                                                    false,
+                                                    summary->provides.ids[i],
+                                                    summary->provides.names[i]);
             if (!require_result) {
                 return util::unexpected(require_result.error());
             }

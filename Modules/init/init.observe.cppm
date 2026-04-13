@@ -83,6 +83,21 @@ namespace init::detail {
                           static_cast<unsigned long long>(cap));
     }
 
+    inline std::size_t append_cap_display(char* out,
+                                          std::size_t max,
+                                          std::size_t offset,
+                                          CapId cap,
+                                          std::string_view name) noexcept {
+        if (!name.empty()) {
+            offset = append_text(out, max, offset, name);
+            offset = append_text(out, max, offset, " (");
+            offset = append_cap_id(out, max, offset, cap);
+            offset = append_char(out, max, offset, ')');
+            return offset;
+        }
+        return append_cap_id(out, max, offset, cap);
+    }
+
     inline std::size_t append_runlevel_mask(char* out,
                                             std::size_t max,
                                             std::size_t offset,
@@ -126,7 +141,8 @@ namespace init::detail {
     inline std::size_t append_cap_list(char* out,
                                        std::size_t max,
                                        std::size_t offset,
-                                       std::span<const CapId> caps) noexcept {
+                                       std::span<const CapId> caps,
+                                       std::span<const std::string_view> names) noexcept {
         if (caps.empty()) {
             return append_text(out, max, offset, "-");
         }
@@ -134,7 +150,8 @@ namespace init::detail {
             if (i > 0) {
                 offset = append_text(out, max, offset, ", ");
             }
-            offset = append_cap_id(out, max, offset, caps[i]);
+            const auto name = i < names.size() ? names[i] : std::string_view{};
+            offset = append_cap_display(out, max, offset, caps[i], name);
         }
         return offset;
     }
@@ -223,15 +240,23 @@ namespace init::detail {
     inline std::size_t append_json_cap_array(char* out,
                                              std::size_t max,
                                              std::size_t offset,
-                                             std::span<const CapId> caps) noexcept {
+                                             std::span<const CapId> caps,
+                                             std::span<const std::string_view> names) noexcept {
         offset = append_char(out, max, offset, '[');
         for (std::size_t i = 0; i < caps.size(); ++i) {
             if (i > 0) {
                 offset = append_char(out, max, offset, ',');
             }
+            offset = append_text(out, max, offset, "{\"id\":");
             offset = append_char(out, max, offset, '"');
             offset = append_cap_id(out, max, offset, caps[i]);
             offset = append_char(out, max, offset, '"');
+            offset = append_text(out, max, offset, ",\"name\":");
+            offset = append_json_string(out,
+                                        max,
+                                        offset,
+                                        i < names.size() ? names[i] : std::string_view{});
+            offset = append_char(out, max, offset, '}');
         }
         offset = append_char(out, max, offset, ']');
         return offset;
@@ -276,7 +301,9 @@ export namespace init {
         Phase phase{Phase::early};
         util::u32 runlevel_mask{0};
         std::span<const CapId> provides{};
+        std::span<const std::string_view> provide_names{};
         std::span<const CapId> requires_caps{};
+        std::span<const std::string_view> require_names{};
         materialized_node_kind kind{materialized_node_kind::unknown};
     };
 
@@ -326,7 +353,9 @@ export namespace init {
                 .phase = node.phase,
                 .runlevel_mask = node.runlevel_mask,
                 .provides = std::span<const CapId>{mats.provides_storage[row].data(), mats.provides_count[row]},
+                .provide_names = std::span<const std::string_view>{mats.provides_name_storage[row].data(), mats.provides_count[row]},
                 .requires_caps = std::span<const CapId>{mats.requires_storage[row].data(), mats.requires_count[row]},
+                .require_names = std::span<const std::string_view>{mats.requires_name_storage[row].data(), mats.requires_count[row]},
                 .kind = mats.node_kinds[row],
             };
         }
@@ -357,6 +386,25 @@ export namespace init {
         }
 
         return out;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    [[nodiscard]] constexpr std::string_view find_capability_name(const materialized_graph_view<MaxNodes, MaxCaps>& view,
+                                                                  CapId cap) noexcept {
+        for (util::usize node_index = 0; node_index < view.node_count; ++node_index) {
+            const auto& node = view.nodes[node_index];
+            for (std::size_t i = 0; i < node.provides.size(); ++i) {
+                if (node.provides[i] == cap && i < node.provide_names.size() && !node.provide_names[i].empty()) {
+                    return node.provide_names[i];
+                }
+            }
+            for (std::size_t i = 0; i < node.requires_caps.size(); ++i) {
+                if (node.requires_caps[i] == cap && i < node.require_names.size() && !node.require_names[i].empty()) {
+                    return node.require_names[i];
+                }
+            }
+        }
+        return {};
     }
 
     template <util::usize MaxNodes, util::usize MaxCaps>
@@ -416,9 +464,9 @@ export namespace init {
             offset = detail::append_text(out, max, offset, "\\nrunlevel=");
             offset = detail::append_runlevel_mask(out, max, offset, node.runlevel_mask);
             offset = detail::append_text(out, max, offset, "\\nprovides=");
-            offset = detail::append_cap_list(out, max, offset, node.provides);
+            offset = detail::append_cap_list(out, max, offset, node.provides, node.provide_names);
             offset = detail::append_text(out, max, offset, "\\nrequires=");
-            offset = detail::append_cap_list(out, max, offset, node.requires_caps);
+            offset = detail::append_cap_list(out, max, offset, node.requires_caps, node.require_names);
             offset = detail::append_text(out, max, offset, "\"];\n");
         }
 
@@ -430,7 +478,11 @@ export namespace init {
                                         "  n%llu -> n%llu [label=\"",
                                         static_cast<unsigned long long>(edge.provider_index),
                                         static_cast<unsigned long long>(edge.consumer_index));
-            offset = detail::append_cap_id(out, max, offset, edge.capability);
+            offset = detail::append_cap_display(out,
+                                                max,
+                                                offset,
+                                                edge.capability,
+                                                find_capability_name(view, edge.capability));
             offset = detail::append_text(out, max, offset, "\"];\n");
         }
 
@@ -458,7 +510,7 @@ export namespace init {
         offset = detail::append_char(out, max, offset, '{');
 
         offset = detail::append_text(out, max, offset, "\"schema\":");
-        offset = detail::append_json_string(out, max, offset, "materialized_graph.sample/v1");
+        offset = detail::append_json_string(out, max, offset, "materialized_graph.sample/v2");
         offset = detail::append_text(out, max, offset, ",\"effective_max_phase\":");
         offset = detail::append_json_string(out, max, offset, to_text(view.effective_max_phase));
         offset = detail::append_text(out, max, offset, ",\"effective_runlevel_mask\":");
@@ -517,9 +569,9 @@ export namespace init {
             offset = detail::append_runlevel_mask(out, max, offset, node.runlevel_mask);
             offset = detail::append_char(out, max, offset, '"');
             offset = detail::append_text(out, max, offset, ",\"provides\":");
-            offset = detail::append_json_cap_array(out, max, offset, node.provides);
+            offset = detail::append_json_cap_array(out, max, offset, node.provides, node.provide_names);
             offset = detail::append_text(out, max, offset, ",\"requires\":");
-            offset = detail::append_json_cap_array(out, max, offset, node.requires_caps);
+            offset = detail::append_json_cap_array(out, max, offset, node.requires_caps, node.require_names);
             offset = detail::append_char(out, max, offset, '}');
         }
         offset = detail::append_char(out, max, offset, ']');
@@ -544,9 +596,16 @@ export namespace init {
                                         "%llu",
                                         static_cast<unsigned long long>(edge.consumer_index));
             offset = detail::append_text(out, max, offset, ",\"capability\":");
+            offset = detail::append_text(out, max, offset, "{\"id\":");
             offset = detail::append_char(out, max, offset, '"');
             offset = detail::append_cap_id(out, max, offset, edge.capability);
             offset = detail::append_char(out, max, offset, '"');
+            offset = detail::append_text(out, max, offset, ",\"name\":");
+            offset = detail::append_json_string(out,
+                                                max,
+                                                offset,
+                                                find_capability_name(view, edge.capability));
+            offset = detail::append_char(out, max, offset, '}');
             offset = detail::append_char(out, max, offset, '}');
         }
         offset = detail::append_text(out, max, offset, "]}");
@@ -623,10 +682,11 @@ export namespace init {
         if (json_used == 0) {
             return util::unexpected(util::Errc::bad_state);
         }
-        if (std::strstr(json.data(), "\"schema\":\"materialized_graph.sample/v1\"") == nullptr
+        if (std::strstr(json.data(), "\"schema\":\"materialized_graph.sample/v2\"") == nullptr
             || std::strstr(json.data(), "\"nodes\":[") == nullptr
             || std::strstr(json.data(), "\"edges\":[") == nullptr
-            || std::strstr(json.data(), "\"kind\":\"barrier\"") == nullptr) {
+            || std::strstr(json.data(), "\"kind\":\"barrier\"") == nullptr
+            || std::strstr(json.data(), "\"name\":\"observe.done\"") == nullptr) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

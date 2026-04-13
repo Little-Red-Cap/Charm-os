@@ -416,6 +416,26 @@
             return format_from_path((*tracks)[static_cast<std::size_t>(track_index)].view()).data();
         }
 
+        static ::ui::scene::ImageId list_view_tail_icon(const void* ctx, std::uint16_t index) noexcept {
+            auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
+            if (!self) return ::ui::scene::invalid_image_id();
+            if (self->track_index < 0) return ::ui::scene::invalid_image_id();
+            const int row_track = self->list_index_to_track(static_cast<int>(index));
+            if (row_track < 0) return ::ui::scene::invalid_image_id();
+
+            bool is_current_row = false;
+            if (self->library_shows_group_rows()) {
+                const auto row_group = self->library_group_title_for_track(row_track);
+                const auto current_group = self->library_group_title_for_track(self->track_index);
+                is_current_row = !row_group.empty() && compare_ci(row_group, current_group) == 0;
+            } else {
+                is_current_row = row_track == self->track_index;
+            }
+
+            if (!is_current_row) return ::ui::scene::invalid_image_id();
+            return self->is_paused() ? self->icons.pause : self->icons.play;
+        }
+
         static ::ui::scene::ImageId list_view_icon(const void* ctx, std::uint16_t index) noexcept {
             auto* self = static_cast<PlayerController*>(const_cast<void*>(ctx));
             if (!self) return ::ui::scene::invalid_image_id();
@@ -623,6 +643,7 @@
                                          &PlayerController::list_view_text);
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
+            access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
             access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
             access.set_list_row_height(handles.list, 72);
             access.set_scroll_step(handles.list, 72);

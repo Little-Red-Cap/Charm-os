@@ -177,6 +177,12 @@ export namespace ui::scene {
                                        ListViewTailFn tail_fn) noexcept {
             kernel_->set_list_view_tail_source(h, ctx, tail_fn);
         }
+        void set_list_view_tail_icon_source(WidgetHandle h,
+                                            const void* ctx,
+                                            ListViewIconFn icon_fn,
+                                            std::uint8_t size) noexcept {
+            kernel_->set_list_view_tail_icon_source(h, ctx, icon_fn, size);
+        }
         void set_list_view_icon_source(WidgetHandle h,
                                        const void* ctx,
                                        ListViewIconFn icon_fn,

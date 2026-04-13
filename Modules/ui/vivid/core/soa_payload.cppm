@@ -287,6 +287,8 @@ export namespace soa_detail {
         ListViewSubtitleFn subtitle_fn{nullptr};
         const void* tail_ctx{nullptr};
         ListViewTailFn tail_fn{nullptr};
+        const void* tail_icon_ctx{nullptr};
+        ListViewIconFn tail_icon_fn{nullptr};
         const void* icon_ctx{nullptr};
         ListViewIconFn icon_fn{nullptr};
         std::uint16_t count{0};
@@ -296,6 +298,7 @@ export namespace soa_detail {
         int row_height{28};
         int wheel_step{24};
         std::uint8_t overscan{2};
+        std::uint8_t tail_icon_size{0};
         std::uint8_t icon_size{0};
     };
 

@@ -1455,20 +1455,44 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const char* title = kernel.list_view_item_text(h, static_cast<std::uint16_t>(i));
         const char* subtitle = kernel.list_view_item_subtitle(h, static_cast<std::uint16_t>(i));
         const char* tail = kernel.list_view_item_tail(h, static_cast<std::uint16_t>(i));
+        const auto tail_icon = kernel.list_view_item_tail_icon(h, static_cast<std::uint16_t>(i));
         const bool has_tail = tail && tail[0] != '\0';
+        const bool has_tail_icon = ui::draw_cmd::image_id_valid(tail_icon);
         Rect tail_rect{};
+        Rect tail_icon_rect{};
         int main_text_w = text_w;
         bool draw_tail = false;
-        if (has_tail && text_w >= 96) {
-            int tail_w = text_w / 3;
-            if (tail_w < 48) tail_w = 48;
-            if (tail_w > 88) tail_w = 88;
-            if (tail_w + pad < text_w) {
-                tail_rect = Rect{text_x + text_w - tail_w, row.y, tail_w, row_h};
-                main_text_w = tail_rect.x - pad - text_x;
-                draw_tail = main_text_w >= 24;
+        bool draw_tail_icon = false;
+        int right_x = text_x + text_w;
+        if (has_tail_icon && text_w >= 48) {
+            int tail_icon_size = static_cast<int>(kernel.list_view_tail_icon_size(h));
+            if (tail_icon_size <= 0) tail_icon_size = 18;
+            const int tail_icon_max = row_h - pad * 2;
+            if (tail_icon_max > 0 && tail_icon_size > tail_icon_max) tail_icon_size = tail_icon_max;
+            if (tail_icon_size < 12) tail_icon_size = 12;
+            if (tail_icon_size < text_w) {
+                right_x -= tail_icon_size;
+                tail_icon_rect = Rect{right_x, row.y + (row_h - tail_icon_size) / 2, tail_icon_size, tail_icon_size};
+                draw_tail_icon = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
             }
         }
+        if (has_tail && right_x - text_x >= 72) {
+            int tail_w = (right_x - text_x) / 3;
+            if (tail_w < 48) tail_w = 48;
+            if (tail_w > 88) tail_w = 88;
+            if (tail_w < right_x - text_x) {
+                right_x -= tail_w;
+                tail_rect = Rect{right_x, row.y, tail_w, row_h};
+                draw_tail = true;
+                if (right_x - pad > text_x) {
+                    right_x -= pad;
+                }
+            }
+        }
+        main_text_w = right_x - text_x;
         if (main_text_w < 0) main_text_w = 0;
         const Rect text_rect{text_x, row.y, main_text_w, row_h};
         if (subtitle && subtitle[0] != '\0' && row_h >= 44) {
@@ -1498,6 +1522,9 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
                                                  : (row_active ? colors.accent : colors.border);
             out.draw_text_box(tail_rect, tail, tail_color, tail_font,
                               TextAlignH::Right, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
+        }
+        if (draw_tail_icon) {
+            out.draw_icon(tail_icon_rect, tail_icon);
         }
         y += row_h;
     }

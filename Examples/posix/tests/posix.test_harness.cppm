@@ -153,15 +153,12 @@ export namespace posix::testsupport {
     }
 
     template <util::usize N>
-    bool make_absolute_path(std::string_view in, std::array<char, N>& out) noexcept {
+    bool copy_path_arg(std::string_view in, std::array<char, N>& out) noexcept {
         if (in.empty() || N < 2) return false;
-        util::usize pos = 0;
-        if (in[0] != '/') {
-            out[pos++] = '/';
-        }
-        if (pos + in.size() >= out.size()) {
+        if (in.size() >= out.size()) {
             return false;
         }
+        util::usize pos = 0;
         for (char ch : in) {
             out[pos++] = ch;
         }
@@ -652,7 +649,7 @@ export namespace posix::testsupport {
         };
 
         if (!input_path.empty()) {
-            if (!make_absolute_path(input_path, input_buf)) {
+            if (!copy_path_arg(input_path, input_buf)) {
                 return 127;
             }
             input_fd = posix::user::open(input_buf.data(), posix::O_RDONLY, 0);
@@ -661,7 +658,7 @@ export namespace posix::testsupport {
             }
         }
         if (!output_path.empty()) {
-            if (!make_absolute_path(output_path, output_buf)) {
+            if (!copy_path_arg(output_path, output_buf)) {
                 close_if_open(input_fd);
                 return 127;
             }
@@ -675,7 +672,7 @@ export namespace posix::testsupport {
             }
         }
         if (!err_path.empty()) {
-            if (!make_absolute_path(err_path, err_buf)) {
+            if (!copy_path_arg(err_path, err_buf)) {
                 close_if_open(input_fd);
                 close_if_open(output_fd);
                 return 127;
@@ -745,7 +742,7 @@ export namespace posix::testsupport {
         if (!posix::user::has_runtime()) return 1;
         if (argc < 2 || !argv || !argv[1]) return 2;
         std::array<char, 64> path_buf{};
-        if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 3;
+        if (!copy_path_arg(std::string_view{argv[1]}, path_buf)) return 3;
         return posix::user::mkdir(path_buf.data()) == 0 ? 0 : 4;
     }
 
@@ -753,7 +750,7 @@ export namespace posix::testsupport {
         if (!posix::user::has_runtime()) return 1;
         if (argc < 2 || !argv || !argv[1]) return 2;
         std::array<char, 64> path_buf{};
-        if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 3;
+        if (!copy_path_arg(std::string_view{argv[1]}, path_buf)) return 3;
         return posix::user::unlink(path_buf.data()) == 0 ? 0 : 4;
     }
 
@@ -762,17 +759,17 @@ export namespace posix::testsupport {
         if (argc < 3 || !argv || !argv[1] || !argv[2]) return 2;
         std::array<char, 64> from_buf{};
         std::array<char, 64> to_buf{};
-        if (!make_absolute_path(std::string_view{argv[1]}, from_buf)) return 3;
-        if (!make_absolute_path(std::string_view{argv[2]}, to_buf)) return 3;
+        if (!copy_path_arg(std::string_view{argv[1]}, from_buf)) return 3;
+        if (!copy_path_arg(std::string_view{argv[2]}, to_buf)) return 3;
         return posix::user::rename(from_buf.data(), to_buf.data()) == 0 ? 0 : 4;
     }
 
     int ls_main(int argc, char** argv, char**) {
         if (!posix::user::has_runtime()) return 1;
         std::array<char, 64> path_buf{};
-        const char* path = "/";
+        const char* path = ".";
         if (argc > 1 && argv && argv[1]) {
-            if (!make_absolute_path(std::string_view{argv[1]}, path_buf)) return 2;
+            if (!copy_path_arg(std::string_view{argv[1]}, path_buf)) return 2;
             path = path_buf.data();
         }
         auto* dir = posix::user::opendir(path);

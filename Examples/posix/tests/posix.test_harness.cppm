@@ -45,6 +45,7 @@ extern "C" int charm_posix_newlib_syscall_probe_entry(void);
 extern "C" int charm_posix_newlib_kill_self_entry(void);
 extern "C" int charm_posix_newlib_lseek_entry(void);
 extern "C" int charm_posix_newlib_path_entry(void);
+extern "C" int charm_posix_newlib_cwd_entry(void);
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
 extern "C" int charm_posix_newlib_stdio_entry(void);
 #endif
@@ -286,6 +287,10 @@ export namespace posix::testsupport {
 
     int newlib_path_main(int, char**, char**) {
         return charm_posix_newlib_path_entry();
+    }
+
+    int newlib_cwd_main(int, char**, char**) {
+        return charm_posix_newlib_cwd_entry();
     }
 
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE

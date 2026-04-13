@@ -30,7 +30,7 @@
   - `fstat/isatty/lseek`
   - `spawn/spawnp/waitpid/kill/list_processes/getpid`
   - `sleep`
-  - `mkdir/unlink/rmdir/rename/opendir/readdir/closedir`
+  - `mkdir/unlink/rmdir/rename/opendir/readdir/closedir/chdir/getcwd`
 - 对用户程序暴露最小 startup context facade：
   - `argc()/argv()/envp()`
   - `argv0()/arg(index)`
@@ -114,5 +114,5 @@
 ### 当前已落地的最小桥面
 
 - I/O / 进程 / offset：`_read`、`_write`、`_close`、`_open`、`_fstat`、`_stat`、`_isatty`、`_lseek`、`_getpid`、`_kill`
-- 路径基础：`_unlink`、`_mkdir`、`_rmdir`、`_rename`、`_access`
+- 路径基础：`_unlink`、`_mkdir`、`_rmdir`、`_rename`、`_access`、`chdir/getcwd`
 - `FILE*` 级验证目前保持为独立 QEMU 烟测目标，避免把全局 stdio/newlib 状态耦合进主 POSIX 回归套件。

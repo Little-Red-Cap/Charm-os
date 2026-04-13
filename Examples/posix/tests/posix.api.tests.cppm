@@ -21,6 +21,7 @@ import posix.pipe;
 import posix.proc;
 import posix.fd_table;
 import posix.user_context;
+import posix.user_runtime;
 import charm.system.clock;
 import charm.system.time;
 import fs_core;
@@ -230,6 +231,19 @@ namespace {
         if (posix::user::getenv("FOO") != std::string_view{"BAR"}) return 33;
         if (posix::user::getenv("BAR") != std::string_view{"BAZ"}) return 34;
         return 0;
+    }
+
+    int cwd_demo_main(int argc, char** argv, char**) {
+        char cwd[64]{};
+        if (posix::user::getcwd(cwd, sizeof(cwd)) == nullptr) return 41;
+        const char* name = (argc > 1 && argv && argv[1]) ? argv[1] : "child.txt";
+        int fd = posix::user::open(name, posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        if (fd < 0) return 42;
+        std::string_view text{cwd};
+        if (posix::user::write(fd, text.data(), text.size()) != static_cast<posix::ssize_t>(text.size())) {
+            return 43;
+        }
+        return posix::user::close(fd) == 0 ? 0 : 44;
     }
 
     void test_api_open_close() noexcept {
@@ -667,6 +681,107 @@ namespace {
         check_eq("isatty-pipe-close-w", api.close(pipefd[1]), 0);
     }
 
+    void test_api_cwd_and_spawn() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("cwd-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<8> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 8> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+        procs.bind_fd_table(fds);
+        procs.bind_file_service(files);
+
+        using ApiType = posix::Api<8, 2, 8, 4, 4, 8>;
+        ApiType api{fds, files, pipes, procs};
+        posix::user::ProcessBinding<ApiType> runtime_binding{api};
+        posix::user::bind_process_runtime(procs, runtime_binding);
+
+        auto rreg = procs.register_executable("cwd-demo", &cwd_demo_main);
+        check_true("cwd-register", rreg);
+
+        char cwd[32]{};
+        check_true("cwd-root", api.getcwd(cwd, sizeof(cwd)) != nullptr);
+        check_eq("cwd-root-text", std::string_view{cwd}, std::string_view{"/"});
+
+        check_eq("cwd-mkdir-work", api.mkdir("/work"), 0);
+        check_eq("cwd-mkdir-sub", api.mkdir("/work/sub"), 0);
+
+        check_eq("cwd-chdir-work", api.chdir("/work"), 0);
+        check_true("cwd-work", api.getcwd(cwd, sizeof(cwd)) != nullptr);
+        check_eq("cwd-work-text", std::string_view{cwd}, std::string_view{"/work"});
+
+        int fd = api.open("alpha.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cwd-open-alpha", fd >= 0);
+        check_eq("cwd-close-alpha", api.close(fd), 0);
+        posix::PosixStat st{};
+        check_eq("cwd-stat-alpha", api.stat("/work/alpha.txt", &st), 0);
+
+        check_eq("cwd-chdir-sub", api.chdir("sub"), 0);
+        check_true("cwd-sub", api.getcwd(cwd, sizeof(cwd)) != nullptr);
+        check_eq("cwd-sub-text", std::string_view{cwd}, std::string_view{"/work/sub"});
+
+        fd = api.open("../beta.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("cwd-open-beta", fd >= 0);
+        check_eq("cwd-close-beta", api.close(fd), 0);
+        check_eq("cwd-stat-beta", api.stat("/work/beta.txt", &st), 0);
+
+        char small[2]{};
+        posix::set_errno(0);
+        check_true("cwd-getcwd-small", api.getcwd(small, sizeof(small)) == nullptr);
+        check_eq("cwd-getcwd-small-errno", posix::get_errno(), posix::ERANGE);
+
+        check_eq("cwd-chdir-parent", api.chdir(".."), 0);
+        check_true("cwd-parent", api.getcwd(cwd, sizeof(cwd)) != nullptr);
+        check_eq("cwd-parent-text", std::string_view{cwd}, std::string_view{"/work"});
+
+        const char* inherit_argv[] = {"cwd-demo", "inherit.txt", nullptr};
+        posix::SpawnConfig inherit_cfg{};
+        inherit_cfg.path = "cwd-demo";
+        inherit_cfg.argv = std::span<const char* const>(inherit_argv, 2);
+        int pid = api.spawn(inherit_cfg);
+        check_true("cwd-spawn-inherit", pid > 0);
+        int status = -1;
+        check_eq("cwd-wait-inherit", api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("cwd-status-inherit", status, 0);
+        check_eq("cwd-stat-inherit", api.stat("/work/inherit.txt", &st), 0);
+
+        fd = api.open("/work/inherit.txt", posix::O_RDONLY, 0);
+        check_true("cwd-open-inherit", fd >= 0);
+        std::array<char, 32> inherit_text{};
+        auto inherit_read = api.read(fd, inherit_text.data(), inherit_text.size());
+        check_eq("cwd-read-inherit", inherit_read, static_cast<posix::ssize_t>(5));
+        check_eq("cwd-text-inherit", std::string_view{inherit_text.data(), 5}, std::string_view{"/work"});
+        check_eq("cwd-close-inherit", api.close(fd), 0);
+
+        check_eq("cwd-chdir-root", api.chdir("/"), 0);
+        const char* override_argv[] = {"cwd-demo", "override.txt", nullptr};
+        posix::SpawnConfig override_cfg{};
+        override_cfg.path = "cwd-demo";
+        override_cfg.argv = std::span<const char* const>(override_argv, 2);
+        override_cfg.cwd = "/work/sub";
+        pid = api.spawn(override_cfg);
+        check_true("cwd-spawn-override", pid > 0);
+        status = -1;
+        check_eq("cwd-wait-override", api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("cwd-status-override", status, 0);
+        check_eq("cwd-stat-override", api.stat("/work/sub/override.txt", &st), 0);
+
+        fd = api.open("/work/sub/override.txt", posix::O_RDONLY, 0);
+        check_true("cwd-open-override", fd >= 0);
+        std::array<char, 32> override_text{};
+        auto override_read = api.read(fd, override_text.data(), override_text.size());
+        check_eq("cwd-read-override", override_read, static_cast<posix::ssize_t>(9));
+        check_eq("cwd-text-override", std::string_view{override_text.data(), 9}, std::string_view{"/work/sub"});
+        check_eq("cwd-close-override", api.close(fd), 0);
+    }
+
     void test_api_errno_contracts() noexcept {
         fs::clear_mounts();
         fs::Mount mount{};
@@ -765,6 +880,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_kill();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
+    test_api_cwd_and_spawn();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");
 }

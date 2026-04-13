@@ -145,6 +145,31 @@ namespace posix::user::detail {
         return static_cast<Api*>(ctx)->getpid();
     }
 
+    template <class Api>
+    int runtime_chdir(void* ctx, const char* path) noexcept {
+        if constexpr (requires(Api& api, const char* p) { api.chdir(p); }) {
+            return static_cast<Api*>(ctx)->chdir(path);
+        } else {
+            (void)ctx;
+            (void)path;
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
+            return -1;
+        }
+    }
+
+    template <class Api>
+    char* runtime_getcwd(void* ctx, char* buf, util::usize size) noexcept {
+        if constexpr (requires(Api& api, char* p, util::usize n) { api.getcwd(p, n); }) {
+            return static_cast<Api*>(ctx)->getcwd(buf, size);
+        } else {
+            (void)ctx;
+            (void)buf;
+            (void)size;
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
+            return nullptr;
+        }
+    }
+
     template <class Ret>
     Ret missing_runtime(Ret value) noexcept {
         posix::set_errno(posix::to_errno(util::Errc::nosys));
@@ -193,6 +218,8 @@ export namespace posix::user {
         const PosixDirent* (*readdir)(void* ctx, PosixDir* dir) noexcept {nullptr};
         int (*closedir)(void* ctx, PosixDir* dir) noexcept {nullptr};
         int (*getpid)(void* ctx) noexcept {nullptr};
+        int (*chdir)(void* ctx, const char* path) noexcept {nullptr};
+        char* (*getcwd)(void* ctx, char* buf, util::usize size) noexcept {nullptr};
     };
 
     template <class Api>
@@ -222,6 +249,8 @@ export namespace posix::user {
         runtime.readdir = &detail::runtime_readdir<Api>;
         runtime.closedir = &detail::runtime_closedir<Api>;
         runtime.getpid = &detail::runtime_getpid<Api>;
+        runtime.chdir = &detail::runtime_chdir<Api>;
+        runtime.getcwd = &detail::runtime_getcwd<Api>;
         return runtime;
     }
 
@@ -509,6 +538,26 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->getpid(runtime->ctx);
+        });
+    }
+
+    inline int chdir(const char* path) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->chdir) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->chdir(runtime->ctx, path);
+        });
+    }
+
+    inline char* getcwd(char* buf, util::usize size) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->getcwd) {
+            return detail::missing_runtime<char*>(nullptr);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->getcwd(runtime->ctx, buf, size);
         });
     }
 }

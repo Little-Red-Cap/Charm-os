@@ -138,6 +138,62 @@ int charm_posix_newlib_path_entry(void) {
     return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 179;
 }
 
+int charm_posix_newlib_cwd_entry(void) {
+    char cwd[32] = {0};
+    char small[2] = {0};
+    int fd = -1;
+    struct stat st;
+
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 181;
+    if (strcmp(cwd, "/") != 0) return 182;
+
+    if (mkdir("/newlib-cwd", 0) != 0) return 183;
+    if (mkdir("/newlib-cwd/sub", 0) != 0) return 184;
+
+    if (chdir("/newlib-cwd") != 0) return 185;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 186;
+    if (strcmp(cwd, "/newlib-cwd") != 0) return 187;
+
+    fd = open("child.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 188;
+    if (write(fd, "cwd", 3) != 3) return 189;
+    if (close(fd) != 0) return 190;
+
+    if (stat("/newlib-cwd/child.txt", &st) != 0) return 191;
+    if ((st.st_mode & S_IFMT) != S_IFREG) return 192;
+    if (st.st_size != 3) return 193;
+
+    if (chdir("sub") != 0) return 194;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 195;
+    if (strcmp(cwd, "/newlib-cwd/sub") != 0) return 196;
+
+    fd = open("../parent.txt", O_CREAT | O_TRUNC | O_WRONLY, 0);
+    if (fd < 0) return 197;
+    if (write(fd, "up", 2) != 2) return 198;
+    if (close(fd) != 0) return 199;
+
+    if (stat("/newlib-cwd/parent.txt", &st) != 0) return 200;
+    if (st.st_size != 2) return 201;
+
+    errno = 0;
+    if (getcwd(small, sizeof(small)) != NULL) return 202;
+    if (errno != ERANGE) return 203;
+
+    if (chdir("..") != 0) return 204;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 205;
+    if (strcmp(cwd, "/newlib-cwd") != 0) return 206;
+
+    errno = 0;
+    if (chdir("/missing-cwd") != -1) return 207;
+    if (errno != ENOENT) return 208;
+
+    if (chdir("/") != 0) return 209;
+    if (getcwd(cwd, sizeof(cwd)) != cwd) return 210;
+    if (strcmp(cwd, "/") != 0) return 211;
+
+    return write(1, "newlib-cwd-ok\n", 14) == 14 ? 0 : 212;
+}
+
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
 
 int charm_posix_newlib_stdio_entry(void) {

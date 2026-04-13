@@ -424,6 +424,48 @@ namespace {
         check_eq("newlib-path-out", out, std::string_view{"newlib-path-ok\n"});
     }
 
+    void test_newlib_cwd() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 128> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 128>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("newlib-cwd-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_cwd", &newlib_cwd_main);
+        check_true("newlib-cwd-register", rreg);
+
+        posix::FdOps term_ops{};
+        term_ops.stat = &term_stat_stub;
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("newlib-cwd-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-cwd-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-cwd-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-cwd-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-cwd-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_cwd", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_cwd";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-cwd-spawn", sp);
+
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-cwd-wait", st);
+        check_eq("newlib-cwd-code", st.value().code, 0);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-cwd-out", out, std::string_view{"newlib-cwd-ok\n"});
+    }
+
 #if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
     void test_newlib_stdio() noexcept {
         fs::clear_mounts();
@@ -1305,6 +1347,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-path begin");
     test_newlib_path();
     log_line("[posix-smoke] programs phase newlib-path end");
+    log_line("[posix-smoke] programs phase newlib-cwd begin");
+    test_newlib_cwd();
+    log_line("[posix-smoke] programs phase newlib-cwd end");
     log_line("[posix-smoke] programs phase exit-code begin");
     log_line("[posix-smoke] programs exit-register ok");
     log_line("[posix-smoke] programs phase exit-code end");

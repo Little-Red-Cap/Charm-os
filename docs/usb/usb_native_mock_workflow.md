@@ -39,6 +39,7 @@
 
 - `scripts/usb_native_smoke.ps1`
 - `docs/usb/usb_boardlog_format.md`
+- `docs/usb/usb_boardlog_coverage_matrix.md`
 
 默认工具链：
 

@@ -329,6 +329,26 @@ int main() {
         return out;
     };
 
+    const auto hex_encode_bytes = [] (std::span<const usb::u8> bytes) {
+        static constexpr char kHex[] = "0123456789ABCDEF";
+        std::string out{};
+        out.reserve(bytes.size() * 2);
+        for (const auto byte : bytes) {
+            out.push_back(kHex[(byte >> 4u) & 0x0Fu]);
+            out.push_back(kHex[byte & 0x0Fu]);
+        }
+        return out;
+    };
+
+    const auto fixture_path = [] (std::string_view name) {
+        std::string out{USB_BOARDLOG_FIXTURE_DIR};
+        if (!out.empty() && out.back() != '/' && out.back() != '\\') {
+            out.push_back('/');
+        }
+        out.append(name);
+        return out;
+    };
+
     const auto make_device_spec = []() {
         usb::spec::DeviceSpec device{};
         device.vendor_id = 0x1209;
@@ -674,33 +694,7 @@ int main() {
         constexpr auto kRecoveryCbw = "55534243070000000800000080000A25000000000000000000000000000000";
         constexpr auto kRecoveryReadCapacity = "0000000F0000020055534253070000000000000000";
 
-        std::string invalid_cbw_recovery_boardlog{};
-        invalid_cbw_recovery_boardlog.reserve(2048);
-        invalid_cbw_recovery_boardlog += "usb: connect on\n";
-        invalid_cbw_recovery_boardlog += "usb: reset\n";
-        invalid_cbw_recovery_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        invalid_cbw_recovery_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kInvalidCbw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: stall ep=0x81\n";
-        invalid_cbw_recovery_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
-        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kInvalidCsw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kRecoveryCbw;
-        invalid_cbw_recovery_boardlog += "\n";
-        invalid_cbw_recovery_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        invalid_cbw_recovery_boardlog += kRecoveryReadCapacity;
-        invalid_cbw_recovery_boardlog += "\n";
-
-        const auto imported_invalid_cbw_recovery = usb::boardlog::load_text(invalid_cbw_recovery_boardlog);
+        const auto imported_invalid_cbw_recovery = usb::boardlog::load_file(fixture_path("invalid_cbw_recovery.boardlog"));
         if (!imported_invalid_cbw_recovery) {
             std::fprintf(stderr,
                          "[ERR] invalid-cbw recovery boardlog load failed line=%zu err=%s\n",
@@ -850,6 +844,766 @@ int main() {
         if (!usb::fixture::expect(recovery_read_capacity->transfer_length == 8, "invalid-cbw recovery read-capacity transfer length mismatch")) return 1;
         if (!usb::fixture::expect(recovery_read_capacity->lba == 15, "invalid-cbw recovery read-capacity lba mismatch")) return 1;
         if (!usb::fixture::expect(recovery_read_capacity->blocks == 16, "invalid-cbw recovery read-capacity block count mismatch")) return 1;
+    }
+    {
+        constexpr auto kRead10ShortCbw = "555342430B0000000002000080000A28000000000000000200000000000000";
+        constexpr auto kRead10ShortCsw = "555342530B0000000002000000";
+
+        MemoryDisk short_read_disk{};
+        std::string read10_short_boardlog{};
+        read10_short_boardlog.reserve(2048);
+        read10_short_boardlog += "usb: connect on\n";
+        read10_short_boardlog += "usb: reset\n";
+        read10_short_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        read10_short_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        read10_short_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        read10_short_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        read10_short_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        read10_short_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        read10_short_boardlog += kRead10ShortCbw;
+        read10_short_boardlog += "\n";
+        read10_short_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        read10_short_boardlog += hex_encode_bytes(short_read_disk.block_span(0));
+        read10_short_boardlog += kRead10ShortCsw;
+        read10_short_boardlog += "\n";
+
+        const auto imported_read10_short = usb::boardlog::load_text(read10_short_boardlog);
+        if (!imported_read10_short) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short boardlog load failed line=%zu err=%s\n",
+                         imported_read10_short.line,
+                         usb::boardlog::error_name(imported_read10_short.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_read10_short.imported_steps == 9, "read10-short imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.skipped_steps == 0, "read10-short skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps.size() == 9, "read10-short trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-short cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "read10-short data step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.trace.steps[8].data.size() == (512 + 13),
+                                  "read10-short in transaction length mismatch")) return 1;
+
+        const auto read10_short_trace_text = usb::boardlog::to_text(imported_read10_short.trace);
+        if (!usb::fixture::expect(count_substring(read10_short_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read10-short roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(read10_short_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read10-short roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(read10_short_trace_text.find(kRead10ShortCsw) != std::string::npos,
+                                  "read10-short roundtrip missing trailing csw")) return 1;
+
+        const auto read10_short_roundtrip = usb::replay::load_text(read10_short_trace_text);
+        if (!read10_short_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short roundtrip parse failed line=%zu err=%s\n",
+                         read10_short_roundtrip.line,
+                         usb::replay::load_error_name(read10_short_roundtrip.error));
+            return 1;
+        }
+
+        block::Registry<2> short_read_registry{};
+        short_read_registry.init();
+        auto short_read_reg = short_read_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, short_read_disk.device);
+        if (!short_read_reg) {
+            std::fprintf(stderr, "[ERR] read10-short registry register failed err=%d\n", static_cast<int>(short_read_reg.error()));
+            return 1;
+        }
+
+        DemoContext short_read_demo{};
+        usb::mock::Session short_read_session{};
+        const auto short_read_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto short_read_model = usb::build(short_read_spec);
+        const auto short_read_plan = usb::plan::build(short_read_model);
+        if (!short_read_plan) {
+            std::fprintf(stderr, "[ERR] read10-short plan build failed err=%d\n", static_cast<int>(short_read_plan.error()));
+            return 1;
+        }
+
+        const auto short_read_runtime = usb::runtime::host_mock(
+            short_read_session.dcd_ops(),
+            &short_read_session,
+            &short_read_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &short_read_demo});
+
+        auto short_read_binding = usb::runtime::make(short_read_plan.value(), short_read_registry, short_read_runtime);
+        const auto short_read_init = decltype(short_read_binding)::init_trampoline(&short_read_binding);
+        if (!short_read_init) {
+            std::fprintf(stderr, "[ERR] read10-short binding init failed err=%d\n", static_cast<int>(short_read_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(short_read_demo.ready, "read10-short runtime ready hook not called")) return 1;
+
+        PumpContext short_read_pump{short_read_demo.bot, short_read_plan.value().msc.msc_cfg};
+        const auto short_read_replay = usb::replay::run(
+            short_read_session,
+            read10_short_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &short_read_pump, &pump_stall});
+        if (!short_read_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-short replay failed step=%zu err=%s\n",
+                         short_read_replay.step_index,
+                         usb::replay::error_name(short_read_replay.error));
+            return 1;
+        }
+
+        const auto short_read_cfg = short_read_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(short_read_session.host_events(), usb::mock::HostEventKind::out_packet, short_read_cfg.ep_out) == 1,
+                                  "read10-short host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(short_read_session.host_events(), usb::mock::HostEventKind::in_complete, short_read_cfg.ep_in) == 9,
+                                  "read10-short host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(short_read_session.host_events(), usb::mock::HostEventKind::clear_stall, short_read_cfg.ep_in),
+                                  "read10-short should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(short_read_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, short_read_cfg.ep_in) == 0,
+                                  "read10-short should not stall bulk in")) return 1;
+
+        constexpr auto kRead10Short = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* short_read_trace = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::read10_started,
+                                                            kRead10Short);
+        if (!usb::fixture::expect(short_read_trace != nullptr, "read10-short trace missing")) return 1;
+        if (!usb::fixture::expect(short_read_trace->transfer_length == 512, "read10-short transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(short_read_trace->lba == 0, "read10-short lba mismatch")) return 1;
+        if (!usb::fixture::expect(short_read_trace->blocks == 2, "read10-short block count mismatch")) return 1;
+
+        const auto* short_data_in = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                         usb::class_driver::MscTraceEventKind::data_in_started,
+                                                         kRead10Short);
+        if (!usb::fixture::expect(short_data_in != nullptr, "read10-short data-in trace missing")) return 1;
+        if (!usb::fixture::expect(short_data_in->transfer_length == 512, "read10-short data-in length mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->lba == 0, "read10-short data-in lba mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->blocks == 2, "read10-short data-in block count mismatch")) return 1;
+        if (!usb::fixture::expect(short_data_in->residue == 512, "read10-short data-in residue mismatch")) return 1;
+
+        const auto* short_csw_ready = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::csw_ready,
+                                                           kRead10Short);
+        if (!usb::fixture::expect(short_csw_ready != nullptr, "read10-short csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(short_csw_ready->residue == 512, "read10-short csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!short_csw_ready->flag, "read10-short csw-ready phase flag mismatch")) return 1;
+
+        const auto* short_csw_sent = find_msc_trace_event(short_read_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::csw_sent,
+                                                          kRead10Short);
+        if (!usb::fixture::expect(short_csw_sent != nullptr, "read10-short csw trace missing")) return 1;
+        if (!usb::fixture::expect(short_csw_sent->residue == 512, "read10-short csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!short_csw_sent->flag, "read10-short csw phase flag mismatch")) return 1;
+    }
+    {
+        constexpr auto kWrite10ReadOnlyCbw = "55534243060000000002000000000A2A000000000000000100000000000000";
+        constexpr auto kWrite10ReadOnlyCsw = "55534253060000000000000001";
+        constexpr auto kRequestSenseCbw = "55534243070000001200000080000603000000120000000000000000000000";
+        constexpr auto kRequestSenseResponse = "700007000000000A0000000027000000000055534253070000000000000000";
+
+        const auto imported_request_sense = usb::boardlog::load_file(fixture_path("request_sense.boardlog"));
+        if (!imported_request_sense) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense boardlog load failed line=%zu err=%s\n",
+                         imported_request_sense.line,
+                         usb::boardlog::error_name(imported_request_sense.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_request_sense.imported_steps == 11, "request-sense imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.skipped_steps == 0, "request-sense skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps.size() == 11, "request-sense trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "request-sense write10 step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "request-sense failed csw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[9].kind == usb::replay::StepKind::out,
+                                  "request-sense request-cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "request-sense response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_request_sense.trace.steps[10].data.size() == 31,
+                                  "request-sense response transaction length mismatch")) return 1;
+
+        const auto request_sense_trace_text = usb::boardlog::to_text(imported_request_sense.trace);
+        if (!usb::fixture::expect(count_substring(request_sense_trace_text, "out ep=01 zlp=0 data=") == 2,
+                                  "request-sense roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(request_sense_trace_text, "in ep=81 zlp=0 data=") == 2,
+                                  "request-sense roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_trace_text.find(kWrite10ReadOnlyCsw) != std::string::npos,
+                                  "request-sense roundtrip missing failed csw")) return 1;
+        if (!usb::fixture::expect(request_sense_trace_text.find(kRequestSenseResponse) != std::string::npos,
+                                  "request-sense roundtrip missing sense response")) return 1;
+
+        const auto request_sense_roundtrip = usb::replay::load_text(request_sense_trace_text);
+        if (!request_sense_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense roundtrip parse failed line=%zu err=%s\n",
+                         request_sense_roundtrip.line,
+                         usb::replay::load_error_name(request_sense_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk request_sense_disk{};
+        block::Registry<2> request_sense_registry{};
+        request_sense_registry.init();
+        auto request_sense_reg = request_sense_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, request_sense_disk.device);
+        if (!request_sense_reg) {
+            std::fprintf(stderr, "[ERR] request-sense registry register failed err=%d\n", static_cast<int>(request_sense_reg.error()));
+            return 1;
+        }
+
+        DemoContext request_sense_demo{};
+        usb::mock::Session request_sense_session{};
+        const auto request_sense_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(true));
+        const auto request_sense_model = usb::build(request_sense_spec);
+        const auto request_sense_plan = usb::plan::build(request_sense_model);
+        if (!request_sense_plan) {
+            std::fprintf(stderr, "[ERR] request-sense plan build failed err=%d\n", static_cast<int>(request_sense_plan.error()));
+            return 1;
+        }
+
+        const auto request_sense_runtime = usb::runtime::host_mock(
+            request_sense_session.dcd_ops(),
+            &request_sense_session,
+            &request_sense_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &request_sense_demo});
+
+        auto request_sense_binding = usb::runtime::make(request_sense_plan.value(), request_sense_registry, request_sense_runtime);
+        const auto request_sense_init = decltype(request_sense_binding)::init_trampoline(&request_sense_binding);
+        if (!request_sense_init) {
+            std::fprintf(stderr, "[ERR] request-sense binding init failed err=%d\n", static_cast<int>(request_sense_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(request_sense_demo.ready, "request-sense runtime ready hook not called")) return 1;
+
+        PumpContext request_sense_pump{request_sense_demo.bot, request_sense_plan.value().msc.msc_cfg};
+        const auto request_sense_replay = usb::replay::run(
+            request_sense_session,
+            request_sense_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &request_sense_pump, &pump_stall});
+        if (!request_sense_replay) {
+            std::fprintf(stderr,
+                         "[ERR] request-sense replay failed step=%zu err=%s\n",
+                         request_sense_replay.step_index,
+                         usb::replay::error_name(request_sense_replay.error));
+            return 1;
+        }
+
+        const auto request_sense_cfg = request_sense_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::out_packet, request_sense_cfg.ep_out) == 2,
+                                  "request-sense host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::in_complete, request_sense_cfg.ep_in) == 3,
+                                  "request-sense host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(request_sense_session.host_events(), usb::mock::HostEventKind::clear_stall, request_sense_cfg.ep_in),
+                                  "request-sense should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(request_sense_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, request_sense_cfg.ep_in) == 0,
+                                  "request-sense should not stall bulk in")) return 1;
+        if (!usb::fixture::expect(count_device_action(request_sense_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, request_sense_cfg.ep_out) == 0,
+                                  "request-sense should not stall bulk out")) return 1;
+
+        constexpr auto kWrite10ReadOnly = static_cast<usb::u8>(usb::class_driver::ScsiCmd::write_10);
+        const auto* request_write10 = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::write10_started,
+                                                           kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_write10 != nullptr, "request-sense write10 trace missing")) return 1;
+        if (!usb::fixture::expect(request_write10->transfer_length == 512, "request-sense write10 length mismatch")) return 1;
+        if (!usb::fixture::expect(request_write10->lba == 0, "request-sense write10 lba mismatch")) return 1;
+        if (!usb::fixture::expect(request_write10->blocks == 1, "request-sense write10 block count mismatch")) return 1;
+
+        const auto* request_sense_set = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::sense_set,
+                                                             kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_sense_set != nullptr, "request-sense sense-set trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_key == 0x07, "request-sense sense key mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_asc == 0x27, "request-sense sense asc mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->sense_ascq == 0x00, "request-sense sense ascq mismatch")) return 1;
+        if (!usb::fixture::expect(request_sense_set->transfer_length == 512, "request-sense sense transfer length mismatch")) return 1;
+
+        const auto* request_write10_csw = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::csw_sent,
+                                                               kWrite10ReadOnly);
+        if (!usb::fixture::expect(request_write10_csw != nullptr, "request-sense write10 csw trace missing")) return 1;
+        if (!usb::fixture::expect(request_write10_csw->residue == 0, "request-sense write10 csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_write10_csw->flag, "request-sense write10 csw phase flag mismatch")) return 1;
+
+        if (!usb::fixture::expect(find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                       usb::class_driver::MscTraceEventKind::wait_csw,
+                                                       kWrite10ReadOnly) == nullptr,
+                                  "request-sense write10 should not wait csw")) return 1;
+
+        constexpr auto kRequestSense = static_cast<usb::u8>(usb::class_driver::ScsiCmd::request_sense);
+        const auto* request_sense_csw_ready = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                                   usb::class_driver::MscTraceEventKind::csw_ready,
+                                                                   kRequestSense);
+        if (!usb::fixture::expect(request_sense_csw_ready != nullptr, "request-sense csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_csw_ready->residue == 0, "request-sense csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_sense_csw_ready->flag, "request-sense csw-ready phase flag mismatch")) return 1;
+
+        const auto* request_sense_csw_sent = find_msc_trace_event(request_sense_demo.bot->trace_events(),
+                                                                  usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                  kRequestSense);
+        if (!usb::fixture::expect(request_sense_csw_sent != nullptr, "request-sense csw trace missing")) return 1;
+        if (!usb::fixture::expect(request_sense_csw_sent->residue == 0, "request-sense csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!request_sense_csw_sent->flag, "request-sense csw phase flag mismatch")) return 1;
+    }
+    {
+        constexpr auto kReadCapacityCbw = "555342430A0000000A00000080000A25000000000000000000000000000000";
+        constexpr auto kReadCapacityResponse = "0000000F00000200555342530A0000000200000000";
+
+        const auto imported_read_capacity = usb::boardlog::load_file(fixture_path("read_capacity_residue.boardlog"));
+        if (!imported_read_capacity) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity boardlog load failed line=%zu err=%s\n",
+                         imported_read_capacity.line,
+                         usb::boardlog::error_name(imported_read_capacity.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_read_capacity.imported_steps == 9, "read-capacity imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.skipped_steps == 0, "read-capacity skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps.size() == 9, "read-capacity trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read-capacity cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[8].kind == usb::replay::StepKind::in,
+                                  "read-capacity response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read_capacity.trace.steps[8].data.size() == 21,
+                                  "read-capacity response transaction length mismatch")) return 1;
+
+        const auto read_capacity_trace_text = usb::boardlog::to_text(imported_read_capacity.trace);
+        if (!usb::fixture::expect(count_substring(read_capacity_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read-capacity roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(read_capacity_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read-capacity roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace_text.find(kReadCapacityResponse) != std::string::npos,
+                                  "read-capacity roundtrip missing response")) return 1;
+
+        const auto read_capacity_roundtrip = usb::replay::load_text(read_capacity_trace_text);
+        if (!read_capacity_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity roundtrip parse failed line=%zu err=%s\n",
+                         read_capacity_roundtrip.line,
+                         usb::replay::load_error_name(read_capacity_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk read_capacity_disk{};
+        block::Registry<2> read_capacity_registry{};
+        read_capacity_registry.init();
+        auto read_capacity_reg = read_capacity_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, read_capacity_disk.device);
+        if (!read_capacity_reg) {
+            std::fprintf(stderr, "[ERR] read-capacity registry register failed err=%d\n", static_cast<int>(read_capacity_reg.error()));
+            return 1;
+        }
+
+        DemoContext read_capacity_demo{};
+        usb::mock::Session read_capacity_session{};
+        const auto read_capacity_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto read_capacity_model = usb::build(read_capacity_spec);
+        const auto read_capacity_plan = usb::plan::build(read_capacity_model);
+        if (!read_capacity_plan) {
+            std::fprintf(stderr, "[ERR] read-capacity plan build failed err=%d\n", static_cast<int>(read_capacity_plan.error()));
+            return 1;
+        }
+
+        const auto read_capacity_runtime = usb::runtime::host_mock(
+            read_capacity_session.dcd_ops(),
+            &read_capacity_session,
+            &read_capacity_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &read_capacity_demo});
+
+        auto read_capacity_binding = usb::runtime::make(read_capacity_plan.value(), read_capacity_registry, read_capacity_runtime);
+        const auto read_capacity_init = decltype(read_capacity_binding)::init_trampoline(&read_capacity_binding);
+        if (!read_capacity_init) {
+            std::fprintf(stderr, "[ERR] read-capacity binding init failed err=%d\n", static_cast<int>(read_capacity_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(read_capacity_demo.ready, "read-capacity runtime ready hook not called")) return 1;
+
+        PumpContext read_capacity_pump{read_capacity_demo.bot, read_capacity_plan.value().msc.msc_cfg};
+        const auto read_capacity_replay = usb::replay::run(
+            read_capacity_session,
+            read_capacity_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &read_capacity_pump, &pump_stall});
+        if (!read_capacity_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read-capacity replay failed step=%zu err=%s\n",
+                         read_capacity_replay.step_index,
+                         usb::replay::error_name(read_capacity_replay.error));
+            return 1;
+        }
+
+        const auto read_capacity_cfg = read_capacity_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::out_packet, read_capacity_cfg.ep_out) == 1,
+                                  "read-capacity host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::in_complete, read_capacity_cfg.ep_in) == 2,
+                                  "read-capacity host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(!has_host_event(read_capacity_session.host_events(), usb::mock::HostEventKind::clear_stall, read_capacity_cfg.ep_in),
+                                  "read-capacity should not clear stall")) return 1;
+        if (!usb::fixture::expect(count_device_action(read_capacity_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, read_capacity_cfg.ep_in) == 0,
+                                  "read-capacity should not stall bulk in")) return 1;
+
+        constexpr auto kReadCapacity = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_capacity_10);
+        const auto* read_capacity_trace = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::read_capacity,
+                                                               kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_trace != nullptr, "read-capacity trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->transfer_length == 10, "read-capacity transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->lba == 15, "read-capacity lba mismatch")) return 1;
+        if (!usb::fixture::expect(read_capacity_trace->blocks == 16, "read-capacity block count mismatch")) return 1;
+
+        const auto* read_capacity_csw_ready = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                                   usb::class_driver::MscTraceEventKind::csw_ready,
+                                                                   kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_csw_ready != nullptr, "read-capacity csw-ready trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_csw_ready->residue == 2, "read-capacity csw-ready residue mismatch")) return 1;
+        if (!usb::fixture::expect(!read_capacity_csw_ready->flag, "read-capacity csw-ready phase flag mismatch")) return 1;
+
+        const auto* read_capacity_csw_sent = find_msc_trace_event(read_capacity_demo.bot->trace_events(),
+                                                                  usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                  kReadCapacity);
+        if (!usb::fixture::expect(read_capacity_csw_sent != nullptr, "read-capacity csw trace missing")) return 1;
+        if (!usb::fixture::expect(read_capacity_csw_sent->residue == 2, "read-capacity csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!read_capacity_csw_sent->flag, "read-capacity csw phase flag mismatch")) return 1;
+    }
+    {
+        constexpr auto kRead10ZeroLenCbw = "55534243080000000000000080000A28000000000000000100000000000000";
+        constexpr auto kRead10ZeroLenCsw = "55534253080000000000000002";
+        constexpr auto kRead10ZeroLenRequestSenseCbw = "55534243090000001200000080000603000000120000000000000000000000";
+        constexpr auto kRead10ZeroLenRequestSenseResp = "700005000000000A0000000020000000000055534253090000000000000000";
+
+        const auto imported_zero_len = usb::boardlog::load_file(fixture_path("read10_zero_len_recovery.boardlog"));
+        if (!imported_zero_len) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len boardlog load failed line=%zu err=%s\n",
+                         imported_zero_len.line,
+                         usb::boardlog::error_name(imported_zero_len.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_zero_len.imported_steps == 13, "read10-zero-len imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.skipped_steps == 0, "read10-zero-len skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps.size() == 13, "read10-zero-len trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-zero-len cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[8].kind == usb::replay::StepKind::stall,
+                                  "read10-zero-len stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[8].ep == 0x81,
+                                  "read10-zero-len stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
+                                  "read10-zero-len clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "read10-zero-len csw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[11].kind == usb::replay::StepKind::out,
+                                  "read10-zero-len request-sense step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_zero_len.trace.steps[12].kind == usb::replay::StepKind::in,
+                                  "read10-zero-len request-sense response step kind mismatch")) return 1;
+
+        const auto zero_len_trace_text = usb::boardlog::to_text(imported_zero_len.trace);
+        if (!usb::fixture::expect(count_substring(zero_len_trace_text, "out ep=01 zlp=0 data=") == 2,
+                                  "read10-zero-len roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(zero_len_trace_text, "in ep=81 zlp=0 data=") == 2,
+                                  "read10-zero-len roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find("stall ep=81") != std::string::npos,
+                                  "read10-zero-len roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find("clear_stall ep=81") != std::string::npos,
+                                  "read10-zero-len roundtrip missing clear_stall")) return 1;
+        if (!usb::fixture::expect(zero_len_trace_text.find(kRead10ZeroLenRequestSenseResp) != std::string::npos,
+                                  "read10-zero-len roundtrip missing request-sense response")) return 1;
+
+        const auto zero_len_roundtrip = usb::replay::load_text(zero_len_trace_text);
+        if (!zero_len_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len roundtrip parse failed line=%zu err=%s\n",
+                         zero_len_roundtrip.line,
+                         usb::replay::load_error_name(zero_len_roundtrip.error));
+            return 1;
+        }
+
+        MemoryDisk zero_len_disk{};
+        block::Registry<2> zero_len_registry{};
+        zero_len_registry.init();
+        auto zero_len_reg = zero_len_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, zero_len_disk.device);
+        if (!zero_len_reg) {
+            std::fprintf(stderr, "[ERR] read10-zero-len registry register failed err=%d\n", static_cast<int>(zero_len_reg.error()));
+            return 1;
+        }
+
+        DemoContext zero_len_demo{};
+        usb::mock::Session zero_len_session{};
+        const auto zero_len_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto zero_len_model = usb::build(zero_len_spec);
+        const auto zero_len_plan = usb::plan::build(zero_len_model);
+        if (!zero_len_plan) {
+            std::fprintf(stderr, "[ERR] read10-zero-len plan build failed err=%d\n", static_cast<int>(zero_len_plan.error()));
+            return 1;
+        }
+
+        const auto zero_len_runtime = usb::runtime::host_mock(
+            zero_len_session.dcd_ops(),
+            &zero_len_session,
+            &zero_len_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &zero_len_demo});
+
+        auto zero_len_binding = usb::runtime::make(zero_len_plan.value(), zero_len_registry, zero_len_runtime);
+        const auto zero_len_init = decltype(zero_len_binding)::init_trampoline(&zero_len_binding);
+        if (!zero_len_init) {
+            std::fprintf(stderr, "[ERR] read10-zero-len binding init failed err=%d\n", static_cast<int>(zero_len_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(zero_len_demo.ready, "read10-zero-len runtime ready hook not called")) return 1;
+
+        PumpContext zero_len_pump{zero_len_demo.bot, zero_len_plan.value().msc.msc_cfg};
+        const auto zero_len_replay = usb::replay::run(
+            zero_len_session,
+            zero_len_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &zero_len_pump, &pump_stall});
+        if (!zero_len_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-zero-len replay failed step=%zu err=%s\n",
+                         zero_len_replay.step_index,
+                         usb::replay::error_name(zero_len_replay.error));
+            return 1;
+        }
+
+        const auto zero_len_cfg = zero_len_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::out_packet, zero_len_cfg.ep_out) == 2,
+                                  "read10-zero-len host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::in_complete, zero_len_cfg.ep_in) == 3,
+                                  "read10-zero-len host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(zero_len_session.host_events(), usb::mock::HostEventKind::clear_stall, zero_len_cfg.ep_in),
+                                  "read10-zero-len clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(zero_len_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, zero_len_cfg.ep_in) == 1,
+                                  "read10-zero-len stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!zero_len_session.endpoint_state(zero_len_cfg.ep_in).stalled,
+                                  "read10-zero-len bulk in endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kRead10ZeroLen = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* zero_len_read10 = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::read10_started,
+                                                           kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_read10 != nullptr, "read10-zero-len read10 trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->transfer_length == 0, "read10-zero-len transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->lba == 0, "read10-zero-len lba mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_read10->blocks == 1, "read10-zero-len block count mismatch")) return 1;
+
+        const auto* zero_len_sense = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::sense_set,
+                                                          kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_sense != nullptr, "read10-zero-len sense trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_key == 0x05, "read10-zero-len sense key mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_asc == 0x20, "read10-zero-len sense asc mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->sense_ascq == 0x00, "read10-zero-len sense ascq mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_sense->transfer_length == 0, "read10-zero-len sense transfer length mismatch")) return 1;
+
+        const auto* zero_len_stall_in = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_stall_in != nullptr, "read10-zero-len stall-in trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_stall_in->residue == 0, "read10-zero-len stall-in residue mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_stall_in->flag, "read10-zero-len stall-in flag mismatch")) return 1;
+
+        const auto* zero_len_wait_csw = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::wait_csw,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_wait_csw != nullptr, "read10-zero-len wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_wait_csw->transfer_length == 0, "read10-zero-len wait-csw length mismatch")) return 1;
+
+        const auto* zero_len_phase_error = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::phase_error,
+                                                                kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_phase_error != nullptr, "read10-zero-len phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_phase_error->residue == 0, "read10-zero-len phase-error residue mismatch")) return 1;
+
+        const auto* zero_len_clear_stall = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                                kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_clear_stall != nullptr, "read10-zero-len clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_clear_stall->flag, "read10-zero-len clear-stall flag mismatch")) return 1;
+
+        const auto* zero_len_csw_sent = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                             usb::class_driver::MscTraceEventKind::csw_sent,
+                                                             kRead10ZeroLen);
+        if (!usb::fixture::expect(zero_len_csw_sent != nullptr, "read10-zero-len csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_csw_sent->residue == 0, "read10-zero-len csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(zero_len_csw_sent->flag, "read10-zero-len csw phase flag mismatch")) return 1;
+
+        constexpr auto kRead10ZeroLenRequestSense = static_cast<usb::u8>(usb::class_driver::ScsiCmd::request_sense);
+        const auto* zero_len_request_sense_csw = find_msc_trace_event(zero_len_demo.bot->trace_events(),
+                                                                      usb::class_driver::MscTraceEventKind::csw_sent,
+                                                                      kRead10ZeroLenRequestSense);
+        if (!usb::fixture::expect(zero_len_request_sense_csw != nullptr, "read10-zero-len request-sense csw trace missing")) return 1;
+        if (!usb::fixture::expect(zero_len_request_sense_csw->residue == 0, "read10-zero-len request-sense csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(!zero_len_request_sense_csw->flag, "read10-zero-len request-sense csw phase flag mismatch")) return 1;
+    }
+    {
+        constexpr auto kRead10OverrunCbw = "555342430C0000000004000080000A28000000000000000100000000000000";
+        constexpr auto kRead10OverrunCsw = "555342530C0000000002000002";
+
+        MemoryDisk overrun_disk{};
+        std::string overrun_boardlog{};
+        overrun_boardlog.reserve(2048);
+        overrun_boardlog += "usb: connect on\n";
+        overrun_boardlog += "usb: reset\n";
+        overrun_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
+        overrun_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
+        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
+        overrun_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
+        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
+        overrun_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
+        overrun_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
+        overrun_boardlog += "usb: out ep=0x01 zlp=0 data=";
+        overrun_boardlog += kRead10OverrunCbw;
+        overrun_boardlog += "\n";
+        overrun_boardlog += "usb: stall ep=0x81\n";
+        overrun_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
+        overrun_boardlog += "usb: in ep=0x81 zlp=0 data=";
+        overrun_boardlog += hex_encode_bytes(overrun_disk.block_span(0));
+        overrun_boardlog += kRead10OverrunCsw;
+        overrun_boardlog += "\n";
+
+        const auto imported_overrun = usb::boardlog::load_text(overrun_boardlog);
+        if (!imported_overrun) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun boardlog load failed line=%zu err=%s\n",
+                         imported_overrun.line,
+                         usb::boardlog::error_name(imported_overrun.error));
+            return 1;
+        }
+        if (!usb::fixture::expect(imported_overrun.imported_steps == 11, "read10-overrun imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.skipped_steps == 0, "read10-overrun skipped step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps.size() == 11, "read10-overrun trace size mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[7].kind == usb::replay::StepKind::out,
+                                  "read10-overrun cbw step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[8].kind == usb::replay::StepKind::stall,
+                                  "read10-overrun stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[8].ep == 0x81,
+                                  "read10-overrun stall endpoint mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[9].kind == usb::replay::StepKind::clear_stall,
+                                  "read10-overrun clear-stall step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[10].kind == usb::replay::StepKind::in,
+                                  "read10-overrun response step kind mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.trace.steps[10].data.size() == (512 + 13),
+                                  "read10-overrun response transaction length mismatch")) return 1;
+
+        const auto overrun_trace_text = usb::boardlog::to_text(imported_overrun.trace);
+        if (!usb::fixture::expect(count_substring(overrun_trace_text, "out ep=01 zlp=0 data=") == 1,
+                                  "read10-overrun roundtrip out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_substring(overrun_trace_text, "in ep=81 zlp=0 data=") == 1,
+                                  "read10-overrun roundtrip in count mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find("stall ep=81") != std::string::npos,
+                                  "read10-overrun roundtrip missing stall")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find("clear_stall ep=81") != std::string::npos,
+                                  "read10-overrun roundtrip missing clear_stall")) return 1;
+        if (!usb::fixture::expect(overrun_trace_text.find(kRead10OverrunCsw) != std::string::npos,
+                                  "read10-overrun roundtrip missing phase-error csw")) return 1;
+
+        const auto overrun_roundtrip = usb::replay::load_text(overrun_trace_text);
+        if (!overrun_roundtrip) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun roundtrip parse failed line=%zu err=%s\n",
+                         overrun_roundtrip.line,
+                         usb::replay::load_error_name(overrun_roundtrip.error));
+            return 1;
+        }
+
+        block::Registry<2> overrun_registry{};
+        overrun_registry.init();
+        auto overrun_reg = overrun_registry.register_device({"block.sd0", block::cap_id("block.sd0")}, overrun_disk.device);
+        if (!overrun_reg) {
+            std::fprintf(stderr, "[ERR] read10-overrun registry register failed err=%d\n", static_cast<int>(overrun_reg.error()));
+            return 1;
+        }
+
+        DemoContext overrun_demo{};
+        usb::mock::Session overrun_session{};
+        const auto overrun_spec = usb::spec::msc_device(make_device_spec(), make_msc_function(false));
+        const auto overrun_model = usb::build(overrun_spec);
+        const auto overrun_plan = usb::plan::build(overrun_model);
+        if (!overrun_plan) {
+            std::fprintf(stderr, "[ERR] read10-overrun plan build failed err=%d\n", static_cast<int>(overrun_plan.error()));
+            return 1;
+        }
+
+        const auto overrun_runtime = usb::runtime::host_mock(
+            overrun_session.dcd_ops(),
+            &overrun_session,
+            &overrun_session.adapter(),
+            usb::runtime::MscReadyHook{&on_ready, &overrun_demo});
+
+        auto overrun_binding = usb::runtime::make(overrun_plan.value(), overrun_registry, overrun_runtime);
+        const auto overrun_init = decltype(overrun_binding)::init_trampoline(&overrun_binding);
+        if (!overrun_init) {
+            std::fprintf(stderr, "[ERR] read10-overrun binding init failed err=%d\n", static_cast<int>(overrun_init.error()));
+            return 1;
+        }
+        if (!usb::fixture::expect(overrun_demo.ready, "read10-overrun runtime ready hook not called")) return 1;
+
+        PumpContext overrun_pump{overrun_demo.bot, overrun_plan.value().msc.msc_cfg};
+        const auto overrun_replay = usb::replay::run(
+            overrun_session,
+            overrun_roundtrip.trace,
+            usb::replay::Hooks{&pump_in, &overrun_pump, &pump_stall});
+        if (!overrun_replay) {
+            std::fprintf(stderr,
+                         "[ERR] read10-overrun replay failed step=%zu err=%s\n",
+                         overrun_replay.step_index,
+                         usb::replay::error_name(overrun_replay.error));
+            return 1;
+        }
+
+        const auto overrun_cfg = overrun_plan.value().msc.msc_cfg;
+        if (!usb::fixture::expect(count_host_event(overrun_session.host_events(), usb::mock::HostEventKind::out_packet, overrun_cfg.ep_out) == 1,
+                                  "read10-overrun host out count mismatch")) return 1;
+        if (!usb::fixture::expect(count_host_event(overrun_session.host_events(), usb::mock::HostEventKind::in_complete, overrun_cfg.ep_in) == 9,
+                                  "read10-overrun host in-complete count mismatch")) return 1;
+        if (!usb::fixture::expect(has_host_event(overrun_session.host_events(), usb::mock::HostEventKind::clear_stall, overrun_cfg.ep_in),
+                                  "read10-overrun clear-stall host event missing")) return 1;
+        if (!usb::fixture::expect(count_device_action(overrun_session.device_actions(), usb::mock::DeviceActionKind::stall_ep, overrun_cfg.ep_in) == 1,
+                                  "read10-overrun stall device action count mismatch")) return 1;
+        if (!usb::fixture::expect(!overrun_session.endpoint_state(overrun_cfg.ep_in).stalled,
+                                  "read10-overrun bulk in endpoint should be cleared after recovery")) return 1;
+
+        constexpr auto kRead10Overrun = static_cast<usb::u8>(usb::class_driver::ScsiCmd::read_10);
+        const auto* overrun_read10 = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                          usb::class_driver::MscTraceEventKind::read10_started,
+                                                          kRead10Overrun);
+        if (!usb::fixture::expect(overrun_read10 != nullptr, "read10-overrun trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_read10->transfer_length == 1024, "read10-overrun transfer length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_read10->lba == 0, "read10-overrun lba mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_read10->blocks == 1, "read10-overrun block count mismatch")) return 1;
+
+        const auto* overrun_data_in = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                           usb::class_driver::MscTraceEventKind::data_in_started,
+                                                           kRead10Overrun);
+        if (!usb::fixture::expect(overrun_data_in != nullptr, "read10-overrun data-in trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_data_in->transfer_length == 512, "read10-overrun data-in length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_data_in->residue == 512, "read10-overrun data-in residue mismatch")) return 1;
+
+        const auto* overrun_stall_in = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::stall_in_requested,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_stall_in != nullptr, "read10-overrun stall-in trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->transfer_length == 1024, "read10-overrun stall-in length mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->residue == 512, "read10-overrun stall-in residue mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_stall_in->flag, "read10-overrun stall-in flag mismatch")) return 1;
+
+        const auto* overrun_wait_csw = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::wait_csw,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_wait_csw != nullptr, "read10-overrun wait-csw trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_wait_csw->transfer_length == 1024, "read10-overrun wait-csw length mismatch")) return 1;
+
+        const auto* overrun_phase_error = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::phase_error,
+                                                               kRead10Overrun);
+        if (!usb::fixture::expect(overrun_phase_error != nullptr, "read10-overrun phase-error trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_phase_error->residue == 512, "read10-overrun phase-error residue mismatch")) return 1;
+
+        const auto* overrun_clear_stall = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                               usb::class_driver::MscTraceEventKind::clear_stall_seen,
+                                                               kRead10Overrun);
+        if (!usb::fixture::expect(overrun_clear_stall != nullptr, "read10-overrun clear-stall trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_clear_stall->flag, "read10-overrun clear-stall flag mismatch")) return 1;
+
+        const auto* overrun_csw_sent = find_msc_trace_event(overrun_demo.bot->trace_events(),
+                                                            usb::class_driver::MscTraceEventKind::csw_sent,
+                                                            kRead10Overrun);
+        if (!usb::fixture::expect(overrun_csw_sent != nullptr, "read10-overrun csw trace missing")) return 1;
+        if (!usb::fixture::expect(overrun_csw_sent->residue == 512, "read10-overrun csw residue mismatch")) return 1;
+        if (!usb::fixture::expect(overrun_csw_sent->flag, "read10-overrun csw phase flag mismatch")) return 1;
     }
 
     MemoryDisk disk{};

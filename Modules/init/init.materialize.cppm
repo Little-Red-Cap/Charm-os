@@ -111,10 +111,18 @@ namespace init::detail {
 }
 
 export namespace init {
+    enum class materialized_node_kind : util::u8 {
+        unknown,
+        recipe,
+        barrier,
+        legacy,
+    };
+
     template <util::usize MaxNodes, util::usize MaxCaps>
     struct materialized_graph {
         std::array<Node, MaxNodes> nodes{};
         std::array<const Node*, MaxNodes> ptrs{};
+        std::array<materialized_node_kind, MaxNodes> node_kinds{};
         std::array<std::array<CapId, MaxCaps>, MaxNodes> provides_storage{};
         std::array<std::array<CapId, MaxCaps>, MaxNodes> requires_storage{};
         std::array<util::usize, MaxNodes> provides_count{};
@@ -230,6 +238,7 @@ namespace init::detail {
         }
         const auto row = out.count++;
         out.nodes[row] = base;
+        out.node_kinds[row] = materialized_node_kind::legacy;
         if (static_cast<util::u8>(out.nodes[row].phase) > static_cast<util::u8>(constraints.max_phase)) {
             return util::unexpected(util::Errc::bad_state);
         }
@@ -273,6 +282,7 @@ namespace init::detail {
             return util::unexpected(util::Errc::buffer_overflow);
         }
         const auto row = out.count++;
+        out.node_kinds[row] = materialized_node_kind::recipe;
         auto& node = out.nodes[row];
         node.name = Recipe::name.sv();
         node.phase = Recipe::phase;
@@ -603,6 +613,7 @@ namespace init::detail {
         }
         const auto row = out.count++;
         out.nodes[row] = barrier;
+        out.node_kinds[row] = materialized_node_kind::barrier;
         out.provides_count[row] = 0;
         out.requires_count[row] = 0;
 
@@ -721,6 +732,11 @@ export namespace init {
         if (mats->size() != 3) {
             return util::unexpected(util::Errc::bad_state);
         }
+        if (mats->node_kinds[0] != materialized_node_kind::recipe
+            || mats->node_kinds[1] != materialized_node_kind::recipe
+            || mats->node_kinds[2] != materialized_node_kind::barrier) {
+            return util::unexpected(util::Errc::bad_state);
+        }
 
         using RecipeNoProvide = recipe_desc<
             "test.no_provide",
@@ -762,6 +778,9 @@ export namespace init {
         if (!binding_holder || binding_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
+        if (binding_holder->node_kinds[0] != materialized_node_kind::legacy) {
+            return util::unexpected(util::Errc::bad_state);
+        }
 
         struct LegacyChainHolder {
             std::array<const Node*, 1> nodes{};
@@ -776,15 +795,24 @@ export namespace init {
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
+        if (legacy_holder->node_kinds[0] != materialized_node_kind::legacy) {
+            return util::unexpected(util::Errc::bad_state);
+        }
 
         std::optional<LegacyNodeHolder> optional_holder{LegacyNodeHolder{}};
         auto maybe_optional = materialize<2, 4>(compose(maybe(optional_holder)));
         if (!maybe_optional || maybe_optional->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
+        if (maybe_optional->node_kinds[0] != materialized_node_kind::legacy) {
+            return util::unexpected(util::Errc::bad_state);
+        }
 
         auto legacy_optional = materialize<2, 4>(compose(legacy_optional_ref<LegacyNodeHolder>{&optional_holder}));
         if (!legacy_optional || legacy_optional->size() != 1) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (legacy_optional->node_kinds[0] != materialized_node_kind::legacy) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

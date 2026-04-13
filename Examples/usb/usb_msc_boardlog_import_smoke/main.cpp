@@ -329,17 +329,6 @@ int main() {
         return out;
     };
 
-    const auto hex_encode_bytes = [] (std::span<const usb::u8> bytes) {
-        static constexpr char kHex[] = "0123456789ABCDEF";
-        std::string out{};
-        out.reserve(bytes.size() * 2);
-        for (const auto byte : bytes) {
-            out.push_back(kHex[(byte >> 4u) & 0x0Fu]);
-            out.push_back(kHex[byte & 0x0Fu]);
-        }
-        return out;
-    };
-
     const auto fixture_path = [] (std::string_view name) {
         std::string out{USB_BOARDLOG_FIXTURE_DIR};
         if (!out.empty() && out.back() != '/' && out.back() != '\\') {
@@ -850,26 +839,7 @@ int main() {
         constexpr auto kRead10ShortCsw = "555342530B0000000002000000";
 
         MemoryDisk short_read_disk{};
-        std::string read10_short_boardlog{};
-        read10_short_boardlog.reserve(2048);
-        read10_short_boardlog += "usb: connect on\n";
-        read10_short_boardlog += "usb: reset\n";
-        read10_short_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        read10_short_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        read10_short_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        read10_short_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        read10_short_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        read10_short_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        read10_short_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        read10_short_boardlog += kRead10ShortCbw;
-        read10_short_boardlog += "\n";
-        read10_short_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        read10_short_boardlog += hex_encode_bytes(short_read_disk.block_span(0));
-        read10_short_boardlog += kRead10ShortCsw;
-        read10_short_boardlog += "\n";
-
-        const auto imported_read10_short = usb::boardlog::load_text(read10_short_boardlog);
+        const auto imported_read10_short = usb::boardlog::load_file(fixture_path("read10_short.boardlog"));
         if (!imported_read10_short) {
             std::fprintf(stderr,
                          "[ERR] read10-short boardlog load failed line=%zu err=%s\n",
@@ -877,7 +847,7 @@ int main() {
                          usb::boardlog::error_name(imported_read10_short.error));
             return 1;
         }
-        if (!usb::fixture::expect(imported_read10_short.imported_steps == 9, "read10-short imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_read10_short.imported_steps == 17, "read10-short imported step count mismatch")) return 1;
         if (!usb::fixture::expect(imported_read10_short.skipped_steps == 0, "read10-short skipped step count mismatch")) return 1;
         if (!usb::fixture::expect(imported_read10_short.trace.steps.size() == 9, "read10-short trace size mismatch")) return 1;
         if (!usb::fixture::expect(imported_read10_short.trace.steps[7].kind == usb::replay::StepKind::out,
@@ -1433,28 +1403,7 @@ int main() {
         constexpr auto kRead10OverrunCsw = "555342530C0000000002000002";
 
         MemoryDisk overrun_disk{};
-        std::string overrun_boardlog{};
-        overrun_boardlog.reserve(2048);
-        overrun_boardlog += "usb: connect on\n";
-        overrun_boardlog += "usb: reset\n";
-        overrun_boardlog += "usb: dev_desc size=18 12 01 00 02 00 00 00 40 09 12 06 00 00 01 01 02 03 01\n";
-        overrun_boardlog += "usb: cfg_desc size=32 09 02 20 00 01 01 00 80 32 09 04 00 00 02 08 06 50 00 07 05 01 02 40 00 00 07 05 81 02 40 00 00\n";
-        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0100 wIndex=0x0000 wLen=0x0040\n";
-        overrun_boardlog += "usb: setup bm=0x00 b=0x05 wValue=0x0007 wIndex=0x0000 wLen=0x0000\n";
-        overrun_boardlog += "usb: setup bm=0x80 b=0x06 wValue=0x0200 wIndex=0x0000 wLen=0x00FF\n";
-        overrun_boardlog += "usb: setup bm=0x00 b=0x09 wValue=0x0001 wIndex=0x0000 wLen=0x0000\n";
-        overrun_boardlog += "usb: setup bm=0xA1 b=0xFE wValue=0x0000 wIndex=0x0000 wLen=0x0001\n";
-        overrun_boardlog += "usb: out ep=0x01 zlp=0 data=";
-        overrun_boardlog += kRead10OverrunCbw;
-        overrun_boardlog += "\n";
-        overrun_boardlog += "usb: stall ep=0x81\n";
-        overrun_boardlog += "usb: setup bm=0x02 b=0x01 wValue=0x0000 wIndex=0x0081 wLen=0x0000\n";
-        overrun_boardlog += "usb: in ep=0x81 zlp=0 data=";
-        overrun_boardlog += hex_encode_bytes(overrun_disk.block_span(0));
-        overrun_boardlog += kRead10OverrunCsw;
-        overrun_boardlog += "\n";
-
-        const auto imported_overrun = usb::boardlog::load_text(overrun_boardlog);
+        const auto imported_overrun = usb::boardlog::load_file(fixture_path("read10_overrun_recovery.boardlog"));
         if (!imported_overrun) {
             std::fprintf(stderr,
                          "[ERR] read10-overrun boardlog load failed line=%zu err=%s\n",
@@ -1462,7 +1411,7 @@ int main() {
                          usb::boardlog::error_name(imported_overrun.error));
             return 1;
         }
-        if (!usb::fixture::expect(imported_overrun.imported_steps == 11, "read10-overrun imported step count mismatch")) return 1;
+        if (!usb::fixture::expect(imported_overrun.imported_steps == 19, "read10-overrun imported step count mismatch")) return 1;
         if (!usb::fixture::expect(imported_overrun.skipped_steps == 0, "read10-overrun skipped step count mismatch")) return 1;
         if (!usb::fixture::expect(imported_overrun.trace.steps.size() == 11, "read10-overrun trace size mismatch")) return 1;
         if (!usb::fixture::expect(imported_overrun.trace.steps[7].kind == usb::replay::StepKind::out,

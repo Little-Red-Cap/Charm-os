@@ -77,6 +77,13 @@ export namespace usb::device {
                   &DeviceDriver::ep0_send_zlp,
                   &DeviceDriver::ep0_stall}) {}
 
+        void bind_cdc(class_driver::CdcAcm& cdc) noexcept;
+
+        void bind_msc(class_driver::MscDevice& msc,
+                      class_driver::MscBot& bot) noexcept;
+
+        void stop_class_endpoints() noexcept;
+
         void on_setup(const SetupPacket& setup) noexcept {
             ControlResponse resp{};
             set_pending(setup);
@@ -102,6 +109,7 @@ export namespace usb::device {
         }
 
         void on_reset() noexcept {
+            stop_class_endpoints();
             clear_pending();
             dev_.reset();
             if (dcd_ops_.set_address) {
@@ -230,10 +238,16 @@ export namespace usb::device {
                 pending_address_valid_ = false;
             }
             if (pending_config_valid_) {
-                if (dcd_ops_.set_configured) {
-                    dcd_ops_.set_configured(dcd_ctx_, pending_configured_);
+                bool configured_ok = true;
+                if (pending_configured_) {
+                    configured_ok = activate_class_endpoints();
+                } else {
+                    stop_class_endpoints();
                 }
-                dev_.apply_configuration(pending_config_);
+                if (dcd_ops_.set_configured) {
+                    dcd_ops_.set_configured(dcd_ctx_, configured_ok && pending_configured_);
+                }
+                dev_.apply_configuration(configured_ok ? pending_config_ : 0);
                 pending_config_valid_ = false;
             }
             if (pending_interface_valid_) {
@@ -248,10 +262,16 @@ export namespace usb::device {
             pending_interface_valid_ = false;
         }
 
+        bool activate_class_endpoints() noexcept;
+
         Device& dev_;
         void* dcd_ctx_{nullptr};
         driver::DcdOps dcd_ops_{};
         Ep0Driver ep0_;
+        class_driver::CdcAcm* cdc_{nullptr};
+        class_driver::MscDevice* msc_{nullptr};
+        class_driver::MscBot* msc_bot_{nullptr};
+        bool class_endpoints_active_{false};
         bool pending_address_valid_{false};
         u8 pending_address_{0};
         bool pending_config_valid_{false};
@@ -334,8 +354,17 @@ export namespace usb::device {
 
             driver::EpCallbacks notify_cb = cb.in;
             if (!dcd.ep.open(dcd_ctx, notify, notify_cb)) return false;
-            if (!dcd.ep.open(dcd_ctx, out, cb.out)) return false;
-            if (!dcd.ep.open(dcd_ctx, in, cb.in)) return false;
+            if (!dcd.ep.open(dcd_ctx, out, cb.out)) {
+                if (dcd.ep.close) dcd.ep.close(dcd_ctx, notify.address);
+                return false;
+            }
+            if (!dcd.ep.open(dcd_ctx, in, cb.in)) {
+                if (dcd.ep.close) {
+                    dcd.ep.close(dcd_ctx, out.address);
+                    dcd.ep.close(dcd_ctx, notify.address);
+                }
+                return false;
+            }
             return true;
         }
 
@@ -456,7 +485,10 @@ export namespace usb::device {
             in.max_packet_size = cfg.ep_mps;
 
             if (!dcd.ep.open(dcd_ctx, out, cb.out)) return false;
-            if (!dcd.ep.open(dcd_ctx, in, cb.in)) return false;
+            if (!dcd.ep.open(dcd_ctx, in, cb.in)) {
+                if (dcd.ep.close) dcd.ep.close(dcd_ctx, out.address);
+                return false;
+            }
             return true;
         }
 
@@ -524,5 +556,60 @@ export namespace usb::device {
             }
             return open_msc_endpoints(dcd, dcd_ctx, msc, cb);
         }
+    }
+
+    inline void DeviceDriver::bind_cdc(class_driver::CdcAcm& cdc) noexcept {
+        cdc_ = &cdc;
+    }
+
+    inline void DeviceDriver::bind_msc(class_driver::MscDevice& msc,
+                                       class_driver::MscBot& bot) noexcept {
+        msc_ = &msc;
+        msc_bot_ = &bot;
+    }
+
+    inline bool DeviceDriver::activate_class_endpoints() noexcept {
+        if (class_endpoints_active_) {
+            return true;
+        }
+
+        if (cdc_) {
+            if (!examples::open_cdc_endpoints(
+                    dcd_ops_,
+                    dcd_ctx_,
+                    *cdc_,
+                    examples::make_cdc_ep_callbacks(*cdc_))) {
+                return false;
+            }
+        }
+
+        if (msc_ && msc_bot_) {
+            if (!examples::open_msc_endpoints(
+                    dcd_ops_,
+                    dcd_ctx_,
+                    *msc_,
+                    examples::make_msc_ep_callbacks(*msc_bot_))) {
+                if (cdc_) {
+                    examples::close_cdc_endpoints(dcd_ops_, dcd_ctx_, *cdc_);
+                }
+                return false;
+            }
+        }
+
+        class_endpoints_active_ = true;
+        return true;
+    }
+
+    inline void DeviceDriver::stop_class_endpoints() noexcept {
+        if (!class_endpoints_active_) {
+            return;
+        }
+        if (msc_) {
+            examples::close_msc_endpoints(dcd_ops_, dcd_ctx_, *msc_);
+        }
+        if (cdc_) {
+            examples::close_cdc_endpoints(dcd_ops_, dcd_ctx_, *cdc_);
+        }
+        class_endpoints_active_ = false;
     }
 }

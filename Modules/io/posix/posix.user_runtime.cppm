@@ -110,7 +110,7 @@ namespace posix::user::detail {
         } else {
             (void)ctx;
             (void)path;
-            set_errno(ENOSYS);
+            posix::set_errno(posix::ENOSYS);
             return -1;
         }
     }
@@ -142,19 +142,19 @@ namespace posix::user::detail {
 
     template <class Ret>
     Ret missing_runtime(Ret value) noexcept {
-        set_errno(ENOSYS);
+        posix::set_errno(posix::ENOSYS);
         if (auto* context = posix::active_exec_context()) {
-            context->errno_value = get_errno();
+            context->errno_value = posix::get_errno();
         }
         return value;
     }
 
     template <class Fn>
     auto invoke_with_errno_sync(Fn&& fn) noexcept(noexcept(fn())) -> decltype(fn()) {
-        set_errno(0);
+        posix::set_errno(0);
         auto result = fn();
         if (auto* context = posix::active_exec_context()) {
-            context->errno_value = get_errno();
+            context->errno_value = posix::get_errno();
         }
         return result;
     }

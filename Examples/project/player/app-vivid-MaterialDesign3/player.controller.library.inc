@@ -644,7 +644,8 @@
             access.set_list_view_subtitle_source(handles.list, this, &PlayerController::list_view_subtitle);
             access.set_list_view_tail_source(handles.list, this, &PlayerController::list_view_tail);
             access.set_list_view_tail_icon_source(handles.list, this, &PlayerController::list_view_tail_icon, 18);
-            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 32);
+            access.set_list_view_icon_source(handles.list, this, &PlayerController::list_view_icon, 44);
+            access.set_list_view_icon_corner_radius(handles.list, 12);
             access.set_list_row_height(handles.list, 72);
             access.set_scroll_step(handles.list, 72);
             if (count > 0) {

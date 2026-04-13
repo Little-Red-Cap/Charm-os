@@ -1436,6 +1436,7 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
         const rgba font = row_selected ? colors.on_accent
                                        : (row_active ? colors.accent : colors.font);
         const auto icon = kernel.list_view_item_icon(h, static_cast<std::uint16_t>(i));
+        const int icon_corner_radius = static_cast<int>(kernel.list_view_icon_corner_radius(h));
         int text_x = row.x + pad;
         int text_w = row.w - pad * 2;
         if (ui::draw_cmd::image_id_valid(icon)) {
@@ -1447,7 +1448,13 @@ void SoaGui::record_list_view(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rec
             if (icon_size < 4) icon_size = row_h;
             const int icon_x = row.x + pad;
             const int icon_y = row.y + (row_h - icon_size) / 2;
-            out.draw_icon(Rect{icon_x, icon_y, icon_size, icon_size}, icon);
+            const Rect icon_rect{icon_x, icon_y, icon_size, icon_size};
+            if (icon_corner_radius > 0) {
+                const int radius = (icon_corner_radius > icon_size / 2) ? (icon_size / 2) : icon_corner_radius;
+                out.draw_image_round_rect(icon_rect, icon, radius);
+            } else {
+                out.draw_icon(icon_rect, icon);
+            }
             text_x = icon_x + icon_size + pad;
             text_w = row.x + row.w - pad - text_x;
         }

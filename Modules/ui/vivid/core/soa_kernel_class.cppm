@@ -734,6 +734,7 @@ public:
     soa_detail::ImageId list_view_item_tail_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     soa_detail::ImageId list_view_item_icon(WidgetHandle h, std::uint16_t index) const noexcept ;
     std::uint8_t list_view_tail_icon_size(WidgetHandle h) const noexcept ;
+    std::uint8_t list_view_icon_corner_radius(WidgetHandle h) const noexcept ;
     std::uint8_t list_view_icon_size(WidgetHandle h) const noexcept ;
     std::uint8_t list_view_overscan(WidgetHandle h) const noexcept ;
     void set_list_view_source(WidgetHandle h, std::uint16_t count, const void* ctx,
@@ -744,6 +745,7 @@ public:
         soa_detail::ListViewTailFn tail_fn) noexcept ;
     void set_list_view_tail_icon_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewIconFn icon_fn, std::uint8_t size) noexcept ;
+    void set_list_view_icon_corner_radius(WidgetHandle h, std::uint8_t radius) noexcept ;
     void set_list_view_icon_source(WidgetHandle h, const void* ctx,
         soa_detail::ListViewIconFn icon_fn, std::uint8_t size) noexcept ;
     void set_table_view_header_height(WidgetHandle h, int height) noexcept ;

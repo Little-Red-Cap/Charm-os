@@ -1183,7 +1183,7 @@ import alg_list_scroll;
     void SoaKernel::set_list_view_icon_source(WidgetHandle h,
                                               const void* ctx,
                                               soa_detail::ListViewIconFn fn,
-                                   std::uint8_t icon_size) noexcept {
+                                              std::uint8_t icon_size) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         const auto desc = payload_descriptor(common_.kind[idx]);
@@ -1197,6 +1197,22 @@ import alg_list_scroll;
         payload->icon_fn = fn;
         payload->icon_size = icon_size;
         mark_paint_dirty();
+    }
+
+    void SoaKernel::set_list_view_icon_corner_radius(WidgetHandle h, std::uint8_t radius) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return;
+        }
+        auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        if (!payload) return;
+        if (payload->icon_corner_radius != radius) {
+            payload->icon_corner_radius = radius;
+            mark_paint_dirty();
+        }
     }
 
     void SoaKernel::set_list_view_count(WidgetHandle h, std::uint16_t count) noexcept {
@@ -1383,6 +1399,18 @@ import alg_list_scroll;
         }
         const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
         return payload ? payload->tail_icon_size : 0;
+    }
+
+    std::uint8_t SoaKernel::list_view_icon_corner_radius(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return 0;
+        const auto desc = payload_descriptor(common_.kind[idx]);
+        if (desc.payload != soa_detail::PayloadKind::ListView) {
+            unsupported_kind(common_.kind[idx]);
+            return 0;
+        }
+        const auto* payload = payload_get<soa_detail::ListViewPayload>(idx);
+        return payload ? payload->icon_corner_radius : 0;
     }
 
     std::uint8_t SoaKernel::list_view_icon_size(WidgetHandle h) const noexcept {

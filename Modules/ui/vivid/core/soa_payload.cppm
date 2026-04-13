@@ -299,6 +299,7 @@ export namespace soa_detail {
         int wheel_step{24};
         std::uint8_t overscan{2};
         std::uint8_t tail_icon_size{0};
+        std::uint8_t icon_corner_radius{0};
         std::uint8_t icon_size{0};
     };
 

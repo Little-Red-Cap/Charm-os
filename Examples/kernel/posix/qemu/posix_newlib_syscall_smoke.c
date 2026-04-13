@@ -8,6 +8,7 @@
 
 int charm_posix_newlib_syscall_probe_entry(void) {
     char ch = 0;
+    int tty_fd = -1;
     struct stat st;
 
     errno = 55;
@@ -30,7 +31,15 @@ int charm_posix_newlib_syscall_probe_entry(void) {
     if (read(-1, &ch, 1) != -1) return 100;
     if (errno != EBADF) return 101;
 
-    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 102;
+    tty_fd = open("/dev/tty", O_WRONLY, 0);
+    if (tty_fd < 0) return 102;
+    if (isatty(tty_fd) != 1) return 103;
+    if (fstat(tty_fd, &st) != 0) return 104;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 105;
+    if (write(tty_fd, "tty", 3) != 3) return 106;
+    if (close(tty_fd) != 0) return 107;
+
+    return write(1, "newlib-syscall-ok\n", 18) == 18 ? 0 : 108;
 }
 
 int charm_posix_newlib_kill_self_entry(void) {

@@ -723,6 +723,30 @@ namespace {
         check_eq("devconsole-close-count", console_ctx.close_count, 1u);
         check_eq("devconsole-refs-after-close", console_ctx.refs, 1u);
 
+        posix::PosixStat tty_st{};
+        check_eq("devtty-stat", api.stat("/dev/tty", &tty_st), 0);
+        check_eq("devtty-stat-mode", tty_st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("devtty-stat-size", tty_st.size, 0u);
+
+        int tty_fd = api.open("/dev/tty", posix::O_WRONLY, 0);
+        check_true("devtty-open", tty_fd >= 0);
+        check_true("devtty-not-source", tty_fd != 3);
+        check_eq("devtty-dup-count", console_ctx.dup_count, 2u);
+        check_eq("devtty-refs-after-open", console_ctx.refs, 2u);
+        check_eq("devtty-isatty", api.isatty(tty_fd), 1);
+
+        posix::PosixStat tty_fd_st{};
+        check_eq("devtty-fstat", api.fstat(tty_fd, &tty_fd_st), 0);
+        check_eq("devtty-fstat-mode", tty_fd_st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("devtty-fstat-size", tty_fd_st.size, 0u);
+
+        const char tty_msg[] = "tty";
+        check_eq("devtty-write", api.write(tty_fd, tty_msg, 3), static_cast<posix::ssize_t>(3));
+        check_eq("devtty-last-write", console_ctx.last_write, static_cast<util::usize>(3));
+        check_eq("devtty-close", api.close(tty_fd), 0);
+        check_eq("devtty-close-count", console_ctx.close_count, 2u);
+        check_eq("devtty-refs-after-close", console_ctx.refs, 1u);
+
         int file_fd = api.open("/tmp/isatty.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("isatty-file-open", file_fd >= 0);
         posix::PosixStat file_st{};

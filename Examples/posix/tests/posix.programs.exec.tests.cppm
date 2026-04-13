@@ -38,6 +38,31 @@ namespace {
         return {};
     }
 
+    util::Result<util::usize> term_read_stub(void*, posix::MutByteView) noexcept {
+        return util::usize{0};
+    }
+
+    util::Result<util::usize> term_write_stub(void*, posix::ByteView buf) noexcept {
+        return buf.size();
+    }
+
+    util::Result<void> term_close_stub(void*) noexcept {
+        return {};
+    }
+
+    util::Result<void> term_dup_stub(void*) noexcept {
+        return {};
+    }
+
+    inline const posix::FdOps kTermOps{
+        &term_read_stub,
+        &term_write_stub,
+        &term_close_stub,
+        &term_stat_stub,
+        &term_dup_stub,
+        nullptr
+    };
+
     void test_hello() noexcept {
         Harness h{};
         auto rreg = h.procs.register_executable("hello", &hello_main);
@@ -283,11 +308,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_syscall_probe", &newlib_syscall_probe_main);
         check_true("newlib-syscall-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-syscall-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-syscall-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-syscall-stderr", h.fds.attach(term_entry, 2));
@@ -393,11 +416,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_path", &newlib_path_main);
         check_true("newlib-path-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-path-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-path-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-path-stderr", h.fds.attach(term_entry, 2));
@@ -435,11 +456,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_cwd", &newlib_cwd_main);
         check_true("newlib-cwd-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-cwd-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-cwd-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-cwd-stderr", h.fds.attach(term_entry, 2));
@@ -478,11 +497,9 @@ namespace {
         auto rreg = h.procs.register_executable("newlib_stdio", &newlib_stdio_main);
         check_true("newlib-stdio-register", rreg);
 
-        posix::FdOps term_ops{};
-        term_ops.stat = &term_stat_stub;
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("newlib-stdio-stdin", h.fds.attach(term_entry, 0));
         check_true("newlib-stdio-stdout-reserve", h.fds.attach(term_entry, 1));
         check_true("newlib-stdio-stderr", h.fds.attach(term_entry, 2));
@@ -929,10 +946,9 @@ namespace {
         }
         check_true("cat-file-load", cat_img);
 
-        posix::FdOps term_ops{};
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
 
         {

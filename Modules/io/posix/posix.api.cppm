@@ -832,7 +832,7 @@ export namespace posix {
         }
 
         static bool is_console_path(std::string_view path) noexcept {
-            return path == "/dev/console";
+            return path == "/dev/console" || path == "/dev/tty";
         }
 
         static FdFlags flags_to_fd_flags(int flags) noexcept {

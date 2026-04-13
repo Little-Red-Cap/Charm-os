@@ -100,6 +100,51 @@
 
 这是当前 compat 边界，不是观察 API 的 bug。
 
+### legacy 名称恢复
+
+当前 compat 路径已经支持两种最小命名恢复方式。
+
+#### 1. 对象级 hook
+
+如果通过 `as_plan(...)`、`legacy(...)`、`maybe(...)` 等路径接入的 legacy 对象实现：
+
+```cpp
+std::string_view capability_name(init::CapId id) const noexcept;
+```
+
+那么 `materialize(...)` 会在落图时用它补全该对象相关节点的 capability 名称。
+
+这适合：
+
+- 单节点 legacy binding
+- 暴露 `for_each_legacy_node(...)` 的旧 chain
+- 暴露 `node_span()` 的旧 chain
+
+#### 2. raw span 名称表
+
+如果调用方只有裸 `Node*` span，可以使用：
+
+```cpp
+init::compat_nodes(nodes, capability_names)
+```
+
+其中 `capability_names` 是 `std::span<const init::cap_name_entry>`。
+
+`cap_name_entry` 当前形态为：
+
+```cpp
+struct cap_name_entry {
+    CapId id;
+    std::string_view name;
+};
+```
+
+这适合：
+
+- bringup 兼容入口临时带名字表
+- 历史 `node_span()` 世界做最小观察增强
+- 不想改 legacy `Node` IR 本体时的过渡接入
+
 ## DOT 导出
 
 `format_dot(...)` 适合做第一阶段结构观察。
@@ -179,6 +224,8 @@ auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
 - `recipe` 节点
 - `legacy` 节点
 - `ready_as<Cap>()` 产生的 `barrier` 节点
+
+并且示范了 legacy 节点通过 `capability_name(...)` 恢复 capability 可读名称。
 
 便于直接观察三类节点在导出中的表现。
 

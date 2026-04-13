@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <span>
+#include <string_view>
 
 import init.materialize;
 import init.meta;
@@ -79,6 +80,16 @@ namespace {
     struct LegacyTelemetryNode {
         std::array<init::CapId, 1> provides{CapLegacy::id};
         std::array<init::CapId, 1> required_caps{CapClock::id};
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == CapLegacy::id) {
+                return CapLegacy::view();
+            }
+            if (id == CapClock::id) {
+                return CapClock::view();
+            }
+            return {};
+        }
 
         LegacyTelemetryNode() noexcept
             : node{

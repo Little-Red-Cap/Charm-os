@@ -2,6 +2,7 @@ module;
 
 #include <optional>
 #include <span>
+#include <string_view>
 #include <tuple>
 
 export module init.plan;
@@ -11,6 +12,11 @@ import init.node;
 import util.core;
 
 export namespace init {
+    struct cap_name_entry {
+        CapId id{0};
+        std::string_view name{};
+    };
+
     template <typename T>
     inline constexpr bool unsupported_as_plan_v = false;
 
@@ -157,9 +163,11 @@ export namespace init {
 
     struct legacy_nodes_ref : plan_ops<legacy_nodes_ref> {
         std::span<const init::Node* const> nodes{};
+        std::span<const cap_name_entry> capability_names{};
 
-        constexpr explicit legacy_nodes_ref(std::span<const init::Node* const> value) noexcept
-            : nodes(value) {
+        constexpr explicit legacy_nodes_ref(std::span<const init::Node* const> value,
+                                            std::span<const cap_name_entry> capability_names_value = {}) noexcept
+            : nodes(value), capability_names(capability_names_value) {
         }
     };
 
@@ -264,6 +272,11 @@ export namespace init {
 
     constexpr auto compat_nodes(std::span<const init::Node* const> nodes) noexcept {
         return legacy_nodes_ref{nodes};
+    }
+
+    constexpr auto compat_nodes(std::span<const init::Node* const> nodes,
+                                std::span<const cap_name_entry> capability_names) noexcept {
+        return legacy_nodes_ref{nodes, capability_names};
     }
 
     [[deprecated("use compat_nodes(...) only as a temporary compatibility path for raw Node spans")]]

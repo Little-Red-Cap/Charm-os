@@ -1,15 +1,22 @@
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <array>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <span>
+#include <string_view>
 
 import block.registry;
 import charm.system.bringup.block;
 import charm.system.init_block;
 import charm.system.init_usb;
+import init.materialize;
 import init.node;
+import init.observe;
 import init.plan;
 import kernel.eda;
 import kernel.evt;
@@ -26,6 +33,8 @@ import util.core;
 import util.expected;
 
 namespace {
+    constexpr const char* kDefaultExportImage = "observe-usb-block.img";
+
     struct StdoutSink {
         out::result<std::size_t> write(out::bytes b) noexcept {
             if (std::fwrite(b.data(), 1, b.size(), stdout) != b.size()) {
@@ -195,6 +204,8 @@ namespace {
         }
 
         charm::system::PostFn post_fn() noexcept { return &MiniHost::post; }
+        charm::system::PostFn post_io_ready_fn() noexcept { return &MiniHost::post; }
+        charm::system::PostFn post_demand_fn() noexcept { return &MiniHost::post; }
         void* post_ctx() noexcept { return nullptr; }
         kernel::TaskId pump_id() noexcept { return kernel::TaskId{0}; }
     };
@@ -210,24 +221,84 @@ namespace {
         (void)run_scsi_in(*demo->sink, *bot, *cfg,
             usb::class_driver::ScsiCmd::read_capacity_10, 8, 2);
     }
+
+    bool write_text_file(const char* path, const char* data, std::size_t bytes) noexcept {
+        if (!path || !data) {
+            return false;
+        }
+        std::FILE* file = std::fopen(path, "wb");
+        if (!file) {
+            return false;
+        }
+        const auto written = std::fwrite(data, 1, bytes, file);
+        std::fclose(file);
+        return written == bytes;
+    }
 }
 
 int main(int argc, char** argv) {
     StdoutSink sink{};
-    if (argc < 2) {
-        (void)out::println<"usage: usb-msc-block-demo <disk.img|vhd>">(sink);
+    const char* image_path = nullptr;
+    const char* dot_path = nullptr;
+    const char* json_path = nullptr;
+    bool export_only = false;
+
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--dot") == 0) {
+            if (i + 1 >= argc) {
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                return 1;
+            }
+            dot_path = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--json") == 0) {
+            if (i + 1 >= argc) {
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                return 1;
+            }
+            json_path = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--image") == 0) {
+            if (i + 1 >= argc) {
+                (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
+                return 1;
+            }
+            image_path = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--export-only") == 0) {
+            export_only = true;
+            continue;
+        }
+        if (!image_path) {
+            image_path = argv[i];
+            continue;
+        }
+        (void)out::println<"[ERR] unexpected arg: {}">(sink, argv[i]);
         return 1;
     }
-    if (std::FILE* f = std::fopen(argv[1], "rb"); !f) {
-        const int err = errno;
-        if (err == ENOENT) {
-            (void)out::println<"[ERR] image not found: {}">(sink, argv[1]);
-        } else {
-            (void)out::println<"[ERR] open image failed: {} err={}">(sink, argv[1], err);
-        }
+
+    if (!image_path && export_only) {
+        image_path = kDefaultExportImage;
+    }
+    if (!image_path) {
+        (void)out::println<"usage: usb-msc-block-demo [--export-only] [--dot PATH] [--json PATH] [--image PATH] <disk.img|vhd>">(sink);
         return 1;
-    } else {
-        std::fclose(f);
+    }
+    if (!export_only) {
+        if (std::FILE* f = std::fopen(image_path, "rb"); !f) {
+            const int err = errno;
+            if (err == ENOENT) {
+                (void)out::println<"[ERR] image not found: {}">(sink, image_path);
+            } else {
+                (void)out::println<"[ERR] open image failed: {} err={}">(sink, image_path, err);
+            }
+            return 1;
+        } else {
+            std::fclose(f);
+        }
     }
 
     auto caps = platform::board::win_stub::make_block_caps();
@@ -236,7 +307,7 @@ int main(int argc, char** argv) {
 
     charm::system::FileInitChain<block::Registry<8>> file_chain{
         bringup.block_registry(),
-        argv[1],
+        image_path,
         512,
         "block.sd0"
     };
@@ -266,11 +337,46 @@ int main(int argc, char** argv) {
         init::Phase::app
     };
 
+    const auto bringup_plan = init::compose(
+        file_chain.plan(),
+        usb_chain.plan());
+
+    if (dot_path || json_path) {
+        auto mats = init::materialize<24, 48>(bringup.plan(
+            bringup_plan,
+            static_cast<util::u32>(init::Runlevel::all),
+            init::Phase::app));
+        if (!mats) {
+            (void)out::println<"[ERR] export materialize failed err={}">(sink, static_cast<int>(mats.error()));
+            return 1;
+        }
+        if (dot_path) {
+            std::array<char, 16384> dot{};
+            const auto dot_bytes = init::format_dot(*mats, dot.data(), dot.size());
+            if (dot_bytes == 0 || !write_text_file(dot_path, dot.data(), dot_bytes)) {
+                (void)out::println<"[ERR] write dot failed: {}">(sink, dot_path);
+                return 1;
+            }
+            (void)out::println<"[OK] dot exported: {} bytes={}">(sink, dot_path, dot_bytes);
+        }
+        if (json_path) {
+            std::array<char, 16384> json{};
+            const auto json_bytes = init::format_json_sample(*mats, json.data(), json.size());
+            if (json_bytes == 0 || !write_text_file(json_path, json.data(), json_bytes)) {
+                (void)out::println<"[ERR] write json failed: {}">(sink, json_path);
+                return 1;
+            }
+            (void)out::println<"[OK] json exported: {} bytes={}">(sink, json_path, json_bytes);
+        }
+    }
+
+    if (export_only) {
+        return 0;
+    }
+
     (void)out::println<"[OK] bringup starting">(sink);
     auto r = bringup.start_plan(
-        init::compose(
-            file_chain.plan(),
-            usb_chain.plan()),
+        bringup_plan,
         static_cast<util::u32>(init::Runlevel::all),
         init::Phase::app);
     if (!r) {

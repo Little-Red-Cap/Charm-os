@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <optional>
 #include <span>
+#include <string_view>
 
 export module usb.class_msc_cdc.node;
 
@@ -50,6 +51,7 @@ export namespace usb::device {
     struct MscCdcBinding {
         RegistryT* registry{nullptr};
         MscCdcCompositeDesc desc{};
+        const char* registry_cap_name{"block.registry"};
         std::array<init::CapId, 2> provides{};
         std::array<init::CapId, 2> requires_caps{};
         init::Node node{};
@@ -93,6 +95,22 @@ export namespace usb::device {
                 &MscCdcBinding::deinit_trampoline,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return std::string_view{desc.msc_cap_name ? desc.msc_cap_name : ""};
+            }
+            if (id == provides[1]) {
+                return std::string_view{desc.cdc_cap_name ? desc.cdc_cap_name : ""};
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{desc.block_cap ? desc.block_cap : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

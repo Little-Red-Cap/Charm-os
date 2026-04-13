@@ -56,6 +56,18 @@ function Get-ExportCases {
             DefaultDot = 'bringup_minimal_materialized_graph.dot'
             DefaultJson = 'bringup_minimal_materialized_graph.sample.json'
             ExtraCache = @()
+        },
+        @{
+            Name = 'usb-msc-block-demo'
+            Source = 'Examples/usb/usb_msc_block_demo'
+            BuildDir = 'cmake-build-usb-msc-block-demo-clang'
+            BuildTarget = 'usb-msc-block-demo'
+            ExportTarget = 'export_usb_msc_block_materialized_graph'
+            DotCache = 'USB_MSC_BLOCK_EXPORT_DOT_PATH'
+            JsonCache = 'USB_MSC_BLOCK_EXPORT_JSON_PATH'
+            DefaultDot = 'usb_msc_block_materialized_graph.dot'
+            DefaultJson = 'usb_msc_block_materialized_graph.sample.json'
+            ExtraCache = @('USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img')
         }
     )
 }

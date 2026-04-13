@@ -6,6 +6,10 @@ module;
 #undef errno
 #endif
 
+#ifdef environ
+#undef environ
+#endif
+
 export module posix.user_crt;
 
 export import posix.errno;

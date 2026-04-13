@@ -13,9 +13,6 @@ module;
 #include <cstring>
 #include <new>
 
-extern "C" int charm_posix_c_header_probe_entry(void);
-extern "C" int charm_posix_c_header_exit_entry(void);
-
 export module posix.test_harness;
 
 #if defined(POSIX_PROGRAMS_SMOKE_TEST) && POSIX_PROGRAMS_SMOKE_TEST
@@ -41,6 +38,16 @@ export import fs_stream;
 export import fs_vfs;
 export import util.core;
 export import util.error;
+
+extern "C" int charm_posix_c_header_probe_entry(void);
+extern "C" int charm_posix_c_header_exit_entry(void);
+extern "C" int charm_posix_newlib_syscall_probe_entry(void);
+extern "C" int charm_posix_newlib_kill_self_entry(void);
+extern "C" int charm_posix_newlib_lseek_entry(void);
+extern "C" int charm_posix_newlib_path_entry(void);
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+extern "C" int charm_posix_newlib_stdio_entry(void);
+#endif
 
 export namespace posix::testsupport {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
@@ -264,6 +271,28 @@ export namespace posix::testsupport {
     int crt_c_header_exit_main(int, char**, char**) {
         return charm_posix_c_header_exit_entry();
     }
+
+    int newlib_syscall_probe_main(int, char**, char**) {
+        return charm_posix_newlib_syscall_probe_entry();
+    }
+
+    int newlib_kill_self_main(int, char**, char**) {
+        return charm_posix_newlib_kill_self_entry();
+    }
+
+    int newlib_lseek_main(int, char**, char**) {
+        return charm_posix_newlib_lseek_entry();
+    }
+
+    int newlib_path_main(int, char**, char**) {
+        return charm_posix_newlib_path_entry();
+    }
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+    int newlib_stdio_main(int, char**, char**) {
+        return charm_posix_newlib_stdio_entry();
+    }
+#endif
 
     int stderr_demo_main(int, char**, char**) {
         const int r1 = write_text(1, "out\n");

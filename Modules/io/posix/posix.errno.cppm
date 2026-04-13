@@ -27,10 +27,12 @@ export namespace posix {
     inline constexpr int ENFILE = 23;
     inline constexpr int EMFILE = 24;
     inline constexpr int ENOSPC = 28;
+    inline constexpr int ESPIPE = 29;
     inline constexpr int EROFS = 30;
     inline constexpr int EPIPE = 32;
     inline constexpr int ENAMETOOLONG = 36;
     inline constexpr int ENOSYS = 38;
+    inline constexpr int ENOTEMPTY = 39;
     inline constexpr int ENOTSUP = 95;
     inline constexpr int ETIMEDOUT = 110;
     inline constexpr int EINVAL = 22;
@@ -112,10 +114,12 @@ export namespace posix {
             case EEXIST: return util::Errc::exist;
             case ENOTDIR: return util::Errc::notdir;
             case EISDIR: return util::Errc::isdir;
+            case ESPIPE: return util::Errc::notsup;
             case EINVAL: return util::Errc::inval;
             case EROFS: return util::Errc::rofs;
             case ENAMETOOLONG: return util::Errc::nametoolong;
             case ENOSYS: return util::Errc::nosys;
+            case ENOTEMPTY: return util::Errc::busy;
             case ENOTSUP: return util::Errc::notsup;
             case ETIMEDOUT: return util::Errc::timeout;
             case EPIPE: return util::Errc::closed;

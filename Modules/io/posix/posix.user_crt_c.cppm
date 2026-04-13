@@ -2,6 +2,10 @@ module;
 
 #include <cstddef>
 
+#ifdef environ
+#undef environ
+#endif
+
 export module posix.user_crt_c;
 
 export import posix.user_crt;

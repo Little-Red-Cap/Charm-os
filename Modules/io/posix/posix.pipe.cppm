@@ -171,7 +171,8 @@ export namespace posix {
                 &PipeImpl::write,
                 &PipeImpl::close,
                 &PipeImpl::stat,
-                &PipeImpl::dup
+                &PipeImpl::dup,
+                nullptr
             };
             return kOps;
         }

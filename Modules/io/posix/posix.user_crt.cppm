@@ -2,6 +2,14 @@ module;
 
 #include <string_view>
 
+#ifdef errno
+#undef errno
+#endif
+
+#ifdef environ
+#undef environ
+#endif
+
 export module posix.user_crt;
 
 export import posix.errno;
@@ -12,14 +20,14 @@ import util.core;
 
 export namespace posix::user {
     inline char** environ() noexcept {
-        return envp();
+        return posix::user::envp();
     }
 
     inline const char* getenv_cstr(std::string_view key) noexcept {
         if (key.empty()) {
             return nullptr;
         }
-        auto** entries = envp();
+        auto** entries = posix::user::envp();
         if (!entries) {
             return nullptr;
         }

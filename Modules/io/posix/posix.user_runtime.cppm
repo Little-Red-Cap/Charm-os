@@ -4,15 +4,21 @@ module;
 #include <cstddef>
 #include <span>
 
+#ifdef errno
+#undef errno
+#endif
+
 export module posix.user_runtime;
 
 export import posix.api;
 export import posix.errno;
+export import posix.fd_table;
 export import posix.proc_types;
 export import posix.user_context;
 
 import posix.exec_context;
 import util.core;
+import util.error;
 
 namespace posix::user::detail {
     inline constexpr util::usize kRuntimeStackDepth = 32;
@@ -25,6 +31,26 @@ namespace posix::user::detail {
     template <class Api>
     ssize_t runtime_write(void* ctx, int fd, const void* buf, util::usize count) noexcept {
         return static_cast<Api*>(ctx)->write(fd, buf, count);
+    }
+
+    template <class Api>
+    int runtime_fstat(void* ctx, int fd, PosixStat* out) noexcept {
+        return static_cast<Api*>(ctx)->fstat(fd, out);
+    }
+
+    template <class Api>
+    int runtime_stat(void* ctx, const char* path, PosixStat* out) noexcept {
+        return static_cast<Api*>(ctx)->stat(path, out);
+    }
+
+    template <class Api>
+    int runtime_isatty(void* ctx, int fd) noexcept {
+        return static_cast<Api*>(ctx)->isatty(fd);
+    }
+
+    template <class Api>
+    ssize_t runtime_lseek(void* ctx, int fd, util::i64 offset, int whence) noexcept {
+        return static_cast<Api*>(ctx)->lseek(fd, offset, whence);
     }
 
     template <class Api>
@@ -83,6 +109,18 @@ namespace posix::user::detail {
     }
 
     template <class Api>
+    int runtime_rmdir(void* ctx, const char* path) noexcept {
+        if constexpr (requires(Api& api, const char* p) { api.rmdir(p); }) {
+            return static_cast<Api*>(ctx)->rmdir(path);
+        } else {
+            (void)ctx;
+            (void)path;
+            posix::set_errno(posix::to_errno(util::Errc::nosys));
+            return -1;
+        }
+    }
+
+    template <class Api>
     int runtime_rename(void* ctx, const char* from, const char* to) noexcept {
         return static_cast<Api*>(ctx)->rename(from, to);
     }
@@ -109,19 +147,19 @@ namespace posix::user::detail {
 
     template <class Ret>
     Ret missing_runtime(Ret value) noexcept {
-        set_errno(ENOSYS);
+        posix::set_errno(posix::to_errno(util::Errc::nosys));
         if (auto* context = posix::active_exec_context()) {
-            context->errno_value = get_errno();
+            context->errno_value = posix::get_errno();
         }
         return value;
     }
 
     template <class Fn>
     auto invoke_with_errno_sync(Fn&& fn) noexcept(noexcept(fn())) -> decltype(fn()) {
-        set_errno(0);
+        posix::set_errno(0);
         auto result = fn();
         if (auto* context = posix::active_exec_context()) {
-            context->errno_value = get_errno();
+            context->errno_value = posix::get_errno();
         }
         return result;
     }
@@ -134,6 +172,10 @@ export namespace posix::user {
         void* ctx{nullptr};
         ssize_t (*read)(void* ctx, int fd, void* buf, util::usize count) noexcept {nullptr};
         ssize_t (*write)(void* ctx, int fd, const void* buf, util::usize count) noexcept {nullptr};
+        int (*fstat)(void* ctx, int fd, PosixStat* out) noexcept {nullptr};
+        int (*stat)(void* ctx, const char* path, PosixStat* out) noexcept {nullptr};
+        int (*isatty)(void* ctx, int fd) noexcept {nullptr};
+        ssize_t (*lseek)(void* ctx, int fd, util::i64 offset, int whence) noexcept {nullptr};
         int (*open)(void* ctx, const char* path, int flags, int mode) noexcept {nullptr};
         int (*close)(void* ctx, int fd) noexcept {nullptr};
         int (*pipe)(void* ctx, int fds[2]) noexcept {nullptr};
@@ -145,6 +187,7 @@ export namespace posix::user {
         int (*sleep)(void* ctx, unsigned seconds) noexcept {nullptr};
         int (*mkdir)(void* ctx, const char* path) noexcept {nullptr};
         int (*unlink)(void* ctx, const char* path) noexcept {nullptr};
+        int (*rmdir)(void* ctx, const char* path) noexcept {nullptr};
         int (*rename)(void* ctx, const char* from, const char* to) noexcept {nullptr};
         PosixDir* (*opendir)(void* ctx, const char* path) noexcept {nullptr};
         const PosixDirent* (*readdir)(void* ctx, PosixDir* dir) noexcept {nullptr};
@@ -158,6 +201,10 @@ export namespace posix::user {
         runtime.ctx = &api;
         runtime.read = &detail::runtime_read<Api>;
         runtime.write = &detail::runtime_write<Api>;
+        runtime.fstat = &detail::runtime_fstat<Api>;
+        runtime.stat = &detail::runtime_stat<Api>;
+        runtime.isatty = &detail::runtime_isatty<Api>;
+        runtime.lseek = &detail::runtime_lseek<Api>;
         runtime.open = &detail::runtime_open<Api>;
         runtime.close = &detail::runtime_close<Api>;
         runtime.pipe = &detail::runtime_pipe<Api>;
@@ -169,6 +216,7 @@ export namespace posix::user {
         runtime.sleep = &detail::runtime_sleep<Api>;
         runtime.mkdir = &detail::runtime_mkdir<Api>;
         runtime.unlink = &detail::runtime_unlink<Api>;
+        runtime.rmdir = &detail::runtime_rmdir<Api>;
         runtime.rename = &detail::runtime_rename<Api>;
         runtime.opendir = &detail::runtime_opendir<Api>;
         runtime.readdir = &detail::runtime_readdir<Api>;
@@ -237,6 +285,46 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->write(runtime->ctx, fd, buf, count);
+        });
+    }
+
+    inline int fstat(int fd, PosixStat* out) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->fstat) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->fstat(runtime->ctx, fd, out);
+        });
+    }
+
+    inline int stat(const char* path, PosixStat* out) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->stat) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->stat(runtime->ctx, path, out);
+        });
+    }
+
+    inline int isatty(int fd) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->isatty) {
+            return detail::missing_runtime<int>(0);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->isatty(runtime->ctx, fd);
+        });
+    }
+
+    inline ssize_t lseek(int fd, util::i64 offset, int whence) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->lseek) {
+            return detail::missing_runtime<ssize_t>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->lseek(runtime->ctx, fd, offset, whence);
         });
     }
 
@@ -361,6 +449,16 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->unlink(runtime->ctx, path);
+        });
+    }
+
+    inline int rmdir(const char* path) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->rmdir) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->rmdir(runtime->ctx, path);
         });
     }
 

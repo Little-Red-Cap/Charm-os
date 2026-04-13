@@ -99,7 +99,8 @@ namespace {
             &dummy_write,
             &dummy_close,
             &dummy_stat,
-            &dummy_dup
+            &dummy_dup,
+            nullptr
         };
 
         posix::FdEntry e0{};
@@ -146,7 +147,8 @@ namespace {
             &dummy_write,
             &dummy_close,
             &dummy_stat,
-            &dummy_dup
+            &dummy_dup,
+            nullptr
         };
 
         posix::FdEntry e0{};
@@ -176,7 +178,8 @@ namespace {
             &dummy_write,
             &dummy_close,
             &dummy_stat,
-            &dummy_dup
+            &dummy_dup,
+            nullptr
         };
         posix::FdEntry e{};
         e.kind = posix::FdKind::file;

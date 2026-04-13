@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module input.service.node;
 
@@ -15,6 +16,7 @@ export namespace input {
     struct ServiceBinding {
         InputService* service{nullptr};
         charm::system::Clock* clock{nullptr};
+        const char* clock_cap_name{"system.clock"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
@@ -25,7 +27,7 @@ export namespace input {
                                 const char* clock_cap_name = "system.clock",
                                 init::Phase phase = init::Phase::core,
                                 util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : service(&svc), clock(&clock_in) {
+            : service(&svc), clock(&clock_in), clock_cap_name(clock_cap_name) {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id(clock_cap_name);
             node = init::Node{
@@ -38,6 +40,16 @@ export namespace input {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return node.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{clock_cap_name ? clock_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

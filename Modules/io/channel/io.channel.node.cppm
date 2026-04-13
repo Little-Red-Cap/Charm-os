@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module io.channel.node;
 
@@ -19,6 +20,7 @@ export namespace io {
         Channel* channel{nullptr};
         Reactor* reactor{nullptr};
         EndpointDesc desc{};
+        const char* registry_cap_name{"io.registry"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
@@ -30,7 +32,7 @@ export namespace io {
                        const char* registry_cap = "io.registry",
                        init::Phase phase = init::Phase::core,
                        util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : registry(&reg), channel(&ch), reactor(reactor_in), desc(desc_in) {
+            : registry(&reg), channel(&ch), reactor(reactor_in), desc(desc_in), registry_cap_name(registry_cap) {
             provides[0] = init::cap_id(desc.name);
             requires_caps[0] = init::cap_id(registry_cap);
             node = init::Node{
@@ -43,6 +45,16 @@ export namespace io {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return desc.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name ? registry_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {
@@ -63,6 +75,7 @@ export namespace io {
         Reactor* reactor{nullptr};
         const char* target_cap{"io.uart1"};
         EndpointDesc desc{};
+        const char* registry_cap_name{"io.registry"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 2> requires_caps{};
         init::Node node{};
@@ -77,6 +90,7 @@ export namespace io {
             : registry(&reg),
               reactor(&reactor_in),
               target_cap(target_cap_name),
+              registry_cap_name(registry_cap),
               desc{alias_name,
                    io::cap_id(alias_name),
                    EndpointKind::channel,
@@ -94,6 +108,19 @@ export namespace io {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return desc.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name ? registry_cap_name : ""};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{target_cap ? target_cap : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

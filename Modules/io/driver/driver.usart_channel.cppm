@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 export module driver.usart_channel;
 
@@ -174,6 +175,9 @@ export namespace driver::usart {
         RegistryT* registry{nullptr};
         io::Reactor* reactor{nullptr};
         io::EndpointDesc desc{};
+        const char* registry_cap_name{"io.registry"};
+        const char* reactor_cap_name{"io.reactor"};
+        const char* hal_cap_name{"hal.uart1"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 3> requires_caps{};
         init::Node node{};
@@ -186,6 +190,7 @@ export namespace driver::usart {
             : adapter(uart, &r),
               registry(&reg),
               reactor(&r),
+              hal_cap_name(hal_cap_name),
               desc{endpoint_name,
                    io::cap_id(endpoint_name),
                    io::EndpointKind::channel,
@@ -204,6 +209,22 @@ export namespace driver::usart {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return desc.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{reactor_cap_name};
+            }
+            if (id == requires_caps[2]) {
+                return std::string_view{hal_cap_name ? hal_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

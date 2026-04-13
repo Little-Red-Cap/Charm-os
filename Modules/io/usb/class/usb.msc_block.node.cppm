@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <optional>
 #include <span>
+#include <string_view>
 
 export module usb.class_msc_block.node;
 
@@ -45,6 +46,7 @@ export namespace usb::device {
     struct MscBlockBinding {
         RegistryT* registry{nullptr};
         MscBlockDesc desc{};
+        const char* registry_cap_name{"block.registry"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 2> requires_caps{};
         init::Node node{};
@@ -79,6 +81,19 @@ export namespace usb::device {
                 &MscBlockBinding::deinit_trampoline,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return std::string_view{desc.cap_name ? desc.cap_name : ""};
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{desc.block_cap ? desc.block_cap : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

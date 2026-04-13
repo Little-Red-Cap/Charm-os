@@ -1,0 +1,288 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/materialized_graph.ci_summary.v1.schema.json",
+  "title": "materialized_graph.ci_summary/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "output_root",
+    "case_selection",
+    "candidate",
+    "baseline",
+    "diff",
+    "report",
+    "mode",
+    "has_diff",
+    "status"
+  ],
+  "properties": {
+    "schema": {
+      "const": "materialized_graph.ci_summary/v1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "output_root": {
+      "type": "string"
+    },
+    "case_selection": {
+      "$ref": "#/$defs/caseSelection"
+    },
+    "candidate": {
+      "$ref": "#/$defs/bundleRef"
+    },
+    "baseline": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/bundleRef"
+        }
+      ]
+    },
+    "diff": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/diffSummary"
+        }
+      ]
+    },
+    "report": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/reportSummary"
+        }
+      ]
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "export_only",
+        "compare"
+      ]
+    },
+    "has_diff": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "exported",
+        "same",
+        "different"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "export_only"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "baseline": {
+            "type": "null"
+          },
+          "diff": {
+            "type": "null"
+          },
+          "report": {
+            "type": "null"
+          },
+          "status": {
+            "const": "exported"
+          },
+          "has_diff": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "compare"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/$defs/bundleRef"
+          },
+          "diff": {
+            "$ref": "#/$defs/diffSummary"
+          },
+          "report": {
+            "$ref": "#/$defs/reportSummary"
+          },
+          "status": {
+            "enum": [
+              "same",
+              "different"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "bundleRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_root",
+        "index"
+      ],
+      "properties": {
+        "bundle_root": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        }
+      }
+    },
+    "caseSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_cases",
+        "cases"
+      ],
+      "properties": {
+        "all_cases": {
+          "type": "boolean"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "statusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "added",
+        "removed",
+        "unchanged"
+      ],
+      "properties": {
+        "changed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "diffSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "json",
+        "case_count",
+        "include_unchanged",
+        "status_counts",
+        "changed_cases",
+        "added_cases",
+        "removed_cases",
+        "unchanged_cases"
+      ],
+      "properties": {
+        "json": {
+          "type": "string"
+        },
+        "case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "include_unchanged": {
+          "type": "boolean"
+        },
+        "status_counts": {
+          "$ref": "#/$defs/statusCounts"
+        },
+        "changed_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "added_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "removed_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unchanged_cases": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "reportSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "output_root",
+        "manifest",
+        "markdown",
+        "html"
+      ],
+      "properties": {
+        "output_root": {
+          "type": "string"
+        },
+        "manifest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "markdown": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "html": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module input.router.node;
 
@@ -32,6 +33,12 @@ export namespace input {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? node.name
+                : std::string_view{};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

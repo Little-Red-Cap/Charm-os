@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <span>
 #include <array>
+#include <string_view>
 
 export module charm.system.reactor_pump;
 
@@ -118,6 +119,8 @@ export namespace charm::system {
         void* post_ctx{nullptr};
         kernel::TaskId self{};
         util::usize budget{8};
+        const char* eda_cap_name{"kernel.eda"};
+        const char* reactor_cap_name{"io.reactor"};
 
         static consteval kernel::ssu::Meta ssu_meta() noexcept {
             return kernel::ssu::Meta{
@@ -152,6 +155,8 @@ export namespace charm::system {
               post_ctx(post_ctx_in),
               self(self_id),
               budget((budget_in == 0) ? 1 : budget_in),
+              eda_cap_name(eda_cap_name),
+              reactor_cap_name(reactor_cap_name),
               waker{&task} {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id(eda_cap_name);
@@ -166,6 +171,19 @@ export namespace charm::system {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return node.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{eda_cap_name ? eda_cap_name : ""};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{reactor_cap_name ? reactor_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

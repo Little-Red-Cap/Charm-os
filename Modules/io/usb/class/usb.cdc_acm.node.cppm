@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <optional>
 #include <span>
+#include <string_view>
 
 export module usb.class_cdc_acm.node;
 
@@ -65,6 +66,12 @@ export namespace usb::device {
                 &CdcAcmBinding::deinit_trampoline,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? std::string_view{desc.cap_name ? desc.cap_name : ""}
+                : std::string_view{};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

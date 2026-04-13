@@ -123,6 +123,27 @@ namespace init::detail {
     constexpr Phase phase_min(Phase a, Phase b) noexcept {
         return static_cast<util::u8>(a) <= static_cast<util::u8>(b) ? a : b;
     }
+
+    constexpr std::string_view lookup_capability_name(std::span<const cap_name_entry> entries,
+                                                      CapId id) noexcept {
+        for (util::usize i = 0; i < entries.size(); ++i) {
+            if (entries[i].id == id) {
+                return entries[i].name;
+            }
+        }
+        return {};
+    }
+
+    template <typename Legacy>
+    constexpr std::string_view lookup_capability_name(const Legacy& value, CapId id) noexcept {
+        if constexpr (requires(const Legacy& candidate) {
+                          candidate.capability_name(id);
+                      }) {
+            return std::string_view{value.capability_name(id)};
+        } else {
+            return {};
+        }
+    }
 }
 
 export namespace init {
@@ -223,6 +244,12 @@ namespace init::detail {
         return {};
     }
 
+    template <util::usize MaxNodes, util::usize MaxCaps, typename NameLookup>
+    util::Result<materialize_summary<MaxCaps>> append_node_with_lookup(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                       const Node& base,
+                                                                       const materialize_constraints<MaxCaps>& constraints,
+                                                                       NameLookup&& lookup_name) noexcept;
+
     template <util::usize MaxNodes, util::usize MaxCaps>
     util::Result<materialize_summary<MaxCaps>> finalize_node(materialized_graph<MaxNodes, MaxCaps>& out,
                                                              util::usize row) noexcept {
@@ -259,6 +286,15 @@ namespace init::detail {
     util::Result<materialize_summary<MaxCaps>> append_node(materialized_graph<MaxNodes, MaxCaps>& out,
                                                            const Node& base,
                                                            const materialize_constraints<MaxCaps>& constraints) noexcept {
+        const auto no_name_lookup = [](CapId) noexcept -> std::string_view { return {}; };
+        return append_node_with_lookup(out, base, constraints, no_name_lookup);
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps, typename NameLookup>
+    util::Result<materialize_summary<MaxCaps>> append_node_with_lookup(materialized_graph<MaxNodes, MaxCaps>& out,
+                                                                       const Node& base,
+                                                                       const materialize_constraints<MaxCaps>& constraints,
+                                                                       NameLookup&& lookup_name) noexcept {
         if (out.count >= MaxNodes) {
             return util::unexpected(util::Errc::buffer_overflow);
         }
@@ -274,18 +310,23 @@ namespace init::detail {
 
         for (util::usize i = 0; i < base.provides.size(); ++i) {
             const auto cap = base.provides[i];
+            const auto name = lookup_name(cap);
             auto seen = append_provided(out, cap);
             if (!seen) {
                 return util::unexpected(seen.error());
             }
-            auto r = append_cap_to_row(out, row, true, cap);
+            auto r = append_cap_to_row(out, row, true, cap, name);
             if (!r) {
                 return util::unexpected(r.error());
             }
         }
 
         for (util::usize i = 0; i < base.requires_caps.size(); ++i) {
-            auto r = append_cap_to_row(out, row, false, base.requires_caps[i]);
+            auto r = append_cap_to_row(out,
+                                       row,
+                                       false,
+                                       base.requires_caps[i],
+                                       lookup_name(base.requires_caps[i]));
             if (!r) {
                 return util::unexpected(r.error());
             }
@@ -418,7 +459,12 @@ namespace init::detail {
                 if (!util::ok(error)) {
                     return;
                 }
-                auto current = append_node(out, node, constraints);
+                auto current = append_node_with_lookup(out,
+                                                       node,
+                                                       constraints,
+                                                       [&](CapId id) noexcept {
+                                                           return lookup_capability_name(value, id);
+                                                       });
                 if (!current) {
                     error = current.error();
                     return;
@@ -440,7 +486,12 @@ namespace init::detail {
                 if (!span[i]) {
                     continue;
                 }
-                auto current = append_node(out, *span[i], constraints);
+                auto current = append_node_with_lookup(out,
+                                                       *span[i],
+                                                       constraints,
+                                                       [&](CapId id) noexcept {
+                                                           return lookup_capability_name(value, id);
+                                                       });
                 if (!current) {
                     return util::unexpected(current.error());
                 }
@@ -453,7 +504,12 @@ namespace init::detail {
         } else if constexpr (requires(const Legacy& candidate) {
                                  candidate.node;
                              }) {
-            auto current = append_node(out, value.node, constraints);
+            auto current = append_node_with_lookup(out,
+                                                   value.node,
+                                                   constraints,
+                                                   [&](CapId id) noexcept {
+                                                       return lookup_capability_name(value, id);
+                                                   });
             if (!current) {
                 return util::unexpected(current.error());
             }
@@ -524,7 +580,12 @@ namespace init::detail {
         }
 
         materialize_summary<MaxCaps> summary{};
-        auto current = append_node(out, item.value->node, constraints);
+        auto current = append_node_with_lookup(out,
+                                               item.value->node,
+                                               constraints,
+                                               [&](CapId id) noexcept {
+                                                   return lookup_capability_name(*item.value, id);
+                                               });
         if (!current) {
             return util::unexpected(current.error());
         }
@@ -567,7 +628,12 @@ namespace init::detail {
             if (!item.nodes[i]) {
                 continue;
             }
-            auto current = append_node(out, *item.nodes[i], constraints);
+            auto current = append_node_with_lookup(out,
+                                                   *item.nodes[i],
+                                                   constraints,
+                                                   [&](CapId id) noexcept {
+                                                       return lookup_capability_name(item.capability_names, id);
+                                                   });
             if (!current) {
                 return util::unexpected(current.error());
             }
@@ -795,6 +861,10 @@ export namespace init {
         struct LegacyNodeHolder {
             std::array<CapId, 1> provides{CapA::id};
 
+            constexpr std::string_view capability_name(CapId id) const noexcept {
+                return id == CapA::id ? CapA::view() : std::string_view{};
+            }
+
             LegacyNodeHolder() noexcept
                 : node{
                     "test.legacy.node",
@@ -829,11 +899,15 @@ export namespace init {
         };
 
         LegacyChainHolder legacy_chain{{&holder.node}};
-        auto legacy_holder = materialize<2, 4>(compose(compat_nodes(legacy_chain.node_span())));
+        constexpr std::array<cap_name_entry, 1> legacy_cap_names{{cap_name_entry{CapA::id, CapA::view()}}};
+        auto legacy_holder = materialize<2, 4>(compose(compat_nodes(legacy_chain.node_span(), legacy_cap_names)));
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }
         if (legacy_holder->node_kinds[0] != materialized_node_kind::legacy) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (legacy_holder->provides_name_storage[0][0] != CapA::view()) {
             return util::unexpected(util::Errc::bad_state);
         }
 

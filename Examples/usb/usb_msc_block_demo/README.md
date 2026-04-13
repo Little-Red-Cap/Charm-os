@@ -16,6 +16,19 @@ Run:
 usb-msc-block-demo <disk.img|vhd>
 ```
 
+Export-only observe path:
+
+```bash
+usb-msc-block-demo --export-only --dot out.dot --json out.json --image observe-usb-block.img
+```
+
+Repo helper script also registers this demo as an export case:
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Case usb-msc-block-demo
+./scripts/export_materialized_graph.ps1 -AllCases -OutputRoot out/materialized-graph-bundle
+```
+
 Device mode wiring (board/PCD integration):
 
 - Provide `usb::driver::DcdOps`, `dcd_ctx`, and a `usb::driver::DcdDeviceAdapter`.

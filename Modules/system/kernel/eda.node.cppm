@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module kernel.eda.node;
 
@@ -27,6 +28,12 @@ export namespace kernel {
                 nullptr,
                 nullptr
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? node.name
+                : std::string_view{};
         }
     };
 }

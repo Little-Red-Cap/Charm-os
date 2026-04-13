@@ -4,6 +4,7 @@ module;
 #include <cstddef>
 #include <optional>
 #include <span>
+#include <string_view>
 
 export module block.file.node;
 
@@ -22,6 +23,7 @@ export namespace block {
         DeviceDesc desc{};
         const char* path{nullptr};
         util::u64 block_size{0};
+        const char* registry_cap_name{"block.registry"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
@@ -48,6 +50,16 @@ export namespace block {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return desc.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

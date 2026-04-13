@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/materialized_graph.export_bundle.v1.schema.json",
+  "title": "materialized_graph.export_bundle/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "case_count",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "materialized_graph.export_bundle/v1"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/caseEntry"
+      }
+    }
+  },
+  "$defs": {
+    "nodeKinds": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "graphSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "node_count",
+        "edge_count",
+        "effective_max_phase",
+        "effective_runlevel_mask",
+        "effective_runlevel_text"
+      ],
+      "properties": {
+        "schema": {
+          "const": "materialized_graph.sample/v2"
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edge_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "effective_max_phase": {
+          "type": "string"
+        },
+        "effective_runlevel_mask": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "effective_runlevel_text": {
+          "type": "string"
+        },
+        "node_kinds": {
+          "$ref": "#/$defs/nodeKinds"
+        }
+      }
+    },
+    "caseEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "build_dir",
+        "build_target",
+        "export_target",
+        "dot",
+        "json"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "build_dir": {
+          "type": "string"
+        },
+        "build_target": {
+          "type": "string"
+        },
+        "export_target": {
+          "type": "string"
+        },
+        "dot": {
+          "type": "string"
+        },
+        "json": {
+          "type": "string"
+        },
+        "graph": {
+          "$ref": "#/$defs/graphSummary"
+        }
+      }
+    }
+  }
+}

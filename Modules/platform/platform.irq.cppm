@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module platform.irq;
 
@@ -33,6 +34,12 @@ export namespace platform {
                 nullptr,
                 ctx
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? node.name
+                : std::string_view{};
         }
     };
 }

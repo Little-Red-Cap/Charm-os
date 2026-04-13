@@ -40,7 +40,7 @@ export namespace charm::system {
         auto r = bringup.start();
         if (!r) return r;
 
-        auto* ch = bringup.registry().open_channel("io.uart1");
+        auto* ch = bringup.registry().open_channel(caps.console_cap);
         if (!ch) return util::unexpected(util::Errc::noent);
 
         const char msg[] = "bringup ok\n";
@@ -94,7 +94,7 @@ export namespace charm::system {
             init::Phase::app);
         if (!r) return r;
 
-        auto* ch = bringup.registry().open_channel("io.uart1");
+        auto* ch = bringup.registry().open_channel(caps.console_cap);
         if (!ch) return util::unexpected(util::Errc::noent);
 
         const char msg[] = "bringup ok\n";

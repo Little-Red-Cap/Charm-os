@@ -495,7 +495,8 @@ int charm_player_selected_profile_main() {
         post_fn,
         &running,
         pump_id,
-        8
+        8,
+        caps.console_cap
     };
 
     early_uart_print("boot: pre-bringup\n");
@@ -551,19 +552,19 @@ int charm_player_selected_profile_main() {
     early_uart_print("boot: console setup v2\n");
 
     io::EndpointDesc uart_desc{
-        "io.uart1",
-        io::cap_id("io.uart1"),
+        caps.uart1.io_cap,
+        io::cap_id(caps.uart1.io_cap),
         io::EndpointKind::channel,
         io::EndpointCaps::duplex
     };
     io::EndpointDesc console_desc{
-        "io.console0",
-        io::cap_id("io.console0"),
+        caps.console_cap,
+        io::cap_id(caps.console_cap),
         io::EndpointKind::channel,
         io::EndpointCaps::duplex
     };
     auto& reg = bringup.registry();
-    auto* uart_ep = reg.find_channel("io.uart1");
+    auto* uart_ep = reg.find_channel(caps.uart1.io_cap);
     auto r_uart = uart_ep
         ? reg.replace_channel(uart_desc, g_dma_console, &bringup.reactor())
         : reg.register_channel(uart_desc, g_dma_console, &bringup.reactor());
@@ -571,7 +572,7 @@ int charm_player_selected_profile_main() {
         Error_Handler();
     }
     early_uart_print("boot: uart channel ok\n");
-    auto* console_ep = reg.find_channel("io.console0");
+    auto* console_ep = reg.find_channel(caps.console_cap);
     auto r_console = console_ep
         ? reg.replace_channel(console_desc, g_dma_console, &bringup.reactor())
         : reg.register_channel(console_desc, g_dma_console, &bringup.reactor());

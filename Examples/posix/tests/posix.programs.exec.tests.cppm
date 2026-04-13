@@ -19,6 +19,8 @@ module;
 #include "../elf_samples/stderr_demo.elf.inc"
 #include "../elf_samples/exit_code.elf.inc"
 #include "../elf_samples/getpid.elf.inc"
+#include "../elf_samples/sleep.elf.inc"
+#include "../elf_samples/kill_self.elf.inc"
 #include "../elf_samples/cat_file.elf.inc"
 
 export module posix.programs.exec.tests;
@@ -645,6 +647,10 @@ namespace {
             h.procs.register_elf_mem("exit_code", exit_code_elf, exit_code_elf_len));
         check_true("elf-real-reg-getpid",
             h.procs.register_elf_mem("getpid", getpid_elf, getpid_elf_len));
+        check_true("elf-real-reg-sleep",
+            h.procs.register_elf_mem("sleep", sleep_elf, sleep_elf_len));
+        check_true("elf-real-reg-kill-self",
+            h.procs.register_elf_mem("kill_self", kill_self_elf, kill_self_elf_len));
 
         {
             int pipefd[2]{-1, -1};
@@ -856,6 +862,48 @@ namespace {
             char expected[16]{};
             std::snprintf(expected, sizeof(expected), "%d\n", sp.pid.value);
             check_eq("elf-real-getpid-out", out, std::string_view{expected});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-sleep-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:sleep", "2", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:sleep";
+            cfg.argv = std::span<const char* const>(argv, 2);
+            cfg.stdio_out = pipefd[1];
+            const auto sleep_before = test_clock_ticks_ms();
+            auto sp = spawn_checked("elf-real-sleep-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-sleep-wait", st);
+            check_eq("elf-real-sleep-code", st.value().code, 0);
+            const auto sleep_after = test_clock_ticks_ms();
+            check_true("elf-real-sleep-clock", sleep_after >= sleep_before + 2000);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 16> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-sleep-out", out, std::string_view{"slept\n"});
+        }
+
+        {
+            int pipefd[2]{-1, -1};
+            check_eq("elf-real-kill-self-pipe", h.api.pipe(pipefd), 0);
+            const char* argv[] = {"elfmem:kill_self", nullptr};
+            posix::SpawnConfig cfg{};
+            cfg.path = "elfmem:kill_self";
+            cfg.argv = std::span<const char* const>(argv, 1);
+            cfg.stdio_out = pipefd[1];
+            auto sp = spawn_checked("elf-real-kill-self-spawn", cfg);
+            auto st = h.procs.waitpid(sp.pid, 0);
+            check_true("elf-real-kill-self-wait", st);
+            check_eq("elf-real-kill-self-kind", st.value().kind, posix::WaitKind::signaled);
+            check_eq("elf-real-kill-self-code", st.value().code, posix::SIGTERM);
+            (void)h.api.close(pipefd[1]);
+            std::array<char, 32> buf{};
+            util::usize out_size = 0;
+            auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+            check_eq("elf-real-kill-self-out", out, std::string_view{"before-kill\n"});
         }
 
         h.procs.enable_elf_hostcalls(false);

@@ -68,7 +68,7 @@ Targets:
 - find
 
 Current Charm slice:
-- done: `getpid` base contract, minimum `sleep`, `kill v0`, minimal `ps`
+- done: `getpid` base contract, minimum `sleep`, `kill v0`, minimal `ps`, shell/busybox `kill` applet routing
 - next: widen Phase 3 userland coverage without expanding into full process groups/signal model
 - scope guard: keep this phase focused on minimum userland-observable behavior, not a full Linux signal/process model
 
@@ -82,7 +82,11 @@ Current acceptance on mainline smoke:
 - API-level bound-process `getpid()`
 - real ELF `getpid()` output equals spawned pid
 - API-level `sleep(0/1)`
+- real ELF `sleep 2` advances the test clock and exits cleanly
+- real ELF `kill_self` yields `waitpid(signaled)` with `SIGTERM`
 - proc smoke `kill(SIGTERM)` on enter yields `waitpid(signaled)` and prevents target execution
 - API smoke `kill(SIGTERM)` yields encoded wait status `SIGTERM`
 - `sh -c 'ps'` prints the current minimal `pid/state/name` view
-- `sh -c 'sleep 2'`
+- `sh -c 'kill <pid>'` routes through `/bin/kill`, prevents target entry, and preserves `waitpid(signaled)`
+- `sh -c 'sleep 2'` advances the test clock
+- `busybox ps` / `busybox sleep 2` / `busybox kill <pid>` direct-dispatch paths are also smoke-covered

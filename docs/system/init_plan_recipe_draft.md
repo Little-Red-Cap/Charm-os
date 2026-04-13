@@ -147,8 +147,8 @@ Capability 不负责：
 - 业务/驱动接入层不直接写 `init::Node`
 - 框架级 bringup helper 优先暴露 `start_plan(...)`，而不是继续要求外部传 `node_span()`
 - 旧式 `start(runlevel, phase, extra_nodes)` 仅保留为兼容入口，并逐步退场
-- `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法
-- 框架内的 `*Chain` / `CoreSystemChain` 优先暴露 `plan()`；`node_span()` 仅保留给 legacy adapter 与兼容层
+- `wrap_nodes_with_requires(...)` 仅保留为过渡兼容接口，不再作为推荐写法；优先识别 `for_each_legacy_node(...)`，`node_span()` 仅保留为最后的 compat fallback
+- 框架内的 `*Chain` / `CoreSystemChain` 现在默认暴露 `plan()` 与 `for_each_legacy_node(...)`；`node_span()` 已退出这些框架链路的公开表面，仅保留在通用 compat 层
 - 框架内旧式 chain 优先补齐 `for_each_legacy_node(...)` 这类窄协议，把 `node_span()` 压成最后的 compat fallback
 - multi-node legacy 在框架内部优先走 `for_each_legacy_node(...)` 这类窄协议，而不是继续把 `node_span()` 当默认适配面
 

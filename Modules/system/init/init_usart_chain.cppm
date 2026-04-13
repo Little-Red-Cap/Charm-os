@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_usart;
 
 import init.node;
@@ -23,7 +20,6 @@ export namespace charm::system {
         platform::IrqBinding irq{};
         hal::UartBinding uart_binding;
         driver::usart::ChannelBinding<RegistryT, RxCap, TxCap> channel_binding;
-        std::array<const init::Node*, 3> nodes{};
 
         UsartInitChain(RegistryT& registry,
                        io::Reactor& reactor,
@@ -34,11 +30,6 @@ export namespace charm::system {
             : irq(),
               uart_binding(uart, cfg, hal_cap, "platform.irq"),
               channel_binding(registry, reactor, uart, uart_cap, hal_cap) {
-            nodes = {
-                &irq.node,
-                &uart_binding.node,
-                &channel_binding.node
-            };
         }
 
         constexpr auto plan() const noexcept {
@@ -50,16 +41,9 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(irq.node);
+            fn(uart_binding.node);
+            fn(channel_binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

@@ -1,6 +1,4 @@
 set(MODULE_GROUP_BASE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_active.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_hqzy.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_caps.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_config.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_console.cppm"
@@ -18,8 +16,6 @@ set(MODULE_GROUP_USB_STORAGE_RUNTIME
 )
 
 set(MODULE_GROUP_STORAGE_BOARD_MIN
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_active.cppm"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_hqzy.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_config.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
 )

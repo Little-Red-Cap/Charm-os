@@ -135,41 +135,70 @@ export namespace player::stm32h7::app::config {
     inline constexpr BoardDefaultsConfig kBoard = kConfig.board;
     inline constexpr AppBehaviorConfig kApp = kConfig.app;
 
+    [[deprecated("改用 kProduct.identity")]]
     inline constexpr IdentityConfig kIdentity = kConfig.product.identity;
+    [[deprecated("改用 kBoard.uart")]]
     inline constexpr UartConfig kUart = kConfig.board.uart;
+    [[deprecated("改用 kBoard.bringup")]]
     inline constexpr BringupConfig kBringup = kConfig.board.bringup;
+    [[deprecated("改用 kApp.debug")]]
     inline constexpr DebugConfig kDebug = kConfig.app.debug;
+    [[deprecated("改用 kApp.encoder_test")]]
     inline constexpr EncoderTestConfig kEncoderTest = kConfig.app.encoder_test;
 
+    [[deprecated("改用 kBoard.uart.rx_cap")]]
     inline constexpr std::size_t kRxCap = kConfig.board.uart.rx_cap;
+    [[deprecated("改用 kBoard.uart.tx_cap")]]
     inline constexpr std::size_t kTxCap = kConfig.board.uart.tx_cap;
 
+    [[deprecated("改用 kBoard.bringup.key_select")]]
     inline constexpr bool kBringupKeySelect = kConfig.board.bringup.key_select;
+    [[deprecated("改用 kBoard.bringup.wait_key")]]
     inline constexpr bool kBringupWaitKey = kConfig.board.bringup.wait_key;
+    [[deprecated("改用 kBoard.bringup.enable_audio")]]
     inline constexpr bool kEnableAudio = kConfig.board.bringup.enable_audio;
+    [[deprecated("改用 kBoard.bringup.enable_sdmmc_init")]]
     inline constexpr bool kEnableSdmmcInit = kConfig.board.bringup.enable_sdmmc_init;
+    [[deprecated("改用 kBoard.bringup.enable_usb_msc")]]
     inline constexpr bool kEnableUsbMsc = kConfig.board.bringup.enable_usb_msc;
+    [[deprecated("改用 kBoard.bringup.use_st_usb_stack")]]
     inline constexpr bool kUseStUsbStack = kConfig.board.bringup.use_st_usb_stack;
+    [[deprecated("改用 kBoard.bringup.enable_usb_audio")]]
     inline constexpr bool kEnableUsbAudio = kConfig.board.bringup.enable_usb_audio;
+    [[deprecated("改用 kBoard.bringup.use_usb_audio_on_boot")]]
     inline constexpr bool kUseUsbAudioOnBoot = kConfig.board.bringup.use_usb_audio_on_boot;
+    [[deprecated("改用 kBoard.bringup.enable_display")]]
     inline constexpr bool kEnableDisplay = kConfig.board.bringup.enable_display;
+    [[deprecated("改用 kBoard.bringup.use_out_logger_early")]]
     inline constexpr bool kUseOutLoggerEarly = kConfig.board.bringup.use_out_logger_early;
+    [[deprecated("改用 kBoard.bringup.use_dma_console")]]
     inline constexpr bool kUseDmaConsole = kConfig.board.bringup.use_dma_console;
+    [[deprecated("改用 kBoard.bringup.fmc_init_on_boot")]]
     inline constexpr bool kFmcInitOnBoot = kConfig.board.bringup.fmc_init_on_boot;
+    [[deprecated("改用 kBoard.bringup.sdram_selftest_on_boot")]]
     inline constexpr bool kSdramSelftestOnBoot = kConfig.board.bringup.sdram_selftest_on_boot;
+    [[deprecated("改用 kBoard.bringup.sdram_selftest_in_bringup")]]
     inline constexpr bool kSdramSelftestInBringup = kConfig.board.bringup.sdram_selftest_in_bringup;
+    [[deprecated("改用 kBoard.bringup.enable_i2s_init")]]
     inline constexpr bool kEnableI2sInit = kConfig.board.bringup.enable_i2s_init;
+    [[deprecated("改用 kBoard.bringup.enable_spi5_init")]]
     inline constexpr bool kEnableSpi5Init = kConfig.board.bringup.enable_spi5_init;
 
+    [[deprecated("改用 kApp.debug.stop_after_bringup")]]
     inline constexpr bool kDebugStopAfterBringup = kConfig.app.debug.stop_after_bringup;
+    [[deprecated("改用 kApp.debug.stop_after_channel")]]
     inline constexpr bool kDebugStopAfterChannel = kConfig.app.debug.stop_after_channel;
+    [[deprecated("改用 kApp.debug.stop_after_fs")]]
     inline constexpr bool kDebugStopAfterFs = kConfig.app.debug.stop_after_fs;
+    [[deprecated("改用 kApp.debug.dump_root")]]
     inline constexpr bool kDebugDumpRoot = kConfig.app.debug.dump_root;
 
+    [[deprecated("改用 kApp.encoder_test.enable_on_boot")]]
     inline constexpr bool kEncoderTestOnBoot = kConfig.app.encoder_test.enable_on_boot;
+    [[deprecated("改用 kApp.encoder_test.duration_ms")]]
     inline constexpr std::uint32_t kEncoderTestMs = kConfig.app.encoder_test.duration_ms;
 
-    static_assert(kRxCap > 0);
-    static_assert(kTxCap > 0);
-    static_assert(kEncoderTestMs > 0);
+    static_assert(kBoard.uart.rx_cap > 0);
+    static_assert(kBoard.uart.tx_cap > 0);
+    static_assert(kApp.encoder_test.duration_ms > 0);
 }

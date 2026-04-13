@@ -28,11 +28,17 @@ export namespace init {
     };
 
     template <typename T>
-    concept has_legacy_traversal = requires(const T& candidate) {
+    concept has_legacy_for_each = requires(const T& candidate) {
         candidate.for_each_legacy_node([](const Node&) noexcept {});
-    } || requires(const T& candidate) {
+    };
+
+    template <typename T>
+    concept has_legacy_node_span = requires(const T& candidate) {
         candidate.node_span();
     };
+
+    template <typename T>
+    concept has_legacy_traversal = has_legacy_for_each<T> || has_legacy_node_span<T>;
 
     template <typename Derived>
     struct plan_ops;
@@ -211,7 +217,14 @@ export namespace init {
 
     template <typename Chain>
         requires ((!plan_like<Chain> && !has_plan_method<Chain> && !has_single_node_member<Chain>) ||
-                  has_legacy_traversal<Chain>)
+                  has_legacy_for_each<Chain>)
+    constexpr auto legacy(const Chain& chain) noexcept {
+        return legacy_ref<Chain>{&chain};
+    }
+
+    template <typename Chain>
+        requires (!has_legacy_for_each<Chain> && has_legacy_node_span<Chain>)
+    [[deprecated("prefer for_each_legacy_node(...) or compat_nodes(...) instead of legacy(node_span())")]]
     constexpr auto legacy(const Chain& chain) noexcept {
         return legacy_ref<Chain>{&chain};
     }

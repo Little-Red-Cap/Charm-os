@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_canopen;
 
 import init.node;
@@ -46,7 +43,6 @@ export namespace charm::system {
         canopen::SdoBinding sdo_binding;
         canopen::NmtBinding nmt_binding;
         canopen::CanopenPumpBinding pump_binding;
-        std::array<const init::Node*, 4> nodes{};
 
         CanopenInitChain(RegistryT& registry,
                          canopen::SdoServer& sdo_server,
@@ -83,12 +79,6 @@ export namespace charm::system {
                            caps.clock_cap,
                            phase,
                            runlevel_mask) {
-            nodes = {
-                &transport_binding.node,
-                &sdo_binding.node,
-                &nmt_binding.node,
-                &pump_binding.node
-            };
         }
 
         constexpr auto plan() const noexcept {
@@ -101,16 +91,10 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(transport_binding.node);
+            fn(sdo_binding.node);
+            fn(nmt_binding.node);
+            fn(pump_binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

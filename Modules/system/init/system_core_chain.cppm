@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_core;
 
 import block.registry;
@@ -34,7 +31,6 @@ export namespace charm::system {
         io::ReactorBinding reactor_binding;
         kernel::EdaBinding eda_binding;
         charm::system::ReactorPumpBinding pump_binding;
-        std::array<const init::Node*, 6> nodes{};
 
         CoreSystemChain(const charm::system::ClockOps& clock_ops,
                         void* clock_ctx,
@@ -54,14 +50,6 @@ export namespace charm::system {
               reactor_binding(reactor),
               eda_binding(),
               pump_binding(pump_task, reactor, post_fn, post_more_fn, post_ctx, pump_id, budget) {
-            nodes = {
-                &clock_binding.node,
-                &registry_binding.node,
-                &block_registry_binding.node,
-                &reactor_binding.node,
-                &eda_binding.node,
-                &pump_binding.node
-            };
         }
 
         constexpr auto plan() const noexcept {
@@ -76,16 +64,12 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(clock_binding.node);
+            fn(registry_binding.node);
+            fn(block_registry_binding.node);
+            fn(reactor_binding.node);
+            fn(eda_binding.node);
+            fn(pump_binding.node);
         }
     };
 }

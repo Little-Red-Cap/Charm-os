@@ -38,6 +38,20 @@ typedef int (*elf_fstat_fn)(int fd, PosixStat* st);
 typedef int (*elf_isatty_fn)(int fd);
 typedef int* (*elf_errno_location_fn)(void);
 typedef int (*elf_getpid_fn)(void);
+typedef int (*elf_sleep_fn)(unsigned int seconds);
+typedef int (*elf_kill_fn)(int pid, int sig);
+
+#ifndef SIGINT
+#define SIGINT 2
+#endif
+
+#ifndef SIGKILL
+#define SIGKILL 9
+#endif
+
+#ifndef SIGTERM
+#define SIGTERM 15
+#endif
 
 struct ElfHostCalls {
     elf_write_fn write;
@@ -49,6 +63,8 @@ struct ElfHostCalls {
     elf_isatty_fn isatty;
     elf_errno_location_fn errno_location;
     elf_getpid_fn getpid;
+    elf_sleep_fn sleep;
+    elf_kill_fn kill;
 };
 
 __attribute__((section(".hostcall")))
@@ -97,4 +113,14 @@ static inline int isatty(int fd) {
 static inline int getpid(void) {
     if (!elf_hostcalls()->getpid) return 0;
     return elf_hostcalls()->getpid();
+}
+
+static inline int sleep(unsigned int seconds) {
+    if (!elf_hostcalls()->sleep) return -1;
+    return elf_hostcalls()->sleep(seconds);
+}
+
+static inline int kill(int pid, int sig) {
+    if (!elf_hostcalls()->kill) return -1;
+    return elf_hostcalls()->kill(pid, sig);
 }

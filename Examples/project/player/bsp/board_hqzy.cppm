@@ -1,40 +1,29 @@
-module;
-
-#include <cstdint>
-#include <cstddef>
-
 export module board.hqzy;
 
+import player.stm32h7.board_config;
+
 export namespace board::hqzy {
-    struct SdramConfig {
-        std::uintptr_t base;
-        std::size_t test_words;
-        std::uint32_t test_pattern;
-        std::uint32_t refresh_rate;
-    };
+    using SdramConfig = player::stm32h7::board::SdramConfig;
+    using SdmmcCard = player::stm32h7::board::SdmmcCard;
+    using SdmmcConfig = player::stm32h7::board::SdmmcConfig;
+    using KeyConfig = player::stm32h7::board::KeyConfig;
+    using BoardConfig = player::stm32h7::board::BoardConfig;
 
-    enum class SdmmcCard : std::uint8_t {
-        mmc,
-        sd
-    };
+    constexpr BoardConfig kConfig = player::stm32h7::board::kConfig;
+    constexpr SdramConfig kSdram = player::stm32h7::board::kSdram;
+    constexpr SdmmcConfig kSdmmc = player::stm32h7::board::kSdmmc;
+    constexpr KeyConfig kKey = player::stm32h7::board::kKey;
 
-    constexpr SdramConfig kSdram{
-        0xD0000000u,
-        1024u,
-        0xA5A50000u,
-        0x0603u
-    };
+    constexpr SdmmcCard kSdmmcCard = player::stm32h7::board::kSdmmcCard;
+    constexpr auto kSdmmcInitClockDiv = player::stm32h7::board::kSdmmcInitClockDiv;
+    constexpr auto kSdmmcXferClockDiv = player::stm32h7::board::kSdmmcXferClockDiv;
+    constexpr auto kSdmmcBusWidth = player::stm32h7::board::kSdmmcBusWidth;
+    constexpr bool kSdmmcUseDma = player::stm32h7::board::kSdmmcUseDma;
+    constexpr bool kSdmmcTry4Bit = player::stm32h7::board::kSdmmcTry4Bit;
+    constexpr bool kSdmmcProbeRead = player::stm32h7::board::kSdmmcProbeRead;
+    constexpr bool kSdmmcVerbose = player::stm32h7::board::kSdmmcVerbose;
+    constexpr bool kSdmmcVerboseGpio = player::stm32h7::board::kSdmmcVerboseGpio;
+    constexpr auto kSdmmcPartitionLba = player::stm32h7::board::kSdmmcPartitionLba;
 
-    constexpr SdmmcCard kSdmmcCard = SdmmcCard::mmc;
-    constexpr std::uint32_t kSdmmcInitClockDiv = 480u;
-    constexpr std::uint32_t kSdmmcXferClockDiv = 4u;
-    constexpr std::uint8_t kSdmmcBusWidth = 4u;
-    constexpr bool kSdmmcUseDma = false;
-    constexpr bool kSdmmcTry4Bit = false;
-    constexpr bool kSdmmcProbeRead = false;
-    constexpr bool kSdmmcVerbose = false;
-    constexpr bool kSdmmcVerboseGpio = false;
-    constexpr std::uint32_t kSdmmcPartitionLba = 496u;
-
-    constexpr bool kKeyActiveHigh = true;
+    constexpr bool kKeyActiveHigh = player::stm32h7::board::kKeyActiveHigh;
 }

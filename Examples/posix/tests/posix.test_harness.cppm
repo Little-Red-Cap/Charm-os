@@ -123,6 +123,11 @@ export namespace posix::testsupport {
         charm::system::ClockTick ticks_ms{0};
     };
 
+    inline TestClockState& shared_test_clock_state() noexcept {
+        static TestClockState state{};
+        return state;
+    }
+
     inline charm::system::ClockTick test_clock_now_ms(void* ctx) noexcept {
         auto* state = static_cast<TestClockState*>(ctx);
         if (!state) return 0;
@@ -134,10 +139,14 @@ export namespace posix::testsupport {
     }
 
     inline void bind_test_clock() noexcept {
-        static TestClockState state{};
+        auto& state = shared_test_clock_state();
         static charm::system::Clock clock{&state, {.now_ms = &test_clock_now_ms, .now_us = &test_clock_now_us}};
         state.ticks_ms = 0;
         charm::system::time::bind(clock);
+    }
+
+    inline charm::system::ClockTick test_clock_ticks_ms() noexcept {
+        return shared_test_clock_state().ticks_ms;
     }
 
     inline int write_text(int fd, std::string_view text) noexcept {
@@ -219,6 +228,53 @@ export namespace posix::testsupport {
             seconds = seconds * 10u + static_cast<unsigned>(*p - '0');
         }
         return ProgramEnv::api->sleep(seconds) == 0 ? 0 : 4;
+    }
+
+    bool parse_decimal_arg(std::string_view text, int& value) noexcept {
+        if (text.empty()) return false;
+        int parsed = 0;
+        for (char ch : text) {
+            if (ch < '0' || ch > '9') return false;
+            parsed = parsed * 10 + static_cast<int>(ch - '0');
+        }
+        value = parsed;
+        return true;
+    }
+
+    bool parse_signal_arg(std::string_view text, int& sig) noexcept {
+        if (text.empty()) return false;
+        if (text[0] == '-') {
+            text.remove_prefix(1);
+        }
+        if (text == "2" || text == "INT" || text == "SIGINT") {
+            sig = posix::SIGINT;
+            return true;
+        }
+        if (text == "9" || text == "KILL" || text == "SIGKILL") {
+            sig = posix::SIGKILL;
+            return true;
+        }
+        if (text == "15" || text == "TERM" || text == "SIGTERM") {
+            sig = posix::SIGTERM;
+            return true;
+        }
+        return false;
+    }
+
+    int kill_main(int argc, char** argv) {
+        if (!ProgramEnv::api) return 1;
+        if (argc < 2 || !argv || !argv[1]) return 2;
+        int sig = posix::SIGTERM;
+        int pid_index = 1;
+        if (argv[1][0] == '-') {
+            if (!parse_signal_arg(std::string_view{argv[1]}, sig)) return 2;
+            pid_index = 2;
+        }
+        if (argc <= pid_index || !argv[pid_index]) return 2;
+        if (argc > pid_index + 1 && argv[pid_index + 1]) return 2;
+        int pid = -1;
+        if (!parse_decimal_arg(std::string_view{argv[pid_index]}, pid)) return 2;
+        return ProgramEnv::api->kill(pid, sig) == 0 ? 0 : 4;
     }
 
     int ps_main(int argc, char** argv) {
@@ -365,6 +421,33 @@ export namespace posix::testsupport {
         auto spawn_ps = [&](int stdio_in, int stdio_out, int stdio_err) noexcept -> int {
             const char* ps_argv[] = {"ps", nullptr};
             return spawn_command("ps", std::span<const char* const>(ps_argv, 1),
+                                 stdio_in, stdio_out, stdio_err);
+        };
+
+        auto spawn_kill = [&](std::string_view arg0,
+                              std::string_view arg1,
+                              bool has_signal,
+                              int stdio_in,
+                              int stdio_out,
+                              int stdio_err) noexcept -> int {
+            char sig_buf[32]{};
+            char pid_buf[32]{};
+            const auto sig_n = arg0.size() < (sizeof(sig_buf) - 1) ? arg0.size() : (sizeof(sig_buf) - 1);
+            for (util::usize i = 0; i < sig_n; ++i) {
+                sig_buf[i] = arg0[i];
+            }
+            const auto pid_src = has_signal ? arg1 : arg0;
+            const auto pid_n = pid_src.size() < (sizeof(pid_buf) - 1) ? pid_src.size() : (sizeof(pid_buf) - 1);
+            for (util::usize i = 0; i < pid_n; ++i) {
+                pid_buf[i] = pid_src[i];
+            }
+            if (has_signal) {
+                const char* kill_argv[] = {"kill", sig_buf, pid_buf, nullptr};
+                return spawn_command("kill", std::span<const char* const>(kill_argv, 3),
+                                     stdio_in, stdio_out, stdio_err);
+            }
+            const char* kill_argv[] = {"kill", pid_buf, nullptr};
+            return spawn_command("kill", std::span<const char* const>(kill_argv, 2),
                                  stdio_in, stdio_out, stdio_err);
         };
 
@@ -554,6 +637,14 @@ export namespace posix::testsupport {
             } else {
                 rc = spawn_ps(input_fd, output_fd, err_fd);
             }
+        } else if (program == "kill") {
+            if (arg_count == 1) {
+                rc = spawn_kill(arg_words[0], {}, false, input_fd, output_fd, err_fd);
+            } else if (arg_count == 2) {
+                rc = spawn_kill(arg_words[0], arg_words[1], true, input_fd, output_fd, err_fd);
+            } else {
+                rc = 127;
+            }
         }
 
         close_if_open(input_fd);
@@ -654,6 +745,9 @@ export namespace posix::testsupport {
             }
             if (applet_name == "ps") {
                 return ps_main(applet_argc, applet_argv);
+            }
+            if (applet_name == "kill") {
+                return kill_main(applet_argc, applet_argv);
             }
             return 127;
         };

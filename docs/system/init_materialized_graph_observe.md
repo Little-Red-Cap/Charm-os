@@ -222,6 +222,7 @@ JSON sample 当前更适合：
 - `schemas/materialized_graph.ci_summary.v1.schema.json`
 - `schemas/materialized_graph.report_manifest.v1.schema.json`
 - `schemas/README.md`
+- `scripts/validate_materialized_graph_artifacts.py`
 
 当前可以这样理解它们的职责边界：
 
@@ -230,6 +231,21 @@ JSON sample 当前更适合：
 - `bundle_diff/v1`：描述 diff JSON 结构，是 diff / report / 自动化审阅的稳定消费面
 - `ci_summary/v1`：描述 CI 摘要结构，是 workflow / 自动化集成的稳定消费面
 - `report_manifest/v1`：描述报告元数据结构，是 HTML / Markdown 报告与上层工具之间的稳定桥接面
+
+如果要把这些协议真正跑成自动验证，仓库现在还提供了：
+
+```powershell
+python ./scripts/validate_materialized_graph_artifacts.py --bundle-root out/materialized-graph-bundle
+python ./scripts/validate_materialized_graph_artifacts.py --ci-output-root out/materialized-graph-ci
+```
+
+它当前会按 `schema` 字段自动选择仓库里的对应 JSON Schema，并验证：
+
+- bundle `index.json`
+- bundle 引用的 case `sample.json`
+- CI `summary.json`
+- `summary.json` 引用到的 `diff.json`
+- `summary.json` 引用到的 `report manifest`
 
 ## 最小用法
 

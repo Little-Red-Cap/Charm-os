@@ -357,6 +357,21 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - bundle 内相对路径形式的 `dot / json`
 - 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
 
+仓库根目录还提供了一个最小 bundle 消费脚本：
+
+```powershell
+./scripts/inspect_materialized_graph_bundle.ps1 -BundleRoot out/materialized-graph-bundle
+./scripts/inspect_materialized_graph_bundle.ps1 -BundleRoot out/materialized-graph-bundle -Case materialize-observe-demo
+./scripts/inspect_materialized_graph_bundle.ps1 -BundleRoot out/materialized-graph-bundle -Case materialize-observe-demo -ShowEdges
+```
+
+它当前支持：
+
+- 从 `index.json` 汇总所有 case 的 `nodes / edges / phase / runlevel / node_kinds`
+- 读取单个 case 的 `JSON sample` 并展开节点表
+- 按需展开依赖边表，验证 provider / consumer / capability
+- 用 `-AsJson` 把汇总结果重新转成更适合脚本继续消费的结构
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

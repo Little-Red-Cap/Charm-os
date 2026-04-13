@@ -37,6 +37,7 @@ typedef struct PosixStat {
 typedef int (*elf_fstat_fn)(int fd, PosixStat* st);
 typedef int (*elf_isatty_fn)(int fd);
 typedef int* (*elf_errno_location_fn)(void);
+typedef int (*elf_getpid_fn)(void);
 
 struct ElfHostCalls {
     elf_write_fn write;
@@ -47,6 +48,7 @@ struct ElfHostCalls {
     elf_fstat_fn fstat;
     elf_isatty_fn isatty;
     elf_errno_location_fn errno_location;
+    elf_getpid_fn getpid;
 };
 
 __attribute__((section(".hostcall")))
@@ -90,4 +92,9 @@ static inline int fstat(int fd, PosixStat* st) {
 
 static inline int isatty(int fd) {
     return elf_hostcalls()->isatty(fd);
+}
+
+static inline int getpid(void) {
+    if (!elf_hostcalls()->getpid) return 0;
+    return elf_hostcalls()->getpid();
 }

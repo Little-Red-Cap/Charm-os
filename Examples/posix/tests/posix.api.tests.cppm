@@ -20,6 +20,8 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import posix.fd_table;
+import charm.system.clock;
+import charm.system.time;
 import fs_core;
 import fs_errno;
 import fs_ramfs;
@@ -64,10 +66,19 @@ namespace {
     template <class A, class B>
     inline void check_eq(const char* label, const A& a, const B& b) noexcept {
         if (!(a == b)) {
-            char buf[128]{};
-            std::snprintf(buf, sizeof(buf),
-                "[posix-smoke] api %s fail: expected=%lld actual=%lld",
-                label, to_ll(b), to_ll(a));
+            char buf[160]{};
+            if constexpr (std::is_same_v<std::remove_cvref_t<A>, std::string_view> &&
+                          std::is_same_v<std::remove_cvref_t<B>, std::string_view>) {
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] api %s fail: expected=\"%.*s\" actual=\"%.*s\"",
+                    label,
+                    static_cast<int>(b.size()), b.data(),
+                    static_cast<int>(a.size()), a.data());
+            } else {
+                std::snprintf(buf, sizeof(buf),
+                    "[posix-smoke] api %s fail: expected=%lld actual=%lld",
+                    label, to_ll(b), to_ll(a));
+            }
             log_line(buf);
             fail();
         }
@@ -107,6 +118,32 @@ namespace {
         nullptr,
         nullptr
     };
+
+    using KillApiProcService = posix::ProcService<4, 4, 8, 4>;
+    using KillApiType = posix::Api<8, 2, 8, 4, 4, 4>;
+
+    int g_api_kill_target_runs = 0;
+
+    int api_kill_target_main(int argc, char** argv) {
+        if (argc < 1 || argv == nullptr) return 7;
+        ++g_api_kill_target_runs;
+        return 23;
+    }
+
+    struct ApiKillOnEnterCtx {
+        KillApiType* api{nullptr};
+        bool fired{false};
+        int rc{-1};
+    };
+
+    void api_kill_on_enter(posix::ProcessId pid, void* ctx) noexcept {
+        auto* state = static_cast<ApiKillOnEnterCtx*>(ctx);
+        if (!state || !state->api) {
+            return;
+        }
+        state->fired = true;
+        state->rc = state->api->kill(pid, posix::SIGTERM);
+    }
 
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>
     struct ApiRamFsMount {
@@ -296,6 +333,104 @@ namespace {
         check_eq("spawnp-miss-errno", posix::get_errno(), posix::ENOENT);
     }
 
+    void test_api_getpid() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        check_eq("getpid-unbound", api.getpid(), 0);
+        api.bind_process(posix::ProcessId{42});
+        check_eq("getpid-bound", api.getpid(), 42);
+        api.unbind_process();
+        check_eq("getpid-unbound-after", api.getpid(), 0);
+    }
+
+    void test_api_sleep() noexcept {
+        struct TestClockState {
+            charm::system::ClockTick ticks_ms{0};
+        };
+        static TestClockState state{};
+        static charm::system::Clock clock{
+            &state,
+            {
+                [](void* ctx) noexcept -> charm::system::ClockTick {
+                    auto* s = static_cast<TestClockState*>(ctx);
+                    return s ? s->ticks_ms++ : 0;
+                },
+                [](void* ctx) noexcept -> charm::system::ClockTick {
+                    auto* s = static_cast<TestClockState*>(ctx);
+                    return s ? (s->ticks_ms++ * 1000u) : 0;
+                }
+            }
+        };
+        state.ticks_ms = 0;
+        charm::system::time::bind(clock);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        check_eq("sleep-zero", api.sleep(0), 0);
+        check_eq("sleep-one", api.sleep(1), 0);
+    }
+
+    void test_api_kill() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        KillApiProcService procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+        procs.bind_fd_table(fds);
+
+        KillApiType api{fds, files, pipes, procs};
+        ApiKillOnEnterCtx ctx{};
+        ctx.api = &api;
+        procs.bind_process_hooks(&api_kill_on_enter, nullptr, &ctx);
+
+        auto rreg = procs.register_executable("api-kill-target", &api_kill_target_main);
+        check_true("api-kill-register", rreg);
+
+        g_api_kill_target_runs = 0;
+        const char* argv[] = {"api-kill-target", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "api-kill-target";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        const int pid = api.spawn(cfg);
+        check_true("api-kill-spawn", pid >= 0);
+        check_true("api-kill-hook-fired", ctx.fired);
+        check_eq("api-kill-hook-rc", ctx.rc, 0);
+        check_eq("api-kill-target-not-run", g_api_kill_target_runs, 0);
+
+        int status = 0;
+        check_eq("api-kill-waitpid", api.waitpid(posix::ProcessId{pid}, &status), pid);
+        check_eq("api-kill-status", status, posix::SIGTERM);
+
+        posix::set_errno(0);
+        check_eq("api-kill-missing-rc", api.kill(posix::ProcessId{pid}, posix::SIGTERM), -1);
+        check_eq("api-kill-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        posix::set_errno(0);
+        check_eq("api-kill-badsig-rc", api.kill(posix::ProcessId{123}, 1), -1);
+        check_eq("api-kill-badsig-errno", posix::get_errno(), posix::EINVAL);
+    }
+
     void test_api_fs_basics_and_readdir() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -359,6 +494,24 @@ namespace {
         check_true("fs-empty-readdir", api.readdir(work_dir) == nullptr);
         check_eq("fs-empty-readdir-errno", posix::get_errno(), 0);
         check_eq("fs-closedir-empty", api.closedir(work_dir), 0);
+
+        fd = api.open("/append.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("fs-append-open-base", fd >= 0);
+        check_eq("fs-append-write-base", api.write(fd, "a\n", 2), 2);
+        check_eq("fs-append-close-base", api.close(fd), 0);
+
+        fd = api.open("/append.txt", posix::O_WRONLY | posix::O_APPEND, 0);
+        check_true("fs-append-open-append", fd >= 0);
+        check_eq("fs-append-write-append", api.write(fd, "b\n", 2), 2);
+        check_eq("fs-append-close-append", api.close(fd), 0);
+
+        fd = api.open("/append.txt", posix::O_RDONLY, 0);
+        check_true("fs-append-open-read", fd >= 0);
+        std::array<char, 8> append_buf{};
+        auto append_read = api.read(fd, append_buf.data(), append_buf.size());
+        check_eq("fs-append-read", append_read, static_cast<posix::ssize_t>(4));
+        check_eq("fs-append-text", std::string_view{append_buf.data(), 4}, std::string_view{"a\nb\n"});
+        check_eq("fs-append-close-read", api.close(fd), 0);
     }
 
     void test_api_dev_null_and_isatty() noexcept {
@@ -535,6 +688,9 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_pipe_rw();
     test_api_spawn_wait();
     test_api_spawnp_wait();
+    test_api_getpid();
+    test_api_sleep();
+    test_api_kill();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
     test_api_errno_contracts();

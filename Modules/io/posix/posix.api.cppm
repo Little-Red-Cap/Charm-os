@@ -16,6 +16,7 @@ import posix.fd_table;
 import posix.file;
 import posix.pipe;
 import posix.proc;
+import charm.system.time;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -418,6 +419,45 @@ export namespace posix {
                 *status = encode_wait_status(r.value());
             }
             return r.value().pid.value;
+        }
+
+        int kill(ProcessId pid, int sig) noexcept {
+            if (!proc_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = proc_service_->kill(pid, sig);
+            if (!r) {
+                set_errno(map_errno(r.error()));
+                return -1;
+            }
+            return 0;
+        }
+
+        int kill(int pid, int sig) noexcept {
+            return kill(ProcessId{pid}, sig);
+        }
+
+        int list_processes(std::span<ProcessSnapshot> out) noexcept {
+            if (!proc_service_) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            return static_cast<int>(proc_service_->snapshot_processes(out));
+        }
+
+        int getpid() const noexcept {
+            return bound_pid_ >= 0 ? bound_pid_ : 0;
+        }
+
+        int sleep(unsigned seconds) noexcept {
+            const auto ms = static_cast<util::u64>(seconds) * 1000u;
+            auto st = charm::system::time::try_sleep_ms(ms);
+            if (!st) {
+                set_errno(map_errno(st.error()));
+                return -1;
+            }
+            return 0;
         }
 
     private:

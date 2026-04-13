@@ -144,18 +144,44 @@ export namespace posix {
             proc.pid.value = pid;
             proc.exited = false;
             proc.exit_code = 0;
+            proc.wait_kind = WaitKind::exited;
+            proc.wait_code = 0;
+            proc.terminate_requested = false;
+            proc.terminate_signal = 0;
+            proc.exec_ctx = nullptr;
+            assign_process_name(proc, cfg, image.value());
             proc.fds = child_table.value();
 
-            const auto code = start_image(proc.pid, image.value(), cfg);
+            const auto code = start_image(proc, image.value(), cfg);
             if (!code) {
                 proc.fds.close_all();
                 release_proc(proc);
                 return util::unexpected(code.error());
             }
-            proc.exit_code = code.value();
+            if (proc.wait_kind == WaitKind::exited) {
+                proc.wait_code = code.value();
+                proc.exit_code = code.value();
+            } else {
+                proc.exit_code = signaled_exit_code(proc.terminate_signal);
+            }
             proc.exited = true;
             proc.fds.close_all();
             return SpawnResult{ProcessId{pid}};
+        }
+
+        util::Result<void> kill(ProcessId pid, int sig) noexcept {
+            if (!is_supported_signal(sig)) {
+                return util::unexpected(util::Errc::inval);
+            }
+            auto* proc = find_proc(pid);
+            if (!proc || proc->exited) {
+                return util::unexpected(util::Errc::noent);
+            }
+            mark_process_signaled(*proc, sig);
+            if (proc->exec_ctx) {
+                request_exec_exit(*proc->exec_ctx, signaled_exit_code(sig));
+            }
+            return {};
         }
 
         util::Result<WaitStatus> waitpid(ProcessId pid, int) noexcept {
@@ -168,10 +194,23 @@ export namespace posix {
             }
             WaitStatus st{};
             st.pid = pid;
-            st.kind = WaitKind::exited;
-            st.code = proc->exit_code;
+            st.kind = proc->wait_kind;
+            st.code = proc->wait_code;
             release_proc(*proc);
             return st;
+        }
+
+        util::usize snapshot_processes(std::span<ProcessSnapshot> out) const noexcept {
+            util::usize written = 0;
+            for (util::usize i = 0; i < MaxProcs && written < out.size(); ++i) {
+                if (!used_[i]) continue;
+                auto& snap = out[written++];
+                snap = {};
+                snap.pid = procs_[i].pid;
+                snap.state = procs_[i].exited ? ProcessState::zombie : ProcessState::running;
+                snap.name = procs_[i].name;
+            }
+            return written;
         }
 
         FdTableType* fd_table(ProcessId pid) noexcept {
@@ -212,8 +251,56 @@ export namespace posix {
             ProcessId pid{};
             bool exited{false};
             int exit_code{0};
+            WaitKind wait_kind{WaitKind::exited};
+            int wait_code{0};
+            bool terminate_requested{false};
+            int terminate_signal{0};
+            ExecContext* exec_ctx{nullptr};
+            std::array<char, kProcessNameMax> name{};
             FdTableType fds{};
         };
+
+        static constexpr bool is_supported_signal(int sig) noexcept {
+            return sig == SIGINT || sig == SIGKILL || sig == SIGTERM;
+        }
+
+        static constexpr int signaled_exit_code(int sig) noexcept {
+            return 128 + sig;
+        }
+
+        static void mark_process_signaled(Process& proc, int sig) noexcept {
+            proc.terminate_requested = true;
+            proc.terminate_signal = sig;
+            proc.wait_kind = WaitKind::signaled;
+            proc.wait_code = sig;
+        }
+
+        static std::string_view command_basename(std::string_view name) noexcept {
+            const auto pos = name.find_last_of('/');
+            return pos == std::string_view::npos ? name : name.substr(pos + 1);
+        }
+
+        static void copy_name(std::string_view src, std::array<char, kProcessNameMax>& dst) noexcept {
+            dst = {};
+            const auto n = src.size() < (dst.size() - 1) ? src.size() : (dst.size() - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                dst[i] = src[i];
+            }
+        }
+
+        static void assign_process_name(Process& proc,
+                                        const SpawnConfig& cfg,
+                                        const ProgramImage& image) noexcept {
+            std::string_view source{};
+            if (!cfg.argv.empty() && cfg.argv[0] != nullptr && cfg.argv[0][0] != '\0') {
+                source = cfg.argv[0];
+            } else if (cfg.path != nullptr && cfg.path[0] != '\0') {
+                source = cfg.path;
+            } else {
+                source = image.name;
+            }
+            copy_name(command_basename(source), proc.name);
+        }
 
         int alloc_slot() noexcept {
             for (util::usize i = 0; i < MaxProcs; ++i) {
@@ -296,7 +383,8 @@ export namespace posix {
             return view;
         }
 
-        util::Result<int> start_image(ProcessId pid, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
+        util::Result<int> start_image(Process& proc, const ProgramImage& image, const SpawnConfig& cfg) noexcept {
+            const auto pid = proc.pid;
             if (image.kind == ImageKind::elf && !elf_exec_enabled_) {
                 return util::unexpected(util::Errc::not_supported);
             }
@@ -308,6 +396,7 @@ export namespace posix {
             ExecContext exec_ctx{};
             exec_ctx.owner = this;
             exec_ctx.pid_value = pid.value;
+            proc.exec_ctx = &exec_ctx;
             push_exec_context(exec_ctx);
             if (on_enter_) {
                 on_enter_(pid, hook_ctx_);
@@ -317,17 +406,25 @@ export namespace posix {
                 ProcessId pid;
                 void* hook_ctx;
                 ExecContext* exec_ctx;
+                Process* proc;
                 ~Guard() noexcept {
+                    if (proc) proc->exec_ctx = nullptr;
                     if (exec_ctx) pop_exec_context(*exec_ctx);
                     if (hook) hook(pid, hook_ctx);
                 }
-            } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx};
+            } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx, &proc};
+            if (proc.terminate_requested) {
+                return signaled_exit_code(proc.terminate_signal);
+            }
             ExecJumpBuffer exit_jmp{};
             exec_ctx.exit_jmp = &exit_jmp.storage;
             exec_ctx.jump_ready = true;
             const int jump_rc = setjmp(exit_jmp.storage);
             if (jump_rc != 0) {
                 return finalize_exec_exit(exec_ctx, exec_ctx.exit_code);
+            }
+            if (proc.terminate_requested) {
+                return signaled_exit_code(proc.terminate_signal);
             }
             if (image.entry) {
                 const int rc = image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);

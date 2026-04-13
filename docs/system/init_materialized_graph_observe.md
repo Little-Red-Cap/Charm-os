@@ -409,6 +409,30 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 节点新增 / 删除 / 字段变化表
 - 依赖边新增 / 删除表
 
+如果要把这条链收成一个更适合 CI 的单入口，还可以直接用：
+
+```powershell
+./scripts/ci_materialized_graph_bundle.ps1 -OutputRoot out/materialized-graph-ci
+./scripts/ci_materialized_graph_bundle.ps1 -BaselineBundleRoot out/baseline-bundle -OutputRoot out/materialized-graph-ci
+./scripts/ci_materialized_graph_bundle.ps1 -BaselineBundleRoot out/baseline-bundle -Case materialize-observe-demo -FailOnDiff
+```
+
+这个入口当前会按顺序做：
+
+- 导出当前工作区的 candidate bundle
+- 如果给了 baseline，就生成 `diff.json`
+- 继续生成 Markdown / HTML 报告
+- 最后产出一个 `summary.json` 供 CI 或上层脚本消费
+
+`summary.json` 当前会汇总：
+
+- 当前运行模式：`export_only / compare`
+- candidate / baseline 索引路径
+- 是否发现可见差异
+- 各类状态计数：`changed / added / removed / unchanged`
+- 按状态分组的 case 名单
+- 报告与 diff 产物路径
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

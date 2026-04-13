@@ -20,6 +20,10 @@ export namespace posix {
     inline constexpr util::u32 S_IFDIR = 0040000u;
     inline constexpr util::u32 S_IFREG = 0100000u;
 
+    inline constexpr int SEEK_SET = 0;
+    inline constexpr int SEEK_CUR = 1;
+    inline constexpr int SEEK_END = 2;
+
     inline constexpr util::u32 kModePermFile = 0644u;
     inline constexpr util::u32 kModePermDir = 0755u;
     inline constexpr util::u32 kModePermChar = 0666u;
@@ -61,6 +65,7 @@ export namespace posix {
         util::Result<void> (*close)(void* ctx) noexcept {nullptr};
         util::Result<void> (*stat)(void* ctx, PosixStat& out) noexcept {nullptr};
         util::Result<void> (*dup)(void* ctx) noexcept {nullptr};
+        util::Result<util::i64> (*seek)(void* ctx, util::i64 offset, int whence) noexcept {nullptr};
     };
 
     struct FdEntry {

@@ -255,6 +255,37 @@ export namespace posix {
             return 0;
         }
 
+        ssize_t lseek(int fd, util::i64 offset, int whence) noexcept {
+            auto* table = current_fd_table();
+            if (!table) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
+                set_errno(EINVAL);
+                return -1;
+            }
+            auto entry = table->get(fd);
+            if (!entry) {
+                set_errno(EBADF);
+                return -1;
+            }
+            if (entry.value()->kind != FdKind::file) {
+                set_errno(ESPIPE);
+                return -1;
+            }
+            if (!entry.value()->ops || !entry.value()->ops->seek) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = entry.value()->ops->seek(entry.value()->ctx, offset, whence);
+            if (!r) {
+                set_errno(map_errno(r.error()));
+                return -1;
+            }
+            return static_cast<ssize_t>(r.value());
+        }
+
         int mkdir(const char* path) noexcept {
             if (!path) {
                 set_errno(EINVAL);

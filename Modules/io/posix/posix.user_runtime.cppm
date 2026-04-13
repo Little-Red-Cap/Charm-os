@@ -8,6 +8,7 @@ export module posix.user_runtime;
 
 export import posix.api;
 export import posix.errno;
+export import posix.fd_table;
 export import posix.proc_types;
 export import posix.user_context;
 
@@ -25,6 +26,21 @@ namespace posix::user::detail {
     template <class Api>
     ssize_t runtime_write(void* ctx, int fd, const void* buf, util::usize count) noexcept {
         return static_cast<Api*>(ctx)->write(fd, buf, count);
+    }
+
+    template <class Api>
+    int runtime_fstat(void* ctx, int fd, PosixStat* out) noexcept {
+        return static_cast<Api*>(ctx)->fstat(fd, out);
+    }
+
+    template <class Api>
+    int runtime_isatty(void* ctx, int fd) noexcept {
+        return static_cast<Api*>(ctx)->isatty(fd);
+    }
+
+    template <class Api>
+    ssize_t runtime_lseek(void* ctx, int fd, util::i64 offset, int whence) noexcept {
+        return static_cast<Api*>(ctx)->lseek(fd, offset, whence);
     }
 
     template <class Api>
@@ -134,6 +150,9 @@ export namespace posix::user {
         void* ctx{nullptr};
         ssize_t (*read)(void* ctx, int fd, void* buf, util::usize count) noexcept {nullptr};
         ssize_t (*write)(void* ctx, int fd, const void* buf, util::usize count) noexcept {nullptr};
+        int (*fstat)(void* ctx, int fd, PosixStat* out) noexcept {nullptr};
+        int (*isatty)(void* ctx, int fd) noexcept {nullptr};
+        ssize_t (*lseek)(void* ctx, int fd, util::i64 offset, int whence) noexcept {nullptr};
         int (*open)(void* ctx, const char* path, int flags, int mode) noexcept {nullptr};
         int (*close)(void* ctx, int fd) noexcept {nullptr};
         int (*pipe)(void* ctx, int fds[2]) noexcept {nullptr};
@@ -158,6 +177,9 @@ export namespace posix::user {
         runtime.ctx = &api;
         runtime.read = &detail::runtime_read<Api>;
         runtime.write = &detail::runtime_write<Api>;
+        runtime.fstat = &detail::runtime_fstat<Api>;
+        runtime.isatty = &detail::runtime_isatty<Api>;
+        runtime.lseek = &detail::runtime_lseek<Api>;
         runtime.open = &detail::runtime_open<Api>;
         runtime.close = &detail::runtime_close<Api>;
         runtime.pipe = &detail::runtime_pipe<Api>;
@@ -237,6 +259,36 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->write(runtime->ctx, fd, buf, count);
+        });
+    }
+
+    inline int fstat(int fd, PosixStat* out) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->fstat) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->fstat(runtime->ctx, fd, out);
+        });
+    }
+
+    inline int isatty(int fd) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->isatty) {
+            return detail::missing_runtime<int>(0);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->isatty(runtime->ctx, fd);
+        });
+    }
+
+    inline ssize_t lseek(int fd, util::i64 offset, int whence) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->lseek) {
+            return detail::missing_runtime<ssize_t>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->lseek(runtime->ctx, fd, offset, whence);
         });
     }
 

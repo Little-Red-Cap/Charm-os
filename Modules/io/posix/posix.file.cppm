@@ -159,6 +159,7 @@ export namespace posix {
                     &NullDevice::write,
                     &NullDevice::close,
                     &NullDevice::stat,
+                    nullptr,
                     nullptr
                 };
                 return kOps;
@@ -258,13 +259,43 @@ export namespace posix {
             return {};
         }
 
+        static util::Result<util::i64> seek(void* ctx, util::i64 offset, int whence) noexcept {
+            auto* handle = static_cast<Handle*>(ctx);
+            if (!handle) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            util::i64 target = 0;
+            switch (whence) {
+                case SEEK_SET:
+                    target = offset;
+                    break;
+                case SEEK_CUR:
+                    target = handle->file.node.offset + offset;
+                    break;
+                case SEEK_END:
+                    target = handle->file.node.size + offset;
+                    break;
+                default:
+                    return util::unexpected(util::Errc::inval);
+            }
+            if (target < 0) {
+                return util::unexpected(util::Errc::inval);
+            }
+            auto st = fs::vfs_seek(handle->file, target);
+            if (!st) {
+                return util::unexpected(st.err);
+            }
+            return handle->file.node.offset;
+        }
+
         static const FdOps& ops() noexcept {
             static const FdOps kOps{
                 &FileService::read,
                 &FileService::write,
                 &FileService::close,
                 &FileService::stat,
-                &FileService::dup
+                &FileService::dup,
+                &FileService::seek
             };
             return kOps;
         }

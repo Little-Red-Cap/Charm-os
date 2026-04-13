@@ -32,6 +32,12 @@ import posix.test_harness;
 namespace {
     using namespace posix::testsupport;
 
+    util::Result<void> term_stat_stub(void*, posix::PosixStat& out) noexcept {
+        out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
+        out.size = 0;
+        return {};
+    }
+
     void test_hello() noexcept {
         Harness h{};
         auto rreg = h.procs.register_executable("hello", &hello_main);
@@ -270,6 +276,110 @@ namespace {
         auto st = h.procs.waitpid(sp.value().pid, 0);
         check_true("crt-c-header-exit-wait", st);
         check_eq("crt-c-header-exit-code", st.value().code, 37);
+    }
+
+    void test_newlib_syscall_probe() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_syscall_probe", &newlib_syscall_probe_main);
+        check_true("newlib-syscall-register", rreg);
+
+        posix::FdOps term_ops{};
+        term_ops.stat = &term_stat_stub;
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("newlib-syscall-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-syscall-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-syscall-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-syscall-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-syscall-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_syscall_probe", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_syscall_probe";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-syscall-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-syscall-out", out, std::string_view{"newlib-syscall-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-syscall-wait", st);
+        check_eq("newlib-syscall-code", st.value().code, 0);
+    }
+
+    void test_newlib_kill_self() noexcept {
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_kill_self", &newlib_kill_self_main);
+        check_true("newlib-kill-register", rreg);
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-kill-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-kill-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_kill_self", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_kill_self";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-kill-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-kill-out", out, std::string_view{"newlib-kill\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-kill-wait", st);
+        check_eq("newlib-kill-kind", st.value().kind, posix::WaitKind::signaled);
+        check_eq("newlib-kill-sig", st.value().code, posix::SIGTERM);
+    }
+
+    void test_newlib_lseek() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 64> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 64>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("newlib-lseek-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_lseek", &newlib_lseek_main);
+        check_true("newlib-lseek-register", rreg);
+
+        int in_fd = h.api.open("/newlib-seek.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("newlib-lseek-open-w", in_fd >= 0);
+        check_eq("newlib-lseek-write", h.api.write(in_fd, "alpha", 5), static_cast<posix::ssize_t>(5));
+        check_eq("newlib-lseek-close-w", h.api.close(in_fd), 0);
+
+        in_fd = h.api.open("/newlib-seek.txt", posix::O_RDONLY, 0);
+        check_true("newlib-lseek-open-r", in_fd >= 0);
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-lseek-pipe", h.api.pipe(pipefd), 0);
+
+        const char* argv[] = {"newlib_lseek", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_lseek";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.stdio_in = in_fd;
+        cfg.stdio_out = pipefd[1];
+        cfg.stdio_err = 2;
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-lseek-spawn", sp);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-lseek-out", out, std::string_view{"newlib-lseek-ok\n"});
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-lseek-wait", st);
+        check_eq("newlib-lseek-code", st.value().code, 0);
     }
 
     void test_exit_code_explicit_exit() noexcept {
@@ -1098,6 +1208,15 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase crt-c-header-exit begin");
     test_crt_c_header_exit();
     log_line("[posix-smoke] programs phase crt-c-header-exit end");
+    log_line("[posix-smoke] programs phase newlib-syscall begin");
+    test_newlib_syscall_probe();
+    log_line("[posix-smoke] programs phase newlib-syscall end");
+    log_line("[posix-smoke] programs phase newlib-kill begin");
+    test_newlib_kill_self();
+    log_line("[posix-smoke] programs phase newlib-kill end");
+    log_line("[posix-smoke] programs phase newlib-lseek begin");
+    test_newlib_lseek();
+    log_line("[posix-smoke] programs phase newlib-lseek end");
     log_line("[posix-smoke] programs phase exit-code begin");
     log_line("[posix-smoke] programs exit-register ok");
     log_line("[posix-smoke] programs phase exit-code end");

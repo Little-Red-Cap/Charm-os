@@ -602,6 +602,7 @@ namespace {
             nullptr,
             nullptr,
             nullptr,
+            nullptr,
             nullptr
         };
         posix::FdEntry term{};

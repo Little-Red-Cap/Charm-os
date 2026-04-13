@@ -388,7 +388,8 @@ namespace {
             &dummy_write,
             &dummy_close,
             &dummy_stat,
-            &dummy_dup
+            &dummy_dup,
+            nullptr
         };
 
         posix::FdEntry entry{};

@@ -86,7 +86,8 @@ namespace demo {
                 &StdioDevice::write,
                 &StdioDevice::close,
                 &StdioDevice::stat,
-                &StdioDevice::dup
+                &StdioDevice::dup,
+                nullptr
             };
             return kOps;
         }

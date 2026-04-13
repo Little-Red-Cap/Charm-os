@@ -27,6 +27,7 @@ export namespace posix {
     inline constexpr int ENFILE = 23;
     inline constexpr int EMFILE = 24;
     inline constexpr int ENOSPC = 28;
+    inline constexpr int ESPIPE = 29;
     inline constexpr int EROFS = 30;
     inline constexpr int EPIPE = 32;
     inline constexpr int ENAMETOOLONG = 36;
@@ -112,6 +113,7 @@ export namespace posix {
             case EEXIST: return util::Errc::exist;
             case ENOTDIR: return util::Errc::notdir;
             case EISDIR: return util::Errc::isdir;
+            case ESPIPE: return util::Errc::notsup;
             case EINVAL: return util::Errc::inval;
             case EROFS: return util::Errc::rofs;
             case ENAMETOOLONG: return util::Errc::nametoolong;

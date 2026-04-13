@@ -58,7 +58,8 @@ export namespace posix {
                 &TermDevice::write,
                 &TermDevice::close,
                 &TermDevice::stat,
-                &TermDevice::dup
+                &TermDevice::dup,
+                nullptr
             };
             return kOps;
         }

@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 26)
 add_executable(${target_name}
     startup.cpp
     main.cpp
+    posix_newlib_syscall_bridge.cpp
+    posix_newlib_syscall_smoke.c
     posix_user_crt_c_header_smoke.c
 )
 

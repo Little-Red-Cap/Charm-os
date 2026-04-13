@@ -67,7 +67,7 @@ $proc = Start-Process -FilePath $qemu -ArgumentList $args `
 $expected = @(
     "Charm ARMv7-A QEMU skeleton",
     "Targeting Cortex-A7 first, RK3506 later.",
-    "Charm util.core import active, PL011 @ 0x09000000"
+    "Charm out.format import active, PL011 @ 0x09000000"
 )
 
 Start-Sleep -Seconds $TimeoutSec

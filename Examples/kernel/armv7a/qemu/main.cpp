@@ -1,4 +1,5 @@
-import util.core;
+import out.format;
+import out.sink;
 
 extern "C" void qemu_semihost_write0(const char* text);
 extern "C" void early_uart_init();
@@ -7,20 +8,36 @@ extern "C" void early_uart_puts(const char* text);
 extern "C" [[noreturn]] void charm_spin();
 
 namespace {
-void early_uart_write_hex32(util::u32 value)
+void early_uart_write(auto text)
 {
-    constexpr char digits[] = "0123456789ABCDEF";
+    for (char ch : text) {
+        early_uart_putc(ch);
+    }
+}
+
+void early_uart_put_hex32(unsigned int value)
+{
+    constexpr char kHex[] = "0123456789ABCDEF";
     for (int shift = 28; shift >= 0; shift -= 4) {
-        const auto nibble = static_cast<unsigned>((value >> shift) & 0x0Fu);
-        early_uart_putc(digits[nibble]);
+        early_uart_putc(kHex[(value >> shift) & 0xFu]);
     }
 }
 
 void print_charm_module_status()
 {
-    early_uart_puts("Charm util.core import active, PL011 @ 0x");
-    early_uart_write_hex32(static_cast<util::u32>(0x09000000u));
-    early_uart_puts("\r\n");
+    out::buffer_sink<96> buffer{};
+    auto status = out::vprint<"Charm out.format import active, PL011 @ 0x{:08X}\r\n">(buffer, 0x09000000u);
+    if (!status) {
+        early_uart_puts("out.format failed, err=0x");
+        early_uart_put_hex32(static_cast<unsigned int>(status.error()));
+        early_uart_puts("\r\n");
+        return;
+    }
+    if (buffer.view().empty()) {
+        early_uart_puts("out.format produced an empty buffer\r\n");
+        return;
+    }
+    early_uart_write(buffer.view());
 }
 } // namespace
 

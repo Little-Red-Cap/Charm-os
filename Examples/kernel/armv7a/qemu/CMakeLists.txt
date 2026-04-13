@@ -51,7 +51,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     startup.S
     main.cpp
     early_uart.cpp
-    qemu_virt_platform.cpp)
+    qemu_virt_platform.cpp
+    runtime_stubs.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")

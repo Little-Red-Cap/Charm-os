@@ -432,12 +432,13 @@ export namespace out {
 #endif
 #endif
   template <class UInt>
-  inline result<std::string_view> format_uint_view(char* buffer,
-                                                   std::size_t capacity,
-                                                   UInt value,
-                                                   unsigned base,
-                                                   bool upper = false) noexcept {
-    if (capacity == 0) return util::unexpected(errc::buffer_overflow);
+  inline errc format_uint_view(std::string_view& out,
+                               char* buffer,
+                               std::size_t capacity,
+                               UInt value,
+                               unsigned base,
+                               bool upper = false) noexcept {
+    if (capacity == 0) return errc::buffer_overflow;
 
     const char* digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     char* begin = buffer;
@@ -445,41 +446,41 @@ export namespace out {
     char* p = end;
 
     if (base != 2 && base != 10 && base != 16)
-      return util::unexpected(errc::invalid_format);
+      return errc::invalid_format;
 
     do {
-      if (p == begin) return util::unexpected(errc::buffer_overflow);
+      if (p == begin) return errc::buffer_overflow;
       const auto digit = static_cast<unsigned>(value % base);
       *--p = digits[digit];
       value /= base;
     } while (value != 0);
 
-    return ok<std::string_view>(std::string_view{p, static_cast<std::size_t>(end - p)});
+    out = std::string_view{p, static_cast<std::size_t>(end - p)};
+    return errc::ok;
   }
 
   template <class UInt>
-  inline result<std::size_t> write_uint_base(auto& sink, UInt v, unsigned base, fmt_spec spec) noexcept {
+  inline result<std::size_t> write_uint_base(auto& sink, UInt v, unsigned base, const fmt_spec& spec) noexcept {
     char buf[80]; // enough for 64-bit in binary? 64 + maybe. binary needs 64, so enlarge if you enable b.
-    result<std::string_view> view = util::unexpected(errc::invalid_format);
+    std::string_view text{};
+    errc view_err = errc::invalid_format;
 
     if (base == 10) {
-      view = format_uint_view(buf, sizeof(buf), v, 10);
+      view_err = format_uint_view(text, buf, sizeof(buf), v, 10);
     } else if (base == 16) {
-      view = format_uint_view(buf, sizeof(buf), v, 16, spec.upper);
+      view_err = format_uint_view(text, buf, sizeof(buf), v, 16, spec.upper);
     } else if (base == 2) {
 #ifndef OUT_ENABLE_BINARY
       (void)v; (void)spec;
       return util::unexpected(errc::invalid_format);
 #else
-      view = format_uint_view(buf, sizeof(buf), v, 2);
+      view_err = format_uint_view(text, buf, sizeof(buf), v, 2);
 #endif
     } else {
       return util::unexpected(errc::invalid_format);
     }
 
-    if (!view) return util::unexpected(view.error());
-
-    const std::string_view text = *view;
+    if (view_err != errc::ok) return util::unexpected(view_err);
     std::size_t len = text.size();
     std::size_t total = 0;
 
@@ -506,7 +507,7 @@ export namespace out {
 
 #ifdef OUT_ENABLE_FLOAT
   template <class F>
-  inline result<std::size_t> write_float(auto& sink, F v, fmt_spec spec) noexcept {
+  inline result<std::size_t> write_float(auto& sink, F v, const fmt_spec& spec) noexcept {
     char buf[128];
     char* first = buf;
     char* last  = buf + sizeof(buf);
@@ -584,7 +585,7 @@ namespace detail {
 
   // MCU minimal mode: fixed only ({:f}/{:.Nf}); default {} uses fixed.
   template <class S>
-  inline result<std::size_t> write_float_fixed_mcu(S& sink, float v, fmt_spec spec) noexcept {
+  inline result<std::size_t> write_float_fixed_mcu(S& sink, float v, const fmt_spec& spec) noexcept {
     // Accept only 0 / f / F.
     if (spec.type != 0 && spec.type != 'f' && spec.type != 'F')
       return util::unexpected(errc::invalid_format);
@@ -673,12 +674,13 @@ namespace detail {
 
     // Build core digits (without sign) for width calculation.
     char buf[32];
-    auto core_digits = format_uint_view(buf, sizeof(buf), ip, 10);
-    if (!core_digits) return util::unexpected(core_digits.error());
-    if (core_digits->data() != buf) {
-      std::memmove(buf, core_digits->data(), core_digits->size());
+    std::string_view core_digits{};
+    auto core_err = format_uint_view(core_digits, buf, sizeof(buf), ip, 10);
+    if (core_err != errc::ok) return util::unexpected(core_err);
+    if (core_digits.data() != buf) {
+      std::memmove(buf, core_digits.data(), core_digits.size());
     }
-    char* p = buf + core_digits->size();
+    char* p = buf + core_digits.size();
     char* end = buf + sizeof(buf);
 
     if (prec != 0) {
@@ -709,7 +711,7 @@ namespace detail {
   // Unified entry: one writer per type.
   // TODO: compile-time string concat.
   template <class S, class T>
-  inline result<std::size_t> write_one(S& sink, const T& value, fmt_spec spec) noexcept {
+  inline result<std::size_t> write_one(S& sink, const T& value, const fmt_spec& spec) noexcept {
     if constexpr (std::is_same_v<T, char>) {
       char c = value;
       return write(sink, std::string_view{&c, 1});
@@ -771,7 +773,8 @@ namespace detail {
         if (rv < 0) {
           auto r = write(sink, std::string_view{"-", 1});
           if (!r) return util::unexpected(r.error());
-          if (spec.width > 0) --spec.width;
+          fmt_spec adjusted = spec;
+          if (adjusted.width > 0) --adjusted.width;
 
           // Make abs value (handle INT_MIN).
           U uv = static_cast<U>(rv);
@@ -781,7 +784,7 @@ namespace detail {
 #ifndef OUT_ENABLE_BINARY
           if (base == 2) return util::unexpected(errc::invalid_format);
 #endif
-          auto rr = write_uint_base(sink, uv, base, spec);
+          auto rr = write_uint_base(sink, uv, base, adjusted);
           if (!rr) return util::unexpected(rr.error());
           return ok(*r + *rr);
         }
@@ -806,15 +809,19 @@ namespace detail {
   }
 
   namespace detail {
-    template <class S, class Tup, std::size_t... Is>
+    template <std::size_t I = 0, class S, class Tup>
     inline result<std::size_t> dispatch_arg(std::size_t idx,
                                             S& sink,
                                             Tup& tup,
-                                            fmt_spec spec,
-                                            std::index_sequence<Is...>) noexcept {
-      result<std::size_t> r = util::unexpected(errc::invalid_format);
-      ((idx == Is ? r = write_one(sink, std::get<Is>(tup), spec) : r), ...);
-      return r;
+                                            const fmt_spec& spec) noexcept {
+      if constexpr (I >= std::tuple_size_v<std::remove_reference_t<Tup>>) {
+        return util::unexpected(errc::invalid_format);
+      } else {
+        if (idx == I) {
+          return write_one(sink, std::get<I>(tup), spec);
+        }
+        return dispatch_arg<I + 1>(idx, sink, tup, spec);
+      }
     }
   }
 
@@ -864,10 +871,7 @@ namespace detail {
           } else {
             // ?????????
             auto idx = tk.arg_index;
-            result<std::size_t> r = util::unexpected(errc::invalid_format);
-
-            r = detail::dispatch_arg(
-              idx, sink, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
+            auto r = detail::dispatch_arg(idx, sink, tup, tk.spec);
 
             if (!r) return util::unexpected(r.error());
             total += *r;
@@ -885,10 +889,7 @@ namespace detail {
         } else {
           // ?????????
           auto idx = tk.arg_index;
-          result<std::size_t> r = util::unexpected(errc::invalid_format);
-
-          r = detail::dispatch_arg(
-            idx, sink, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
+          auto r = detail::dispatch_arg(idx, sink, tup, tk.spec);
 
           if (!r) return util::unexpected(r.error());
           total += *r;
@@ -929,10 +930,7 @@ namespace detail {
       } else {
         // ?????????
         auto idx = tk.arg_index;
-        result<std::size_t> r = util::unexpected(errc::invalid_format);
-
-        r = detail::dispatch_arg(
-          idx, bw, tup, tk.spec, std::make_index_sequence<sizeof...(Args)>{});
+        auto r = detail::dispatch_arg(idx, bw, tup, tk.spec);
 
         if (!r) return util::unexpected(r.error());
         total += *r;

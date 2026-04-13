@@ -1,4 +1,4 @@
-﻿    static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
+    static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
                               const UiLayout& layout, const PlayerIconIds& icons) {
         const LibraryLayout lib_layout = make_library_layout();
         h.list_title = builder.create_label_static("");
@@ -91,18 +91,18 @@
             lib_top_layout.right_primary_rect,
             icons.settings, lib_layout.top_icon_px);
 
-        const WidgetHandle tab_songs = builder.create_button_static("Songs");
-        const WidgetHandle tab_albums = builder.create_button_static("Albums");
-        const WidgetHandle tab_artist = builder.create_button_static("Artist");
+        h.list_tab_songs = builder.create_button_static("Songs");
+        h.list_tab_albums = builder.create_button_static("Albums");
+        h.list_tab_artist = builder.create_button_static("Artists");
 
-        const WidgetHandle shuffle_btn = builder.create_button_static("Shuffle");
+        h.list_shuffle = builder.create_button_static("Shuffle");
         const int tab_radius = layout.tabs_h / 2;
-        apply_tab_base_style(builder, tab_songs, tab_radius);
-        apply_tab_base_style(builder, tab_albums, tab_radius);
-        apply_tab_base_style(builder, tab_artist, tab_radius);
-        apply_tab_base_style(builder, shuffle_btn, tab_radius);
-        apply_tab_active_style(builder, tab_songs);
-        apply_shuffle_shadow_style(builder, shuffle_btn);
+        apply_tab_base_style(builder, h.list_tab_songs, tab_radius);
+        apply_tab_base_style(builder, h.list_tab_albums, tab_radius);
+        apply_tab_base_style(builder, h.list_tab_artist, tab_radius);
+        apply_tab_base_style(builder, h.list_shuffle, tab_radius);
+        apply_tab_active_style(builder, h.list_tab_songs);
+        apply_shuffle_shadow_style(builder, h.list_shuffle);
 
         ::ui::scene::RowBuilder tabs_row{builder,
                                          {kUiPadding, layout.tabs_y,
@@ -110,16 +110,16 @@
                                          layout.tabs_gap, lib_layout.tabs_padding,
                                          ::ui::scene::LayoutAlign::Center};
         const WidgetHandle tabs_root = tabs_row.root();
-        tabs_row.add(tab_songs, layout.tab_w, layout.tabs_h);
-        tabs_row.add(tab_albums, layout.tab_w, layout.tabs_h);
-        tabs_row.add(tab_artist, layout.tab_w, layout.tabs_h);
+        tabs_row.add(h.list_tab_songs, layout.tab_w, layout.tabs_h);
+        tabs_row.add(h.list_tab_albums, layout.tab_w, layout.tabs_h);
+        tabs_row.add(h.list_tab_artist, layout.tab_w, layout.tabs_h);
 
         ::ui::scene::RowBuilder shuffle_row{builder,
                                             {kUiPadding, layout.shuffle_y, lib_layout.shuffle_w, layout.shuffle_h},
                                             0, lib_layout.shuffle_padding,
                                             ::ui::scene::LayoutAlign::Center};
         const WidgetHandle shuffle_root = shuffle_row.root();
-        shuffle_row.add(shuffle_btn, lib_layout.shuffle_w, layout.shuffle_h);
+        shuffle_row.add(h.list_shuffle, lib_layout.shuffle_w, layout.shuffle_h);
 
         const Rect list_card_rect{kUiPadding, layout.list_card_y,
                                   screen_width - kUiPadding * 2, layout.list_card_h};
@@ -167,15 +167,16 @@
         anchor_rect(builder, h.list_title, list_header_layout.title_rect);
         anchor_rect(builder, h.list_sort, list_header_layout.action_rect);
         const Rect list_path_rect = list_header_layout.path_rect;
-        const WidgetHandle list_path_bg = builder.create_container();
-        anchor_rect(builder, list_path_bg, list_path_rect);
+        h.list_path_bg = builder.create_container();
+        anchor_rect(builder, h.list_path_bg, list_path_rect);
         {
             StylePatch patch = ::ui::scene::make_pill_surface_patch({
                 .bg_color = kUiButtonBg,
                 .border_color = kUiButtonBorder,
                 .corner_radius = lib_layout.list_path_bg_radius,
             });
-            builder.set_style_override(list_path_bg, patch);
+            builder.set_style_override(h.list_path_bg, patch);
+            builder.set_hit_testable(h.list_path_bg, false);
         }
         const WidgetHandle list_path_icon = builder.create_button_static("");
         const ::ui::scene::PathBarSpec list_path_spec{
@@ -193,7 +194,23 @@
         builder.set_button_icon(list_path_icon, icons.folder);
         builder.set_button_icon_size(list_path_icon, lib_layout.list_path_icon_px);
         apply_tab_base_style(builder, list_path_icon, lib_layout.list_path_icon_radius);
+        builder.set_hit_testable(list_path_icon, false);
         anchor_rect(builder, h.list_path, list_path_layout.label_rect);
+        builder.set_hit_testable(h.list_path, false);
+        h.list_path_hit = builder.create_button_static("");
+        anchor_rect(builder, h.list_path_hit, list_path_rect);
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = {0, 0, 0, 0};
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_font_color = true;
+            patch.font_color = {0, 0, 0, 0};
+            patch.has_shadow_enabled = true;
+            patch.shadow_enabled = false;
+            builder.set_style_override(h.list_path_hit, patch);
+        }
         apply_tab_base_style(builder, h.list_sort, lib_layout.list_sort_radius);
         builder.set_label_align(h.list_sort, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         apply_time_label_style(builder, h.list_path);
@@ -214,10 +231,11 @@
         builder.link(list_card_root, h.list_scroll);
         builder.link(list_card_root, h.list_title);
         builder.link(list_card_root, h.list_sort);
-        builder.link(list_card_root, list_path_bg);
+        builder.link(list_card_root, h.list_path_bg);
         builder.link(list_card_root, h.list_path);
         builder.link(list_card_root, h.list_hint);
         builder.link(list_card_root, list_path_icon);
+        builder.link(list_card_root, h.list_path_hit);
 
         build_bottom_chrome(builder, h, layout, icons);
     }

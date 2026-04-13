@@ -49,7 +49,7 @@
             } else if (actions.next) {
                 switch_track(1);
             } else if (actions.select) {
-                select_track_index(actions.select_index);
+                activate_list_index(actions.select_index);
             }
 
             if (actions.toggle_play) {

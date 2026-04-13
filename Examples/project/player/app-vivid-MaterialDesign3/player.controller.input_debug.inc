@@ -1,4 +1,4 @@
-﻿        void update_debug_overlay() {
+        void update_debug_overlay() {
 #if CHARM_PLAYER_DEBUG_UI
             if (!access.valid() || !handles.debug_text) return;
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
@@ -141,6 +141,9 @@
 
         #include "player.controller.playback.inc"
         void cycle_list_sort() {
+            if (list_shuffle_enabled) {
+                list_shuffle_enabled = false;
+            }
             list_sort = (list_sort == ListSort::NameAsc) ? ListSort::NameDesc : ListSort::NameAsc;
             refresh_list_view();
         }
@@ -152,8 +155,7 @@
 
         void nav_list(int delta) {
             if (!access.valid() || !handles.list) return;
-            const auto* tracks = storage.tracks;
-            const int count = tracks ? static_cast<int>(tracks->size()) : 0;
+            const int count = static_cast<int>(list_order.size());
             if (count <= 0) return;
             int selected = access.list_view_selected(handles.list);
             if (selected < 0) selected = 0;
@@ -166,10 +168,7 @@
         void nav_list_activate() {
             if (!access.valid() || !handles.list) return;
             const int selected = access.list_view_selected(handles.list);
-            const int track_idx = list_index_to_track(selected);
-            if (track_idx >= 0) {
-                select_track_index(track_idx);
-            }
+            activate_list_index(selected);
         }
 
         void sync_eq_values() {
@@ -319,6 +318,16 @@
                             set_page(PlayerPage::Home);
                         } else if (target == handles.nav_library) {
                             set_page(PlayerPage::Library);
+                        } else if (target == handles.list_tab_songs) {
+                            set_library_tab(LibraryTab::Songs);
+                        } else if (target == handles.list_tab_albums) {
+                            set_library_tab(LibraryTab::Albums);
+                        } else if (target == handles.list_tab_artist) {
+                            set_library_tab(LibraryTab::Artists);
+                        } else if (target == handles.list_shuffle) {
+                            toggle_library_shuffle();
+                        } else if (target == handles.list_path_hit) {
+                            reset_library_context();
                         } else if (target == handles.list_sort) {
                             cycle_list_sort();
                         }
@@ -331,9 +340,8 @@
                 if (selected >= 0 && selected != last_list_selected) {
                     last_list_selected = selected;
                     if (!ignore_list_select) {
-                        const int track_idx = list_index_to_track(selected);
                         actions.select = true;
-                        actions.select_index = track_idx;
+                        actions.select_index = selected;
                     }
                 }
             }

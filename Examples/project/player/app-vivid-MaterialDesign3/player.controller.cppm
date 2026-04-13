@@ -1,4 +1,4 @@
-﻿module;
+module;
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -24,6 +24,7 @@ import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
 import charm.ui.scene;
+import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
@@ -72,6 +73,12 @@ export namespace player {
         Home,
         NowPlaying,
         Library,
+    };
+
+    enum class LibraryTab : std::uint8_t {
+        Songs,
+        Albums,
+        Artists,
     };
 
     enum class ListSort : std::uint8_t {
@@ -142,8 +149,14 @@ export namespace player {
         WidgetHandle clip_slider{};
         WidgetHandle clip_value{};
         WidgetHandle list{};
+        WidgetHandle list_tab_songs{};
+        WidgetHandle list_tab_albums{};
+        WidgetHandle list_tab_artist{};
+        WidgetHandle list_shuffle{};
         WidgetHandle list_title{};
+        WidgetHandle list_path_bg{};
         WidgetHandle list_path{};
+        WidgetHandle list_path_hit{};
         WidgetHandle list_sort{};
         WidgetHandle list_hint{};
         WidgetHandle list_scroll{};
@@ -210,8 +223,14 @@ export namespace player {
         int last_list_count{-1};
         bool ignore_list_select{false};
         int last_list_selected{-1};
+        LibraryTab library_tab{LibraryTab::Songs};
+        FixedString<192> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};
+        bool list_shuffle_enabled{false};
+        std::uint32_t list_shuffle_seed{0};
         std::vector<int> list_order{};
+        std::vector<FixedString<192>> list_display_titles{};
+        std::vector<FixedString<128>> list_display_subtitles{};
         std::vector<FixedString<260>> list_cover_paths{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};

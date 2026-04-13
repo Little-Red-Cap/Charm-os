@@ -24,6 +24,9 @@ export void run_posix_programs_smoke_tests() noexcept {
     run_posix_program_fdpath_smoke_tests();
     run_posix_program_fs_smoke_tests();
     run_posix_program_shell_smoke_tests();
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+    run_posix_program_stdio_smoke_tests();
+#endif
     log_line("[posix-smoke] programs end ok");
 }
 

@@ -4,6 +4,10 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+#include <cstddef>
+#endif
 #include <unistd.h>
 
 import posix.fd_table;
@@ -18,6 +22,13 @@ namespace {
     inline constexpr int kPosixOpenCreate = 0x40;
     inline constexpr int kPosixOpenTrunc = 0x200;
     inline constexpr int kPosixOpenAppend = 0x400;
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+    inline constexpr std::size_t kNewlibHeapSize = 128u * 1024u;
+
+    alignas(16) unsigned char g_newlib_heap[kNewlibHeapSize]{};
+    unsigned char* g_newlib_brk = g_newlib_heap;
+#endif
 
     struct ErrnoScope {
         int c_errno{errno};
@@ -81,6 +92,21 @@ extern "C" int _read(int fd, char* ptr, int len) {
     guard.restore();
     return static_cast<int>(r);
 }
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+extern "C" caddr_t _sbrk(int incr) {
+    const auto used = static_cast<std::ptrdiff_t>(g_newlib_brk - g_newlib_heap);
+    const auto next = used + static_cast<std::ptrdiff_t>(incr);
+    if (next < 0 || static_cast<std::size_t>(next) > kNewlibHeapSize) {
+        errno = ENOMEM;
+        *posix::user::errno_location() = ENOMEM;
+        return reinterpret_cast<caddr_t>(-1);
+    }
+    auto* previous = g_newlib_heap + used;
+    g_newlib_brk = g_newlib_heap + next;
+    return reinterpret_cast<caddr_t>(previous);
+}
+#endif
 
 extern "C" int _write(int fd, char* ptr, int len) {
     ErrnoScope guard{};

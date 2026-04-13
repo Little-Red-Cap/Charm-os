@@ -1,6 +1,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+#include <stdio.h>
+#endif
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -78,3 +81,32 @@ int charm_posix_newlib_path_entry(void) {
 
     return write(1, "newlib-path-ok\n", 15) == 15 ? 0 : 144;
 }
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+
+int charm_posix_newlib_stdio_entry(void) {
+    FILE* fp = fopen("/newlib-stdio.txt", "wb");
+    if (fp == NULL) return 151;
+    if (fwrite("echo", 1, 4, fp) != 4) return 152;
+    if (fputc('\n', fp) == EOF) return 153;
+    if (fflush(fp) != 0) return 154;
+    if (fclose(fp) != 0) return 155;
+
+    fp = fopen("/newlib-stdio.txt", "rb");
+    if (fp == NULL) return 156;
+    if (fseek(fp, 0, SEEK_END) != 0) return 157;
+    if (ftell(fp) != 5) return 158;
+    if (fseek(fp, 0, SEEK_SET) != 0) return 159;
+
+    char buf[8] = {0};
+    if (fread(buf, 1, 5, fp) != 5) return 160;
+    if (memcmp(buf, "echo\n", 5) != 0) return 161;
+    if (fclose(fp) != 0) return 162;
+
+    if (remove("/newlib-stdio.txt") != 0) return 163;
+
+    if (fputs("newlib-stdio-ok\n", stdout) == EOF) return 164;
+    if (fflush(stdout) != 0) return 165;
+    return 0;
+}
+#endif

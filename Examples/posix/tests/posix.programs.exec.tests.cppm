@@ -424,6 +424,49 @@ namespace {
         check_eq("newlib-path-out", out, std::string_view{"newlib-path-ok\n"});
     }
 
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+    void test_newlib_stdio() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 128> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 128>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("newlib-stdio-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_stdio", &newlib_stdio_main);
+        check_true("newlib-stdio-register", rreg);
+
+        posix::FdOps term_ops{};
+        term_ops.stat = &term_stat_stub;
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("newlib-stdio-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-stdio-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-stdio-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-stdio-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-stdio-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_stdio", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_stdio";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-stdio-spawn", sp);
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-stdio-wait", st);
+        check_eq("newlib-stdio-code", st.value().code, 0);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-stdio-out", out, std::string_view{"newlib-stdio-ok\n"});
+    }
+#endif
+
     void test_exit_code_explicit_exit() noexcept {
         Harness h{};
         h.procs.enable_elf_exec(true);
@@ -1293,5 +1336,14 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     test_elf_real_samples();
     log_line("[posix-smoke] programs phase real-samples end");
 }
+
+#if defined(CHARM_POSIX_NEWLIB_STDIO_SMOKE) && CHARM_POSIX_NEWLIB_STDIO_SMOKE
+export void run_posix_program_stdio_smoke_tests() noexcept {
+    using namespace posix::testsupport;
+    log_line("[posix-smoke] programs phase newlib-stdio begin");
+    test_newlib_stdio();
+    log_line("[posix-smoke] programs phase newlib-stdio end");
+}
+#endif
 
 #endif

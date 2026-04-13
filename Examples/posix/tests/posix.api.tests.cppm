@@ -20,6 +20,7 @@ import posix.file;
 import posix.pipe;
 import posix.proc;
 import posix.fd_table;
+import posix.user_context;
 import charm.system.clock;
 import charm.system.time;
 import fs_core;
@@ -124,7 +125,7 @@ namespace {
 
     int g_api_kill_target_runs = 0;
 
-    int api_kill_target_main(int argc, char** argv) {
+    int api_kill_target_main(int argc, char** argv, char**) {
         if (argc < 1 || argv == nullptr) return 7;
         ++g_api_kill_target_runs;
         return 23;
@@ -208,9 +209,27 @@ namespace {
         &ApiRamFsMount::list_impl
     };
 
-    int demo_main(int argc, char** argv) {
+    int demo_main(int argc, char** argv, char**) {
         if (argc < 1 || argv == nullptr) return 7;
         return 3;
+    }
+
+    int env_demo_main(int argc, char** argv, char** envp) {
+        if (argc != 1 || argv == nullptr || argv[0] == nullptr) return 21;
+        if (std::string_view{argv[0]} != "env-demo") return 22;
+        if (argv[1] != nullptr) return 23;
+        if (envp == nullptr || envp[0] == nullptr || envp[1] == nullptr) return 24;
+        if (std::string_view{envp[0]} != "FOO=BAR") return 25;
+        if (std::string_view{envp[1]} != "BAR=BAZ") return 26;
+        if (envp[2] != nullptr) return 27;
+        if (!posix::user::has_startup_context()) return 28;
+        if (posix::user::argc() != argc) return 29;
+        if (posix::user::argv() != argv) return 30;
+        if (posix::user::envp() != envp) return 31;
+        if (std::string_view{posix::user::argv0()} != "env-demo") return 32;
+        if (posix::user::getenv("FOO") != std::string_view{"BAR"}) return 33;
+        if (posix::user::getenv("BAR") != std::string_view{"BAZ"}) return 34;
+        return 0;
     }
 
     void test_api_open_close() noexcept {
@@ -289,6 +308,35 @@ namespace {
         int status = 0;
         int wpid = api.waitpid(posix::ProcessId{pid}, &status, 0);
         check_eq("spawn-waitpid", wpid, pid);
+    }
+
+    void test_api_spawn_wait_envp_v1() noexcept {
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+        procs.bind_fd_table(fds);
+        procs.bind_file_service(files);
+        auto rreg = procs.register_executable("env-demo", &env_demo_main);
+        check_true("spawn-v1-register", rreg);
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+        const char* argv[] = {"env-demo", nullptr};
+        const char* envp[] = {"FOO=BAR", "BAR=BAZ", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "env-demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 2);
+
+        int pid = api.spawn(cfg);
+        check_true("spawn-v1-basic", pid > 0);
+        int status = -1;
+        check_eq("spawn-v1-waitpid", api.waitpid(posix::ProcessId{pid}, &status, 0), pid);
+        check_eq("spawn-v1-status", status, 0);
     }
 
     void test_api_spawnp_wait() noexcept {
@@ -687,6 +735,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_open_close();
     test_api_pipe_rw();
     test_api_spawn_wait();
+    test_api_spawn_wait_envp_v1();
     test_api_spawnp_wait();
     test_api_getpid();
     test_api_sleep();

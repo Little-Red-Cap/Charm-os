@@ -1,0 +1,83 @@
+# POSIX User Runtime 最小设计
+
+## 目的
+
+`posix.user_runtime`、`posix.user_context`、`posix.user_crt` 与 `posix.user_crt_c` 一起承接同地址空间 POSIX 用户程序看到的最小“用户态运行时”接口。
+
+它解决的问题不是重新实现一套 `posix.api`，而是把“当前活跃的宿主 API / 进程上下文”从测试私有的临时注入方式中抽出来，收敛成正式模块。
+
+这一步的目标是：
+- 让注册式用户程序不再依赖测试私有的 `ProgramEnv`。
+- 让 `spawn -> start_image -> main(argc, argv, envp)` 这条链路里，用户程序看到的是稳定的运行时入口。
+- 为后续最小 user CRT / 用户程序启动包装保留统一挂接点。
+
+## 位置
+
+- 模块：`Modules/io/posix/posix.user_runtime.cppm`
+- 模块：`Modules/io/posix/posix.user_context.cppm`
+- 模块：`Modules/io/posix/posix.user_crt.cppm`
+- 模块：`Modules/io/posix/posix.user_crt_c.cppm`
+- 头文件：`Modules/io/posix/charm_posix_user_crt.h`
+
+## 当前职责
+
+- 维护当前活跃的 runtime 绑定。
+- 维护当前活跃的 `argc/argv/envp` 启动上下文。
+- 提供嵌套绑定栈，支撑父程序内再 `spawn` 子程序的场景。
+- 提供 `ProcessBinding<Api>`，把 `push_process/pop_process` 与 runtime 绑定一起接到 `ProcService::bind_process_runtime_hooks(...)`。
+- 对用户程序暴露最小 facade：
+  - `read/write/open/close/pipe`
+  - `spawn/spawnp/waitpid/kill/list_processes/getpid`
+  - `sleep`
+  - `mkdir/unlink/rename/opendir/readdir/closedir`
+- 对用户程序暴露最小 startup context facade：
+  - `argc()/argv()/envp()`
+  - `argv0()/arg(index)`
+  - `env_entry(index)/getenv(key)`
+- 对用户程序暴露最小 CRT-like facade：
+  - `exit(code)/_exit(code)/abort()`
+  - `environ()/getenv_cstr(key)`
+  - `errno_location()`
+- 对后续 C / newlib 桥接暴露最小 C ABI 壳：
+  - `charm_posix_argc/argv/envp/environ/getenv`
+  - `charm_posix_errno_location`
+  - `charm_posix_read/write/getpid/sleep/exit/abort`
+
+当前这组 C ABI 已有可直接包含的头文件，纯 C 样例可通过：
+- `#include "charm_posix_user_crt.h"`
+- 依赖 `Charm-os` 暴露的 `Modules/io/posix` 公开包含目录
+
+## 边界
+
+- 它不拥有 fd、pipe、file、proc 的真实语义；真实实现仍在 `posix.api` 及其下层服务里。
+- 它不拥有程序装载与参数构造语义；`argv/envp` 的真实构造仍在 `posix.proc`。
+- 它不试图提供完整 CRT，也不承担参数布局、堆栈布局、ELF 装载策略。
+- 它当前仍服务于 same-address-space 的最小执行模型，不引入新的隔离承诺。
+- 在 ARM/Thumb 裸机测试目标上，它避免使用 TLS 依赖，运行时绑定存储退回普通静态存储；这与当前执行模型是一致的。
+
+## 当前接线方式
+
+- 宿主侧通过 `make_runtime(api)` 生成 runtime facade。
+- `ProcessBinding<Api>` 负责在进程进入时：
+  - 绑定当前 `pid`
+  - 绑定当前 runtime
+- `ProcService::start_image(...)` 在真正调用 `main(...)` 前绑定当前 `argc/argv/envp`，并在返回后恢复上一层上下文。
+- `posix.user_crt` 通过 `ExecContext` 把 `exit/_exit` 收束回当前进程退出路径，而不是依赖调用者手工返回。
+- `posix.user_runtime` 在转发用户态调用时会同步当前执行上下文的 errno 视图，使注册式用户程序与 ELF hostcall 都能通过 `errno_location()` 观察一致的错误状态。
+- `posix.user_crt_c` 只做薄转发，不重新定义语义；它的职责是为后续独立用户程序、C 代码或 newlib 桥接预留稳定符号名。
+- 在进程退出时：
+  - 解绑 runtime
+  - 恢复上一层 `pid`
+
+## 当前收益
+
+- 样例用户程序现在直接依赖 `posix::user::*`，不再依赖测试私有全局对象。
+- 用户程序现在可以通过 `posix::user::argc()/argv()/envp()/getenv(...)` 读取当前启动上下文，而不必把这套访问逻辑散落在测试 harness 或临时全局里。
+- 用户程序现在也可以通过 `posix::user::exit/_exit` 显式结束当前进程，并通过 `getenv_cstr/environ/errno_location` 使用更接近 CRT 的访问形态。
+- process hook 与用户态 facade 的关系被显式化，后续可以继续向最小 user CRT 演进。
+- 已通过 QEMU smoke 验证自动绑定路径；用户程序不需要手动注入测试环境也能跑通最小 hello 场景。
+
+## 下一步
+
+- 继续把 `main` 入口包装、环境绑定与后续 libc/newlib 桥接收敛到这层。
+- 视需要补充更稳定的宿主调用表定义，逐步减少样例程序对测试 harness 的隐式假设。

@@ -35,17 +35,14 @@ namespace {
         int cat_fd = -1;
         {
             Harness h{};
-            h.bind_env();
             h.procs.bind_file_service(h.files);
 
             cat_fd = h.api.open("/empty.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
             check_true("fd-probe-data-open", cat_fd >= 0);
             check_eq("fd-probe-data-close", h.api.close(cat_fd), 0);
-            h.unbind_env();
         }
 
         Harness h{};
-        h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
@@ -111,7 +108,6 @@ namespace {
         (void)h.fds.dup2(2, 1);
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
     void test_open_path_type_errors() noexcept {
@@ -122,7 +118,6 @@ namespace {
         check_true("path-open-mkdir", ramfs.fs.mkdir("/adir"));
 
         Harness h{};
-        h.bind_env();
 
         int wfd = h.api.open("/afile", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("path-open-file", wfd >= 0);
@@ -137,8 +132,6 @@ namespace {
         auto child_fd = h.api.open("/afile/child", posix::O_RDONLY, 0);
         check_eq("path-open-child-fd", child_fd, -1);
         check_eq("path-open-child-errno", posix::get_errno(), posix::ENOTDIR);
-
-        h.unbind_env();
     }
 
     void test_elf_file_stat_probe() noexcept {
@@ -149,7 +142,6 @@ namespace {
 
         {
             Harness h{};
-            h.bind_env();
             h.procs.bind_file_service(h.files);
 
             int data_fd = h.api.open("/stat.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
@@ -158,11 +150,9 @@ namespace {
             auto w = h.api.write(data_fd, payload, sizeof(payload) - 1);
             check_true("stat-probe-data-write", w == static_cast<posix::ssize_t>(sizeof(payload) - 1));
             check_eq("stat-probe-data-close", h.api.close(data_fd), 0);
-            h.unbind_env();
         }
 
         Harness h{};
-        h.bind_env();
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
@@ -202,7 +192,6 @@ namespace {
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);
-        h.unbind_env();
     }
 
 } // namespace

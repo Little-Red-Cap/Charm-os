@@ -18,6 +18,8 @@ import posix.proc;
 import posix.fd_table;
 import posix.file;
 import posix.env;
+import posix.program_image;
+import posix.user_context;
 import fs_core;
 import fs_errno;
 import fs_stream;
@@ -71,14 +73,45 @@ namespace {
         log_step(label, true);
     }
 
-    int demo_main(int argc, char** argv) {
+    int demo_main(int argc, char** argv, char**) {
         if (argc < 1 || argv == nullptr) return 7;
         return 42;
     }
 
+    int env_demo_main(int argc, char** argv, char** envp) {
+        if (argc != 1 || argv == nullptr || argv[0] == nullptr) return 11;
+        if (std::string_view{argv[0]} != "env-demo") return 12;
+        if (argv[1] != nullptr) return 13;
+        if (envp == nullptr || envp[0] == nullptr || envp[1] == nullptr) return 14;
+        if (std::string_view{envp[0]} != "FOO=BAR") return 15;
+        if (std::string_view{envp[1]} != "BAZ=QUX") return 16;
+        if (envp[2] != nullptr) return 17;
+        if (!posix::user::has_startup_context()) return 18;
+        if (posix::user::argc() != argc) return 19;
+        if (posix::user::argv() != argv) return 20;
+        if (posix::user::envp() != envp) return 21;
+        if (std::string_view{posix::user::argv0()} != "env-demo") return 22;
+        if (posix::user::getenv("FOO") != std::string_view{"BAR"}) return 23;
+        if (posix::user::getenv("BAZ") != std::string_view{"QUX"}) return 24;
+        if (posix::user::arg(1) != nullptr) return 25;
+        if (std::string_view{posix::user::env_entry(0)} != "FOO=BAR") return 26;
+        return 0;
+    }
+
+    int legacy_demo_main(int argc, char** argv) {
+        if (argc < 1 || argv == nullptr || argv[0] == nullptr) return 18;
+        if (std::string_view{argv[0]} != "legacy-demo") return 19;
+        if (!posix::user::has_startup_context()) return 20;
+        if (posix::user::argc() != argc) return 21;
+        if (posix::user::argv() != argv) return 22;
+        if (std::string_view{posix::user::argv0()} != "legacy-demo") return 23;
+        if (posix::user::getenv("LEGACY") != std::string_view{"YES"}) return 24;
+        return 43;
+    }
+
     int g_kill_target_runs = 0;
 
-    int kill_target_main(int argc, char** argv) {
+    int kill_target_main(int argc, char** argv, char**) {
         if (argc < 1 || argv == nullptr) return 7;
         ++g_kill_target_runs;
         return 99;
@@ -176,6 +209,71 @@ namespace {
         check_eq("wait-pid", st.value().pid.value, pid.value);
         check_eq("wait-code", st.value().code, 42);
         check_eq("wait-kind", st.value().kind, posix::WaitKind::exited);
+    }
+
+    void test_spawn_wait_envp_v1() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("env-demo", &env_demo_main);
+        check_true("spawn-v1-register", rreg);
+
+        const char* argv[] = {"env-demo", nullptr};
+        const char* envp[] = {"FOO=BAR", "BAZ=QUX", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "env-demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 2);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("spawn-v1-basic", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("wait-v1-basic", st);
+        check_eq("wait-v1-kind", st.value().kind, posix::WaitKind::exited);
+        check_eq("wait-v1-code", st.value().code, 0);
+    }
+
+    void test_spawn_wait_legacy_v0() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        auto rreg = procs.register_executable("legacy-demo", &legacy_demo_main);
+        check_true("spawn-v0-register", rreg);
+
+        const char* argv[] = {"legacy-demo", nullptr};
+        const char* envp[] = {"LEGACY=YES", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "legacy-demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.path_mode = posix::PathMode::exact;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("spawn-v0-basic", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("wait-v0-basic", st);
+        check_eq("wait-v0-kind", st.value().kind, posix::WaitKind::exited);
+        check_eq("wait-v0-code", st.value().code, 43);
+    }
+
+    void test_register_image_rejects_ambiguous_abi() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto image = posix::make_registered_image("ambiguous-demo", &env_demo_main);
+        image.entry_v0 = &legacy_demo_main;
+
+        auto rreg = procs.register_image(image);
+        check_true("ambiguous-register-fail", !rreg);
+        check_eq("ambiguous-register-err", rreg.error(), util::Errc::invalid_arg);
     }
 
     void test_search_path_argv0() noexcept {
@@ -410,6 +508,9 @@ namespace {
 export void run_posix_proc_smoke_tests() noexcept {
     log_line("[posix-smoke] proc begin");
     test_spawn_wait();
+    test_spawn_wait_envp_v1();
+    test_spawn_wait_legacy_v0();
+    test_register_image_rejects_ambiguous_abi();
     test_search_path_argv0();
     test_search_path_requires_match_in_path();
     test_search_path_honors_slash_path();

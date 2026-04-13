@@ -24,7 +24,7 @@ namespace {
 
     inline int g_kill_tool_target_runs = 0;
 
-    int kill_tool_target_main(int, char**) {
+    int kill_tool_target_main(int, char**, char**) {
         ++g_kill_tool_target_runs;
         return 17;
     }
@@ -98,7 +98,6 @@ namespace {
         check_true("echo-mount", st);
 
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("echo", &echo_main);
         check_true("echo-register", rreg);
 
@@ -125,7 +124,6 @@ namespace {
         check_eq("echo-read", r, 3);
         check_eq("echo-read-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
         (void)h.api.close(rfd);
-        h.unbind_env();
     }
 
     void test_cat_from_file() noexcept {
@@ -135,7 +133,6 @@ namespace {
         check_true("cat-mount", st);
 
         Harness h{};
-        h.bind_env();
         auto rreg = h.procs.register_executable("cat", &cat_main);
         check_true("cat-register", rreg);
 
@@ -167,12 +164,10 @@ namespace {
         auto r = h.api.read(rfd2, buf.data(), buf.size());
         check_true("cat-read-len", r >= 3);
         check_eq("cat-text", std::string_view{buf.data(), 3}, std::string_view{"ok\n"});
-        h.unbind_env();
     }
 
     void test_echo_pipe_cat() noexcept {
         Harness h{};
-        h.bind_env();
         auto reg_echo = h.procs.register_executable("echo", &echo_main);
         check_true("pipe-register-echo", reg_echo);
         auto reg_cat = h.procs.register_executable("cat", &cat_main);
@@ -217,7 +212,6 @@ namespace {
         auto r = h.api.read(p2_read, buf.data(), buf.size());
         check_true("pipe-read-len", r >= 3);
         check_eq("pipe-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
-        h.unbind_env();
     }
 
     void test_echo_pipe_cat_chain() noexcept {
@@ -227,7 +221,6 @@ namespace {
         check_true("chain-mount", st);
 
         Harness h{};
-        h.bind_env();
         auto reg_echo = h.procs.register_executable("echo", &echo_main);
         check_true("chain-register-echo", reg_echo);
         auto reg_cat = h.procs.register_executable("cat", &cat_main);
@@ -293,12 +286,10 @@ namespace {
         auto r = h.api.read(rfd, buf.data(), buf.size());
         check_true("chain-read-len", r >= 3);
         check_eq("chain-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
-        h.unbind_env();
     }
 
     void test_sh_c_echo() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_echo = h.procs.register_executable("/bin/echo", &echo_main);
         check_true("sh-register-echo", reg_echo);
@@ -332,7 +323,6 @@ namespace {
         auto r = h.api.read(read_fd, buf.data(), buf.size());
         check_true("sh-read-len", r >= 3);
         check_eq("sh-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
-        h.unbind_env();
     }
 
     void test_sh_c_redir_and_pipe() noexcept {
@@ -342,7 +332,6 @@ namespace {
         check_true("sh2-mount", st);
 
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_echo = h.procs.register_executable("/bin/echo", &echo_main);
         check_true("sh2-register-echo", reg_echo);
@@ -545,12 +534,10 @@ namespace {
         check_eq("sh2-status-sleep", (status_sleep >> 8) & 0xff, 0);
         const auto sleep_after = test_clock_ticks_ms();
         check_true("sh2-sleep-clock", sleep_after >= sleep_before + 2000);
-        h.unbind_env();
     }
 
     void test_busybox_sh_by_argv0() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
         check_true("bb-argv0-register-sh", reg_sh);
@@ -585,12 +572,10 @@ namespace {
         auto r = h.api.read(read_fd, buf.data(), buf.size());
         check_true("bb-argv0-read-len", r >= 3);
         check_eq("bb-argv0-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
-        h.unbind_env();
     }
 
     void test_sh_c_ps() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
         check_true("ps-register-sh", reg_sh);
@@ -628,12 +613,10 @@ namespace {
         check_true("ps-header", text.find("PID STATE CMD\n") == 0);
         check_true("ps-has-sh", text.find(" sh\n") != std::string_view::npos);
         check_true("ps-has-ps", text.find(" ps\n") != std::string_view::npos);
-        h.unbind_env();
     }
 
     void test_sh_c_kill() noexcept {
         Harness h{};
-        h.bind_env();
         auto reg_sh = h.procs.register_executable("/bin/sh", &busybox_main);
         check_true("sh-kill-register-sh", reg_sh);
         auto reg_kill = h.procs.register_executable("/bin/kill", &busybox_main);
@@ -665,12 +648,10 @@ namespace {
         check_true("sh-kill-wait", st);
         check_eq("sh-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
         check_eq("sh-kill-wait-code", st.value().code, posix::SIGTERM);
-        h.unbind_env();
     }
 
     void test_busybox_sh_via_busybox() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
         check_true("bb-dispatch-register-busybox", reg_busybox);
@@ -705,12 +686,10 @@ namespace {
         auto r = h.api.read(read_fd, buf.data(), buf.size());
         check_true("bb-dispatch-read-len", r >= 3);
         check_eq("bb-dispatch-text", std::string_view{buf.data(), 3}, std::string_view{"hi\n"});
-        h.unbind_env();
     }
 
     void test_busybox_ps_via_busybox() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
         check_true("bb-ps-register-busybox", reg_busybox);
@@ -745,12 +724,10 @@ namespace {
         const auto text = std::string_view{buf.data(), static_cast<util::usize>(r)};
         check_true("bb-ps-header", text.find("PID STATE CMD\n") == 0);
         check_true("bb-ps-has-busybox", text.find(" busybox\n") != std::string_view::npos);
-        h.unbind_env();
     }
 
     void test_busybox_sleep_via_busybox() noexcept {
         Harness h{};
-        h.bind_env();
         const auto path_env = program_path_env();
         auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
         check_true("bb-sleep-register-busybox", reg_busybox);
@@ -769,12 +746,10 @@ namespace {
         check_eq("bb-sleep-status", (status >> 8) & 0xff, 0);
         const auto sleep_after = test_clock_ticks_ms();
         check_true("bb-sleep-clock", sleep_after >= sleep_before + 2000);
-        h.unbind_env();
     }
 
     void test_busybox_kill_via_busybox() noexcept {
         Harness h{};
-        h.bind_env();
         auto reg_busybox = h.procs.register_executable("/bin/busybox", &busybox_main);
         check_true("bb-kill-register-busybox", reg_busybox);
         auto reg_target = h.procs.register_executable("kill-target", &kill_tool_target_main);
@@ -804,7 +779,6 @@ namespace {
         check_true("bb-kill-wait", st);
         check_eq("bb-kill-wait-kind", st.value().kind, posix::WaitKind::signaled);
         check_eq("bb-kill-wait-code", st.value().code, posix::SIGTERM);
-        h.unbind_env();
     }
 } // namespace
 

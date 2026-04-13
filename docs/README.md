@@ -14,6 +14,9 @@
 - Recipe / Plan 草案：`docs/system/init_plan_recipe_draft.md`
 - Init Plan Review 规则：`docs/system/init_plan_review_rules.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
+- POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
+- POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
+- POSIX 用户态运行时：`docs/system/posix_user_runtime_minimal_design.md`
 - 输入链路：`docs/input/input_layering_decision.md`
 
 ## 文档体系图
@@ -47,6 +50,9 @@ flowchart TD
 | 和 AI 协作 | `docs/agent/README.md` |
 | 做代码审查 | `docs/agent/skills/code-review/` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
+| POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |
+| POSIX 三层执行模型 | `docs/system/posix_three_layer_contract.md` |
+| POSIX 用户态运行时 | `docs/system/posix_user_runtime_minimal_design.md` |
 | POSIX 兼容/BusyBox 验收 | `docs/system/posix_compat_roadmap.md` |
 | Linux 生态兼容任务清单 | `docs/system/posix_linux_compat_tasklist.md` |
 | POSIX spawn 草案 | `docs/system/posix_spawn_minimal_design.md` |
@@ -112,6 +118,9 @@ docs/
 - `docs/system/at_system.md`
 - `docs/system/av_pipeline_overview.md`
 - `docs/system/posix_support_overview.md`
+- `docs/system/posix_subsystem_principles.md`
+- `docs/system/posix_three_layer_contract.md`
+- `docs/system/posix_user_runtime_minimal_design.md`
 - `docs/system/posix_compat_roadmap.md`
 - `docs/system/posix_linux_compat_tasklist.md`
 - `docs/system/posix_spawn_minimal_design.md`

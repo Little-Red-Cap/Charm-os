@@ -33,11 +33,13 @@
 ```cpp
 // 仅示意，不是最终代码
 enum class ImageKind : u8 { registered, flat, elf };
+enum class ImageEntryAbi : u8 { main_argv_v0, main_argv_envp_v1 };
 
 struct ProgramImage {
     ImageKind kind{};
     const char* name{nullptr};
-    const void* entry{nullptr};   // v0: 入口函数指针
+    ImageEntryAbi entry_abi{};
+    const void* entry{nullptr};
     u32 text_size{0};
     u32 data_size{0};
     u32 bss_size{0};
@@ -48,6 +50,7 @@ struct ProgramImage {
 
 要点：
 - v0 允许 `registered` 映像：用函数指针包装为 ProgramImage。
+- 入口 ABI 必须显式记录，不能靠“哪个函数指针非空”做隐式分发。
 - v1 接入 ELF 时，仅替换加载器，不改变入口 ABI。
 
 ## 4. 分层：load / start / spawn
@@ -73,6 +76,13 @@ Result<SpawnResult> spawn(const SpawnConfig& cfg); // POSIX-ish wrapper
 ```cpp
 using ImageEntry = int (*)(int argc, char** argv, char** envp);
 ```
+
+兼容策略：
+
+- 当前仍允许旧式 `int main(int argc, char** argv)` 作为 `registered image` 的兼容入口。
+- Runtime 应通过显式 `ImageEntryAbi` 分发入口，而不是把 ABI 选择散落在 `spawn/proc` 逻辑中。
+- 新入口默认应收敛到 `int main(int argc, char** argv, char** envp)`。
+- `ProgramImage` 不能同时声明 `v0` 与 `v1` 两套入口；这类 ABI 混搭对象应在注册阶段直接拒绝。
 
 规则：
 - `argc/argv/envp` 由 loader 构建并传入。

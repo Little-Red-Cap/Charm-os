@@ -27,6 +27,7 @@ import posix.file;
 import posix.spawn_fds;
 import posix.program_image;
 import posix.program_image_modulex;
+import posix.user_context;
 import module_core;
 import util.core;
 import util.error;
@@ -86,10 +87,20 @@ export namespace posix {
             file_service_ = &file_service;
         }
 
+        void bind_process_runtime_hooks(ProcHook on_enter, ProcHook on_exit, void* ctx = nullptr) noexcept {
+            runtime_on_enter_ = on_enter;
+            runtime_on_exit_ = on_exit;
+            runtime_hook_ctx_ = ctx;
+        }
+
         void bind_process_hooks(ProcHook on_enter, ProcHook on_exit, void* ctx = nullptr) noexcept {
             on_enter_ = on_enter;
             on_exit_ = on_exit;
             hook_ctx_ = ctx;
+        }
+
+        util::Result<void> register_executable(std::string_view name, ImageEntry entry) noexcept {
+            return exec_catalog_.register_registered_image(name, entry);
         }
 
         util::Result<void> register_executable(std::string_view name, ImageEntryV0 entry) noexcept {
@@ -398,21 +409,31 @@ export namespace posix {
             exec_ctx.pid_value = pid.value;
             proc.exec_ctx = &exec_ctx;
             push_exec_context(exec_ctx);
+            if (runtime_on_enter_) {
+                runtime_on_enter_(pid, runtime_hook_ctx_);
+            }
             if (on_enter_) {
                 on_enter_(pid, hook_ctx_);
             }
             struct Guard {
+                bool startup_bound;
+                ProcHook runtime_hook;
+                void* runtime_hook_ctx;
                 ProcHook hook;
                 ProcessId pid;
                 void* hook_ctx;
                 ExecContext* exec_ctx;
                 Process* proc;
                 ~Guard() noexcept {
+                    if (startup_bound) {
+                        posix::user::unbind_startup_context();
+                    }
                     if (proc) proc->exec_ctx = nullptr;
                     if (exec_ctx) pop_exec_context(*exec_ctx);
                     if (hook) hook(pid, hook_ctx);
+                    if (runtime_hook) runtime_hook(pid, runtime_hook_ctx);
                 }
-            } exit_guard{on_exit_, pid, hook_ctx_, &exec_ctx, &proc};
+            } exit_guard{false, runtime_on_exit_, runtime_hook_ctx_, on_exit_, pid, hook_ctx_, &exec_ctx, &proc};
             if (proc.terminate_requested) {
                 return signaled_exit_code(proc.terminate_signal);
             }
@@ -426,15 +447,18 @@ export namespace posix {
             if (proc.terminate_requested) {
                 return signaled_exit_code(proc.terminate_signal);
             }
-            if (image.entry) {
-                const int rc = image.entry(argv_envp.value().argc, argv_envp.value().argv, argv_envp.value().envp);
-                return finalize_exec_exit(exec_ctx, rc);
+            posix::user::bind_startup_context(argv_envp.value().argc,
+                                              argv_envp.value().argv,
+                                              argv_envp.value().envp);
+            exit_guard.startup_bound = true;
+            auto rc = invoke_program_main(image,
+                                          argv_envp.value().argc,
+                                          argv_envp.value().argv,
+                                          argv_envp.value().envp);
+            if (!rc) {
+                return util::unexpected(rc.error());
             }
-            if (image.entry_v0) {
-                const int rc = image.entry_v0(argv_envp.value().argc, argv_envp.value().argv);
-                return finalize_exec_exit(exec_ctx, rc);
-            }
-            return util::unexpected(util::Errc::invalid_arg);
+            return finalize_exec_exit(exec_ctx, rc.value());
         }
 
         util::Result<void> install_elf_hostcalls() noexcept {
@@ -470,6 +494,9 @@ export namespace posix {
 #if !defined(POSIX_TEST_BUILD) || !POSIX_TEST_BUILD
         alignas(16) std::array<util::u8, MaxElfLoad> elf_load_{};
 #endif
+        ProcHook runtime_on_enter_{nullptr};
+        ProcHook runtime_on_exit_{nullptr};
+        void* runtime_hook_ctx_{nullptr};
         ProcHook on_enter_{nullptr};
         ProcHook on_exit_{nullptr};
         void* hook_ctx_{nullptr};

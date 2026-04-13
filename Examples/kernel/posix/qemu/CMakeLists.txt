@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 26)
 add_executable(${target_name}
     startup.cpp
     main.cpp
+    posix_user_crt_c_header_smoke.c
 )
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")

@@ -214,6 +214,19 @@ JSON sample 当前更适合：
 这样做的目的不是提前冻结长期协议，
 而是避免工具链在 schema 演进时静默误读旧/新字段。
 
+为了让工具侧有更明确的机器可读锚点，仓库现在还提供了：
+
+- `schemas/materialized_graph.sample.v2.schema.json`
+- `schemas/materialized_graph.export_bundle.v1.schema.json`
+- `schemas/materialized_graph.ci_summary.v1.schema.json`
+- `schemas/README.md`
+
+当前可以这样理解它们的职责边界：
+
+- `sample/v2`：描述当前导出样例的精确形状，但不代表长期冻结承诺
+- `export_bundle/v1`：描述 bundle 索引结构，是批量导出 / inspect / diff 的稳定消费面
+- `ci_summary/v1`：描述 CI 摘要结构，是 workflow / 自动化集成的稳定消费面
+
 ## 最小用法
 
 ### 代码层

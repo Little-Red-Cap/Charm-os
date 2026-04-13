@@ -33,6 +33,7 @@ export namespace player::app_test_hqzy::usb_glue {
         util::u64 last_msc_ms{0};
         bool ep0_prepared{false};
         bool ep0_expect_status_out{false};
+        bool ep0_in_zlp_pending{false};
     };
 
     namespace detail {
@@ -56,6 +57,7 @@ export namespace player::app_test_hqzy::usb_glue {
             glue.pcd->OUT_ep[0].data_pid_start = 1;
             (void)HAL_PCD_EP_Receive(glue.pcd, 0x00, glue.out_bufs[0].data(), glue.out_mps[0]);
             glue.ep0_expect_status_out = false;
+            glue.ep0_in_zlp_pending = false;
             glue.ep0_prepared = true;
         }
 
@@ -104,12 +106,16 @@ export namespace player::app_test_hqzy::usb_glue {
         }
 
         bool ep_send(void* ctx, usb::u8 address,
-                     std::span<const usb::u8> data, bool) noexcept {
+                     std::span<const usb::u8> data, bool zlp) noexcept {
             auto* glue = from_ctx(ctx);
             if (!glue || !glue->pcd) return false;
             auto* ptr = const_cast<usb::u8*>(data.data());
-            return HAL_PCD_EP_Transmit(glue->pcd, address, ptr,
+            const auto ok = HAL_PCD_EP_Transmit(glue->pcd, address, ptr,
                 static_cast<uint16_t>(data.size())) == HAL_OK;
+            if (address == 0x80) {
+                glue->ep0_in_zlp_pending = ok && zlp && !data.empty();
+            }
+            return ok;
         }
 
         bool ep_stall(void* ctx, usb::u8 address) noexcept {
@@ -127,8 +133,8 @@ export namespace player::app_test_hqzy::usb_glue {
         bool set_configured(void* ctx, bool configured) noexcept {
             auto* glue = from_ctx(ctx);
             if (!glue || !glue->pcd) return false;
-            return configured ? (HAL_PCD_Start(glue->pcd) == HAL_OK)
-                              : (HAL_PCD_Stop(glue->pcd) == HAL_OK);
+            (void)configured;
+            return true;
         }
 
         bool connect(void* ctx, bool enable) noexcept {
@@ -239,6 +245,12 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
         const auto sent = sent_zlp
             ? 0u
             : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
+        if (!sent_zlp && glue->ep0_in_zlp_pending) {
+            glue->adapter.handle_in_complete(sent, false);
+            glue->ep0_in_zlp_pending = false;
+            (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
+            return 1;
+        }
         if (glue->ep0_expect_status_out) {
             (void)HAL_PCD_EP_Receive(hpcd, 0x00, glue->out_bufs[0].data(), 0);
         } else {
@@ -260,6 +272,7 @@ extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef*) {
     if (glue) {
         glue->ep0_prepared = false;
         glue->ep0_expect_status_out = false;
+        glue->ep0_in_zlp_pending = false;
         player::app_test_hqzy::usb_glue::detail::prepare_ep0(*glue);
         glue->adapter.handle_reset();
         return 1;

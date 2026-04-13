@@ -192,26 +192,9 @@ export namespace usb::device {
                 return util::unexpected(util::Errc::io);
             }
 
-            const auto cdc_opened = usb::device::examples::open_cdc_endpoints(
-                self->desc.dcd,
-                self->desc.dcd_ctx,
-                *self->cdc,
-                usb::device::examples::make_cdc_ep_callbacks(*self->cdc));
-            if (!cdc_opened) {
-                return util::unexpected(util::Errc::io);
-            }
-
-            const auto msc_opened = usb::device::examples::open_msc_endpoints(
-                self->desc.dcd,
-                self->desc.dcd_ctx,
-                *self->msc,
-                usb::device::examples::make_msc_ep_callbacks(*self->bot));
-            if (!msc_opened) {
-                usb::device::examples::close_cdc_endpoints(self->desc.dcd, self->desc.dcd_ctx, *self->cdc);
-                return util::unexpected(util::Errc::io);
-            }
-
             self->driver.emplace(self->dev, self->desc.dcd_ctx, self->desc.dcd);
+            self->driver->bind_cdc(*self->cdc);
+            self->driver->bind_msc(*self->msc, *self->bot);
             if (self->desc.adapter) {
                 self->desc.adapter->callbacks = self->driver->callbacks();
             }
@@ -227,16 +210,11 @@ export namespace usb::device {
         static void deinit_trampoline(void* ctx) noexcept {
             auto* self = static_cast<MscCdcBinding*>(ctx);
             if (!self) return;
+            if (self->driver) {
+                self->driver->stop_class_endpoints();
+            }
             if (self->desc.dcd.connect) {
                 self->desc.dcd.connect(self->desc.dcd_ctx, false);
-            }
-            if (self->cdc && self->desc.dcd.ep.close) {
-                usb::device::examples::close_cdc_endpoints(
-                    self->desc.dcd, self->desc.dcd_ctx, *self->cdc);
-            }
-            if (self->msc && self->desc.dcd.ep.close) {
-                usb::device::examples::close_msc_endpoints(
-                    self->desc.dcd, self->desc.dcd_ctx, *self->msc);
             }
             self->driver.reset();
             self->cdc.reset();

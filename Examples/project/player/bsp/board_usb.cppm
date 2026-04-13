@@ -105,6 +105,8 @@ namespace {
     std::array<usb::u16, 16> g_usb_out_mps{};
     bool g_usb_hooks_enabled = false;
     bool g_usb_ep0_prepared = false;
+    bool g_ep0_expect_status_out = false;
+    bool g_ep0_in_zlp_pending = false;
     std::uint32_t g_setup_calls = 0;
     std::uint32_t g_out0_calls = 0;
     std::uint32_t g_in0_calls = 0;
@@ -158,6 +160,8 @@ namespace {
         (void)HAL_PCD_EP_Open(pcd, 0x00, ep0_mps, USBD_EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Open(pcd, 0x80, ep0_mps, USBD_EP_TYPE_CTRL);
         (void)HAL_PCD_EP_Receive(pcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        g_ep0_expect_status_out = false;
+        g_ep0_in_zlp_pending = false;
         g_usb_ep0_prepared = true;
     }
 
@@ -244,6 +248,9 @@ namespace {
         if (!ok && is_ep0_in) {
             g_ep0_in_fail++;
         }
+        if (is_ep0_in) {
+            g_ep0_in_zlp_pending = ok && zlp && !data.empty();
+        }
         if (ok && g_msc_cfg && address == g_msc_cfg->ep_in) {
             g_msc_in_busy = true;
         }
@@ -279,56 +286,9 @@ namespace {
         g_set_cfg_open_out_ok = 0;
         g_set_cfg_open_in_ok = 0;
         g_set_cfg_arm_out_ok = 0;
-        if (!configured) {
-            if (g_msc_cfg) {
-                (void)HAL_PCD_EP_Close(pcd, g_msc_cfg->ep_out);
-                (void)HAL_PCD_EP_Close(pcd, g_msc_cfg->ep_in);
-            }
-            g_msc_in_busy = false;
-            g_msc_eps_opened = false;
-            g_set_cfg_last_ok = 1;
-            return true;
-        }
-        if (!g_msc_cfg) {
-            g_set_cfg_last_ok = 1;
-            return true;
-        }
-        if (!g_msc_eps_opened) {
-            usb::driver::EpConfig out{};
-            out.address = g_msc_cfg->ep_out;
-            out.direction = usb::driver::EpDirection::out;
-            out.type = usb::driver::EpType::bulk;
-            out.max_packet_size = g_msc_cfg->ep_mps;
-            usb::driver::EpConfig in{};
-            in.address = g_msc_cfg->ep_in;
-            in.direction = usb::driver::EpDirection::in;
-            in.type = usb::driver::EpType::bulk;
-            in.max_packet_size = g_msc_cfg->ep_mps;
-            const bool out_ok = usb_ep_open(pcd, out, g_usb_out_cbs[g_msc_cfg->ep_out & 0x0F]);
-            const bool in_ok = usb_ep_open(pcd, in, g_usb_in_cbs[g_msc_cfg->ep_in & 0x0F]);
-            g_set_cfg_open_out_ok = out_ok ? 1u : 0u;
-            g_set_cfg_open_in_ok = in_ok ? 1u : 0u;
-            g_msc_eps_opened = out_ok && in_ok;
-            if (g_msc_eps_opened) {
-                const auto ep = static_cast<std::uint8_t>(g_msc_cfg->ep_out & 0x0F);
-                g_usb_out_mps[ep] = g_msc_cfg->ep_mps;
-                const auto ok = HAL_PCD_EP_Receive(pcd, g_msc_cfg->ep_out,
-                    g_usb_out_bufs[ep].data(),
-                    g_usb_out_mps[ep]) == HAL_OK;
-                g_set_cfg_arm_out_ok = ok ? 1u : 0u;
-                g_set_cfg_last_ok = ok ? 1u : 0u;
-            } else {
-                g_set_cfg_last_ok = 0;
-            }
-        } else {
-            const auto ep = static_cast<std::uint8_t>(g_msc_cfg->ep_out & 0x0F);
-            g_usb_out_mps[ep] = g_msc_cfg->ep_mps;
-            const auto ok = HAL_PCD_EP_Receive(pcd, g_msc_cfg->ep_out,
-                g_usb_out_bufs[ep].data(),
-                g_usb_out_mps[ep]) == HAL_OK;
-            g_set_cfg_arm_out_ok = ok ? 1u : 0u;
-            g_set_cfg_last_ok = ok ? 1u : 0u;
-        }
+        g_msc_in_busy = false;
+        g_msc_eps_opened = configured;
+        g_set_cfg_last_ok = 1;
         return true;
     }
 
@@ -656,6 +616,7 @@ extern "C" int charm_usb_setup_hook(PCD_HandleTypeDef* hpcd) {
         const auto ep = static_cast<std::uint8_t>(setup.w_index & 0xFFu);
         (void)HAL_PCD_EP_ClrStall(hpcd, ep);
     }
+    g_ep0_expect_status_out = ((setup.bm_request_type & 0x80u) != 0u);
     g_usb_adapter.handle_setup(setup);
     if ((setup.bm_request_type & 0x80u) == 0u) {
         (void)HAL_PCD_EP_Receive(hpcd, 0x00,
@@ -675,6 +636,9 @@ extern "C" int charm_usb_data_out_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             g_usb_adapter.handle_out_data(std::span<const usb::u8>(buf, len));
         } else {
             g_usb_adapter.handle_out_data(std::span<const usb::u8>{});
+        }
+        if (len == 0 && g_ep0_expect_status_out) {
+            g_ep0_expect_status_out = false;
         }
         return 1;
     }
@@ -700,7 +664,17 @@ extern "C" int charm_usb_data_in_hook(PCD_HandleTypeDef* hpcd, uint8_t epnum) {
             ? 0u
             : static_cast<std::uint32_t>(hpcd->IN_ep[0].xfer_len);
         g_in0_calls++;
-        (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        if (!sent_zlp && g_ep0_in_zlp_pending) {
+            g_usb_adapter.handle_in_complete(sent, false);
+            g_ep0_in_zlp_pending = false;
+            (void)HAL_PCD_EP_Transmit(hpcd, 0x80, nullptr, 0);
+            return 1;
+        }
+        if (g_ep0_expect_status_out) {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), 0);
+        } else {
+            (void)HAL_PCD_EP_Receive(hpcd, 0x00, g_usb_out_bufs[0].data(), g_usb_out_mps[0]);
+        }
         g_usb_adapter.handle_in_complete(sent, sent_zlp);
         return 1;
     }
@@ -726,6 +700,8 @@ extern "C" int charm_usb_reset_hook(PCD_HandleTypeDef* hpcd) {
     g_reset_calls++;
     g_msc_in_busy = false;
     g_usb_ep0_prepared = false;
+    g_ep0_expect_status_out = false;
+    g_ep0_in_zlp_pending = false;
     usb_prepare_ep0(hpcd);
     g_usb_adapter.handle_reset();
     return 1;

@@ -190,9 +190,10 @@ int main() {
     if (!expect(cfg_pkt.has_value(), "set configuration status packet missing")) return 1;
     if (!expect(cfg_pkt->zlp, "set configuration status packet not zlp")) return 1;
     if (!expect(session.ack_in(cfg_pkt->ep, cfg_pkt->data.size(), cfg_pkt->zlp), "set configuration ack failed")) return 1;
-    if (!expect(session.device_actions().size() == 2, "set configuration post-ack action count mismatch")) return 1;
-    if (!expect(session.device_actions()[1].kind == usb::mock::DeviceActionKind::set_configured, "set configuration commit action mismatch")) return 1;
-    if (!expect(session.device_actions()[1].flag, "set configuration commit flag mismatch")) return 1;
+    if (!expect(session.device_actions().size() >= 2, "set configuration post-ack action count mismatch")) return 1;
+    const auto& cfg_commit = session.device_actions()[session.device_actions().size() - 1];
+    if (!expect(cfg_commit.kind == usb::mock::DeviceActionKind::set_configured, "set configuration commit action mismatch")) return 1;
+    if (!expect(cfg_commit.flag, "set configuration commit flag mismatch")) return 1;
     if (!expect(session.configured(), "set configuration not committed after status stage")) return 1;
 
     std::printf("[OK] usb-host-harness-smoke passed\n");

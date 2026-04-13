@@ -89,7 +89,7 @@ export namespace usb::device {
             const auto strings_count = self->desc.strings.size();
             const auto class_desc = usb::dsl::make_cdc_acm_class_descriptors(self->desc.cdc_cfg);
 
-            const auto ok = usb::device::examples::build_attach_open_cdc(
+            const auto ok = usb::device::examples::build_and_attach_cdc_acm(
                 self->dev,
                 *self->cdc,
                 build_ctx,
@@ -98,15 +98,13 @@ export namespace usb::device {
                 self->desc.cdc_cfg,
                 class_desc.view(),
                 strings_ptr,
-                strings_count,
-                self->desc.dcd,
-                self->desc.dcd_ctx,
-                usb::device::examples::make_cdc_ep_callbacks(*self->cdc));
+                strings_count);
             if (!ok) {
                 return util::unexpected(util::Errc::io);
             }
 
             self->driver.emplace(self->dev, self->desc.dcd_ctx, self->desc.dcd);
+            self->driver->bind_cdc(*self->cdc);
             if (self->desc.adapter) {
                 self->desc.adapter->callbacks = self->driver->callbacks();
             }
@@ -122,12 +120,11 @@ export namespace usb::device {
         static void deinit_trampoline(void* ctx) noexcept {
             auto* self = static_cast<CdcAcmBinding*>(ctx);
             if (!self) return;
+            if (self->driver) {
+                self->driver->stop_class_endpoints();
+            }
             if (self->desc.dcd.connect) {
                 self->desc.dcd.connect(self->desc.dcd_ctx, false);
-            }
-            if (self->cdc && self->desc.dcd.ep.close) {
-                usb::device::examples::close_cdc_endpoints(
-                    self->desc.dcd, self->desc.dcd_ctx, *self->cdc);
             }
             self->driver.reset();
             self->cdc.reset();

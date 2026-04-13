@@ -38,12 +38,14 @@
   - 导入为 `out ep=.. zlp=.. data=...`
   - 语义上表示主机向设备发送 bulk/interrupt/其它非控制数据包
   - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
+  - 连续、同端点的多条 `usb: out` 当前按包级事件原样保留，不自动合并为更高层事务
 
 - `usb: in ep=0x.. zlp=.. data=...`
   - 导入为 `in ep=.. zlp=.. data=...`
   - 语义上表示设备向主机返回的数据事务期望值
   - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
   - 连续、同端点的多条 `usb: in` 会在导入时自动拼接为一个 replay `in` 事务，末条的 `zlp` 作为事务结束标记
+  - 单条 replay `in` 表示事务级期望值，不承诺运行时只产生一次设备发包或一次 `in_complete`；例如 MSC 的 `data + trailing CSW` 可能在同一个 `in` 事务内拆成多次 ACK
 
 - `usb: dev_desc`
   - 缓存设备描述符原始字节

@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_input;
 
 import init.node;
@@ -42,7 +39,6 @@ export namespace charm::system {
         input::RouterBinding router_binding;
         input::ServiceBinding service_binding;
         input::InputPumpBinding pump_binding;
-        std::array<const init::Node*, 3> nodes{};
 
         InputInitChain(const hal::RawInputSource& source,
                        charm::system::Clock& clock,
@@ -81,7 +77,6 @@ export namespace charm::system {
                            caps.router_cap,
                            phase,
                            runlevel_mask) {
-            nodes = {&service_binding.node, &router_binding.node, &pump_binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -93,16 +88,9 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(service_binding.node);
+            fn(router_binding.node);
+            fn(pump_binding.node);
         }
 
         input::Router& router_ref() noexcept { return router; }

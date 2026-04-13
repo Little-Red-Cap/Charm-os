@@ -772,7 +772,7 @@ export namespace init {
         };
 
         LegacyChainHolder legacy_chain{{&holder.node}};
-        auto legacy_holder = materialize<2, 4>(compose(legacy(legacy_chain)));
+        auto legacy_holder = materialize<2, 4>(compose(compat_nodes(legacy_chain.node_span())));
         if (!legacy_holder || legacy_holder->size() != 1) {
             return util::unexpected(util::Errc::bad_state);
         }

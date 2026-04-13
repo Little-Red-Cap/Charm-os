@@ -83,15 +83,55 @@ player_bool_literal(PLAYER_APP_DEBUG_DUMP_ROOT ${PLAYER_APP_DEBUG_DUMP_ROOT})
 player_bool_literal(PLAYER_APP_ENCODER_TEST_ON_BOOT ${PLAYER_APP_ENCODER_TEST_ON_BOOT})
 player_bool_literal(PLAYER_APP_USB_USE_COMPOSITE ${PLAYER_APP_USB_USE_COMPOSITE})
 
+set(PLAYER_BOARD_SDMMC_CARD_ENUM "mmc")
+player_cache_default(PLAYER_BOARD_SDRAM_BASE STRING 0xD0000000u "Player board SDRAM base address")
+player_cache_default(PLAYER_BOARD_SDRAM_TEST_WORDS STRING 1024u "Player board SDRAM self-test word count")
+player_cache_default(PLAYER_BOARD_SDRAM_TEST_PATTERN STRING 0xA5A50000u "Player board SDRAM self-test pattern")
+player_cache_default(PLAYER_BOARD_SDRAM_REFRESH_RATE STRING 0x0603u "Player board SDRAM refresh rate")
+player_cache_default(PLAYER_BOARD_SDMMC_CARD STRING MMC "Player board SDMMC card kind")
+set_property(CACHE PLAYER_BOARD_SDMMC_CARD PROPERTY STRINGS MMC SD)
+player_cache_default(PLAYER_BOARD_SDMMC_INIT_CLOCK_DIV STRING 480u "Player board SDMMC init clock divider")
+player_cache_default(PLAYER_BOARD_SDMMC_XFER_CLOCK_DIV STRING 4u "Player board SDMMC transfer clock divider")
+player_cache_default(PLAYER_BOARD_SDMMC_BUS_WIDTH STRING 4u "Player board SDMMC bus width")
+player_cache_default(PLAYER_BOARD_SDMMC_USE_DMA BOOL OFF "Player board SDMMC DMA usage")
+player_cache_default(PLAYER_BOARD_SDMMC_TRY_4BIT BOOL OFF "Player board SDMMC try 4-bit mode")
+player_cache_default(PLAYER_BOARD_SDMMC_PROBE_READ BOOL OFF "Player board SDMMC probe-read after init")
+player_cache_default(PLAYER_BOARD_SDMMC_VERBOSE BOOL OFF "Player board SDMMC verbose logging")
+player_cache_default(PLAYER_BOARD_SDMMC_VERBOSE_GPIO BOOL OFF "Player board SDMMC verbose GPIO logging")
+player_cache_default(PLAYER_BOARD_SDMMC_PARTITION_LBA STRING 496u "Player board SDMMC partition LBA")
+player_cache_default(PLAYER_BOARD_KEY_ACTIVE_HIGH BOOL ON "Player board key active-high polarity")
+
+if (PLAYER_BOARD_SDMMC_CARD STREQUAL "MMC")
+    set(PLAYER_BOARD_SDMMC_CARD_ENUM "mmc")
+elseif (PLAYER_BOARD_SDMMC_CARD STREQUAL "SD")
+    set(PLAYER_BOARD_SDMMC_CARD_ENUM "sd")
+else()
+    message(FATAL_ERROR "Unsupported PLAYER_BOARD_SDMMC_CARD: ${PLAYER_BOARD_SDMMC_CARD}")
+endif()
+
+player_bool_literal(PLAYER_BOARD_SDMMC_USE_DMA ${PLAYER_BOARD_SDMMC_USE_DMA})
+player_bool_literal(PLAYER_BOARD_SDMMC_TRY_4BIT ${PLAYER_BOARD_SDMMC_TRY_4BIT})
+player_bool_literal(PLAYER_BOARD_SDMMC_PROBE_READ ${PLAYER_BOARD_SDMMC_PROBE_READ})
+player_bool_literal(PLAYER_BOARD_SDMMC_VERBOSE ${PLAYER_BOARD_SDMMC_VERBOSE})
+player_bool_literal(PLAYER_BOARD_SDMMC_VERBOSE_GPIO ${PLAYER_BOARD_SDMMC_VERBOSE_GPIO})
+player_bool_literal(PLAYER_BOARD_KEY_ACTIVE_HIGH ${PLAYER_BOARD_KEY_ACTIVE_HIGH})
+
 set(PLAYER_GENERATED_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/player")
 file(MAKE_DIRECTORY "${PLAYER_GENERATED_MODULE_DIR}")
 
 set(PLAYER_APP_CONFIG_GENERATED_CPPM
     "${PLAYER_GENERATED_MODULE_DIR}/player_app_config.generated.cppm")
+set(PLAYER_BOARD_CONFIG_GENERATED_CPPM
+    "${PLAYER_GENERATED_MODULE_DIR}/player_board_config.generated.cppm")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/player_app_config.generated.cppm.in"
     "${PLAYER_APP_CONFIG_GENERATED_CPPM}"
     @ONLY)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/player_board_config.generated.cppm.in"
+    "${PLAYER_BOARD_CONFIG_GENERATED_CPPM}"
+    @ONLY)
 
 set(PLAYER_GENERATED_MODULES
-    "${PLAYER_APP_CONFIG_GENERATED_CPPM}")
+    "${PLAYER_APP_CONFIG_GENERATED_CPPM}"
+    "${PLAYER_BOARD_CONFIG_GENERATED_CPPM}")

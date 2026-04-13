@@ -141,24 +141,29 @@ namespace {
 } // namespace
 
 // namespace {
-    constexpr util::usize kRxCap = player::stm32h7::app::config::kRxCap;
-    constexpr util::usize kTxCap = player::stm32h7::app::config::kTxCap;
-    constexpr bool kBringupKeySelect = player::stm32h7::app::config::kBringupKeySelect;
-    constexpr bool kBringupWaitKey = player::stm32h7::app::config::kBringupWaitKey;
-    constexpr bool kFmcInitOnBoot = player::stm32h7::app::config::kFmcInitOnBoot;
-    constexpr bool kSdramSelftestOnBoot = player::stm32h7::app::config::kSdramSelftestOnBoot;
-    constexpr bool kSdramSelftestInBringup = player::stm32h7::app::config::kSdramSelftestInBringup;
-    constexpr bool kEnableSdmmcInit = player::stm32h7::app::config::kEnableSdmmcInit;
-    constexpr bool kEnableUsbMsc = player::stm32h7::app::config::kEnableUsbMsc;
-    constexpr bool kUseStUsbStack = player::stm32h7::app::config::kUseStUsbStack;
-    constexpr bool kEnableAudio = player::stm32h7::app::config::kEnableAudio;
-    constexpr bool kEnableUsbAudio = player::stm32h7::app::config::kEnableUsbAudio;
-    constexpr bool kUseUsbAudioOnBoot = player::stm32h7::app::config::kUseUsbAudioOnBoot;
-    constexpr bool kEnableDisplay = player::stm32h7::app::config::kEnableDisplay;
+    namespace app_config = player::stm32h7::app::config;
+
+    constexpr auto kBoard = app_config::kBoard;
+    constexpr auto kApp = app_config::kApp;
+
+    constexpr util::usize kRxCap = kBoard.uart.rx_cap;
+    constexpr util::usize kTxCap = kBoard.uart.tx_cap;
+    constexpr bool kBringupKeySelect = kBoard.bringup.key_select;
+    constexpr bool kBringupWaitKey = kBoard.bringup.wait_key;
+    constexpr bool kFmcInitOnBoot = kBoard.bringup.fmc_init_on_boot;
+    constexpr bool kSdramSelftestOnBoot = kBoard.bringup.sdram_selftest_on_boot;
+    constexpr bool kSdramSelftestInBringup = kBoard.bringup.sdram_selftest_in_bringup;
+    constexpr bool kEnableSdmmcInit = kBoard.bringup.enable_sdmmc_init;
+    constexpr bool kEnableUsbMsc = kBoard.bringup.enable_usb_msc;
+    constexpr bool kUseStUsbStack = kBoard.bringup.use_st_usb_stack;
+    constexpr bool kEnableAudio = kBoard.bringup.enable_audio;
+    constexpr bool kEnableUsbAudio = kBoard.bringup.enable_usb_audio;
+    constexpr bool kUseUsbAudioOnBoot = kBoard.bringup.use_usb_audio_on_boot;
+    constexpr bool kEnableDisplay = kBoard.bringup.enable_display;
     // Debug flags now live in app_boot_debug.
-    constexpr bool kUseDmaConsole = player::stm32h7::app::config::kUseDmaConsole;
-    constexpr bool kEncoderTestOnBoot = player::stm32h7::app::config::kEncoderTestOnBoot;
-    constexpr util::u32 kEncoderTestMs = player::stm32h7::app::config::kEncoderTestMs;
+    constexpr bool kUseDmaConsole = kBoard.bringup.use_dma_console;
+    constexpr bool kEncoderTestOnBoot = kApp.encoder_test.enable_on_boot;
+    constexpr util::u32 kEncoderTestMs = kApp.encoder_test.duration_ms;
     driver::usart::ChannelAdapter<kRxCap, kTxCap>* g_uart_adapter = nullptr;
 
     constexpr usb::u16 kLangs[] = { 0x0409 };
@@ -445,8 +450,8 @@ int charm_player_selected_profile_main() {
     pre_ctx.cfg.sdram_selftest_on_boot = kSdramSelftestOnBoot;
     pre_ctx.cfg.enable_sdmmc_init = kEnableSdmmcInit;
     pre_ctx.cfg.use_st_usb_stack = kUseStUsbStack;
-    pre_ctx.cfg.enable_i2s_init = player::stm32h7::app::config::kEnableI2sInit;
-    pre_ctx.cfg.enable_spi5_init = player::stm32h7::app::config::kEnableSpi5Init;
+    pre_ctx.cfg.enable_i2s_init = kBoard.bringup.enable_i2s_init;
+    pre_ctx.cfg.enable_spi5_init = kBoard.bringup.enable_spi5_init;
     pre_ctx.print = &early_uart_print;
     pre_ctx.sleep = &early_sleep_ms;
     if (auto pre = player::stm32h7::app::pre_bringup::run(pre_ctx); !pre) {

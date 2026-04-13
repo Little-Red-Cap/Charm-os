@@ -1,8 +1,5 @@
 module;
 
-#include <array>
-#include <span>
-
 export module charm.system.init_block;
 
 import init.node;
@@ -22,14 +19,12 @@ export namespace charm::system {
     template <typename RegistryT>
     struct BlockInitChain {
         block::DeviceBinding<RegistryT> binding;
-        std::array<const init::Node*, 1> nodes{};
 
         BlockInitChain(RegistryT& registry,
                        block::Device& dev,
                        const char* cap_name,
                        const char* hal_cap = nullptr) noexcept
             : binding(registry, dev, cap_name, hal_cap) {
-            nodes = {&binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -38,16 +33,7 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>
@@ -63,7 +49,6 @@ export namespace charm::system {
     template <typename RegistryT>
     struct FileInitChain {
         block::FileBinding<RegistryT> binding;
-        std::array<const init::Node*, 1> nodes{};
 
         FileInitChain(RegistryT& registry,
                       const char* path,
@@ -72,7 +57,6 @@ export namespace charm::system {
                       init::Phase phase = init::Phase::core,
                       util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : binding(registry, path, block_size, cap_name, phase, runlevel_mask) {
-            nodes = {&binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -81,23 +65,13 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(binding.node);
         }
     };
 
     template <typename RegistryT>
     struct SdmmcInitChain {
         block::SdmmcBinding<RegistryT> binding;
-        std::array<const init::Node*, 1> nodes{};
 
         SdmmcInitChain(RegistryT& registry,
                        block::SdmmcHandle handle,
@@ -107,7 +81,6 @@ export namespace charm::system {
                        init::Phase phase = init::Phase::core,
                        util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : binding(registry, handle, cfg, cap_name, hal_cap, phase, runlevel_mask) {
-            nodes = {&binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -116,16 +89,7 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>
@@ -141,7 +105,6 @@ export namespace charm::system {
     template <typename RegistryT>
     struct SpiFlashInitChain {
         block::SpiFlashBinding<RegistryT> binding;
-        std::array<const init::Node*, 1> nodes{};
 
         SpiFlashInitChain(RegistryT& registry,
                           block::SpiFlashHandle handle,
@@ -151,7 +114,6 @@ export namespace charm::system {
                           init::Phase phase = init::Phase::core,
                           util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : binding(registry, handle, cfg, cap_name, hal_cap, phase, runlevel_mask) {
-            nodes = {&binding.node};
         }
 
         constexpr auto plan() const noexcept {
@@ -160,16 +122,7 @@ export namespace charm::system {
 
         template <typename Fn>
         constexpr void for_each_legacy_node(Fn&& fn) const noexcept {
-            for (util::usize i = 0; i < nodes.size(); ++i) {
-                if (nodes[i]) {
-                    fn(*nodes[i]);
-                }
-            }
-        }
-
-        [[deprecated("use plan() or build_graph(...) instead of node_span()")]]
-        std::span<const init::Node* const> node_span() const noexcept {
-            return std::span<const init::Node* const>(nodes.data(), nodes.size());
+            fn(binding.node);
         }
 
         template <util::usize MaxNodes, util::usize MaxCaps>

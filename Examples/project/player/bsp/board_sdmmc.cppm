@@ -54,8 +54,8 @@ namespace {
         }
 
         MODIFY_REG(card->Instance->CLKCR, SDMMC_CLKCR_CLKDIV,
-                   player::stm32h7::board::kSdmmcXferClockDiv);
-        card->Init.ClockDiv = player::stm32h7::board::kSdmmcXferClockDiv;
+                   player::stm32h7::board::kSdmmc.xfer_clock_div);
+        card->Init.ClockDiv = player::stm32h7::board::kSdmmc.xfer_clock_div;
 
         HAL_MMC_CardInfoTypeDef info{};
         if (HAL_MMC_GetCardInfo(card, &info) != HAL_OK) {
@@ -130,8 +130,8 @@ namespace {
         }
 
         MODIFY_REG(card->Instance->CLKCR, SDMMC_CLKCR_CLKDIV,
-                   player::stm32h7::board::kSdmmcXferClockDiv);
-        card->Init.ClockDiv = player::stm32h7::board::kSdmmcXferClockDiv;
+                   player::stm32h7::board::kSdmmc.xfer_clock_div);
+        card->Init.ClockDiv = player::stm32h7::board::kSdmmc.xfer_clock_div;
 
         HAL_SD_CardInfoTypeDef info{};
         if (HAL_SD_GetCardInfo(card, &info) != HAL_OK) {
@@ -197,7 +197,7 @@ namespace {
     void sdmmc_hw_init_once() noexcept {
         if (g_sdmmc_hw_inited) return;
         g_sdmmc_hw_inited = true;
-        if (player::stm32h7::board::kSdmmcCard == player::stm32h7::board::SdmmcCard::mmc) {
+        if (player::stm32h7::board::kSdmmc.card == player::stm32h7::board::SdmmcCard::mmc) {
             MX_SDMMC1_MMC_Init();
         } else {
             MX_SDMMC2_SD_Init();
@@ -240,7 +240,7 @@ export namespace player::stm32h7::board {
     }
 
     block::SdmmcHandle sdmmc_handle() noexcept {
-        if (kSdmmcCard == SdmmcCard::mmc) {
+        if (kSdmmc.card == SdmmcCard::mmc) {
             return block::SdmmcHandle{&hmmc1, &kMmcOps};
         }
         return block::SdmmcHandle{&hsd2, &kSdOps};
@@ -249,8 +249,8 @@ export namespace player::stm32h7::board {
     block::SdmmcConfig sdmmc_config() noexcept {
         block::SdmmcConfig cfg{};
         cfg.clock_hz = 0;
-        cfg.bus_width = kSdmmcBusWidth;
-        cfg.use_dma = kSdmmcUseDma;
+        cfg.bus_width = kSdmmc.bus_width;
+        cfg.use_dma = kSdmmc.use_dma;
         return cfg;
     }
 

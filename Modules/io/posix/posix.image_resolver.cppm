@@ -43,7 +43,14 @@ export namespace posix {
             if (elf_path.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            return load_elf_program_from_file(service, elf_path);
+            auto resolved = resolve_path_from_cwd<MaxPathLen>(cfg.cwd ? std::string_view{cfg.cwd}
+                                                                      : std::string_view{"/"},
+                                                              elf_path,
+                                                              resolved_path);
+            if (!resolved) {
+                return util::unexpected(resolved.error());
+            }
+            return load_elf_program_from_file(service, resolved.value());
         }
 
         const std::string_view name = resolve_registered_name<MaxPathLen>(
@@ -51,6 +58,7 @@ export namespace posix {
             cfg.path,
             cfg.argv,
             cfg.envp,
+            cfg.cwd,
             resolved_path,
             [&](std::string_view candidate) noexcept { return catalog.find(candidate) != nullptr; });
 

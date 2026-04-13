@@ -122,14 +122,31 @@ export namespace posix {
             (path.size() >= 8 && path.substr(0, 8) == "modulex:")) {
             return util::unexpected(util::Errc::noent);
         }
+        const auto cwd = cfg.cwd ? std::string_view{cfg.cwd} : std::string_view{"/"};
+        if (path.find('/') != std::string_view::npos) {
+            auto resolved = resolve_path_from_cwd<MaxPathLen>(cwd, path, resolved_path);
+            if (!resolved) {
+                return util::unexpected(resolved.error());
+            }
+            return load_elf_program_from_file(service, resolved.value());
+        }
         if (cfg.path_mode == PathMode::exact) {
-            return load_elf_program_from_file(service, path);
+            auto resolved = resolve_path_from_cwd<MaxPathLen>(cwd, path, resolved_path);
+            if (!resolved) {
+                return util::unexpected(resolved.error());
+            }
+            return load_elf_program_from_file(service, resolved.value());
         }
         const auto path_list = envp_path(cfg.envp);
         util::Result<ProgramImage> out = util::unexpected(util::Errc::noent);
         const bool found = for_each_path_candidate<MaxPathLen>(path_list, path,
             [&](std::string_view candidate) noexcept {
-                auto image = load_elf_program_from_file(service, candidate);
+                auto resolved = resolve_path_from_cwd<MaxPathLen>(cwd, candidate, resolved_path);
+                if (!resolved) {
+                    out = util::unexpected(resolved.error());
+                    return true;
+                }
+                auto image = load_elf_program_from_file(service, resolved.value());
                 if (image) {
                     out = image;
                     return true;
@@ -140,7 +157,6 @@ export namespace posix {
                 }
                 return false;
             });
-        (void)resolved_path;
         if (found) {
             return out;
         }

@@ -90,6 +90,7 @@ namespace posix {
 - `path` is the executable path, not an arbitrary command string.
 - `PathMode::search_path` enables PATH lookup using `argv[0]` or `path`.
 - `cwd` applies once per spawn; no file-action `chdir` in v1.
+- Relative executable paths and `FileAction::open.path` are interpreted against `cwd`; when `cwd` is unset, they inherit the parent's current working directory.
 - Phase 2 uses `FileActions::add_close` to emulate close-on-exec; `FD_CLOEXEC` is deferred.
 - Apply order:
   1) resolve executable

@@ -133,7 +133,9 @@ export namespace posix {
             if (cfg.path == nullptr && cfg.argv.empty()) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            auto child_table = posix::build_spawn_fd_table(parent_fd_table, file_service_, cfg);
+            auto child_table = posix::build_spawn_fd_table<MaxFds, MaxFiles, MaxPathLen>(parent_fd_table,
+                                                                                          file_service_,
+                                                                                          cfg);
             if (!child_table) {
                 return util::unexpected(child_table.error());
             }

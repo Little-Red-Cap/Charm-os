@@ -161,6 +161,44 @@ namespace {
         nullptr
     };
 
+    struct OpenTraceMount {
+        fs::Mount mount{};
+        std::array<char, 64> last_path{};
+
+        OpenTraceMount() noexcept {
+            mount.ops = &ops;
+            mount.data = this;
+        }
+
+        static fs::Status open_impl(fs::Mount* m, std::string_view path, fs::File& out, fs::OpenFlags) noexcept {
+            auto* self = static_cast<OpenTraceMount*>(m ? m->data : nullptr);
+            if (!self) return fs::Status{fs::Errc::inval};
+            self->last_path = {};
+            const auto n = path.size() < (self->last_path.size() - 1) ? path.size() : (self->last_path.size() - 1);
+            for (util::usize i = 0; i < n; ++i) {
+                self->last_path[i] = path[i];
+            }
+            self->last_path[n] = '\0';
+            out.node.type = fs::NodeType::file;
+            out.node.ops = &dummy_node_ops;
+            out.node.data = nullptr;
+            out.node.size = 0;
+            out.node.offset = 0;
+            return fs::Status{fs::Errc::ok};
+        }
+
+        inline static fs::MountOps ops{
+            &OpenTraceMount::open_impl,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr,
+            nullptr
+        };
+    };
+
     using KillProcService = posix::ProcService<4, 4, 8, 4>;
 
     struct KillOnEnterCtx {
@@ -470,6 +508,91 @@ namespace {
         check_true("open-parent-unchanged", !fd_entry);
     }
 
+    void test_exact_path_resolves_against_cwd() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/work/demo", &demo_main);
+        check_true("cwd-exact-register", rreg);
+
+        const char* argv[] = {"./demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "./demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.cwd = "/work";
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-exact-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-exact-wait", st);
+        check_eq("cwd-exact-code", st.value().code, 42);
+    }
+
+    void test_search_path_relative_entries_use_cwd() noexcept {
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        table.init();
+        procs.init();
+        procs.bind_fd_table(table);
+
+        auto rreg = procs.register_executable("/work/bin/demo", &demo_main);
+        check_true("cwd-path-register", rreg);
+
+        const char* argv[] = {"demo", nullptr};
+        const char* envp[] = {"PATH=./bin", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.envp = std::span<const char* const>(envp, 1);
+        cfg.cwd = "/work";
+        cfg.path_mode = posix::PathMode::search_path;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-path-spawn", spawn);
+        auto st = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-path-wait", st);
+        check_eq("cwd-path-code", st.value().code, 42);
+    }
+
+    void test_open_action_resolves_against_cwd() noexcept {
+        fs::clear_mounts();
+        OpenTraceMount mount{};
+        auto st = fs::add_mount("", &mount.mount);
+        check_true("cwd-open-mount", st);
+
+        posix::ProcService<4, 4, 8, 4> procs{};
+        posix::FdTable<8> table{};
+        posix::FileService<4> files{};
+        table.init();
+        files.init();
+        procs.init();
+        procs.bind_fd_table(table);
+        procs.bind_file_service(files);
+
+        auto rreg = procs.register_executable("demo", &demo_main);
+        check_true("cwd-open-register", rreg);
+
+        posix::FileActions<16> actions{};
+        check_true("cwd-open-action-add", actions.add_open(3, "../trace.txt", posix::O_WRONLY | posix::O_CREAT, 0));
+
+        const char* argv[] = {"demo", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "demo";
+        cfg.argv = std::span<const char* const>(argv, 1);
+        cfg.cwd = "/work/sub";
+        cfg.file_actions = &actions;
+
+        auto spawn = procs.spawn(cfg);
+        check_true("cwd-open-action-spawn", spawn);
+        auto wait = procs.waitpid(spawn.value().pid, 0);
+        check_true("cwd-open-action-wait", wait);
+        check_true("cwd-open-action-path",
+                   std::string_view{mount.last_path.data()} == std::string_view{"work/trace.txt"});
+    }
+
     void test_kill_wait_signaled() noexcept {
         KillProcService procs{};
         posix::FdTable<8> table{};
@@ -518,6 +641,9 @@ export void run_posix_proc_smoke_tests() noexcept {
     test_exact_mode_falls_back_to_argv0();
     test_stdio_and_actions();
     test_open_action();
+    test_exact_path_resolves_against_cwd();
+    test_search_path_relative_entries_use_cwd();
+    test_open_action_resolves_against_cwd();
     test_kill_wait_signaled();
     log_line("[posix-smoke] proc end ok");
 }

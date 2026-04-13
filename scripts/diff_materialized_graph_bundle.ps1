@@ -484,6 +484,57 @@ function New-CaseSummaryRow {
     }
 }
 
+function New-NodeJsonView {
+    param(
+        $NodeDescriptor
+    )
+
+    return [ordered]@{
+        name = $NodeDescriptor.Name
+        key = $NodeDescriptor.Key
+        kind = $NodeDescriptor.Kind
+        phase = $NodeDescriptor.Phase
+        runlevel = $NodeDescriptor.Runlevel
+        provides = @($NodeDescriptor.Provides)
+        requires = @($NodeDescriptor.Requires)
+    }
+}
+
+function New-EdgeJsonView {
+    param(
+        $EdgeDescriptor
+    )
+
+    return [ordered]@{
+        key = $EdgeDescriptor.Key
+        provider = $EdgeDescriptor.Provider
+        consumer = $EdgeDescriptor.Consumer
+        capability = $EdgeDescriptor.Capability
+    }
+}
+
+function New-CaseJsonView {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry) {
+        return $null
+    }
+
+    return [ordered]@{
+        name = [string]$CaseEntry.name
+        source = [string]$CaseEntry.source
+        build_dir = [string]$CaseEntry.build_dir
+        build_target = [string]$CaseEntry.build_target
+        export_target = [string]$CaseEntry.export_target
+        dot = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.dot)
+        json = Resolve-ArtifactPath -BundleRoot $Bundle.BundleRoot -Path ([string]$CaseEntry.json)
+        graph = $CaseEntry.graph
+    }
+}
+
 function Write-CaseDetails {
     param(
         $CaseDiff
@@ -549,15 +600,25 @@ if ($AsJson) {
             [ordered]@{
                 name = $_.Case
                 status = $_.Status
+                left_case = New-CaseJsonView -Bundle $leftBundle -CaseEntry $_.Left
+                right_case = New-CaseJsonView -Bundle $rightBundle -CaseEntry $_.Right
                 summary_changes = $_.SummaryChanges
                 node_changes = [ordered]@{
-                    added = @($_.NodeChanges.Added | ForEach-Object { $_.Name })
-                    removed = @($_.NodeChanges.Removed | ForEach-Object { $_.Name })
-                    changed = @($_.NodeChanges.Changed | ForEach-Object { [ordered]@{ name = $_.Name; fields = $_.Fields } })
+                    added = @($_.NodeChanges.Added | ForEach-Object { New-NodeJsonView -NodeDescriptor $_ })
+                    removed = @($_.NodeChanges.Removed | ForEach-Object { New-NodeJsonView -NodeDescriptor $_ })
+                    changed = @($_.NodeChanges.Changed | ForEach-Object {
+                        [ordered]@{
+                            name = $_.Name
+                            key = $_.Key
+                            fields = $_.Fields
+                            left = New-NodeJsonView -NodeDescriptor $_.Left
+                            right = New-NodeJsonView -NodeDescriptor $_.Right
+                        }
+                    })
                 }
                 edge_changes = [ordered]@{
-                    added = @($_.EdgeChanges.Added | ForEach-Object { $_.Key })
-                    removed = @($_.EdgeChanges.Removed | ForEach-Object { $_.Key })
+                    added = @($_.EdgeChanges.Added | ForEach-Object { New-EdgeJsonView -EdgeDescriptor $_ })
+                    removed = @($_.EdgeChanges.Removed | ForEach-Object { New-EdgeJsonView -EdgeDescriptor $_ })
                 }
             }
         })

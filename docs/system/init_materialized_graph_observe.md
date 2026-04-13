@@ -387,6 +387,28 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 - 节点新增 / 删除 / 字段变化
 - 依赖边新增 / 删除
 
+如果要把 diff 结果进一步交给人审阅，仓库根目录还提供了报告生成脚本：
+
+```powershell
+./scripts/report_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b
+./scripts/report_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b -Case materialize-observe-demo -OutputDir out/report
+./scripts/report_materialized_graph_bundle.ps1 -LeftBundleRoot out/bundle-a -RightBundleRoot out/bundle-b -Format markdown
+```
+
+它当前默认会生成：
+
+- `materialized_graph_bundle_diff_report.md`
+- `materialized_graph_bundle_diff_report.html`
+
+报告内容当前包括：
+
+- 左右 bundle 元信息与 case 统计
+- case 摘要表
+- 每个 case 的 summary changes
+- 可点击的 `dot / json` 工件链接
+- 节点新增 / 删除 / 字段变化表
+- 依赖边新增 / 删除表
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

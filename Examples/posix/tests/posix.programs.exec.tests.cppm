@@ -382,6 +382,48 @@ namespace {
         check_eq("newlib-lseek-code", st.value().code, 0);
     }
 
+    void test_newlib_path() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 128> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 128>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("newlib-path-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("newlib_path", &newlib_path_main);
+        check_true("newlib-path-register", rreg);
+
+        posix::FdOps term_ops{};
+        term_ops.stat = &term_stat_stub;
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &term_ops;
+        check_true("newlib-path-stdin", h.fds.attach(term_entry, 0));
+        check_true("newlib-path-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("newlib-path-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("newlib-path-pipe", h.api.pipe(pipefd), 0);
+        check_true("newlib-path-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"newlib_path", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "newlib_path";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("newlib-path-spawn", sp);
+
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("newlib-path-wait", st);
+        check_eq("newlib-path-code", st.value().code, 0);
+
+        std::array<char, 48> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("newlib-path-out", out, std::string_view{"newlib-path-ok\n"});
+    }
+
     void test_exit_code_explicit_exit() noexcept {
         Harness h{};
         h.procs.enable_elf_exec(true);
@@ -1217,6 +1259,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase newlib-lseek begin");
     test_newlib_lseek();
     log_line("[posix-smoke] programs phase newlib-lseek end");
+    log_line("[posix-smoke] programs phase newlib-path begin");
+    test_newlib_path();
+    log_line("[posix-smoke] programs phase newlib-path end");
     log_line("[posix-smoke] programs phase exit-code begin");
     log_line("[posix-smoke] programs exit-register ok");
     log_line("[posix-smoke] programs phase exit-code end");

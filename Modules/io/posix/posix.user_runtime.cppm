@@ -34,6 +34,11 @@ namespace posix::user::detail {
     }
 
     template <class Api>
+    int runtime_stat(void* ctx, const char* path, PosixStat* out) noexcept {
+        return static_cast<Api*>(ctx)->stat(path, out);
+    }
+
+    template <class Api>
     int runtime_isatty(void* ctx, int fd) noexcept {
         return static_cast<Api*>(ctx)->isatty(fd);
     }
@@ -151,6 +156,7 @@ export namespace posix::user {
         ssize_t (*read)(void* ctx, int fd, void* buf, util::usize count) noexcept {nullptr};
         ssize_t (*write)(void* ctx, int fd, const void* buf, util::usize count) noexcept {nullptr};
         int (*fstat)(void* ctx, int fd, PosixStat* out) noexcept {nullptr};
+        int (*stat)(void* ctx, const char* path, PosixStat* out) noexcept {nullptr};
         int (*isatty)(void* ctx, int fd) noexcept {nullptr};
         ssize_t (*lseek)(void* ctx, int fd, util::i64 offset, int whence) noexcept {nullptr};
         int (*open)(void* ctx, const char* path, int flags, int mode) noexcept {nullptr};
@@ -178,6 +184,7 @@ export namespace posix::user {
         runtime.read = &detail::runtime_read<Api>;
         runtime.write = &detail::runtime_write<Api>;
         runtime.fstat = &detail::runtime_fstat<Api>;
+        runtime.stat = &detail::runtime_stat<Api>;
         runtime.isatty = &detail::runtime_isatty<Api>;
         runtime.lseek = &detail::runtime_lseek<Api>;
         runtime.open = &detail::runtime_open<Api>;
@@ -269,6 +276,16 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->fstat(runtime->ctx, fd, out);
+        });
+    }
+
+    inline int stat(const char* path, PosixStat* out) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->stat) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->stat(runtime->ctx, path, out);
         });
     }
 

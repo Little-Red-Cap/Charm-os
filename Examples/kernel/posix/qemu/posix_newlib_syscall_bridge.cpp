@@ -1,5 +1,7 @@
 #include <cerrno>
+#include <cstdarg>
 #include <csignal>
+#include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -10,6 +12,13 @@ import posix.user_runtime;
 import util.core;
 
 namespace {
+    inline constexpr int kPosixOpenReadOnly = 0x0;
+    inline constexpr int kPosixOpenWriteOnly = 0x1;
+    inline constexpr int kPosixOpenReadWrite = 0x2;
+    inline constexpr int kPosixOpenCreate = 0x40;
+    inline constexpr int kPosixOpenTrunc = 0x200;
+    inline constexpr int kPosixOpenAppend = 0x400;
+
     struct ErrnoScope {
         int c_errno{errno};
         int runtime_errno{*posix::user::errno_location()};
@@ -35,6 +44,26 @@ namespace {
         out.st_mode = static_cast<mode_t>(in.mode);
         out.st_size = static_cast<off_t>(in.size);
         out.st_nlink = 1;
+    }
+
+    int translate_open_flags(int flags) noexcept {
+        int out = 0;
+        switch (flags & O_ACCMODE) {
+            case O_WRONLY:
+                out |= kPosixOpenWriteOnly;
+                break;
+            case O_RDWR:
+                out |= kPosixOpenReadWrite;
+                break;
+            case O_RDONLY:
+            default:
+                out |= kPosixOpenReadOnly;
+                break;
+        }
+        if ((flags & O_CREAT) != 0) out |= kPosixOpenCreate;
+        if ((flags & O_TRUNC) != 0) out |= kPosixOpenTrunc;
+        if ((flags & O_APPEND) != 0) out |= kPosixOpenAppend;
+        return out;
     }
 }
 
@@ -78,10 +107,44 @@ extern "C" int _close(int fd) {
     return r;
 }
 
+extern "C" int _open(const char* path, int flags, ...) {
+    ErrnoScope guard{};
+    int mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, int);
+        va_end(args);
+    }
+    const int r = posix::user::open(path, translate_open_flags(flags), mode);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
 extern "C" int _fstat(int fd, struct stat* st) {
     ErrnoScope guard{};
     posix::PosixStat pst{};
     const int r = posix::user::fstat(fd, &pst);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    if (!st) {
+        errno = EINVAL;
+        *posix::user::errno_location() = EINVAL;
+        return -1;
+    }
+    map_stat(pst, *st);
+    guard.restore();
+    return 0;
+}
+
+extern "C" int _stat(const char* path, struct stat* st) {
+    ErrnoScope guard{};
+    posix::PosixStat pst{};
+    const int r = posix::user::stat(path, &pst);
     if (r < 0) {
         return guard.fail_from_runtime();
     }
@@ -127,6 +190,16 @@ extern "C" int _getpid(void) {
 extern "C" int _kill(int pid, int sig) {
     ErrnoScope guard{};
     const int r = posix::user::kill(pid, sig);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int _unlink(const char* path) {
+    ErrnoScope guard{};
+    const int r = posix::user::unlink(path);
     if (r < 0) {
         return guard.fail_from_runtime();
     }

@@ -44,6 +44,7 @@ extern "C" int charm_posix_c_header_exit_entry(void);
 extern "C" int charm_posix_newlib_syscall_probe_entry(void);
 extern "C" int charm_posix_newlib_kill_self_entry(void);
 extern "C" int charm_posix_newlib_lseek_entry(void);
+extern "C" int charm_posix_newlib_path_entry(void);
 
 export namespace posix::testsupport {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
@@ -278,6 +279,10 @@ export namespace posix::testsupport {
 
     int newlib_lseek_main(int, char**, char**) {
         return charm_posix_newlib_lseek_entry();
+    }
+
+    int newlib_path_main(int, char**, char**) {
+        return charm_posix_newlib_path_entry();
     }
 
     int stderr_demo_main(int, char**, char**) {

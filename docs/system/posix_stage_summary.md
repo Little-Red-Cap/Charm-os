@@ -38,7 +38,7 @@
 - `close(-1) -> -1 && errno == EBADF`
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
-- `open("/dev/console", ...)` and `open("/dev/tty", ...)` now alias a live terminal fd, and `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
+- `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
 - `mkdir("/work") -> 0`, duplicate create returns `EEXIST`
 - `unlink("/missing") -> -1 && errno == ENOENT`
 - `opendir("/path")` + `readdir()` now expose stable entry name/type/size basics for smoke coverage

@@ -169,6 +169,15 @@ namespace {
         return {};
     }
 
+    inline const posix::FdOps kConsoleOps{
+        &console_stub_read,
+        &console_stub_write,
+        &console_stub_close,
+        &console_stub_stat,
+        &console_stub_dup,
+        nullptr
+    };
+
     using KillApiProcService = posix::ProcService<4, 4, 8, 4>;
     using KillApiType = posix::Api<8, 2, 8, 4, 4, 4>;
 
@@ -681,19 +690,11 @@ namespace {
         check_eq("devnull-read0", r, 0);
         check_eq("devnull-close", api.close(fd), 0);
 
-        static const posix::FdOps kOps{
-            &console_stub_read,
-            &console_stub_write,
-            &console_stub_close,
-            &console_stub_stat,
-            &console_stub_dup,
-            nullptr
-        };
         ConsoleStubCtx console_ctx{};
         posix::FdEntry term{};
         term.kind = posix::FdKind::term;
         term.flags = posix::FdFlags::read_write;
-        term.ops = &kOps;
+        term.ops = &kConsoleOps;
         term.ctx = &console_ctx;
         auto rfd = fds.attach(term, 3);
         check_true("isatty-attach", rfd);
@@ -776,6 +777,93 @@ namespace {
         check_eq("isatty-file-close", api.close(file_fd), 0);
         check_eq("isatty-pipe-close-r", api.close(pipefd[0]), 0);
         check_eq("isatty-pipe-close-w", api.close(pipefd[1]), 0);
+    }
+
+    void test_api_stdio_aliases() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("stdio-alias-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+
+        ConsoleStubCtx stdin_ctx{};
+        ConsoleStubCtx stderr_ctx{};
+        posix::FdEntry stdin_term{};
+        stdin_term.kind = posix::FdKind::term;
+        stdin_term.flags = posix::FdFlags::read_only;
+        stdin_term.ops = &kConsoleOps;
+        stdin_term.ctx = &stdin_ctx;
+        check_true("stdio-alias-stdin-attach", fds.attach(stdin_term, 0));
+
+        int stdout_seed = api.open("/stdout-seed.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("stdio-alias-stdout-seed", stdout_seed >= 0);
+        if (stdout_seed != 1) {
+            check_true("stdio-alias-stdout-dup2", fds.dup2(stdout_seed, 1));
+            check_eq("stdio-alias-stdout-seed-close", api.close(stdout_seed), 0);
+        }
+
+        posix::FdEntry stderr_term{};
+        stderr_term.kind = posix::FdKind::term;
+        stderr_term.flags = posix::FdFlags::write_only;
+        stderr_term.ops = &kConsoleOps;
+        stderr_term.ctx = &stderr_ctx;
+        check_true("stdio-alias-stderr-attach", fds.attach(stderr_term, 2));
+
+        posix::PosixStat st{};
+        check_eq("stdio-alias-stdin-stat", api.stat("/dev/stdin", &st), 0);
+        check_eq("stdio-alias-stdin-mode", st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("stdio-alias-stdin-size", st.size, 0u);
+
+        int stdin_fd = api.open("/dev/stdin", posix::O_RDONLY, 0);
+        check_true("stdio-alias-stdin-open", stdin_fd >= 0);
+        check_true("stdio-alias-stdin-dup", stdin_fd != 0);
+        check_eq("stdio-alias-stdin-isatty", api.isatty(stdin_fd), 1);
+        check_eq("stdio-alias-stdin-dup-count", stdin_ctx.dup_count, 1u);
+        check_eq("stdio-alias-stdin-close", api.close(stdin_fd), 0);
+
+        check_eq("stdio-alias-stdout-stat", api.stat("/dev/stdout", &st), 0);
+        check_eq("stdio-alias-stdout-mode", st.mode & posix::S_IFMT, posix::S_IFREG);
+
+        int stdout_fd = api.open("/dev/stdout", posix::O_WRONLY, 0);
+        check_true("stdio-alias-stdout-open", stdout_fd >= 0);
+        check_true("stdio-alias-stdout-dup", stdout_fd != 1);
+        posix::set_errno(0);
+        check_eq("stdio-alias-stdout-isatty", api.isatty(stdout_fd), 0);
+        check_eq("stdio-alias-stdout-isatty-errno", posix::get_errno(), 0);
+        check_eq("stdio-alias-stdout-fstat", api.fstat(stdout_fd, &st), 0);
+        check_eq("stdio-alias-stdout-fstat-mode", st.mode & posix::S_IFMT, posix::S_IFREG);
+        check_eq("stdio-alias-stdout-write", api.write(stdout_fd, "alias", 5), static_cast<posix::ssize_t>(5));
+        check_eq("stdio-alias-stdout-close", api.close(stdout_fd), 0);
+
+        int verify_fd = api.open("/stdout-seed.txt", posix::O_RDONLY, 0);
+        check_true("stdio-alias-verify-open", verify_fd >= 0);
+        std::array<char, 16> verify_buf{};
+        auto verify_read = api.read(verify_fd, verify_buf.data(), verify_buf.size());
+        check_eq("stdio-alias-verify-read", verify_read, static_cast<posix::ssize_t>(5));
+        check_eq("stdio-alias-verify-text", std::string_view{verify_buf.data(), 5}, std::string_view{"alias"});
+        check_eq("stdio-alias-verify-close", api.close(verify_fd), 0);
+
+        check_eq("stdio-alias-stderr-stat", api.stat("/dev/stderr", &st), 0);
+        check_eq("stdio-alias-stderr-mode", st.mode & posix::S_IFMT, posix::S_IFCHR);
+
+        int stderr_fd = api.open("/dev/stderr", posix::O_WRONLY, 0);
+        check_true("stdio-alias-stderr-open", stderr_fd >= 0);
+        check_true("stdio-alias-stderr-dup", stderr_fd != 2);
+        check_eq("stdio-alias-stderr-isatty", api.isatty(stderr_fd), 1);
+        check_eq("stdio-alias-stderr-dup-count", stderr_ctx.dup_count, 1u);
+        check_eq("stdio-alias-stderr-fstat", api.fstat(stderr_fd, &st), 0);
+        check_eq("stdio-alias-stderr-fstat-mode", st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("stdio-alias-stderr-close", api.close(stderr_fd), 0);
     }
 
     void test_api_cwd_and_spawn() noexcept {
@@ -977,6 +1065,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_kill();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
+    test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");

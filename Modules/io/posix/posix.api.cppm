@@ -120,17 +120,18 @@ export namespace posix {
                 set_errno(map_errno(resolved_path.error()));
                 return -1;
             }
-            if (is_console_path(resolved_path.value())) {
+            const auto alias_kind = classify_fd_alias(resolved_path.value());
+            if (alias_kind != FdAliasKind::none) {
                 bool duplicated = false;
-                auto console_entry = clone_console_entry(*table, flags, duplicated);
-                if (!console_entry) {
-                    set_errno(map_errno(console_entry.error()));
+                auto alias_entry = clone_fd_alias_entry(alias_kind, *table, flags, duplicated);
+                if (!alias_entry) {
+                    set_errno(map_errno(alias_entry.error()));
                     return -1;
                 }
-                auto rfd = table->attach(console_entry.value());
+                auto rfd = table->attach(alias_entry.value());
                 if (!rfd) {
                     if (duplicated) {
-                        close_entry(console_entry.value());
+                        close_entry(alias_entry.value());
                     }
                     set_errno(map_fd_attach_errno(rfd.error()));
                     return -1;
@@ -264,8 +265,9 @@ export namespace posix {
                 set_errno(map_errno(resolved_path.error()));
                 return -1;
             }
-            if (is_console_path(resolved_path.value())) {
-                auto st = stat_console_path(*out);
+            const auto alias_kind = classify_fd_alias(resolved_path.value());
+            if (alias_kind != FdAliasKind::none) {
+                auto st = stat_fd_alias(alias_kind, *out);
                 if (!st) {
                     set_errno(map_errno(st.error()));
                     return -1;
@@ -831,8 +833,20 @@ export namespace posix {
             return trimmed.size == 0;
         }
 
-        static bool is_console_path(std::string_view path) noexcept {
-            return path == "/dev/console" || path == "/dev/tty";
+        enum class FdAliasKind : util::u8 {
+            none,
+            stdin_alias,
+            stdout_alias,
+            stderr_alias,
+            console_alias,
+        };
+
+        static FdAliasKind classify_fd_alias(std::string_view path) noexcept {
+            if (path == "/dev/stdin") return FdAliasKind::stdin_alias;
+            if (path == "/dev/stdout") return FdAliasKind::stdout_alias;
+            if (path == "/dev/stderr") return FdAliasKind::stderr_alias;
+            if (path == "/dev/console" || path == "/dev/tty") return FdAliasKind::console_alias;
+            return FdAliasKind::none;
         }
 
         static FdFlags flags_to_fd_flags(int flags) noexcept {
@@ -870,6 +884,11 @@ export namespace posix {
             return fill_fallback_stat(entry, out);
         }
 
+        bool has_live_fd(const FdTable<MaxFds>& table, int fd) noexcept {
+            auto entry = const_cast<FdTable<MaxFds>&>(table).get(fd);
+            return static_cast<bool>(entry);
+        }
+
         int select_console_fd(const FdTable<MaxFds>& table, int flags) noexcept {
             const auto is_term_fd = [&](int fd) noexcept -> bool {
                 auto entry = const_cast<FdTable<MaxFds>&>(table).get(fd);
@@ -903,11 +922,30 @@ export namespace posix {
             return first_any_term();
         }
 
-        util::Result<FdEntry> clone_console_entry(FdTable<MaxFds>& table,
-                                                  int flags,
-                                                  bool& duplicated) noexcept {
+        int select_fd_alias_source(FdAliasKind kind,
+                                   const FdTable<MaxFds>& table,
+                                   int flags) noexcept {
+            switch (kind) {
+                case FdAliasKind::stdin_alias:
+                    return has_live_fd(table, 0) ? 0 : -1;
+                case FdAliasKind::stdout_alias:
+                    return has_live_fd(table, 1) ? 1 : -1;
+                case FdAliasKind::stderr_alias:
+                    return has_live_fd(table, 2) ? 2 : -1;
+                case FdAliasKind::console_alias:
+                    return select_console_fd(table, flags);
+                case FdAliasKind::none:
+                default:
+                    return -1;
+            }
+        }
+
+        util::Result<FdEntry> clone_fd_alias_entry(FdAliasKind kind,
+                                                   FdTable<MaxFds>& table,
+                                                   int flags,
+                                                   bool& duplicated) noexcept {
             duplicated = false;
-            const int source_fd = select_console_fd(table, flags);
+            const int source_fd = select_fd_alias_source(kind, table, flags);
             if (source_fd < 0) {
                 return util::unexpected(util::Errc::noent);
             }
@@ -927,12 +965,12 @@ export namespace posix {
             return copy;
         }
 
-        util::Result<void> stat_console_path(PosixStat& out) noexcept {
+        util::Result<void> stat_fd_alias(FdAliasKind kind, PosixStat& out) noexcept {
             auto* table = current_fd_table();
             if (!table) {
                 return util::unexpected(util::Errc::nosys);
             }
-            const int source_fd = select_console_fd(*table, O_RDWR);
+            const int source_fd = select_fd_alias_source(kind, *table, O_RDWR);
             if (source_fd < 0) {
                 return util::unexpected(util::Errc::noent);
             }

@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module block.device.node;
 
@@ -17,6 +18,8 @@ export namespace block {
         Device* dev{nullptr};
         RegistryT* registry{nullptr};
         DeviceDesc desc{};
+        const char* registry_cap_name{"block.registry"};
+        const char* hal_cap_name{nullptr};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 2> requires_caps{};
         util::usize requires_count{0};
@@ -30,6 +33,7 @@ export namespace block {
                       util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : dev(&device),
               registry(&reg),
+              hal_cap_name(hal_cap_name),
               desc{endpoint_name, cap_id(endpoint_name)} {
             provides[0] = init::cap_id(endpoint_name);
             requires_caps[0] = init::cap_id("block.registry");
@@ -48,6 +52,19 @@ export namespace block {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return desc.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{registry_cap_name};
+            }
+            if (requires_count > 1 && id == requires_caps[1]) {
+                return std::string_view{hal_cap_name ? hal_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

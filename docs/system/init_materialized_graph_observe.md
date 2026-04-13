@@ -124,6 +124,7 @@ std::string_view capability_name(init::CapId id) const noexcept;
 
 - `system.clock`
 - `io.registry` / `block.registry`
+- `block.sd0` / `block.flash0` / 其他 block endpoint binding
 - `io.reactor` / `kernel.eda` / `system.reactor_pump`
 - `platform.irq` / `hal.uart1` / `io.uart1` / `io.console0`
 - `input.service` / `input.router` / `input.pump`

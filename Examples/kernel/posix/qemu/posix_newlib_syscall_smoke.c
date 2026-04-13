@@ -82,6 +82,19 @@ int charm_posix_newlib_dup_entry(void) {
     return write(1, "newlib-dup-ok\n", 14) == 14 ? 0 : 167;
 }
 
+int charm_posix_newlib_dup2_entry(void) {
+    if (dup2(1, 2) != 2) return 171;
+    if (write(2, "dup2-", 5) != 5) return 172;
+
+    errno = 0;
+    if (dup2(-1, 4) != -1) return 173;
+    if (errno != EBADF) return 174;
+
+    if (dup2(2, 2) != 2) return 175;
+
+    return write(1, "newlib-dup2-ok\n", 15) == 15 ? 0 : 176;
+}
+
 int charm_posix_newlib_kill_self_entry(void) {
     if (write(1, "newlib-kill\n", 12) != 12) return 111;
     (void)kill(getpid(), SIGTERM);

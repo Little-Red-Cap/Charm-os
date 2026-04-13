@@ -69,6 +69,11 @@ namespace posix::user::detail {
     }
 
     template <class Api>
+    int runtime_dup2(void* ctx, int from, int to) noexcept {
+        return static_cast<Api*>(ctx)->dup2(from, to);
+    }
+
+    template <class Api>
     int runtime_pipe(void* ctx, int fds[2]) noexcept {
         return static_cast<Api*>(ctx)->pipe(fds);
     }
@@ -209,6 +214,7 @@ export namespace posix::user {
         int (*open)(void* ctx, const char* path, int flags, int mode) noexcept {nullptr};
         int (*close)(void* ctx, int fd) noexcept {nullptr};
         int (*dup)(void* ctx, int fd) noexcept {nullptr};
+        int (*dup2)(void* ctx, int from, int to) noexcept {nullptr};
         int (*pipe)(void* ctx, int fds[2]) noexcept {nullptr};
         int (*spawn)(void* ctx, SpawnConfig cfg) noexcept {nullptr};
         int (*spawnp)(void* ctx, SpawnConfig cfg) noexcept {nullptr};
@@ -241,6 +247,7 @@ export namespace posix::user {
         runtime.open = &detail::runtime_open<Api>;
         runtime.close = &detail::runtime_close<Api>;
         runtime.dup = &detail::runtime_dup<Api>;
+        runtime.dup2 = &detail::runtime_dup2<Api>;
         runtime.pipe = &detail::runtime_pipe<Api>;
         runtime.spawn = &detail::runtime_spawn<Api>;
         runtime.spawnp = &detail::runtime_spawnp<Api>;
@@ -391,6 +398,16 @@ export namespace posix::user {
         }
         return detail::invoke_with_errno_sync([&]() noexcept {
             return runtime->dup(runtime->ctx, fd);
+        });
+    }
+
+    inline int dup2(int from, int to) noexcept {
+        const auto* runtime = active_runtime();
+        if (!runtime || !runtime->dup2) {
+            return detail::missing_runtime<int>(-1);
+        }
+        return detail::invoke_with_errno_sync([&]() noexcept {
+            return runtime->dup2(runtime->ctx, from, to);
         });
     }
 

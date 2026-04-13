@@ -33,6 +33,7 @@ import util.core;
 import util.error;
 
 extern "C" int dup(int);
+extern "C" int dup2(int, int);
 
 namespace {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
@@ -873,6 +874,49 @@ namespace {
         }
     }
 
+    void test_api_dup2_bridge() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("dup2-bridge-mount", mount_st);
+
+        posix::FdTable<4> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<1, 8> pipes{};
+        posix::ProcService<2, 4, 4, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<4, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+        auto runtime = posix::user::make_runtime(api);
+        posix::user::bind_runtime(runtime);
+
+        int fd = api.open("/dup2-bridge.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("dup2-bridge-open", fd >= 0);
+
+        check_eq("dup2-bridge-call", dup2(fd, 2), 2);
+        check_eq("dup2-bridge-same", dup2(2, 2), 2);
+        check_eq("dup2-bridge-close-original", api.close(fd), 0);
+        check_eq("dup2-bridge-write", api.write(2, "d2", 2), static_cast<posix::ssize_t>(2));
+        check_eq("dup2-bridge-close-copy", api.close(2), 0);
+
+        int verify_fd = api.open("/dup2-bridge.txt", posix::O_RDONLY, 0);
+        check_true("dup2-bridge-verify-open", verify_fd >= 0);
+        std::array<char, 8> buf{};
+        auto r = api.read(verify_fd, buf.data(), buf.size());
+        check_eq("dup2-bridge-verify-read", r, static_cast<posix::ssize_t>(2));
+        check_eq("dup2-bridge-verify-text", std::string_view{buf.data(), 2}, std::string_view{"d2"});
+        check_eq("dup2-bridge-verify-close", api.close(verify_fd), 0);
+
+        posix::set_errno(0);
+        check_eq("dup2-bridge-badfd-rc", dup2(-1, 3), -1);
+        check_eq("dup2-bridge-badfd-errno", posix::get_errno(), posix::EBADF);
+
+        posix::user::unbind_runtime();
+    }
+
     void test_api_stdio_aliases() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1160,6 +1204,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
     test_api_dup();
+    test_api_dup2_bridge();
     test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();

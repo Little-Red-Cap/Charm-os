@@ -14,6 +14,14 @@
 - `materialized_graph.dot`
 - `materialized_graph.sample.json`
 
+如果已经完成 CMake 配置，也可以直接用导出目标：
+
+- `cmake --build <build-dir> --target export_materialized_graph_demo`
+
+仓库根目录还提供了脚本封装：
+
+- `scripts/export_materialized_graph.ps1`
+
 可选参数：
 
 - `--dot <path>`

@@ -238,6 +238,12 @@ cmake -S Examples/init/materialize_observe_demo -B cmake-build-init-observe-demo
 cmake --build cmake-build-init-observe-demo-clang -j 8
 ```
 
+如果只是想一键产出默认文件，也可以直接走示例内建目标：
+
+```powershell
+cmake --build cmake-build-init-observe-demo-clang --target export_materialized_graph_demo -j 8
+```
+
 然后运行：
 
 ```powershell
@@ -253,6 +259,24 @@ cmake --build cmake-build-init-observe-demo-clang -j 8
 
 ```powershell
 ./init-materialize-observe-demo.exe --dot out.dot --json out.json
+```
+
+仓库根目录还提供了封装脚本：
+
+```powershell
+./scripts/export_materialized_graph.ps1
+```
+
+它默认会：
+
+- 配置 `Examples/init/materialize_observe_demo`
+- 使用 `cmake-build-init-observe-demo-clang`
+- 触发 `export_materialized_graph_demo` 目标
+
+如果要显式指定导出路径：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -Dot out.dot -Json out.json
 ```
 
 ## 当前验收点

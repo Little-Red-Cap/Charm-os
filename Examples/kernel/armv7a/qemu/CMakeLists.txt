@@ -28,11 +28,22 @@ get_filename_component(CHARM_ROOT
     ABSOLUTE)
 include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
-add_library(charm_cfg_armv7a_qemu INTERFACE)
 charm_add_config_interface(charm_cfg_armv7a_qemu
     ARCH armv7a
     PLATFORM qemu_virt
     BAREMETAL)
+
+set(CHARM_CONFIG_TARGETS charm_cfg_armv7a_qemu)
+set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
+set(CHARM_AUDIO_USE_VFS OFF CACHE BOOL "" FORCE)
+set(CHARM_ENABLE_POSIX OFF CACHE BOOL "" FORCE)
+set(CHARM_BUILD_PLAYER OFF CACHE BOOL "" FORCE)
+add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
+unset(CHARM_CONFIG_TARGETS)
 
 add_executable(${PROJECT_NAME})
 
@@ -61,6 +72,7 @@ charm_apply_target_profile(${PROJECT_NAME}
     BAREMETAL)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    Charm-os
     charm_cfg_armv7a_qemu)
 
 if (CHARM_QEMU_SEMIHOST_DEBUG)

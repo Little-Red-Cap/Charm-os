@@ -2,7 +2,6 @@ module;
 
 #include <array>
 #include <cstddef>
-#include <cstdlib>
 #include <span>
 #include <string_view>
 
@@ -84,6 +83,22 @@ export namespace shell_service {
         g_jobs = table;
     }
 
+    inline bool parse_u32(std::string_view sv, util::u32& out) noexcept {
+        if (sv.empty()) return false;
+
+        constexpr util::u32 max_value = static_cast<util::u32>(~util::u32{0});
+        util::u32 value = 0;
+        for (char ch : sv) {
+            if (ch < '0' || ch > '9') return false;
+            const auto digit = static_cast<util::u32>(ch - '0');
+            if (value > (max_value - digit) / 10u) return false;
+            value = static_cast<util::u32>(value * 10u + digit);
+        }
+
+        out = value;
+        return true;
+    }
+
     inline shell::Result cmd_jobs(shell::Console& con, int, std::span<std::string_view>) noexcept {
         if (!g_jobs) return shell::err(shell::Errc::nosys);
         g_jobs->list(con);
@@ -100,7 +115,8 @@ export namespace shell_service {
     inline shell::Result cmd_stop(shell::Console&, int argc, std::span<std::string_view> argv) noexcept {
         if (!g_jobs) return shell::err(shell::Errc::nosys);
         if (argc < 2) return shell::err(shell::Errc::inval);
-        const auto id = static_cast<util::u32>(std::strtoul(argv[1].data(), nullptr, 10));
+        util::u32 id = 0;
+        if (!parse_u32(argv[1], id)) return shell::err(shell::Errc::inval);
         return g_jobs->stop(id) ? shell::ok() : shell::err(shell::Errc::noent);
     }
 

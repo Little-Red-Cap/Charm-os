@@ -3,13 +3,15 @@
 #include <cstddef>
 #include <array>
 #include <utility>
-#include <charconv>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <bit>  // std::bit_cast for NaN/Inf checks without <cmath>.
+#ifdef OUT_ENABLE_FLOAT
+#include <charconv>
+#endif
 export module out.format;
 // Dependency contract (DO NOT VIOLATE)
 // Allowed out.* imports: out.core, out.sink
@@ -430,45 +432,55 @@ export namespace out {
 #endif
 #endif
   template <class UInt>
+  inline result<std::string_view> format_uint_view(char* buffer,
+                                                   std::size_t capacity,
+                                                   UInt value,
+                                                   unsigned base,
+                                                   bool upper = false) noexcept {
+    if (capacity == 0) return util::unexpected(errc::buffer_overflow);
+
+    const char* digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    char* begin = buffer;
+    char* end = buffer + capacity;
+    char* p = end;
+
+    if (base != 2 && base != 10 && base != 16)
+      return util::unexpected(errc::invalid_format);
+
+    do {
+      if (p == begin) return util::unexpected(errc::buffer_overflow);
+      const auto digit = static_cast<unsigned>(value % base);
+      *--p = digits[digit];
+      value /= base;
+    } while (value != 0);
+
+    return ok<std::string_view>(std::string_view{p, static_cast<std::size_t>(end - p)});
+  }
+
+  template <class UInt>
   inline result<std::size_t> write_uint_base(auto& sink, UInt v, unsigned base, fmt_spec spec) noexcept {
     char buf[80]; // enough for 64-bit in binary? 64 + maybe. binary needs 64, so enlarge if you enable b.
-    char* first = buf;
-    char* last  = buf + sizeof(buf);
-
-    // Use std::to_chars for base-10/16 conversion (usually smaller than printf).
-    auto ec = std::errc{};
+    result<std::string_view> view = util::unexpected(errc::invalid_format);
 
     if (base == 10) {
-      auto r = std::to_chars(first, last, v, 10);
-      ec = r.ec;
-      last = r.ptr;
+      view = format_uint_view(buf, sizeof(buf), v, 10);
     } else if (base == 16) {
-      auto r = std::to_chars(first, last, v, 16);
-      ec = r.ec;
-      last = r.ptr;
-      if (spec.upper) {
-        for (char* p = first; p < last; ++p)
-          if (*p >= 'a' && *p <= 'f') *p = static_cast<char>(*p - 'a' + 'A');
-      }
+      view = format_uint_view(buf, sizeof(buf), v, 16, spec.upper);
     } else if (base == 2) {
 #ifndef OUT_ENABLE_BINARY
       (void)v; (void)spec;
       return util::unexpected(errc::invalid_format);
 #else
-      char* p = last;
-      do {
-        *--p = char('0' + (v & 1u));
-        v >>= 1u;
-      } while (v != 0);
-      first = p;
+      view = format_uint_view(buf, sizeof(buf), v, 2);
 #endif
     } else {
       return util::unexpected(errc::invalid_format);
     }
 
-    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
+    if (!view) return util::unexpected(view.error());
 
-    std::size_t len = static_cast<std::size_t>(last - first);
+    const std::string_view text = *view;
+    std::size_t len = text.size();
     std::size_t total = 0;
 
     // padding (block write to reduce sink.write calls)
@@ -486,7 +498,7 @@ export namespace out {
       }
     }
 
-    auto r = write(sink, std::string_view{first, len});
+    auto r = write(sink, text);
     if (!r) return util::unexpected(r.error());
     total += *r;
     return ok(total);
@@ -661,12 +673,13 @@ namespace detail {
 
     // Build core digits (without sign) for width calculation.
     char buf[32];
-    char* p = buf;
+    auto core_digits = format_uint_view(buf, sizeof(buf), ip, 10);
+    if (!core_digits) return util::unexpected(core_digits.error());
+    if (core_digits->data() != buf) {
+      std::memmove(buf, core_digits->data(), core_digits->size());
+    }
+    char* p = buf + core_digits->size();
     char* end = buf + sizeof(buf);
-
-    auto [ptr, ec] = std::to_chars(p, end, ip, 10);
-    if (ec != std::errc{}) return util::unexpected(errc::buffer_overflow);
-    p = ptr;
 
     if (prec != 0) {
       if (p >= end) return util::unexpected(errc::buffer_overflow);

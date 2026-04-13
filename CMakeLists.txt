@@ -87,7 +87,9 @@ endif()
 
 set(CHARM_MATERIAL_COLOR_UTILS_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/material_color_utils")
-if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+if (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp"
+    AND CHARM_ENABLE_UI_VIVID
+    AND NOT CHARM_BAREMETAL)
     target_include_directories(${target_name} PRIVATE "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
     set(MATERIAL_COLOR_UTILS_SOURCES
         "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
@@ -218,6 +220,17 @@ if (NOT CHARM_ENABLE_TEST_MODULES)
 endif()
 if (NOT CHARM_ENABLE_POSIX)
     list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "/Modules/io/posix/")
+endif()
+if (NOT CHARM_ENABLE_FREETYPE)
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/gfx/font/font_provider_freetype.cppm")
+endif()
+if (CHARM_BAREMETAL)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/baremetal.cmake")
+    list(REMOVE_ITEM MODULE_INTERFACE_UNITS ${CHARM_BAREMETAL_EXCLUDED_MODULES})
+    foreach(charm_baremetal_exclude_regex IN LISTS CHARM_BAREMETAL_EXCLUDED_REGEXES)
+        list(FILTER MODULE_INTERFACE_UNITS EXCLUDE REGEX "${charm_baremetal_exclude_regex}")
+    endforeach()
 endif()
 if (NOT CHARM_ENABLE_MEDIA OR NOT CHARM_ENABLE_UI_INK OR NOT CHARM_ENABLE_UI_VIVID)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS

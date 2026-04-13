@@ -5,12 +5,16 @@ export import charm.system.time;
 export import charm.system.caps;
 export import charm.system.init_core;
 export import charm.system.init_block;
+#if !defined(CHARM_BAREMETAL)
 export import charm.system.init_usb;
+#endif
 export import charm.system.init_input;
 export import charm.system.init_usart;
 export import charm.system.bringup;
 export import charm.system.bringup.stm32_stub;
+#if !defined(CHARM_BAREMETAL)
 export import charm.system.bringup.win_stub;
+#endif
 export import charm.system.reactor_pump;
 export import charm.system.rtos;
 

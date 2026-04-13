@@ -337,6 +337,26 @@ cmake --build cmake-build-init-observe-demo-clang --target export_materialized_g
 ./scripts/export_materialized_graph.ps1 -AllCases
 ```
 
+如果要把多案例结果收拢到一个统一目录，并生成一个供工具消费的索引：
+
+```powershell
+./scripts/export_materialized_graph.ps1 -AllCases -OutputRoot out/materialized-graph-bundle
+```
+
+这会生成：
+
+- `out/materialized-graph-bundle/index.json`
+- `out/materialized-graph-bundle/materialize-observe-demo/materialized_graph.dot`
+- `out/materialized-graph-bundle/materialize-observe-demo/materialized_graph.sample.json`
+- 以及其它 case 各自的 `DOT / JSON sample`
+
+`index.json` 当前会汇总：
+
+- case 名称
+- 对应 `source / build target / export target`
+- bundle 内相对路径形式的 `dot / json`
+- 从 `JSON sample` 提取出的轻量摘要，例如 `node_count / edge_count / phase / runlevel / node_kinds`
+
 ## 当前验收点
 
 这一轮观察面成立，主要看下面几件事：

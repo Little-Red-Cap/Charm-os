@@ -21,6 +21,7 @@
 仓库根目录还提供了脚本封装：
 
 - `scripts/export_materialized_graph.ps1`
+- `scripts/export_materialized_graph.ps1 -AllCases -OutputRoot out/materialized-graph-bundle`
 
 可选参数：
 

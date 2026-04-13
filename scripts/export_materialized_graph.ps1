@@ -12,7 +12,8 @@ param(
     [switch]$ConfigureOnly,
     [string[]]$Case = @(),
     [switch]$AllCases,
-    [switch]$ListCases
+    [switch]$ListCases,
+    [string]$OutputRoot = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,6 +71,141 @@ function Get-ExportCases {
             ExtraCache = @('USB_MSC_BLOCK_EXPORT_IMAGE_PATH=observe-usb-block.img')
         }
     )
+}
+
+function Resolve-FullPath {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return ''
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
+}
+
+function Ensure-ParentDirectory {
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent) -and -not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+}
+
+function Get-RelativePath {
+    param(
+        [string]$BasePath,
+        [string]$TargetPath
+    )
+
+    $baseFull = Resolve-FullPath $BasePath
+    $targetFull = Resolve-FullPath $TargetPath
+    if ([string]::IsNullOrWhiteSpace($baseFull) -or [string]::IsNullOrWhiteSpace($targetFull)) {
+        throw "relative path resolution requires non-empty base and target"
+    }
+    $trimChars = [char[]]@('\', '/')
+    $baseUri = New-Object System.Uri(($baseFull.TrimEnd($trimChars) + [System.IO.Path]::DirectorySeparatorChar))
+    $targetUri = New-Object System.Uri($targetFull)
+    return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Get-GraphSummary {
+    param(
+        [string]$JsonPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($JsonPath) -or -not (Test-Path $JsonPath)) {
+        return $null
+    }
+
+    $graph = Get-Content -LiteralPath $JsonPath -Raw -Encoding utf8 | ConvertFrom-Json
+    $kindCounts = [ordered]@{}
+    foreach ($node in $graph.nodes) {
+        $kind = [string]$node.kind
+        if ([string]::IsNullOrWhiteSpace($kind)) {
+            $kind = 'unknown'
+        }
+
+        if ($kindCounts.Contains($kind)) {
+            $kindCounts[$kind] += 1
+        } else {
+            $kindCounts[$kind] = 1
+        }
+    }
+
+    $summary = [ordered]@{
+        schema = $graph.schema
+        node_count = $graph.node_count
+        edge_count = $graph.edge_count
+        effective_max_phase = $graph.effective_max_phase
+        effective_runlevel_mask = $graph.effective_runlevel_mask
+        effective_runlevel_text = $graph.effective_runlevel_text
+    }
+    if ($kindCounts.Count -gt 0) {
+        $summary.node_kinds = $kindCounts
+    }
+
+    return $summary
+}
+
+function Write-ExportBundleIndex {
+    param(
+        [object[]]$Results,
+        [string]$OutputRootPath
+    )
+
+    $bundleRoot = Resolve-FullPath $OutputRootPath
+    if (-not (Test-Path $bundleRoot)) {
+        New-Item -ItemType Directory -Path $bundleRoot -Force | Out-Null
+    }
+
+    $cases = @()
+    foreach ($result in @($Results)) {
+        if ($null -eq $result -or $null -eq $result.PSObject.Properties['DotPath'] -or $null -eq $result.PSObject.Properties['JsonPath']) {
+            continue
+        }
+
+        $caseEntry = [ordered]@{
+            name = $result.Name
+            source = $result.Source
+            build_dir = $result.BuildDir
+            build_target = $result.BuildTarget
+            export_target = $result.ExportTarget
+            dot = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.DotPath
+            json = Get-RelativePath -BasePath $bundleRoot -TargetPath $result.JsonPath
+        }
+
+        $summary = Get-GraphSummary -JsonPath $result.JsonPath
+        if ($null -ne $summary) {
+            $caseEntry.graph = $summary
+        }
+
+        $cases += $caseEntry
+    }
+
+    $index = [ordered]@{
+        schema = 'materialized_graph.export_bundle/v1'
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+        case_count = $cases.Count
+        cases = $cases
+    }
+
+    $indexPath = Join-Path $bundleRoot 'index.json'
+    $index | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $indexPath -Encoding utf8
+    Write-Host "[INDEX] $indexPath"
+    return $indexPath
 }
 
 function Invoke-LegacyExport {
@@ -140,7 +276,8 @@ function Invoke-ManifestCase {
     param(
         [hashtable]$Entry,
         [string]$DotOverride = '',
-        [string]$JsonOverride = ''
+        [string]$JsonOverride = '',
+        [string]$OutputRootPath = ''
     )
 
     $sourceDir = Join-Path $repoRoot $Entry.Source
@@ -153,16 +290,28 @@ function Invoke-ManifestCase {
         Remove-Item -Recurse -Force $buildDir
     }
 
-    $dotPath = if ([string]::IsNullOrWhiteSpace($DotOverride)) {
-        Join-Path $buildDir $Entry.DefaultDot
+    $dotPath = ''
+    $jsonPath = ''
+    if (-not [string]::IsNullOrWhiteSpace($OutputRootPath)) {
+        $caseOutputDir = Join-Path (Resolve-FullPath $OutputRootPath) $Entry.Name
+        New-Item -ItemType Directory -Path $caseOutputDir -Force | Out-Null
+        $dotPath = Join-Path $caseOutputDir $Entry.DefaultDot
+        $jsonPath = Join-Path $caseOutputDir $Entry.DefaultJson
     } else {
-        $DotOverride
+        $dotPath = if ([string]::IsNullOrWhiteSpace($DotOverride)) {
+            Join-Path $buildDir $Entry.DefaultDot
+        } else {
+            Resolve-FullPath $DotOverride
+        }
+        $jsonPath = if ([string]::IsNullOrWhiteSpace($JsonOverride)) {
+            Join-Path $buildDir $Entry.DefaultJson
+        } else {
+            Resolve-FullPath $JsonOverride
+        }
     }
-    $jsonPath = if ([string]::IsNullOrWhiteSpace($JsonOverride)) {
-        Join-Path $buildDir $Entry.DefaultJson
-    } else {
-        $JsonOverride
-    }
+
+    Ensure-ParentDirectory -Path $dotPath
+    Ensure-ParentDirectory -Path $jsonPath
 
     $configureArgs = @(
         '-S', $sourceDir,
@@ -182,25 +331,33 @@ function Invoke-ManifestCase {
     }
 
     Write-Host "[CFG][$($Entry.Name)] $sourceDir"
-    & cmake @configureArgs
+    & cmake @configureArgs | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "configure failed: $($Entry.Name)"
     }
 
     if ($ConfigureOnly) {
         Write-Host "[OK][$($Entry.Name)] configure finished: $buildDir"
-        return
+        return [pscustomobject]@{
+            Name = $Entry.Name
+            Source = $Entry.Source
+            BuildDir = $Entry.BuildDir
+            BuildTarget = $Entry.BuildTarget
+            ExportTarget = $Entry.ExportTarget
+            DotPath = $dotPath
+            JsonPath = $jsonPath
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($Entry.ExportTarget)) {
         Write-Host "[EXPORT][$($Entry.Name)] target=$($Entry.ExportTarget)"
-        cmake --build $buildDir --target $Entry.ExportTarget -j $Jobs
+        cmake --build $buildDir --target $Entry.ExportTarget -j $Jobs | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "export target failed: $($Entry.Name)"
         }
     } else {
         Write-Host "[BUILD][$($Entry.Name)] target=$($Entry.BuildTarget)"
-        cmake --build $buildDir --target $Entry.BuildTarget -j $Jobs
+        cmake --build $buildDir --target $Entry.BuildTarget -j $Jobs | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "build failed: $($Entry.Name)"
         }
@@ -208,6 +365,15 @@ function Invoke-ManifestCase {
 
     Write-Host "[DOT][$($Entry.Name)]  $dotPath"
     Write-Host "[JSON][$($Entry.Name)] $jsonPath"
+    return [pscustomobject]@{
+        Name = $Entry.Name
+        Source = $Entry.Source
+        BuildDir = $Entry.BuildDir
+        BuildTarget = $Entry.BuildTarget
+        ExportTarget = $Entry.ExportTarget
+        DotPath = $dotPath
+        JsonPath = $jsonPath
+    }
 }
 
 $manifestCases = Get-ExportCases
@@ -220,6 +386,15 @@ if ($ListCases) {
 }
 
 $useManifest = $AllCases -or $Case.Count -gt 0
+
+if (-not [string]::IsNullOrWhiteSpace($OutputRoot) -and -not $useManifest) {
+    throw "-OutputRoot requires -Case or -AllCases"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($OutputRoot) -and (-not [string]::IsNullOrWhiteSpace($Dot) -or -not [string]::IsNullOrWhiteSpace($Json))) {
+    throw "-OutputRoot cannot be combined with -Dot/-Json"
+}
+
 if (-not $useManifest) {
     Invoke-LegacyExport
     exit 0
@@ -242,14 +417,23 @@ if ($AllCases) {
     }
 }
 
+$results = @()
 foreach ($entry in $selected) {
     $dotOverride = if ($selected.Count -eq 1) { $Dot } else { '' }
     $jsonOverride = if ($selected.Count -eq 1) { $Json } else { '' }
-    Invoke-ManifestCase -Entry $entry -DotOverride $dotOverride -JsonOverride $jsonOverride
+    $results += Invoke-ManifestCase -Entry $entry -DotOverride $dotOverride -JsonOverride $jsonOverride -OutputRootPath $OutputRoot
+}
+
+$indexPath = ''
+if (-not $ConfigureOnly -and -not [string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $indexPath = Write-ExportBundleIndex -Results $results -OutputRootPath $OutputRoot
 }
 
 if ($ConfigureOnly) {
     Write-Host '[OK] configure finished for selected cases'
 } else {
     Write-Host '[OK] materialized graph export finished for selected cases'
+    if (-not [string]::IsNullOrWhiteSpace($indexPath)) {
+        Write-Host "[OK] export bundle index written: $indexPath"
+    }
 }

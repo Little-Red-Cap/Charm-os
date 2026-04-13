@@ -20,3 +20,4 @@
 仓库根目录脚本也支持把它当作一个批量导出 case：
 
 - `scripts/export_materialized_graph.ps1 -Case bringup-minimal-observe-demo`
+- `scripts/export_materialized_graph.ps1 -AllCases -OutputRoot out/materialized-graph-bundle`

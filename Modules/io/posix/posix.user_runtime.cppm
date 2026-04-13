@@ -105,7 +105,14 @@ namespace posix::user::detail {
 
     template <class Api>
     int runtime_rmdir(void* ctx, const char* path) noexcept {
-        return static_cast<Api*>(ctx)->rmdir(path);
+        if constexpr (requires(Api& api, const char* p) { api.rmdir(p); }) {
+            return static_cast<Api*>(ctx)->rmdir(path);
+        } else {
+            (void)ctx;
+            (void)path;
+            set_errno(ENOSYS);
+            return -1;
+        }
     }
 
     template <class Api>

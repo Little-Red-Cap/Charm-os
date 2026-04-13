@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 export module input.pump;
 
@@ -163,6 +164,10 @@ export namespace input {
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{16};
         util::usize budget{8};
+        const char* eda_cap_name{"kernel.eda"};
+        const char* service_cap_name{"input.service"};
+        const char* clock_cap_name{"system.clock"};
+        const char* router_cap_name{"input.router"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 4> requires_caps{};
         init::Node node{};
@@ -197,7 +202,11 @@ export namespace input {
               post_ctx(post_ctx_in),
               self(task_id),
               period_ms((period_ms_in == 0) ? 1 : period_ms_in),
-              budget((budget_in == 0) ? 1 : budget_in) {
+              budget((budget_in == 0) ? 1 : budget_in),
+              eda_cap_name(eda_cap_name),
+              service_cap_name(service_cap_name),
+              clock_cap_name(clock_cap_name),
+              router_cap_name(router_cap_name) {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id(eda_cap_name);
             requires_caps[1] = init::cap_id(service_cap_name);
@@ -213,6 +222,25 @@ export namespace input {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return node.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{eda_cap_name ? eda_cap_name : ""};
+            }
+            if (id == requires_caps[1]) {
+                return std::string_view{service_cap_name ? service_cap_name : ""};
+            }
+            if (id == requires_caps[2]) {
+                return std::string_view{clock_cap_name ? clock_cap_name : ""};
+            }
+            if (id == requires_caps[3]) {
+                return std::string_view{router_cap_name ? router_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

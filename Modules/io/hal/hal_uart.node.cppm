@@ -2,6 +2,7 @@ module;
 
 #include <array>
 #include <span>
+#include <string_view>
 
 export module hal_uart.node;
 
@@ -32,6 +33,7 @@ export namespace hal {
     struct UartBinding {
         UartIoHandle handle{};
         UartConfig config{};
+        const char* irq_cap_name{"platform.irq"};
         std::array<init::CapId, 1> provides{};
         std::array<init::CapId, 1> requires_caps{};
         init::Node node{};
@@ -42,7 +44,7 @@ export namespace hal {
                     const char* irq_cap_name = "platform.irq",
                     init::Phase phase = init::Phase::core,
                     util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
-            : handle(h), config(cfg) {
+            : handle(h), config(cfg), irq_cap_name(irq_cap_name) {
             provides[0] = init::cap_id(cap_name);
             requires_caps[0] = init::cap_id(irq_cap_name);
             node = init::Node{
@@ -55,6 +57,16 @@ export namespace hal {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            if (id == provides[0]) {
+                return node.name;
+            }
+            if (id == requires_caps[0]) {
+                return std::string_view{irq_cap_name ? irq_cap_name : ""};
+            }
+            return {};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

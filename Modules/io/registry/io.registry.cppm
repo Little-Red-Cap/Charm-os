@@ -8,6 +8,8 @@ module;
 
 export module io.registry;
 
+#include <string_view>
+
 import io.channel;
 import io.reactor;
 import init.node;
@@ -219,6 +221,12 @@ export namespace io {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? node.name
+                : std::string_view{};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

@@ -3,6 +3,7 @@ module;
 #include <cstdint>
 #include <span>
 #include <array>
+#include <string_view>
 
 export module charm.system.clock;
 
@@ -96,6 +97,12 @@ export namespace charm::system {
                 nullptr,
                 this
             };
+        }
+
+        constexpr std::string_view capability_name(init::CapId id) const noexcept {
+            return id == provides[0]
+                ? node.name
+                : std::string_view{};
         }
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {

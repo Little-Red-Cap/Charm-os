@@ -120,6 +120,16 @@ std::string_view capability_name(init::CapId id) const noexcept;
 - 暴露 `for_each_legacy_node(...)` 的旧 chain
 - 暴露 `node_span()` 的旧 chain
 
+当前仓库里，`init + system bringup` 主路径上常见的 legacy binding 已经逐步补齐这类 hook，例如：
+
+- `system.clock`
+- `io.registry` / `block.registry`
+- `io.reactor` / `kernel.eda` / `system.reactor_pump`
+- `platform.irq` / `hal.uart1` / `io.uart1` / `io.console0`
+- `input.service` / `input.router` / `input.pump`
+
+因此像 `bringup_block_observe_demo`、`bringup_minimal_observe_demo` 这类更贴近真实 bringup 的导出结果，已经可以直接显示可读 capability 名称，而不只是十六进制 `CapId`。
+
 #### 2. raw span 名称表
 
 如果调用方只有裸 `Node*` span，可以使用：

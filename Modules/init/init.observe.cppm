@@ -167,6 +167,76 @@ namespace init::detail {
         return offset;
     }
 
+    inline std::size_t append_json_escaped(char* out,
+                                           std::size_t max,
+                                           std::size_t offset,
+                                           std::string_view sv) noexcept {
+        for (char ch : sv) {
+            switch (ch) {
+                case '\\':
+                    offset = append_text(out, max, offset, "\\\\");
+                    break;
+                case '"':
+                    offset = append_text(out, max, offset, "\\\"");
+                    break;
+                case '\b':
+                    offset = append_text(out, max, offset, "\\b");
+                    break;
+                case '\f':
+                    offset = append_text(out, max, offset, "\\f");
+                    break;
+                case '\n':
+                    offset = append_text(out, max, offset, "\\n");
+                    break;
+                case '\r':
+                    offset = append_text(out, max, offset, "\\r");
+                    break;
+                case '\t':
+                    offset = append_text(out, max, offset, "\\t");
+                    break;
+                default:
+                    if (static_cast<unsigned char>(ch) < 0x20u) {
+                        offset = append_fmt(out,
+                                            max,
+                                            offset,
+                                            "\\u%04X",
+                                            static_cast<unsigned int>(static_cast<unsigned char>(ch)));
+                    } else {
+                        offset = append_char(out, max, offset, ch);
+                    }
+                    break;
+            }
+        }
+        return offset;
+    }
+
+    inline std::size_t append_json_string(char* out,
+                                          std::size_t max,
+                                          std::size_t offset,
+                                          std::string_view sv) noexcept {
+        offset = append_char(out, max, offset, '"');
+        offset = append_json_escaped(out, max, offset, sv);
+        offset = append_char(out, max, offset, '"');
+        return offset;
+    }
+
+    inline std::size_t append_json_cap_array(char* out,
+                                             std::size_t max,
+                                             std::size_t offset,
+                                             std::span<const CapId> caps) noexcept {
+        offset = append_char(out, max, offset, '[');
+        for (std::size_t i = 0; i < caps.size(); ++i) {
+            if (i > 0) {
+                offset = append_char(out, max, offset, ',');
+            }
+            offset = append_char(out, max, offset, '"');
+            offset = append_cap_id(out, max, offset, caps[i]);
+            offset = append_char(out, max, offset, '"');
+        }
+        offset = append_char(out, max, offset, ']');
+        return offset;
+    }
+
     [[nodiscard]] constexpr const char* node_shape(materialized_node_kind kind) noexcept {
         switch (kind) {
             case materialized_node_kind::recipe: return "box";
@@ -375,6 +445,121 @@ export namespace init {
         return format_dot(observe(mats), out, max);
     }
 
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    std::size_t format_json_sample(const materialized_graph_view<MaxNodes, MaxCaps>& view,
+                                   char* out,
+                                   std::size_t max) noexcept {
+        if (!out || max == 0) {
+            return 0;
+        }
+
+        std::size_t offset = 0;
+        out[0] = '\0';
+        offset = detail::append_char(out, max, offset, '{');
+
+        offset = detail::append_text(out, max, offset, "\"schema\":");
+        offset = detail::append_json_string(out, max, offset, "materialized_graph.sample/v1");
+        offset = detail::append_text(out, max, offset, ",\"effective_max_phase\":");
+        offset = detail::append_json_string(out, max, offset, to_text(view.effective_max_phase));
+        offset = detail::append_text(out, max, offset, ",\"effective_runlevel_mask\":");
+        offset = detail::append_fmt(out,
+                                    max,
+                                    offset,
+                                    "%llu",
+                                    static_cast<unsigned long long>(view.effective_runlevel_mask));
+        offset = detail::append_text(out, max, offset, ",\"effective_runlevel_text\":");
+        offset = detail::append_char(out, max, offset, '"');
+        offset = detail::append_runlevel_mask(out, max, offset, view.effective_runlevel_mask);
+        offset = detail::append_char(out, max, offset, '"');
+        offset = detail::append_text(out, max, offset, ",\"node_count\":");
+        offset = detail::append_fmt(out,
+                                    max,
+                                    offset,
+                                    "%llu",
+                                    static_cast<unsigned long long>(view.node_count));
+        offset = detail::append_text(out, max, offset, ",\"edge_count\":");
+        offset = detail::append_fmt(out,
+                                    max,
+                                    offset,
+                                    "%llu",
+                                    static_cast<unsigned long long>(view.edge_count));
+
+        offset = detail::append_text(out, max, offset, ",\"nodes\":[");
+        for (util::usize i = 0; i < view.node_count; ++i) {
+            const auto& node = view.nodes[i];
+            if (i > 0) {
+                offset = detail::append_char(out, max, offset, ',');
+            }
+            offset = detail::append_char(out, max, offset, '{');
+            offset = detail::append_text(out, max, offset, "\"index\":");
+            offset = detail::append_fmt(out,
+                                        max,
+                                        offset,
+                                        "%llu",
+                                        static_cast<unsigned long long>(node.index));
+            offset = detail::append_text(out, max, offset, ",\"name\":");
+            offset = detail::append_json_string(out,
+                                                max,
+                                                offset,
+                                                node.name.empty() ? std::string_view{""} : node.name);
+            offset = detail::append_text(out, max, offset, ",\"kind\":");
+            offset = detail::append_json_string(out, max, offset, to_text(node.kind));
+            offset = detail::append_text(out, max, offset, ",\"phase\":");
+            offset = detail::append_json_string(out, max, offset, to_text(node.phase));
+            offset = detail::append_text(out, max, offset, ",\"runlevel_mask\":");
+            offset = detail::append_fmt(out,
+                                        max,
+                                        offset,
+                                        "%llu",
+                                        static_cast<unsigned long long>(node.runlevel_mask));
+            offset = detail::append_text(out, max, offset, ",\"runlevel_text\":");
+            offset = detail::append_char(out, max, offset, '"');
+            offset = detail::append_runlevel_mask(out, max, offset, node.runlevel_mask);
+            offset = detail::append_char(out, max, offset, '"');
+            offset = detail::append_text(out, max, offset, ",\"provides\":");
+            offset = detail::append_json_cap_array(out, max, offset, node.provides);
+            offset = detail::append_text(out, max, offset, ",\"requires\":");
+            offset = detail::append_json_cap_array(out, max, offset, node.requires_caps);
+            offset = detail::append_char(out, max, offset, '}');
+        }
+        offset = detail::append_char(out, max, offset, ']');
+
+        offset = detail::append_text(out, max, offset, ",\"edges\":[");
+        for (util::usize i = 0; i < view.edge_count; ++i) {
+            const auto& edge = view.edges[i];
+            if (i > 0) {
+                offset = detail::append_char(out, max, offset, ',');
+            }
+            offset = detail::append_char(out, max, offset, '{');
+            offset = detail::append_text(out, max, offset, "\"provider_index\":");
+            offset = detail::append_fmt(out,
+                                        max,
+                                        offset,
+                                        "%llu",
+                                        static_cast<unsigned long long>(edge.provider_index));
+            offset = detail::append_text(out, max, offset, ",\"consumer_index\":");
+            offset = detail::append_fmt(out,
+                                        max,
+                                        offset,
+                                        "%llu",
+                                        static_cast<unsigned long long>(edge.consumer_index));
+            offset = detail::append_text(out, max, offset, ",\"capability\":");
+            offset = detail::append_char(out, max, offset, '"');
+            offset = detail::append_cap_id(out, max, offset, edge.capability);
+            offset = detail::append_char(out, max, offset, '"');
+            offset = detail::append_char(out, max, offset, '}');
+        }
+        offset = detail::append_text(out, max, offset, "]}");
+        return offset >= max ? (max - 1) : offset;
+    }
+
+    template <util::usize MaxNodes, util::usize MaxCaps>
+    std::size_t format_json_sample(const materialized_graph<MaxNodes, MaxCaps>& mats,
+                                   char* out,
+                                   std::size_t max) noexcept {
+        return format_json_sample(observe(mats), out, max);
+    }
+
 #ifndef NDEBUG
     inline util::Result<void> observe_self_check() noexcept {
         using CapA = cap_c<"observe.a">;
@@ -430,6 +615,18 @@ export namespace init {
         if (std::strstr(dot.data(), "digraph materialized_graph") == nullptr
             || std::strstr(dot.data(), "shape=diamond") == nullptr
             || std::strstr(dot.data(), "requires=") == nullptr) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+
+        std::array<char, 1536> json{};
+        const auto json_used = format_json_sample(view, json.data(), json.size());
+        if (json_used == 0) {
+            return util::unexpected(util::Errc::bad_state);
+        }
+        if (std::strstr(json.data(), "\"schema\":\"materialized_graph.sample/v1\"") == nullptr
+            || std::strstr(json.data(), "\"nodes\":[") == nullptr
+            || std::strstr(json.data(), "\"edges\":[") == nullptr
+            || std::strstr(json.data(), "\"kind\":\"barrier\"") == nullptr) {
             return util::unexpected(util::Errc::bad_state);
         }
         return {};

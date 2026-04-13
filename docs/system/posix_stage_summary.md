@@ -36,6 +36,7 @@
 - `read(-1, ...) -> -1 && errno == EBADF`
 - `write(-1, ...) -> -1 && errno == EBADF`
 - `close(-1) -> -1 && errno == EBADF`
+- `dup(valid-fd) -> new-fd`, `dup(-1) -> -1 && errno == EBADF`, and `dup(full-table) -> -1 && errno == EMFILE`
 - `open("/dir", O_WRONLY) -> -1 && errno == EISDIR`
 - `open("/file/child", O_RDONLY) -> -1 && errno == ENOTDIR`
 - `open("/dev/stdin")` / `open("/dev/stdout")` / `open("/dev/stderr")` now alias the active stdio fd set, while `open("/dev/console", ...)` and `open("/dev/tty", ...)` alias a live terminal fd; `stat/fstat` on term-style descriptors stabilizes at `S_IFCHR`
@@ -46,6 +47,7 @@
 ## Mainline Capabilities Already Holding
 - file-backed ELF can be loaded and spawned from a path
 - stdio/fd/pipe/wait form a working minimal userland spine
+- fd duplication now has a stable minimum contract through `dup()`/`dup2()` across API smoke and the bound-runtime C bridge smoke
 - busybox phase2 smoke remains usable on top of the current spine
 - busybox phase1 minimal FS slice is now usable on top of the current spine
 - child fd cleanup on exit is in place and no longer destabilizes pipe EOF behavior

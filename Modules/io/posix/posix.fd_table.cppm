@@ -173,6 +173,26 @@ export namespace posix {
             return {};
         }
 
+        util::Result<int> dup(int from) noexcept {
+            auto* src = get_ptr(from);
+            if (!src) {
+                return util::unexpected(util::Errc::noent);
+            }
+            for (util::usize i = 0; i < MaxFds; ++i) {
+                if (used_[i]) continue;
+                if (src->ops && src->ops->dup) {
+                    auto rdup = src->ops->dup(src->ctx);
+                    if (!rdup) return util::unexpected(rdup.error());
+                }
+                FdEntry copy = *src;
+                copy.id = static_cast<int>(i);
+                slots_[i] = copy;
+                used_[i] = true;
+                return copy.id;
+            }
+            return util::unexpected(util::Errc::buffer_overflow);
+        }
+
         util::Result<FdEntry*> get(int fd) noexcept {
             auto* entry = get_ptr(fd);
             if (!entry) {

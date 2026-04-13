@@ -32,6 +32,8 @@ import fs_vfs;
 import util.core;
 import util.error;
 
+extern "C" int dup(int);
+
 namespace {
 #if defined(POSIX_SMOKE_USE_UART) && POSIX_SMOKE_USE_UART
     extern "C" void posix_smoke_emit(const char* msg) noexcept;
@@ -779,6 +781,98 @@ namespace {
         check_eq("isatty-pipe-close-w", api.close(pipefd[1]), 0);
     }
 
+    void test_api_dup() noexcept {
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("dup-mount", mount_st);
+
+            posix::FdTable<2> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 2, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<2, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+
+            int fd = api.open("/dup.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("dup-open", fd >= 0);
+
+            int dup_fd = api.dup(fd);
+            check_true("dup-call", dup_fd >= 0);
+            check_true("dup-new-fd-diff", dup_fd != fd);
+
+            posix::set_errno(0);
+            check_eq("dup-full-rc", api.dup(fd), -1);
+            check_eq("dup-full-errno", posix::get_errno(), posix::EMFILE);
+
+            check_eq("dup-close-original", api.close(fd), 0);
+            check_eq("dup-write-via-copy", api.write(dup_fd, "dup", 3), static_cast<posix::ssize_t>(3));
+            check_eq("dup-close-copy", api.close(dup_fd), 0);
+
+            int verify_fd = api.open("/dup.txt", posix::O_RDONLY, 0);
+            check_true("dup-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("dup-verify-read", r, static_cast<posix::ssize_t>(3));
+            check_eq("dup-verify-text", std::string_view{buf.data(), 3}, std::string_view{"dup"});
+            check_eq("dup-verify-close", api.close(verify_fd), 0);
+
+            posix::set_errno(0);
+            check_eq("dup-badfd-rc", api.dup(-1), -1);
+            check_eq("dup-badfd-errno", posix::get_errno(), posix::EBADF);
+        }
+
+        {
+            fs::clear_mounts();
+            ApiRamFsMount<64, 32, 64> ramfs{};
+            auto mount_st = fs::add_mount("", ramfs.mount_point());
+            check_true("dup-bridge-mount", mount_st);
+
+            posix::FdTable<3> fds{};
+            posix::FileService<4> files{};
+            posix::PipeService<1, 8> pipes{};
+            posix::ProcService<2, 4, 3, 4> procs{};
+            fds.init();
+            files.init();
+            pipes.init();
+            procs.init();
+
+            posix::Api<3, 1, 8, 2, 4, 4> api{fds, files, pipes, procs};
+            auto runtime = posix::user::make_runtime(api);
+            posix::user::bind_runtime(runtime);
+
+            int fd = api.open("/dup-bridge.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+            check_true("dup-bridge-open", fd >= 0);
+
+            int dup_fd = dup(fd);
+            check_true("dup-bridge-call", dup_fd >= 0);
+            check_true("dup-bridge-new-fd-diff", dup_fd != fd);
+
+            check_eq("dup-bridge-close-original", api.close(fd), 0);
+            check_eq("dup-bridge-write", api.write(dup_fd, "rt", 2), static_cast<posix::ssize_t>(2));
+            check_eq("dup-bridge-close-copy", api.close(dup_fd), 0);
+
+            int verify_fd = api.open("/dup-bridge.txt", posix::O_RDONLY, 0);
+            check_true("dup-bridge-verify-open", verify_fd >= 0);
+            std::array<char, 8> buf{};
+            auto r = api.read(verify_fd, buf.data(), buf.size());
+            check_eq("dup-bridge-verify-read", r, static_cast<posix::ssize_t>(2));
+            check_eq("dup-bridge-verify-text", std::string_view{buf.data(), 2}, std::string_view{"rt"});
+            check_eq("dup-bridge-verify-close", api.close(verify_fd), 0);
+
+            posix::set_errno(0);
+            check_eq("dup-bridge-badfd-rc", dup(-1), -1);
+            check_eq("dup-bridge-badfd-errno", posix::get_errno(), posix::EBADF);
+
+            posix::user::unbind_runtime();
+        }
+    }
+
     void test_api_stdio_aliases() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1065,6 +1159,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_kill();
     test_api_fs_basics_and_readdir();
     test_api_dev_null_and_isatty();
+    test_api_dup();
     test_api_stdio_aliases();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();

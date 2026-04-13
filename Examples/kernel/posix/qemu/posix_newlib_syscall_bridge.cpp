@@ -197,6 +197,20 @@ extern "C" int _close(int fd) {
     return r;
 }
 
+extern "C" int _dup(int fd) {
+    ErrnoScope guard{};
+    const int r = posix::user::dup(fd);
+    if (r < 0) {
+        return guard.fail_from_runtime();
+    }
+    guard.restore();
+    return r;
+}
+
+extern "C" int dup(int fd) {
+    return _dup(fd);
+}
+
 extern "C" int _open(const char* path, int flags, ...) {
     ErrnoScope guard{};
     int mode = 0;

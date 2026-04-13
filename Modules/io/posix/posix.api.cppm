@@ -480,6 +480,20 @@ export namespace posix {
             return to;
         }
 
+        int dup(int from) noexcept {
+            auto* table = current_fd_table();
+            if (!table) {
+                set_errno(ENOSYS);
+                return -1;
+            }
+            auto r = table->dup(from);
+            if (!r) {
+                set_errno(map_dup_errno(r.error()));
+                return -1;
+            }
+            return r.value();
+        }
+
         int isatty(int fd) noexcept {
             auto* table = current_fd_table();
             if (!table) {
@@ -1029,6 +1043,13 @@ export namespace posix {
 
         static int map_fd_attach_errno(util::Errc err) noexcept {
             return to_fd_attach_errno(err);
+        }
+
+        static int map_dup_errno(util::Errc err) noexcept {
+            if (err == util::Errc::buffer_overflow) {
+                return EMFILE;
+            }
+            return map_fd_errno(err);
         }
 
         static int map_pipe_errno(util::Errc err) noexcept {

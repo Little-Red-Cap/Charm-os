@@ -164,6 +164,48 @@ namespace {
         check_true("clone-ops", clone.value().ops == &ops);
     }
 
+    void test_dup_allocates_new_fd() noexcept {
+        posix::FdTable<3> table{};
+        table.init();
+
+        Counter c{};
+        posix::FdOps ops{
+            &dummy_read,
+            &dummy_write,
+            &dummy_close,
+            &dummy_stat,
+            &dummy_dup,
+            nullptr
+        };
+
+        posix::FdEntry e0{};
+        e0.kind = posix::FdKind::file;
+        e0.ops = &ops;
+        e0.ctx = &c;
+        auto r0 = table.attach(e0, 1);
+        check_true("dup-attach-1", r0);
+
+        auto rdup = table.dup(1);
+        check_true("dup-1", rdup);
+        check_eq("dup-new-fd", rdup.value(), 0);
+
+        auto rget = table.get(rdup.value());
+        check_true("dup-get", rget);
+        check_true("dup-same-ctx", rget.value()->ctx == &c);
+
+        auto rbad = table.dup(9);
+        check_true("dup-badfd", !rbad);
+        check_eq("dup-badfd-code", rbad.error(), util::Errc::noent);
+
+        posix::FdEntry e1 = e0;
+        auto r1 = table.attach(e1, 2);
+        check_true("dup-attach-2", r1);
+
+        auto rfull = table.dup(1);
+        check_true("dup-full", !rfull);
+        check_eq("dup-full-code", rfull.error(), util::Errc::buffer_overflow);
+    }
+
     void test_attach_errors() noexcept {
         posix::FdTable<2> table{};
         table.init();
@@ -207,6 +249,7 @@ export void run_posix_fd_table_smoke_tests() noexcept {
     log_line("[posix-smoke] fd_table begin");
     test_attach_dup_close();
     test_clone_entry();
+    test_dup_allocates_new_fd();
     test_attach_errors();
     log_line("[posix-smoke] fd_table end ok");
 }

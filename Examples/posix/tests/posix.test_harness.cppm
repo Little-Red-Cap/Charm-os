@@ -41,6 +41,7 @@ export import util.error;
 
 extern "C" int charm_posix_c_header_probe_entry(void);
     extern "C" int charm_posix_c_header_exit_entry(void);
+extern "C" int charm_posix_c_fs_header_entry(void);
     extern "C" int charm_posix_newlib_syscall_probe_entry(void);
     extern "C" int charm_posix_newlib_dup_entry(void);
     extern "C" int charm_posix_newlib_dup2_entry(void);
@@ -274,6 +275,7 @@ export namespace posix::testsupport {
     int crt_c_exit_main(int, char**, char**) {
         if (charm_posix_write(1, "crt-c-exit\n", 11) != 11) return 61;
         charm_posix_exit(29);
+        return 62;
     }
 
     int crt_c_header_probe_main(int, char**, char**) {
@@ -282,6 +284,10 @@ export namespace posix::testsupport {
 
     int crt_c_header_exit_main(int, char**, char**) {
         return charm_posix_c_header_exit_entry();
+    }
+
+    int crt_c_fs_header_main(int, char**, char**) {
+        return charm_posix_c_fs_header_entry();
     }
 
     int newlib_syscall_probe_main(int, char**, char**) {

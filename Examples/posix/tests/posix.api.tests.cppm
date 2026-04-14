@@ -824,6 +824,67 @@ namespace {
         check_eq("fs-append-close-read", api.close(fd), 0);
     }
 
+    void test_api_dir_handle_limits() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("dirlimit-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<8> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 8> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        posix::Api<8, 2, 8, 4, 4, 8, 128, 16, 16, 256, 4096, 4096, 2> api{fds, files, pipes, procs};
+
+        check_eq("dirlimit-mkdir-a", api.mkdir("/a"), 0);
+        check_eq("dirlimit-mkdir-b", api.mkdir("/b"), 0);
+
+        posix::set_errno(0);
+        check_true("dirlimit-opendir-null-path", api.opendir(nullptr) == nullptr);
+        check_eq("dirlimit-opendir-null-path-errno", posix::get_errno(), posix::EINVAL);
+
+        posix::set_errno(0);
+        check_true("dirlimit-opendir-missing", api.opendir("/missing") == nullptr);
+        check_eq("dirlimit-opendir-missing-errno", posix::get_errno(), posix::ENOENT);
+
+        auto* root_dir = api.opendir("/");
+        check_true("dirlimit-opendir-root", root_dir != nullptr);
+
+        auto* a_dir = api.opendir("/a");
+        check_true("dirlimit-opendir-a", a_dir != nullptr);
+
+        posix::set_errno(0);
+        check_true("dirlimit-opendir-full", api.opendir("/b") == nullptr);
+        check_eq("dirlimit-opendir-full-errno", posix::get_errno(), posix::EMFILE);
+
+        check_eq("dirlimit-closedir-root", api.closedir(root_dir), 0);
+
+        auto* b_dir = api.opendir("/b");
+        check_true("dirlimit-opendir-reuse", b_dir != nullptr);
+
+        posix::set_errno(93);
+        check_true("dirlimit-readdir-empty-eof", api.readdir(b_dir) == nullptr);
+        check_eq("dirlimit-readdir-empty-eof-errno", posix::get_errno(), 93);
+
+        posix::PosixDir invalid_dir{};
+        invalid_dir.slot = 99;
+        posix::set_errno(0);
+        check_true("dirlimit-readdir-invalid", api.readdir(&invalid_dir) == nullptr);
+        check_eq("dirlimit-readdir-invalid-errno", posix::get_errno(), posix::EINVAL);
+
+        posix::set_errno(0);
+        check_eq("dirlimit-closedir-invalid", api.closedir(&invalid_dir), -1);
+        check_eq("dirlimit-closedir-invalid-errno", posix::get_errno(), posix::EINVAL);
+
+        check_eq("dirlimit-closedir-a", api.closedir(a_dir), 0);
+        check_eq("dirlimit-closedir-b", api.closedir(b_dir), 0);
+    }
+
     void test_api_dev_null_and_isatty() noexcept {
         fs::clear_mounts();
         fs::Mount mount{};
@@ -1915,6 +1976,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_sleep();
     test_api_kill();
     test_api_fs_basics_and_readdir();
+    test_api_dir_handle_limits();
     test_api_dev_null_and_isatty();
     test_api_dup();
     test_api_dup2_bridge();

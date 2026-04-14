@@ -25,10 +25,27 @@ import posix.test_harness;
 namespace {
     using namespace posix::testsupport;
 
+    util::Result<void> term_stat_stub(void*, posix::PosixStat& out) noexcept {
+        out.mode = posix::make_stat_mode(posix::S_IFCHR, posix::kModePermChar);
+        out.size = 0;
+        return {};
+    }
+
+    inline const posix::FdOps kTermOps{
+        nullptr,
+        nullptr,
+        nullptr,
+        &term_stat_stub,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+    };
+
     void test_elf_file_fd_probe() noexcept {
         fs::clear_mounts();
-        static RamFsMount<256, 64, 512> ramfs{};
-        new (&ramfs) RamFsMount<256, 64, 512>();
+        static RamFsMount<256, 16, 96> ramfs{};
+        new (&ramfs) RamFsMount<256, 16, 96>();
         auto mount_status = fs::add_mount("", ramfs.mount_point());
         check_true("fd-probe-mount", mount_status);
 
@@ -68,10 +85,9 @@ namespace {
             (void)h.api.close(fd_read);
         }
 
-        posix::FdOps term_ops{};
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
-        term_entry.ops = &term_ops;
+        term_entry.ops = &kTermOps;
         check_true("fd-probe-attach-stdin", h.fds.attach(term_entry, 0));
         check_true("fd-probe-attach-stdout", h.fds.attach(term_entry, 1));
         check_true("fd-probe-attach-stderr", h.fds.attach(term_entry, 2));
@@ -103,7 +119,9 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("fd-probe-out", out, std::string_view{"rw-ok\n"});
+        check_eq("fd-probe-out",
+            out,
+            std::string_view{"stdin=chr tty=1\nstdout=fifo tty=0\nfile=reg tty=0\nrw-ok\n"});
 
         (void)h.fds.dup2(2, 1);
         h.procs.enable_elf_hostcalls(false);
@@ -136,7 +154,7 @@ namespace {
 
     void test_elf_file_stat_probe() noexcept {
         fs::clear_mounts();
-        RamFsMount<256, 64, 512> ramfs{};
+        RamFsMount<256, 16, 96> ramfs{};
         auto mount_status = fs::add_mount("", ramfs.mount_point());
         check_true("stat-probe-mount", mount_status);
 
@@ -156,6 +174,13 @@ namespace {
         h.procs.bind_file_service(h.files);
         h.procs.enable_elf_exec(true);
         h.procs.enable_elf_hostcalls(true);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("stat-probe-attach-stdin", h.fds.attach(term_entry, 0));
+        check_true("stat-probe-attach-stdout", h.fds.attach(term_entry, 1));
+        check_true("stat-probe-attach-stderr", h.fds.attach(term_entry, 2));
 
         int fd_elf = h.api.open("/stat_probe.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
         check_true("stat-probe-elf-open", fd_elf >= 0);
@@ -188,7 +213,9 @@ namespace {
             out_size += static_cast<util::usize>(r);
         }
         auto out = std::string_view{out_buf.data(), out_size};
-        check_eq("stat-probe-out", out, std::string_view{"rc=0\nsz=10\nbs=-1\n"});
+        check_eq("stat-probe-out",
+            out,
+            std::string_view{"rc=0\nfile=32768\nfsz=10\nout=4096\nosz=0\nerr=8192\nesz=0\nbad=-1\n"});
 
         h.procs.enable_elf_hostcalls(false);
         h.procs.enable_elf_exec(false);

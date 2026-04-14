@@ -182,6 +182,29 @@ export namespace net {
 
     class Socket {
     public:
+        Socket() noexcept = default;
+        Socket(const Socket&) = delete;
+        Socket& operator=(const Socket&) = delete;
+
+        Socket(Socket&& other) noexcept
+            : provider_(other.provider_),
+              handle_(other.handle_),
+              kind_(other.kind_),
+              state_(other.state_) {
+            other.clear();
+        }
+
+        Socket& operator=(Socket&& other) noexcept {
+            if (this == &other) return *this;
+            if (valid()) util::halt();
+            provider_ = other.provider_;
+            handle_ = other.handle_;
+            kind_ = other.kind_;
+            state_ = other.state_;
+            other.clear();
+            return *this;
+        }
+
         [[nodiscard]] constexpr bool valid() const noexcept {
             return provider_.valid() && handle_.valid();
         }
@@ -271,6 +294,20 @@ export namespace net {
             auto accepted = provider_.accept(handle_, peer);
             if (!accepted) return util::unexpected(accepted.error());
             return out.attach(provider_, accepted.value(), SocketKind::tcp, SocketState::connected);
+        }
+
+        [[nodiscard]] Result<Socket> accept() noexcept {
+            Result<Socket> accepted{std::in_place};
+            auto ok = accept(accepted.value(), nullptr);
+            if (!ok) return util::unexpected(ok.error());
+            return accepted;
+        }
+
+        [[nodiscard]] Result<Socket> accept(Endpoint& peer) noexcept {
+            Result<Socket> accepted{std::in_place};
+            auto ok = accept(accepted.value(), &peer);
+            if (!ok) return util::unexpected(ok.error());
+            return accepted;
         }
 
         [[nodiscard]] IoResult send(ByteView buf) noexcept {
@@ -432,7 +469,6 @@ namespace net {
         detail::DummySocketProvider provider{};
         auto ref = make_socket_provider_ref(provider);
         Socket listener{};
-        Socket accepted{};
         Socket udp{};
         util::u8 rx[4]{};
         util::u8 tx[4]{1, 2, 3, 4};
@@ -441,13 +477,17 @@ namespace net {
         if (!listener.open(ref, SocketKind::tcp)) return false;
         if (!listener.bind(Endpoint::ipv4_any(8080))) return false;
         if (!listener.listen(2)) return false;
-        if (!listener.accept(accepted, &peer)) return false;
-        if (!accepted.valid()) return false;
+        auto accepted = listener.accept(peer);
+        if (!accepted) return false;
+        if (!accepted->valid()) return false;
         if (peer.port != 1883) return false;
-        if (!accepted.send(ByteView{tx, 4})) return false;
-        if (!accepted.recv(MutByteView{rx, 4})) return false;
+        Socket moved{std::move(accepted.value())};
+        if (!moved.valid()) return false;
+        if (accepted->valid()) return false;
+        if (!moved.send(ByteView{tx, 4})) return false;
+        if (!moved.recv(MutByteView{rx, 4})) return false;
         if (rx[0] != 0x2A) return false;
-        if (!accepted.close()) return false;
+        if (!moved.close()) return false;
 
         if (!udp.open(ref, SocketKind::udp)) return false;
         if (!udp.send_to(Endpoint::ipv4(192, 168, 1, 10, 5000), ByteView{tx, 4})) return false;

@@ -48,9 +48,13 @@ target_sources(${target_name}
             ${MODULE_INTERFACE_UNITS}
 )
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_ink_windows
+    COMPILE_DEFINITIONS OUT_ENABLE_FLOAT)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 target_link_libraries(${target_name} PRIVATE Charm-os)
-target_compile_definitions(Charm-os PRIVATE OUT_ENABLE_FLOAT)
+charm_apply_config_targets(Charm-build-config charm_cfg_ink_windows)
+charm_apply_config_targets(${target_name} charm_cfg_ink_windows)
 
 
 

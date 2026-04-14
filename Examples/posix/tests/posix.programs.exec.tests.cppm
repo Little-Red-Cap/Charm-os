@@ -346,6 +346,46 @@ namespace {
         check_eq("crt-c-header-exit-code", st.value().code, 37);
     }
 
+    void test_crt_c_fs_header() noexcept {
+        fs::clear_mounts();
+        static RamFsMount<64, 16, 128> ramfs{};
+        new (&ramfs) RamFsMount<64, 16, 128>();
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("crt-c-fs-header-mount", mount_st);
+
+        Harness h{};
+        auto rreg = h.procs.register_executable("crt_c_fs_header", &crt_c_fs_header_main);
+        check_true("crt-c-fs-header-register", rreg);
+
+        posix::FdEntry term_entry{};
+        term_entry.kind = posix::FdKind::term;
+        term_entry.ops = &kTermOps;
+        check_true("crt-c-fs-header-stdin", h.fds.attach(term_entry, 0));
+        check_true("crt-c-fs-header-stdout-reserve", h.fds.attach(term_entry, 1));
+        check_true("crt-c-fs-header-stderr", h.fds.attach(term_entry, 2));
+
+        int pipefd[2]{-1, -1};
+        check_eq("crt-c-fs-header-pipe", h.api.pipe(pipefd), 0);
+        check_true("crt-c-fs-header-dup2", h.fds.dup2(pipefd[1], 1));
+
+        const char* argv[] = {"crt_c_fs_header", nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "crt_c_fs_header";
+        cfg.argv = std::span<const char* const>(argv, 1);
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("crt-c-fs-header-spawn", sp);
+
+        auto st = h.procs.waitpid(sp.value().pid, 0);
+        check_true("crt-c-fs-header-wait", st);
+        check_eq("crt-c-fs-header-code", st.value().code, 0);
+
+        std::array<char, 32> buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, pipefd[0], buf, out_size);
+        check_eq("crt-c-fs-header-out", out, std::string_view{"c-fs-header-ok\n"});
+    }
+
     void test_newlib_syscall_probe() noexcept {
         Harness h{};
         auto rreg = h.procs.register_executable("newlib_syscall_probe", &newlib_syscall_probe_main);
@@ -1655,6 +1695,9 @@ export void run_posix_program_exec_smoke_tests() noexcept {
     log_line("[posix-smoke] programs phase crt-c-header-exit begin");
     test_crt_c_header_exit();
     log_line("[posix-smoke] programs phase crt-c-header-exit end");
+    log_line("[posix-smoke] programs phase crt-c-fs-header begin");
+    test_crt_c_fs_header();
+    log_line("[posix-smoke] programs phase crt-c-fs-header end");
     log_line("[posix-smoke] programs phase newlib-syscall begin");
     test_newlib_syscall_probe();
     log_line("[posix-smoke] programs phase newlib-syscall end");

@@ -100,6 +100,12 @@ add_compile_definitions(STM32F103xx)
 add_compile_definitions(USE_HAL_DRIVER)
 
 set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
+charm_add_config_interface(charm_cfg_daplink_charm
+    INCLUDE_DIRECTORIES
+        $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
+    COMPILE_DEFINITIONS
+        CHARM_KERNEL_REQUIRE_SSU_META=1)
 set(CHARM_ENABLE_UI_VIVID OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_MEDIA OFF CACHE BOOL "" FORCE)
@@ -107,15 +113,7 @@ set(CHARM_ENABLE_FATFS OFF CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
 set(CHARM_FATFS_ROOT "${CHARM_ROOT}/Modules/thirdparty/fatfs" CACHE PATH "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
-
-# Provide CubeMX headers to Charm-os so platform adapters can include generated HAL headers.
-target_include_directories(Charm-os PRIVATE
-    $<TARGET_PROPERTY:stm32cubemx,INTERFACE_INCLUDE_DIRECTORIES>
-)
-
-target_compile_definitions(Charm-os PRIVATE
-    CHARM_KERNEL_REQUIRE_SSU_META=1
-)
+charm_apply_config_targets(Charm-build-config charm_cfg_daplink_charm)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

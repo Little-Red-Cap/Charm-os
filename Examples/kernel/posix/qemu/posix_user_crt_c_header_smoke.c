@@ -25,4 +25,5 @@ int charm_posix_c_header_probe_entry(void) {
 int charm_posix_c_header_exit_entry(void) {
     if (charm_posix_write(1, "c-header-exit\n", 14) != 14) return 81;
     charm_posix_exit(37);
+    return 82;
 }

@@ -35,6 +35,9 @@ namespace {
     struct TermStubCtx {
         util::u32 refs{1};
         bool non_block{false};
+        char* capture{nullptr};
+        util::usize capture_cap{0};
+        util::usize capture_size{0};
     };
 
     util::Result<void> term_stat_stub(void*, posix::PosixStat& out) noexcept {
@@ -47,7 +50,16 @@ namespace {
         return util::usize{0};
     }
 
-    util::Result<util::usize> term_write_stub(void*, posix::ByteView buf) noexcept {
+    util::Result<util::usize> term_write_stub(void* ctx, posix::ByteView buf) noexcept {
+        auto* state = static_cast<TermStubCtx*>(ctx);
+        if (state && state->capture != nullptr && state->capture_size < state->capture_cap) {
+            const auto remaining = state->capture_cap - state->capture_size;
+            const auto to_copy = buf.size() < remaining ? buf.size() : remaining;
+            if (to_copy > 0) {
+                std::memcpy(state->capture + state->capture_size, buf.data(), to_copy);
+                state->capture_size += to_copy;
+            }
+        }
         return buf.size();
     }
 
@@ -1175,20 +1187,20 @@ namespace {
         }
         check_true("cat-file-load", cat_img);
 
+        std::array<char, 128> cat_stdout_buf{};
+        TermStubCtx cat_stdout_ctx{};
+        cat_stdout_ctx.capture = cat_stdout_buf.data();
+        cat_stdout_ctx.capture_cap = cat_stdout_buf.size();
         posix::FdEntry term_entry{};
         term_entry.kind = posix::FdKind::term;
         term_entry.ops = &kTermOps;
+        term_entry.ctx = &cat_stdout_ctx;
         check_true("cat-file-attach-term", h.fds.attach(term_entry, 1));
 
         {
             int err_pipe[2]{-1, -1};
             check_eq("cat-file-err-pipe", h.api.pipe(err_pipe), 0);
-            int err_read = err_pipe[0];
-            if (err_read == 2) {
-                check_true("cat-file-err-move-read", h.fds.dup2(err_read, 7));
-                err_read = 7;
-            }
-            check_true("cat-file-dup2-err", h.fds.dup2(err_pipe[1], 2));
+            cat_cfg.stdio_err = err_pipe[1];
 
             auto cat_sp = h.procs.spawn(cat_cfg);
             if (!cat_sp) {
@@ -1208,13 +1220,62 @@ namespace {
             check_true("cat-file-wait", cat_st);
             check_eq("cat-file-code", cat_st.value().code, 0);
 
-            if (err_pipe[1] != 2) {
-                (void)h.api.close(err_pipe[1]);
-            }
+            (void)h.api.close(err_pipe[1]);
             std::array<char, 32> err_buf{};
             util::usize err_size = 0;
-            auto err = read_from_fd(h.api, err_read, err_buf, err_size);
+            auto err = read_from_fd(h.api, err_pipe[0], err_buf, err_size);
             check_eq("cat-file-err", err, std::string_view{"A\nB\nC\nD\nE\nF\nF\nG\n"});
+            check_eq("cat-file-out",
+                std::string_view{cat_stdout_buf.data(), cat_stdout_ctx.capture_size},
+                std::string_view{cat_payload, sizeof(cat_payload) - 1});
+        }
+
+        {
+            cat_stdout_ctx.capture_size = 0;
+            constexpr char cat_stdin_payload[] = "stdin-data\nstdin-data\n";
+
+            int in_pipe[2]{-1, -1};
+            check_eq("cat-stdin-in-pipe", h.api.pipe(in_pipe), 0);
+            auto stdin_write = h.api.write(in_pipe[1], cat_stdin_payload, sizeof(cat_stdin_payload) - 1);
+            check_true("cat-stdin-in-write", stdin_write == static_cast<posix::ssize_t>(sizeof(cat_stdin_payload) - 1));
+            check_eq("cat-stdin-in-close", h.api.close(in_pipe[1]), 0);
+
+            int err_pipe[2]{-1, -1};
+            check_eq("cat-stdin-err-pipe", h.api.pipe(err_pipe), 0);
+
+            const char* stdin_argv[] = {"elf:/cat_file.elf", "-", nullptr};
+            posix::SpawnConfig stdin_cfg{};
+            stdin_cfg.path = "elf:/cat_file.elf";
+            stdin_cfg.argv = std::span<const char* const>(stdin_argv, 2);
+            stdin_cfg.stdio_in = in_pipe[0];
+            stdin_cfg.stdio_err = err_pipe[1];
+
+            auto stdin_sp = h.procs.spawn(stdin_cfg);
+            if (!stdin_sp) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-stdin-spawn fail: err=%lld",
+                    to_ll(stdin_sp.error()));
+                log_line(buf);
+            }
+            check_true("cat-stdin-spawn", stdin_sp);
+            auto stdin_st = h.procs.waitpid(stdin_sp.value().pid, 0);
+            if (!stdin_st) {
+                char buf[96]{};
+                std::snprintf(buf, sizeof(buf), "[posix-smoke] programs cat-stdin-wait fail: err=%lld",
+                    to_ll(stdin_st.error()));
+                log_line(buf);
+            }
+            check_true("cat-stdin-wait", stdin_st);
+            check_eq("cat-stdin-code", stdin_st.value().code, 0);
+
+            (void)h.api.close(err_pipe[1]);
+            std::array<char, 32> err_buf{};
+            util::usize err_size = 0;
+            auto err = read_from_fd(h.api, err_pipe[0], err_buf, err_size);
+            check_eq("cat-stdin-err", err, std::string_view{"A\nS\nC\nD\nE\nF\nG\n"});
+            check_eq("cat-stdin-out",
+                std::string_view{cat_stdout_buf.data(), cat_stdout_ctx.capture_size},
+                std::string_view{cat_stdin_payload, sizeof(cat_stdin_payload) - 1});
         }
 
         h.procs.enable_elf_hostcalls(false);

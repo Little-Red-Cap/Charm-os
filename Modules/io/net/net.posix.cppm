@@ -150,7 +150,7 @@ export namespace posix {
             if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            return handle->socket.recv(to_net_mut_byte_view(buf));
+            return bridge_stream_recv(*handle, to_net_mut_byte_view(buf));
         }
 
         [[nodiscard]] util::Result<util::usize> sendto(FdEntry& entry,
@@ -238,25 +238,45 @@ export namespace posix {
             return handle;
         }
 
-        static util::Result<util::usize> read(void* ctx, MutByteView buf) noexcept {
+        [[nodiscard]] static Handle* handle_from_ctx(void* ctx) noexcept {
             auto* handle = static_cast<Handle*>(ctx);
-            if (!handle || !handle->owner) {
+            if (!handle || !handle->owner || handle->refs == 0) {
+                return nullptr;
+            }
+            return handle;
+        }
+
+        [[nodiscard]] static util::Result<util::usize> bridge_stream_recv(Handle& handle,
+                                                                          net::MutByteView buf) noexcept {
+            auto received = handle.socket.recv(buf);
+            if (!received) {
+                if (handle.kind == net::SocketKind::tcp && received.error() == util::Errc::closed) {
+                    return util::unexpected(util::Errc::end_of_stream);
+                }
+                return util::unexpected(received.error());
+            }
+            return received;
+        }
+
+        static util::Result<util::usize> read(void* ctx, MutByteView buf) noexcept {
+            auto* handle = handle_from_ctx(ctx);
+            if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            return handle->socket.recv(to_net_mut_byte_view(buf));
+            return bridge_stream_recv(*handle, to_net_mut_byte_view(buf));
         }
 
         static util::Result<util::usize> write(void* ctx, ByteView buf) noexcept {
-            auto* handle = static_cast<Handle*>(ctx);
-            if (!handle || !handle->owner) {
+            auto* handle = handle_from_ctx(ctx);
+            if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             return handle->socket.send(to_net_byte_view(buf));
         }
 
         static util::Result<void> close(void* ctx) noexcept {
-            auto* handle = static_cast<Handle*>(ctx);
-            if (!handle || !handle->owner || handle->refs == 0) {
+            auto* handle = handle_from_ctx(ctx);
+            if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             if (handle->refs > 1) {
@@ -264,14 +284,17 @@ export namespace posix {
                 return {};
             }
             auto closed = handle->socket.close();
+            if (!closed) {
+                return util::unexpected(closed.error());
+            }
             auto* owner = handle->owner;
             owner->release_handle(handle);
-            return closed;
+            return {};
         }
 
         static util::Result<void> stat(void* ctx, PosixStat& out) noexcept {
-            auto* handle = static_cast<Handle*>(ctx);
-            if (!handle || !handle->owner) {
+            auto* handle = handle_from_ctx(ctx);
+            if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             out.mode = make_stat_mode(S_IFSOCK, kModePermChar);
@@ -280,8 +303,8 @@ export namespace posix {
         }
 
         static util::Result<void> dup(void* ctx) noexcept {
-            auto* handle = static_cast<Handle*>(ctx);
-            if (!handle || !handle->owner || handle->refs == 0) {
+            auto* handle = handle_from_ctx(ctx);
+            if (!handle) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
             ++handle->refs;

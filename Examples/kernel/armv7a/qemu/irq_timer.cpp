@@ -21,6 +21,8 @@ constexpr std::uint32_t kGicdIsactiver = 0x0300u;
 constexpr std::uint32_t kGicdIcactiver = 0x0380u;
 constexpr std::uint32_t kGicdIpriorityr = 0x0400u;
 constexpr std::uint32_t kGicdIcfgr = 0x0c00u;
+constexpr std::uint32_t kGicdSgir = 0x0f00u;
+constexpr std::uint32_t kGicdCpendsgir = 0x0f10u;
 
 constexpr std::uint32_t kGiccCtlr = 0x0000u;
 constexpr std::uint32_t kGiccPmr = 0x0004u;
@@ -32,14 +34,23 @@ constexpr unsigned int kSecureTimerPpi = 13u;
 constexpr unsigned int kNonSecureTimerPpi = 14u;
 constexpr unsigned int kSecureTimerIntId = 16u + kSecureTimerPpi;
 constexpr unsigned int kNonSecureTimerIntId = 16u + kNonSecureTimerPpi;
+constexpr unsigned int kSelfSgiIntId = 1u;
 constexpr unsigned int kSpecialIntIdMin = 1020u;
 constexpr unsigned int kSpuriousIntId = 1023u;
 
 constexpr std::uint32_t kTimerCtrlEnable = 1u << 0;
 constexpr std::uint32_t kTimerCtrlItMask = 1u << 1;
+constexpr std::uint32_t kGicdSgirTargetFilterSelf = 2u << 24;
 
-volatile unsigned int g_timer_irq_count = 0;
+enum IrqSmokeKind : unsigned int {
+    kIrqSmokeNone = 0u,
+    kIrqSmokeTimer = 1u,
+    kIrqSmokeSgi = 2u,
+};
+
+volatile unsigned int g_irq_count = 0;
 volatile unsigned int g_last_irq_intid = kSpuriousIntId;
+volatile unsigned int g_irq_smoke_kind = kIrqSmokeNone;
 
 inline volatile std::uint32_t& reg(std::uintptr_t addr)
 {
@@ -80,6 +91,13 @@ void gic_clear_pending(unsigned int intid)
     mmio_write(kGicDistBase,
                kGicdIcpendr + static_cast<std::uint32_t>(4u * (intid / 32u)),
                1u << (intid % 32u));
+}
+
+void gic_clear_sgi_pending(unsigned int intid)
+{
+    const auto offset = kGicdCpendsgir + static_cast<std::uint32_t>(4u * (intid / 4u));
+    const auto shift = static_cast<unsigned int>((intid % 4u) * 8u);
+    mmio_write(kGicDistBase, offset, 1u << shift);
 }
 
 void gic_clear_active(unsigned int intid)
@@ -151,6 +169,11 @@ bool is_timer_intid(unsigned int intid)
     return intid == kSecureTimerIntId || intid == kNonSecureTimerIntId;
 }
 
+bool is_sgi_intid(unsigned int intid)
+{
+    return intid == kSelfSgiIntId;
+}
+
 void gic_configure_timer_line(unsigned int intid, bool group1)
 {
     gic_disable_line(intid);
@@ -166,16 +189,38 @@ void gic_configure_timer_line(unsigned int intid, bool group1)
     gic_enable_line(intid);
 }
 
-void gic_init_timer_irq()
+void gic_configure_sgi_line(unsigned int intid)
+{
+    gic_disable_line(intid);
+    gic_clear_pending(intid);
+    gic_clear_sgi_pending(intid);
+    gic_set_group1(intid);
+    gic_set_priority(intid, 0x40u);
+    gic_enable_line(intid);
+}
+
+void gic_reset_interfaces()
 {
     mmio_write(kGicCpuBase, kGiccCtlr, 0u);
     mmio_write(kGicDistBase, kGicdCtlr, 0u);
+}
 
+void gic_init_timer_irq()
+{
+    gic_reset_interfaces();
     // CNTP uses the secure or non-secure physical PPI depending on the
     // current CPU security state. Prepare both lines so the same smoke test
     // works across QEMU reset states and future boards.
     gic_configure_timer_line(kSecureTimerIntId, false);
     gic_configure_timer_line(kNonSecureTimerIntId, true);
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
+}
+
+void gic_init_sgi_irq()
+{
+    gic_reset_interfaces();
+    gic_configure_sgi_line(kSelfSgiIntId);
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
@@ -195,6 +240,14 @@ void gic_disable_interfaces()
 {
     mmio_write(kGicCpuBase, kGiccCtlr, 0u);
     mmio_write(kGicDistBase, kGicdCtlr, 0u);
+    armv7a_data_sync_barrier();
+    armv7a_instruction_sync_barrier();
+}
+
+void gic_send_self_sgi(unsigned int intid)
+{
+    mmio_write(kGicDistBase, kGicdSgir,
+               kGicdSgirTargetFilterSelf | (intid & 0x0fu));
     armv7a_data_sync_barrier();
     armv7a_instruction_sync_barrier();
 }
@@ -240,6 +293,19 @@ void print_irq_timeout(std::uint32_t timer_ctrl)
     early_uart_puts("\r\n");
 }
 
+void print_sgi_timeout()
+{
+    early_uart_puts("ARMv7-A SGI timeout, igroupr0=0x");
+    print_hex32(gic_read_line_bank(kGicdIgroupr, kSelfSgiIntId));
+    early_uart_puts(", isenabler0=0x");
+    print_hex32(gic_read_line_bank(kGicdIsenabler, kSelfSgiIntId));
+    early_uart_puts(", ispendr0=0x");
+    print_hex32(gic_read_line_bank(kGicdIspendr, kSelfSgiIntId));
+    early_uart_puts(", isactiver0=0x");
+    print_hex32(gic_read_line_bank(kGicdIsactiver, kSelfSgiIntId));
+    early_uart_puts("\r\n");
+}
+
 void print_unexpected_irq(unsigned int intid, const Armv7aExceptionFrame& frame)
 {
     early_uart_puts("ARMv7-A unexpected IRQ, intid=0x");
@@ -263,14 +329,18 @@ extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)
         return;
     }
 
-    if (is_timer_intid(intid)) {
+    if (g_irq_smoke_kind == kIrqSmokeTimer && is_timer_intid(intid)) {
         arch_timer_stop();
         g_last_irq_intid = intid;
-        g_timer_irq_count = 1u;
+        g_irq_count = 1u;
+    } else if (g_irq_smoke_kind == kIrqSmokeSgi && is_sgi_intid(intid)) {
+        arch_timer_stop();
+        g_last_irq_intid = intid;
+        g_irq_count = 1u;
     } else {
         arch_timer_stop();
         g_last_irq_intid = intid;
-        g_timer_irq_count = 1u;
+        g_irq_count = 1u;
         print_unexpected_irq(intid, *frame);
     }
 
@@ -280,8 +350,9 @@ extern "C" void armv7a_handle_irq(Armv7aExceptionFrame* frame)
 extern "C" void armv7a_irq_smoke_test()
 {
     armv7a_disable_irq();
-    g_timer_irq_count = 0;
+    g_irq_count = 0;
     g_last_irq_intid = kSpuriousIntId;
+    g_irq_smoke_kind = kIrqSmokeTimer;
 
     const auto frequency = armv7a_timer_read_cntfrq();
     std::uint32_t ticks = frequency / 200u;
@@ -297,7 +368,7 @@ extern "C" void armv7a_irq_smoke_test()
     const auto timeout = start + (frequency != 0u ? frequency : 0x100000u);
 
     armv7a_enable_irq();
-    while (g_timer_irq_count == 0u && armv7a_timer_read_cntpct() < timeout) {
+    while (g_irq_count == 0u && armv7a_timer_read_cntpct() < timeout) {
         // Keep polling instead of sleeping in WFI so a broken IRQ route still
         // reaches the timeout diagnostics instead of stalling forever.
     }
@@ -309,8 +380,9 @@ extern "C" void armv7a_irq_smoke_test()
     gic_clear_pending(kSecureTimerIntId);
     gic_clear_pending(kNonSecureTimerIntId);
     gic_disable_interfaces();
+    g_irq_smoke_kind = kIrqSmokeNone;
 
-    if (g_timer_irq_count == 0u) {
+    if (g_irq_count == 0u) {
         print_irq_timeout(armv7a_timer_read_ctrl());
         return;
     }
@@ -323,6 +395,51 @@ extern "C" void armv7a_irq_smoke_test()
     }
 
     early_uart_puts("ARMv7-A timer IRQ active, intid=");
+    print_u32_dec(g_last_irq_intid);
+    early_uart_puts("\r\n");
+}
+
+extern "C" void armv7a_sgi_smoke_test()
+{
+    armv7a_disable_irq();
+    g_irq_count = 0;
+    g_last_irq_intid = kSpuriousIntId;
+    g_irq_smoke_kind = kIrqSmokeSgi;
+
+    const auto frequency = armv7a_timer_read_cntfrq();
+    const auto start = armv7a_timer_read_cntpct();
+    const auto timeout = start + (frequency != 0u ? (frequency / 100u) : 0x100000u);
+
+    gic_init_sgi_irq();
+    gic_enable_interfaces();
+
+    armv7a_enable_irq();
+    gic_send_self_sgi(kSelfSgiIntId);
+    while (g_irq_count == 0u && armv7a_timer_read_cntpct() < timeout) {
+        // A self-targeted SGI should arrive almost immediately; keep polling
+        // so timeout diagnostics remain visible if the GIC route is broken.
+    }
+    armv7a_disable_irq();
+
+    gic_disable_line(kSelfSgiIntId);
+    gic_clear_pending(kSelfSgiIntId);
+    gic_clear_sgi_pending(kSelfSgiIntId);
+    gic_disable_interfaces();
+    g_irq_smoke_kind = kIrqSmokeNone;
+
+    if (g_irq_count == 0u) {
+        print_sgi_timeout();
+        return;
+    }
+
+    if (!is_sgi_intid(g_last_irq_intid)) {
+        early_uart_puts("ARMv7-A SGI test observed intid=");
+        print_u32_dec(g_last_irq_intid);
+        early_uart_puts("\r\n");
+        return;
+    }
+
+    early_uart_puts("ARMv7-A SGI active, intid=");
     print_u32_dec(g_last_irq_intid);
     early_uart_puts("\r\n");
 }

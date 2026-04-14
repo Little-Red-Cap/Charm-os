@@ -152,6 +152,9 @@ if (($log -notmatch "ARMv7-A section-split probe, addr=0x526[0-9A-F]{5}, before=
 if (($log -notmatch "ARMv7-A timer IRQ active, intid=(29|30)")) {
     $missing += "ARMv7-A timer IRQ active, intid=29|30"
 }
+if (($log -notmatch "ARMv7-A SGI active, intid=1")) {
+    $missing += "ARMv7-A SGI active, intid=1"
+}
 if ($missing.Count -gt 0) {
     Write-Output "[armv7a-qemu] log tail:"
     if (Test-Path $outFile) {

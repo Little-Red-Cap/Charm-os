@@ -7,6 +7,8 @@ module;
 #include <span>
 #include <string_view>
 
+#include "../elf_samples/write_file.elf.inc"
+
 export module posix.programs.fs.tests;
 
 #if defined(POSIX_PROGRAMS_SMOKE_TEST) && POSIX_PROGRAMS_SMOKE_TEST
@@ -63,6 +65,79 @@ namespace {
             (void)h.api.close(pipefd[0]);
         }
         return text;
+    }
+
+    void test_real_elf_write_file() noexcept {
+        fs::clear_mounts();
+        RamFsMount<128, 64, 256> ramfs{};
+        auto st = fs::add_mount("", ramfs.mount_point());
+        check_true("elfwrite-mount", st);
+
+        Harness h{};
+        h.procs.bind_file_service(h.files);
+        h.procs.enable_elf_exec(true);
+        h.procs.enable_elf_hostcalls(true);
+
+        int elf_fd = h.api.open("/write_file.elf", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elfwrite-elf-open", elf_fd >= 0);
+        auto elf_write = h.api.write(elf_fd, write_file_elf, write_file_elf_len);
+        check_true("elfwrite-elf-write", elf_write == static_cast<posix::ssize_t>(write_file_elf_len));
+        check_eq("elfwrite-elf-close", h.api.close(elf_fd), 0);
+
+        int seed_fd = h.api.open("/write-out.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("elfwrite-seed-open", seed_fd >= 0);
+        check_eq("elfwrite-seed-write", h.api.write(seed_fd, "old-data", 8), 8);
+        check_eq("elfwrite-seed-close", h.api.close(seed_fd), 0);
+
+        int out_pipe[2]{-1, -1};
+        check_eq("elfwrite-out-pipe", h.api.pipe(out_pipe), 0);
+
+        int err_pipe[2]{-1, -1};
+        check_eq("elfwrite-err-pipe", h.api.pipe(err_pipe), 0);
+
+        const char payload[] = "elf-write\n";
+        const char* argv[] = {"elf:/write_file.elf", "/write-out.txt", payload, nullptr};
+        posix::SpawnConfig cfg{};
+        cfg.path = "elf:/write_file.elf";
+        cfg.argv = std::span<const char* const>(argv, 3);
+        cfg.stdio_out = out_pipe[1];
+        cfg.stdio_err = err_pipe[1];
+
+        auto sp = h.procs.spawn(cfg);
+        check_true("elfwrite-spawn", sp);
+        auto wait = h.procs.waitpid(sp.value().pid, 0);
+        check_true("elfwrite-wait", wait);
+        check_eq("elfwrite-code", wait.value().code, 0);
+
+        (void)h.api.close(out_pipe[1]);
+        (void)h.api.close(err_pipe[1]);
+
+        std::array<char, 32> out_buf{};
+        util::usize out_size = 0;
+        auto out = read_from_fd(h.api, out_pipe[0], out_buf, out_size);
+        check_eq("elfwrite-out", out, std::string_view{"write-ok\n"});
+        check_eq("elfwrite-out-close", h.api.close(out_pipe[0]), 0);
+
+        std::array<char, 32> err_buf{};
+        util::usize err_size = 0;
+        auto err = read_from_fd(h.api, err_pipe[0], err_buf, err_size);
+        check_eq("elfwrite-err", err, std::string_view{});
+        check_eq("elfwrite-err-close", h.api.close(err_pipe[0]), 0);
+
+        posix::PosixStat file_st{};
+        check_eq("elfwrite-stat", h.api.stat("/write-out.txt", &file_st), 0);
+        check_eq("elfwrite-stat-size", file_st.size, static_cast<util::u64>(sizeof(payload) - 1));
+
+        int read_fd = h.api.open("/write-out.txt", posix::O_RDONLY, 0);
+        check_true("elfwrite-read-open", read_fd >= 0);
+        std::array<char, 32> file_buf{};
+        util::usize file_size = 0;
+        auto file_text = read_from_fd(h.api, read_fd, file_buf, file_size);
+        check_eq("elfwrite-file-text", file_text, std::string_view{payload, sizeof(payload) - 1});
+        check_eq("elfwrite-read-close", h.api.close(read_fd), 0);
+
+        h.procs.enable_elf_hostcalls(false);
+        h.procs.enable_elf_exec(false);
     }
 
     void test_busybox_fs_slice() noexcept {
@@ -131,6 +206,7 @@ namespace {
 export void run_posix_program_fs_smoke_tests() noexcept {
     using namespace posix::testsupport;
     log_line("[posix-smoke] programs phase fs begin");
+    test_real_elf_write_file();
     test_busybox_fs_slice();
     log_line("[posix-smoke] programs phase fs end");
 }

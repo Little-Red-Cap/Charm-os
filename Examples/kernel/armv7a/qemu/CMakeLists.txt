@@ -48,10 +48,12 @@ unset(CHARM_CONFIG_TARGETS)
 add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} PRIVATE
+    vectors.S
     startup.S
     main.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
+    exceptions.cpp
     runtime_stubs.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE

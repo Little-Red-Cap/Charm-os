@@ -2,6 +2,7 @@ import out.format;
 import out.sink;
 
 #include "armv7a_arch_timer.hpp"
+#include "armv7a_boot_page_table.hpp"
 #include "armv7a_cpu.hpp"
 #include "armv7a_mmu.hpp"
 
@@ -87,6 +88,21 @@ void print_cpu_boot_state()
     early_uart_put_hex32(armv7a_read_dacr());
     early_uart_puts("\r\n");
 }
+
+void print_boot_page_table_state()
+{
+    armv7a_prepare_boot_identity_map();
+
+    early_uart_puts("ARMv7-A L1 table ready, base=0x");
+    early_uart_put_hex32(static_cast<unsigned int>(armv7a_boot_l1_table_base()));
+    early_uart_puts(", ram=0x");
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x40200000u));
+    early_uart_puts(", gic=0x");
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x08000000u));
+    early_uart_puts(", uart=0x");
+    early_uart_put_hex32(armv7a_boot_l1_descriptor(0x09000000u));
+    early_uart_puts("\r\n");
+}
 } // namespace
 
 int main()
@@ -98,6 +114,7 @@ int main()
     early_uart_puts("Charm ARMv7-A QEMU skeleton\r\n");
     early_uart_puts("Targeting Cortex-A7 first, RK3506 later.\r\n");
     print_cpu_boot_state();
+    print_boot_page_table_state();
     print_charm_module_status();
     armv7a_svc_smoke_test();
     armv7a_irq_smoke_test();

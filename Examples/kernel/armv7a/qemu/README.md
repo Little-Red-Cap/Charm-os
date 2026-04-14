@@ -38,6 +38,7 @@ ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
+ARMv7-A L1 table ready, base=0x40208000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A SVC vector active, imm=0x000043
 ARMv7-A timer IRQ active, intid=30
@@ -82,6 +83,9 @@ continue
 - Translation and fault-status CP15 registers are now wrapped in
   `armv7a_mmu.cpp`, so we can inspect MMU/cache state today and reuse the
   same accessors when we start building page tables later.
+- A first 16KB short-descriptor L1 identity map is now prepared in RAM, but
+  it is not wired into `TTBR0` or `SCTLR.M` yet. This keeps the groundwork
+  visible without turning MMU enablement into the same change.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)

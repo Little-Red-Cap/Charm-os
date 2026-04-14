@@ -54,6 +54,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     armv7a_cpu.cpp
     armv7a_arch_timer.cpp
     armv7a_mmu.cpp
+    armv7a_boot_page_table.cpp
     early_uart.cpp
     qemu_virt_platform.cpp
     exceptions.cpp

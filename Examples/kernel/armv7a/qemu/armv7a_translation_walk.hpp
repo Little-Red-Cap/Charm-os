@@ -16,6 +16,7 @@ struct Armv7aL1DescriptorDecode {
     Armv7aL1DescriptorKind kind;
     std::uint32_t table_base;
     std::uint32_t domain;
+    std::uint32_t access_permission;
     bool execute_never;
     bool shareable;
     bool cacheable;
@@ -34,6 +35,7 @@ struct Armv7aL2DescriptorDecode {
     std::uint32_t descriptor;
     Armv7aL2DescriptorKind kind;
     std::uint32_t physical_base;
+    std::uint32_t access_permission;
     bool execute_never;
     bool shareable;
     bool cacheable;

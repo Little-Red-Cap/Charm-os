@@ -139,6 +139,8 @@ void print_fault_registers(Armv7aExceptionKind kind)
                 early_uart_puts(l2_decode.cacheable ? "yes" : "no");
                 early_uart_puts(", b=");
                 early_uart_puts(l2_decode.bufferable ? "yes" : "no");
+                early_uart_puts(", ap=0x");
+                early_uart_write_hex(l2_decode.access_permission, 1);
             }
         } else if (decode.kind == Armv7aL1DescriptorKind::kSection ||
                    decode.kind == Armv7aL1DescriptorKind::kSupersection) {
@@ -150,6 +152,8 @@ void print_fault_registers(Armv7aExceptionKind kind)
             early_uart_puts(decode.cacheable ? "yes" : "no");
             early_uart_puts(", b=");
             early_uart_puts(decode.bufferable ? "yes" : "no");
+            early_uart_puts(", ap=0x");
+            early_uart_write_hex(decode.access_permission, 1);
         }
         early_uart_puts("\r\n");
     }

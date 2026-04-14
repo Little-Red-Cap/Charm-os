@@ -9,7 +9,7 @@ constexpr std::uint32_t kSctlrI = 1u << 12;
 constexpr std::uint32_t kSctlrV = 1u << 13;
 constexpr std::uint32_t kTtbr0BaseMask = 0xffffc000u;
 constexpr std::uint32_t kTlbMvaMask = 0xfffff000u;
-constexpr std::uint32_t kDomain0Manager = 0x3u;
+constexpr std::uint32_t kDomain0Client = 0x1u;
 } // namespace
 
 extern "C" std::uint32_t armv7a_read_ttbr0()
@@ -139,7 +139,7 @@ std::uint32_t armv7a_build_ttbr0(std::uintptr_t table_base)
 
 std::uint32_t armv7a_early_dacr_value()
 {
-    return kDomain0Manager;
+    return kDomain0Client;
 }
 
 void armv7a_enable_identity_mmu(std::uintptr_t table_base)

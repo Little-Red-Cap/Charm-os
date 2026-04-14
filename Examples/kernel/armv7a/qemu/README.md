@@ -72,10 +72,10 @@ ARMv7-A boot state, cpsr=0x600001DF, mode=sys, irq=masked
 ARMv7-A cp15 state, sctlr=0x00C50078, vbar=0x40200000, mpidr=0x80000000, cntfrq=0x03B9ACA0
 ARMv7-A cache state, mmu=off, dcache=off, icache=off, high-vectors=off
 ARMv7-A translation state, ttbr0=0x00000000, ttbr1=0x00000000, ttbcr=0x00000000, dacr=0x00000000
-ARMv7-A L1 table ready, base=0x40208000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
+ARMv7-A L1 table ready, base=0x4020C000, ram=0x40211C0E, gic=0x08010C16, uart=0x09010C16
 ARMv7-A small-page alias ready, va=0x5200...., pa=0x4020...., l1=0x4020...., l2=0x4020....
 ARMv7-A small-page remap ready, va=0x52100000, pa-a=0x4020...., pa-b=0x4020...., l1=0x4021...., l2=0x4021....
-ARMv7-A MMU active, sctlr=0x00C50079, ttbr0=0x40208000, ttbcr=0x00000000, dacr=0x00000003
+ARMv7-A MMU active, sctlr=0x00C50079, ttbr0=0x4020C000, ttbcr=0x00000000, dacr=0x00000001
 ARMv7-A MMU flags, mmu=on, dcache=off, icache=off
 Charm out.format import active, PL011 @ 0x09000000
 ARMv7-A small-page probe, addr=0x5200...., before=0xC0DEF00D, via-alias=0x1BADB002, direct=0x1BADB002
@@ -149,7 +149,7 @@ ARMv7-A abort smoke, kind=prefetch-xn, addr=0x5.......
 ARMv7-A exception: prefetch abort, pc=0x5......., lr=0x5......., spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A prefetch fault, ifsr=0x0000001D, ifar=0x5......., aifsr=0x........
 ARMv7-A prefetch fault decode, status=0x0D (section permission fault), domain=0x1
-ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x500]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x500]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes, ap=0x3
 ```
 
 ```text
@@ -167,7 +167,7 @@ ARMv7-A abort smoke, kind=prefetch-page-xn, addr=0x55......
 ARMv7-A exception: prefetch abort, pc=0x55......, lr=0x55......, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A prefetch fault, ifsr=0x0000001F, ifar=0x55......, aifsr=0x........
 ARMv7-A prefetch fault decode, status=0x0F (page permission fault), domain=0x1
-ARMv7-A fault map, far=0x55......, ttbr0=0x........, l1[0x550]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x55......, ttbr0=0x........, l1[0x550]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes, ap=0x3
 ```
 
 ```text
@@ -178,7 +178,7 @@ ARMv7-A abort smoke, kind=prefetch-page-xn-runtime, addr=0x58......
 ARMv7-A exception: prefetch abort, pc=0x58......, lr=0x58......, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A prefetch fault, ifsr=0x0000001F, ifar=0x58......, aifsr=0x........
 ARMv7-A prefetch fault decode, status=0x0F (page permission fault), domain=0x1
-ARMv7-A fault map, far=0x58......, ttbr0=0x........, l1[0x580]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x58......, ttbr0=0x........, l1[0x580]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes, ap=0x3
 ```
 
 ```text
@@ -187,7 +187,7 @@ ARMv7-A abort smoke, kind=data-perm, addr=0x5......., value=0xA5A55A5A
 ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A data fault, dfsr=0x0000081D, dfar=0x5......., adfsr=0x........
 ARMv7-A data fault decode, status=0x0D (section permission fault), domain=0x1, write=yes, cm=no
-ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x510]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x5......., ttbr0=0x........, l1[0x510]=0x........ (section), domain=0x1, xn=yes, s=yes, c=yes, b=yes, ap=0x0
 ```
 
 ```text
@@ -205,7 +205,7 @@ ARMv7-A abort smoke, kind=data-page-perm, addr=0x54......, value=0xA5A55A5A
 ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A data fault, dfsr=0x0000081F, dfar=0x54......, adfsr=0x........
 ARMv7-A data fault decode, status=0x0F (page permission fault), domain=0x1, write=yes, cm=no
-ARMv7-A fault map, far=0x54......, ttbr0=0x........, l1[0x540]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x54......, ttbr0=0x........, l1[0x540]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes, ap=0x0
 ```
 
 ```text
@@ -216,7 +216,7 @@ ARMv7-A abort smoke, kind=data-page-perm-runtime, addr=0x57......, value=0xA5A55
 ARMv7-A exception: data abort, pc=0x........, lr=0x........, spsr=0x........, origin-mode=sys, current-cpsr=0x........, current-mode=abt
 ARMv7-A data fault, dfsr=0x0000081F, dfar=0x57......, adfsr=0x........
 ARMv7-A data fault decode, status=0x0F (page permission fault), domain=0x1, write=yes, cm=no
-ARMv7-A fault map, far=0x57......, ttbr0=0x........, l1[0x570]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes
+ARMv7-A fault map, far=0x57......, ttbr0=0x........, l1[0x570]=0x........ (page table), domain=0x1, l2[0x00]=0x........ (small page), xn=yes, s=yes, c=yes, b=yes, ap=0x0
 ```
 
 ## GDB attach
@@ -253,9 +253,11 @@ continue
   `armv7a_mmu.cpp`, so we can inspect MMU/cache state today and reuse the
   same accessors when we start building page tables later.
 - A first 16KB short-descriptor L1 identity map is now prepared in RAM, but
-  is now also wired into `TTBR0` with `TTBCR=0`, `DACR=0x3`, and a first
-  `SCTLR.M` enable step. The current smoke keeps both I-cache and D-cache off
-  so the very first translation bring-up stays easy to reason about.
+  is now also wired into `TTBR0` with `TTBCR=0`, `DACR=0x1`, and a first
+  `SCTLR.M` enable step. The default runtime now stays in `domain0 client`
+  instead of leaning on `domain0 manager`, while still keeping both I-cache
+  and D-cache off so the very first translation bring-up stays easy to reason
+  about.
 - The timer smoke prepares both architected physical timer PPIs.
   Current QEMU `virt` runs observed the non-secure physical timer route
   (`intid=30`), but the code also accepts the secure route (`intid=29`)
@@ -273,7 +275,7 @@ continue
   collection without destabilizing the default CI smoke.
 - The `prefetch-xn` smoke adds one XN alias in `domain1 client`, which lets
   us validate an execute-never permission abort without changing the default
-  `domain0 manager` bring-up path used by the regular smoke.
+  `domain0 client` bring-up path used by the regular smoke.
 - The `prefetch-page` smoke keeps a valid coarse L1 entry but leaves the
   matching 4KB L2 entry empty, which lets us validate a true page
   translation fault on the execute path instead of another 1MB miss.
@@ -286,7 +288,7 @@ continue
   permission abort.
 - The `data-perm` smoke adds one no-access data alias in `domain1 client`,
   which lets us validate a write-side permission abort while keeping the
-  default `domain0 manager` runtime unchanged.
+  default `domain0 client` runtime unchanged.
 - The `data-page` smoke keeps a valid coarse L1 entry but leaves the matching
   4KB L2 entry empty, which lets us validate a true page translation fault
   instead of another 1MB section miss.
@@ -306,5 +308,8 @@ continue
 - When a fault lands in a coarse L1 page-table entry, the same fault log now
   also decodes the matching L2 entry, so later 4KB-page bring-up work has the
   same one-shot visibility that section faults already enjoy.
+- Those fault logs now also show the raw short-descriptor `AP` bits, so page
+  permission flips are visible directly in the dump instead of only through
+  the syndrome.
 - This gives us a safe Cortex-A bring-up foothold before we start layering
   more of Charm on top or moving toward RK3506-specific work.

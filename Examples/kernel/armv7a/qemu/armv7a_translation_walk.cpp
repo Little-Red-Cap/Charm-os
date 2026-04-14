@@ -8,20 +8,26 @@ constexpr std::uint32_t kL1PageTable = 0x1u;
 constexpr std::uint32_t kL1Section = 0x2u;
 constexpr std::uint32_t kL1PageTableBaseMask = 0xfffffc00u;
 constexpr std::uint32_t kL1Supersection = 1u << 18;
+constexpr std::uint32_t kL1Ap2 = 1u << 15;
 constexpr std::uint32_t kL1Bufferable = 1u << 2;
 constexpr std::uint32_t kL1Cacheable = 1u << 3;
 constexpr std::uint32_t kL1ExecuteNever = 1u << 4;
 constexpr std::uint32_t kL1DomainShift = 5u;
 constexpr std::uint32_t kL1DomainMask = 0x0fu;
+constexpr std::uint32_t kL1Ap10Shift = 10u;
+constexpr std::uint32_t kL1Ap10Mask = 0x3u;
 constexpr std::uint32_t kL1Shareable = 1u << 16;
 
 constexpr std::uint32_t kL2IndexMask = 0x00ffu;
 constexpr std::uint32_t kL2TypeMask = 0x3u;
 constexpr std::uint32_t kL2LargePage = 0x1u;
 constexpr std::uint32_t kL2SmallPage = 0x2u;
+constexpr std::uint32_t kL2Ap2 = 1u << 9;
 constexpr std::uint32_t kL2ExecuteNever = 1u << 0;
 constexpr std::uint32_t kL2Bufferable = 1u << 2;
 constexpr std::uint32_t kL2Cacheable = 1u << 3;
+constexpr std::uint32_t kL2Ap10Shift = 4u;
+constexpr std::uint32_t kL2Ap10Mask = 0x3u;
 constexpr std::uint32_t kL2Shareable = 1u << 10;
 constexpr std::uint32_t kL2SmallPageBaseMask = 0xfffff000u;
 
@@ -33,6 +39,18 @@ std::uint32_t armv7a_l1_index(std::uintptr_t virtual_address)
 std::uint32_t armv7a_l2_index(std::uintptr_t virtual_address)
 {
     return static_cast<std::uint32_t>((virtual_address >> 12) & kL2IndexMask);
+}
+
+std::uint32_t armv7a_decode_l1_access_permission(std::uint32_t descriptor)
+{
+    return ((descriptor & kL1Ap2) >> 13) |
+           ((descriptor >> kL1Ap10Shift) & kL1Ap10Mask);
+}
+
+std::uint32_t armv7a_decode_l2_access_permission(std::uint32_t descriptor)
+{
+    return ((descriptor & kL2Ap2) >> 7) |
+           ((descriptor >> kL2Ap10Shift) & kL2Ap10Mask);
 }
 } // namespace
 
@@ -70,6 +88,7 @@ Armv7aL1DescriptorDecode armv7a_decode_l1_descriptor(std::uintptr_t virtual_addr
         .kind = kind,
         .table_base = descriptor & kL1PageTableBaseMask,
         .domain = (descriptor >> kL1DomainShift) & kL1DomainMask,
+        .access_permission = armv7a_decode_l1_access_permission(descriptor),
         .execute_never = (descriptor & kL1ExecuteNever) != 0u,
         .shareable = (descriptor & kL1Shareable) != 0u,
         .cacheable = (descriptor & kL1Cacheable) != 0u,
@@ -131,6 +150,7 @@ Armv7aL2DescriptorDecode armv7a_decode_l2_descriptor(std::uintptr_t virtual_addr
         .descriptor = descriptor,
         .kind = kind,
         .physical_base = descriptor & kL2SmallPageBaseMask,
+        .access_permission = armv7a_decode_l2_access_permission(descriptor),
         .execute_never = (descriptor & kL2ExecuteNever) != 0u,
         .shareable = (descriptor & kL2Shareable) != 0u,
         .cacheable = (descriptor & kL2Cacheable) != 0u,

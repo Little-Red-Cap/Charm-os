@@ -346,6 +346,12 @@ netif 是内部骨架概念，不应成为普通用户主入口。
 
 这样 HTTP/MQTT/私有协议都能跨后端复用。
 
+v0 可以先落一个最小私有诊断协议切片，例如 `net.protocol.diagnostic`：
+
+- 把 `Ping / Count / Meta / DeferredCount` 这类 typed op 收进协议模块
+- 对外给业务层暴露协议语义，而不是暴露 `opcode / codec / route trampoline` 细节
+- 继续复用同一套 `TypedServiceSession + ReactorSocketDriver` 承载面
+
 ### `net.posix`
 
 这是中后期桥接层，不是 v0 第一优先级。
@@ -602,7 +608,7 @@ host backend 可以是：
 1. 先把 `Endpoint / Socket / Typed Facade` 三层关系钉住
 2. 用 host backend 跑最小 TCP/UDP demo
 3. 把 socket readiness 接到 `io.reactor`，先跑通最小事件驱动 loopback
-4. 在 reactor 之上跑一个最小协议样例，验证协议层不必自己写等待循环
+4. 在 reactor 之上跑一个最小协议样例，验证协议层不必自己写等待循环；当前可先用 `net.protocol.diagnostic`
 5. 再把 netif/packet/driver 细化到适合 MCU 的固定容量模型
 6. 最后再推进 POSIX socket/fd 投影面
 

@@ -173,6 +173,32 @@ int charm_posix_newlib_fcntl_entry(void) {
     if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 226;
     if (close(alias_fd) != 0) return 227;
 
+    if (fcntl(0, F_SETFL, O_NONBLOCK) != 0) return 300;
+    alias_fd = open("/dev/console", O_RDONLY, 0);
+    if (alias_fd < 0) return 301;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_RDONLY) return 302;
+    if ((flags & O_NONBLOCK) == 0) return 303;
+    if (isatty(alias_fd) != 1) return 304;
+    if (fstat(alias_fd, &st) != 0) return 305;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 306;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 307;
+    if ((fcntl(0, F_GETFL) & O_NONBLOCK) != 0) return 308;
+    if (close(alias_fd) != 0) return 309;
+
+    if (fcntl(2, F_SETFL, O_NONBLOCK) != 0) return 310;
+    alias_fd = open("/dev/console", O_WRONLY, 0);
+    if (alias_fd < 0) return 311;
+    flags = fcntl(alias_fd, F_GETFL);
+    if ((flags & O_ACCMODE) != O_WRONLY) return 312;
+    if ((flags & O_NONBLOCK) == 0) return 313;
+    if (isatty(alias_fd) != 1) return 314;
+    if (fstat(alias_fd, &st) != 0) return 315;
+    if ((st.st_mode & S_IFMT) != S_IFCHR) return 316;
+    if (fcntl(alias_fd, F_SETFL, 0) != 0) return 317;
+    if ((fcntl(2, F_GETFL) & O_NONBLOCK) != 0) return 318;
+    if (close(alias_fd) != 0) return 319;
+
     if (dup2(1, 2) != 2) return 228;
     if (fcntl(2, F_GETFD) != 0) return 229;
 

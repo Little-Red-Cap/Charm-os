@@ -1506,6 +1506,85 @@ namespace {
         check_eq("termfl-stderr-close", api.close(stderr_fd), 0);
     }
 
+    void test_api_console_alias_matrix() noexcept {
+        fs::clear_mounts();
+        ApiRamFsMount<64, 32, 64> ramfs{};
+        auto mount_st = fs::add_mount("", ramfs.mount_point());
+        check_true("console-matrix-mount", mount_st);
+
+        posix::FdTable<8> fds{};
+        posix::FileService<4> files{};
+        posix::PipeService<2, 8> pipes{};
+        posix::ProcService<4, 4, 8, 4> procs{};
+        fds.init();
+        files.init();
+        pipes.init();
+        procs.init();
+
+        ChannelStubCtx channel_ctx{};
+        io::Channel channel{
+            &channel_ctx,
+            io::ChannelOps{
+                &channel_stub_read,
+                &channel_stub_write,
+                nullptr
+            }
+        };
+        posix::TermDevice term{};
+        term.channel = &channel;
+        check_true("console-matrix-attach", term.attach_stdio(fds));
+
+        posix::Api<8, 2, 8, 4, 4, 4> api{fds, files, pipes, procs};
+
+        int stdout_seed = api.open("/console-matrix.txt", posix::O_WRONLY | posix::O_CREAT | posix::O_TRUNC, 0);
+        check_true("console-matrix-stdout-seed", stdout_seed >= 0);
+        if (stdout_seed != 1) {
+            check_true("console-matrix-stdout-dup2", fds.dup2(stdout_seed, 1));
+            check_eq("console-matrix-stdout-seed-close", api.close(stdout_seed), 0);
+        }
+
+        check_eq("console-matrix-set-stdin", api.fcntl(0, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        int console_read_fd = api.open("/dev/console", posix::O_RDONLY, 0);
+        check_true("console-matrix-console-r-open", console_read_fd >= 0);
+        check_eq("console-matrix-console-r-isatty", api.isatty(console_read_fd), 1);
+        posix::PosixStat st{};
+        check_eq("console-matrix-console-r-fstat", api.fstat(console_read_fd, &st), 0);
+        check_eq("console-matrix-console-r-mode", st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("console-matrix-console-r-getfl", api.fcntl(console_read_fd, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        check_eq("console-matrix-console-r-clear", api.fcntl(console_read_fd, posix::F_SETFL, 0), 0);
+        check_eq("console-matrix-stdin-cleared", api.fcntl(0, posix::F_GETFL), posix::O_RDONLY);
+        check_eq("console-matrix-console-r-close", api.close(console_read_fd), 0);
+
+        check_eq("console-matrix-set-stdin-tty", api.fcntl(0, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        int tty_read_fd = api.open("/dev/tty", posix::O_RDONLY, 0);
+        check_true("console-matrix-tty-r-open", tty_read_fd >= 0);
+        check_eq("console-matrix-tty-r-getfl", api.fcntl(tty_read_fd, posix::F_GETFL), posix::O_RDONLY | posix::O_NONBLOCK);
+        check_eq("console-matrix-tty-r-clear", api.fcntl(tty_read_fd, posix::F_SETFL, 0), 0);
+        check_eq("console-matrix-tty-r-close", api.close(tty_read_fd), 0);
+
+        check_eq("console-matrix-set-stderr", api.fcntl(2, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        int console_write_fd = api.open("/dev/console", posix::O_WRONLY, 0);
+        check_true("console-matrix-console-w-open", console_write_fd >= 0);
+        check_eq("console-matrix-console-w-isatty", api.isatty(console_write_fd), 1);
+        check_eq("console-matrix-console-w-fstat", api.fstat(console_write_fd, &st), 0);
+        check_eq("console-matrix-console-w-mode", st.mode & posix::S_IFMT, posix::S_IFCHR);
+        check_eq("console-matrix-console-w-getfl", api.fcntl(console_write_fd, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("console-matrix-console-w-write", api.write(console_write_fd, "q", 1), static_cast<posix::ssize_t>(1));
+        check_eq("console-matrix-last-write-console", channel_ctx.last_write, static_cast<util::usize>(1));
+        check_eq("console-matrix-console-w-clear", api.fcntl(console_write_fd, posix::F_SETFL, 0), 0);
+        check_eq("console-matrix-stderr-cleared", api.fcntl(2, posix::F_GETFL), posix::O_WRONLY);
+        check_eq("console-matrix-console-w-close", api.close(console_write_fd), 0);
+
+        check_eq("console-matrix-set-stderr-tty", api.fcntl(2, posix::F_SETFL, posix::O_NONBLOCK), 0);
+        int tty_write_fd = api.open("/dev/tty", posix::O_WRONLY, 0);
+        check_true("console-matrix-tty-w-open", tty_write_fd >= 0);
+        check_eq("console-matrix-tty-w-getfl", api.fcntl(tty_write_fd, posix::F_GETFL), posix::O_WRONLY | posix::O_NONBLOCK);
+        check_eq("console-matrix-tty-w-write", api.write(tty_write_fd, "w", 1), static_cast<posix::ssize_t>(1));
+        check_eq("console-matrix-last-write-tty", channel_ctx.last_write, static_cast<util::usize>(1));
+        check_eq("console-matrix-tty-w-clear", api.fcntl(tty_write_fd, posix::F_SETFL, 0), 0);
+        check_eq("console-matrix-tty-w-close", api.close(tty_write_fd), 0);
+    }
+
     void test_api_cwd_and_spawn() noexcept {
         fs::clear_mounts();
         ApiRamFsMount<64, 32, 64> ramfs{};
@@ -1713,6 +1792,7 @@ export void run_posix_api_smoke_tests() noexcept {
     test_api_fcntl_status_flags();
     test_api_stdio_aliases();
     test_api_term_status_flags();
+    test_api_console_alias_matrix();
     test_api_cwd_and_spawn();
     test_api_errno_contracts();
     log_line("[posix-smoke] api end ok");

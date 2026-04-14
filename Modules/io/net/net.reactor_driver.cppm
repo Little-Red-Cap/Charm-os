@@ -1,11 +1,13 @@
 module;
 
+#include <concepts>
 #include <array>
 
 export module net.reactor_driver;
 
 import io.channel;
 import io.reactor;
+import net.api;
 import net.common;
 import net.reactor;
 import util.core;
@@ -325,6 +327,161 @@ export namespace net {
         int tx_budget_{4};
         bool started_{false};
         bool closed_{false};
+        errc last_error_{errc::ok};
+    };
+
+    template <typename DriverT>
+    concept AcceptDriver = requires(DriverT& t) {
+        { t.start() } -> std::same_as<Result<void>>;
+        t.stop();
+    };
+
+    template <AcceptDriver DriverT, util::usize MaxWatches>
+    class TcpSingleAcceptDriver {
+    public:
+        TcpSingleAcceptDriver(io::Reactor& reactor,
+                              SocketPoller<MaxWatches>& poller,
+                              TcpListener& listener,
+                              TcpClient& accepted_socket,
+                              DriverT& accepted_driver) noexcept
+            : reactor_(reactor),
+              poller_(poller),
+              listener_(listener),
+              accepted_socket_(accepted_socket),
+              accepted_driver_(accepted_driver),
+              listener_binding_(listener.raw()) {}
+
+        [[nodiscard]] Result<void> start(
+            util::u32 persistent_events = default_socket_reactor_events()) noexcept {
+            if (started_) {
+                return util::unexpected(errc::bad_state);
+            }
+            if (!listener_.valid()) {
+                return util::unexpected(errc::invalid_arg);
+            }
+            if (accepted_socket_.valid()) {
+                return util::unexpected(errc::bad_state);
+            }
+
+            listener_binding_.bind(listener_.raw());
+            peer_ = {};
+            accepted_ = false;
+            failed_ = false;
+            last_error_ = errc::ok;
+
+            auto sub = reactor_.subscribe(listener_binding_.channel(),
+                                          persistent_events,
+                                          &TcpSingleAcceptDriver::on_event,
+                                          this);
+            if (!sub) {
+                return util::unexpected(sub.error());
+            }
+
+            auto watch = poller_.watch(listener_.raw(),
+                                       listener_binding_.channel(),
+                                       persistent_events);
+            if (!watch) {
+                reactor_.unsubscribe(sub.value());
+                return util::unexpected(watch.error());
+            }
+
+            sub_ = sub.value();
+            watch_ = watch.value();
+            started_ = true;
+            return {};
+        }
+
+        void stop() noexcept {
+            if (sub_) {
+                reactor_.unsubscribe(sub_);
+                sub_ = {};
+            }
+            if (watch_) {
+                poller_.unwatch(watch_);
+                watch_ = {};
+            }
+            started_ = false;
+        }
+
+        [[nodiscard]] bool started() const noexcept {
+            return started_;
+        }
+
+        [[nodiscard]] bool accepted() const noexcept {
+            return accepted_;
+        }
+
+        [[nodiscard]] bool failed() const noexcept {
+            return failed_;
+        }
+
+        [[nodiscard]] errc last_error() const noexcept {
+            return last_error_;
+        }
+
+        [[nodiscard]] const Endpoint& peer() const noexcept {
+            return peer_;
+        }
+
+    private:
+        static void on_event(void* ctx, io::Channel&, util::u32 events) noexcept {
+            auto* self = static_cast<TcpSingleAcceptDriver*>(ctx);
+            if (self) {
+                self->handle(events);
+            }
+        }
+
+        void handle(util::u32 events) noexcept {
+            if ((events & static_cast<util::u32>(io::Event::error)) != 0u) {
+                mark_failed(errc::io);
+                return;
+            }
+            if ((events & static_cast<util::u32>(io::Event::closed)) != 0u) {
+                mark_failed(errc::closed);
+                return;
+            }
+            if ((events & static_cast<util::u32>(io::Event::readable)) == 0u || accepted_) {
+                return;
+            }
+
+            auto accepted = listener_.accept(accepted_socket_, &peer_);
+            if (!accepted) {
+                if (accepted.error() == errc::would_block) {
+                    return;
+                }
+                mark_failed(accepted.error());
+                return;
+            }
+
+            auto started = accepted_driver_.start();
+            if (!started) {
+                (void)accepted_socket_.close();
+                mark_failed(started.error());
+                return;
+            }
+
+            accepted_ = true;
+            stop();
+        }
+
+        void mark_failed(errc error) noexcept {
+            failed_ = true;
+            last_error_ = error;
+            stop();
+        }
+
+        io::Reactor& reactor_;
+        SocketPoller<MaxWatches>& poller_;
+        TcpListener& listener_;
+        TcpClient& accepted_socket_;
+        DriverT& accepted_driver_;
+        SocketEventChannelBinding listener_binding_{};
+        io::Subscription sub_{};
+        SocketWatch watch_{};
+        Endpoint peer_{};
+        bool started_{false};
+        bool accepted_{false};
+        bool failed_{false};
         errc last_error_{errc::ok};
     };
 }
